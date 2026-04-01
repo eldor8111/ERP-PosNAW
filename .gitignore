@@ -1,0 +1,51 @@
+# Environment variables (MAXFIY - hech qachon github ga yuklanmasin!)
+.env
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+venv/
+env/
+.venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+
+# Alembic - local migration versions (optional)
+# alembic/versions/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# VS Code
+.vscode/
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/dist-electron/
+pos-desktop/node_modules/
+pos-desktop/dist/
+
+# Large binary files
+*.vsix
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary scripts (tozalash uchun ishlatilgan)
+nul
+app.db

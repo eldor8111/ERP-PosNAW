@@ -1,0 +1,1661 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import api from '../../api/axios';
+
+const fmt    = (v) => Number(v || 0).toLocaleString('uz-UZ');
+const fmtDay = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
+
+const ic = 'border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white transition-colors hover:border-slate-300';
+
+const poMeta = {
+  draft:     { l: 'Qoralama',   c: 'bg-slate-100 text-slate-600' },
+  sent:      { l: 'Tasdiqlangan', c: 'bg-blue-100 text-blue-700' },
+  partial:   { l: 'Qisman',     c: 'bg-amber-100 text-amber-700' },
+  received:  { l: 'Qabul',      c: 'bg-emerald-100 text-emerald-700' },
+  cancelled: { l: 'Bekor',      c: 'bg-red-100 text-red-500' },
+};
+
+function Badge({ meta, val }) {
+  const m = meta[val] || { l: val, c: 'bg-slate-100 text-slate-600' };
+  return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${m.c}`}>{m.l}</span>;
+}
+function Btn({ v = 'primary', sm, children, ...p }) {
+  const cl = {
+    primary: 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shadow-indigo-200',
+    green:   'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-200',
+    red:     'bg-red-500 hover:bg-red-600 text-white shadow-sm shadow-red-200',
+    ghost:   'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200',
+    amber:   'bg-amber-500 hover:bg-amber-600 text-white shadow-sm shadow-amber-200',
+  }[v];
+  return <button className={`${sm ? 'px-3 py-1.5 text-xs' : 'px-4 py-2.5 text-sm'} rounded-xl font-semibold transition-all ${cl} disabled:opacity-50 disabled:cursor-not-allowed`} {...p}>{children}</button>;
+}
+function Lbl({ t, children }) {
+  return <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{t}</label>{children}</div>;
+}
+
+/* ─── Page header (list mode) ─── */
+function ListHeader({ btn, btnLabel, children }) {
+  return (
+    <div className="flex flex-wrap items-end gap-3 mb-4">
+      {children}
+      <div className="ml-auto">
+        <Btn onClick={btn}>+ {btnLabel}</Btn>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Create page header (back + title + right) ─── */
+function CreateHeader({ title, onBack, right }) {
+  return (
+    <div className="flex items-center gap-3 px-6 py-3.5 border-b border-slate-100 bg-white shrink-0 shadow-sm">
+      <button onClick={onBack} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-indigo-600 px-3 py-2 rounded-xl hover:bg-indigo-50 transition-all text-sm font-semibold">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+        </svg>
+        Orqaga
+      </button>
+      <div className="w-px h-6 bg-slate-200 shrink-0" />
+      <h2 className="text-base font-bold text-slate-800 flex-1">{title}</h2>
+      <div className="flex items-center gap-2">{right}</div>
+    </div>
+  );
+}
+
+/* ─── Paginator ─── */
+function Pager({ skip, limit, count, onChange }) {
+  return (
+    <div className="flex items-center justify-between px-5 py-3.5 border-t border-slate-100 bg-slate-50/60 text-sm">
+      <span className="text-slate-400 text-xs font-medium">
+        {count === 0 ? "Natija yo'q" : `${skip + 1}–${skip + count} ta ko'rsatildi`}
+      </span>
+      <div className="flex gap-1.5">
+        <button disabled={skip === 0} onClick={() => onChange(Math.max(0, skip - limit))}
+          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white disabled:opacity-40 hover:border-indigo-300 hover:text-indigo-600 transition-all text-xs font-semibold shadow-sm">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+          Oldingi
+        </button>
+        <button disabled={count < limit} onClick={() => onChange(skip + limit)}
+          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white disabled:opacity-40 hover:border-indigo-300 hover:text-indigo-600 transition-all text-xs font-semibold shadow-sm">
+          Keyingi
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Data table ─── */
+function Tbl({ cols, rows, onRow, loading, skip = 0, limit, onChange }) {
+  if (loading) return (
+    <div className="py-20 text-center">
+      <div className="inline-flex items-center gap-2 text-slate-400 text-sm">
+        <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        Yuklanmoqda...
+      </div>
+    </div>
+  );
+  if (!rows.length) return (
+    <div className="py-20 text-center text-slate-400">
+      <svg className="w-10 h-10 mx-auto mb-2 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+      </svg>
+      <p className="text-sm">Ma'lumot topilmadi</p>
+    </div>
+  );
+  return (
+    <div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-slate-50/80 border-b border-slate-100">
+              <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 w-12">#</th>
+              {cols.map(c => (
+                <th key={c.k} className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{c.l}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {rows.map((row, i) => (
+              <tr key={i} onClick={onRow ? () => onRow(row) : undefined}
+                className={`transition-colors ${onRow ? 'cursor-pointer hover:bg-indigo-50/70 active:bg-indigo-100/50' : 'hover:bg-slate-50/80'}`}>
+                <td className="px-5 py-4 text-slate-300 text-xs font-medium">{skip + i + 1}</td>
+                {cols.map(c => (
+                  <td key={c.k} className="px-5 py-4 text-slate-700 text-sm">
+                    {c.r ? c.r(row[c.k], row) : (row[c.k] ?? '—')}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {onChange && <Pager skip={skip} limit={limit} count={rows.length} onChange={onChange} />}
+    </div>
+  );
+}
+
+/* ─── Product search dropdown ─── */
+function ProdSearch({ products, onSelect, inputRef, placeholder = 'Mahsulot qidiring...' }) {
+  const [q, setQ]       = useState('');
+  const [open, setOpen] = useState(false);
+  const [navIdx, setNavIdx] = useState(-1);
+  const ref             = useRef(null);
+
+  const filtered = q.trim()
+    ? products.filter(p =>
+        p.name.toLowerCase().includes(q.toLowerCase()) ||
+        p.sku?.toLowerCase().includes(q.toLowerCase()) ||
+        p.barcode?.includes(q)
+      ).slice(0, 12)
+    : products.slice(0, 12);
+
+  const handleKeyDown = (e) => {
+    if (!open) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setNavIdx(prev => (prev < filtered.length - 1 ? prev + 1 : prev));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setNavIdx(prev => (prev > 0 ? prev - 1 : -1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (navIdx >= 0 && navIdx < filtered.length) {
+        onSelect(filtered[navIdx]);
+        setQ(''); setOpen(false); setNavIdx(-1);
+      } else if (filtered.length > 0) {
+        onSelect(filtered[0]);
+        setQ(''); setOpen(false); setNavIdx(-1);
+      }
+    }
+  };
+
+  useEffect(() => setNavIdx(-1), [q, open]);
+
+  useEffect(() => {
+    const h = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  return (
+    <div className="relative" ref={ref}>
+      <input value={q} onChange={e => { setQ(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={handleKeyDown}
+        ref={inputRef}
+        placeholder={placeholder}
+        className={`w-full ${ic}`} />
+      {open && filtered.length > 0 && (
+        <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-60 overflow-hidden max-h-72 overflow-y-auto">
+          {filtered.map((p, i) => (
+            <button key={p.id} onMouseDown={() => { onSelect(p); setQ(''); setOpen(false); }}
+              className={`w-full text-left px-4 py-2.5 hover:bg-indigo-50 border-b border-slate-100 last:border-0 flex justify-between items-center gap-3 ${navIdx === i ? 'bg-indigo-50' : ''}`}>
+              <div className="min-w-0">
+                <div className="font-medium text-slate-800 text-sm truncate">{p.name}</div>
+                <div className="text-xs text-slate-400">{p.sku}{p.barcode ? ` · ${p.barcode}` : ''}</div>
+              </div>
+              <div className="text-right shrink-0 text-xs">
+                <div className="font-semibold text-indigo-600">{fmt(p.sale_price)} so'm</div>
+                {p.wholesale_price > 0 && <div className="text-amber-600">Ulg: {fmt(p.wholesale_price)}</div>}
+                <div className="text-slate-400">Qoldiq: {fmt(p.stock_quantity)}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Supplier search combobox ─── */
+function SupSearch({ suppliers, value, onChange, placeholder = "Ta'minotchi tanlang..." }) {
+  const [q, setQ]       = useState('');
+  const [open, setOpen] = useState(false);
+  const ref             = useRef(null);
+  const selected        = suppliers.find(s => String(s.id) === String(value));
+
+  const filtered = q.trim()
+    ? suppliers.filter(s => s.name.toLowerCase().includes(q.toLowerCase())).slice(0, 12)
+    : suppliers.slice(0, 12);
+
+  useEffect(() => {
+    const h = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  const pick = (s) => { onChange(s ? s.id : ''); setQ(''); setOpen(false); };
+
+  return (
+    <div className="relative" ref={ref}>
+      <div className={`flex items-center border rounded-xl bg-white overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 transition-colors ${selected ? 'border-indigo-300' : 'border-slate-200'}`}>
+        <svg className="w-4 h-4 ml-3 shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+        <input
+          value={open ? q : (selected ? selected.name : '')}
+          onChange={e => { setQ(e.target.value); setOpen(true); if (!e.target.value) onChange(''); }}
+          onFocus={() => setOpen(true)}
+          placeholder={placeholder}
+          className="flex-1 px-3 py-2 text-sm outline-none bg-transparent min-w-0"
+        />
+        {selected && (
+          <button onMouseDown={() => pick(null)} className="px-2 text-slate-400 hover:text-red-400 text-xl leading-none">×</button>
+        )}
+      </div>
+      {open && (
+        <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-60 overflow-hidden max-h-64 overflow-y-auto">
+          {filtered.length === 0 ? (
+            <div className="px-4 py-3 text-sm text-slate-400">Topilmadi</div>
+          ) : filtered.map(s => (
+            <button key={s.id} onMouseDown={() => pick(s)}
+              className="w-full text-left px-4 py-2.5 hover:bg-indigo-50 border-b border-slate-50 last:border-0">
+              <div className="text-sm font-medium text-slate-800">{s.name}</div>
+              {s.phone && <div className="text-xs text-slate-400">{s.phone}</div>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Customer search combobox ─── */
+function CustSearch({ customers, value, onChange, placeholder = 'Ism yoki telefon...' }) {
+  const [q, setQ]       = useState('');
+  const [open, setOpen] = useState(false);
+  const ref             = useRef(null);
+  const selected        = customers.find(c => c.id === value);
+
+  const filtered = q.trim()
+    ? customers.filter(c =>
+        c.name.toLowerCase().includes(q.toLowerCase()) ||
+        (c.phone && c.phone.includes(q))
+      ).slice(0, 12)
+    : customers.slice(0, 12);
+
+  useEffect(() => {
+    const handler = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const select = (c) => { onChange(c ? c.id : ''); setQ(''); setOpen(false); };
+
+  return (
+    <div className="relative" ref={ref}>
+      <div className="flex items-center border border-slate-200 rounded-lg bg-white overflow-hidden focus-within:ring-2 focus-within:ring-indigo-400">
+        <input
+          value={open ? q : (selected ? selected.name : '')}
+          onChange={e => { setQ(e.target.value); setOpen(true); if (!e.target.value) onChange(''); }}
+          onFocus={() => setOpen(true)}
+          placeholder={placeholder}
+          className="flex-1 px-3 py-1.5 text-sm outline-none bg-transparent min-w-0"
+        />
+        {selected && (
+          <button onClick={() => select(null)} className="px-2 text-slate-400 hover:text-red-400 text-lg leading-none">×</button>
+        )}
+      </div>
+      {open && (
+        <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 overflow-hidden max-h-64 overflow-y-auto">
+          {filtered.length === 0 ? (
+            <div className="px-4 py-3 text-sm text-slate-400">Topilmadi</div>
+          ) : filtered.map(c => (
+            <button key={c.id} onMouseDown={() => select(c)}
+              className="w-full text-left px-4 py-2.5 hover:bg-indigo-50 border-b border-slate-50 last:border-0 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-medium text-slate-800">{c.name}</div>
+                {c.phone && <div className="text-xs text-slate-400">{c.phone}</div>}
+              </div>
+              {c.debt_balance > 0 && (
+                <span className="text-xs text-red-500 font-medium ml-2">Qarz: {fmt(c.debt_balance)}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Payment modal ─── */
+function PayModal({ total, onPay, onClose }) {
+  const [type, setType] = useState('cash');
+  const [paid, setPaid] = useState(String(total));
+  const change = Number(paid) - total;
+  const PAY_OPTS = [
+    { v: 'cash',  l: 'Naqd pul',  icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
+    { v: 'card',  l: 'Karta',     icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg> },
+    { v: 'debt',  l: 'Qarzga',    icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+    { v: 'mixed', l: 'Aralash',   icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg> },
+  ];
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+        {/* Modal header */}
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <h3 className="text-lg font-bold text-slate-800">To'lov</h3>
+          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <div className="p-6 space-y-4">
+          {/* Total display */}
+          <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 text-center">
+            <div className="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-1">To'lov summasi</div>
+            <div className="text-3xl font-black text-indigo-700">{fmt(total)} <span className="text-lg font-normal text-indigo-400">so'm</span></div>
+          </div>
+          {/* Payment type */}
+          <div className="grid grid-cols-2 gap-2">
+            {PAY_OPTS.map(({ v, l, icon }) => (
+              <button key={v} onClick={() => setType(v)}
+                className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold border transition-all ${
+                  type === v
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200'
+                    : 'bg-white border-slate-200 text-slate-700 hover:border-indigo-300 hover:bg-indigo-50'
+                }`}>
+                {icon} {l}
+              </button>
+            ))}
+          </div>
+          {/* Amount input */}
+          {type !== 'debt' && (
+            <div>
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">Qabul qilindi (so'm)</label>
+              <input type="number" value={paid} onChange={e => setPaid(e.target.value)} autoFocus
+                className="w-full border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 text-2xl font-bold text-center text-slate-800 focus:outline-none transition-colors" />
+              {change > 0 && Number(paid) > 0 && (
+                <div className="mt-2 flex items-center justify-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl py-2.5">
+                  <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  <span className="text-sm text-emerald-700 font-bold">Qaytim: {fmt(change)} so'm</span>
+                </div>
+              )}
+            </div>
+          )}
+          {/* Action buttons */}
+          <div className="flex gap-3">
+            <Btn v="ghost" onClick={onClose}>Bekor</Btn>
+            <button onClick={() => onPay(type, type === 'debt' ? 0 : Number(paid))}
+              className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-indigo-200 active:scale-95">
+              Tasdiqlash
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════
+   SALE CREATE VIEW — split panel, wholesale-ready
+══════════════════════════════════════════════════════════ */
+function SaleCreateView({ products, customers, onBack, onSaved }) {
+  const [cart, setCart]       = useState([]);
+  const [custId, setCust]     = useState('');
+  const [wholesale, setWhole] = useState(false);
+  const [note, setNote]       = useState('');
+  const [saving, setSaving]   = useState(false);
+  const [err, setErr]         = useState('');
+  const [showPay, setShowPay] = useState(false);
+  const [prodQ, setProdQ]     = useState('');
+  // quick-add modal
+  const [qaItem, setQaItem]   = useState(null); // { product, qty, price }
+
+  const getPrice = useCallback((p) =>
+    wholesale && p.wholesale_price ? Number(p.wholesale_price) : Number(p.sale_price),
+  [wholesale]);
+
+  // When wholesale toggles, update all cart prices
+  useEffect(() => {
+    setCart(prev => prev.map(c => ({
+      ...c,
+      price: wholesale && c.product.wholesale_price
+        ? Number(c.product.wholesale_price)
+        : Number(c.product.sale_price),
+    })));
+  }, [wholesale]);
+
+  const filteredProducts = products.filter(p => {
+    if (!prodQ.trim()) return true;
+    const lq = prodQ.toLowerCase();
+    return p.name.toLowerCase().includes(lq) || p.sku?.toLowerCase().includes(lq) || p.barcode?.includes(lq);
+  });
+
+  const addToCart = (product, qty, price, discount = 0) => {
+    setCart(prev => {
+      const ex = prev.findIndex(c => c.product.id === product.id);
+      if (ex >= 0) return prev.map((c, i) => i === ex ? { ...c, qty: c.qty + Number(qty), price: Number(price), discount: Number(discount) } : c);
+      return [...prev, { product, qty: Number(qty), price: Number(price), discount: Number(discount) }];
+    });
+    setQaItem(null);
+  };
+
+  const subtotal = cart.reduce((s, c) => s + c.qty * c.price - Number(c.discount || 0), 0);
+
+  const doSave = async (payType, paidAmount) => {
+    if (!cart.length) { setErr("Kamida bitta mahsulot qo'shing"); return; }
+    setSaving(true); setErr('');
+    try {
+      await api.post('/sales', {
+        items: cart.map(c => ({ product_id: c.product.id, quantity: c.qty, unit_price: c.price, discount: c.discount })),
+        payment_type:    payType,
+        paid_amount:     paidAmount,
+        discount_amount: 0,
+        note:            note || null,
+        customer_id:     custId ? Number(custId) : null,
+      });
+      onSaved(); onBack();
+    } catch (e) {
+      setErr(e.response?.data?.detail || 'Xatolik yuz berdi');
+    } finally { setSaving(false); setShowPay(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-40 bg-slate-50 flex flex-col">
+      {/* Header */}
+      <div className="flex items-center gap-4 px-5 py-3 bg-white border-b border-slate-100 shrink-0 shadow-sm">
+        <button onClick={onBack} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-indigo-600 px-3 py-2 rounded-xl hover:bg-indigo-50 transition-all text-sm font-semibold shrink-0">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+          </svg>
+          Orqaga
+        </button>
+        <div className="w-px h-6 bg-slate-200 shrink-0" />
+        <h2 className="text-base font-bold text-slate-800 shrink-0">Yangi sotuv</h2>
+        <div className="flex-1 flex items-center gap-2.5">
+          {/* Customer */}
+          <div className="min-w-[240px]">
+            <CustSearch customers={customers} value={custId} onChange={setCust} placeholder="Mijoz: ism yoki telefon..." />
+          </div>
+          {/* Wholesale */}
+          <button onClick={() => setWhole(w => !w)}
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold border transition-all shrink-0 ${
+              wholesale
+                ? 'bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-200'
+                : 'bg-white text-slate-600 border-slate-200 hover:border-amber-400 hover:text-amber-600'
+            }`}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+            Ulgurji
+          </button>
+          {/* Note */}
+          <input value={note} onChange={e => setNote(e.target.value)} placeholder="Izoh (ixtiyoriy)..."
+            className="flex-1 max-w-sm border border-slate-200 rounded-xl px-3.5 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 placeholder-slate-400" />
+        </div>
+        <div className="text-xs text-slate-400 shrink-0 font-medium">{new Date().toLocaleString('uz-UZ')}</div>
+      </div>
+
+      {/* Body: left = products, right = cart */}
+      <div className="flex flex-1 overflow-hidden gap-3 p-3">
+
+        {/* LEFT — Product Browser */}
+        <div className="w-[400px] shrink-0 bg-white rounded-2xl border border-slate-100 flex flex-col overflow-hidden shadow-sm">
+          {/* Search */}
+          <div className="p-3 border-b border-slate-100 bg-slate-50/50">
+            <div className="relative">
+              <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
+              </svg>
+              <input value={prodQ} onChange={e => setProdQ(e.target.value)}
+                placeholder="Mahsulot nomi, barkod yoki SKU..."
+                className="w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
+            </div>
+            <div className="flex items-center justify-between mt-2 px-1">
+              <span className="text-xs text-slate-400 font-medium">{filteredProducts.length} ta mahsulot</span>
+              {wholesale && (
+                <span className="inline-flex items-center gap-1 text-xs text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
+                  Ulgurji narxlar
+                </span>
+              )}
+            </div>
+          </div>
+          {/* Product list */}
+          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            {filteredProducts.length === 0 ? (
+              <div className="py-16 text-center text-slate-400">
+                <svg className="w-10 h-10 mx-auto mb-2 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+                <p className="text-sm">Mahsulot topilmadi</p>
+              </div>
+            ) : filteredProducts.slice(0, 100).map(p => {
+              const inCart = cart.find(c => c.product.id === p.id);
+              const displayPrice = getPrice(p);
+              const stockLow = Number(p.stock_quantity) < 5;
+              return (
+                <button key={p.id}
+                  onClick={() => setQaItem({ product: p, qty: 1, price: displayPrice, discount: 0 })}
+                  className={`w-full text-left px-3 py-2.5 rounded-xl border transition-all flex items-center gap-3 group ${
+                    inCart
+                      ? 'bg-indigo-50 border-indigo-200'
+                      : 'border-transparent hover:bg-slate-50 hover:border-slate-200'
+                  }`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 ${
+                    inCart ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-600'
+                  }`}>
+                    {inCart ? inCart.qty : p.name.slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-slate-800 text-sm truncate">{p.name}</div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs text-slate-400">{p.sku}</span>
+                      {stockLow && (
+                        <span className="text-xs text-red-500 font-medium">az: {fmt(p.stock_quantity)}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-sm font-bold text-indigo-600">{fmt(displayPrice)}</div>
+                    {wholesale && p.wholesale_price && Number(p.wholesale_price) !== Number(p.sale_price) && (
+                      <div className="text-xs text-slate-400 line-through">{fmt(p.sale_price)}</div>
+                    )}
+                    <div className="text-xs text-slate-400 mt-0.5">{fmt(p.stock_quantity)} dona</div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* RIGHT — Cart */}
+        <div className="flex-1 bg-white rounded-2xl border border-slate-100 flex flex-col overflow-hidden shadow-sm">
+          {/* Cart header */}
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 shrink-0 bg-slate-50/50">
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <span className="text-sm font-bold text-slate-700">
+                Savat {cart.length > 0 && <span className="text-indigo-600 ml-1">({cart.length} tur)</span>}
+              </span>
+            </div>
+            {cart.length > 0 && (
+              <button onClick={() => setCart([])} className="inline-flex items-center gap-1 text-xs text-red-400 hover:text-red-600 hover:bg-red-50 px-2 py-1 rounded-lg transition-all">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                Tozalash
+              </button>
+            )}
+          </div>
+
+          {/* Cart table */}
+          <div className="flex-1 overflow-y-auto">
+            {cart.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-slate-300">
+                <svg className="w-16 h-16 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1}
+                    d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <p className="text-base">Chap tarafdan mahsulot tanlang</p>
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
+                  <tr>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 w-8">№</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">MAHSULOT</th>
+                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-28">MIQDOR</th>
+                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-32">NARXI</th>
+                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-28">CHEGIRMA</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500 w-32">SUMMA</th>
+                    <th className="w-8"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {cart.map((c, i) => (
+                    <tr key={i} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-3 text-slate-400 text-xs">{i + 1}</td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-slate-800">{c.product.name}</div>
+                        <div className="text-xs text-slate-400">{c.product.sku} · {c.product.unit || 'dona'}</div>
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <button onClick={() => setCart(p => p.map((x, idx) => idx === i ? { ...x, qty: Math.max(0.001, x.qty - 1) } : x))}
+                            className="w-6 h-6 rounded border border-slate-200 text-slate-500 hover:bg-slate-100 flex items-center justify-center text-sm leading-none">−</button>
+                          <input type="number" min="0.001" step="any" value={c.qty}
+                            onChange={e => setCart(p => p.map((x, idx) => idx === i ? { ...x, qty: Number(e.target.value) || 1 } : x))}
+                            className="w-14 text-center border border-slate-200 rounded px-1 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                          <button onClick={() => setCart(p => p.map((x, idx) => idx === i ? { ...x, qty: x.qty + 1 } : x))}
+                            className="w-6 h-6 rounded border border-slate-200 text-slate-500 hover:bg-slate-100 flex items-center justify-center text-sm leading-none">+</button>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <input type="number" min="0" value={c.price}
+                          onChange={e => setCart(p => p.map((x, idx) => idx === i ? { ...x, price: Number(e.target.value) || 0 } : x))}
+                          className="w-28 text-center border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <input type="number" min="0" value={c.discount || 0}
+                          onChange={e => setCart(p => p.map((x, idx) => idx === i ? { ...x, discount: Number(e.target.value) || 0 } : x))}
+                          className="w-24 text-center border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-red-300 text-red-600" />
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-slate-800">{fmt(c.qty * c.price - Number(c.discount || 0))}</td>
+                      <td className="pr-3">
+                        <button onClick={() => setCart(p => p.filter((_, idx) => idx !== i))}
+                          className="w-6 h-6 text-slate-300 hover:text-red-500 rounded transition-colors flex items-center justify-center">✕</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Cart totals */}
+          {cart.length > 0 && (
+            <div className="border-t border-slate-200 px-4 py-3 bg-slate-50 flex items-center justify-between shrink-0">
+              <span className="text-sm text-slate-500">{cart.length} xil, {cart.reduce((s,c) => s + c.qty, 0)} ta mahsulot</span>
+              <div className="text-right">
+                <span className="text-xs text-slate-400 mr-2">Jami:</span>
+                <span className="text-xl font-bold text-indigo-600">{fmt(subtotal)} so'm</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between px-5 py-3.5 bg-white border-t border-slate-100 shrink-0 shadow-[0_-1px_8px_rgba(0,0,0,0.06)]">
+        <div className="flex items-center gap-3">
+          <Btn v="ghost" onClick={onBack}>Bekor qilish</Btn>
+          {err && <span className="text-red-500 text-sm font-medium">{err}</span>}
+        </div>
+        <div className="flex items-center gap-3">
+          {cart.length > 0 && (
+            <div className="text-sm text-slate-500 mr-2">
+              Jami: <span className="font-bold text-slate-800 text-base">{fmt(subtotal)} so'm</span>
+            </div>
+          )}
+          <Btn v="amber" disabled={saving || !cart.length} onClick={() => doSave('debt', 0)}>
+            <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+            Qarzga saqlash
+          </Btn>
+          <button disabled={saving || !cart.length} onClick={() => { setErr(''); setShowPay(true); }}
+            className="inline-flex items-center gap-2.5 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-indigo-200 active:scale-95">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+            To'lovga o'tish
+            {cart.length > 0 && <span className="bg-white/20 px-2 py-0.5 rounded-lg text-xs font-bold">{fmt(subtotal)}</span>}
+          </button>
+        </div>
+      </div>
+
+      {/* Quick-add modal */}
+      {qaItem && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4" onClick={() => setQaItem(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center text-sm font-bold shrink-0">
+                {qaItem.product.name.slice(0,2).toUpperCase()}
+              </div>
+              <div>
+                <div className="font-bold text-slate-800">{qaItem.product.name}</div>
+                <div className="text-xs text-slate-400">{qaItem.product.sku}</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div>
+                <label className="text-xs font-medium text-slate-500 mb-1 block">Miqdor</label>
+                <input type="number" min="0.001" step="any" value={qaItem.qty}
+                  autoFocus
+                  onChange={e => setQaItem(v => ({ ...v, qty: e.target.value }))}
+                  onKeyDown={e => e.key === 'Enter' && addToCart(qaItem.product, qaItem.qty, qaItem.price, qaItem.discount)}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-center font-bold" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-500 mb-1 block">Narxi (so'm)</label>
+                <input type="number" min="0" value={qaItem.price}
+                  onChange={e => setQaItem(v => ({ ...v, price: e.target.value }))}
+                  onKeyDown={e => e.key === 'Enter' && addToCart(qaItem.product, qaItem.qty, qaItem.price, qaItem.discount)}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-center font-bold" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-500 mb-1 block">Chegirma (so'm)</label>
+                <input type="number" min="0" value={qaItem.discount}
+                  onChange={e => setQaItem(v => ({ ...v, discount: e.target.value }))}
+                  onKeyDown={e => e.key === 'Enter' && addToCart(qaItem.product, qaItem.qty, qaItem.price, qaItem.discount)}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-center font-bold" />
+              </div>
+            </div>
+            {qaItem.product.wholesale_price && (
+              <div className="flex gap-2 mb-4">
+                <button onClick={() => setQaItem(v => ({ ...v, price: Number(v.product.sale_price) }))}
+                  className={`flex-1 py-1.5 text-xs rounded-lg border transition-all ${Number(qaItem.price) === Number(qaItem.product.sale_price) ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-600 hover:border-indigo-300'}`}>
+                  Chakana: {fmt(qaItem.product.sale_price)}
+                </button>
+                <button onClick={() => setQaItem(v => ({ ...v, price: Number(v.product.wholesale_price) }))}
+                  className={`flex-1 py-1.5 text-xs rounded-lg border transition-all ${Number(qaItem.price) === Number(qaItem.product.wholesale_price) ? 'bg-amber-500 text-white border-amber-500' : 'border-slate-200 text-slate-600 hover:border-amber-300'}`}>
+                  Ulgurji: {fmt(qaItem.product.wholesale_price)}
+                </button>
+              </div>
+            )}
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs text-slate-400">Jami:</span>
+              <span className="text-lg font-bold text-indigo-600">{fmt(Number(qaItem.qty) * Number(qaItem.price) - Number(qaItem.discount))} so'm</span>
+            </div>
+            <div className="flex gap-2">
+              <Btn v="ghost" onClick={() => setQaItem(null)} sm>Bekor</Btn>
+              <button onClick={() => addToCart(qaItem.product, qaItem.qty, qaItem.price, qaItem.discount)}
+                className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm transition-colors">
+                + Savatga qo'shish
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPay && <PayModal total={subtotal} onClose={() => setShowPay(false)} onPay={doSave} />}
+    </div>
+  );
+}
+
+/* ─── Sale detail view ─── */
+function SaleDetailView({ saleId, onBack }) {
+  const [sale, setSale] = useState(null);
+  useEffect(() => {
+    api.get(`/sales/${saleId}`).then(r => setSale(r.data)).catch(() => {});
+  }, [saleId]);
+  if (!sale) return <div className="py-20 text-center text-slate-400">Yuklanmoqda...</div>;
+  const debt = Number(sale.total_amount) - Number(sale.paid_amount);
+  return (
+    <div className="fixed inset-0 z-40 bg-white flex flex-col">
+      <CreateHeader title={`Sotuv · ${sale.number}`} onBack={onBack}
+        right={<Badge meta={saleMeta} val={sale.status} />}
+      />
+      <div className="p-6 overflow-y-auto flex-1">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          {[['Kassir', sale.cashier_name],['Sana', fmtDt(sale.created_at)],['To\'lov', <Badge meta={payMeta} val={sale.payment_type} />],['Holat', <Badge meta={saleMeta} val={sale.status} />]].map(([k,v]) => (
+            <div key={k} className="bg-slate-50 rounded-xl p-3">
+              <div className="text-xs text-slate-500 mb-1">{k}</div>
+              <div className="font-semibold">{v}</div>
+            </div>
+          ))}
+        </div>
+        <table className="w-full text-sm border border-slate-200 rounded-xl overflow-hidden mb-6">
+          <thead className="bg-slate-50">
+            <tr>
+              <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">№</th>
+              <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">Mahsulot</th>
+              <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">Soni</th>
+              <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">Narxi</th>
+              <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">Chegirma</th>
+              <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">Jami</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {sale.items?.map((item, i) => (
+              <tr key={item.id} className="hover:bg-slate-50">
+                <td className="px-4 py-3 text-slate-400 text-xs">{i + 1}</td>
+                <td className="px-4 py-3 font-medium">{item.product_name}</td>
+                <td className="px-4 py-3 text-center">{item.quantity}</td>
+                <td className="px-4 py-3 text-right">{fmt(item.unit_price)}</td>
+                <td className="px-4 py-3 text-right text-red-500">{Number(item.discount) > 0 ? `−${fmt(item.discount)}` : '—'}</td>
+                <td className="px-4 py-3 text-right font-semibold">{fmt(item.subtotal)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="flex justify-end">
+          <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 min-w-64 space-y-2 text-sm">
+            <div className="flex justify-between"><span className="text-slate-500">Umumiy summa:</span><span className="font-medium">{fmt(sale.total_amount)}</span></div>
+            {Number(sale.discount_amount) > 0 && <div className="flex justify-between"><span className="text-slate-500">Chegirma:</span><span className="text-red-500 font-medium">−{fmt(sale.discount_amount)}</span></div>}
+            <div className="flex justify-between"><span className="text-slate-500">To'lov miqdori:</span><span className="font-medium">{fmt(sale.paid_amount)}</span></div>
+            {debt > 0 && <div className="flex justify-between border-t pt-2"><span className="text-slate-500">Qarzga:</span><span className="text-red-500 font-bold">{fmt(debt)}</span></div>}
+            <div className="flex justify-between border-t pt-2"><span className="font-bold text-slate-700">Chegirma bilan summa:</span><span className="font-bold text-xl text-indigo-600">{fmt(sale.total_amount)}</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════
+
+/* ══════════════════════════════════════════════════════════
+   KIRIM CREATE VIEW — split panel
+══════════════════════════════════════════════════════════ */
+function KirimCreateView({ onBack, onSaved }) {
+  // Fetch our own data — don't depend on parent props (avoids race condition)
+  const [products,   setProds]  = useState([]);
+  const [warehouses, setWhs]    = useState([]);
+  const [suppliers,  setSups]   = useState([]);
+
+  useEffect(() => {
+    api.get('/products/',           { params:{ limit:200, status:'active' } })
+       .then(r => setProds(Array.isArray(r.data) ? r.data : (r.data.items||[]))).catch(()=>{});
+    api.get('/inventory/warehouses').then(r => setWhs(r.data)).catch(()=>{});
+    api.get('/suppliers',           { params:{ limit:100 } }).then(r => setSups(r.data)).catch(()=>{});
+  }, []);
+
+  // PO form
+  const [poForm, setPoForm]       = useState({ supplier_id:'', warehouse_id:'', note:'', expected_date:'' });
+  const [poItems, setPoItems]     = useState([]);
+  
+  // Auto-update price flags
+  const [autoRetail, setAutoRet]     = useState(false);
+  const [autoWholesale, setAutoWho]  = useState(false);
+  // USD exchange rate
+  const [usdRate, setUsdRate]        = useState('12700');
+  const [saving, setSaving]          = useState(false);
+  const [err, setErr]                = useState('');
+
+  // Left panel: selected product + input fields
+  const searchRef               = useRef(null);
+  const qtyRef                  = useRef(null);
+  const [sel, setSel]           = useState(null);
+  const [qty, setQty]           = useState('');
+  const [cost, setCost]         = useState('');
+  const [newSalePrice, setNewSalePrice] = useState('');
+  const [newWholesalePrice, setNewWholesalePrice] = useState('');
+  const [discType, setDiscType] = useState('pct');  // 'pct' | 'amt'
+  const [discVal, setDiscVal]   = useState('0');
+  const [currency, setCurrency] = useState('UZS');  // 'UZS' | 'USD'
+
+  const selectProduct = (p) => {
+    setSel(p);
+    setCost(String(Number(p.cost_price) || ''));
+    setNewSalePrice(p.sale_price ? String(Math.round(p.sale_price)) : '');
+    setNewWholesalePrice(p.wholesale_price ? String(Math.round(p.wholesale_price)) : '');
+    setQty(''); setDiscVal('0'); setDiscType('pct'); setCurrency('UZS');
+    setTimeout(() => { if (qtyRef.current) qtyRef.current.focus(); }, 10);
+  };
+
+  // Net cost per unit in UZS
+  const calcNet = (rawCost, dType, dVal, cur) => {
+    const c = Number(rawCost) || 0;
+    const d = Number(dVal) || 0;
+    const net = dType === 'pct' ? c * (1 - d / 100) : c - d;
+    return cur === 'USD' ? net * (Number(usdRate) || 12700) : net;
+  };
+  const selNet = calcNet(cost, discType, discVal, currency);
+
+  const addItem = () => {
+    if (!sel || !qty) return;
+    const base = {
+      product_id: sel.id, product_name: sel.name, unit: sel.unit || 'dona',
+      unit_cost: Number(cost) || 0, discount_type: discType, discount_val: Number(discVal) || 0,
+      currency, net_cost: selNet,
+      new_sale_price: newSalePrice ? Number(newSalePrice) : null,
+      new_wholesale_price: newWholesalePrice ? Number(newWholesalePrice) : null,
+    };
+    
+    setPoItems(prev => {
+      const ex = prev.find(x => x.product_id === sel.id);
+      if (ex) return prev.map(x => x.product_id === sel.id ? { ...x, qty_ordered: x.qty_ordered + Number(qty) } : x);
+      return [...prev, { ...base, qty_ordered: Number(qty) }];
+    });
+    setSel(null); setQty(''); setCost(''); setDiscVal('0');
+    setTimeout(() => { if (searchRef.current) searchRef.current.focus(); }, 10);
+  };
+
+  const updPoItem = (i, field, val) => setPoItems(prev => prev.map((x, idx) => idx === i ? { ...x, [field]: val, net_cost: calcNet(field==='unit_cost'?val:x.unit_cost, field==='discount_type'?val:x.discount_type, field==='discount_val'?val:x.discount_val, field==='currency'?val:x.currency) } : x));
+
+  const activeItems = poItems;
+  const totalNet = activeItems.reduce((s, i) => s + i.qty_ordered * (i.net_cost||0), 0);
+  const hasCurrency = activeItems.some(i => i.currency === 'USD');
+
+  const [showPay, setShowPay] = useState(false);
+  const [payForm, setPayForm] = useState({ discType: 'amt', discVal: '', cash: '', info: '' });
+
+  const calcFinalTotal = () => {
+    const d = Number(payForm.discVal) || 0;
+    return payForm.discType === 'pct' ? totalNet * (1 - d / 100) : totalNet - d;
+  };
+  const finalTotal = calcFinalTotal();
+  const paid = (Number(payForm.cash) || 0);
+  const debt = Math.max(0, finalTotal - paid);
+  const change = Math.max(0, paid - finalTotal);
+
+  const savePo = async (status = 'draft', paymentInfo = null) => {
+    if (!poForm.supplier_id || !poForm.warehouse_id || !poItems.length) { setErr("Barcha majburiy maydonlarni to'ldiring"); return; }
+    setSaving(true); setErr('');
+    try {
+      const payload = {
+        supplier_id: Number(poForm.supplier_id), warehouse_id: Number(poForm.warehouse_id),
+        status, 
+        note: poForm.note || null, expected_date: poForm.expected_date || null,
+        update_retail: autoRetail, update_wholesale: autoWholesale,
+        items: poItems.map(i => ({ 
+          product_id: i.product_id, 
+          qty_ordered: i.qty_ordered, 
+          unit_cost: i.net_cost,
+          new_sale_price: i.new_sale_price,
+          new_wholesale_price: i.new_wholesale_price
+        })),
+      };
+
+      if (paymentInfo) {
+         payload.paid_amount = paymentInfo.paid;
+         payload.discount_amount = totalNet - finalTotal; // total discount
+         payload.payment_type = 'cash';
+         if (paymentInfo.info) payload.note = (payload.note ? payload.note + '\n' : '') + paymentInfo.info;
+      }
+
+      await api.post('/purchase-orders', payload);
+      onSaved(); onBack();
+    } catch (e) { setErr(e.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-40 bg-slate-50 flex flex-col">
+      <CreateHeader title="Yangi tasdiqlangan kirim (PO)" onBack={onBack} />
+
+      {/* ── Header fields ── */}
+      <div className="flex items-center gap-3 px-6 py-3 border-b border-slate-100 bg-white shrink-0 flex-wrap shadow-sm">
+        {/* Supplier combobox */}
+        <div className="w-64">
+          <SupSearch
+            suppliers={suppliers}
+            value={poForm.supplier_id}
+            onChange={v => setPoForm(f=>({...f,supplier_id:v}))}
+            placeholder="Ta'minotchi tanlang... *"
+          />
+        </div>
+        {/* Warehouse */}
+        <select
+          value={poForm.warehouse_id}
+          onChange={e => setPoForm(f=>({...f,warehouse_id:e.target.value}))}
+          className={`${ic} min-w-40`}>
+          <option value="">Ombor *</option>
+          {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+        </select>
+        <input type="date" value={poForm.expected_date} onChange={e => setPoForm(f=>({...f,expected_date:e.target.value}))} className={ic} />
+        
+        {/* USD exchange rate — shown when any item uses USD */}
+        {(hasCurrency || currency === 'USD') && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 font-semibold">1 USD =</span>
+            <input type="number" value={usdRate} onChange={e => setUsdRate(e.target.value)}
+              className={`${ic} w-28`} placeholder="Kurs" />
+            <span className="text-xs text-slate-500">so'm</span>
+          </div>
+        )}
+        <input placeholder="Izoh" value={poForm.note}
+          onChange={e => setPoForm(f=>({...f,note:e.target.value}))}
+          className={`${ic} flex-1 min-w-32`} />
+      </div>
+
+      {/* ── Split body ── */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left panel */}
+        <div className="w-[500px] border-r border-slate-100 p-6 flex flex-col gap-6 overflow-y-auto shrink-0 bg-white shadow-sm">
+          <Lbl t="Mahsulot qidirish">
+            <ProdSearch products={products} onSelect={selectProduct} inputRef={searchRef} />
+          </Lbl>
+
+          {sel ? (
+            <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-5 space-y-4">
+              {/* Product info */}
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm font-bold shrink-0 shadow-sm">
+                  {sel.name.slice(0,2).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-slate-800 text-base truncate">{sel.name}</div>
+                  <div className="text-sm text-slate-600 mt-1">
+                    Qoldiq: <strong>{fmt(sel.stock_quantity)}</strong> {sel.unit||'dona'}
+                    <span className="mx-2 text-slate-300">|</span> 
+                    Chakana: <strong className="text-indigo-600">{fmt(sel.sale_price)}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cost price + currency */}
+              <div>
+                <label className="text-sm font-bold text-slate-600 uppercase tracking-wide mb-2 block">Tan narxi</label>
+                <div className="flex rounded-xl border border-slate-200 bg-white focus-within:ring-2 focus-within:ring-indigo-500 overflow-hidden shadow-sm">
+                  <input type="number" min="0" value={cost} onChange={e => setCost(e.target.value)}
+                    className="flex-1 min-w-0 px-4 py-3 text-base font-semibold focus:outline-none bg-transparent" />
+                  <div className="flex border-l border-slate-200">
+                    {['UZS','USD'].map(c => (
+                      <button key={c} type="button" onClick={() => setCurrency(c)}
+                        className={`px-4 py-3 text-sm font-bold transition-colors ${currency===c?'bg-indigo-600 text-white':'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Dynamic Price Update Prompt */}
+              {sel && cost && Number(cost) !== Number(sel.cost_price || 0) && (
+                <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3 shadow-sm">
+                  <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">
+                    Narx o'zgardi! Sotuv narxlarini yangilaysizmi?
+                  </p>
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <div>
+                      <label className="text-xs font-bold text-amber-700/70 mb-1.5 block">Yangi chakana narx</label>
+                      <input type="number" value={newSalePrice} onChange={e=>setNewSalePrice(e.target.value)} className={`${ic} w-full text-sm py-2 font-semibold`} placeholder={Math.round(sel.sale_price||0)} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-amber-700/70 mb-1.5 block">Yangi ulgurji narx</label>
+                      <input type="number" value={newWholesalePrice} onChange={e=>setNewWholesalePrice(e.target.value)} className={`${ic} w-full text-sm py-2 font-semibold`} placeholder={Math.round(sel.wholesale_price||0)} />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Discount */}
+              <div>
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Chegirma</label>
+                <div className="flex rounded-xl border border-slate-200 bg-white focus-within:ring-2 focus-within:ring-indigo-500 overflow-hidden">
+                  <input type="number" min="0" value={discVal} onChange={e => setDiscVal(e.target.value)}
+                    className="flex-1 min-w-0 px-3 py-2 text-sm focus:outline-none bg-transparent" />
+                  <div className="flex border-l border-slate-200">
+                    {[['pct','%'],['amt','so\'m']].map(([v,l]) => (
+                      <button key={v} type="button" onClick={() => setDiscType(v)}
+                        className={`px-2.5 py-2 text-xs font-bold transition-colors ${discType===v?'bg-amber-500 text-white':'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Net cost preview */}
+              {(Number(discVal) > 0 || currency === 'USD') && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 flex justify-between items-center">
+                  <span className="text-xs text-emerald-700 font-semibold">Sof tan narxi:</span>
+                  <span className="text-sm font-black text-emerald-700">{fmt(Math.round(selNet))} so'm</span>
+                </div>
+              )}
+
+              {/* Quantity */}
+              <Lbl t="Miqdor">
+                <div className="flex gap-2 items-center">
+                  <input type="number" min="1" step="any" value={qty} onChange={e => setQty(e.target.value)}
+                    ref={qtyRef}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && qty && Number(qty) > 0) {
+                        e.preventDefault();
+                        addItem();
+                      }
+                    }}
+                    className={`flex-1 ${ic} text-center font-bold`} />
+                  <span className="text-sm text-slate-500 font-medium shrink-0">{sel.unit||'dona'}</span>
+                </div>
+              </Lbl>
+
+              {/* Total preview */}
+              <div className="text-xs text-slate-500 text-right">
+                Jami: <strong className="text-indigo-700">{fmt(Math.round(selNet * Number(qty)))} so'm</strong>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-slate-300 flex-col gap-2 py-8">
+              <svg className="w-12 h-12 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
+              </svg>
+              <p className="text-sm text-center">Mahsulot qidiring va tanlang</p>
+            </div>
+          )}
+
+          <button onClick={addItem} disabled={!sel || !qty}
+            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl font-bold text-sm transition-all shadow-sm shadow-indigo-200 active:scale-95">
+            <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            Ro'yxatga qo'shish
+          </button>
+
+          {activeItems.length > 0 && (
+            <div className="bg-indigo-600 rounded-2xl p-4 text-white">
+              <div className="text-xs font-semibold opacity-70 uppercase tracking-wide">Jami summa</div>
+              <div className="text-2xl font-black mt-1">{fmt(Math.round(totalNet))} <span className="text-sm font-normal opacity-70">so'm</span></div>
+              <div className="text-xs opacity-60 mt-1">{activeItems.length} ta mahsulot</div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Right: items table ── */}
+        <div className="flex-1 overflow-y-auto">
+          {activeItems.length === 0 ? (
+            <div className="flex items-center justify-center h-full text-slate-300 flex-col gap-2">
+              <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+              <p>Mahsulot qo'shing</p>
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
+                <tr>
+                  <th className="text-left px-3 py-3 text-xs font-semibold text-slate-400 w-8">№</th>
+                  <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase">Mahsulot</th>
+                  <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase w-20">Soni</th>
+                  <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase">Narxi</th>
+                  <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase w-28">Chegirma</th>
+                  <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase">Sof narx</th>
+                  <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase">Jami</th>
+                  <th className="w-8"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {activeItems.map((it, i) => {
+                  const qty_n = it.qty_ordered;
+                  const discPct = it.discount_type === 'pct' ? it.discount_val : (it.unit_cost > 0 ? (it.discount_val / it.unit_cost * 100).toFixed(1) : 0);
+                  const updFn = updPoItem;
+                  return (
+                    <tr key={i} className="hover:bg-slate-50 group">
+                      <td className="px-3 py-2.5 text-slate-400 text-xs">{i+1}</td>
+                      <td className="px-3 py-2.5">
+                        <div className="font-medium text-sm">{it.product_name}</div>
+                        <div className="text-xs text-slate-400">{it.unit}</div>
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        <input type="number" min="1" value={qty_n}
+                          onChange={e => updFn(i, 'qty_ordered', Number(e.target.value))}
+                          className="w-16 text-center border border-slate-200 rounded-lg px-1.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <input type="number" min="0" value={it.unit_cost}
+                            onChange={e => updFn(i, 'unit_cost', e.target.value)}
+                            className="w-24 text-right border border-slate-200 rounded-lg px-1.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                          <button onClick={() => updFn(i, 'currency', it.currency==='UZS'?'USD':'UZS')}
+                            className={`text-[10px] font-bold px-1.5 py-1 rounded-md transition-colors ${it.currency==='USD'?'bg-emerald-100 text-emerald-700':'bg-slate-100 text-slate-500'}`}>
+                            {it.currency}
+                          </button>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <input type="number" min="0" value={it.discount_val}
+                            onChange={e => updFn(i, 'discount_val', e.target.value)}
+                            className="w-14 text-center border border-slate-200 rounded-lg px-1 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                          <button onClick={() => updFn(i, 'discount_type', it.discount_type==='pct'?'amt':'pct')}
+                            className={`text-[10px] font-bold px-1.5 py-1 rounded-md min-w-[28px] transition-colors ${it.discount_type==='pct'?'bg-amber-100 text-amber-700':'bg-violet-100 text-violet-700'}`}>
+                            {it.discount_type==='pct'?'%':'so\'m'}
+                          </button>
+                        </div>
+                        {Number(it.discount_val) > 0 && <div className="text-[10px] text-amber-600 mt-0.5">–{discPct}%</div>}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-semibold text-emerald-700 text-sm">
+                        {fmt(Math.round(it.net_cost))}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-bold text-slate-800">
+                        {fmt(Math.round(it.net_cost * qty_n))}
+                      </td>
+                      <td className="pr-2">
+                        <button onClick={() => setPoItems(p=>p.filter((_,idx)=>idx!==i))}
+                          className="p-1.5 text-slate-300 hover:text-red-500 rounded opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {/* ── Footer ── */}
+      <div className="flex items-center gap-4 px-6 py-3.5 border-t border-slate-200 bg-white shrink-0">
+        {/* Auto-update toggles */}
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Narx yangilash:</span>
+          <button onClick={() => setAutoRet(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${autoRetail?'bg-indigo-600 text-white border-indigo-600':'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'}`}>
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 012-2z" /></svg>
+            Chakana narx
+          </button>
+          <button onClick={() => setAutoWho(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${autoWholesale?'bg-amber-500 text-white border-amber-500':'bg-white text-slate-600 border-slate-200 hover:border-amber-300'}`}>
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 012-2z" /></svg>
+            Ulgurji narx
+          </button>
+        </div>
+        <div className="flex gap-2 ml-auto items-center">
+          {err && <span className="text-red-500 text-sm whitespace-nowrap bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 font-semibold">{err}</span>}
+          <Btn v="ghost" onClick={onBack}>Bekor qilish</Btn>
+          <Btn v="secondary" onClick={() => savePo('draft')} disabled={saving}>Arxivga olib qo'yish</Btn>
+          <Btn v="secondary" onClick={() => savePo('sent')} disabled={saving}>To'lovsiz saqlash</Btn>
+          <Btn onClick={() => {
+            if (!poForm.supplier_id || !poForm.warehouse_id || !poItems.length) { 
+              setErr("Barcha majburiy maydonlarni (Ta'minotchi, Ombor, Mahsulotlar) to'ldiring!"); 
+              return; 
+            }
+            setErr('');
+            setShowPay(true);
+          }} disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-200">To'lov</Btn>
+        </div>
+      </div>
+
+      {showPay && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl flex flex-col max-h-full">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h2 className="text-xl font-bold text-slate-800 tracking-tight">Kassadan to'lov <span className="text-blue-500 font-medium text-lg ml-2">{new Date().toLocaleString('uz-UZ').replace(',', '')}</span></h2>
+              <button onClick={() => setShowPay(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-6">
+              <div className="grid grid-cols-2 gap-6">
+                {/* Chegirma */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-4 text-sm font-semibold text-slate-700">
+                    Chegirma 
+                    <label className="flex items-center gap-1.5 cursor-pointer text-slate-500 font-medium hover:text-slate-700 transition-colors">
+                      <input type="radio" checked={payForm.discType==='amt'} onChange={()=>setPayForm(p=>({...p,discType:'amt'}))} className="w-4 h-4 text-blue-600" /> Foizsiz
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer text-slate-500 font-medium hover:text-slate-700 transition-colors">
+                      <input type="radio" checked={payForm.discType==='pct'} onChange={()=>setPayForm(p=>({...p,discType:'pct'}))} className="w-4 h-4 text-blue-600" /> %
+                    </label>
+                  </div>
+                  <div className="flex h-11">
+                    <input type="number" value={payForm.discVal} onChange={e=>setPayForm(p=>({...p,discVal:e.target.value}))} className={`${ic} flex-1 rounded-r-none border-r-0 text-base font-medium`} placeholder="0" />
+                    <div className="bg-slate-50 px-4 flex items-center border border-slate-200 text-slate-500 text-sm font-semibold rounded-r-xl">UZS | 1</div>
+                  </div>
+                </div>
+
+                {/* Kassa */}
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-600">Kassa</label>
+                  <select className={`${ic} h-11 bg-white text-base`} defaultValue="1">
+                    <option value="1">KASSA</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* To'lov */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-600">To'lov</label>
+                <div className="flex gap-2 h-11 items-center">
+                  {/* Naqd label separated */}
+                  <div className="bg-slate-50 px-5 flex items-center border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 h-full shadow-sm">Naqd</div>
+                  {/* Input group */}
+                  <div className="flex flex-1 items-center h-full rounded-xl focus-within:ring-2 focus-within:ring-indigo-500 overflow-hidden shadow-sm">
+                    <input type="number" min="0" value={payForm.cash} onChange={e=>setPayForm(p=>({...p,cash:e.target.value}))} className="flex-1 w-full h-full border border-slate-200 border-r-0 rounded-l-xl px-4 text-base font-medium outline-none" placeholder="0" />
+                    <div className="bg-white px-4 flex items-center border border-slate-200 border-x-0 text-indigo-600 text-sm font-bold h-full">UZS | 1</div>
+                    <button onClick={() => setPayForm(p=>({...p, cash: String(Math.round(finalTotal))}))} className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 border-l-0 font-semibold px-6 h-full rounded-r-xl transition-colors whitespace-nowrap">
+                      Umumiy Summa
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Malumot */}
+              <div className="space-y-2">
+                <textarea rows="3" value={payForm.info} onChange={e=>setPayForm(p=>({...p,info:e.target.value}))} className={`${ic} resize-none w-full text-sm leading-relaxed`} placeholder="Ma'lumot..."></textarea>
+              </div>
+
+              {/* Summary blocks aligned to right */}
+              <div className="flex flex-col items-end gap-3 pt-2">
+                <div className="flex items-center justify-between w-64 text-lg">
+                  <span className="text-slate-500">Umumiy summa:</span>
+                  <span className="font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg">{fmt(Math.round(finalTotal))}</span>
+                </div>
+                <div className="flex items-center justify-between w-64 text-lg">
+                  <span className="text-slate-500">To'lov:</span>
+                  <span className="font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-lg">{fmt(Math.round(paid))} <span className="text-xs uppercase">uzs</span></span>
+                </div>
+                <div className="flex items-center justify-between w-64 text-lg">
+                  <span className="text-slate-500">Qarzga:</span>
+                  <span className="font-bold text-red-500 bg-red-50 px-3 py-1 rounded-lg">{fmt(Math.round(debt))}</span>
+                </div>
+                <div className="flex items-center justify-between w-64 text-lg">
+                  <span className="text-slate-500">Qaytim:</span>
+                  <span className="font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-lg">{fmt(Math.round(change))}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer Buttons */}
+            {/* Modal Footer Buttons */}
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50 mt-auto rounded-b-2xl flex-wrap">
+              <div className="text-sm font-semibold text-slate-500 flex-1">Ta'minotchi qoldiq qarzi: <span className="text-slate-800 ml-1">{fmt(debt)} UZS</span></div>
+              <button onClick={() => setShowPay(false)} className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-600 font-semibold bg-white hover:bg-slate-50 transition-colors">Bekor</button>
+              <button disabled={saving} onClick={() => savePo('received', { paid: paid - change, info: payForm.info })} className="px-6 py-2.5 rounded-xl bg-orange-400 hover:bg-orange-500 text-white font-bold flex items-center gap-2 transition-colors disabled:opacity-50 shadow-sm">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                Saqla va Chop
+              </button>
+              <button disabled={saving} onClick={() => savePo('received', { paid: paid - change, info: payForm.info })} className="px-8 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-colors shadow-sm shadow-blue-200 disabled:opacity-50 flex items-center gap-2">
+                {saving ? '...' : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                    Qabul va Saqlash
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════
+   KIRIMLAR TAB
+══════════════════════════════════════════════════════════ */
+function KirimlarTab({ products, warehouses, suppliers }) {
+  const [mode, setMode]       = useState('list');
+  const [pos, setPos]         = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [skip, setSkip]       = useState(0);
+  const [stFilter, setStFil]  = useState('');
+  const [branchFilter, setBranchFilter] = useState('');
+  const [branches, setBranches] = useState([]);
+  const [detail, setDetail]   = useState(null);
+  const [recModal, setRec]    = useState(null);
+  const [recSaving, setRS]    = useState(false);
+  const LIMIT = 20;
+
+  useEffect(() => {
+    api.get('/branches').then(r => setBranches(r.data.filter(b => b.is_active))).catch(() => {});
+  }, []);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = { skip, limit: LIMIT };
+      if (stFilter) params.status = stFilter;
+      if (branchFilter) params.branch_id = branchFilter;
+      const r = await api.get('/purchase-orders', { params });
+      setPos(r.data);
+    } catch { } finally { setLoading(false); }
+  }, [skip, stFilter, branchFilter]);
+
+  useEffect(() => { if (mode === 'list') load(); }, [load, mode]);
+
+  const openDetail = async (row) => {
+    const r = await api.get(`/purchase-orders/${row.id}`);
+    setDetail(r.data);
+  };
+
+  const receivePo = async () => {
+    const pending = recModal.items.filter(i => Number(i.qty_ordered) > Number(i.qty_received));
+    setRS(true);
+    try {
+      await api.post(`/purchase-orders/${recModal.id}/receive`, {
+        items: pending.map(i => ({ po_item_id: i.id, qty_received: Number(i.qty_ordered) - Number(i.qty_received) }))
+      });
+      setRec(null); setDetail(null); load();
+    } catch { } finally { setRS(false); }
+  };
+
+  if (mode === 'create') return <KirimCreateView onBack={() => setMode('list')} onSaved={load} />;
+
+  const cols = [
+    { k:'number',         l:'Raqam' },
+    { k:'supplier_name',  l:"Ta'minotchi" },
+    { k:'warehouse_name', l:'Ombor' },
+    { k:'status',         l:'Holat', r: v => <Badge meta={poMeta} val={v} /> },
+    { k:'total_amount',   l:"Jami (so'm)", r: v => fmt(v) },
+    { k:'created_at',     l:'Sana', r: v => fmtDay(v) },
+    { k:'id', l:'', r: (v,row) => ['draft','ordered','partial'].includes(row.status) ? (
+      <button onClick={e=>{e.stopPropagation(); openDetail(row);}}
+        className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 font-medium whitespace-nowrap">
+        Qabul qilish
+      </button>
+    ) : null },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <Lbl t="Holat">
+            <select value={stFilter} onChange={e => setStFil(e.target.value)} className={ic}>
+              <option value="">Barchasi</option>
+              {Object.entries(poMeta).map(([v,m]) => <option key={v} value={v}>{m.l}</option>)}
+            </select>
+          </Lbl>
+          {branches.length > 0 && (
+            <Lbl t="Filial">
+              <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)} className={ic}>
+                <option value="">Barcha filiallar</option>
+                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </Lbl>
+          )}
+          <div className="ml-auto">
+            <Btn onClick={() => setMode('create')}>
+              <svg className="w-4 h-4 inline mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              Yangi kirim
+            </Btn>
+          </div>
+        </div>
+      </div>
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        <Tbl cols={cols} rows={pos} loading={loading} skip={skip} limit={LIMIT} onChange={setSkip} onRow={openDetail} />
+      </div>
+
+      {detail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <h3 className="text-lg font-bold">Buyurtma · {detail.number}</h3>
+              <button onClick={() => setDetail(null)} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100">✕</button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              <div className="grid grid-cols-4 gap-3 text-sm">
+                {[["Ta'minotchi",detail.supplier_name],["Ombor",detail.warehouse_name],["Holat",<Badge meta={poMeta} val={detail.status}/>],["Sana",fmtDay(detail.created_at)]].map(([k,v])=>(
+                  <div key={k} className="bg-slate-50 rounded-xl p-3"><div className="text-xs text-slate-500 mb-1">{k}</div><div className="font-semibold">{v}</div></div>
+                ))}
+              </div>
+              <table className="w-full text-sm border border-slate-200 rounded-xl overflow-hidden">
+                <thead className="bg-slate-50"><tr>
+                  <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">Mahsulot</th>
+                  <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">Buyurtma</th>
+                  <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">Qabul</th>
+                  <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">Narx</th>
+                  <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">Jami</th>
+                </tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {detail.items?.map(item => (
+                    <tr key={item.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 font-medium">{item.product_name}</td>
+                      <td className="px-4 py-3 text-center">{item.qty_ordered}</td>
+                      <td className="px-4 py-3 text-center text-emerald-600 font-semibold">{item.qty_received}</td>
+                      <td className="px-4 py-3 text-right">{fmt(item.unit_cost)}</td>
+                      <td className="px-4 py-3 text-right font-semibold">{fmt(Number(item.qty_ordered)*Number(item.unit_cost))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 border-t">
+              <Btn v="ghost" onClick={() => setDetail(null)}>Yopish</Btn>
+              {['draft','ordered','partial'].includes(detail.status) && (
+                <Btn v="green" onClick={() => { setRec(detail); setDetail(null); }}>Qabul qilish</Btn>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {recModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h3 className="text-lg font-bold mb-4">Qabul qilish · {recModal.number}</h3>
+            <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden mb-4">
+              {recModal.items?.filter(i => Number(i.qty_ordered)>Number(i.qty_received)).map(item => (
+                <div key={item.id} className="flex justify-between px-4 py-3">
+                  <span className="font-medium text-sm">{item.product_name}</span>
+                  <span className="text-indigo-600 font-semibold">+{Number(item.qty_ordered)-Number(item.qty_received)}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <Btn v="ghost" onClick={() => setRec(null)} className="flex-1">Bekor</Btn>
+              <Btn v="green" onClick={receivePo} disabled={recSaving} className="flex-1">{recSaving?'...':'Tasdiqlash'}</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════
+
+/* ===================== TA'MINOTCHILAR TAB ===================== */
+const emptySupplier = {
+  name: '', inn: '', phone: '', email: ''
+};
+function StarRating({ value }) {
+  return <div className="flex gap-0.5">{[1,2,3,4,5].map(s=><span key={s} className={`text-base ${(value||0)>=s?'text-amber-400':'text-slate-200'}`}>\u2605</span>)}</div>;
+}
+function AvatarS({ name }) {
+  const cols=['bg-indigo-100 text-indigo-600','bg-emerald-100 text-emerald-600','bg-violet-100 text-violet-600','bg-rose-100 text-rose-600','bg-amber-100 text-amber-600'];
+  const c=cols[(name?.charCodeAt(0)||0)%cols.length];
+  return <div className={`w-8 h-8 ${c} rounded-full flex items-center justify-center font-bold shrink-0 text-sm`}>{name?.charAt(0).toUpperCase()}</div>;
+}
+function SuppliersTab() {
+  const [list, setList] = useState([]);
+  const [search, setSearch] = useState('');
+  const [modal, setModal] = useState(null);
+  const [sel, setSel] = useState(null);
+  const [form, setForm] = useState(emptySupplier);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+  const inp = 'w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white';
+
+  const load = (q=search) => api.get(`/suppliers${q?'?search='+encodeURIComponent(q):''}`).then(r=>setList(r.data)).catch(()=>{});
+  useEffect(()=>{load();},[]);
+  useEffect(()=>{const t=setTimeout(()=>load(search),400);return()=>clearTimeout(t);},[search]);
+  const close=()=>{setModal(null);setSel(null);setErr('');};
+  const openEdit=(s)=>{setForm({name:s.name,inn:s.inn||'',phone:s.phone||'',email:s.email||''});setSel(s);setErr('');setModal('form');};
+  const handleSave=async(e)=>{
+    e.preventDefault();setSaving(true);setErr('');
+    try{
+      const p={...form};
+      if(sel)await api.patch(`/suppliers/${sel.id}`,p);else await api.post('/suppliers',p);close();load();
+    }catch(ex){setErr(ex.response?.data?.detail||'Xatolik');}finally{setSaving(false);}};
+  const del=async(id)=>{if(!confirm("O'chirilsinmi?"))return;await api.delete(`/suppliers/${id}`);load();};
+
+  return(
+    <div className="space-y-4">
+      <div className="flex gap-3">
+        <div className="relative flex-1"><svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <input className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Ta'minotchi qidirish..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
+        <button onClick={()=>{setForm(emptySupplier);setSel(null);setErr('');setModal('form');}} className="px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold rounded-xl flex items-center gap-2">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>Yangi
+        </button>
+      </div>
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        <table className="min-w-full">
+          <thead><tr className="bg-slate-50 border-b border-slate-100">{["Ta'minotchi",'INN','Telefon','Reyting',''].map(h=><th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>)}</tr></thead>
+          <tbody className="divide-y divide-slate-50">
+            {list.map(s=>(
+              <tr key={s.id} className="hover:bg-slate-50">
+                <td className="px-5 py-4"><div className="flex items-center gap-2.5"><AvatarS name={s.name}/><div><div className="text-sm font-semibold text-slate-800">{s.name}</div>{s.email&&<div className="text-xs text-slate-400">{s.email}</div>}</div></div></td>
+                <td className="px-5 py-4 text-sm font-mono text-slate-600">{s.inn||'\u2014'}</td>
+                <td className="px-5 py-4 text-sm text-slate-500">{s.phone||'\u2014'}</td>
+                <td className="px-5 py-4"><StarRating value={s.rating}/></td>
+                <td className="px-5 py-4"><div className="flex items-center gap-1">
+                  <button onClick={()=>openEdit(s)} className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
+                  <button onClick={()=>del(s.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+                </div></td>
+              </tr>
+            ))}
+            {list.length===0&&<tr><td colSpan={5} className="px-5 py-12 text-center text-slate-400 text-sm">Ta'minotchilar topilmadi</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      {modal==='form'&&(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col" onClick={e=>e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-100 shrink-0">
+              <h3 className="text-lg font-bold text-slate-800">{sel?"Tahrirlash":"Yangi ta'minotchi"}</h3>
+              <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+            </div>
+            <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2"><label className="block text-xs font-semibold text-slate-600 mb-1.5">Nomi *</label><input required className={inp} value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Kompaniya nomi"/></div>
+                <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">INN</label><input className={inp} value={form.inn} onChange={e=>setForm({...form,inn:e.target.value})}/></div>
+                <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">Telefon</label><input className={inp} value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/></div>
+                <div className="col-span-2"><label className="block text-xs font-semibold text-slate-600 mb-1.5">Email</label><input type="email" className={inp} value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></div>
+              </div>
+              {err&&<div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}
+            </form>
+            <div className="p-6 border-t border-slate-100 flex gap-3 shrink-0">
+              <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm font-medium rounded-xl hover:bg-slate-50">Bekor</button>
+              <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving?'Saqlanmoqda...':'Saqlash'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ===================== BUYURTMALAR TAB ===================== */
+function PurchaseOrdersTab() {
+  const [pos, setPos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const load = async () => {
+    setLoading(true);
+    try { const { data } = await api.get('/purchase-orders'); setPos(data); }
+    catch {} finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+      {loading ? (
+        <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"/></div>
+      ) : (
+        <table className="min-w-full">
+          <thead><tr className="bg-slate-50 border-b border-slate-100">{["Raqam","Ta'minotchi","Ombor","Summa","Holat"].map(h=><th key={h} className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
+          <tbody className="divide-y divide-slate-50">
+            {pos.map(p=>(
+              <tr key={p.id} className="hover:bg-slate-50">
+                <td className="px-6 py-4 text-sm font-mono font-semibold text-indigo-600">{p.number}</td>
+                <td className="px-6 py-4 text-sm text-slate-700 font-medium">{p.supplier_name}</td>
+                <td className="px-6 py-4 text-sm text-slate-500">{p.warehouse_name}</td>
+                <td className="px-6 py-4 text-sm font-semibold text-slate-800">{Number(p.total_amount).toLocaleString()} <span className="text-slate-400 font-normal">so'm</span></td>
+                <td className="px-6 py-4 text-sm text-slate-500">{p.status}</td>
+              </tr>
+            ))}
+            {pos.length===0&&<tr><td colSpan={5} className="px-6 py-16 text-center text-slate-400 text-sm">Buyurtmalar topilmadi</td></tr>}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+/* ===================== MAIN ===================== */
+const TABS = [
+  { id: 'kirimlar',  label: 'Kirimlar',         icon: '\u{1F4E6}' },
+  { id: 'suppliers', label: "Ta'minotchilar",    icon: '\u{1F3ED}' },
+  { id: 'orders',    label: 'Buyurtmalar (PO)',  icon: '\u{1F4CB}' },
+];
+
+export default function Purchases() {
+  const [tab, setTab] = useState('kirimlar');
+  const [products, setProducts] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
+
+  useEffect(() => {
+    api.get('/products/', { params:{ limit:300 } }).then(r => setProducts(r.data.items||r.data)).catch(()=>{});
+    api.get('/inventory/warehouses').then(r => setWarehouses(r.data)).catch(()=>{});
+    api.get('/suppliers', { params:{ limit:100 } }).then(r => setSuppliers(r.data)).catch(()=>{});
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-800">Xarid va Ta'minotchilar</h1>
+        <p className="text-slate-500 text-sm mt-0.5">Kirimlar, ta'minotchilar va buyurtmalar</p>
+      </div>
+      <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
+        {TABS.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)}
+            className={`px-5 py-2 text-sm font-semibold rounded-lg transition-all flex items-center gap-2 ${tab===t.id?'bg-white text-slate-800 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>
+            <span>{t.icon}</span>{t.label}
+          </button>
+        ))}
+      </div>
+      {tab==='kirimlar'  && <KirimlarTab products={products} warehouses={warehouses} suppliers={suppliers}/>}
+      {tab==='suppliers' && <SuppliersTab/>}
+      {tab==='orders'    && <PurchaseOrdersTab/>}
+    </div>
+  );
+}

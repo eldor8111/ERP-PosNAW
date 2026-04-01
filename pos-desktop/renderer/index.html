@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ERPPos Kassir</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="pos.css">
+</head>
+<body>
+
+<!-- TITLEBAR -->
+<div class="titlebar" id="titlebar">
+  <div class="tb-left">
+    <div class="tb-logo">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+        <path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-1.4 7h11.8M10 20a1 1 0 100 2 1 1 0 000-2zm7 0a1 1 0 100 2 1 1 0 000-2z"/>
+      </svg>
+    </div>
+    <span class="tb-name">ERPPos Kassir</span>
+    <span class="tb-ver">v1.0</span>
+  </div>
+
+  <!-- TABS -->
+  <nav class="tb-tabs" id="mainTabs">
+    <button class="tab active" data-tab="sale" onclick="switchTab('sale')">Sotuv</button>
+    <button class="tab" data-tab="return" onclick="switchTab('return')">Qaytarish</button>
+    <button class="tab" data-tab="products" onclick="switchTab('products')">Mahsulotlar</button>
+    <button class="tab" data-tab="favorites" onclick="switchTab('favorites')">⭐ Sevimlilar</button>
+  </nav>
+
+  <div class="tb-right">
+    <div class="company-info" id="companyInfo" style="display:none">
+      <div class="ci-top">
+        <span class="ci-name" id="companyName">-</span>
+        <span class="ci-code" id="companyCode">-</span>
+      </div>
+      <div class="ci-balance">
+        <span style="font-size:10px;color:var(--ink3)">Balans:</span>
+        <span class="ci-balance-val" id="companyBalance">0 so'm</span>
+      </div>
+    </div>
+    <div class="smena-badge" id="smenaBadge" onclick="showSmenaInfo()">
+      <div class="sm-dot" id="smDot"></div>
+      <span id="smenaLabel">Smena yo'q</span>
+    </div>
+    <button class="tb-icon-btn" title="Bildirishnomalar" onclick="toast('Bildirishnomalar yo\'q','info')">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/>
+      </svg>
+    </button>
+    <button class="btn-smena" id="smenaBtn" onclick="handleSmenaClick()">⟳ Smena</button>
+    <div class="tb-clock" id="tbClock">00:00</div>
+
+    <!-- 3-DOT MENU -->
+    <div class="dot-menu-wrap" id="dotMenuWrap">
+      <button class="tb-icon-btn dot-btn" onclick="toggleDotMenu()">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+          <circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/>
+        </svg>
+      </button>
+      <div class="dot-dropdown" id="dotDropdown">
+        <button class="dd-item" onclick="switchTab('sale');closeDotMenu()">
+          <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4"/></svg>
+          Sotuv
+        </button>
+        <button class="dd-item" onclick="switchTab('return');closeDotMenu()">
+          <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 009 9 9 9 0 009-9 9 9 0 00-9-9"/><path d="M3 12V7m0 5h5"/></svg>
+          Qaytarish
+        </button>
+        <div class="dd-sep"></div>
+        <button class="dd-item" onclick="switchTab('settings');closeDotMenu()">
+          <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          Sozlamalar
+        </button>
+        <button class="dd-item" onclick="switchTab('kassa');closeDotMenu()">
+          <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+          Kassa
+        </button>
+        <div class="dd-sep"></div>
+        <button class="dd-item" onclick="doLogout()" style="color:var(--red)">
+          <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1"/></svg>
+          Chiqish
+        </button>
+      </div>
+    </div>
+
+    <!-- WINDOW CONTROLS -->
+    <div class="win-controls">
+      <button onclick="winCtrl('minimize')" title="Kichraytirish">─</button>
+      <button onclick="winCtrl('maximize')" title="Kattalashtirish">□</button>
+      <button class="close" onclick="winCtrl('close')" title="Yopish">✕</button>
+    </div>
+  </div>
+</div>
+
+<!-- VIEWS -->
+<div class="views-wrap" id="viewsWrap">
+
+  <!-- ══════════ SOTUV ══════════ -->
+  <div class="view active" id="view-sale">
+    <div class="sale-layout">
+      <!-- LEFT: Product search + grid -->
+      <div class="sale-left">
+        <div class="sale-search-bar">
+          <div class="search-box" style="flex:1">
+            <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input id="saleSearchInput" placeholder="Mahsulot nomi yoki barkod..." oninput="saleSearch(this.value)" onkeydown="saleBarcodeKey(event)">
+            <button id="searchClearBtn" onclick="clearSearch()" style="display:none;border:none;background:none;cursor:pointer;color:var(--ink3);padding:0 4px;font-size:16px;line-height:1">×</button>
+          </div>
+        </div>
+        <div class="cat-tabs-row" id="catTabsRow"></div>
+        <div class="sale-grid" id="saleGrid">
+          <div class="sale-loading">
+            <div class="spin"></div>
+            <span>Mahsulotlar yuklanmoqda...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Cart -->
+      <div class="sale-right">
+        <div class="cart-header">
+          <span class="cart-title">🛒 Savat</span>
+          <button class="cart-clear-btn" onclick="clearCart()" title="Savatni tozalash">Tozalash</button>
+        </div>
+
+        <!-- Customer -->
+        <div class="cart-section">
+          <select class="fsel-sm" id="saleCustomer" style="width:100%" onchange="onCustomerChange()">
+            <option value="">👤 Mijoz tanlang...</option>
+          </select>
+        </div>
+
+        <div class="cart-items" id="cartItems">
+          <div class="cart-empty">
+            <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4"/><circle cx="9" cy="19" r="1"/><circle cx="20" cy="19" r="1"/></svg>
+            <span>Savat bo'sh</span>
+          </div>
+        </div>
+
+        <div class="cart-totals" id="cartTotals" style="display:none">
+          <div class="ct-row"><span>Jami miqdor:</span><span id="cartQtyTotal">0</span></div>
+          <div class="ct-row"><span>Chegirma:</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              <input type="number" class="discount-inp" id="discountInp" min="0" max="100" placeholder="0" oninput="calcCart()"> %
+            </div>
+          </div>
+          <div class="ct-row total-row"><span>JAMI:</span><span id="cartGrandTotal" class="grand-total">0 so'm</span></div>
+        </div>
+
+        <!-- Payment -->
+        <div class="pay-section" id="paySection" style="display:none">
+          <div class="pay-methods">
+            <button class="pay-btn active" id="pm-cash" onclick="selectPayMethod('cash')">💵 Naqd</button>
+            <button class="pay-btn" id="pm-card" onclick="selectPayMethod('card')">💳 Karta</button>
+            <button class="pay-btn" id="pm-debt" onclick="selectPayMethod('debt')">📋 Nasiya</button>
+          </div>
+          <div class="pay-amount-wrap">
+            <label class="pay-label">Qabul qilingan summa</label>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="number" class="pay-amount-inp" id="payAmountInp" placeholder="0" oninput="calcChange()" style="flex:1">
+              <button onclick="fillTotal()" title="Jami summani kiriting" style="padding:8px 12px;background:var(--blue);color:#fff;border:none;border-radius:var(--r-xs);cursor:pointer;font-size:12px;font-weight:700;white-space:nowrap">=JAMI</button>
+            </div>
+            <div class="change-row" id="changeRow" style="display:none">
+              <span>Qaytim:</span>
+              <span class="change-val" id="changeVal">0 so'm</span>
+            </div>
+          </div>
+          <button class="btn-pay" id="payBtn" onclick="processSale()">
+            ✓ TO'LOV QILISH
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ QAYTARISH ══════════ -->
+  <div class="view" id="view-return">
+    <div class="inner-wrap">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">Qaytarish</h2>
+          <p class="section-sub">Sotuv raqami bo'yicha qaytarish</p>
+        </div>
+      </div>
+
+      <div class="two-col-layout">
+        <div class="col-main">
+          <div class="acard">
+            <div class="ac-head"><span class="ac-title">🔍 Sotuv qidirish</span></div>
+            <div class="ac-body">
+              <div style="display:flex;gap:10px">
+                <div class="search-box" style="flex:1">
+                  <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                  <input id="returnSearchInp" placeholder="Sotuv raqami yoki mijoz nomi..." oninput="searchReturns(this.value)">
+                </div>
+                <button class="btn-blue" onclick="searchReturns(document.getElementById('returnSearchInp').value)">Qidirish</button>
+              </div>
+              <div id="returnSaleList" class="mt-10">
+                <div class="empty-state">Sotuv raqamini kiriting</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-side">
+          <div class="acard">
+            <div class="ac-head"><span class="ac-title">📦 Qaytariladigan mahsulotlar</span></div>
+            <div class="ac-body">
+              <div id="returnItemsList">
+                <div class="empty-state">Sotuvni tanlang</div>
+              </div>
+              <button class="btn-blue" style="width:100%;margin-top:12px" id="processReturnBtn" onclick="processReturn()" disabled>
+                ↩ QAYTARISHNI TASDIQLASH
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ KIRIM ══════════ -->
+  <div class="view" id="view-kirim">
+    <div class="inner-wrap">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">Mahsulot Kirim</h2>
+          <p class="section-sub">Yetkazib beruvchidan tovar qabul qilish</p>
+        </div>
+        <button class="btn-blue" onclick="openKirimForm()">+ Yangi Kirim</button>
+      </div>
+
+      <div class="acard">
+        <div class="ac-head">
+          <span class="ac-title">📋 So'nggi kirimlar</span>
+        </div>
+        <div class="ac-body" style="padding:0">
+          <div id="kirimList" style="min-height:200px">
+            <div class="empty-state" style="padding:40px">Kirimlar yuklanmoqda...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ MAHSULOTLAR ══════════ -->
+  <div class="view" id="view-products">
+    <div class="inner-wrap">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">Mahsulotlar</h2>
+          <p class="section-sub">Qoldiqlar va narxlar</p>
+        </div>
+        <div style="display:flex;gap:10px">
+          <div class="search-box">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input id="prodSearchInp" placeholder="Mahsulot qidirish..." oninput="searchProducts(this.value)">
+          </div>
+        </div>
+      </div>
+      <div class="acard" style="overflow:hidden">
+        <table class="pos-table" id="productsTable">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Mahsulot nomi</th>
+              <th>Kategoriya</th>
+              <th class="r">Tan narxi</th>
+              <th class="r">Sotuv narxi</th>
+              <th class="r">Qoldiq</th>
+              <th class="c">Holat</th>
+            </tr>
+          </thead>
+          <tbody id="productsTbody">
+            <tr><td colspan="7" class="loading-row"><div class="spin"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ SEVIMLILAR ══════════ -->
+  <div class="view" id="view-favorites">
+    <div class="inner-wrap">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">⭐ Sevimli Mahsulotlar</h2>
+          <p class="section-sub">Tez-tez sotiladigan mahsulotlarni savatga qo'shing</p>
+        </div>
+        <button class="btn-blue" onclick="openAddFavorite()">+ Sevimli qo'shish</button>
+      </div>
+      <!-- Favorites shown as product cards (same style as sale grid) -->
+      <div class="sale-grid" id="favGrid" style="margin-top:16px">
+        <div class="empty-state" style="grid-column:1/-1;padding:50px">Sevimlilar yo'q. "+ Sevimli qo'shish" tugmasini bosing.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ KASSA ══════════ -->
+  <div class="view" id="view-kassa">
+    <div class="inner-wrap">
+      <div class="section-header">
+        <div><h2 class="section-title">Kassa Hisoboti</h2><p class="section-sub">Joriy smena natijalari</p></div>
+      </div>
+      <div class="stats-grid4">
+        <div class="stat-card green">
+          <div class="sc-icon">💰</div>
+          <div class="sc-val" id="kassaNaqdTotal">0</div>
+          <div class="sc-lbl">Naqd tushumlar</div>
+        </div>
+        <div class="stat-card blue">
+          <div class="sc-icon">💳</div>
+          <div class="sc-val" id="kassaCardTotal">0</div>
+          <div class="sc-lbl">Karta orqali</div>
+        </div>
+        <div class="stat-card purple">
+          <div class="sc-icon">🛒</div>
+          <div class="sc-val" id="kassaSalesCount">0</div>
+          <div class="sc-lbl">Jami sotuvlar</div>
+        </div>
+        <div class="stat-card amber">
+          <div class="sc-icon">↩</div>
+          <div class="sc-val" id="kassaReturnTotal">0</div>
+          <div class="sc-lbl">Qaytarishlar</div>
+        </div>
+      </div>
+      <div class="acard" style="margin-top:16px">
+        <div class="ac-head"><span class="ac-title">📋 Smena sotuvlari</span></div>
+        <div class="ac-body" style="padding:0">
+          <table class="pos-table">
+            <thead><tr><th>Vaqt</th><th>Mijoz</th><th class="r">Summa</th><th>To'lov</th><th class="c">Chek</th></tr></thead>
+            <tbody id="kassaSalesTbody">
+              <tr><td colspan="5" class="empty-row">Smena sotuvlari yuklanmoqda...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ SOZLAMALAR ══════════ -->
+  <div class="view" id="view-settings">
+    <div class="inner-wrap">
+      <div class="section-header">
+        <div><h2 class="section-title">Sozlamalar</h2><p class="section-sub">Printer, to'lov tizimlari va boshqalar</p></div>
+        <button class="btn-blue" onclick="saveSettings()">💾 Saqlash</button>
+      </div>
+
+      <div class="settings-grid">
+
+        <!-- Printer Settings -->
+        <div class="acard">
+          <div class="ac-head"><span class="ac-title">🖨 Chek Printer Sozlamalari</span></div>
+          <div class="ac-body">
+            <div class="field">
+              <label>Printer</label>
+              <select class="fsel" id="settPrinter">
+                <option value="">— Printer tanlanmagan —</option>
+                <option value="XP-80C">XP-80C</option>
+                <option value="Epson-TM20">Epson TM-T20</option>
+                <option value="Star-TSP100">Star TSP100</option>
+                <option value="Custom">Boshqa</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Chek o'lchami</label>
+              <select class="fsel" id="settPaperSize">
+                <option value="80mm" selected>80mm</option>
+                <option value="58mm">58mm</option>
+                <option value="A4">A4</option>
+              </select>
+            </div>
+            <div class="toggle-row">
+              <span class="toggle-label">Avtomatik chop etish</span>
+              <div class="toggle-wrap" onclick="toggleSetting('autoPrint')">
+                <div class="toggle" id="tog-autoPrint"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Functional Settings -->
+        <div class="acard">
+          <div class="ac-head"><span class="ac-title">⚙️ Funksional Sozlamalar</span></div>
+          <div class="ac-body">
+            <div class="toggle-row">
+              <span class="toggle-label">Smena oching/yopish</span>
+              <div class="toggle-wrap" onclick="toggleSetting('smena')">
+                <div class="toggle" id="tog-smena"></div>
+              </div>
+            </div>
+            <div class="toggle-row">
+              <span class="toggle-label">Noma'lum mahsulot yaratish</span>
+              <div class="toggle-wrap" onclick="toggleSetting('unknownProd')">
+                <div class="toggle" id="tog-unknownProd"></div>
+              </div>
+            </div>
+            <div class="toggle-row">
+              <span class="toggle-label">Fiskalizatsiya (OFD)</span>
+              <div class="toggle-wrap" onclick="toggleSetting('fiscal')">
+                <div class="toggle" id="tog-fiscal"></div>
+              </div>
+            </div>
+            <div class="toggle-row">
+              <span class="toggle-label">Chegirma ruxsati</span>
+              <div class="toggle-wrap" onclick="toggleSetting('discount')">
+                <div class="toggle" id="tog-discount"></div>
+              </div>
+            </div>
+            <div class="toggle-row">
+              <span class="toggle-label">Nasiya sotish</span>
+              <div class="toggle-wrap" onclick="toggleSetting('credit')">
+                <div class="toggle" id="tog-credit"></div>
+              </div>
+            </div>
+            <div class="toggle-row">
+              <span class="toggle-label" style="font-weight:700;color:var(--red)">⚠️ Mijoz tanlanmasa sotmasin</span>
+              <div class="toggle-wrap" onclick="toggleSetting('requireCustomer')">
+                <div class="toggle" id="tog-requireCustomer"></div>
+              </div>
+            </div>
+            <div class="field" style="margin-top:4px">
+              <label>ERP Server manzili</label>
+              <input class="finp" id="settApiUrl" value="http://localhost:8000" placeholder="http://localhost:8000">
+            </div>
+          </div>
+        </div>
+
+        <!-- Payment Systems -->
+        <div class="acard" style="grid-column:1/-1">
+          <div class="ac-head">
+            <span class="ac-title">💳 To'lov Tizimlari</span>
+            <button class="btn-blue-sm" onclick="openAddPaySystem()">+ To'lov tizimi qo'shish</button>
+          </div>
+          <div class="ac-body" style="padding:0">
+            <table class="pos-table">
+              <thead><tr><th>Nomi</th><th>Turi</th><th>Terminal ID</th><th class="c">Faol</th><th class="c">Amal</th></tr></thead>
+              <tbody id="paySystemsTbody">
+                <tr><td colspan="5" class="empty-row">To'lov tizimlari topilmadi. "+ To'lov tizimi qo'shish" tugmasini bosing.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- About -->
+        <div class="acard">
+          <div class="ac-head"><span class="ac-title">ℹ️ Dastur haqida</span></div>
+          <div class="ac-body">
+            <div class="info-row"><span>Dastur versiyasi</span><span class="mono">1.0.0</span></div>
+            <div class="info-row"><span>Backend</span><span class="mono" id="apiStatus">Tekshirilmoqda...</span></div>
+            <div class="info-row"><span>Kassa nomi</span><input class="finp-inline" id="settCassaName" value="Kassa #1"></div>
+            <div class="info-row"><span>Filial</span><select class="fsel-inline" id="settBranch"><option>Asosiy filial</option></select></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- OVERLAY -->
+<div class="overlay" id="overlay" onclick="closeOverlay()"></div>
+
+<!-- KIRIM FORM MODAL -->
+<div class="modal" id="kirimModal">
+  <div class="modal-inner" style="width:620px">
+    <div class="mhdr">
+      <span class="mtitle">📦 Yangi Kirim</span>
+      <button class="mclose" onclick="closeModal('kirimModal')">✕</button>
+    </div>
+    <div style="padding:20px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="field">
+          <label>Yetkazib beruvchi</label>
+          <select class="fsel" id="kirimSupplier"><option value="">— Tanlang —</option></select>
+        </div>
+        <div class="field">
+          <label>Ombor</label>
+          <select class="fsel" id="kirimWarehouse"><option value="">— Tanlang —</option></select>
+        </div>
+        <div class="field">
+          <label>Hujjat raqami</label>
+          <input class="finp" id="kirimDocNum" placeholder="INV-001">
+        </div>
+        <div class="field">
+          <label>Sana</label>
+          <input class="finp" id="kirimDate" type="date">
+        </div>
+      </div>
+      <div class="field">
+        <label>Mahsulotlar</label>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <div class="search-box" style="flex:1">
+            <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input id="kirimProdSearch" placeholder="Mahsulot qidirish..." oninput="kirimSearchProd(this.value)">
+          </div>
+        </div>
+        <div id="kirimProdResults" style="max-height:140px;overflow-y:auto;border:1.5px solid var(--border2);border-radius:var(--r-sm)"></div>
+      </div>
+      <div id="kirimItems" style="border:1.5px solid var(--border);border-radius:var(--r-sm);min-height:60px;max-height:160px;overflow-y:auto">
+        <div class="empty-state" style="padding:20px">Mahsulot qo'shilmagan</div>
+      </div>
+      <div class="field">
+        <label>Izoh</label>
+        <input class="finp" id="kirimNote" placeholder="Ixtiyoriy izoh...">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-outline" onclick="closeModal('kirimModal')">Bekor</button>
+      <button class="btn-blue" onclick="saveKirim()">✓ Kirimni Saqlash</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD FAVORITE MODAL -->
+<div class="modal" id="favModal">
+  <div class="modal-inner" style="width:500px">
+    <div class="mhdr">
+      <span class="mtitle">⭐ Sevimli mahsulot qo'shish</span>
+      <button class="mclose" onclick="closeModal('favModal')">✕</button>
+    </div>
+    <div style="padding:20px;display:flex;flex-direction:column;gap:14px">
+      <div class="search-box">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input id="favSearchInp" placeholder="Mahsulot qidirish..." oninput="favSearch(this.value)">
+      </div>
+      <div id="favSearchResults" style="max-height:300px;overflow-y:auto;border:1.5px solid var(--border);border-radius:var(--r-sm)">
+        <div class="empty-state" style="padding:30px">Qidirish uchun mahsulot nomini yozing</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-outline" onclick="closeModal('favModal')">Yopish</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD PAY SYSTEM MODAL -->
+<div class="modal" id="paySystemModal">
+  <div class="modal-inner" style="width:420px">
+    <div class="mhdr">
+      <span class="mtitle">💳 To'lov tizimi qo'shish</span>
+      <button class="mclose" onclick="closeModal('paySystemModal')">✕</button>
+    </div>
+    <div style="padding:20px;display:flex;flex-direction:column;gap:14px">
+      <div class="field"><label>Nomi</label><input class="finp" id="psName" placeholder="Click, Payme..."></div>
+      <div class="field">
+        <label>Turi</label>
+        <select class="fsel" id="psType">
+          <option value="click">Click</option>
+          <option value="payme">Payme</option>
+          <option value="uzcard">UzCard</option>
+          <option value="humo">Humo</option>
+          <option value="cash">Naqd</option>
+          <option value="bank">Bank o'tkazma</option>
+        </select>
+      </div>
+      <div class="field"><label>Terminal ID (ixtiyoriy)</label><input class="finp" id="psTerminal" placeholder="TID-12345"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-outline" onclick="closeModal('paySystemModal')">Bekor</button>
+      <button class="btn-blue" onclick="savePaySystem()">Saqlash</button>
+    </div>
+  </div>
+</div>
+
+<!-- RECEIPT MODAL -->
+<div class="modal" id="receiptModal">
+  <div class="modal-inner" style="width:380px">
+    <div class="mhdr">
+      <span class="mtitle">🧾 Chek</span>
+      <button class="mclose" onclick="closeModal('receiptModal')">✕</button>
+    </div>
+    <div style="padding:20px">
+      <div class="receipt" id="receiptContent"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-outline" onclick="closeModal('receiptModal')">Yopish</button>
+      <button class="btn-blue" onclick="printReceipt()">🖨 Chop etish</button>
+    </div>
+  </div>
+</div>
+
+<!-- SMENA MODAL -->
+<div class="modal" id="smenaModal">
+  <div class="modal-inner" style="width:440px">
+    <div class="mhdr">
+      <span class="mtitle" id="smenaModalTitle">Smena</span>
+      <button class="mclose" onclick="closeModal('smenaModal')">✕</button>
+    </div>
+    <div style="padding:20px;display:flex;flex-direction:column;gap:14px" id="smenaModalBody"></div>
+    <div class="modal-actions" id="smenaModalActions"></div>
+  </div>
+</div>
+
+<div class="toast-zone" id="toastZone"></div>
+
+<!-- LOGIN OVERLAY + MODAL -->
+<div class="overlay" id="loginOverlay" style="z-index:1000"></div>
+<div class="modal" id="loginModal" style="z-index:1100">
+  <div class="modal-inner" style="width:380px">
+    <div class="mhdr" style="background:var(--ink);color:#fff;border-bottom:none">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="background:rgba(255,255,255,.15);width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-1.4 7h11.8"/></svg>
+        </div>
+        <div>
+          <div class="mtitle" style="color:#fff">ERPPos Kassir</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:1px">Tizimga kirish</div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:24px;display:flex;flex-direction:column;gap:14px">
+      <div class="field">
+        <label>Telefon raqami</label>
+        <input class="finp" id="loginUsername" placeholder="+998901234567" onkeydown="handleLoginKeydown(event)" autocomplete="username" type="tel">
+      </div>
+      <div class="field">
+        <label>Parol</label>
+        <input class="finp" id="loginPassword" type="password" placeholder="••••••" onkeydown="handleLoginKeydown(event)" autocomplete="current-password">
+      </div>
+      <div id="loginError" style="font-size:12px;color:var(--red);font-weight:600;min-height:16px"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-blue" id="loginBtn" onclick="doLogin()" style="width:100%;padding:12px">Kirish</button>
+    </div>
+  </div>
+</div>
+
+<script src="pos.js"></script>
+</body>
+</html>
