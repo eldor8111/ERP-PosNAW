@@ -58,7 +58,7 @@ export default function PosLogin() {
         <div className="w-full max-w-md">
           <div className="text-center mb-10">
             <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl shadow-blue-500/30">
-              <span className="text-white font-black text-xl">POS</span>
+              <span className="text-white font-black text-xl tracking-tight">UBT</span>
             </div>
             <h1 className="text-2xl font-black text-white mb-2">Korxonani tanlang</h1>
             <p className="text-slate-400 text-sm">Qaysi korxona bilan ishlashni tanlang</p>
@@ -105,7 +105,7 @@ export default function PosLogin() {
         {/* Logo */}
         <div className="text-center mb-10">
           <div className="w-20 h-20 bg-linear-to-br from-blue-500 to-indigo-600 rounded-[28px] flex items-center justify-center mx-auto mb-5 shadow-2xl shadow-blue-500/30">
-            <span className="text-white font-black text-3xl">POS</span>
+            <span className="text-white font-black text-2xl tracking-tight">UBT</span>
           </div>
           <h1 className="text-2xl font-black text-white mb-2">Kassaga kirish</h1>
           <p className="text-slate-400 text-sm">Hisob ma'lumotlarini kiriting</p>

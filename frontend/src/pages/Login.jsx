@@ -242,9 +242,9 @@ export default function Login() {
 
         <div className="relative flex items-center gap-3">
           <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
-            <Icon d="M13 10V3L4 14h7v7l9-11h-7z" cls="w-5 h-5 text-white" />
+            <span className="text-white font-black text-sm tracking-tight">UBT</span>
           </div>
-          <span className="text-white font-bold text-xl">ERP / POS</span>
+          <span className="text-white font-bold text-xl tracking-wide">UBT</span>
         </div>
 
         <div className="relative space-y-8">
@@ -276,7 +276,7 @@ export default function Login() {
           </div>
         </div>
 
-        <p className="relative text-indigo-300/60 text-xs">© 2026 ERP/POS Tizimi</p>
+        <p className="relative text-indigo-300/60 text-xs">© 2026 UBT Tizimi</p>
       </div>
 
       {/* ── Right panel (form) ── */}
@@ -286,9 +286,9 @@ export default function Login() {
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-2 mb-8">
             <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center">
-              <Icon d="M13 10V3L4 14h7v7l9-11h-7z" cls="w-5 h-5 text-white" />
+              <span className="text-white font-black text-xs tracking-tight">UBT</span>
             </div>
-            <span className="font-bold text-slate-800 text-lg">ERP / POS</span>
+            <span className="font-bold text-slate-800 text-lg tracking-wide">UBT</span>
           </div>
 
           <div className="mb-8">

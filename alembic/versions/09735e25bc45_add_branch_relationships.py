@@ -22,6 +22,21 @@ def upgrade() -> None:
     user_status_enum = postgresql.ENUM('active', 'inactive', 'blocked', name='userstatus', create_type=False)
     user_status_enum.create(op.get_bind(), checkfirst=True)
 
+    # Create warehouses table if it doesn't exist
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if 'warehouses' not in inspector.get_table_names():
+        op.create_table('warehouses',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('name', sa.String(length=100), nullable=False),
+        sa.Column('type', sa.Enum('main', 'transit', 'returns', 'shop', name='warehousetype'), nullable=True),
+        sa.Column('address', sa.String(length=255), nullable=True),
+        sa.Column('is_active', sa.Boolean(), nullable=True),
+        sa.Column('created_at', sa.DateTime(), nullable=True),
+        sa.PrimaryKeyConstraint('id')
+        )
+        op.create_index(op.f('ix_warehouses_id'), 'warehouses', ['id'], unique=False)
+
     op.add_column('users', sa.Column('branch_id', sa.Integer(), nullable=True))
     op.add_column('users', sa.Column('status', sa.Enum('active', 'inactive', 'blocked', name='userstatus'), nullable=True))
     op.alter_column('users', 'hashed_password',

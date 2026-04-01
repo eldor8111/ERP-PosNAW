@@ -166,21 +166,17 @@ export default function AdminLayout() {
           {!collapsed && (
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-linear-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-lg shadow-indigo-900/40 shrink-0">
-                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
+                <span className="text-white font-black text-[10px] tracking-tight">UBT</span>
               </div>
               <div>
-                <span className="text-sm font-bold text-white leading-none block">ERP/POS</span>
+                <span className="text-sm font-bold text-white leading-none block tracking-wide">UBT</span>
                 <span className="text-[10px] text-slate-400 leading-none">{user?.company_name || 'System'}</span>
               </div>
             </div>
           )}
           {collapsed && (
             <div className="w-8 h-8 rounded-xl bg-linear-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-lg shadow-indigo-900/40">
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
+              <span className="text-white font-black text-[10px] tracking-tight">UBT</span>
             </div>
           )}
           {!collapsed && (

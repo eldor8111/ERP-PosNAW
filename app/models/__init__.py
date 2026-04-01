@@ -17,3 +17,5 @@ from .currency import Currency  # type: ignore
 from .api_key import ApiKey  # type: ignore
 from .inventory_count import InventoryCount, InventoryCountItem  # type: ignore
 from .agent import Agent  # type: ignore
+from .transfer import StockTransfer, StockTransferItem  # type: ignore
+from .bin_location import BinLocation  # type: ignore
