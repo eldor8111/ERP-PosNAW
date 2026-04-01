@@ -133,14 +133,24 @@ export default function AdminLayout() {
 
   const [orgData, setOrgData] = useState({ name: user?.company_name || 'Tizim', code: '...', balance: 0 });
 
-  useEffect(() => {
+  const refreshBalance = () => {
     api.get('/finance/cash-balance').then(r => {
       setOrgData({
         name: r.data.company_name || 'Tizim',
         code: r.data.org_code || '-',
         balance: r.data.balance || 0
       });
-    }).catch(e => console.error(e));
+    }).catch(() => {});
+  };
+
+  useEffect(() => {
+    refreshBalance();
+    const interval = setInterval(refreshBalance, 60000);
+    window.addEventListener('balance-updated', refreshBalance);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('balance-updated', refreshBalance);
+    };
   }, []);
 
 
@@ -308,14 +318,36 @@ export default function AdminLayout() {
               <span className="text-emerald-700 text-xs font-medium">Tizim faol</span>
             </div>
             
-            <div className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-100 rounded-xl px-3 py-1.5 shadow-sm">
-              <div className="flex flex-col text-right">
-                <span className="text-indigo-800 text-[11px] font-black uppercase tracking-wider leading-none mb-0.5">{orgData.name} <span className="text-indigo-400 ml-1">#{orgData.code}</span></span>
-                <span className="text-indigo-600 text-[10px] font-bold tracking-widest leading-none">Balans: <span className="text-emerald-600 ml-0.5">{fmt(orgData.balance)} s</span></span>
+            {/* Tashkilot kodi */}
+            <div className="flex flex-col items-center bg-indigo-50 border border-indigo-200 rounded-2xl px-4 py-2 min-w-[110px]">
+              <span className="text-indigo-400 text-[11px] font-medium leading-none mb-1">Kod</span>
+              <span className="text-indigo-700 text-[15px] font-black leading-none tracking-wide">{orgData.code}</span>
+            </div>
+
+            {/* Balans */}
+            <div className="flex flex-col items-center bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2 min-w-[110px]">
+              <span className="text-emerald-500 text-[11px] font-medium leading-none mb-1">Balans</span>
+              <span className="text-emerald-700 text-[15px] font-black leading-none tracking-wide">{fmt(orgData.balance)} s</span>
+            </div>
+
+            {/* Foydalanuvchi */}
+            <div className="flex items-center gap-2.5 bg-linear-to-r from-indigo-600 to-indigo-700 rounded-2xl px-4 py-2 shadow-lg shadow-indigo-200">
+              <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white text-sm font-black shrink-0">
+                {initials}
               </div>
-              <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-500 ml-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+              <div className="flex flex-col">
+                <span className="text-white text-[13px] font-black leading-none">{orgData.name}</span>
+                <span className="text-indigo-200 text-[11px] font-medium leading-none mt-0.5">{ROLE_LABELS[user?.role] || user?.role}</span>
               </div>
+              <button
+                onClick={handleLogout}
+                className="w-8 h-8 rounded-xl bg-white/10 hover:bg-rose-500 flex items-center justify-center text-white/60 hover:text-white transition-all ml-1"
+                title="Chiqish"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </button>
             </div>
 
           </div>

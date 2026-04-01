@@ -2,9 +2,9 @@ import axios from 'axios'
 import { toast } from '../utils/toast'
 
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api',
   headers: { 'Content-Type': 'application/json' },
-  timeout: 15000,  // 15 soniyadan keyin timeout
+  timeout: 15000,
 })
 
 // Har so'rovga token qo'shish
@@ -34,9 +34,28 @@ api.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    // 403 — huquq yo'q (toast ko'rsatamiz, lekin redirect qilmaymiz)
+    // 400 — validation xato
+    if (status === 400) {
+      toast.error(detail || 'Noto\'g\'ri ma\'lumot kiritildi')
+      return Promise.reject(error)
+    }
+
+    // 403 — huquq yo'q
     if (status === 403) {
       toast.warn("Sizda bu amalni bajarish huquqi yo'q")
+      return Promise.reject(error)
+    }
+
+    // 404 — topilmadi
+    if (status === 404) {
+      toast.warn(detail || 'Ma\'lumot topilmadi')
+      return Promise.reject(error)
+    }
+
+    // 422 — FastAPI validation xato
+    if (status === 422) {
+      const msg = error.response?.data?.detail?.[0]?.msg || 'Maydonlarni to\'g\'ri to\'ldiring'
+      toast.error(msg)
       return Promise.reject(error)
     }
 

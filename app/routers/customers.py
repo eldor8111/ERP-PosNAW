@@ -9,7 +9,7 @@ from decimal import Decimal
 
 from app.database import get_db  # type: ignore
 from app.models.customer import Customer  # type: ignore
-from app.routers.auth import get_current_user  # type: ignore
+from app.core.dependencies import get_current_user  # type: ignore
 from app.models.user import User, UserRole  # type: ignore
 
 router = APIRouter(prefix="/customers", tags=["customers"])

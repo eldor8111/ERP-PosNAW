@@ -3,7 +3,7 @@ from .category import Category  # type: ignore
 from .company import Company  # type: ignore
 from .inventory import StockLevel, StockMovement  # type: ignore
 from .product import Product  # type: ignore
-from .sale import Sale, SaleItem  # type: ignore
+from .sale import Sale, SaleItem, SaleItemBatch  # type: ignore
 from .user import User  # type: ignore
 from .warehouse import Warehouse  # type: ignore
 from .supplier import Supplier  # type: ignore

@@ -460,6 +460,30 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState(defaultTab);
   const [selectedCompany, setSelectedCompany] = useState(null);
+  const [topUp, setTopUp] = useState({ org_code: '', amount: '' });
+  const [topUpMsg, setTopUpMsg] = useState(null);
+  const [topUpLoading, setTopUpLoading] = useState(false);
+
+  const handleTopUp = async (e) => {
+    e.preventDefault();
+    if (!topUp.org_code || !topUp.amount) return;
+    setTopUpLoading(true);
+    setTopUpMsg(null);
+    try {
+      const res = await api.post('/super-admin/top-up', {
+        org_code: topUp.org_code.toUpperCase(),
+        amount: parseFloat(topUp.amount),
+      });
+      setTopUpMsg({ ok: true, text: `✓ ${res.data.company_name} — yangi balans: ${res.data.new_balance.toLocaleString()} s` });
+      setTopUp({ org_code: '', amount: '' });
+      loadCompanies();
+      window.dispatchEvent(new Event('balance-updated'));
+    } catch (err) {
+      setTopUpMsg({ ok: false, text: err.response?.data?.detail || 'Xatolik yuz berdi' });
+    } finally {
+      setTopUpLoading(false);
+    }
+  };
 
   const loadCompanies = () => {
     setLoading(true);
@@ -522,6 +546,51 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
 
       {/* Companies Tab */}
       {tab === 'companies' && (
+        <>
+        {/* Balans to'ldirish forma */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-4">
+          <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center">
+              <Ic d="M12 6v6m0 0v6m0-6h6m-6 0H6" cls="w-4 h-4 text-emerald-600" />
+            </div>
+            Korxona balansi to'ldirish
+          </h3>
+          <form onSubmit={handleTopUp} className="flex items-end gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500 font-medium">Tashkilot kodi</label>
+              <input
+                value={topUp.org_code}
+                onChange={e => setTopUp(p => ({ ...p, org_code: e.target.value.toUpperCase() }))}
+                placeholder="Masalan: AB1234"
+                className="border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono font-bold text-indigo-700 w-40 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500 font-medium">Miqdor (so'm)</label>
+              <input
+                type="number"
+                value={topUp.amount}
+                onChange={e => setTopUp(p => ({ ...p, amount: e.target.value }))}
+                placeholder="100000"
+                min="1"
+                className="border border-slate-200 rounded-xl px-3 py-2 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={topUpLoading}
+              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl transition-all disabled:opacity-60"
+            >
+              {topUpLoading ? 'Yuklanmoqda...' : 'Qo\'shish'}
+            </button>
+          </form>
+          {topUpMsg && (
+            <p className={`mt-3 text-sm font-semibold px-3 py-2 rounded-xl ${topUpMsg.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+              {topUpMsg.text}
+            </p>
+          )}
+        </div>
+
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-700">
@@ -576,6 +645,7 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
             </table>
           )}
         </div>
+        </>
       )}
 
       {/* Agents Tab */}

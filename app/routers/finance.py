@@ -16,7 +16,7 @@ from app.models.moliya import ExpenseCategory, Expense, Transaction  # type: ign
 from app.models.customer import Customer  # type: ignore
 from app.models.sale import Sale  # type: ignore
 from app.models.supplier import Supplier  # type: ignore
-from app.routers.auth import get_current_user  # type: ignore
+from app.core.dependencies import get_current_user  # type: ignore
 from app.models.user import User, UserRole  # type: ignore
 from app.core.dependencies import require_roles  # type: ignore
 
@@ -225,10 +225,9 @@ def get_cash_balance(
     return {
         "company_name": comp.name if comp else "Tizim",
         "org_code": comp.org_code if comp else "-",
-
         "total_income": income,
         "total_expense": expense,
-        "balance": income - expense,
+        "balance": float(comp.balance) if comp else 0,
     }
 
 
