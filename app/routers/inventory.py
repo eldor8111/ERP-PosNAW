@@ -69,6 +69,21 @@ def get_stock_levels(
     return result
 
 
+@router.get("/low-stock-count")
+def get_low_stock_count(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*WAREHOUSE_ROLES)),
+):
+    stocks = (
+        db.query(StockLevel)
+        .join(Product)
+        .filter(Product.is_deleted == False, Product.company_id == current_user.company_id)
+        .all()
+    )
+    count = sum(1 for s in stocks if s.quantity <= s.product.min_stock)
+    return {"count": count}
+
+
 @router.get("/movements", response_model=List[StockMovementOut])
 def get_movements(
     product_id: Optional[int] = Query(None),

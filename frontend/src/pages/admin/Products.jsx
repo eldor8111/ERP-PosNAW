@@ -2,7 +2,7 @@ import { useRef, useState, useEffect, useCallback, useId } from 'react';
 import api from '../../api/axios';
 import BarcodePrintModal from '../../components/BarcodeTemplates';
 
-const BASE_URL = 'http://localhost:8000';
+const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api').replace('/api', '');
 
 /* ─── helpers ─────────────────────────────────────── */
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');

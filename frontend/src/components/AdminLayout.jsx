@@ -132,6 +132,7 @@ export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
 
   const [orgData, setOrgData] = useState({ name: user?.company_name || 'Tizim', code: '...', balance: 0 });
+  const [lowStockCount, setLowStockCount] = useState(0);
 
   const refreshBalance = () => {
     api.get('/finance/cash-balance').then(r => {
@@ -143,12 +144,21 @@ export default function AdminLayout() {
     }).catch(() => {});
   };
 
+  const refreshLowStock = () => {
+    api.get('/inventory/low-stock-count').then(r => {
+      setLowStockCount(r.data.count || 0);
+    }).catch(() => {});
+  };
+
   useEffect(() => {
     refreshBalance();
+    refreshLowStock();
     const interval = setInterval(refreshBalance, 60000);
+    const lowStockInterval = setInterval(refreshLowStock, 300000);
     window.addEventListener('balance-updated', refreshBalance);
     return () => {
       clearInterval(interval);
+      clearInterval(lowStockInterval);
       window.removeEventListener('balance-updated', refreshBalance);
     };
   }, []);
@@ -245,13 +255,24 @@ export default function AdminLayout() {
                       onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
                       onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
                     >
-                      <span className={`shrink-0 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`}>
+                      <span className={`shrink-0 relative ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`}>
                         {link.icon}
+                        {collapsed && link.path === '/admin/warehouse' && lowStockCount > 0 && (
+                          <span className="absolute -top-1 -right-1 w-2 h-2 bg-rose-500 rounded-full" />
+                        )}
                       </span>
                       {!collapsed && (
                         <span className="text-[13px] font-medium truncate">{link.name}</span>
                       )}
-                      {!collapsed && isActive && (
+                      {!collapsed && link.path === '/admin/warehouse' && lowStockCount > 0 && (
+                        <span className="ml-auto min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shrink-0">
+                          {lowStockCount > 99 ? '99+' : lowStockCount}
+                        </span>
+                      )}
+                      {!collapsed && isActive && link.path !== '/admin/warehouse' && (
+                        <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-200 shrink-0" />
+                      )}
+                      {!collapsed && isActive && link.path === '/admin/warehouse' && lowStockCount === 0 && (
                         <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-200 shrink-0" />
                       )}
                     </Link>
@@ -317,7 +338,24 @@ export default function AdminLayout() {
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-emerald-700 text-xs font-medium">Tizim faol</span>
             </div>
-            
+
+            {/* Kam qoldiq ogohlantirish */}
+            {lowStockCount > 0 && (
+              <button
+                onClick={() => navigate('/admin/warehouse')}
+                className="relative flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-full px-3 py-1.5 hover:bg-amber-100 transition-colors cursor-pointer"
+                title={`${lowStockCount} ta mahsulot kam qoldiqda`}
+              >
+                <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                <span className="text-amber-700 text-xs font-semibold">Kam qoldiq</span>
+                <span className="min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {lowStockCount > 99 ? '99+' : lowStockCount}
+                </span>
+              </button>
+            )}
+
             {/* Tashkilot kodi */}
             <div className="flex flex-col items-center bg-indigo-50 border border-indigo-200 rounded-2xl px-4 py-2 min-w-[110px]">
               <span className="text-indigo-400 text-[11px] font-medium leading-none mb-1">Kod</span>

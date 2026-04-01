@@ -4,6 +4,7 @@ Korxonalar (company) → Filiallar (branch) → Tafsilot
 """
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException  # type: ignore
+from pydantic import BaseModel  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
 from sqlalchemy import func  # type: ignore
 
@@ -213,3 +214,27 @@ def change_user_role(user_id: int, role: str, db: Session = Depends(get_db), _: 
         raise HTTPException(status_code=400, detail=f"Noto'g'ri rol: {role}")
     db.commit()
     return {"message": f"{user.name} roli {role} ga o'zgartirildi"}
+
+
+# ── Balans to'ldirish ─────────────────────────────────────
+
+class TopUpRequest(BaseModel):
+    org_code: str
+    amount: float
+
+
+@router.post("/top-up")
+def top_up_balance(data: TopUpRequest, db: Session = Depends(get_db), _: User = Depends(require_super_admin)):
+    if data.amount <= 0:
+        raise HTTPException(status_code=400, detail="Miqdor 0 dan katta bo'lishi kerak")
+    company = db.query(Company).filter(Company.org_code == data.org_code.strip().upper()).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Tashkilot topilmadi")
+    company.balance = float(company.balance or 0) + data.amount
+    db.commit()
+    return {
+        "company_name": company.name,
+        "org_code": company.org_code,
+        "added": data.amount,
+        "new_balance": float(company.balance),
+    }
