@@ -111,7 +111,10 @@ def get_customer_stats(customer_id: int, db: Session = Depends(get_db), current_
 
     from app.models.sale import Sale, SaleStatus
 
-    all_sales = db.query(Sale).filter(Sale.customer_id == customer_id).all()
+    all_sales = db.query(Sale).filter(
+        Sale.customer_id == customer_id,
+        Sale.company_id == current_user.company_id
+    ).all()
     completed = [s for s in all_sales if s.status != SaleStatus.refunded and s.status != SaleStatus.cancelled]
     returned = [s for s in all_sales if s.status == SaleStatus.refunded]
 
@@ -146,7 +149,10 @@ def get_customer_history(customer_id: int, db: Session = Depends(get_db), curren
     from app.models.sale import Sale  # type: ignore
     from app.models.moliya import Transaction  # type: ignore
 
-    sales = db.query(Sale).filter(Sale.customer_id == customer_id).order_by(Sale.created_at.desc()).limit(10).all()
+    sales = db.query(Sale).filter(
+        Sale.customer_id == customer_id,
+        Sale.company_id == current_user.company_id
+    ).order_by(Sale.created_at.desc()).limit(10).all()
     payments = db.query(Transaction).filter(
         Transaction.reference_type == 'customer_payment',
         Transaction.reference_id == customer_id
@@ -210,6 +216,111 @@ def adjust_loyalty_points(
         "tier": cust.tier,
     }
 
+
+@router.post("/bulk-import")
+def bulk_import_customers(
+    rows: list[dict],
+    allow_update: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Excel fayldan mijozlarni yuklash yoki yangilash."""
+    FIELD_MAP = {
+        "Ism":             ("name",             str),
+        "Telefon":         ("phone",            str),
+        "Qarz":            ("debt_balance",     Decimal),
+        "Kredit limit":    ("debt_limit",       Decimal),
+        "Sodiqlik ballari":("loyalty_points",   int),
+        "Karta raqami":    ("card_number",      str),
+        "Cashback":        ("cashback_percent", Decimal),
+        "Bonus":           ("bonus_balance",    Decimal),
+    }
+
+    created = 0
+    updated = 0
+    errors: list = []
+
+    dup_q_base = db.query(Customer).filter(Customer.company_id == current_user.company_id)
+
+    for idx, row in enumerate(rows):
+        row_num = row.get("__row_index", idx + 2)
+        name = str(row.get("Ism") or "").strip()
+        phone = str(row.get("Telefon") or "").strip()
+        card = str(row.get("Karta raqami") or "").strip() or None
+
+        if not name and not phone:
+            errors.append({"row": row_num, "error": "Mijoz ismi yoki telefoni majburiy"})
+            continue
+
+        existing = None
+        if phone:
+            existing = dup_q_base.filter(Customer.phone == phone).first()
+        if not existing and name:
+            existing = dup_q_base.filter(Customer.name == name).first()
+        if not existing and card:
+            existing = dup_q_base.filter(Customer.card_number == card).first()
+
+        if existing:
+            if not allow_update:
+                errors.append({
+                    "row": row_num, "name": name or phone,
+                    "error": f"'{name or phone}' allaqachon mavjud — o'tkazib yuborildi"
+                })
+                continue
+
+            for row_key, (field, cast) in FIELD_MAP.items():
+                raw = row.get(row_key)
+                if raw is None or str(raw).strip() == "":
+                    continue
+                try:
+                    val = str(raw).strip()
+                    if cast == Decimal:
+                        val = Decimal(val)
+                    elif cast == int:
+                        val = int(val)
+                    setattr(existing, field, val)
+                except Exception:
+                    errors.append({"row": row_num, "name": name, "error": f"'{row_key}' qiymati xato: {raw}"})
+                    continue
+
+            updated += 1
+            continue
+
+        if not name:
+            errors.append({"row": row_num, "error": "Yangi mijoz uchun Ism majburiy"})
+            continue
+
+        kwargs = {"name": name, "company_id": current_user.company_id}
+        for row_key, (field, cast) in FIELD_MAP.items():
+            if field == "name": continue
+            raw = row.get(row_key)
+            if raw is not None and str(raw).strip() != "":
+                try:
+                    val = str(raw).strip()
+                    if cast == Decimal:
+                        val = Decimal(val)
+                    elif cast == int:
+                        val = int(val)
+                    kwargs[field] = val
+                except:
+                    pass
+
+        # check card/phone to avoid integrity errors
+        check_card = kwargs.get("card_number")
+        if check_card and dup_q_base.filter(Customer.card_number == check_card).first():
+            kwargs.pop("card_number")
+            
+        check_phone = kwargs.get("phone")
+        if check_phone and dup_q_base.filter(Customer.phone == check_phone).first():
+            kwargs.pop("phone")
+
+        cust = Customer(**kwargs)
+        db.add(cust)
+        db.flush()
+        created += 1
+
+    db.commit()
+    return {"created": created, "updated": updated, "skipped": len(errors), "errors": errors}
 
 @router.delete("/{customer_id}", status_code=204)
 def delete_customer(customer_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

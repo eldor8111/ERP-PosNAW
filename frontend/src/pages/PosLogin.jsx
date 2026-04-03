@@ -11,6 +11,10 @@ export default function PosLogin() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
+  const [showServerModal, setShowServerModal] = useState(false);
+  const [serverUrlInput, setServerUrlInput] = useState(
+    () => localStorage.getItem('api_server_url') || 'http://localhost:8000/api'
+  );
 
   // Korxona tanlash state
   const [companies, setCompanies] = useState(null); // null = yo'q, [] = ro'yxat
@@ -207,6 +211,58 @@ export default function PosLogin() {
             oddiy kirish
           </a>
         </p>
+
+        <p className="text-center text-slate-500 text-xs mt-3">
+           <button
+             type="button"
+             onClick={() => setShowServerModal(true)}
+             className="hover:underline text-slate-400"
+           >
+             🌐 Server Sozlamalari (IP)
+           </button>
+        </p>
+
+        {/* Server URL Modal */}
+        {showServerModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm p-6">
+              <h3 className="text-white font-bold text-lg mb-1">🌐 Server Sozlamalari</h3>
+              <p className="text-slate-400 text-sm mb-4">Backend API manzilini kiriting</p>
+              <input
+                type="text"
+                value={serverUrlInput}
+                onChange={e => setServerUrlInput(e.target.value)}
+                placeholder="http://localhost:8000/api"
+                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm
+                  placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-4"
+              />
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowServerModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 text-sm font-semibold transition-colors"
+                >
+                  Bekor
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const trimmed = serverUrlInput.trim();
+                    if (trimmed) {
+                      localStorage.setItem('api_server_url', trimmed);
+                      setShowServerModal(false);
+                      window.location.reload();
+                    }
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors"
+                >
+                  Saqlash
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );

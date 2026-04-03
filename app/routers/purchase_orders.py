@@ -44,9 +44,16 @@ def _build_po_out(po: PurchaseOrder) -> POOut:
     )
 
 
+from datetime import date, datetime, timedelta
+
 @router.get("", response_model=List[POListOut])
 def list_purchase_orders(
     status: Optional[POStatus] = Query(None),
+    supplier_id: Optional[int] = Query(None),
+    warehouse_id: Optional[int] = Query(None),
+    user_id: Optional[int] = Query(None),
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
@@ -60,6 +67,17 @@ def list_purchase_orders(
     q = q.filter(PurchaseOrder.company_id == current_user.company_id)
     if status:
         q = q.filter(PurchaseOrder.status == status)
+    if supplier_id:
+        q = q.filter(PurchaseOrder.supplier_id == supplier_id)
+    if warehouse_id:
+        q = q.filter(PurchaseOrder.warehouse_id == warehouse_id)
+    if user_id:
+        q = q.filter(PurchaseOrder.created_by == user_id)
+    if date_from:
+        q = q.filter(PurchaseOrder.created_at >= datetime.combine(date_from, datetime.min.time()))
+    if date_to:
+        q = q.filter(PurchaseOrder.created_at < datetime.combine(date_to + timedelta(days=1), datetime.min.time()))
+        
     pos = q.offset(skip).limit(limit).all()
     return [
         POListOut(

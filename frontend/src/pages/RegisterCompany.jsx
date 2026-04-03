@@ -272,28 +272,30 @@ export default function RegisterCompany() {
     <div className="min-h-screen bg-linear-to-br from-slate-50 via-white to-indigo-50/40 flex">
 
       {/* ── Left panel ── */}
-      <div className="hidden lg:flex lg:w-[420px] xl:w-[480px] bg-linear-to-br from-indigo-600 via-indigo-700 to-purple-700 flex-col justify-between p-12 relative overflow-hidden shrink-0">
+      <div className="hidden lg:flex lg:w-[260px] xl:w-[300px] bg-linear-to-br from-indigo-600 via-indigo-700 to-purple-700 flex-col justify-between p-10 relative overflow-hidden shrink-0">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-white/5" />
           <div className="absolute -bottom-20 -left-20 w-80 h-80 rounded-full bg-white/5" />
           <div className="absolute top-1/2 right-0 w-40 h-40 rounded-full bg-purple-500/20" />
         </div>
 
+        {/* Logo */}
         <div className="relative flex items-center gap-3">
-          <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
-            <Icon d="M13 10V3L4 14h7v7l9-11h-7z" cls="w-5 h-5 text-white" />
+          <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center shadow-lg">
+            <span className="text-indigo-700 font-black text-sm tracking-tight">UBT</span>
           </div>
-          <span className="text-white font-bold text-xl">ERP / POS</span>
+          <span className="text-white font-bold text-xl">UBT</span>
         </div>
 
-        <div className="relative space-y-8">
+        {/* Center content */}
+        <div className="relative space-y-6">
           <div>
-            <h2 className="text-3xl font-black text-white leading-tight mb-3">
+            <h2 className="text-2xl font-black text-white leading-tight mb-2">
               Biznesingizni<br />
               <span className="text-indigo-200">boshqaring</span>
             </h2>
-            <p className="text-indigo-200/80 text-sm leading-relaxed">
-              Ro'yxatdan o'tib, savdo, ombor, moliya va hisobotlarni bitta tizimda boshqaring.
+            <p className="text-indigo-300/80 text-xs leading-relaxed mt-3">
+              Ro'yxatdan o'tib, savdo, ombor va moliyani bitta tizimda boshqaring.
             </p>
           </div>
 
@@ -305,16 +307,16 @@ export default function RegisterCompany() {
               { icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z", label: "Xavfsiz va ishonchli tizim" },
             ].map(item => (
               <div key={item.label} className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
-                  <Icon d={item.icon} cls="w-4 h-4 text-indigo-200" />
+                <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
+                  <Icon d={item.icon} cls="w-3.5 h-3.5 text-indigo-200" />
                 </div>
-                <span className="text-indigo-100 text-sm">{item.label}</span>
+                <span className="text-indigo-100 text-xs">{item.label}</span>
               </div>
             ))}
           </div>
         </div>
 
-        <p className="relative text-indigo-300/60 text-xs">© 2026 ERP/POS Tizimi</p>
+        <p className="relative text-indigo-300/50 text-xs">© 2026 UBT Tizimi</p>
       </div>
 
       {/* ── Right panel (form) ── */}

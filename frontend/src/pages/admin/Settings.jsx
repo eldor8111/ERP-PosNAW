@@ -653,12 +653,6 @@ const defaultNakladnoyCfg = {
   logo: '', logo_size: 50, logo_position: 'center',
 };
 
-function loadReceiptSettings() {
-  try { return JSON.parse(localStorage.getItem(RECEIPT_KEY) || '{}'); } catch { return {}; }
-}
-function saveReceiptSettings(data) {
-  localStorage.setItem(RECEIPT_KEY, JSON.stringify(data));
-}
 
 // ── Receipt preview ────────────────────────────────────────────────────────────
 function ReceiptPreview({ cfg, mm }) {
@@ -713,7 +707,7 @@ function ReceiptPreview({ cfg, mm }) {
       {cfg.show_qr && (
         <div className="px-3 py-1.5 text-center border-b border-dashed border-slate-300">
           <div className="w-12 h-12 bg-slate-100 border border-slate-200 mx-auto grid" style={{ gridTemplateColumns: 'repeat(5,1fr)', gap: '1px', padding: '3px' }}>
-            {Array.from({length:25}).map((_,i) => <div key={i} className={Math.random()>0.5?'bg-slate-800':'bg-white'} />)}
+            {Array.from({length:25}).map((_,i) => <div key={i} className={i % 3 === 0 ? 'bg-slate-800' : 'bg-white'} />)}
           </div>
         </div>
       )}
@@ -988,25 +982,55 @@ function NakladnoyFields({ cfg, upd }) {
 
 // ── Receipt / Nakladnoy settings tab ──────────────────────────────────────────
 function ReceiptTab() {
-  const stored = loadReceiptSettings();
+  const [loading, setLoading] = useState(true);
   const [sub, setSub]       = useState('58');
-  const [cfg58, setCfg58]   = useState({ ...defaultReceiptCfg, ...stored.r58 });
-  const [cfg80, setCfg80]   = useState({ ...defaultReceiptCfg, show_qr: true, ...stored.r80 });
-  const [cfgNak, setCfgNak] = useState({ ...defaultNakladnoyCfg, ...stored.nak });
+  const [cfg58, setCfg58]   = useState({ ...defaultReceiptCfg });
+  const [cfg80, setCfg80]   = useState({ ...defaultReceiptCfg, show_qr: true });
+  const [cfgNak, setCfgNak] = useState({ ...defaultNakladnoyCfg });
   const [saved, setSaved]   = useState(false);
+
+  useEffect(() => {
+    api.get('/companies/me/receipt_templates')
+      .then(r => {
+        const d = r.data?.receipt_templates || {};
+        const r58 = d.r58 ? { ...defaultReceiptCfg, ...d.r58 } : undefined;
+        const r80 = d.r80 ? { ...defaultReceiptCfg, show_qr: true, ...d.r80 } : undefined;
+        const nak = d.nak ? { ...defaultNakladnoyCfg, ...d.nak } : undefined;
+        if (r58) setCfg58(r58);
+        if (r80) setCfg80(r80);
+        if (nak) setCfgNak(nak);
+        // localStorage ni sinxronlashtirish (barcha print funksiyalar shu yerdan o'qiydi)
+        const stored = {};
+        if (r58) stored.r58 = r58;
+        if (r80) stored.r80 = r80;
+        if (nak) stored.nak = nak;
+        if (Object.keys(stored).length) {
+          localStorage.setItem(RECEIPT_KEY, JSON.stringify(stored));
+        }
+      })
+      .catch(e => console.error('Receipt templates load error:', e))
+      .finally(() => setLoading(false));
+  }, []);
 
   const upd58  = (k, v) => setCfg58(p => ({ ...p, [k]: v }));
   const upd80  = (k, v) => setCfg80(p => ({ ...p, [k]: v }));
   const updNak = (k, v) => setCfgNak(p => ({ ...p, [k]: v }));
 
   const handleSave = () => {
-    saveReceiptSettings({ r58: cfg58, r80: cfg80, nak: cfgNak });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    api.put('/companies/me/receipt_templates', {
+      receipt_templates: { r58: cfg58, r80: cfg80, nak: cfgNak }
+    }).then(() => {
+      // localStorage ni yangilash (barcha print funksiyalar shu yerdan o'qiydi)
+      localStorage.setItem(RECEIPT_KEY, JSON.stringify({ r58: cfg58, r80: cfg80, nak: cfgNak }));
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    }).catch(e => alert(e.response?.data?.detail || "Saqlashda xatolik yuz berdi"));
   };
 
   const currentCfg = sub === '58' ? cfg58 : sub === '80' ? cfg80 : cfgNak;
   const updFn      = sub === '58' ? upd58  : sub === '80' ? upd80  : updNak;
+
+  if (loading) return <div className="text-sm text-slate-500 animate-pulse py-10 px-4">Shablonlar serverdan yuklanmoqda...</div>;
 
   return (
     <div className="space-y-4">

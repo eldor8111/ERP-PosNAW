@@ -6,11 +6,13 @@
 const listeners = new Set()
 
 export const toast = {
-  error: (message) => listeners.forEach(fn => fn({ type: 'error', message })),
-  warn: (message)  => listeners.forEach(fn => fn({ type: 'warn',  message })),
-  info: (message)  => listeners.forEach(fn => fn({ type: 'info',  message })),
+  error:   (message) => listeners.forEach(fn => fn({ type: 'error',   message })),
+  warn:    (message) => listeners.forEach(fn => fn({ type: 'warn',    message })),
+  warning: (message) => listeners.forEach(fn => fn({ type: 'warn',    message })),
+  info:    (message) => listeners.forEach(fn => fn({ type: 'info',    message })),
+  success: (message) => listeners.forEach(fn => fn({ type: 'success', message })),
   subscribe: (fn)  => {
     listeners.add(fn)
-    return () => listeners.delete(fn)   // unsubscribe funksiyasini qaytaradi
+    return () => listeners.delete(fn)
   },
 }

@@ -62,9 +62,16 @@ def _load_transfer(db: Session, transfer_id: int, company_id: Optional[int] = No
     return q.first()
 
 
+from datetime import date, datetime, timedelta
+
 @router.get("", response_model=List[TransferListOut])
 def list_transfers(
     status: Optional[TransferStatus] = Query(None),
+    from_warehouse_id: Optional[int] = Query(None),
+    to_warehouse_id: Optional[int] = Query(None),
+    user_id: Optional[int] = Query(None),
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
@@ -85,6 +92,17 @@ def list_transfers(
         q = q.filter(StockTransfer.from_warehouse_id.in_(company_wh_ids))
     if status:
         q = q.filter(StockTransfer.status == status)
+    if from_warehouse_id:
+        q = q.filter(StockTransfer.from_warehouse_id == from_warehouse_id)
+    if to_warehouse_id:
+        q = q.filter(StockTransfer.to_warehouse_id == to_warehouse_id)
+    if user_id:
+        q = q.filter(StockTransfer.created_by == user_id)
+    if date_from:
+        q = q.filter(StockTransfer.created_at >= datetime.combine(date_from, datetime.min.time()))
+    if date_to:
+        q = q.filter(StockTransfer.created_at < datetime.combine(date_to + timedelta(days=1), datetime.min.time()))
+        
     transfers = q.offset(skip).limit(limit).all()
     return [
         TransferListOut(

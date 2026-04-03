@@ -194,7 +194,7 @@ export default function Reports() {
       } else if (tab === 'cashier') {
         const r = await api.get(`/reports/cashier-report${qs()}`);
         setCashierData(r.data);
-        try { const cb = await api.get('/finance/cash-balance'); setCashBalance(cb.data); } catch {}
+        try { const cb = await api.get('/finance/cash-balance'); setCashBalance(cb.data); } catch { /* ignore */ }
       } else if (tab === 'deadstock') {
         const r = await api.get('/reports/dead-stock');
         setDeadStockData(r.data);
@@ -432,10 +432,12 @@ export default function Reports() {
                   printTable(`Foyda va Zarar — ${plData.period?.from} / ${plData.period?.to}`,
                     ['Ko\'rsatkich', 'Summa', 'Foiz'],
                     [
-                      ['Daromad (sotuv)', fmtS(plData.revenue), '100%'],
-                      ['Tannarx (COGS)', fmtS(plData.cogs), pct(plData.cogs / plData.revenue * 100)],
+                      ['Yalpi daromad (sotuv)', fmtS(plData.gross_revenue), ''],
+                      ['Vazvratlar (−)', fmtS(plData.returns), ''],
+                      ['Net daromad', fmtS(plData.revenue), '100%'],
+                      ['Tannarx/COGS (FIFO)', fmtS(plData.cogs), pct(plData.revenue > 0 ? plData.cogs / plData.revenue * 100 : 0)],
                       ['Brutto foyda', fmtS(plData.gross_profit), pct(plData.gross_margin_pct)],
-                      ['Xarajatlar', fmtS(plData.expenses?.total), ''],
+                      ['Xarajatlar (−)', fmtS(plData.expenses?.total), ''],
                       ...(plData.expenses?.by_category || []).map(c => [`  • ${c.name}`, fmtS(c.total), '']),
                       ['Net foyda', fmtS(plData.net_profit), pct(plData.net_margin_pct)],
                     ]
@@ -449,17 +451,19 @@ export default function Reports() {
                 <p className="text-sm text-slate-500 mb-5">Davr: <strong>{plData.period?.from}</strong> — <strong>{plData.period?.to}</strong></p>
                 <div className="space-y-2">
                   {[
-                    { label: 'Daromad (sotuv)', value: plData.revenue, cls: 'text-slate-800', pctV: 100, bg: '' },
-                    { label: 'Tannarx (COGS)', value: -plData.cogs, cls: 'text-red-500', pctV: plData.cogs / plData.revenue * 100, bg: '' },
+                    { label: 'Yalpi daromad (sotuv)', value: plData.gross_revenue, cls: 'text-slate-800', pctV: null, bg: '' },
+                    { label: 'Vazvratlar (−)', value: -plData.returns, cls: 'text-orange-500', pctV: plData.revenue > 0 ? plData.returns / plData.gross_revenue * 100 : 0, bg: '' },
+                    { label: 'Net daromad', value: plData.revenue, cls: 'font-semibold text-slate-800', pctV: 100, bg: 'bg-slate-50' },
+                    { label: 'Tannarx/COGS (FIFO)', value: -plData.cogs, cls: 'text-red-500', pctV: plData.revenue > 0 ? plData.cogs / plData.revenue * 100 : 0, bg: '' },
                     { label: 'Brutto foyda', value: plData.gross_profit, cls: 'font-bold text-indigo-600', pctV: plData.gross_margin_pct, bg: 'bg-indigo-50' },
-                    { label: 'Xarajatlar', value: -plData.expenses?.total, cls: 'text-red-500', pctV: plData.expenses?.total / plData.revenue * 100, bg: '' },
+                    { label: 'Xarajatlar (−)', value: -plData.expenses?.total, cls: 'text-red-500', pctV: plData.revenue > 0 ? plData.expenses?.total / plData.revenue * 100 : 0, bg: '' },
                     { label: 'Net foyda', value: plData.net_profit, cls: `font-bold ${plData.net_profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`, pctV: plData.net_margin_pct, bg: plData.net_profit >= 0 ? 'bg-emerald-50' : 'bg-red-50' },
                   ].map(row => (
                     <div key={row.label} className={`flex items-center justify-between p-3 rounded-xl ${row.bg || 'border border-slate-100'}`}>
                       <span className={`text-sm ${row.cls}`}>{row.label}</span>
                       <div className="flex items-center gap-4">
-                        <span className="text-xs text-slate-400">{pct(Math.abs(row.pctV))}</span>
-                        <span className={`text-sm font-semibold ${row.cls} min-w-32 text-right`}>{fmtS(Math.abs(row.value))}</span>
+                        <span className="text-xs text-slate-400">{row.pctV != null ? pct(Math.abs(row.pctV)) : ''}</span>
+                        <span className={`text-sm font-semibold ${row.cls} min-w-32 text-right`}>{fmtS(Math.abs(row.value ?? 0))}</span>
                       </div>
                     </div>
                   ))}

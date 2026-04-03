@@ -4,7 +4,7 @@ import api from '../../api/axios';
 /* ── helpers ──────────────────────────────────────── */
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 
-const Avatar = ({ name, size = 'sm', color = 'indigo' }) => {
+const Avatar = ({ name, size = 'sm' }) => {
   const sizes = { sm: 'w-8 h-8 text-sm', lg: 'w-11 h-11 text-base' };
   const colors = ['bg-indigo-100 text-indigo-600', 'bg-emerald-100 text-emerald-600', 'bg-violet-100 text-violet-600', 'bg-rose-100 text-rose-600', 'bg-amber-100 text-amber-600'];
   const c = colors[(name?.charCodeAt(0) || 0) % colors.length];
@@ -49,7 +49,9 @@ function MijozlarTab() {
   const [err, setErr] = useState('');
 
   const load = (q = search) => api.get(`/customers${q ? '?search=' + encodeURIComponent(q) : ''}`).then(r => setList(r.data)).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { const t = setTimeout(() => load(search), 400); return () => clearTimeout(t); }, [search]);
 
   const close = () => { setModal(null); setSel(null); setErr(''); };
@@ -252,7 +254,9 @@ function SuppliersTab() {
   const [err, setErr] = useState('');
 
   const load = (q = search) => api.get(`/suppliers${q ? '?search=' + encodeURIComponent(q) : ''}`).then(r => setList(r.data)).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { const t = setTimeout(() => load(search), 400); return () => clearTimeout(t); }, [search]);
 
   const close = () => { setModal(null); setSel(null); setErr(''); };

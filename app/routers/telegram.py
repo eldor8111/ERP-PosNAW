@@ -44,56 +44,10 @@ def _find_customer_by_chat(db: Session, token: str, chat_id: str):
 def _build_main_keyboard():
     return {
         "keyboard": [
-            [{"text": "📊 Bugungi sotuv"}, {"text": "📦 Kam qoldiq"}],
-            [{"text": "💰 Balans"}],
+            [{"text": "💰 Qarz va to'lovlar"}],
         ],
         "resize_keyboard": True,
     }
-
-
-async def _handle_sotuv(db: Session, token: str, chat_id: str, company, customer, bg: BackgroundTasks):
-    """Bugungi savdo statistikasi."""
-    today = datetime.now(timezone.utc).date()
-    sales = db.query(Sale).filter(
-        Sale.company_id == company.id,
-        func.date(Sale.created_at) == today,
-    ).all()
-
-    total = sum(float(s.total_amount or 0) for s in sales)
-    cash = sum(float(s.paid_cash or 0) for s in sales)
-    card = sum(float(s.paid_card or 0) for s in sales)
-
-    msg = (
-        f"📊 <b>Bugungi sotuv — {today.strftime('%d.%m.%Y')}</b>\n\n"
-        f"🧾 Cheklar soni: <b>{len(sales)}</b>\n"
-        f"💵 Jami: <b>{FMT(total)} so'm</b>\n"
-        f"💵 Naqd: <b>{FMT(cash)} so'm</b>\n"
-        f"💳 Karta: <b>{FMT(card)} so'm</b>\n"
-    )
-    bg.add_task(send_telegram_message, token, chat_id, msg, _build_main_keyboard())
-
-
-async def _handle_ombor(db: Session, token: str, chat_id: str, company, customer, bg: BackgroundTasks):
-    """Kam qoldiq ro'yxati."""
-    stocks = (
-        db.query(StockLevel)
-        .join(Product)
-        .filter(Product.company_id == company.id, Product.is_deleted == False)
-        .options(joinedload(StockLevel.product))
-        .all()
-    )
-    low = [s for s in stocks if s.quantity <= s.product.min_stock]
-
-    if not low:
-        msg = "📦 <b>Kam qoldiq yo'q!</b>\n\nBarcha mahsulotlar yetarli miqdorda."
-    else:
-        lines = []
-        for i, s in enumerate(low[:20], 1):
-            lines.append(f"{i}. {s.product.name} — <b>{int(s.quantity)}</b> / {int(s.product.min_stock)}")
-        msg = f"📦 <b>Kam qoldiq — {len(low)} ta mahsulot</b>\n\n" + "\n".join(lines)
-        if len(low) > 20:
-            msg += f"\n\n... va yana {len(low) - 20} ta"
-    bg.add_task(send_telegram_message, token, chat_id, msg, _build_main_keyboard())
 
 
 async def _handle_balans(db: Session, token: str, chat_id: str, company, customer, bg: BackgroundTasks):
@@ -101,9 +55,9 @@ async def _handle_balans(db: Session, token: str, chat_id: str, company, custome
     if customer:
         msg = (
             f"💰 <b>{customer.name}</b>\n\n"
-            f"📌 Qarz: <b>{FMT(customer.debt_balance)} so'm</b>\n"
+            f"📌 Jami Qarz (Joriy qarz): <b>{FMT(customer.debt_balance)} so'm</b>\n"
             f"📌 Qarz limiti: <b>{FMT(customer.debt_limit)} so'm</b>\n"
-            f"⭐ Ball: <b>{int(customer.loyalty_points or 0)}</b>\n"
+            f"⭐ Bonus balansi: <b>{FMT(customer.bonus_balance or 0)} so'm</b>\n"
             f"🏷 Daraja: <b>{customer.tier}</b>\n"
         )
     else:
@@ -112,12 +66,9 @@ async def _handle_balans(db: Session, token: str, chat_id: str, company, custome
 
 
 COMMAND_MAP = {
-    "/sotuv": _handle_sotuv,
-    "📊 bugungi sotuv": _handle_sotuv,
-    "/ombor": _handle_ombor,
-    "📦 kam qoldiq": _handle_ombor,
     "/balans": _handle_balans,
     "💰 balans": _handle_balans,
+    "💰 qarz va to'lovlar": _handle_balans,
 }
 
 
@@ -184,7 +135,12 @@ async def telegram_webhook(token: str, request: Request, background_tasks: Backg
             return {"ok": True}
 
         # Komandalar — /sotuv, /ombor, /balans + keyboard tugmalari
-        handler = COMMAND_MAP.get(text.lower())
+        txt = text.lower()
+        handler = COMMAND_MAP.get(txt)
+        if not handler:
+            if "balans" in txt or "qarz" in txt or "tolov" in txt or "to'lov" in txt or "to`lov" in txt:
+                handler = _handle_balans
+
         if handler:
             company, customer = _find_customer_by_chat(db, token, chat_id)
             if not company:
@@ -197,12 +153,13 @@ async def telegram_webhook(token: str, request: Request, background_tasks: Backg
         if text.startswith("/"):
             help_msg = (
                 "📋 <b>Mavjud buyruqlar:</b>\n\n"
-                "/sotuv — 📊 Bugungi savdo statistikasi\n"
-                "/ombor — 📦 Kam qoldiq ro'yxati\n"
-                "/balans — 💰 Qarz va ball ma'lumotlari\n"
+                "/balans — 💰 Qarz va joriy to'lovlar ma'lumotlari\n"
                 "/start — 🔄 Qayta ro'yxatdan o'tish"
             )
             background_tasks.add_task(send_telegram_message, token, chat_id, help_msg, _build_main_keyboard())
+        else:
+            # Har qanday tushunarsiz matn kelsa (masalan eski menyu tugmasi bossa), yangi menyuni yuborib yangilab qoyamiz.
+            background_tasks.add_task(send_telegram_message, token, chat_id, "⚙️ Menyu yangilandi. Iltimos quyidagi tugmalardan foydalaning:", _build_main_keyboard())
 
         return {"ok": True}
     except Exception as e:

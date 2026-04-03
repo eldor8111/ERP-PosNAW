@@ -27,6 +27,7 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
   const [tab, setTab] = useState('branches');
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     api.get(`/super-admin/companies/${companyId}`)
       .then(r => setDetail(r.data))
@@ -119,6 +120,7 @@ function BranchUsersView({ branches }) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!branchId) { setUsers([]); return; }
     setLoading(true);
     api.get(`/super-admin/branches/${branchId}`)
@@ -463,19 +465,44 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
   const [topUp, setTopUp] = useState({ org_code: '', amount: '' });
   const [topUpMsg, setTopUpMsg] = useState(null);
   const [topUpLoading, setTopUpLoading] = useState(false);
+  const [foundCompany, setFoundCompany] = useState(null);   // { id, name, org_code }
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchErr, setSearchErr] = useState('');
+
+  const handleSearchCompany = async (e) => {
+    e.preventDefault();
+    if (!topUp.org_code.trim()) return;
+    setSearchLoading(true);
+    setSearchErr('');
+    setFoundCompany(null);
+    try {
+      const res = await api.get(`/super-admin/companies?search=${topUp.org_code.trim().toUpperCase()}`);
+      const match = res.data.find(c => (c.code || '').toUpperCase() === topUp.org_code.trim().toUpperCase());
+      if (match) {
+        setFoundCompany(match);
+      } else {
+        setSearchErr(`"${topUp.org_code.toUpperCase()}" kodi bilan korxona topilmadi`);
+      }
+    } catch {
+      setSearchErr('Qidirishda xatolik yuz berdi');
+    } finally {
+      setSearchLoading(false);
+    }
+  };
 
   const handleTopUp = async (e) => {
     e.preventDefault();
-    if (!topUp.org_code || !topUp.amount) return;
+    if (!foundCompany || !topUp.amount) return;
     setTopUpLoading(true);
     setTopUpMsg(null);
     try {
       const res = await api.post('/super-admin/top-up', {
-        org_code: topUp.org_code.toUpperCase(),
+        org_code: foundCompany.code,
         amount: parseFloat(topUp.amount),
       });
       setTopUpMsg({ ok: true, text: `✓ ${res.data.company_name} — yangi balans: ${res.data.new_balance.toLocaleString()} s` });
       setTopUp({ org_code: '', amount: '' });
+      setFoundCompany(null);
       loadCompanies();
       window.dispatchEvent(new Event('balance-updated'));
     } catch (err) {
@@ -497,7 +524,9 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
 
   const tabs = [
     { id: 'companies', label: 'Korxonalar', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
-    { id: 'agents', label: 'Agentlar', icon: 'M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z' },
+    { id: 'billing',   label: 'Billing',    icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z' },
+    { id: 'tariffs',   label: 'Tariflar',   icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+    { id: 'settings',  label: 'Sozlamalar', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
   ];
 
   return (
@@ -517,73 +546,132 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
             Super Admin
           </span>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {[
-            { label: 'Korxonalar', value: overview?.companies ?? '—', color: 'text-indigo-700 bg-indigo-50' },
-            { label: 'Filiallar', value: overview?.branches ?? '—', color: 'text-emerald-700 bg-emerald-50' },
-            { label: 'Xodimlar', value: overview?.users ?? '—', color: 'text-blue-700 bg-blue-50' },
-            { label: 'Jami sotuv', value: overview ? `${Number(overview.total_revenue||0).toLocaleString('uz-UZ')} s` : '—', color: 'text-purple-700 bg-purple-50' },
+            { label: 'Korxonalar',  value: overview?.companies ?? '—',  color: 'text-indigo-700 bg-indigo-50' },
+            { label: 'Filiallar',   value: overview?.branches  ?? '—',  color: 'text-emerald-700 bg-emerald-50' },
+            { label: 'Xodimlar',    value: overview?.users     ?? '—',  color: 'text-blue-700 bg-blue-50' },
+            { label: 'Jami sotuv',  value: overview ? `${Number(overview.total_revenue||0).toLocaleString('uz-UZ')} s` : '—', color: 'text-purple-700 bg-purple-50' },
+            {
+              label: "Bugun tariflar",
+              value: overview ? `${overview.today_subscriptions ?? 0} ta` : '—',
+              color: 'text-amber-700 bg-amber-50',
+              sub: overview ? `${Number(overview.today_sub_revenue || 0).toLocaleString('uz-UZ')} s` : null,
+            },
+            {
+              label: "Bugun tushum",
+              value: overview ? `${Number(overview.today_sub_revenue || 0).toLocaleString('uz-UZ')} s` : '—',
+              color: 'text-rose-700 bg-rose-50',
+            },
           ].map(s => (
             <div key={s.label} className={`rounded-xl p-3 ${s.color} border border-white/60`}>
               <div className="text-[10px] font-semibold uppercase tracking-wide opacity-70 mb-1">{s.label}</div>
-              <div className="text-xl font-black">{s.value}</div>
+              <div className="text-lg font-black leading-tight">{s.value}</div>
             </div>
           ))}
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-white rounded-2xl border border-slate-100 shadow-sm p-1.5 w-fit">
-        {tabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all
-              ${tab === t.id ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'text-slate-600 hover:bg-slate-100'}`}>
-            <Ic d={t.icon} cls="w-3.5 h-3.5" />
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {(
+        <div className="flex gap-1 bg-white rounded-2xl border border-slate-100 shadow-sm p-1.5 w-fit">
+          {tabs.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all
+                ${tab === t.id ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'text-slate-600 hover:bg-slate-100'}`}>
+              <Ic d={t.icon} cls="w-3.5 h-3.5" />
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Companies Tab */}
       {tab === 'companies' && (
         <>
-        {/* Balans to'ldirish forma */}
+        {/* Balans to'ldirish forma — 2 bosqich */}
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-4">
-          <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+          <h3 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center">
               <Ic d="M12 6v6m0 0v6m0-6h6m-6 0H6" cls="w-4 h-4 text-emerald-600" />
             </div>
             Korxona balansi to'ldirish
           </h3>
-          <form onSubmit={handleTopUp} className="flex items-end gap-3">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-slate-500 font-medium">Tashkilot kodi</label>
-              <input
-                value={topUp.org_code}
-                onChange={e => setTopUp(p => ({ ...p, org_code: e.target.value.toUpperCase() }))}
-                placeholder="Masalan: AB1234"
-                className="border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono font-bold text-indigo-700 w-40 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-              />
+
+          {/* Step 1 — search */}
+          {!foundCompany ? (
+            <form onSubmit={handleSearchCompany} className="flex items-end gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-500 font-medium">Tashkilot kodi</label>
+                <input
+                  value={topUp.org_code}
+                  onChange={e => { setTopUp(p => ({ ...p, org_code: e.target.value.toUpperCase() })); setSearchErr(''); }}
+                  placeholder="Masalan: 12345678"
+                  className="border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono font-bold text-indigo-700 w-44 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  autoFocus
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={searchLoading || !topUp.org_code.trim()}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-all disabled:opacity-60 flex items-center gap-2"
+              >
+                {searchLoading
+                  ? <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Qidirilmoqda...</>
+                  : <><Ic d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" cls="w-4 h-4" />Qidirish</>
+                }
+              </button>
+            </form>
+          ) : (
+            /* Step 2 — confirm & enter amount */
+            <div className="space-y-4">
+              {/* Company confirmation card */}
+              <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3">
+                <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-base shrink-0">
+                  {foundCompany.name?.[0]?.toUpperCase()}
+                </div>
+                <div className="flex-1">
+                  <div className="font-bold text-slate-800 text-sm">{foundCompany.name}</div>
+                  <div className="text-xs text-indigo-500 font-mono font-bold mt-0.5">Kod: {foundCompany.code}</div>
+                </div>
+                <button
+                  onClick={() => { setFoundCompany(null); setTopUp(p => ({ ...p, amount: '' })); setTopUpMsg(null); }}
+                  className="text-slate-400 hover:text-red-500 transition-colors"
+                  title="Bekor qilish"
+                >
+                  <Ic d="M6 18L18 6M6 6l12 12" cls="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Amount form */}
+              <form onSubmit={handleTopUp} className="flex items-end gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-slate-500 font-medium">Miqdor (so'm)</label>
+                  <input
+                    type="number"
+                    value={topUp.amount}
+                    onChange={e => setTopUp(p => ({ ...p, amount: e.target.value }))}
+                    placeholder="100000"
+                    min="1"
+                    autoFocus
+                    className="border border-slate-200 rounded-xl px-3 py-2 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={topUpLoading || !topUp.amount}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl transition-all disabled:opacity-60"
+                >
+                  {topUpLoading ? 'Yuklanmoqda...' : 'Balansni to\'ldirish'}
+                </button>
+              </form>
             </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-slate-500 font-medium">Miqdor (so'm)</label>
-              <input
-                type="number"
-                value={topUp.amount}
-                onChange={e => setTopUp(p => ({ ...p, amount: e.target.value }))}
-                placeholder="100000"
-                min="1"
-                className="border border-slate-200 rounded-xl px-3 py-2 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-emerald-300"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={topUpLoading}
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl transition-all disabled:opacity-60"
-            >
-              {topUpLoading ? 'Yuklanmoqda...' : 'Qo\'shish'}
-            </button>
-          </form>
+          )}
+
+          {/* Messages */}
+          {searchErr && (
+            <p className="mt-3 text-sm font-semibold px-3 py-2 rounded-xl bg-red-50 text-red-600">{searchErr}</p>
+          )}
           {topUpMsg && (
             <p className={`mt-3 text-sm font-semibold px-3 py-2 rounded-xl ${topUpMsg.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
               {topUpMsg.text}
@@ -648,8 +736,14 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
         </>
       )}
 
-      {/* Agents Tab */}
-      {tab === 'agents' && <AgentsTab />}
+      {/* ── BILLING TAB ── */}
+      {tab === 'billing' && <BillingTab />}
+
+      {/* ── TARIFLAR TAB ── */}
+      {tab === 'tariffs' && <TariffsTab />}
+
+      {/* ── SETTINGS TAB ── */}
+      {tab === 'settings' && <SettingsTab />}
 
       {/* Company Detail Modal */}
       {selectedCompany && (
@@ -658,6 +752,611 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
           companyName={selectedCompany.name}
           onClose={() => setSelectedCompany(null)}
         />
+      )}
+    </div>
+  );
+}
+
+/* ─── fmt helper ─────────────────────────────────── */
+const fmtMoney = (v) => Number(v || 0).toLocaleString('uz-UZ');
+
+/* ─── BILLING TAB ───────────────────────────────────── */
+function BillingTab() {
+  const [list, setList] = useState([]);
+  const [tariffs, setTariffs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [actionModal, setActionModal] = useState(null); // { company, type: 'trial'|'subscribe'|'topup' }
+  const [subForm, setSubForm] = useState({ tariff_id: '', months: 1 });
+  const [topupForm, setTopupForm] = useState({ amount: '', note: '' });
+  const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  const load = () => {
+    setLoading(true);
+    Promise.all([
+      api.get('/billing/companies'),
+      api.get('/billing/tariffs'),
+    ]).then(([r1, r2]) => {
+      setList(r1.data);
+      setTariffs(r2.data);
+    }).catch(() => {}).finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const activateTrial = async (c) => {
+    setSaving(true);
+    try {
+      const r = await api.post(`/billing/companies/${c.id}/activate-trial`);
+      alert(r.data.message);
+      load();
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Xatolik');
+    } finally { setSaving(false); setActionModal(null); }
+  };
+
+  const doTopUp = async () => {
+    const amount = Number(topupForm.amount);
+    if (!amount || amount <= 0) return alert('Miqdor kiriting!');
+    setSaving(true);
+    try {
+      const r = await api.post(`/billing/companies/${actionModal.company.id}/top-up`, {
+        amount,
+        note: topupForm.note || undefined,
+      });
+      alert(r.data.message);
+      load();
+      setActionModal(null);
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Xatolik');
+    } finally { setSaving(false); }
+  };
+
+  const activateSubscription = async () => {
+    if (!subForm.tariff_id) return alert('Tarif tanlang!');
+    setSaving(true);
+    try {
+      const r = await api.post(`/billing/companies/${actionModal.company.id}/subscribe`, {
+        tariff_id: Number(subForm.tariff_id),
+        months: Number(subForm.months),
+      });
+      alert(r.data.message + `\nBalansdan yechildi: ${fmtMoney(r.data.charged)} so'm`);
+      load();
+      setActionModal(null);
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Xatolik');
+    } finally { setSaving(false); }
+  };
+
+  const statusBadge = (c) => {
+    if (!c.subscription_active) return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-600">Tugagan</span>;
+    if (c.is_trial) return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">Sinov ({c.days_left}k)</span>;
+    return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">Faol ({c.days_left}k)</span>;
+  };
+
+  const filtered = list.filter(c => {
+    const q = search.toLowerCase();
+    if (q && !c.name?.toLowerCase().includes(q) && !c.org_code?.toLowerCase().includes(q)) return false;
+    if (dateFrom && c.created_at && c.created_at < dateFrom) return false;
+    if (dateTo && c.created_at && c.created_at.slice(0, 10) > dateTo) return false;
+    return true;
+  });
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <h3 className="font-bold text-slate-800 flex items-center gap-2">
+          <span className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center">
+            <Ic d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" cls="w-4 h-4 text-blue-600" />
+          </span>
+          Korxonalar Billing
+          <span className="text-xs font-normal text-slate-400">({filtered.length}/{list.length})</span>
+        </h3>
+        <button onClick={load} className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg font-semibold text-slate-600 transition-all">
+          Yangilash
+        </button>
+      </div>
+
+      {/* Filter qatori */}
+      <div className="px-5 py-3 bg-slate-50 border-b border-slate-100 flex flex-wrap gap-2 items-center">
+        <input
+          type="text"
+          placeholder="Korxona nomi yoki kodi..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="flex-1 min-w-[180px] text-sm border border-slate-200 rounded-lg px-3 py-1.5 outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+        />
+        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+          <span>Dan:</span>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-blue-300 bg-white" />
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+          <span>Gacha:</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-blue-300 bg-white" />
+        </div>
+        {(search || dateFrom || dateTo) && (
+          <button onClick={() => { setSearch(''); setDateFrom(''); setDateTo(''); }}
+            className="text-xs px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg font-semibold border border-red-100 transition-all">
+            Tozalash
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 border-b border-slate-100">
+              <tr>
+                {['Korxona', 'Yaratilgan', 'Balans', 'Tarif', 'Obuna holati', 'Tugash sanasi', 'Amallar'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wide">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {filtered.length === 0 && (
+                <tr><td colSpan={7} className="text-center py-10 text-slate-400 text-sm">Hech narsa topilmadi</td></tr>
+              )}
+              {filtered.map(c => (
+                <tr key={c.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-3">
+                    <div className="font-semibold text-slate-800">{c.name}</div>
+                    <div className="text-xs text-slate-400 font-mono">{c.org_code}</div>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-500">
+                    {c.created_at ? new Date(c.created_at).toLocaleDateString('uz-UZ') : '—'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`font-black text-sm ${c.balance < 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                      {fmtMoney(c.balance)} s
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-500">{c.tariff_name || '—'}</td>
+                  <td className="px-4 py-3">{statusBadge(c)}</td>
+                  <td className="px-4 py-3 text-xs text-slate-500">
+                    {c.subscription_ends_at ? new Date(c.subscription_ends_at).toLocaleDateString('uz-UZ') : '—'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => { setActionModal({ company: c, type: 'trial' }); }}
+                        className="text-xs px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg font-semibold border border-amber-100 transition-all"
+                      >
+                        7kun sinov
+                      </button>
+                      <button
+                        onClick={() => { setActionModal({ company: c, type: 'subscribe' }); setSubForm({ tariff_id: c.tariff_id || '', months: 1 }); }}
+                        className="text-xs px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg font-semibold border border-blue-100 transition-all"
+                      >
+                        Obuna
+                      </button>
+                      <button
+                        onClick={() => { setActionModal({ company: c, type: 'topup' }); setTopupForm({ amount: '', note: '' }); }}
+                        className="text-xs px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg font-semibold border border-emerald-100 transition-all"
+                      >
+                        + Pul
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Action Modal */}
+      {actionModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-slate-800">
+                {actionModal.type === 'trial' ? '7 kunlik sinov' : actionModal.type === 'topup' ? 'Balansni to\'ldirish' : 'Obunani faollashtirish'}
+              </h3>
+              <button onClick={() => setActionModal(null)} className="text-slate-400 hover:text-slate-600">
+                <Ic d="M6 18L18 6M6 6l12 12" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-3 mb-4 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-sm">
+                {actionModal.company.name?.[0]?.toUpperCase()}
+              </div>
+              <div>
+                <div className="font-semibold text-slate-800 text-sm">{actionModal.company.name}</div>
+                <div className="text-xs text-slate-400">Balans: <span className="font-bold text-emerald-700">{fmtMoney(actionModal.company.balance)} s</span></div>
+              </div>
+            </div>
+
+            {actionModal.type === 'trial' ? (
+              <div className="mb-5">
+                <p className="text-sm text-slate-600">Bu korxonaga <span className="font-bold text-amber-600">7 kunlik bepul sinov muddati</span> beriladi. Hozirgi obuna muddatiga qo'shiladi.</p>
+              </div>
+            ) : actionModal.type === 'topup' ? (
+              <div className="space-y-3 mb-5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5">Miqdor (so'm)</label>
+                  <input
+                    type="number" min="1" placeholder="Masalan: 150000"
+                    value={topupForm.amount}
+                    onChange={e => setTopupForm(p => ({ ...p, amount: e.target.value }))}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-emerald-300"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5">Izoh (ixtiyoriy)</label>
+                  <input
+                    type="text" placeholder="To'lov sababi..."
+                    value={topupForm.note}
+                    onChange={e => setTopupForm(p => ({ ...p, note: e.target.value }))}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-300"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3 mb-5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5">Tarif</label>
+                  <select value={subForm.tariff_id} onChange={e => setSubForm(p => ({...p, tariff_id: e.target.value}))}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-300 bg-white">
+                    <option value="">— Tarif tanlang —</option>
+                    {tariffs.filter(t => t.price_per_month > 0).map(t => (
+                      <option key={t.id} value={t.id}>{t.name} — {fmtMoney(t.price_per_month)} s/oy</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5">Muddat (oy)</label>
+                  <select value={subForm.months} onChange={e => setSubForm(p => ({...p, months: Number(e.target.value)}))}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-300 bg-white">
+                    {[1,2,3,6,12].map(m => <option key={m} value={m}>{m} oy</option>)}
+                  </select>
+                </div>
+                {subForm.tariff_id && (
+                  <div className="bg-blue-50 rounded-xl p-3 text-sm">
+                    <span className="text-slate-500">Jami yechiladi: </span>
+                    <span className="font-black text-blue-700">
+                      {fmtMoney((tariffs.find(t => String(t.id) === String(subForm.tariff_id))?.price_per_month || 0) * subForm.months)} so'm
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button onClick={() => setActionModal(null)} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-sm transition-all">Bekor</button>
+              <button
+                onClick={actionModal.type === 'trial' ? () => activateTrial(actionModal.company) : actionModal.type === 'topup' ? doTopUp : activateSubscription}
+                disabled={saving}
+                className={`flex-1 py-2.5 text-white font-bold rounded-xl text-sm transition-all disabled:opacity-50 ${actionModal.type === 'topup' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-200' : 'bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200'}`}
+              >
+                {saving ? 'Saqlanmoqda...' : actionModal.type === 'trial' ? 'Sinov berish' : actionModal.type === 'topup' ? 'Balans qo\'shish' : 'Obunani yoqish'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Settings Tab ───────────────────────────────── */
+function SettingsTab() {
+  const FIELDS = [
+    { key: 'card_number', label: "To'lov karta raqami",       placeholder: '8600 0000 0000 0000', icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z' },
+    { key: 'card_owner',  label: 'Karta egasining ismi',       placeholder: 'Abdualimov Eldorbek', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
+    { key: 'tg_username', label: 'Telegram username (@ siz)', placeholder: 'eldorservices',       icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' },
+    { key: 'phone',       label: "Telefon (ko'rsatish uchun)", placeholder: '+998 88 911 81 71',   icon: 'M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z' },
+    { key: 'phone_raw',   label: 'Telefon (tel: link uchun)', placeholder: '+998889118171',        icon: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1' },
+  ];
+
+  const [saved, setSaved]         = useState({});     // DB dagi haqiqiy qiymatlar
+  const [draft, setDraft]         = useState({});     // Modal ichidagi tahrir
+  const [loading, setLoading]     = useState(true);
+  const [editOpen, setEditOpen]   = useState(false);
+  const [saving, setSaving]       = useState(false);
+  const [saveOk, setSaveOk]       = useState(false);
+  const [error, setError]         = useState('');
+
+  const load = () => {
+    setLoading(true);
+    api.get('/super-admin/platform-settings')
+      .then(r => {
+        const map = {};
+        r.data.forEach(({ key, value }) => { map[key] = value || ''; });
+        setSaved(map);
+      })
+      .catch(() => setError("Sozlamalarni yuklab bo'lmadi"))
+      .finally(() => setLoading(false));
+  };
+  useEffect(load, []);
+
+  const openEdit = () => { setDraft({ ...saved }); setSaveOk(false); setError(''); setEditOpen(true); };
+  const closeEdit = () => setEditOpen(false);
+
+  const handleSave = async () => {
+    setSaving(true); setSaveOk(false); setError('');
+    try {
+      await api.put('/super-admin/platform-settings', { values: draft });
+      setSaved({ ...draft });
+      setSaveOk(true);
+      setTimeout(() => { setSaveOk(false); setEditOpen(false); }, 1500);
+    } catch {
+      setError("Saqlashda xatolik yuz berdi");
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <>
+      {/* ── Read-only view ── */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 max-w-2xl">
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-200">
+              <Ic d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" cls="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="font-black text-slate-800">Platform Sozlamalari</h2>
+              <p className="text-xs text-slate-400">Karta, Telegram va telefon raqamlari</p>
+            </div>
+          </div>
+          <button
+            onClick={openEdit}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-bold rounded-xl shadow-sm shadow-indigo-200 transition-all"
+          >
+            <Ic d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" cls="w-3.5 h-3.5" />
+            Tahrirlash
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <div className="w-7 h-7 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : (
+          <>
+            {/* Karta preview */}
+            <div className="bg-slate-900 rounded-2xl p-5 mb-4">
+              <div className="text-slate-400 text-[10px] font-semibold uppercase tracking-widest mb-3">To'lov kartasi</div>
+              <div className="text-white font-mono text-xl font-bold tracking-[0.2em] mb-1">
+                {saved.card_number || '— — — —'}
+              </div>
+              <div className="text-slate-400 text-sm">{saved.card_owner || '—'}</div>
+            </div>
+            {/* Aloqa */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-[#eaf6fd] rounded-xl px-4 py-3">
+                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Telegram</div>
+                <div className="text-[#2AABEE] font-bold text-sm">@{saved.tg_username || '—'}</div>
+              </div>
+              <div className="bg-emerald-50 rounded-xl px-4 py-3">
+                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Telefon</div>
+                <div className="text-emerald-700 font-bold text-sm">{saved.phone || '—'}</div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ── Edit Modal ── */}
+      {editOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h3 className="font-black text-slate-800">Sozlamalarni tahrirlash</h3>
+              <button onClick={closeEdit} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600">
+                <Ic d="M6 18L18 6M6 6l12 12" />
+              </button>
+            </div>
+
+            {/* Fields */}
+            <div className="px-6 py-5 space-y-4 max-h-[60vh] overflow-y-auto">
+              {FIELDS.map(f => (
+                <div key={f.key}>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{f.label}</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
+                      <Ic d={f.icon} cls="w-4 h-4" />
+                    </div>
+                    {f.key === 'card_number' ? (
+                      <input
+                        value={draft[f.key] || ''}
+                        onChange={e => {
+                          const raw = e.target.value.replace(/\D/g, '').slice(0, 16);
+                          const formatted = raw.replace(/(.{4})/g, '$1 ').trim();
+                          setDraft(v => ({ ...v, card_number: formatted }));
+                        }}
+                        placeholder={f.placeholder}
+                        maxLength={19}
+                        inputMode="numeric"
+                        className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono tracking-widest"
+                      />
+                    ) : (
+                      <input
+                        value={draft[f.key] || ''}
+                        onChange={e => setDraft(v => ({ ...v, [f.key]: e.target.value }))}
+                        placeholder={f.placeholder}
+                        className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono"
+                      />
+                    )}
+                  </div>
+                </div>
+              ))}
+              {error && <div className="text-xs text-red-600 bg-red-50 px-4 py-2.5 rounded-xl border border-red-100">{error}</div>}
+              {saveOk && <div className="text-xs text-emerald-700 bg-emerald-50 px-4 py-2.5 rounded-xl border border-emerald-200 font-semibold">✓ Saqlandi!</div>}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 pb-5 flex gap-3">
+              <button onClick={closeEdit} className="flex-1 py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold rounded-xl text-sm transition-all">
+                Bekor
+              </button>
+              <button onClick={handleSave} disabled={saving}
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 text-sm transition-all">
+                {saving ? 'Saqlanmoqda...' : '💾 Saqlash'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+/* ─── TARIFLAR TAB ───────────────────────────────────── */
+function TariffsTab() {
+  const [tariffs, setTariffs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const [form, setForm] = useState({ name:'', description:'', price_per_month:0, duration_days:30, max_users:10, max_branches:2, sort_order:0 });
+  const [saving, setSaving] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    api.get('/billing/tariffs').then(r => setTariffs(r.data)).catch(() => {}).finally(() => setLoading(false));
+  };
+  useEffect(() => { load(); }, []);
+
+  const openNew = () => {
+    setEditItem(null);
+    setForm({ name:'', description:'', price_per_month:0, duration_days:30, max_users:10, max_branches:2, sort_order:0 });
+    setShowForm(true);
+  };
+
+  const openEdit = (t) => {
+    setEditItem(t);
+    setForm({ name:t.name, description:t.description||'', price_per_month:t.price_per_month, duration_days:t.duration_days, max_users:t.max_users, max_branches:t.max_branches, sort_order:t.sort_order });
+    setShowForm(true);
+  };
+
+  const save = async () => {
+    if (!form.name.trim()) return alert('Tarif nomini kiriting!');
+    setSaving(true);
+    try {
+      if (editItem) {
+        await api.put(`/billing/tariffs/${editItem.id}`, form);
+      } else {
+        await api.post('/billing/tariffs', form);
+      }
+      load();
+      setShowForm(false);
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Xatolik');
+    } finally { setSaving(false); }
+  };
+
+  const deactivate = async (id) => {
+    if (!confirm("Tarifni o'chirishni tasdiqlaysizmi?")) return;
+    await api.delete(`/billing/tariffs/${id}`).catch(() => {});
+    load();
+  };
+
+  const inp = "w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-300";
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+          <h3 className="font-bold text-slate-800 flex items-center gap-2">
+            <span className="w-7 h-7 bg-indigo-100 rounded-lg flex items-center justify-center">
+              <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" cls="w-4 h-4 text-indigo-600" />
+            </span>
+            Tariflar
+          </h3>
+          <button onClick={openNew} className="text-xs px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all flex items-center gap-1.5">
+            <Ic d="M12 4v16m8-8H4" cls="w-3.5 h-3.5" /> Yangi tarif
+          </button>
+        </div>
+        {loading ? (
+          <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 p-5">
+            {tariffs.map(t => (
+              <div key={t.id} className="border border-slate-200 rounded-2xl p-5 flex flex-col gap-3 hover:border-indigo-300 hover:shadow-md transition-all">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h4 className="font-black text-slate-800 text-base">{t.name}</h4>
+                    {t.description && <p className="text-xs text-slate-400 mt-1">{t.description}</p>}
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${t.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+                    {t.is_active ? 'Faol' : 'Nofaol'}
+                  </span>
+                </div>
+                <div className="text-2xl font-black text-indigo-700">
+                  {t.price_per_month === 0 ? 'Bepul' : `${fmtMoney(t.price_per_month)} s`}
+                  {t.price_per_month > 0 && <span className="text-sm font-semibold text-slate-400">/oy</span>}
+                </div>
+                <div className="space-y-1 text-xs text-slate-500">
+                  <div>⏱ Muddat: <span className="font-bold text-slate-700">{t.duration_days} kun</span></div>
+                  <div>👤 Max xodim: <span className="font-bold text-slate-700">{t.max_users >= 9999 ? 'Cheksiz' : t.max_users}</span></div>
+                  <div>🏢 Max filial: <span className="font-bold text-slate-700">{t.max_branches >= 9999 ? 'Cheksiz' : t.max_branches}</span></div>
+                </div>
+                <div className="flex gap-2 mt-auto pt-2 border-t border-slate-100">
+                  <button onClick={() => openEdit(t)} className="flex-1 py-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-all">Tahrirlash</button>
+                  <button onClick={() => deactivate(t.id)} className="flex-1 py-1.5 text-xs font-bold bg-red-50 hover:bg-red-100 text-red-500 rounded-lg transition-all">O'chirish</button>
+                </div>
+              </div>
+            ))}
+            {tariffs.length === 0 && (
+              <div className="col-span-full py-14 text-center text-slate-400 text-sm font-semibold">
+                Hali tariflar yo'q — yuqoridagi "Yangi tarif" tugmasi orqali qo'shing
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Tarif Form Modal */}
+      {showForm && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-bold text-slate-800">{editItem ? 'Tarifni tahrirlash' : 'Yangi tarif'}</h3>
+              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600"><Ic d="M6 18L18 6M6 6l12 12" /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">Nomi *</label>
+                <input value={form.name} onChange={e => setForm(p=>({...p,name:e.target.value}))} className={inp} placeholder="Boshlang'ich, Pro, Enterprise..." />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">Tavsif</label>
+                <input value={form.description} onChange={e => setForm(p=>({...p,description:e.target.value}))} className={inp} placeholder="Qisqacha tavsif..." />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Narx (so'm/oy)</label>
+                  <input type="number" value={form.price_per_month} onChange={e=>setForm(p=>({...p,price_per_month:Number(e.target.value)}))} className={inp} min="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Muddat (kun)</label>
+                  <input type="number" value={form.duration_days} onChange={e=>setForm(p=>({...p,duration_days:Number(e.target.value)}))} className={inp} min="1" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Max xodim</label>
+                  <input type="number" value={form.max_users} onChange={e=>setForm(p=>({...p,max_users:Number(e.target.value)}))} className={inp} min="1" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Max filial</label>
+                  <input type="number" value={form.max_branches} onChange={e=>setForm(p=>({...p,max_branches:Number(e.target.value)}))} className={inp} min="1" />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-5">
+              <button onClick={() => setShowForm(false)} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-sm transition-all">Bekor</button>
+              <button onClick={save} disabled={saving} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm shadow-lg shadow-indigo-200 transition-all disabled:opacity-50">
+                {saving ? 'Saqlanmoqda...' : 'Saqlash'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

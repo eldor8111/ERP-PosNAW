@@ -340,11 +340,18 @@ def record_customer_debt_payment(
         raise HTTPException(status_code=400, detail="To'lov summasi qarz balansidan katta")
 
     customer.debt_balance = balance - pay
+    # Find user's branch or fallback to company's first branch
+    from app.models.branch import Branch as _Branch
+    tx_branch_id = user.branch_id
+    if not tx_branch_id and user.company_id:
+        br = db.query(_Branch).filter(_Branch.company_id == user.company_id).first()
+        tx_branch_id = br.id if br else None
     tx = Transaction(
-        branch_id=1,
+        branch_id=tx_branch_id or 0,
         type="income",
         amount=data.amount,
-        reference_type="customer_debt_payment",
+        company_id=user.company_id,
+        reference_type="customer_payment",
         reference_id=customer_id,
         description=data.description or f"Mijoz qarzi to'lovi: {customer.name}",
     )
@@ -398,12 +405,17 @@ def record_supplier_debt_payment(
     if not supplier:
         raise HTTPException(status_code=404, detail="Supplier topilmadi")
 
-    paid = min(float(data.amount), float(supplier.debt_balance))
+    from app.models.branch import Branch as _Branch
+    tx_branch_id = user.branch_id
+    if not tx_branch_id and supplier.company_id:
+        br = db.query(_Branch).filter(_Branch.company_id == supplier.company_id).first()
+        tx_branch_id = br.id if br else None
     supplier.debt_balance = float(supplier.debt_balance) - paid
     tx = Transaction(
-        branch_id=1,
+        branch_id=tx_branch_id or 0,
         type="expense",
         amount=paid,
+        company_id=user.company_id,
         reference_type="supplier_payment",
         reference_id=supplier_id,
         description=data.description or f"Supplier to'lovi: {supplier.name}",
@@ -433,28 +445,34 @@ def get_profit_loss(
     end = _parse_dt_end(date_to)
 
     # Daromad (sotuvlardan)
-    revenue = float(
+    revenue_q = (
         db.query(func.coalesce(func.sum(Sale.total_amount), 0))
         .filter(Sale.created_at >= start, Sale.created_at < end, Sale.status == SaleStatus.completed)
-        .scalar() or 0
     )
+    if user.role.value != "super_admin":
+        revenue_q = revenue_q.filter(Sale.company_id == user.company_id)
+    revenue = float(revenue_q.scalar() or 0)
 
     # Tannarx (COGS)
-    cogs = float(
+    cogs_q = (
         db.query(func.coalesce(func.sum(SaleItem.cost_price * SaleItem.quantity), 0))
         .join(Sale)
         .filter(Sale.created_at >= start, Sale.created_at < end, Sale.status == SaleStatus.completed)
-        .scalar() or 0
     )
+    if user.role.value != "super_admin":
+        cogs_q = cogs_q.filter(Sale.company_id == user.company_id)
+    cogs = float(cogs_q.scalar() or 0)
 
     gross_profit = revenue - cogs
 
     # Xarajatlar
-    total_expenses = float(
+    expense_q = (
         db.query(func.coalesce(func.sum(Expense.amount), 0))
         .filter(Expense.created_at >= start, Expense.created_at < end)
-        .scalar() or 0
     )
+    if user.role.value != "super_admin":
+        expense_q = expense_q.filter(Expense.company_id == user.company_id)
+    total_expenses = float(expense_q.scalar() or 0)
 
     net_profit = gross_profit - total_expenses
 

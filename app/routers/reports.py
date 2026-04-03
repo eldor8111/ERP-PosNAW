@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Response
-from sqlalchemy import func, case
+from sqlalchemy import func, case, cast, Date as DateType
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import require_roles
@@ -33,51 +33,6 @@ def _today_range():
         datetime.combine(today, datetime.min.time()),
         datetime.combine(today + timedelta(days=1), datetime.min.time()),
     )
-
-
-@router.get("/debug-sales")
-def debug_sales(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.super_admin)),
-):
-    """Diagnostika: nimaga sotuv ko'rinmayapti"""
-    from sqlalchemy import text
-    _now = datetime.now(timezone.utc)
-    today_start = datetime(_now.year, _now.month, _now.day, 0, 0, 0)
-    month_start = datetime(_now.year, _now.month, 1, 0, 0, 0)
-
-    all_count = db.query(func.count(Sale.id)).scalar()
-    company_count = db.query(func.count(Sale.id)).filter(Sale.company_id == current_user.company_id).scalar()
-    completed_count = db.query(func.count(Sale.id)).filter(Sale.status == SaleStatus.completed).scalar()
-    company_completed = db.query(func.count(Sale.id)).filter(
-        Sale.company_id == current_user.company_id, Sale.status == SaleStatus.completed
-    ).scalar()
-    today_completed = db.query(func.count(Sale.id)).filter(
-        Sale.company_id == current_user.company_id,
-        Sale.status == SaleStatus.completed,
-        Sale.created_at >= today_start,
-    ).scalar()
-    month_completed = db.query(func.count(Sale.id)).filter(
-        Sale.company_id == current_user.company_id,
-        Sale.status == SaleStatus.completed,
-        Sale.created_at >= month_start,
-    ).scalar()
-    # Oxirgi 5 ta sotuvni ko'rish
-    last_sales = db.query(Sale.id, Sale.company_id, Sale.status, Sale.created_at).order_by(Sale.created_at.desc()).limit(5).all()
-    return {
-        "current_user_company_id": current_user.company_id,
-        "today_start": str(today_start),
-        "all_sales_in_db": all_count,
-        "sales_with_company_id": company_count,
-        "all_completed_sales": completed_count,
-        "company_completed_sales": company_completed,
-        "today_completed_sales": today_completed,
-        "month_completed_sales": month_completed,
-        "last_5_sales": [
-            {"id": r[0], "company_id": r[1], "status": str(r[2]), "created_at": str(r[3])}
-            for r in last_sales
-        ],
-    }
 
 
 def _date_range(date_from: Optional[date], date_to: Optional[date]):
@@ -132,23 +87,26 @@ def get_dashboard(
     yesterday_f = float(yesterday_total)
     today_change = round(float((today_f - yesterday_f) / yesterday_f * 100), 1) if yesterday_f > 0 else None  # type: ignore[call-overload]
 
-    # Haftalik trend (7 kun)
+    # Haftalik trend (7 kun) — bitta GROUP BY query (oldin 14 ta query edi)
+    week_start = datetime.combine(
+        datetime.now(timezone.utc).date() - timedelta(days=6), datetime.min.time()
+    )
+    week_rows = sale_filter(
+        db.query(
+            cast(Sale.created_at, DateType).label("day"),
+            func.coalesce(func.sum(Sale.total_amount), 0).label("total"),
+            func.count(Sale.id).label("count"),
+        )
+        .filter(Sale.created_at >= week_start, Sale.status == SaleStatus.completed)
+        .group_by(cast(Sale.created_at, DateType)),
+        warehouse_id,
+    ).all()
+    week_map = {str(r.day): (float(r.total), r.count) for r in week_rows}
     weekly_data = []
     for i in range(7):
         day = datetime.now(timezone.utc).date() - timedelta(days=6 - i)
-        ds = datetime.combine(day, datetime.min.time())
-        de = datetime.combine(day + timedelta(days=1), datetime.min.time())
-        total = sale_filter(
-            db.query(func.coalesce(func.sum(Sale.total_amount), 0))
-            .filter(Sale.created_at >= ds, Sale.created_at < de, Sale.status == SaleStatus.completed),
-            warehouse_id,
-        ).scalar()
-        count = sale_filter(
-            db.query(func.count(Sale.id))
-            .filter(Sale.created_at >= ds, Sale.created_at < de, Sale.status == SaleStatus.completed),
-            warehouse_id,
-        ).scalar()
-        weekly_data.append({"date": day.strftime("%d.%m"), "amount": float(total), "count": count})
+        total, count = week_map.get(str(day), (0.0, 0))
+        weekly_data.append({"date": day.strftime("%d.%m"), "amount": total, "count": count})
 
     # Oylik sotuv
     _now = datetime.now(timezone.utc)
@@ -160,10 +118,21 @@ def get_dashboard(
     ).first()
     month_profit = sale_filter(
         db.query(func.coalesce(
-            func.sum((SaleItem.unit_price - SaleItem.cost_price) * SaleItem.quantity - SaleItem.discount), 0
+            func.sum(
+                case(
+                    (Sale.status == SaleStatus.completed,
+                     (SaleItem.unit_price - SaleItem.cost_price) * SaleItem.quantity - SaleItem.discount),
+                    (Sale.status == SaleStatus.refunded,
+                     -((SaleItem.unit_price - SaleItem.cost_price) * SaleItem.quantity - SaleItem.discount)),
+                    else_=0,
+                )
+            ), 0
         ))
         .join(Sale)
-        .filter(Sale.created_at >= month_start, Sale.status == SaleStatus.completed),
+        .filter(
+            Sale.created_at >= month_start,
+            Sale.status.in_([SaleStatus.completed, SaleStatus.refunded]),
+        ),
         warehouse_id,
     ).scalar()
 
@@ -247,6 +216,25 @@ def get_dashboard(
         .scalar()
     ) or 0
 
+    # 30-kunlik sotuv trendi — bitta GROUP BY query (oldin 30 ta query edi)
+    month30_start = datetime.combine(
+        datetime.now(timezone.utc).date() - timedelta(days=29), datetime.min.time()
+    )
+    month30_rows = sale_filter(
+        db.query(
+            cast(Sale.created_at, DateType).label("day"),
+            func.coalesce(func.sum(Sale.total_amount), 0).label("total"),
+        )
+        .filter(Sale.created_at >= month30_start, Sale.status == SaleStatus.completed)
+        .group_by(cast(Sale.created_at, DateType)),
+        warehouse_id,
+    ).all()
+    month30_map = {str(r.day): float(r.total) for r in month30_rows}
+    monthly_trend = []
+    for i in range(30):
+        day = datetime.now(timezone.utc).date() - timedelta(days=29 - i)
+        monthly_trend.append({"date": day.strftime("%d.%m"), "amount": month30_map.get(str(day), 0.0)})
+
     return {
         "warehouse_id": warehouse_id,
         "today": {
@@ -282,6 +270,7 @@ def get_dashboard(
             "debtor_count": debtor_count or 0,
             "overdue_count": overdue_debtor_count,
         },
+        "monthly_trend": monthly_trend,
     }
 
 
@@ -393,28 +382,65 @@ def profit_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
 ):
-    """Mahsulot va kategoriya bo'yicha foyda hisoboti (gross margin)"""
+    """Mahsulot va kategoriya bo'yicha foyda hisoboti (FIFO, vazvratlar chegirilgan)"""
     start, end = _date_range(date_from, date_to)
+
+    # Vazvratlar (-) va sotuvlar (+) birgalikda hisob qilinadi
+    qty_expr = func.sum(
+        case(
+            (Sale.status == SaleStatus.completed, SaleItem.quantity),
+            (Sale.status == SaleStatus.refunded, -SaleItem.quantity),
+            else_=0,
+        )
+    )
+    revenue_expr = func.sum(
+        case(
+            (Sale.status == SaleStatus.completed, SaleItem.subtotal),
+            (Sale.status == SaleStatus.refunded, -SaleItem.subtotal),
+            else_=0,
+        )
+    )
+    cost_expr = func.sum(
+        case(
+            (Sale.status == SaleStatus.completed, SaleItem.cost_price * SaleItem.quantity),
+            (Sale.status == SaleStatus.refunded, -SaleItem.cost_price * SaleItem.quantity),
+            else_=0,
+        )
+    )
+    profit_expr = func.sum(
+        case(
+            (Sale.status == SaleStatus.completed,
+             SaleItem.subtotal - SaleItem.cost_price * SaleItem.quantity),
+            (Sale.status == SaleStatus.refunded,
+             -(SaleItem.subtotal - SaleItem.cost_price * SaleItem.quantity)),
+            else_=0,
+        )
+    )
+
     q = (
         db.query(
             Product.id,
             Product.name,
             Product.sku,
             Category.name.label("category_name"),
-            func.sum(SaleItem.quantity).label("qty_sold"),
-            func.sum(SaleItem.subtotal).label("revenue"),
-            func.sum(SaleItem.cost_price * SaleItem.quantity).label("cost"),
-            func.sum(SaleItem.subtotal - SaleItem.cost_price * SaleItem.quantity).label("profit"),
+            qty_expr.label("qty_sold"),
+            revenue_expr.label("revenue"),
+            cost_expr.label("cost"),
+            profit_expr.label("profit"),
         )
         .join(SaleItem, SaleItem.product_id == Product.id)
         .join(Sale, Sale.id == SaleItem.sale_id)
         .outerjoin(Category, Category.id == Product.category_id)
-        .filter(Sale.created_at >= start, Sale.created_at < end, Sale.status == SaleStatus.completed)
+        .filter(
+            Sale.created_at >= start,
+            Sale.created_at < end,
+            Sale.status.in_([SaleStatus.completed, SaleStatus.refunded]),
+        )
     )
     q = q.filter(Sale.company_id == current_user.company_id)
     rows = (
         q.group_by(Product.id, Product.name, Product.sku, Category.name)
-        .order_by(func.sum(SaleItem.subtotal - SaleItem.cost_price * SaleItem.quantity).desc())
+        .order_by(profit_expr.desc())
         .all()
     )
     return [
@@ -427,7 +453,9 @@ def profit_report(
             "revenue": float(r.revenue or 0),
             "cost": float(r.cost or 0),
             "profit": float(r.profit or 0),
-            "margin_pct": round(float(float(r.profit or 0) / float(r.revenue or 1) * 100), 1) if r.revenue else 0,  # type: ignore[call-overload]
+            "margin_pct": round(
+                float(r.profit or 0) / float(r.revenue or 1) * 100, 1
+            ) if r.revenue and float(r.revenue) > 0 else 0,
         }
         for r in rows
     ]
@@ -929,44 +957,95 @@ def profit_loss_statement(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
 ):
-    """Foyda va Zarar hisoboti"""
+    """Foyda va Zarar hisoboti (FIFO, vazvratlar chegirilgan, company filtered)"""
     start, end = _date_range(date_from, date_to)
+    cid = current_user.company_id
 
-    # Daromad (sotuvlardan)
-    revenue = (
+    # Yalpi daromad (faqat tugatilgan sotuvlar)
+    gross_revenue = float(
         db.query(func.coalesce(func.sum(Sale.total_amount), 0))
-        .filter(Sale.created_at >= start, Sale.created_at < end, Sale.status == SaleStatus.completed)
+        .filter(
+            Sale.company_id == cid,
+            Sale.created_at >= start, Sale.created_at < end,
+            Sale.status == SaleStatus.completed,
+        )
         .scalar()
     )
 
-    # COGS (sotilgan tovarlar tannarxi)
-    cogs = (
-        db.query(func.coalesce(func.sum(SaleItem.cost_price * SaleItem.quantity), 0))
+    # Vazvratlar summasi
+    total_returns = float(
+        db.query(func.coalesce(func.sum(Sale.total_amount), 0))
+        .filter(
+            Sale.company_id == cid,
+            Sale.created_at >= start, Sale.created_at < end,
+            Sale.status == SaleStatus.refunded,
+        )
+        .scalar()
+    )
+
+    # Net daromad (vazvratlar chegirilgan)
+    net_revenue = gross_revenue - total_returns
+
+    # COGS — FIFO asosida SaleItem.cost_price ishlatiladi (vazvratlar chegirilgan)
+    cogs = float(
+        db.query(func.coalesce(
+            func.sum(
+                case(
+                    (Sale.status == SaleStatus.completed,
+                     SaleItem.cost_price * SaleItem.quantity),
+                    (Sale.status == SaleStatus.refunded,
+                     -SaleItem.cost_price * SaleItem.quantity),
+                    else_=0,
+                )
+            ), 0
+        ))
         .join(Sale)
-        .filter(Sale.created_at >= start, Sale.created_at < end, Sale.status == SaleStatus.completed)
+        .filter(
+            Sale.company_id == cid,
+            Sale.created_at >= start, Sale.created_at < end,
+            Sale.status.in_([SaleStatus.completed, SaleStatus.refunded]),
+        )
         .scalar()
     )
 
-    # Gross profit
-    gross_profit = float(revenue) - float(cogs)
+    # Brutto foyda
+    gross_profit = net_revenue - cogs
 
-    # Xarajatlar
-    total_expenses = (
-        db.query(func.coalesce(func.sum(Expense.amount), 0))
-        .filter(Expense.created_at >= start, Expense.created_at < end)
-        .scalar()
+    # Xarajatlar (kategoriya bo'yicha)
+    from app.models.moliya import ExpenseCategory
+    exp_rows = (
+        db.query(
+            func.coalesce(ExpenseCategory.name, "Boshqa").label("cat"),
+            func.coalesce(func.sum(Expense.amount), 0).label("total"),
+        )
+        .outerjoin(ExpenseCategory, ExpenseCategory.id == Expense.category_id)
+        .filter(
+            Expense.company_id == cid,
+            Expense.created_at >= start,
+            Expense.created_at < end,
+        )
+        .group_by(ExpenseCategory.name)
+        .all()
     )
+    expenses_by_cat = [{"name": r.cat, "total": float(r.total)} for r in exp_rows]
+    total_expenses = sum(r["total"] for r in expenses_by_cat)
 
     # Net foyda
-    net_profit = gross_profit - float(total_expenses)
+    net_profit = gross_profit - total_expenses
 
+    safe_revenue = net_revenue if net_revenue else 1
     return {
         "period": {"from": str(start.date()), "to": str((end - timedelta(days=1)).date())},
-        "revenue": float(revenue),
-        "cogs": float(cogs),
+        "revenue": net_revenue,
+        "gross_revenue": gross_revenue,
+        "returns": total_returns,
+        "cogs": cogs,
         "gross_profit": gross_profit,
-        "gross_margin_pct": round(float(gross_profit / float(revenue) * 100), 2) if revenue else 0,  # type: ignore[call-overload,operator]
-        "total_expenses": float(total_expenses),
+        "gross_margin_pct": round(gross_profit / safe_revenue * 100, 2),
+        "expenses": {
+            "total": total_expenses,
+            "by_category": expenses_by_cat,
+        },
         "net_profit": net_profit,
-        "net_margin_pct": round(float(net_profit / float(revenue) * 100), 2) if revenue else 0,  # type: ignore[call-overload,operator]
+        "net_margin_pct": round(net_profit / safe_revenue * 100, 2),
     }

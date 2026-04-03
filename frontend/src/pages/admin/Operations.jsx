@@ -21,12 +21,7 @@ const trMeta = {
   confirmed: { l: 'Tasdiqlandi',  c: 'bg-emerald-100 text-emerald-700' },
   cancelled: { l: 'Bekor',        c: 'bg-red-100 text-red-500' },
 };
-const cntMeta = {
-  draft:       { l: 'Qoralama',   c: 'bg-slate-100 text-slate-600' },
-  in_progress: { l: 'Jarayonda',  c: 'bg-blue-100 text-blue-700' },
-  completed:   { l: 'Tugallandi', c: 'bg-emerald-100 text-emerald-700' },
-  cancelled:   { l: 'Bekor',      c: 'bg-red-100 text-red-500' },
-};
+
 const payMeta = {
   cash:   { l: 'Naqd',            c: 'bg-emerald-100 text-emerald-700' },
   card:   { l: 'Karta',           c: 'bg-blue-100 text-blue-700' },
@@ -857,7 +852,7 @@ function SalesTab({ products, customers }) {
       if (f.dateFrom) params.date_from = f.dateFrom;
       if (f.dateTo)   params.date_to   = f.dateTo;
       if (f.status)   params.status    = f.status;
-      const r = await api.get('/sales', { params });
+      const r = await api.get('/sales/', { params });
       setSales(r.data);
     } catch { /* ignore */ } finally { setLoading(false); }
   }, [skip, f]);
@@ -884,55 +879,47 @@ function SalesTab({ products, customers }) {
   ];
 
   return (
-    <div className="space-y-4">
-      {/* Stats cards */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Jami sotuv</div>
-          <div className="text-2xl font-bold text-indigo-600">{fmt(totals.sum)} <span className="text-sm font-normal text-slate-400">so'm</span></div>
+    <div className="space-y-3">
+      {/* Header: stats + action */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3 text-sm">
+          <span className="text-slate-500">Jami:</span>
+          <span className="font-bold text-slate-800">{fmt(totals.sum)}</span>
+          <span className="text-slate-300">|</span>
+          <span className="text-emerald-600 font-semibold">{fmt(totals.paid)}</span>
+          <span className="text-slate-300">|</span>
+          <span className="text-red-500 font-semibold">{fmt(totals.sum - totals.paid)}</span>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">To'langan</div>
-          <div className="text-2xl font-bold text-emerald-600">{fmt(totals.paid)} <span className="text-sm font-normal text-slate-400">so'm</span></div>
-        </div>
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Qarzga</div>
-          <div className="text-2xl font-bold text-red-500">{fmt(totals.sum - totals.paid)} <span className="text-sm font-normal text-slate-400">so'm</span></div>
+        <div className="flex items-center gap-2">
+          <Btn v="ghost" sm onClick={() => { /* excel */ }}>Excel Ga Ko'chirish</Btn>
+          <Btn sm onClick={() => setMode('create')}>
+            <svg className="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+            Yangi Sotuv
+          </Btn>
         </div>
       </div>
 
-      {/* Filter bar */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <Lbl t="Holat">
-            <select value={f.status} onChange={e => setF({...f, status:e.target.value})} className={ic}>
-              <option value="">Barchasi</option>
-              {Object.entries(saleMeta).map(([v,m]) => <option key={v} value={v}>{m.l}</option>)}
-            </select>
-          </Lbl>
-          <Lbl t="Sanadan">
-            <input type="date" value={f.dateFrom} onChange={e => setF({...f, dateFrom:e.target.value})} className={ic} />
-          </Lbl>
-          <Lbl t="Sanagacha">
-            <input type="date" value={f.dateTo} onChange={e => setF({...f, dateTo:e.target.value})} className={ic} />
-          </Lbl>
-          <Lbl t="To'lov turi">
-            <select value={f.payType} onChange={e => setF({...f, payType:e.target.value})} className={ic}>
-              <option value="">Barchasi</option>
-              {Object.entries(payMeta).map(([v,m]) => <option key={v} value={v}>{m.l}</option>)}
-            </select>
-          </Lbl>
-          <div className="ml-auto flex items-end">
-            <Btn onClick={() => setMode('create')}>
-              <svg className="w-4 h-4 inline mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-              Yangi Sotuv
-            </Btn>
-          </div>
+      {/* Filters — rasmdagi kabi 2 qator */}
+      <div className="space-y-2">
+        <div className="grid grid-cols-3 gap-3">
+          <input type="text" placeholder="Status" value={f.statusQ||''} onChange={e => {
+            const q = e.target.value;
+            const match = Object.entries(saleMeta).find(([,m]) => m.l.toLowerCase().startsWith(q.toLowerCase()));
+            setF({...f, statusQ: q, status: match ? match[0] : ''});
+          }} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white"/>
+          <input type="date" value={f.dateFrom} onChange={e => setF({...f, dateFrom:e.target.value})} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-slate-400 bg-white"/>
+          <input type="date" value={f.dateTo} onChange={e => setF({...f, dateTo:e.target.value})} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-slate-400 bg-white"/>
+        </div>
+        <div className="grid grid-cols-[1fr_auto_1fr_1fr] gap-3 items-center">
+          <input type="text" placeholder="Contragent" className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white"/>
+          <span className="text-slate-300 text-lg">+</span>
+          <input type="text" placeholder="Xodim" className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white"/>
+          <input type="text" placeholder="Foydalanuvchi" className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white"/>
         </div>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <Tbl cols={cols} rows={sales} loading={loading} skip={skip} limit={LIMIT} onChange={setSkip}
           onRow={row => { setSel(row.id); setMode('detail'); }} />
       </div>
@@ -1344,12 +1331,12 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
 /* ══════════════════════════════════════════════════════════
    KIRIMLAR TAB
 ══════════════════════════════════════════════════════════ */
-function KirimlarTab({ products, warehouses, suppliers }) {
+function KirimlarTab({ products, warehouses, suppliers, users }) {
   const [mode, setMode]       = useState('list');
   const [pos, setPos]         = useState([]);
   const [loading, setLoading] = useState(false);
   const [skip, setSkip]       = useState(0);
-  const [stFilter, setStFil]  = useState('');
+  const [f, setF]             = useState({ dateFrom: today(), dateTo: today(), status: '', supplier_id: '', warehouse_id: '', user_id: '', statusQ: '', supplierQ: '', warehouseQ: '', userQ: '' });
   const [detail, setDetail]   = useState(null);
   const [recModal, setRec]    = useState(null);
   const [recSaving, setRS]    = useState(false);
@@ -1359,11 +1346,16 @@ function KirimlarTab({ products, warehouses, suppliers }) {
     setLoading(true);
     try {
       const params = { skip, limit: LIMIT };
-      if (stFilter) params.status = stFilter;
+      if (f.status) params.status = f.status;
+      if (f.dateFrom) params.date_from = f.dateFrom;
+      if (f.dateTo) params.date_to = f.dateTo;
+      if (f.supplier_id) params.supplier_id = f.supplier_id;
+      if (f.warehouse_id) params.warehouse_id = f.warehouse_id;
+      if (f.user_id) params.user_id = f.user_id;
       const r = await api.get('/purchase-orders', { params });
       setPos(r.data);
     } catch { /* ignore */ } finally { setLoading(false); }
-  }, [skip, stFilter]);
+  }, [skip, f]);
 
   useEffect(() => { if (mode === 'list') load(); }, [load, mode]);
 
@@ -1401,20 +1393,77 @@ function KirimlarTab({ products, warehouses, suppliers }) {
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <Lbl t="Holat">
-            <select value={stFilter} onChange={e => setStFil(e.target.value)} className={ic}>
-              <option value="">Barchasi</option>
-              {Object.entries(poMeta).map(([v,m]) => <option key={v} value={v}>{m.l}</option>)}
-            </select>
-          </Lbl>
-          <div className="ml-auto">
-            <Btn onClick={() => setMode('create')}>
-              <svg className="w-4 h-4 inline mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-              Yangi kirim
-            </Btn>
+    <div className="space-y-3">
+      {/* Header: action */}
+      <div className="flex items-center justify-end">
+        <div className="flex items-center gap-2">
+          <Btn onClick={() => setMode('create')} sm>
+            <svg className="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+            Yangi kirim
+          </Btn>
+        </div>
+      </div>
+
+      {/* Filters — Custom 2-row grid */}
+      <div className="space-y-2">
+        <div className="grid grid-cols-3 gap-3">
+          <input type="text" placeholder="Status" value={f.statusQ||''} onChange={e => {
+            const q = e.target.value;
+            const match = Object.entries(poMeta).find(([,m]) => m.l.toLowerCase().startsWith(q.toLowerCase()));
+            setF({...f, statusQ: q, status: match ? match[0] : ''});
+          }} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white"/>
+          <input type="date" value={f.dateFrom} onChange={e => setF({...f, dateFrom:e.target.value})} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-slate-400 bg-white"/>
+          <input type="date" value={f.dateTo} onChange={e => setF({...f, dateTo:e.target.value})} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-slate-400 bg-white"/>
+        </div>
+        <div className="grid grid-cols-[1fr_auto_1fr_1fr] gap-3 items-center">
+          {/* Supplier */}
+          <div className="relative">
+            <input type="text" value={f.supplierQ||''} placeholder="Contragent"
+              onChange={e => setF({...f, supplierQ: e.target.value, supplier_id: ''})}
+              onFocus={() => setF(p => ({...p, _supOpen: true}))}
+              onBlur={() => setTimeout(() => setF(p => ({...p, _supOpen: false})), 200)}
+              className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white" />
+            {f._supOpen && f.supplierQ && (
+              <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-48 overflow-y-auto">
+                {suppliers.filter(s => s.name.toLowerCase().includes(f.supplierQ.toLowerCase())).slice(0,10).map(s => (
+                  <button key={s.id} onMouseDown={() => setF({...f, supplier_id: String(s.id), supplierQ: s.name, _supOpen: false})}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0">{s.name}</button>
+                ))}
+              </div>
+            )}
+          </div>
+          <span className="text-slate-300 text-lg">+</span>
+          {/* Warehouse */}
+          <div className="relative">
+            <input type="text" value={f.warehouseQ||''} placeholder="Xodim (Ombor)"
+              onChange={e => setF({...f, warehouseQ: e.target.value, warehouse_id: ''})}
+              onFocus={() => setF(p => ({...p, _whOpen: true}))}
+              onBlur={() => setTimeout(() => setF(p => ({...p, _whOpen: false})), 200)}
+              className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white" />
+            {f._whOpen && f.warehouseQ && (
+              <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-48 overflow-y-auto">
+                {warehouses.filter(w => w.name.toLowerCase().includes(f.warehouseQ.toLowerCase())).slice(0,10).map(w => (
+                  <button key={w.id} onMouseDown={() => setF({...f, warehouse_id: String(w.id), warehouseQ: w.name, _whOpen: false})}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0">{w.name}</button>
+                ))}
+              </div>
+            )}
+          </div>
+          {/* User */}
+          <div className="relative">
+            <input type="text" value={f.userQ||''} placeholder="Foydalanuvchi"
+              onChange={e => setF({...f, userQ: e.target.value, user_id: ''})}
+              onFocus={() => setF(p => ({...p, _usOpen: true}))}
+              onBlur={() => setTimeout(() => setF(p => ({...p, _usOpen: false})), 200)}
+              className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white" />
+            {f._usOpen && f.userQ && (
+              <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-48 overflow-y-auto">
+                {users.filter(u => u.name.toLowerCase().includes(f.userQ.toLowerCase())).slice(0,10).map(u => (
+                  <button key={u.id} onMouseDown={() => setF({...f, user_id: String(u.id), userQ: u.name, _usOpen: false})}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0">{u.name}</button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1690,6 +1739,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
         })
         .catch(() => {});
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
   const products = localProducts; // alias for all JSX below
@@ -2154,12 +2204,12 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
 
 
 
-function TransferlarTab({ products, warehouses }) {
+function TransferlarTab({ products, warehouses, users = [] }) {
   const [mode, setMode]       = useState('list');
   const [transfers, setTr]    = useState([]);
   const [loading, setLoading] = useState(false);
   const [skip, setSkip]       = useState(0);
-  const [stFilter, setStFil]  = useState('');
+  const [f, setF]             = useState({ dateFrom: today(), dateTo: today(), status: '', fromWh_id: '', toWh_id: '', user_id: '', statusQ: '', fromWhQ: '', toWhQ: '', userQ: '' });
   const [detail, setDetail]   = useState(null);
   const LIMIT = 20;
 
@@ -2167,11 +2217,16 @@ function TransferlarTab({ products, warehouses }) {
     setLoading(true);
     try {
       const params = { skip, limit: LIMIT };
-      if (stFilter) params.status = stFilter;
+      if (f.status) params.status = f.status;
+      if (f.dateFrom) params.date_from = f.dateFrom;
+      if (f.dateTo) params.date_to = f.dateTo;
+      if (f.fromWh_id) params.from_warehouse_id = f.fromWh_id;
+      if (f.toWh_id) params.to_warehouse_id = f.toWh_id;
+      if (f.user_id) params.user_id = f.user_id;
       const r = await api.get('/transfers', { params });
       setTr(r.data);
     } catch { /* ignore */ } finally { setLoading(false); }
-  }, [skip, stFilter]);
+  }, [skip, f]);
 
   useEffect(() => { if (mode==='list') load(); }, [load, mode]);
 
@@ -2199,20 +2254,77 @@ function TransferlarTab({ products, warehouses }) {
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <Lbl t="Holat">
-            <select value={stFilter} onChange={e => setStFil(e.target.value)} className={ic}>
-              <option value="">Barchasi</option>
-              {Object.entries(trMeta).map(([v,m]) => <option key={v} value={v}>{m.l}</option>)}
-            </select>
-          </Lbl>
-          <div className="ml-auto">
-            <Btn onClick={() => setMode('create')}>
-              <svg className="w-4 h-4 inline mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-              Yangi transfer
-            </Btn>
+    <div className="space-y-3">
+      {/* Header */}
+      <div className="flex items-center justify-end">
+        <div className="flex items-center gap-2">
+          <Btn onClick={() => setMode('create')} sm>
+            <svg className="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+            Yangi transfer
+          </Btn>
+        </div>
+      </div>
+
+      {/* Filters — Custom 2-row grid */}
+      <div className="space-y-2">
+        <div className="grid grid-cols-3 gap-3">
+          <input type="text" placeholder="Status" value={f.statusQ||''} onChange={e => {
+            const q = e.target.value;
+            const match = Object.entries(trMeta).find(([,m]) => m.l.toLowerCase().startsWith(q.toLowerCase()));
+            setF({...f, statusQ: q, status: match ? match[0] : ''});
+          }} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white"/>
+          <input type="date" value={f.dateFrom} onChange={e => setF({...f, dateFrom:e.target.value})} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-slate-400 bg-white"/>
+          <input type="date" value={f.dateTo} onChange={e => setF({...f, dateTo:e.target.value})} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-slate-400 bg-white"/>
+        </div>
+        <div className="grid grid-cols-[1fr_auto_1fr_1fr] gap-3 items-center">
+          {/* Kimdan (From warehouse) */}
+          <div className="relative">
+            <input type="text" value={f.fromWhQ||''} placeholder="Kimdan (Ombor)"
+              onChange={e => setF({...f, fromWhQ: e.target.value, fromWh_id: ''})}
+              onFocus={() => setF(p => ({...p, _fromOpen: true}))}
+              onBlur={() => setTimeout(() => setF(p => ({...p, _fromOpen: false})), 200)}
+              className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white" />
+            {f._fromOpen && f.fromWhQ && (
+              <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-48 overflow-y-auto">
+                {warehouses.filter(w => w.name.toLowerCase().includes(f.fromWhQ.toLowerCase())).slice(0,10).map(w => (
+                  <button key={w.id} onMouseDown={() => setF({...f, fromWh_id: String(w.id), fromWhQ: w.name, _fromOpen: false})}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0">{w.name}</button>
+                ))}
+              </div>
+            )}
+          </div>
+          <span className="text-slate-300 text-lg">→</span>
+          {/* Kimga (To warehouse) */}
+          <div className="relative">
+            <input type="text" value={f.toWhQ||''} placeholder="Kimga (Ombor)"
+              onChange={e => setF({...f, toWhQ: e.target.value, toWh_id: ''})}
+              onFocus={() => setF(p => ({...p, _toOpen: true}))}
+              onBlur={() => setTimeout(() => setF(p => ({...p, _toOpen: false})), 200)}
+              className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white" />
+            {f._toOpen && f.toWhQ && (
+              <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-48 overflow-y-auto">
+                {warehouses.filter(w => w.name.toLowerCase().includes(f.toWhQ.toLowerCase())).slice(0,10).map(w => (
+                  <button key={w.id} onMouseDown={() => setF({...f, toWh_id: String(w.id), toWhQ: w.name, _toOpen: false})}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0">{w.name}</button>
+                ))}
+              </div>
+            )}
+          </div>
+          {/* Foydalanuvchi */}
+          <div className="relative">
+            <input type="text" value={f.userQ||''} placeholder="Foydalanuvchi"
+              onChange={e => setF({...f, userQ: e.target.value, user_id: ''})}
+              onFocus={() => setF(p => ({...p, _usOpen: true}))}
+              onBlur={() => setTimeout(() => setF(p => ({...p, _usOpen: false})), 200)}
+              className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white" />
+            {f._usOpen && f.userQ && (
+              <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-48 overflow-y-auto">
+                {users?.filter(u => u.name.toLowerCase().includes(f.userQ.toLowerCase())).slice(0,10).map(u => (
+                  <button key={u.id} onMouseDown={() => setF({...f, user_id: String(u.id), userQ: u.name, _usOpen: false})}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0">{u.name}</button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -2270,8 +2382,16 @@ const CHIQIM_TYPES = [
 ];
 
 
-function ChiqimCreateView({ products, onBack, onSaved }) {
-  const [items, setItems]   = useState([]);
+function ChiqimCreateView({ products, onBack, onSaved, editItems = [], editId = null }) {
+  const [items, setItems]   = useState(() => {
+    return editItems.map(i => ({
+      product: { id: i.product_id, name: i.product_name, stock_quantity: 0, unit: i.product_unit },
+      qty: i.quantity,
+      type: CHIQIM_TYPES.find(t => t.l === i.type || t.v === i.type)?.v || CHIQIM_TYPES[0].v,
+      doc_num: i.doc_num || '',
+      reason: i.reason || ''
+    }));
+  });
   const [sel, setSel]       = useState(null);
   const [qty, setQty]       = useState('1');
   const qtyRef              = useRef(null);
@@ -2289,22 +2409,17 @@ function ChiqimCreateView({ products, onBack, onSaved }) {
     if (!items.length) return;
     setSaving(true); setErr('');
     try {
-      for (const item of items) {
-        const typeLabel = CHIQIM_TYPES.find(t => t.v === item.type)?.l || item.type;
-        const parts = [typeLabel];
-        if (item.doc_num) parts.push(`Hujjat: ${item.doc_num}`);
-        if (item.reason)  parts.push(item.reason);
-        
-        const r = await api.get('/inventory/stock', { params: { search: item.product.name } });
-        const s = r.data.find(x => x.product_id === Number(item.product.id));
-        const currentQty = Number(s?.quantity || 0);
-
-        await api.post('/inventory/adjust', {
-          product_id:   Number(item.product.id),
-          new_quantity: Math.max(0, currentQty - Number(item.qty)),
-          reason:       parts.join(' | '),
-        });
+      const payload = items.map(item => ({
+        product_id: Number(item.product.id),
+        quantity: Number(item.qty),
+        type: item.type,
+        doc_num: item.doc_num || undefined,
+        reason: item.reason || undefined,
+      }));
+      if (editId) {
+        await api.delete(`/inventory/chiqims/${editId}`);
       }
+      await api.post('/inventory/chiqims', { items: payload });
       onSaved(); onBack();
     } catch (e) { setErr(e.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
   };
@@ -2317,7 +2432,7 @@ function ChiqimCreateView({ products, onBack, onSaved }) {
           Orqaga
         </button>
         <div className="w-px h-6 bg-slate-200 shrink-0"/>
-        <h2 className="text-base font-bold text-slate-800">Yangi chiqim</h2>
+        <h2 className="text-base font-bold text-slate-800">{editId ? `Chiqimni tahrirlash (#${editId})` : 'Yangi chiqim'}</h2>
         <div className="ml-auto text-xs text-slate-400 font-medium">{new Date().toLocaleString('uz-UZ')}</div>
       </div>
       
@@ -2442,30 +2557,103 @@ function ChiqimCreateView({ products, onBack, onSaved }) {
   );
 }
 
-function ChiqimlarTab({ products }) {
+function ChiqimlarTab({ products, users = [] }) {
   const [mode, setMode] = useState('list');
   const [movements, setMov] = useState([]);
   const [movLoad, setML] = useState(false);
+  const [f, setF] = useState({ dateFrom: today(), dateTo: today(), user_id: '', userQ: '' });
 
   const loadMov = useCallback(() => {
     setML(true);
-    api.get('/inventory/movements', { params: { limit: 50 } })
-      .then(r => setMov(r.data.filter(m => m.type === 'adjustment' && Number(m.qty_after) < Number(m.qty_before))))
+    const params = { skip: 0, limit: 100 };
+    if (f.dateFrom) params.date_from = f.dateFrom;
+    if (f.dateTo) params.date_to = f.dateTo;
+    if (f.user_id) params.user_id = f.user_id;
+
+    api.get('/inventory/chiqims', { params })
+      .then(r => setMov(r.data))
       .catch(() => {})
       .finally(() => setML(false));
-  }, []);
+  }, [f]);
   useEffect(() => { if (mode==='list') loadMov(); }, [mode, loadMov]);
 
-  if (mode === 'create') return <ChiqimCreateView products={products} onBack={() => setMode('list')} onSaved={loadMov} />;
+  const [detailId, setDetailId] = useState(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [detailItems, setDetailItems] = useState([]);
+
+  const openDetail = async (id) => {
+    setDetailId(id);
+    setLoadingDetail(true);
+    try {
+      const r = await api.get(`/inventory/chiqims/${id}`);
+      setDetailItems(r.data);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+
+  const deleteChiqim = async (id) => {
+    if (!window.confirm("Chiqimni bekor qilishga ishonchingiz komilmi? (Mahsulotlar omborga qaytadi)")) return;
+    try {
+      await api.delete(`/inventory/chiqims/${id}`);
+      loadMov();
+      if (detailId === id) setDetailId(null);
+    } catch (e) {
+      alert("Xatolik: " + (e.response?.data?.detail || e.message));
+    }
+  };
+
+  const [editingData, setEditingData] = useState(null);
+
+  if (mode === 'create') return <ChiqimCreateView products={products} onBack={() => { setMode('list'); setEditingData(null); }} onSaved={loadMov} editId={editingData?.id} editItems={editingData?.items} />;
+
+  const startEdit = () => {
+    setEditingData({ id: detailId, items: detailItems });
+    setDetailId(null);
+    setMode('create');
+  };
 
   return (
-    <div className="space-y-4">
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex items-center justify-between">
-        <h2 className="text-xl font-bold text-slate-800">So'nggi chiqimlar</h2>
-        <Btn onClick={() => setMode('create')}>
-          <svg className="w-4 h-4 inline mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-          Yangi chiqim
-        </Btn>
+    <div className="space-y-3">
+      {/* Header */}
+      <div className="flex items-center justify-end">
+        <div className="flex items-center gap-2">
+          <Btn onClick={() => setMode('create')} sm>
+            <svg className="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            Yangi chiqim
+          </Btn>
+        </div>
+      </div>
+
+      {/* Filters — Custom 2-row grid */}
+      <div className="space-y-2">
+        <div className="grid grid-cols-3 gap-3">
+          <input type="text" placeholder="Status" disabled className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-400 focus:outline-none bg-slate-50 cursor-not-allowed"/>
+          <input type="date" value={f.dateFrom} onChange={e => setF({...f, dateFrom:e.target.value})} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-slate-400 bg-white"/>
+          <input type="date" value={f.dateTo} onChange={e => setF({...f, dateTo:e.target.value})} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-slate-400 bg-white"/>
+        </div>
+        <div className="grid grid-cols-[1fr_auto_1fr_1fr] gap-3 items-center">
+          <input type="text" placeholder="Contragent" disabled className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-400 bg-slate-50 cursor-not-allowed" />
+          <span className="text-slate-300 text-lg">+</span>
+          <input type="text" placeholder="Xodim" disabled className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-400 bg-slate-50 cursor-not-allowed" />
+          <div className="relative">
+            <input type="text" value={f.userQ||''} placeholder="Foydalanuvchi"
+              onChange={e => setF({...f, userQ: e.target.value, user_id: ''})}
+              onFocus={() => setF(p => ({...p, _usOpen: true}))}
+              onBlur={() => setTimeout(() => setF(p => ({...p, _usOpen: false})), 200)}
+              className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white" />
+            {f._usOpen && f.userQ && (
+              <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-48 overflow-y-auto">
+                {users?.filter(u => u.name.toLowerCase().includes(f.userQ.toLowerCase())).slice(0,10).map(u => (
+                  <button key={u.id} onMouseDown={() => setF({...f, user_id: String(u.id), userQ: u.name, _usOpen: false})}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0">{u.name}</button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -2477,25 +2665,35 @@ function ChiqimlarTab({ products }) {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase">Mahsulot</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase">Hujjat raqami</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase">Sana</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase">Sabab</th>
-                <th className="px-6 py-4 text-right text-xs font-semibold text-slate-500 uppercase">Miqdor</th>
+                <th className="px-6 py-4 text-center text-xs font-semibold text-slate-500 uppercase">Tarkibi</th>
+                <th className="px-6 py-4 text-right text-xs font-semibold text-slate-500 uppercase">Amallar</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {movements.map(m => {
-                const chiqimQty = Number(m.qty_before) - Number(m.qty_after);
-                const typeHint = CHIQIM_TYPES.find(t => m.reason?.includes(t.l));
+                const types = m.type_hints.filter(Boolean);
+                const firstType = CHIQIM_TYPES.find(t => types.includes(t.v) || types.includes(t.l)) || {l: types[0] || 'Aralash'};
+                
                 return (
-                  <tr key={m.id} className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-semibold text-slate-800">{m.product_name}</td>
+                  <tr key={m.reference_id} className="hover:bg-slate-50 relative group">
+                    <td className="px-6 py-4 font-semibold text-slate-800">CHIQIM #{m.reference_id}</td>
                     <td className="px-6 py-4 text-slate-500">{fmtDt(m.created_at)}</td>
                     <td className="px-6 py-4">
-                      {typeHint && <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 mb-1">{typeHint.l.split('—')[0].trim()}</span>}
-                      <div className="text-xs text-slate-500">{m.reason || '—'}</div>
+                      {firstType && <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 mb-1">{firstType.l.split('—')[0].trim()}</span>}
+                      {m.doc_nums.length > 0 && <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-50 text-indigo-600 mb-1 ml-1">Hujjat: {m.doc_nums[0]}</span>}
+                      <div className="text-xs text-slate-500 line-clamp-1">{m.reasons.join(', ') || '—'}</div>
                     </td>
-                    <td className="px-6 py-4 text-right font-bold text-red-500">−{fmt(chiqimQty)}</td>
+                    <td className="px-6 py-4 text-center">
+                      <div className="font-bold text-slate-700">{m.item_count} xil</div>
+                      <div className="text-[11px] text-slate-400">Jami: {fmt(m.total_qty)} ta</div>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                       <button onClick={() => openDetail(m.reference_id)} className="text-indigo-600 font-semibold hover:underline text-xs mr-3">Ko'rish / Tahrirlash</button>
+                       <button onClick={() => deleteChiqim(m.reference_id)} className="text-red-500 font-semibold hover:underline text-xs">O'chirish</button>
+                    </td>
                   </tr>
                 );
               })}
@@ -2503,6 +2701,52 @@ function ChiqimlarTab({ products }) {
           </table>
         )}
       </div>
+
+      {detailId && (
+        <div className="fixed inset-0 z-[60] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl flex flex-col max-h-screen overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <h3 className="font-bold text-lg text-slate-800">Chiqim #{detailId} tasfoti</h3>
+              <button onClick={() => setDetailId(null)} className="text-slate-400 hover:text-slate-600"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+            </div>
+            <div className="p-6 overflow-y-auto">
+              {loadingDetail ? (
+                <div className="py-10 text-center"><div className="w-6 h-6 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin mx-auto" /></div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">Mahsulot</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">Sabab</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500">Miqdor</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {detailItems.map(item => {
+                       const t = CHIQIM_TYPES.find(x => item.type===x.v || item.type===x.l) || {l: item.type};
+                       return (
+                        <tr key={item.id}>
+                          <td className="px-4 py-3 font-semibold text-slate-800">{item.product_name}</td>
+                          <td className="px-4 py-3 text-slate-500 text-xs">
+                             <div className="font-medium text-slate-700">{t.l.split('—')[0]}</div>
+                             {item.doc_num && <div>Hujjat: {item.doc_num}</div>}
+                             {item.reason && <div>{item.reason}</div>}
+                          </td>
+                          <td className="px-4 py-3 text-right font-bold text-red-500">−{fmt(item.quantity)} {item.product_unit}</td>
+                        </tr>
+                       )
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+              <button onClick={startEdit} className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg">Tahrirlash</button>
+              <button onClick={() => setDetailId(null)} className="px-4 py-2 text-sm font-bold text-white bg-slate-800 hover:bg-slate-700 rounded-lg">Yopish</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2521,7 +2765,7 @@ function QoldiqTab() {
     try {
       const r = await api.get('/inventory/stock', { params: { limit: 500 } });
       setAll(r.data);
-    } catch {} finally { setLoading(false); }
+    } catch { /* ignore */ } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -2692,6 +2936,8 @@ export default function Operations() {
   const [warehouses, setWarehouses] = useState([]);
   const [suppliers, setSuppliers]   = useState([]);
   const [customers, setCustomers]   = useState([]);
+  const [users, setUsers]           = useState([]);
+  const [branches, setBranches]     = useState([]);
 
   useEffect(() => {
     api.get('/products/', { params:{ limit:200 } }).then(r => {
@@ -2701,6 +2947,8 @@ export default function Operations() {
     api.get('/inventory/warehouses').then(r => setWarehouses(r.data)).catch(()=>{});
     api.get('/suppliers',  { params:{ limit:200 } }).then(r => setSuppliers(r.data)).catch(()=>{});
     api.get('/customers',  { params:{ limit:500 } }).then(r => setCustomers(r.data)).catch(()=>{});
+    api.get('/users/').then(r => setUsers(r.data)).catch(()=>{});
+    api.get('/branches').then(r => setBranches(r.data)).catch(()=>{});
   }, []);
 
 
@@ -2726,12 +2974,12 @@ export default function Operations() {
         ))}
       </div>
 
-      {tab==='sales'        && <SalesTab products={products} customers={customers} />}
-      {tab==='kirimlar'     && <KirimlarTab products={products} warehouses={warehouses} suppliers={suppliers} />}
+      {tab==='sales'        && <SalesTab products={products} customers={customers} branches={branches} users={users} />}
+      {tab==='kirimlar'     && <KirimlarTab products={products} warehouses={warehouses} suppliers={suppliers} users={users} branches={branches} />}
       {tab==='qaytarishlar' && <QaytarishlarTab products={products} />}
-      {tab==='transferlar'  && <TransferlarTab products={products} warehouses={warehouses} />}
+      {tab==='transferlar'  && <TransferlarTab products={products} warehouses={warehouses} users={users} />}
       {tab==='reviziyalar'  && <ReviziyalarTab warehouses={warehouses} />}
-      {tab==='chiqimlar'    && <ChiqimlarTab products={products} />}
+      {tab==='chiqimlar'    && <ChiqimlarTab products={products} users={users} />}
       {tab==='qoldiq'       && <QoldiqTab />}
     </div>
   );

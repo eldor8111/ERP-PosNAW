@@ -23,6 +23,7 @@ from app.models.company import Company  # type: ignore
 from app.models.currency import Currency  # type: ignore
 from app.models.user import User, UserRole, UserStatus  # type: ignore
 from app.schemas.user import LoginRequest, RefreshRequest, TokenResponse, UserOut  # type: ignore
+from app.core.limiter import limiter  # type: ignore
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -62,7 +63,8 @@ class CompanyRegisterRequest(BaseModel):
 
 
 @router.post("/register", status_code=201)
-def register_company(data: CompanyRegisterRequest, db: Session = Depends(get_db)):
+@limiter.limit("3/hour")
+def register_company(request: Request, data: CompanyRegisterRequest, db: Session = Depends(get_db)):
     # Telefon normalizatsiya
     data.phone = data.phone.strip().replace("+", "").replace(" ", "").replace("-", "")
     # Telefon tekshirish
@@ -92,6 +94,14 @@ def register_company(data: CompanyRegisterRequest, db: Session = Depends(get_db)
     # Org code yaratish
     org_code = _generate_org_code(db)
 
+    # Find trial tariff if it exists
+    from app.models.billing import Tariff
+    from datetime import datetime, timedelta, timezone
+    trial_tariff = db.query(Tariff).filter(Tariff.is_active == True, Tariff.price_per_month <= 0).first()
+    
+    tariff_id = trial_tariff.id if trial_tariff else None
+    subs_ends_at = datetime.now(timezone.utc) + timedelta(days=7) if trial_tariff else None
+
     # Korxona yaratish
     company = Company(
         name=data.company_name,
@@ -101,6 +111,9 @@ def register_company(data: CompanyRegisterRequest, db: Session = Depends(get_db)
         phone=data.phone,
         is_active=True,
         agent_id=agent_id,
+        tariff_id=tariff_id,
+        subscription_ends_at=subs_ends_at,
+        is_trial=True,
     )
     db.add(company)
     db.flush()  # company.id olish uchun
@@ -160,7 +173,8 @@ def register_company(data: CompanyRegisterRequest, db: Session = Depends(get_db)
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
     try:
         normalized_phone = data.phone.strip().replace("+", "").replace(" ", "").replace("-", "")
         user = db.query(User).filter(User.phone == normalized_phone, User.status == UserStatus.active).first()
@@ -239,7 +253,8 @@ class ResetPasswordRequest(BaseModel):
 
 
 @router.post("/check-phone")
-def check_phone(data: CheckPhoneRequest, db: Session = Depends(get_db)):
+@limiter.limit("3/minute")
+def check_phone(request: Request, data: CheckPhoneRequest, db: Session = Depends(get_db)):
     """Telefon bazada borligini tekshiradi va reset token qaytaradi"""
     normalized = data.phone.strip().replace("+", "").replace(" ", "").replace("-", "")
     user = db.query(User).filter(User.phone == normalized, User.status == UserStatus.active).first()

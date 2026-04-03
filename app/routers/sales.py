@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func, select
 
 from app.core.dependencies import get_current_user, require_roles
 from app.database import get_db
@@ -94,6 +95,7 @@ def make_return_sale(
 @router.get("/", response_model=List[SaleListOut])
 def list_sales(
     cashier_id: Optional[int] = Query(None),
+    branch_id: Optional[int] = Query(None),
     customer_id: Optional[int] = Query(None),
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
@@ -107,7 +109,18 @@ def list_sales(
 ):
     from app.models.user import User as UserModel
     from app.models.warehouse import Warehouse
-    q = db.query(Sale).options(joinedload(Sale.cashier), joinedload(Sale.items), joinedload(Sale.customer))
+    from sqlalchemy import func, select
+    # items_count subquery — one SQL COUNT per sale, no joinedloading all items
+    items_count_sq = (
+        select(SaleItem.sale_id, func.count(SaleItem.id).label("cnt"))
+        .group_by(SaleItem.sale_id)
+        .subquery()
+    )
+    q = (
+        db.query(Sale, func.coalesce(items_count_sq.c.cnt, 0).label("items_count"))
+        .outerjoin(items_count_sq, items_count_sq.c.sale_id == Sale.id)
+        .options(joinedload(Sale.cashier), joinedload(Sale.customer))
+    )
     q = q.filter(Sale.company_id == current_user.company_id)
 
     # Branch isolation: admin/director hammani ko'radi, qolganlari faqat o'z filialini
@@ -119,6 +132,13 @@ def list_sales(
         branch_wh_ids = [
             wh.id for wh in db.query(Warehouse.id).filter(
                 Warehouse.branch_id == current_user.branch_id
+            ).all()
+        ]
+        q = q.filter(Sale.warehouse_id.in_(branch_wh_ids))
+    elif branch_id:
+        branch_wh_ids = [
+            wh.id for wh in db.query(Warehouse.id).filter(
+                Warehouse.branch_id == branch_id
             ).all()
         ]
         q = q.filter(Sale.warehouse_id.in_(branch_wh_ids))
@@ -139,7 +159,7 @@ def list_sales(
     if search:
         q = q.filter(Sale.number.ilike(f"%{search}%"))
 
-    sales = q.order_by(Sale.created_at.desc()).offset(skip).limit(limit).all()
+    rows = q.order_by(Sale.created_at.desc()).offset(skip).limit(limit).all()
 
     return [
         SaleListOut(
@@ -155,10 +175,10 @@ def list_sales(
             status=s.status,
             customer_id=s.customer_id,
             customer_name=s.customer.name if s.customer else None,
-            items_count=len(s.items),
+            items_count=cnt,
             created_at=s.created_at,
         )
-        for s in sales
+        for s, cnt in rows
     ]
 
 
@@ -259,12 +279,15 @@ def refund_sale(
 
     refunded = []
     for ri in data.items:
-        stock = db.query(StockLevel).filter(StockLevel.product_id == ri.product_id).first()
+        stock = db.query(StockLevel).filter(
+            StockLevel.product_id == ri.product_id,
+            StockLevel.warehouse_id == sale.warehouse_id
+        ).first()
         qty = Decimal(str(ri.quantity))
         if stock:
             stock.quantity += qty
         else:
-            db.add(StockLevel(product_id=ri.product_id, quantity=qty))
+            db.add(StockLevel(product_id=ri.product_id, quantity=qty, warehouse_id=sale.warehouse_id))
         refunded.append({"product_id": ri.product_id, "qty_returned": ri.quantity})
 
     if data.items:

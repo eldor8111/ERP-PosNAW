@@ -1,13 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
+import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
-const calcNet = (price, dType, dVal) => {
-  const p = Number(price) || 0;
-  const d = Number(dVal) || 0;
-  return dType === 'pct' ? p * (1 - d / 100) : p - d;
-};
 
 /* ── Customer combobox ── */
 function CustSearch({ customers, value, onChange, placeholder = "Mijoz izlash..." }) {
@@ -79,7 +75,7 @@ export default function PosReturn() {
   // Settings state
   const [showSettings, setShowSettings] = useState(false);
   const [posSettings, setPosSettings] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('pos_return_settings') || '{"printer":"XP-80C","paper":"80mm","autoPrint":true,"shift":false,"unknownProduct":false,"fiscal":false,"receiptStoreName":"","receiptAddress":"","receiptFooter":"Xaridingiz uchun rahmat!"}'); } catch { return {printer:"XP-80C",paper:"80mm",autoPrint:true,shift:false,unknownProduct:false,fiscal:false,receiptStoreName:"",receiptAddress:"",receiptFooter:"Xaridingiz uchun rahmat!"}; }
+    try { return JSON.parse(localStorage.getItem('pos_return_settings') || '{"printer":"XP-80C","paper":"80mm","autoPrint":true,"shift":false,"unknownProduct":false,"fiscal":false}'); } catch { return {printer:"XP-80C",paper:"80mm",autoPrint:true,shift:false,unknownProduct:false,fiscal:false}; }
   });
   const savePosSettings = (updates) => {
     const next = { ...posSettings, ...updates };
@@ -100,7 +96,7 @@ export default function PosReturn() {
         try {
           const s = JSON.parse(localStorage.getItem('pos_return_settings') || '{}');
           if (s.defaultCustomer) setCustId(s.defaultCustomer);
-        } catch { }
+        } catch { /* ignore */ }
       }).catch(() => { });
   }, []);
 
@@ -281,72 +277,19 @@ export default function PosReturn() {
 
       const res = await api.post('/sales/return', payload);
 
-      // Auto Print Logic
+      // Auto Print — iframe (xuddi shu brauzer, tez)
       if (posSettings.autoPrint) {
-        const printWindow = window.open('', '_blank', `width=${posSettings.paper==='58mm'?320:420},height=600`);
-        if (printWindow) {
-          const paperWidth = posSettings.paper === '58mm' ? '58mm' : '80mm';
-          const html = `
-            <html>
-              <head>
-                <title>Chek #${res.data.id}</title>
-                <style>
-                  body { font-family: monospace; width: ${paperWidth}; margin: 0; padding: 10px; color: #000; }
-                  .center { text-align: center; }
-                  .bold { font-weight: bold; }
-                  .line { border-bottom: 1px dashed #000; margin: 10px 0; }
-                  table { width: 100%; font-size: 13px; border-collapse: collapse; }
-                  th { text-align: left; border-bottom: 1px solid #000; padding-bottom: 4px; }
-                  td { padding: 4px 0; }
-                  .right { text-align: right; }
-                  .title { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 5px; }
-                  .fs-14 { font-size: 14px; }
-                </style>
-              </head>
-              <body>
-                <div class="title">${posSettings.receiptStoreName || "Do'kon"}</div>
-                <div class="center">${posSettings.receiptAddress || ''}</div>
-                <div class="line"></div>
-                <div>Sana: ${new Date().toLocaleString('uz-UZ')}</div>
-                <div>Chek №: ${res.data.id}</div>
-                <div class="line"></div>
-                <table>
-                  <thead>
-                    <tr><th>Nomi</th><th class="right">Soni</th><th class="right">Summa</th></tr>
-                  </thead>
-                  <tbody>
-                    ${cart.map(c => `
-                      <tr><td colspan="3" class="bold">${c.product_name}</td></tr>
-                      <tr>
-                        <td>${fmt(c.unit_price)}</td>
-                        <td class="right">${c.qty_ordered}</td>
-                        <td class="right">${fmt(c.unit_price * c.qty_ordered)}</td>
-                      </tr>
-                    `).join('')}
-                  </tbody>
-                </table>
-                <div class="line"></div>
-                <div class="bold fs-14">JAMI: <span style="float:right">${fmt(totalNet)}</span></div>
-                <div>To'lov turi: <span style="float:right">${finalType === 'mixed' ? 'ARALASH' : finalType.toUpperCase()}</span></div>
-                ${finalType === 'mixed' ? `
-                  <div class="fs-14">- ${mixedType1.toUpperCase()}: <span style="float:right">${fmt(Number(mixedAmt1)||0)}</span></div>
-                  <div class="fs-14">- ${mixedType2.toUpperCase()}: <span style="float:right">${fmt(Number(mixedAmt2)||0)}</span></div>
-                ` : ''}
-                <div>To'landi: <span style="float:right">${fmt(paidAmt)}</span></div>
-                ${paidAmt > totalNet ? `<div>Qaytim: <span style="float:right">${fmt(paidAmt - totalNet)}</span></div>` : ''}
-                <div class="line"></div>
-                <div class="center bold">${posSettings.receiptFooter || 'Xaridingiz uchun rahmat!'}</div>
-              </body>
-            </html>
-          `;
-          printWindow.document.write(html);
-          printWindow.document.close();
-          printWindow.focus();
-          setTimeout(() => {
-            printWindow.print();
-            printWindow.close();
-          }, 300);
-        }
+        const settings = getReceiptSettings();
+        const templateType = posSettings.template || (posSettings.paper === '58mm' ? '58' : '80');
+        const tmplCfg = settings['r' + templateType] || settings[templateType] || {};
+        const meta = res?.data || {
+          id: 'Vazvrat-' + Date.now(), number: 'Vazvrat-' + Date.now(),
+          cashier_name: 'Kassa', created_at: new Date().toISOString(),
+          total_amount: totalNet, paid_amount: paidAmt, discount_amount: 0,
+          payment_types_array: [{ type: finalType, amount: paidAmt }],
+          items: cart,
+        };
+        printReceiptHtml(buildReceiptHtml(meta, templateType, tmplCfg));
       }
 
       setCart([]);
@@ -715,6 +658,14 @@ export default function PosReturn() {
                       <option value="58mm">58mm</option>
                     </select>
                   </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-slate-500 mb-2">Chek Shabloni (Шаблон чека - Bozor)</label>
+                    <select value={posSettings.template || '80'} onChange={e=>savePosSettings({template:e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 bg-slate-50">
+                      <option value="80">Chek 80mm Template</option>
+                      <option value="58">Chek 58mm Template</option>
+                      <option value="nak">A4 Nakladnoy Template</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -766,21 +717,11 @@ export default function PosReturn() {
             </div>
 
             {/* Receipt Template */}
-            <div className="border border-slate-200 rounded-xl p-6 bg-slate-50/50 mb-4">
-              <h3 className="font-semibold text-slate-600 mb-5">Шаблон чека</h3>
-              <div className="grid grid-cols-2 gap-5">
-                 <div>
-                   <label className="block text-sm font-medium text-slate-500 mb-2">Название магазина</label>
-                   <input value={posSettings.receiptStoreName || ''} onChange={e=>savePosSettings({receiptStoreName:e.target.value})} placeholder="SUPERMARKET" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 bg-white" />
-                 </div>
-                 <div>
-                   <label className="block text-sm font-medium text-slate-500 mb-2">Адрес / Телефон</label>
-                   <input value={posSettings.receiptAddress || ''} onChange={e=>savePosSettings({receiptAddress:e.target.value})} placeholder="Toshkent, Chilonzor 1... (+99890...)" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 bg-white" />
-                 </div>
-                 <div className="col-span-2">
-                   <label className="block text-sm font-medium text-slate-500 mb-2">Нижний текст (Футер)</label>
-                   <input value={posSettings.receiptFooter ?? 'Xaridingiz uchun rahmat!'} onChange={e=>savePosSettings({receiptFooter:e.target.value})} placeholder="Xaridingiz uchun rahmat!" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 bg-white" />
-                 </div>
+            <div className="border border-rose-200 rounded-xl p-5 bg-rose-50/50 mb-4 flex items-start gap-3">
+              <svg className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <div>
+                <p className="text-sm font-semibold text-rose-700">Chek shabloni Nastroykada sozlanadi</p>
+                <p className="text-xs text-rose-500 mt-0.5">Logotip, do'kon nomi, manzil, telefon va boshqalar → <b>Nastroyka → Chek shabloni</b> bo'limidan o'zgartiring.</p>
               </div>
             </div>
 

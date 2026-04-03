@@ -33,6 +33,7 @@ class ProductCreate(BaseModel):
     images: Optional[List[str]] = None   # list of uploaded image URLs
     weight: Optional[Decimal] = None
     dimensions: Optional[str] = None
+    brand: Optional[str] = None
     status: ProductStatus = ProductStatus.active
     initial_stock: Optional[Decimal] = None
 
@@ -80,6 +81,7 @@ class ProductOut(BaseModel):
     images: Optional[List[str]] = None
     weight: Optional[Decimal] = None
     dimensions: Optional[str] = None
+    brand: Optional[str] = None
     status: ProductStatus
     created_at: datetime
     stock_quantity: Optional[Decimal] = None
@@ -109,6 +111,7 @@ class ProductListOut(BaseModel):
     bin_location: Optional[str] = None
     image_url: Optional[str] = None
     images: Optional[List[str]] = None
+    brand: Optional[str] = None
     status: ProductStatus
     stock_quantity: Optional[Decimal] = None
     warehouse_stocks: List[WarehouseStockOut] = []

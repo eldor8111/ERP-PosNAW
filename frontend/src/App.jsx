@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import PrivateRoute from './components/PrivateRoute'
@@ -5,33 +6,47 @@ import { ROLE_GROUPS } from './constants/roles'
 import Toast from './components/Toast'
 import Login from './pages/Login'
 import PosLogin from './pages/PosLogin'
-import Register from './pages/Register'
 import RegisterCompany from './pages/RegisterCompany'
 import AdminLayout from './components/AdminLayout'
 
-import Dashboard from './pages/admin/Dashboard'
-import Products from './pages/admin/Products'
-import Purchases from './pages/admin/Purchases'
-import Warehouse from './pages/admin/Warehouse'
-import InventoryCounts from './pages/admin/InventoryCounts'
-import Finance from './pages/admin/Finance'
-import Reports from './pages/admin/Reports'
-import Customers from './pages/admin/Customers'
-import SotuvMijozlar from './pages/admin/SotuvMijozlar'
-import PosDesktop from './pages/admin/PosDesktop'
-import PosReturn from './pages/admin/PosReturn'
+// Lazy-loaded pages — faqat kerak bo'lganda yuklanadi
+const Dashboard       = lazy(() => import('./pages/admin/Dashboard'))
+const Products        = lazy(() => import('./pages/admin/Products'))
+const Purchases       = lazy(() => import('./pages/admin/Purchases'))
+const Warehouse       = lazy(() => import('./pages/admin/Warehouse'))
+const InventoryCounts = lazy(() => import('./pages/admin/InventoryCounts'))
+const Finance         = lazy(() => import('./pages/admin/Finance'))
+const Reports         = lazy(() => import('./pages/admin/Reports'))
+const Customers       = lazy(() => import('./pages/admin/Customers'))
+const CustomerDetail  = lazy(() => import('./pages/admin/CustomerDetail'))
+const SotuvMijozlar   = lazy(() => import('./pages/admin/SotuvMijozlar'))
+const PosKassa        = lazy(() => import('./pages/admin/PosKassa'))
+const PosReturn       = lazy(() => import('./pages/admin/PosReturn'))
+const Operations      = lazy(() => import('./pages/admin/Operations'))
+const Settings        = lazy(() => import('./pages/admin/Settings'))
+const MobileDashboard = lazy(() => import('./pages/admin/MobileDashboard'))
+const Users           = lazy(() => import('./pages/admin/Users'))
+const Shifts          = lazy(() => import('./pages/admin/Shifts'))
+const SuperAdmin      = lazy(() => import('./pages/admin/SuperAdmin'))
+const AgentsPage      = lazy(() => import('./pages/admin/SuperAdmin').then(m => ({ default: m.AgentsPage })))
+const Ombor           = lazy(() => import('./pages/admin/Ombor'))
+const Tariflar        = lazy(() => import('./pages/admin/Tariflar'))
+const Register        = lazy(() => import('./pages/Register'))
 
-import Operations from './pages/admin/Operations'
-import Settings from './pages/admin/Settings'
-import MobileDashboard from './pages/admin/MobileDashboard'
-import Users from './pages/admin/Users'
-import Shifts from './pages/admin/Shifts'
-import SuperAdmin, { AgentsPage } from './pages/admin/SuperAdmin'
-import Ombor from './pages/admin/Ombor'
-import CustomerDetail from './pages/admin/CustomerDetail'
+// Sahifa almashinayotganda ko'rinadigan loading spinner
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center h-64">
+      <div className="relative">
+        <div className="w-10 h-10 border-4 border-indigo-100 rounded-full" />
+        <div className="absolute inset-0 w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    </div>
+  )
+}
 
 export default function App() {
-  const Router = window.location.protocol === 'file:' ? HashRouter : BrowserRouter;
+  const Router = window.location.protocol === 'file:' ? HashRouter : BrowserRouter
 
   return (
     <Router>
@@ -42,42 +57,39 @@ export default function App() {
           <Route path="/pos-login" element={<PosLogin />} />
           <Route path="/register" element={<RegisterCompany />} />
 
-          {/* ERP Admin Layout Routes */}
           <Route path="/admin" element={
             <PrivateRoute roles={ROLE_GROUPS.ALL_STAFF}>
               <AdminLayout />
             </PrivateRoute>
           }>
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="products" element={<Products />} />
-            <Route path="purchases" element={<Purchases />} />
-            <Route path="warehouse" element={<Warehouse />} />
-            <Route path="inventory-counts" element={<InventoryCounts />} />
-            <Route path="finance" element={<Finance />} />
-            <Route path="reports" element={<Reports />} />
-            <Route path="customers" element={<Customers />} />
-            <Route path="customers/:customerId" element={<CustomerDetail />} />
-            <Route path="sotuv-mijozlar" element={<SotuvMijozlar />} />
-            <Route path="pos-desktop" element={<PosDesktop />} />
-            <Route path="pos-return" element={<PosReturn />} />
-
-            <Route path="operations" element={<Operations />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="mobile" element={<MobileDashboard />} />
-            <Route path="users" element={<Users />} />
-            <Route path="shifts" element={<Shifts />} />
-            <Route path="super-admin" element={<SuperAdmin />} />
-            <Route path="agents" element={<AgentsPage />} />
-            <Route path="ombor" element={<Ombor />} />
+            <Route path="dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
+            <Route path="products" element={<Suspense fallback={<PageLoader />}><Products /></Suspense>} />
+            <Route path="purchases" element={<Suspense fallback={<PageLoader />}><Purchases /></Suspense>} />
+            <Route path="warehouse" element={<Suspense fallback={<PageLoader />}><Warehouse /></Suspense>} />
+            <Route path="inventory-counts" element={<Suspense fallback={<PageLoader />}><InventoryCounts /></Suspense>} />
+            <Route path="finance" element={<Suspense fallback={<PageLoader />}><Finance /></Suspense>} />
+            <Route path="reports" element={<Suspense fallback={<PageLoader />}><Reports /></Suspense>} />
+            <Route path="customers" element={<Suspense fallback={<PageLoader />}><Customers /></Suspense>} />
+            <Route path="customers/:customerId" element={<Suspense fallback={<PageLoader />}><CustomerDetail /></Suspense>} />
+            <Route path="sotuv-mijozlar" element={<Suspense fallback={<PageLoader />}><SotuvMijozlar /></Suspense>} />
+            <Route path="pos-kassa" element={<Suspense fallback={<PageLoader />}><PosKassa /></Suspense>} />
+            <Route path="pos-return" element={<Suspense fallback={<PageLoader />}><PosReturn /></Suspense>} />
+            <Route path="operations" element={<Suspense fallback={<PageLoader />}><Operations /></Suspense>} />
+            <Route path="settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
+            <Route path="mobile" element={<Suspense fallback={<PageLoader />}><MobileDashboard /></Suspense>} />
+            <Route path="users" element={<Suspense fallback={<PageLoader />}><Users /></Suspense>} />
+            <Route path="shifts" element={<Suspense fallback={<PageLoader />}><Shifts /></Suspense>} />
+            <Route path="super-admin" element={<Suspense fallback={<PageLoader />}><SuperAdmin /></Suspense>} />
+            <Route path="agents" element={<Suspense fallback={<PageLoader />}><AgentsPage /></Suspense>} />
+            <Route path="ombor" element={<Suspense fallback={<PageLoader />}><Ombor /></Suspense>} />
+            <Route path="tariflar" element={<Suspense fallback={<PageLoader />}><Tariflar /></Suspense>} />
             <Route path="users/create" element={
               <PrivateRoute roles={ROLE_GROUPS.MANAGEMENT}>
-                <Register />
+                <Suspense fallback={<PageLoader />}><Register /></Suspense>
               </PrivateRoute>
             } />
           </Route>
-
-
-
+                      
           <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
         </Routes>

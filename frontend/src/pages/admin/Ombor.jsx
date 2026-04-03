@@ -222,7 +222,7 @@ function KochirTab() {
   const [form, setForm]                 = useState({ from_warehouse_id: '', to_warehouse_id: '', note: '', items: [{ product_id: '', quantity: '' }] });
   const [saving, setSaving]             = useState(false);
   const [err, setErr]                   = useState('');
-  const [detail, setDetail]             = useState(null); // selected transfer for detail view
+  /* detail state reserved for future transfer detail view */
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -230,7 +230,7 @@ function KochirTab() {
       const [tr, wh, pr] = await Promise.all([
         api.get('/transfers', { params: { limit: 50 } }),
         api.get('/inventory/warehouses'),
-        api.get('/products', { params: { limit: 300 } }),
+        api.get('/products/', { params: { limit: 300 } }),
       ]);
       setTransfers(tr.data);
       setWarehouses(wh.data);

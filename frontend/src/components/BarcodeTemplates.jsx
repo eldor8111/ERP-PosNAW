@@ -9,7 +9,7 @@
  * - Quantity selector + print window generation
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 /* ── Constants ───────────────────────────────── */
 const LS_KEY = 'barcode_saved_templates';
@@ -240,7 +240,6 @@ function renderBarcodes(container) {
     const val = el.dataset.val;
     if (!val) return;
     const lineColor = el.dataset.linecolor || '#000';
-    const fontColor = el.dataset.fontcolor || '#000';
     try {
       window.JsBarcode(el, val, {
         format: 'CODE128',
@@ -255,7 +254,7 @@ function renderBarcodes(container) {
         textAlign: 'center',
         textPosition: 'bottom',
       });
-    } catch (_) {
+    } catch {
       el.innerHTML = `<text y="15" style="font-size:8px;fill:${lineColor}">${val}</text>`;
     }
   });

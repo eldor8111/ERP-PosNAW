@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import api from '../../api/axios';
 
 // super_admin ni dropdown dan yashiramiz — faqat DB orqali beriladi
@@ -21,6 +20,8 @@ const ROLE_COLORS = {
   cashier: 'bg-indigo-100 text-indigo-700',
 };
 
+const BLANK_FORM = { name: '', phone: '', email: '', password: '', role: 'cashier', branch_id: '' };
+
 function StatCard({ label, value, color = 'slate' }) {
   const txt = {
     indigo: 'text-indigo-600', emerald: 'text-emerald-600',
@@ -37,9 +38,9 @@ function StatCard({ label, value, color = 'slate' }) {
 export default function Users() {
   const [users, setUsers] = useState([]);
   const [branches, setBranches] = useState([]);
-  const [modal, setModal] = useState(null); // 'edit' | 'password'
+  const [modal, setModal] = useState(null); // 'create' | 'edit' | 'password'
   const [selected, setSelected] = useState(null);
-  const [form, setForm] = useState({ name: '', phone: '', email: '', role: 'cashier', branch_id: null });
+  const [form, setForm] = useState(BLANK_FORM);
   const [newPwd, setNewPwd] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -50,17 +51,42 @@ export default function Users() {
     api.get('/branches').then(r => setBranches(r.data)).catch(() => {});
   }, []);
 
+  const openCreate = () => { setForm(BLANK_FORM); setError(''); setModal('create'); };
   const openEdit = (u) => {
-    setForm({ name: u.name, phone: u.phone, email: u.email || '', role: u.role, branch_id: u.branch_id ?? null });
+    setForm({ name: u.name, phone: u.phone, email: u.email || '', password: '', role: u.role, branch_id: u.branch_id ?? '' });
     setSelected(u); setError(''); setModal('edit');
   };
   const openPwd = (u) => { setSelected(u); setNewPwd(''); setError(''); setModal('password'); };
   const close = () => { setModal(null); setSelected(null); setError(''); };
 
+  const handleCreate = async (e) => {
+    e.preventDefault(); setSaving(true); setError('');
+    try {
+      const payload = {
+        name: form.name,
+        phone: form.phone,
+        email: form.email || null,
+        password: form.password,
+        role: form.role,
+        branch_id: form.branch_id ? Number(form.branch_id) : null,
+      };
+      await api.post('/users/', payload);
+      close(); load();
+    } catch (err) { setError(err.response?.data?.detail || 'Xatolik yuz berdi'); }
+    finally { setSaving(false); }
+  };
+
   const handleEdit = async (e) => {
     e.preventDefault(); setSaving(true); setError('');
     try {
-      await api.put(`/users/${selected.id}`, form);
+      const payload = {
+        name: form.name,
+        phone: form.phone,
+        email: form.email || null,
+        role: form.role,
+        branch_id: form.branch_id ? Number(form.branch_id) : null,
+      };
+      await api.put(`/users/${selected.id}`, payload);
       close(); load();
     } catch (err) { setError(err.response?.data?.detail || 'Xatolik yuz berdi'); }
     finally { setSaving(false); }
@@ -83,6 +109,38 @@ export default function Users() {
     } catch (err) { alert(err.response?.data?.detail || "O'chirib bo'lmadi"); }
   };
 
+  /* ────── shared field renderer ────── */
+  const Field = ({ label, children }) => (
+    <div>
+      <label className="block text-xs font-semibold text-slate-600 mb-1.5">{label}</label>
+      {children}
+    </div>
+  );
+  const inp = "w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500";
+  const BranchSelect = () => (
+    <Field label="Filial">
+      <select
+        value={form.branch_id}
+        onChange={e => setForm({ ...form, branch_id: e.target.value })}
+        className={inp}
+      >
+        <option value="">— Filialsiz —</option>
+        {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+      </select>
+    </Field>
+  );
+  const RoleSelect = () => (
+    <Field label="Rol">
+      <select
+        value={form.role}
+        onChange={e => setForm({ ...form, role: e.target.value })}
+        className={inp}
+      >
+        {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+      </select>
+    </Field>
+  );
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -91,15 +149,15 @@ export default function Users() {
           <h1 className="text-2xl font-bold text-slate-800">Foydalanuvchilar</h1>
           <p className="text-slate-500 text-sm mt-0.5">Xodimlar va ularning rollari boshqaruvi</p>
         </div>
-        <Link
-          to="/admin/users/create"
+        <button
+          onClick={openCreate}
           className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
           </svg>
           Yangi xodim
-        </Link>
+        </button>
       </div>
 
       {/* Stats */}
@@ -168,11 +226,58 @@ export default function Users() {
               </tr>
             ))}
             {users.length === 0 && (
-              <tr><td colSpan={6} className="px-6 py-16 text-center text-slate-400 text-sm">Foydalanuvchilar topilmadi</td></tr>
+              <tr><td colSpan={7} className="px-6 py-16 text-center text-slate-400 text-sm">Foydalanuvchilar topilmadi</td></tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {/* ── CREATE MODAL ─────────────────────────────────────── */}
+      {modal === 'create' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-800">Yangi xodim qo'shish</h3>
+              <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <form onSubmit={handleCreate} className="p-6 space-y-4">
+              <Field label="Ism *">
+                <input type="text" required value={form.name}
+                  onChange={e => setForm({ ...form, name: e.target.value })}
+                  placeholder="To'liq ism" className={inp} />
+              </Field>
+              <Field label="Telefon *">
+                <input type="text" required value={form.phone}
+                  onChange={e => setForm({ ...form, phone: e.target.value })}
+                  placeholder="+998901234567" className={inp} />
+              </Field>
+              <Field label="Email">
+                <input type="email" value={form.email}
+                  onChange={e => setForm({ ...form, email: e.target.value })}
+                  placeholder="email@example.com" className={inp} />
+              </Field>
+              <Field label="Parol *">
+                <input type="password" required minLength={6} value={form.password}
+                  onChange={e => setForm({ ...form, password: e.target.value })}
+                  placeholder="Kamida 6 ta belgi" className={inp} />
+              </Field>
+              <RoleSelect />
+              {branches.length > 0 && <BranchSelect />}
+              {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">Bekor</button>
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
+                  {saving ? 'Qo\'shilmoqda...' : 'Qo\'shish'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ── EDIT MODAL ─────────────────────────────────────── */}
       {modal === 'edit' && selected && (
@@ -187,43 +292,20 @@ export default function Users() {
               </button>
             </div>
             <form onSubmit={handleEdit} className="p-6 space-y-4">
-              {[
-                { label: 'Ism', key: 'name', type: 'text', required: true },
-                { label: 'Telefon', key: 'phone', type: 'text', required: true },
-                { label: 'Email', key: 'email', type: 'email', required: false },
-              ].map(({ label, key, type, required }) => (
-                <div key={key}>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{label}</label>
-                  <input
-                    type={type} required={required} value={form[key]}
-                    onChange={e => setForm({ ...form, [key]: e.target.value })}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              ))}
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Rol</label>
-                <select
-                  value={form.role}
-                  onChange={e => setForm({ ...form, role: e.target.value })}
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                </select>
-              </div>
-              {branches.length > 0 && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Filial</label>
-                  <select
-                    value={form.branch_id ?? ''}
-                    onChange={e => setForm({ ...form, branch_id: e.target.value ? Number(e.target.value) : null })}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="">— Filialsiz —</option>
-                    {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  </select>
-                </div>
-              )}
+              <Field label="Ism *">
+                <input type="text" required value={form.name}
+                  onChange={e => setForm({ ...form, name: e.target.value })} className={inp} />
+              </Field>
+              <Field label="Telefon *">
+                <input type="text" required value={form.phone}
+                  onChange={e => setForm({ ...form, phone: e.target.value })} className={inp} />
+              </Field>
+              <Field label="Email">
+                <input type="email" value={form.email}
+                  onChange={e => setForm({ ...form, email: e.target.value })} className={inp} />
+              </Field>
+              <RoleSelect />
+              {branches.length > 0 && <BranchSelect />}
               {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">Bekor</button>
@@ -250,15 +332,12 @@ export default function Users() {
             </div>
             <form onSubmit={handlePwd} className="p-6 space-y-4">
               <p className="text-sm text-slate-600"><strong>{selected.name}</strong> uchun yangi parol o'rnatiladi.</p>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Yangi parol</label>
+              <Field label="Yangi parol">
                 <input
                   type="password" required minLength={6} value={newPwd} autoFocus
                   onChange={e => setNewPwd(e.target.value)}
-                  placeholder="Kamida 6 ta belgi"
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
-                />
-              </div>
+                  placeholder="Kamida 6 ta belgi" className={inp} />
+              </Field>
               {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
               <div className="flex gap-3">
                 <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">Bekor</button>

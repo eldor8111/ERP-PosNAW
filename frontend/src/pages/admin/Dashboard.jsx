@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer,
+  ResponsiveContainer, Line, ComposedChart, ReferenceLine,
 } from 'recharts';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -101,8 +101,9 @@ export default function Dashboard() {
 
   useEffect(() => {
     load(true);
-    const interval = setInterval(() => load(false), 30_000);
+    const interval = setInterval(() => load(false), 120_000);
     return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [warehouseId, branchId]);
 
   const handleWarehouseChange = (e) => {
@@ -340,6 +341,42 @@ export default function Dashboard() {
             </BarChart>
           </ResponsiveContainer>
         </div>
+      </div>
+
+      {/* Monthly 30-day trend */}
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-base font-semibold text-slate-800">Oylik trend (30 kun)</h3>
+            <p className="text-sm text-slate-400 mt-0.5">So'nggi 30 kunlik kunlik sotuv dinamikasi</p>
+          </div>
+          <div className="w-8 h-8 bg-violet-50 rounded-lg flex items-center justify-center">
+            <svg className="w-4 h-4 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+          </div>
+        </div>
+        {data.monthly_trend?.length > 0 ? (
+          <ResponsiveContainer width="100%" height={260}>
+            <ComposedChart data={data.monthly_trend} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#7c3aed" stopOpacity={0.9} />
+                  <stop offset="100%" stopColor="#a78bfa" stopOpacity={0.6} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 9 }} axisLine={false} tickLine={false} interval={4} />
+              <YAxis tickFormatter={v => fmt(v)} tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <Tooltip content={<CustomTooltip />} />
+              <ReferenceLine y={data.monthly_trend.reduce((a,d)=>a+d.amount,0)/data.monthly_trend.length} stroke="#e879f9" strokeDasharray="4 2" strokeWidth={1.5} />
+              <Bar dataKey="amount" fill="url(#barGrad)" radius={[4,4,0,0]} maxBarSize={28} />
+              <Line type="monotone" dataKey="amount" stroke="#7c3aed" strokeWidth={2} dot={false} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="flex items-center justify-center h-40 text-slate-300 text-sm">Ma'lumot yo'q</div>
+        )}
       </div>
 
       {/* Cashier Performance + Low Stock row */}

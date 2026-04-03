@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models.branch import Branch
 from app.models.user import User, UserRole
 from app.schemas.branch import BranchCreate, BranchOut, BranchUpdate
+from app.utils.tariff_check import check_branch_limit
 
 router = APIRouter(prefix="/branches", tags=["Branches"])
 
@@ -30,6 +31,40 @@ def create_branch(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*ADMIN_ROLES)),
 ):
+    company_id = current_user.company_id if current_user.role != UserRole.super_admin else data.company_id
+
+    # ── Tarif limit tekshiruvi (inline) ──────────────────────
+    if current_user.role != UserRole.super_admin:
+        from app.models.company import Company as Co
+        from app.models.billing import Tariff as Tf
+        from datetime import datetime, timezone
+
+        co = db.query(Co).filter(Co.id == company_id).first()
+        max_br = 1  # default
+        if co and co.tariff:
+            sub_end = co.subscription_ends_at
+            if sub_end:
+                if sub_end.tzinfo is None:
+                    sub_end = sub_end.replace(tzinfo=timezone.utc)
+                if sub_end > datetime.now(timezone.utc):
+                    max_br = co.tariff.max_branches or 1
+
+        current_count = (
+            db.query(Branch)
+            .filter(Branch.company_id == company_id, Branch.is_active == True)
+            .count()
+        )
+        if current_count >= max_br:
+            tariff_name = co.tariff.name if (co and co.tariff) else "Sinov"
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    f"'{tariff_name}' tarifi bo'yicha maksimal filiallar soni: {max_br}. "
+                    f"Hozir: {current_count}. Tarif yangilang yoki administrator bilan bog'laning."
+                ),
+            )
+    # ─────────────────────────────────────────────────────────
+
     branch = Branch(**data.model_dump())
     if current_user.role != UserRole.super_admin:
         branch.company_id = current_user.company_id

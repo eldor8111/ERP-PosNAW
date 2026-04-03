@@ -37,6 +37,9 @@ class CompanyUpdate(BaseModel):
     tg_bot_username: Optional[str] = None
 
 
+class ReceiptTemplatesUpdate(BaseModel):
+    receipt_templates: dict
+
 class CompanyOut(BaseModel):
     id: int
     name: str
@@ -48,6 +51,7 @@ class CompanyOut(BaseModel):
     branches_count: int = 0
     tg_bot_token: Optional[str] = None
     tg_bot_username: Optional[str] = None
+    receipt_templates: Optional[dict] = None
 
     class Config:
         from_attributes = True
@@ -69,9 +73,38 @@ def list_companies(
         result.append(CompanyOut(
             id=c.id, name=c.name, address=c.address, phone=c.phone, 
             email=c.email, is_active=c.is_active, created_at=c.created_at, 
-            branches_count=bc, tg_bot_token=c.tg_bot_token, tg_bot_username=c.tg_bot_username))  # type: ignore[call-arg]
+            branches_count=bc, tg_bot_token=c.tg_bot_token, tg_bot_username=c.tg_bot_username, receipt_templates=c.receipt_templates))  # type: ignore[call-arg]
     return result
 
+@router.get("/me/receipt_templates")
+def get_my_receipt_templates(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.company_id:
+        return {"receipt_templates": {}}
+    try:
+        c = db.query(Company).filter(Company.id == current_user.company_id).first()
+        if not c:
+            return {"receipt_templates": {}}
+        return {"receipt_templates": c.receipt_templates or {}}
+    except Exception:
+        return {"receipt_templates": {}}
+
+@router.put("/me/receipt_templates")
+def update_my_receipt_templates(
+    data: ReceiptTemplatesUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.company_id:
+        raise HTTPException(status_code=400, detail="Kompaniyangiz topilmadi")
+    c = db.query(Company).filter(Company.id == current_user.company_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Kompaniya topilmadi")
+    c.receipt_templates = data.receipt_templates
+    db.commit()
+    return {"ok": True, "receipt_templates": c.receipt_templates}
 
 @router.post("", response_model=CompanyOut, status_code=status.HTTP_201_CREATED)
 def create_company(
@@ -86,7 +119,7 @@ def create_company(
     return CompanyOut(
         id=c.id, name=c.name, address=c.address, phone=c.phone, 
         email=c.email, is_active=c.is_active, created_at=c.created_at, 
-        branches_count=0, tg_bot_token=c.tg_bot_token, tg_bot_username=c.tg_bot_username)  # type: ignore[call-arg]
+        branches_count=0, tg_bot_token=c.tg_bot_token, tg_bot_username=c.tg_bot_username, receipt_templates=c.receipt_templates)  # type: ignore[call-arg]
 
 
 @router.put("/{company_id}", response_model=CompanyOut)
@@ -107,7 +140,7 @@ def update_company(
     return CompanyOut(
         id=c.id, name=c.name, address=c.address, phone=c.phone, 
         email=c.email, is_active=c.is_active, created_at=c.created_at, 
-        branches_count=bc, tg_bot_token=c.tg_bot_token, tg_bot_username=c.tg_bot_username)  # type: ignore[call-arg]
+        branches_count=bc, tg_bot_token=c.tg_bot_token, tg_bot_username=c.tg_bot_username, receipt_templates=c.receipt_templates)  # type: ignore[call-arg]
 
 
 @router.delete("/{company_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -9,6 +9,7 @@ from app.core.security import hash_password
 from app.database import get_db
 from app.models.user import User, UserRole, UserStatus
 from app.schemas.user import UserCreate, UserOut, UserPasswordChange, UserUpdate
+from app.utils.tariff_check import check_user_limit
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -51,6 +52,43 @@ def create_user(
         raise HTTPException(status_code=400, detail="Bu telefon raqam allaqachon ro'yxatdan o'tgan")
 
     company_id = current_user.company_id if current_user.role != UserRole.super_admin else getattr(data, 'company_id', None)
+    
+    # ── Tarif limit tekshiruvi (inline) ──────────────────────
+    if current_user.role != UserRole.super_admin:
+        from app.models.company import Company as Co
+        from app.models.billing import Tariff as Tf
+        from datetime import datetime, timezone
+
+        co = db.query(Co).filter(Co.id == company_id).first()
+        max_usr = 5  # default
+        if co and co.tariff:
+            sub_end = co.subscription_ends_at
+            if sub_end:
+                if sub_end.tzinfo is None:
+                    sub_end = sub_end.replace(tzinfo=timezone.utc)
+                if sub_end > datetime.now(timezone.utc):
+                    max_usr = co.tariff.max_users or 5
+
+        current_count = (
+            db.query(User)
+            .filter(
+                User.company_id == company_id,
+                User.status != UserStatus.inactive,
+                User.role != UserRole.super_admin,
+            )
+            .count()
+        )
+        if current_count >= max_usr:
+            tariff_name = co.tariff.name if (co and co.tariff) else "Sinov"
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    f"'{tariff_name}' tarifi bo'yicha maksimal xodimlar soni: {max_usr}. "
+                    f"Hozir: {current_count}. Tarif yangilang yoki administrator bilan bog'laning."
+                ),
+            )
+    # ─────────────────────────────────────────────────────────
+
     user = User(
         name=data.name,
         phone=data.phone,

@@ -83,6 +83,97 @@ def update_supplier(
     return supplier
 
 
+@router.post("/bulk-import")
+def bulk_import_suppliers(
+    rows: list[dict],
+    allow_update: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*ALLOWED)),
+):
+    """Excel fayldan ta'minotchilarni yuklash yoki yangilash."""
+    FIELD_MAP = {
+        "Nomi":                 ("name",          str),
+        "INN":                  ("inn",           str),
+        "Telefon":              ("phone",         str),
+        "Email":                ("email",         str),
+        "Manzil":               ("address",       str),
+        "To'lov muddati (kun)": ("payment_terms", int),
+        "Qarz":                 ("debt_balance",  Decimal),
+    }
+
+    created = 0
+    updated = 0
+    errors = []
+
+    dup_q_base = db.query(Supplier).filter(Supplier.company_id == current_user.company_id)
+
+    for idx, row in enumerate(rows):
+        row_num = row.get("__row_index", idx + 2)
+        name = str(row.get("Nomi") or "").strip()
+        inn = str(row.get("INN") or "").strip() or None
+
+        if not name:
+            errors.append({"row": row_num, "error": "Ta'minotchi nomi majburiy"})
+            continue
+
+        existing = None
+        if inn:
+            existing = dup_q_base.filter(Supplier.inn == inn).first()
+        if not existing:
+            existing = dup_q_base.filter(Supplier.name == name).first()
+
+        if existing:
+            if not allow_update:
+                errors.append({
+                    "row": row_num, "name": name,
+                    "error": f"'{name}' allaqachon mavjud — o'tkazib yuborildi"
+                })
+                continue
+            
+            for row_key, (field, cast) in FIELD_MAP.items():
+                raw = row.get(row_key)
+                if raw is None or str(raw).strip() == "":
+                    continue
+                try:
+                    val = str(raw).strip()
+                    if cast == Decimal:
+                        val = Decimal(val)
+                    elif cast == int:
+                        val = int(val)
+                    setattr(existing, field, val)
+                except Exception:
+                    errors.append({"row": row_num, "name": name, "error": f"'{row_key}' qiymati xato: {raw}"})
+                    continue
+
+            updated += 1
+            continue
+
+        kwargs = {"company_id": current_user.company_id}
+        for row_key, (field, cast) in FIELD_MAP.items():
+            raw = row.get(row_key)
+            if raw is not None and str(raw).strip() != "":
+                try:
+                    val = str(raw).strip()
+                    if cast == Decimal:
+                        val = Decimal(val)
+                    elif cast == int:
+                        val = int(val)
+                    kwargs[field] = val
+                except:
+                    pass
+
+        # check specific constraints if needed
+        if "name" not in kwargs:
+            kwargs["name"] = name
+
+        sup = Supplier(**kwargs)
+        db.add(sup)
+        db.flush()
+        created += 1
+
+    db.commit()
+    return {"created": created, "updated": updated, "skipped": len(errors), "errors": errors}
+
 @router.delete("/{supplier_id}", status_code=204)
 def delete_supplier(
     supplier_id: int,

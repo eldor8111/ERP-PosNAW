@@ -15,6 +15,7 @@ from app.models.company import Company  # type: ignore
 from app.models.branch import Branch  # type: ignore
 from app.models.warehouse import Warehouse  # type: ignore
 from app.models.sale import Sale  # type: ignore
+from app.models.platform_settings import PlatformSettings  # type: ignore
 
 router = APIRouter(prefix="/super-admin", tags=["Super Admin"])
 
@@ -29,13 +30,31 @@ def require_super_admin(current_user: User = Depends(get_current_user)) -> User:
 
 @router.get("/overview")
 def get_overview(db: Session = Depends(get_db), _: User = Depends(require_super_admin)):
-    companies_count = db.query(func.count(Company.id)).filter(Company.is_active == True).scalar() or 0
-    branches_count = db.query(func.count(Branch.id)).filter(Branch.is_active == True).scalar() or 0
-    users_count = db.query(func.count(User.id)).scalar() or 0
-    warehouses_count = db.query(func.count(Warehouse.id)).filter(Warehouse.is_active == True).scalar() or 0
-    sales_count = db.query(func.count(Sale.id)).scalar() or 0
-    total_revenue = float(db.query(func.coalesce(func.sum(Sale.total_amount), 0)).scalar() or 0)
-    role_stats = db.query(User.role, func.count(User.id)).group_by(User.role).all()
+    from datetime import datetime, timezone
+    from app.models.billing import BalanceLog
+
+    companies_count   = db.query(func.count(Company.id)).filter(Company.is_active == True).scalar() or 0
+    branches_count    = db.query(func.count(Branch.id)).filter(Branch.is_active == True).scalar() or 0
+    users_count       = db.query(func.count(User.id)).scalar() or 0
+    warehouses_count  = db.query(func.count(Warehouse.id)).filter(Warehouse.is_active == True).scalar() or 0
+    sales_count       = db.query(func.count(Sale.id)).scalar() or 0
+    total_revenue     = float(db.query(func.coalesce(func.sum(Sale.total_amount), 0)).scalar() or 0)
+    role_stats        = db.query(User.role, func.count(User.id)).group_by(User.role).all()
+
+    # Bugungi tarif sotuvlari
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    today_logs  = (
+        db.query(BalanceLog)
+        .filter(
+            BalanceLog.log_type == "subscription",
+            BalanceLog.created_at >= today_start,
+            BalanceLog.amount < 0,          # chiqim = tarif to'lovi
+        )
+        .all()
+    )
+    today_subscriptions = len(today_logs)
+    today_sub_revenue   = float(sum(abs(lg.amount) for lg in today_logs))
+
     return {
         "companies": companies_count,
         "branches": branches_count,
@@ -44,6 +63,8 @@ def get_overview(db: Session = Depends(get_db), _: User = Depends(require_super_
         "sales": sales_count,
         "total_revenue": total_revenue,
         "users_by_role": {r.value: c for r, c in role_stats},
+        "today_subscriptions": today_subscriptions,
+        "today_sub_revenue": today_sub_revenue,
     }
 
 
@@ -52,18 +73,36 @@ def get_overview(db: Session = Depends(get_db), _: User = Depends(require_super_
 @router.get("/companies")
 def list_companies(db: Session = Depends(get_db), _: User = Depends(require_super_admin)):
     """Barcha korxonalar — har birida filiallar va xodimlar soni"""
-    companies = db.query(Company).order_by(Company.id).all()
+    # Subquerylar bilan bitta so'rovda olish (N+1 muammosini hal qiladi)
+    branch_counts = (
+        db.query(Branch.company_id, func.count(Branch.id).label("cnt"))
+        .group_by(Branch.company_id)
+        .subquery()
+    )
+    user_counts = (
+        db.query(Branch.company_id, func.count(User.id).label("cnt"))
+        .join(User, User.branch_id == Branch.id)
+        .group_by(Branch.company_id)
+        .subquery()
+    )
+    rows = (
+        db.query(
+            Company,
+            func.coalesce(branch_counts.c.cnt, 0).label("branches_count"),
+            func.coalesce(user_counts.c.cnt, 0).label("users_count"),
+        )
+        .outerjoin(branch_counts, Company.id == branch_counts.c.company_id)
+        .outerjoin(user_counts, Company.id == user_counts.c.company_id)
+        .order_by(Company.id)
+        .all()
+    )
     result = []
-    for c in companies:
-        branches_count = db.query(func.count(Branch.id)).filter(Branch.company_id == c.id).scalar() or 0
-        # branches lari orqali userlar
-        branch_ids = [b.id for b in db.query(Branch.id).filter(Branch.company_id == c.id).all()]
-        users_count = 0
-        if branch_ids:
-            users_count = db.query(func.count(User.id)).filter(User.branch_id.in_(branch_ids)).scalar() or 0
+    for c, branches_count, users_count in rows:
         result.append({
             "id": c.id,
             "name": c.name,
+            "code": c.org_code,
+            "org_code": c.org_code,
             "address": c.address,
             "phone": c.phone,
             "email": c.email,
@@ -82,11 +121,31 @@ def get_company_detail(company_id: int, db: Session = Depends(get_db), _: User =
     if not company:
         raise HTTPException(status_code=404, detail="Korxona topilmadi")
 
-    branches = db.query(Branch).filter(Branch.company_id == company_id).order_by(Branch.id).all()
+    user_sub = (
+        db.query(User.branch_id, func.count(User.id).label("cnt"))
+        .group_by(User.branch_id)
+        .subquery()
+    )
+    wh_sub = (
+        db.query(Warehouse.branch_id, func.count(Warehouse.id).label("cnt"))
+        .filter(Warehouse.is_active == True)
+        .group_by(Warehouse.branch_id)
+        .subquery()
+    )
+    rows = (
+        db.query(
+            Branch,
+            func.coalesce(user_sub.c.cnt, 0).label("users_count"),
+            func.coalesce(wh_sub.c.cnt, 0).label("warehouses_count"),
+        )
+        .outerjoin(user_sub, Branch.id == user_sub.c.branch_id)
+        .outerjoin(wh_sub, Branch.id == wh_sub.c.branch_id)
+        .filter(Branch.company_id == company_id)
+        .order_by(Branch.id)
+        .all()
+    )
     branches_data = []
-    for b in branches:
-        users_count = db.query(func.count(User.id)).filter(User.branch_id == b.id).scalar() or 0
-        warehouses_count = db.query(func.count(Warehouse.id)).filter(Warehouse.branch_id == b.id, Warehouse.is_active == True).scalar() or 0
+    for b, users_count, warehouses_count in rows:
         branches_data.append({
             "id": b.id,
             "name": b.name,
@@ -238,3 +297,60 @@ def top_up_balance(data: TopUpRequest, db: Session = Depends(get_db), _: User = 
         "added": data.amount,
         "new_balance": float(company.balance),
     }
+
+
+# ── Platform Sozlamalari ──────────────────────────────────
+
+SETTINGS_LABELS = {
+    "card_number": "To'lov karta raqami",
+    "card_owner":  "Karta egasining ismi",
+    "tg_username": "Telegram username (@siz)",
+    "phone":       "Telefon (ko'rsatish uchun)",
+    "phone_raw":   "Telefon (tel: link uchun, raqamlar)",
+}
+
+
+@router.get("/platform-settings")
+def get_platform_settings(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_super_admin),
+):
+    """Barcha platform sozlamalarini qaytaradi"""
+    rows = db.query(PlatformSettings).all()
+    existing = {r.key: r.value for r in rows}
+    result = []
+    for key, label in SETTINGS_LABELS.items():
+        result.append({
+            "key": key,
+            "label": label,
+            "value": existing.get(key, ""),
+        })
+    return result
+
+
+class SettingsUpdate(BaseModel):
+    values: dict  # { "card_number": "8600 ...", "tg_username": "eldor", ... }
+
+
+@router.put("/platform-settings")
+def update_platform_settings(
+    data: SettingsUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_super_admin),
+):
+    """Platform sozlamalarini yangilash (karta, telegram, telefon)"""
+    for key, value in data.values.items():
+        if key not in SETTINGS_LABELS:
+            continue
+        existing = db.query(PlatformSettings).filter(PlatformSettings.key == key).first()
+        if existing:
+            existing.value = str(value).strip()
+        else:
+            db.add(PlatformSettings(
+                key=key,
+                value=str(value).strip(),
+                label=SETTINGS_LABELS.get(key, key),
+            ))
+    db.commit()
+    return {"ok": True, "message": "Sozlamalar saqlandi"}
+

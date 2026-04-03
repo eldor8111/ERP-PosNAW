@@ -1,11 +1,18 @@
-import { useRef, useState, useEffect, useCallback, useId } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 import api from '../../api/axios';
 import BarcodePrintModal from '../../components/BarcodeTemplates';
 
 const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api').replace('/api', '');
 
 /* ─── helpers ─────────────────────────────────────── */
-const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
+const fmt = (v) => {
+  if (v === null || v === undefined || v === '') return '0';
+  const n = Number(v);
+  if (isNaN(n) || n === 0) return '0';
+  return n.toLocaleString('ru-RU');
+};
 const genBarcode = () => Math.floor(10000000 + Math.random() * 90000000).toString();
 
 const BARCODE_FORMATS = [
@@ -55,7 +62,7 @@ const emptyProduct = {
 };
 
 /* ─── RowMenu (3 dots) ─────────────────────────────────── */
-function RowMenu({ product, onEdit, onDelete, onPrint }) {
+function RowMenu({ onEdit, onDelete, onPrint }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -281,8 +288,15 @@ export default function Products() {
   const [activeTab, setActiveTab] = useState('products');
 
   /* products state */
-  const [products, setProducts]     = useState([]);
-  const [categories, setCategories] = useState([]);
+  const [products, setProducts]       = useState([]);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [limit, setLimit]             = useState(() => Number(localStorage.getItem('products_limit') || 50));
+  const [page, setPage]               = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [totalActive, setTotalActive]   = useState(0);
+  const [outOfStock, setOutOfStock]     = useState(0);
+  const [deleteProgress, setDeleteProgress] = useState(null);
+  const [categories, setCategories]   = useState([]);
   const [loading, setLoading]       = useState(true);
   const [search, setSearch]         = useState('');
   const [filterCat, setFilterCat]   = useState('');
@@ -337,28 +351,41 @@ export default function Products() {
     if (filterCat)       params.append('category_id', filterCat);
     if (filterStatus)    params.append('status', filterStatus);
     if (filterWarehouse) params.append('warehouse_id', filterWarehouse);
-    params.append('limit', '200');
-    api.get('/products?' + params.toString())
-      .then(r => setProducts(r.data))
+    params.append('limit', String(limit));
+    params.append('skip', String((page - 1) * limit));
+    api.get('/products/paginated?' + params.toString())
+      .then(r => {
+        setProducts(r.data.items);
+        setTotalRecords(r.data.total);
+        setTotalActive(r.data.total_active || 0);
+        setOutOfStock(r.data.out_of_stock || 0);
+        setSelectedIds([]);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [search, filterCat, filterStatus, filterWarehouse]);
+  }, [search, filterCat, filterStatus, filterWarehouse, limit, page]);
+
+  useEffect(() => { setPage(1); }, [search, filterCat, filterStatus, filterWarehouse, limit]);
 
   useEffect(() => {
     loadCategories();
     loadBinLocations();
     api.get('/currencies/').then(r => setCurrencies(r.data)).catch(() => {});
     api.get('/inventory/warehouses').then(r => setWarehouses(r.data)).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (activeTab === 'products')   loadProducts();
     if (activeTab === 'categories') { loadCategories(); loadBinLocations(); }
-  }, [activeTab, loadProducts]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, page, filterCat, filterStatus, filterWarehouse, limit]);
 
   useEffect(() => {
-    const t = setTimeout(() => { if (activeTab === 'products') loadProducts(); }, 400);
+    if (activeTab !== 'products') return;
+    const t = setTimeout(() => loadProducts(), 400);
     return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
   /* ── product CRUD ───────────────────────────────── */
@@ -491,6 +518,67 @@ export default function Products() {
     loadProducts();
   };
 
+  const handleSelectAll = async (e) => {
+    if (e.target.checked) {
+      if (!confirm(`Barcha sahifalardagi (jami ${totalRecords} ta) mahsulotlarni tanlamoqchimisiz?`)) return;
+      try {
+        const params = new URLSearchParams();
+        if (search)          params.append('search', search);
+        if (filterCat)       params.append('category_id', filterCat);
+        if (filterStatus)    params.append('status', filterStatus);
+        if (filterWarehouse) params.append('warehouse_id', filterWarehouse);
+        const r = await api.get('/products/ids?' + params.toString());
+        setSelectedIds(r.data);
+      } catch {
+        alert("Server bilan ishlashda xatolik yuz berdi");
+      }
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const [deletePercent, setDeletePercent] = useState(0);
+  const [bulkDeleteModal, setBulkDeleteModal] = useState(null); // { code, entered }
+
+  const handleBulkDelete = () => {
+    if (!selectedIds.length) return;
+    const code = Math.floor(1000 + Math.random() * 9000);
+    setBulkDeleteModal({ code, entered: '' });
+  };
+
+  const confirmBulkDelete = async () => {
+    if (!bulkDeleteModal || bulkDeleteModal.entered !== String(bulkDeleteModal.code)) return;
+    setBulkDeleteModal(null);
+    try {
+      const CHUNK_SIZE = 200;
+      const total = selectedIds.length;
+      let deleted = 0;
+      setDeletePercent(0);
+      setDeleteProgress('deleting');
+
+      for (let i = 0; i < total; i += CHUNK_SIZE) {
+        const chunk = selectedIds.slice(i, i + CHUNK_SIZE);
+        await api.post('/products/bulk-delete', { product_ids: chunk }, { timeout: 120000 });
+        deleted += chunk.length;
+        setDeletePercent(Math.round((deleted / total) * 100));
+        setDeleteProgress('deleting');
+        await new Promise(r => setTimeout(r, 30));
+      }
+
+      setDeleteProgress(null);
+      setDeletePercent(0);
+      setSelectedIds([]);
+      loadProducts();
+    } catch (err) {
+      setDeleteProgress(null);
+      setDeletePercent(0);
+      const errDetail = err.response?.data?.detail;
+      const msg = typeof errDetail === 'string' ? errDetail :
+                  (Array.isArray(errDetail) ? errDetail.map(e => e.msg).join(', ') : err.message);
+      alert(`O'chirib bo'lmadi: ${msg || "Xatolik"}`);
+    }
+  };
+
   /* ── category CRUD ──────────────────────────────── */
   const openAddCat = () => { setCatForm(emptyCategory); setCatError(''); setCatModal('add'); };
   const openEditCat = (c) => {
@@ -564,8 +652,6 @@ export default function Products() {
   };
 
   /* ── derived ─────────────────────────────────────── */
-  const totalActive = products.filter(p => p.status === 'active').length;
-  const lowStock    = products.filter(p => Number(p.stock_quantity) <= 0).length;
   const catName     = (id) => categories.find(c => c.id === id)?.name || '—';
 
   // Price currency helpers
@@ -573,17 +659,331 @@ export default function Products() {
   const priceRate        = priceCurSelected ? Number(priceCurSelected.rate) : 1;
   const priceCurCode     = priceCurSelected?.code || "so'm";
 
+  /* ────────────────────── Excel Import (Advanced) ─────────────────────── */
+  const IMPORT_FIELDS = [
+    { key: '',                label: '— Tanlang —' },
+    { key: 'Nomi',           label: 'Mahsulot nomi *' },
+    { key: 'Barkod',         label: 'Barkod (Shtrix kod)' },
+    { key: 'SKU',            label: 'Artikul (SKU)' },
+    { key: "O'lchov",        label: "O'lchov birligi" },
+    { key: 'Tan narxi',      label: 'Tan narxi' },
+    { key: 'Chakana narxi',  label: 'Chakana narxi' },
+    { key: 'Ulgurji narxi',  label: 'Ulgurji narxi' },
+    { key: 'Qoldiq',         label: 'Qoldiq' },
+    { key: 'Min. qoldiq',    label: 'Min. qoldiq' },
+    { key: 'Holat',          label: 'Holat' },
+    { key: 'Brand',          label: 'Brand' },
+    { key: 'Kategoriya',     label: 'Kategoriya nomi' },
+    { key: '__SKIP__',       label: '— O\'tkazib yuborish —' },
+  ];
+
+  const [importOpen,     setImportOpen]     = useState(false);
+  const [importRows,     setImportRows]     = useState([]);
+  const [importFile,     setImportFile]     = useState(null);
+  const [importLoading,  setImportLoading]  = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+  const [importResult,   setImportResult]   = useState(null);
+  const [importError,    setImportError]    = useState('');
+  const [colMap,         setColMap]         = useState({});   // { excelColName: fieldKey }
+  const [skipRows,       setSkipRows]       = useState(1);   // how many header rows to skip (already parsed, so 0 = no skip)
+  const [searchBySku,    setSearchBySku]    = useState(false);
+  const [allowUpdate,    setAllowUpdate]    = useState(false);
+  const [importPage,     setImportPage]     = useState(1);
+  const IMPORT_LIMIT = 10;
+
+  const excelCols = importRows.length > 0 ? Object.keys(importRows[0]) : [];
+
+  // Auto-map columns by matching excel header to known field label/key
+  const autoMap = (rows) => {
+    if (!rows.length) return;
+    const cols = Object.keys(rows[0]);
+    const map = {};
+    cols.forEach(col => {
+      const lc = col.trim().toLowerCase();
+      const found = IMPORT_FIELDS.find(f => f.label.toLowerCase().includes(lc) || f.key.toLowerCase() === lc || lc.includes(f.key.toLowerCase() || '__NEVER__'));
+      map[col] = found?.key && found.key !== '__SKIP__' ? found.key : '';
+    });
+    setColMap(map);
+  };
+
+  const parseExcel = (file) => {
+    setImportFile(file); setImportResult(null); setImportError(''); setImportPage(1);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+        setImportRows(rows);
+        autoMap(rows);
+      } catch {
+        setImportError('Fayl o\'qishda xatolik. Iltimos .xlsx formatdagi faylni tanlang.');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  // Build payload from colMap
+  const buildPayload = () => {
+    const actualRows = skipRows > 0 ? importRows.slice(skipRows - 1) : importRows;
+    return actualRows.map((row, idx) => {
+      const obj = {};
+      Object.entries(colMap).forEach(([excelCol, fieldKey]) => {
+        if (fieldKey && fieldKey !== '__SKIP__') {
+          obj[fieldKey] = row[excelCol];
+        }
+      });
+      obj.__row_index = (skipRows > 0 ? skipRows - 1 : 0) + idx + 2;
+      return obj;
+    }).filter(r => r['Nomi'] || r['Barkod'] || r['SKU']);
+  };
+
+  // Pre-check stats: how many rows match existing products
+  const foundCount = (() => {
+    if (!importRows.length || !products.length) return 0;
+    const payload = buildPayload();
+    return payload.filter(r => {
+      const name = (r['Nomi'] || '').toLowerCase();
+      const barcode = String(r['Barkod'] || '');
+      const sku = String(r['SKU'] || '');
+      return products.some(p =>
+        (name && p.name?.toLowerCase() === name) ||
+        (barcode && p.barcode === barcode) ||
+        (searchBySku && sku && p.sku === sku)
+      );
+    }).length;
+  })();
+
+  const notFoundCount = buildPayload().length - foundCount;
+
+  const downloadTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([{
+      'Nomi': 'Coca-Cola 0.5L', 'Barkod': '12345678', 'SKU': '',
+      "O'lchov": 'dona', 'Tan narxi': 5000, 'Chakana narxi': 8000,
+      'Ulgurji narxi': 7000, 'Qoldiq': 100, 'Min. qoldiq': 10, 'Holat': 'Faol'
+    }]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Mahsulotlar');
+    saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), 'mahsulot_shablon.xlsx');
+  };
+
+  const handleImport = async () => {
+    const payload = buildPayload();
+    if (!payload.length) return;
+    setImportLoading(true); setImportResult(null); setImportError('');
+    try {
+      let totC = 0, totU = 0, totS = 0;
+      let errs = [];
+      const CHUNK_SIZE = 500;
+
+      for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
+        const chunk = payload.slice(i, i + CHUNK_SIZE);
+        const { data } = await api.post(`/products/bulk-import?allow_update=${allowUpdate}&search_by_sku=${searchBySku}`, chunk);
+        totC += data.created || 0;
+        totU += data.updated || 0;
+        totS += data.skipped || 0;
+        // Xatolarni max 300 ta saqlash (xotira muammosini oldini olish)
+        if (data.errors?.length && errs.length < 300) {
+          errs = [...errs, ...data.errors].slice(0, 300);
+        }
+        setImportProgress(Math.round(((i + chunk.length) / payload.length) * 100));
+      }
+
+      setImportResult({ created: totC, updated: totU, skipped: totS, errors: errs });
+      if (totC > 0 || totU > 0) loadProducts();
+    } catch (err) {
+      setImportError(err.response?.data?.detail || 'Server xatosi');
+    } finally { setImportLoading(false); }
+  };
+
+  const resetImport = () => {
+    setImportOpen(false); setImportRows([]); setImportFile(null);
+    setImportResult(null); setImportError(''); setColMap({}); setImportPage(1);
+    setSkipRows(1); setSearchBySku(false); setAllowUpdate(false); setImportProgress(0);
+  };
+  const openImport = () => { resetImport(); setImportOpen(true); };
+
+
   /* ════════════════════════════════════════════════ */
   return (
     <div className="space-y-6">
 
+      {/* Bulk Delete Confirmation Modal */}
+      {bulkDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 border border-red-100">
+            <div className="w-12 h-12 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </div>
+            <h3 className="text-slate-800 font-bold text-lg text-center mb-1">Mahsulotlarni o'chirish</h3>
+            <p className="text-slate-500 text-sm text-center mb-4">
+              <span className="font-bold text-red-600">{selectedIds.length} ta</span> mahsulot arxivlanadi. Tasdiqlash uchun
+              quyidagi kodni kiriting:
+            </p>
+            <div className="bg-slate-50 border border-slate-200 rounded-xl py-3 text-center mb-4">
+              <span className="text-3xl font-black tracking-[0.3em] text-slate-800">{bulkDeleteModal.code}</span>
+            </div>
+            <input
+              type="text"
+              maxLength={4}
+              placeholder="Kodni kiriting..."
+              value={bulkDeleteModal.entered}
+              onChange={e => setBulkDeleteModal(m => ({ ...m, entered: e.target.value }))}
+              className="w-full px-4 py-3 border border-slate-200 rounded-xl text-center text-lg font-bold tracking-widest
+                focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent mb-4"
+              autoFocus
+              onKeyDown={e => e.key === 'Enter' && confirmBulkDelete()}
+            />
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setBulkDeleteModal(null)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-semibold transition-colors"
+              >
+                Bekor
+              </button>
+              <button
+                type="button"
+                onClick={confirmBulkDelete}
+                disabled={bulkDeleteModal.entered !== String(bulkDeleteModal.code)}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
+              >
+                O'chirish
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Mahsulotlar</h1>
           <p className="text-slate-500 text-sm mt-0.5">Mahsulotlar va kategoriyalar boshqaruvi</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {activeTab === 'products' && (
+            <>
+              <button
+                onClick={downloadTemplate}
+                title="Shablonni yuklab oling va to'ldiring"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 text-sm font-semibold rounded-xl transition-colors border border-slate-200"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Shablon
+              </button>
+              <button
+                onClick={openImport}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-violet-50 hover:bg-violet-100 text-violet-700 text-sm font-semibold rounded-xl transition-colors border border-violet-200"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                Excel yuklash
+              </button>
+              <button
+                onClick={() => {
+                  // ── Professional multi‑header Excel export ──────────────
+                  const wb = XLSX.utils.book_new();
+                  const ws = {};
+
+                  // Helper to set a cell value + style
+                  const cell = (addr, v, s) => { ws[addr] = { v, t: typeof v === 'number' ? 'n' : 's', s }; };
+
+                  // Styles
+                  const hdr1 = { font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 10 }, fill: { fgColor: { rgb: '4F46E5' } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: { bottom: { style: 'thin', color: { rgb: 'E2E8F0' } } } };
+                  const hdr2 = { font: { bold: true, sz: 9 }, fill: { fgColor: { rgb: 'EEF2FF' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: { bottom: { style: 'thin', color: { rgb: 'C7D2FE' } } } };
+                  const numCell = { alignment: { horizontal: 'right' } };
+                  const ctrCell = { alignment: { horizontal: 'center' } };
+
+                  // Row 1 — group headers (some span 3 cols, some span 1)
+                  // Columns: A=№, B=Товар нomi, C=Qoldiq склад, D=Jami, E-G=Chakana(Narx/Val/Sum), H-J=Ulgurji(Narx/Val/Sum), K-M=Tan narxi(Narx/Val/Sum), N=Birligi, O=Kategoriya, P=Barkod, Q=Artikul, R=Brand, S=Min. qoldiq, T=Holat, U=ID
+                  cell('A1', '№', hdr1); cell('B1', 'Mahsulot nomi', hdr1);
+                  cell('C1', 'Qoldiq (sklad)', hdr1); cell('D1', 'Jami qoldiq', hdr1);
+                  cell('E1', 'Chakana narxi', hdr1); cell('F1', '', hdr1); cell('G1', '', hdr1);
+                  cell('H1', 'Ulgurji narxi', hdr1); cell('I1', '', hdr1); cell('J1', '', hdr1);
+                  cell('K1', 'Tan narxi', hdr1); cell('L1', '', hdr1); cell('M1', '', hdr1);
+                  cell('N1', 'Birligi', hdr1); cell('O1', 'Kategoriya', hdr1);
+                  cell('P1', 'Barkod', hdr1); cell('Q1', 'Artikul', hdr1);
+                  cell('R1', 'Brand', hdr1); cell('S1', 'Min. qoldiq', hdr1);
+                  cell('T1', 'Holat', hdr1); cell('U1', 'ID', hdr1);
+
+                  // Row 2 — sub-headers
+                  cell('A2', '№', hdr2); cell('B2', 'Nomi', hdr2);
+                  cell('C2', 'Sklad', hdr2); cell('D2', 'Jami', hdr2);
+                  cell('E2', 'Narx', hdr2); cell('F2', 'Valyuta', hdr2); cell('G2', 'Summa', hdr2);
+                  cell('H2', 'Narx', hdr2); cell('I2', 'Valyuta', hdr2); cell('J2', 'Summa', hdr2);
+                  cell('K2', 'Narx', hdr2); cell('L2', 'Valyuta', hdr2); cell('M2', 'Summa', hdr2);
+                  cell('N2', 'Birlik', hdr2); cell('O2', 'Kategoriya', hdr2);
+                  cell('P2', 'Barkod', hdr2); cell('Q2', 'SKU', hdr2);
+                  cell('R2', 'Brand', hdr2); cell('S2', 'Min.', hdr2);
+                  cell('T2', 'Holat', hdr2); cell('U2', 'ID', hdr2);
+
+                  // Merges for row 1 group headers (E-G, H-J, K-M span 3 columns)
+                  ws['!merges'] = [
+                    { s: { r: 0, c: 4 }, e: { r: 0, c: 6 } },   // E1:G1 Chakana
+                    { s: { r: 0, c: 7 }, e: { r: 0, c: 9 } },   // H1:J1 Ulgurji
+                    { s: { r: 0, c: 10 }, e: { r: 0, c: 12 } }, // K1:M1 Tan narxi
+                  ];
+
+                  // Data rows starting at row 3
+                  const cols = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U'];
+                  products.forEach((p, i) => {
+                    const r = i + 3;
+                    const qty = Number(p.stock_quantity || 0);
+                    const saleP = Number(p.sale_price || 0);
+                    const whoP = Number(p.wholesale_price || 0);
+                    const costP = Number(p.cost_price || 0);
+                    const status = p.status === 'active' ? 'Faol' : p.status === 'inactive' ? 'Nofaol' : 'Arxiv';
+                    const rowBg = i % 2 === 0 ? { fill: { fgColor: { rgb: 'FAFBFF' } } } : {};
+                    const vals = [
+                      i + 1, p.name,
+                      qty, qty,
+                      saleP, "UZS", saleP * qty,
+                      whoP, "UZS", whoP * qty,
+                      costP, "UZS", costP * qty,
+                      p.unit, catName(p.category_id),
+                      p.barcode, p.sku,
+                      p.brand || '—', Number(p.min_stock || 0),
+                      status, p.id,
+                    ];
+                    vals.forEach((v, j) => {
+                      const isNum = typeof v === 'number';
+                      ws[`${cols[j]}${r}`] = { v, t: isNum ? 'n' : 's', s: { ...rowBg, ...(isNum ? numCell : j === 0 || j === 20 ? ctrCell : {}) } };
+                    });
+                  });
+
+                  // Set sheet range
+                  ws['!ref'] = `A1:U${products.length + 2}`;
+
+                  // Column widths
+                  ws['!cols'] = [
+                    {wch:4},{wch:28},{wch:8},{wch:8},
+                    {wch:10},{wch:7},{wch:12},
+                    {wch:10},{wch:7},{wch:12},
+                    {wch:10},{wch:7},{wch:12},
+                    {wch:7},{wch:14},{wch:14},{wch:12},{wch:12},{wch:8},{wch:8},{wch:5}
+                  ];
+                  // Freeze top 2 rows
+                  ws['!freeze'] = { xSplit: 2, ySplit: 2, topLeftCell: 'C3', activeCell: 'C3', sqref: 'C3' };
+
+                  XLSX.utils.book_append_sheet(wb, ws, 'Mahsulotlar');
+                  saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx', cellStyles: true })]), `mahsulotlar_${new Date().toISOString().slice(0,10)}.xlsx`);
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-semibold rounded-xl transition-colors border border-emerald-200"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Excel yuklab olish
+              </button>
+            </>
+          )}
           <button
             onClick={activeTab === 'products' ? openAdd : activeTab === 'categories' ? openAddCat : openAddBl}
             className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors"
@@ -610,9 +1010,9 @@ export default function Products() {
           {/* Stats */}
           <div className="grid grid-cols-3 gap-4">
             {[
-              { label: 'Jami Mahsulot', val: products.length,  icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', bg: 'bg-indigo-100',  ic: 'text-indigo-600',  vl: 'text-slate-800' },
+              { label: 'Jami Mahsulot', val: totalRecords,  icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', bg: 'bg-indigo-100',  ic: 'text-indigo-600',  vl: 'text-slate-800' },
               { label: 'Faol',          val: totalActive,       icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',                        bg: 'bg-emerald-100', ic: 'text-emerald-600', vl: 'text-emerald-600' },
-              { label: "Qoldiq yo'q",   val: lowStock,          icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z', bg: 'bg-red-100', ic: 'text-red-500', vl: 'text-red-500' },
+              { label: "Qoldiq yo'q",   val: outOfStock,          icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z', bg: 'bg-red-100', ic: 'text-red-500', vl: 'text-red-500' },
             ].map(s => (
               <div key={s.label} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 flex items-center gap-4">
                 <div className={`w-12 h-12 rounded-xl ${s.bg} flex items-center justify-center shrink-0`}>
@@ -658,6 +1058,39 @@ export default function Products() {
                 {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
               </select>
             )}
+            {deleteProgress === 'deleting' ? (
+              <div className="flex items-center gap-3 px-4 py-2 bg-red-50 border border-red-200 rounded-xl min-w-[220px]">
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-semibold text-red-600">O'chirilmoqda...</span>
+                    <span className="text-xs font-bold text-red-700">{deletePercent}%</span>
+                  </div>
+                  <div className="w-full bg-red-200 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-red-500 h-2 rounded-full transition-all duration-200"
+                      style={{ width: `${deletePercent}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : selectedIds.length > 0 && (
+              <button onClick={handleBulkDelete} className="px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-semibold rounded-xl transition-colors inline-flex items-center gap-2 shrink-0">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                {selectedIds.length} tani o'chirish
+              </button>
+            )}
+            
+            <select className="px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white shadow-sm text-slate-700 font-medium"
+              value={limit} onChange={e => { const v = Number(e.target.value); localStorage.setItem('products_limit', v); setLimit(v); }}>
+              <option value={10}>10 ta</option>
+              <option value={20}>20 ta</option>
+              <option value={50}>50 ta</option>
+              <option value={100}>100 ta</option>
+              <option value={200}>200 ta</option>
+              <option value={500}>500 ta</option>
+              <option value={1000}>1000 ta</option>
+              <option value={5000}>5000 ta</option>
+            </select>
             <button onClick={loadProducts}
               className="px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-sm font-semibold rounded-xl transition-colors">
               Qidirish
@@ -674,6 +1107,7 @@ export default function Products() {
               <>
                 <table className="w-full table-fixed">
                   <colgroup>
+                    <col style={{width:'44px'}} />
                     <col style={{width:'120px'}} />
                     <col style={{width:'52px'}} />
                     <col style={{width:'auto'}} />
@@ -688,6 +1122,13 @@ export default function Products() {
                   </colgroup>
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
+                      <th className="px-3 py-3 w-10">
+                        <input type="checkbox"
+                          checked={totalRecords > 0 && selectedIds.length === totalRecords}
+                          onChange={handleSelectAll}
+                          className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                        />
+                      </th>
                       {['Barkod / SKU', 'Rasm', 'Mahsulot / Brend', 'Kategoriya', 'Birlik', 'Tan narxi', 'Ulgurji', 'Chakana', 'Qoldiq', 'Holat', ''].map(h => (
                         <th key={h} className="px-2 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap overflow-hidden">{h}</th>
                       ))}
@@ -697,7 +1138,17 @@ export default function Products() {
                     {products.map(p => {
                       const thumb = (Array.isArray(p.images) && p.images[0]) || p.image_url;
                       return (
-                        <tr key={p.id} className="hover:bg-indigo-50/30 transition-colors">
+                        <tr key={p.id} className={`hover:bg-indigo-50/30 transition-colors ${selectedIds.includes(p.id) ? 'bg-indigo-50/50' : ''}`}>
+                          <td className="px-3 py-3">
+                            <input type="checkbox"
+                              checked={selectedIds.includes(p.id)}
+                              onChange={e => {
+                                if (e.target.checked) setSelectedIds(s => [...s, p.id]);
+                                else setSelectedIds(s => s.filter(id => id !== p.id));
+                              }}
+                              className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                            />
+                          </td>
                           <td className="px-2 py-3">
                             <div className="text-xs font-mono font-bold text-slate-800 truncate">{p.barcode}</div>
                             <div className="text-xs text-indigo-500 mt-0.5 truncate">{p.sku}</div>
@@ -800,8 +1251,24 @@ export default function Products() {
                 </table>
                 {products.length > 0 && (
                   <div className="px-6 py-3 border-t border-slate-100 flex items-center justify-between text-sm text-slate-500 bg-slate-50">
-                    <span>Jami <strong className="text-slate-700">{products.length}</strong> ta mahsulot</span>
-                    <span>Faol: <strong className="text-emerald-600">{totalActive}</strong> &nbsp;|&nbsp; Qoldiqsiz: <strong className="text-red-500">{lowStock}</strong></span>
+                    <div className="flex gap-4">
+                      <span>Jami <strong className="text-slate-700">{totalRecords}</strong> ta mahsulot</span>
+                      <span>Hozirgi sahifada: <strong className="text-slate-700">{products.length}</strong></span>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
+                        className={`p-1.5 rounded-lg border ${page === 1 ? 'border-transparent text-slate-300' : 'border-slate-200 text-slate-700 hover:bg-white bg-slate-50'} transition-colors`}>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+                      </button>
+                      <span className="px-3 text-sm font-semibold text-slate-700">{page} / {Math.ceil(totalRecords / limit) || 1}</span>
+                      <button disabled={page >= (Math.ceil(totalRecords / limit) || 1)} onClick={() => setPage(p => p + 1)}
+                        className={`p-1.5 rounded-lg border ${page >= (Math.ceil(totalRecords / limit) || 1) ? 'border-transparent text-slate-300' : 'border-slate-200 text-slate-700 hover:bg-white bg-slate-50'} transition-colors`}>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+                      </button>
+                    </div>
+
+                    <span>Faol: <strong className="text-emerald-600">{totalActive}</strong> &nbsp;|&nbsp; Qoldiqsiz: <strong className="text-red-500">{outOfStock}</strong></span>
                   </div>
                 )}
               </>
@@ -1384,6 +1851,262 @@ export default function Products() {
       {/* BARCODE PRINT MODAL */}
       {printProduct && (
         <BarcodePrintModal product={printProduct} onClose={() => setPrintProduct(null)} />
+      )}
+
+      {/* ════ ADVANCED EXCEL IMPORT FULLSCREEN ════ */}
+      {importOpen && (
+        <div className="fixed inset-0 z-[60] bg-white flex flex-col">
+          {/* Top Bar */}
+          <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-white shadow-sm shrink-0">
+            <div className="flex items-center gap-3">
+              <button onClick={() => resetImport()} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+              <h2 className="text-xl font-bold text-slate-800">Mahsulotlarni Exceldan yuklash</h2>
+              {importFile && <span className="text-sm text-slate-400 font-medium">{importFile.name}</span>}
+            </div>
+            <div className="flex items-center gap-3">
+              <button onClick={downloadTemplate} className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 text-sm font-semibold rounded-lg border border-slate-200">
+                Shablon
+              </button>
+              <label className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 text-sm font-semibold rounded-lg border border-slate-200 cursor-pointer">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                Fayl tanlash
+                <input type="file" accept=".xlsx,.xls" className="hidden" onChange={e => { if (e.target.files[0]) parseExcel(e.target.files[0]); }} />
+              </label>
+              <button
+                onClick={handleImport}
+                disabled={!buildPayload().length || importLoading || !(Object.values(colMap).includes('Nomi') || (allowUpdate && (Object.values(colMap).includes('Barkod') || Object.values(colMap).includes('SKU'))))}
+                className="inline-flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+                {importLoading ? 'Saqlanmoqda...' : 'Saqlash'}
+              </button>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-auto flex flex-col">
+            {/* Stats & options row */}
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 shrink-0">
+              <div className="flex flex-wrap items-center gap-4">
+                {/* Stats */}
+                <div className="flex items-center gap-3">
+                  <div className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm">
+                    <span className="text-slate-500 text-sm">Bazadan topilgan mahsulotlar soni:</span>
+                    <span className="font-bold text-emerald-600 ml-2 text-base">{importRows.length > 0 ? foundCount : 0} шт</span>
+                  </div>
+                  <div className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm">
+                    <span className="text-slate-500 text-sm">Bazadan topilmagan mahsulotlar soni:</span>
+                    <span className="font-bold text-violet-600 ml-2 text-base">{importRows.length > 0 ? notFoundCount : 0} шт</span>
+                  </div>
+                </div>
+
+                {/* Skip rows counter */}
+                <div className="ml-auto flex items-center gap-2 border border-slate-200 bg-white rounded-xl px-3 py-2">
+                  <span className="text-sm text-slate-500 font-medium">Belgilangan qatorlarni yuklamaslik</span>
+                  <button onClick={() => setSkipRows(s => Math.max(0, s-1))} className="w-7 h-7 flex items-center justify-center text-xl text-slate-500 hover:text-red-500 transition-colors">−</button>
+                  <span className="w-9 text-center text-base font-bold text-slate-700">{skipRows}</span>
+                  <button onClick={() => setSkipRows(s => s+1)} className="w-7 h-7 flex items-center justify-center text-xl text-slate-500 hover:text-indigo-500 transition-colors">+</button>
+                </div>
+              </div>
+
+              {/* Toggles */}
+              <div className="flex items-center gap-8 mt-3">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <button
+                    onClick={() => setSearchBySku(v => !v)}
+                    className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${searchBySku ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${searchBySku ? 'translate-x-5' : 'translate-x-1'}`} />
+                  </button>
+                  <span className="text-base text-slate-700">Mahsulotni artikul bo'yicha ham qidirish</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <button
+                    onClick={() => setAllowUpdate(v => !v)}
+                    className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${allowUpdate ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${allowUpdate ? 'translate-x-5' : 'translate-x-1'}`} />
+                  </button>
+                  <span className="text-base text-slate-700">Mahsulotlarni tahrirlash</span>
+                </label>
+              </div>
+            </div>
+
+            {!importFile ? (
+              /* Upload zone */
+              <div className="flex-1 flex flex-col items-center justify-center p-12">
+                <label
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) parseExcel(f); }}
+                  className="flex flex-col items-center justify-center w-full max-w-lg h-56 border-2 border-dashed border-slate-300 rounded-2xl cursor-pointer hover:border-violet-400 hover:bg-violet-50/20 transition-all group"
+                >
+                  <svg className="w-16 h-16 text-slate-200 group-hover:text-violet-300 mb-4 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                  <p className="text-slate-500 text-base font-medium group-hover:text-violet-600">Excel faylni bu yerga tashlang yoki bosing</p>
+                  <p className="text-slate-300 text-sm mt-1">.xlsx, .xls formati qabul qilinadi</p>
+                  <input type="file" accept=".xlsx,.xls" className="hidden" onChange={e => { if (e.target.files[0]) parseExcel(e.target.files[0]); }} />
+                </label>
+              </div>
+            ) : (
+              /* Data table */
+              <div className="flex-1 flex flex-col overflow-hidden">
+                {/* Table header info */}
+                <div className="px-6 py-2.5 flex items-center justify-between border-b border-slate-100 shrink-0">
+                  <span className="text-sm text-slate-600 font-medium">
+                    Yuklanayotgan mahsulotlar soni: <strong>{buildPayload().length} шт</strong>
+                  </span>
+                  {!(Object.values(colMap).includes('Nomi') || (allowUpdate && (Object.values(colMap).includes('Barkod') || Object.values(colMap).includes('SKU')))) && (
+                    <span className="text-sm font-semibold text-red-500">
+                      * {allowUpdate ? 'Mahsulot nomi, Barkod yoki SKU' : 'Mahsulot nomi'} ustunini tanlash majburiy
+                    </span>
+                  )}
+                </div>
+
+                {/* Scrollable table */}
+                <div className="flex-1 overflow-auto">
+                  <table className="min-w-full text-sm border-collapse">
+                    {/* Row 1: Column mapping dropdowns */}
+                    <thead>
+                      <tr className="bg-slate-100">
+                        <th className="px-3 py-2.5 text-left font-bold text-slate-500 border-b border-slate-200 w-12 text-sm">#</th>
+                        {excelCols.map(col => (
+                          <th key={col} className="px-2 py-2 border-b border-slate-200 min-w-[160px]">
+                            <select
+                              value={colMap[col] || ''}
+                              onChange={e => setColMap(m => ({ ...m, [col]: e.target.value }))}
+                              className={`w-full px-2 py-2 text-sm font-semibold rounded-lg border outline-none cursor-pointer ${
+                                colMap[col] && colMap[col] !== '__SKIP__'
+                                  ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                                  : 'border-slate-200 bg-white text-slate-500'
+                              }`}
+                            >
+                              {IMPORT_FIELDS.map(f => (
+                                <option key={f.key} value={f.key}>{f.label}</option>
+                              ))}
+                            </select>
+                          </th>
+                        ))}
+                      </tr>
+                      {/* Row 2: Excel column names (original headers) */}
+                      <tr className="bg-slate-700 text-white">
+                        <th className="px-3 py-2.5 text-left text-sm font-bold">№</th>
+                        {excelCols.map(col => (
+                          <th key={col} className="px-3 py-2.5 text-left text-sm font-semibold whitespace-nowrap">{col}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {importRows
+                        .slice((importPage-1)*IMPORT_LIMIT, importPage*IMPORT_LIMIT)
+                        .map((row, i) => {
+                          const absIdx = (importPage-1)*IMPORT_LIMIT + i;
+                          const isSkip = absIdx < skipRows - 1;
+                          return (
+                            <tr key={i} className={`${isSkip ? 'opacity-30 bg-slate-50' : i%2===0 ? 'bg-white' : 'bg-slate-50/40'} hover:bg-indigo-50/30 transition-colors`}>
+                              <td className="px-3 py-3 text-slate-400 font-mono text-sm">{absIdx + 1}</td>
+                              {excelCols.map(col => (
+                                <td key={col} className="px-3 py-3 whitespace-nowrap text-slate-700 text-sm max-w-[200px] truncate">
+                                  {String(row[col] ?? '')}
+                                </td>
+                              ))}
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination */}
+                <div className="px-6 py-3 border-t border-slate-100 flex items-center justify-between bg-white shrink-0">
+                  <span className="text-sm text-slate-500">
+                    {importRows.length} ta ma'lumotdan {Math.min((importPage-1)*IMPORT_LIMIT+1, importRows.length)} dan {Math.min(importPage*IMPORT_LIMIT, importRows.length)} gacha ko'rsatildi
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setImportPage(p => Math.max(1, p-1))}
+                      disabled={importPage === 1}
+                      className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors"
+                    >Oldingi</button>
+                    {Array.from({length: Math.ceil(importRows.length/IMPORT_LIMIT)}, (_, i) => i+1).slice(
+                      Math.max(0, importPage-3), Math.min(Math.ceil(importRows.length/IMPORT_LIMIT), importPage+2)
+                    ).map(p => (
+                      <button key={p} onClick={() => setImportPage(p)}
+                        className={`w-9 h-9 rounded-lg text-sm font-semibold transition-colors ${
+                          p === importPage ? 'bg-indigo-600 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}>{p}</button>
+                    ))}
+                    <button
+                      onClick={() => setImportPage(p => Math.min(Math.ceil(importRows.length/IMPORT_LIMIT), p+1))}
+                      disabled={importPage >= Math.ceil(importRows.length/IMPORT_LIMIT)}
+                      className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors"
+                    >Keyingi</button>
+                    <span className="text-sm text-slate-400 ml-2">Limit</span>
+                    <span className="px-2 py-1 border border-slate-200 rounded-lg text-sm font-bold text-slate-600">{IMPORT_LIMIT}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Progress bar */}
+            {importLoading && (
+              <div className="px-6 py-4 border-t border-slate-100 bg-white shrink-0">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-slate-600">Yuklanmoqda...</span>
+                  <span className="text-sm font-bold text-indigo-600">{importProgress}%</span>
+                </div>
+                <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
+                  <div
+                    className="bg-indigo-500 h-3 rounded-full transition-all duration-300"
+                    style={{ width: `${importProgress}%` }}
+                  />
+                </div>
+                <p className="text-xs text-slate-400 mt-1.5">
+                  {Math.round(buildPayload().length * importProgress / 100).toLocaleString()} / {buildPayload().length.toLocaleString()} ta mahsulot
+                </p>
+              </div>
+            )}
+
+            {/* Result panel */}
+            {importResult && (
+              <div className="px-6 py-4 bg-white border-t border-slate-100">
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div className="px-5 py-3 bg-emerald-50 rounded-xl text-center min-w-[120px]">
+                    <div className="text-3xl font-black text-emerald-600">{importResult.created}</div>
+                    <div className="text-sm font-semibold text-emerald-500">Yangi qo'shildi</div>
+                  </div>
+                  {importResult.updated > 0 && (
+                    <div className="px-5 py-3 bg-indigo-50 rounded-xl text-center min-w-[120px]">
+                      <div className="text-3xl font-black text-indigo-600">{importResult.updated}</div>
+                      <div className="text-sm font-semibold text-indigo-500">Yangilandi</div>
+                    </div>
+                  )}
+                  <div className={`px-5 py-3 rounded-xl text-center min-w-[120px] ${importResult.skipped > 0 ? 'bg-amber-50' : 'bg-slate-50'}`}>
+                    <div className={`text-3xl font-black ${importResult.skipped > 0 ? 'text-amber-600' : 'text-slate-400'}`}>{importResult.skipped}</div>
+                    <div className={`text-sm font-semibold ${importResult.skipped > 0 ? 'text-amber-500' : 'text-slate-400'}`}>O'tkazib yuborildi</div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    {importResult.errors?.length > 0 && (
+                      <div className="space-y-1 max-h-32 overflow-y-auto">
+                        {importResult.errors.map((e, i) => (
+                          <div key={i} className="flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg text-sm">
+                            <span className="font-bold text-amber-600 shrink-0">#{e.row}</span>
+                            <span className="text-amber-700">{e.name && <span className="font-semibold">{e.name}: </span>}{e.error}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+            {importError && (
+              <div className="mx-6 mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{importError}</div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

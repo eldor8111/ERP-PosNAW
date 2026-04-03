@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, Index
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -35,6 +35,7 @@ class Product(Base):
     image_url = Column(Text, nullable=True)
     # TZ: Rasmlar — multiple images (JSON array of URLs)
     images = Column(Text, nullable=True)
+    brand = Column(String(200), nullable=True)
     # TZ: Vazn va o'lchamlar
     weight = Column(Numeric(10, 3), nullable=True)       # kg
     dimensions = Column(String(100), nullable=True)      # MxBxH sm
@@ -47,3 +48,8 @@ class Product(Base):
     stock_level = relationship("StockLevel", back_populates="product", uselist=False)
     stock_movements = relationship("StockMovement", back_populates="product")
     sale_items = relationship("SaleItem", back_populates="product")
+
+    __table_args__ = (
+        Index('ix_product_company_status_deleted', 'company_id', 'status', 'is_deleted'),
+        Index('ix_product_company_name', 'company_id', 'name'),
+    )

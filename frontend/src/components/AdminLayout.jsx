@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -14,7 +14,6 @@ const navGroups = [
         roles: [ROLES.ADMIN, ROLES.DIRECTOR, ROLES.MANAGER],
         icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>,
       },
-
     ],
   },
   {
@@ -27,8 +26,8 @@ const navGroups = [
         icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>,
       },
       {
-        name: 'POS (Kassa B)',
-        path: '/admin/pos-desktop',
+        name: 'POS (Chakana)',
+        path: '/admin/pos-kassa',
         roles: ROLE_GROUPS.SALES,
         icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>,
       },
@@ -41,7 +40,7 @@ const navGroups = [
     ],
   },
   {
-    label: "Mahsulot va Ombor",
+    label: 'Mahsulot va Ombor',
     links: [
       {
         name: 'Mahsulotlar',
@@ -101,6 +100,12 @@ const navGroups = [
         roles: ROLE_GROUPS.MANAGEMENT,
         icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
       },
+      {
+        name: 'Tariflar',
+        path: '/admin/tariflar',
+        roles: ROLE_GROUPS.MANAGEMENT,
+        icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" /></svg>,
+      },
     ],
   },
   {
@@ -122,7 +127,6 @@ const navGroups = [
   },
 ];
 
-
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU');
 
 export default function AdminLayout() {
@@ -134,7 +138,7 @@ export default function AdminLayout() {
   const [orgData, setOrgData] = useState({ name: user?.company_name || 'Tizim', code: '...', balance: 0 });
   const [lowStockCount, setLowStockCount] = useState(0);
 
-  const refreshBalance = () => {
+  const refreshBalance = useCallback(() => {
     api.get('/finance/cash-balance').then(r => {
       setOrgData({
         name: r.data.company_name || 'Tizim',
@@ -142,13 +146,13 @@ export default function AdminLayout() {
         balance: r.data.balance || 0
       });
     }).catch(() => {});
-  };
+  }, []);
 
-  const refreshLowStock = () => {
+  const refreshLowStock = useCallback(() => {
     api.get('/inventory/low-stock-count').then(r => {
       setLowStockCount(r.data.count || 0);
     }).catch(() => {});
-  };
+  }, []);
 
   useEffect(() => {
     refreshBalance();
@@ -161,48 +165,53 @@ export default function AdminLayout() {
       clearInterval(lowStockInterval);
       window.removeEventListener('balance-updated', refreshBalance);
     };
-  }, []);
+  }, [refreshBalance, refreshLowStock]);
 
-
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     logout();
     navigate('/login');
-  };
+  }, [logout, navigate]);
 
-  const allLinks = navGroups.flatMap(g => g.links);
-  const currentLink = allLinks.find(l => location.pathname.startsWith(l.path));
-  const currentPage = currentLink?.name || 'ERP System';
-  const initials = user?.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'U';
+  const currentPage = useMemo(() => {
+    const allLinks = navGroups.flatMap(g => g.links);
+    const currentLink = allLinks.find(l => location.pathname.startsWith(l.path));
+    return currentLink?.name || 'ERP System';
+  }, [location.pathname]);
+
+  const initials = useMemo(() =>
+    user?.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'U'
+  , [user?.name]);
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
-      {/* Sidebar */}
+
+      {/* ── SIDEBAR ─────────────────────────────────── */}
       <aside
-        className={`${collapsed ? 'w-[68px]' : 'w-[240px]'} bg-[#0f172a] flex flex-col shrink-0 transition-all duration-300 ease-in-out`}
-        style={{ boxShadow: '4px 0 24px rgba(0,0,0,0.15)' }}
+        className={`${collapsed ? 'w-[60px]' : 'w-[220px]'} bg-white border-r border-slate-200 flex flex-col shrink-0 transition-all duration-300 ease-in-out`}
+        style={{ boxShadow: '1px 0 12px rgba(0,0,0,0.06)' }}
       >
         {/* Logo */}
-        <div className={`flex items-center ${collapsed ? 'justify-center px-2 py-4' : 'justify-between px-4 py-4'} border-b border-white/5`}>
+        <div className={`flex items-center ${collapsed ? 'justify-center px-2 py-3.5' : 'justify-between px-4 py-3.5'} border-b border-slate-100`}>
           {!collapsed && (
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-linear-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-lg shadow-indigo-900/40 shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-200 shrink-0">
                 <span className="text-white font-black text-[10px] tracking-tight">UBT</span>
               </div>
               <div>
-                <span className="text-sm font-bold text-white leading-none block tracking-wide">UBT</span>
+                <span className="text-[13px] font-bold text-slate-800 leading-none block">UBT</span>
                 <span className="text-[10px] text-slate-400 leading-none">{user?.company_name || 'System'}</span>
               </div>
             </div>
           )}
           {collapsed && (
-            <div className="w-8 h-8 rounded-xl bg-linear-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-lg shadow-indigo-900/40">
-              <span className="text-white font-black text-[10px] tracking-tight">UBT</span>
+            <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-200">
+              <span className="text-white font-black text-[11px] tracking-tight">UBT</span>
             </div>
           )}
           {!collapsed && (
             <button
               onClick={() => setCollapsed(true)}
-              className="w-7 h-7 rounded-lg text-slate-500 hover:text-white hover:bg-white/10 flex items-center justify-center transition-all shrink-0"
+              className="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center transition-all shrink-0"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -212,10 +221,10 @@ export default function AdminLayout() {
           {collapsed && (
             <button
               onClick={() => setCollapsed(false)}
-              className="absolute left-[52px] top-[18px] w-7 h-7 rounded-lg bg-[#0f172a] border border-white/10 text-slate-400 hover:text-white flex items-center justify-center transition-all shadow-lg z-50"
+              className="absolute left-[52px] top-[20px] w-6 h-6 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 flex items-center justify-center transition-all shadow-md z-50"
             >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
               </svg>
             </button>
           )}
@@ -223,7 +232,7 @@ export default function AdminLayout() {
 
         {/* Navigation */}
         <nav
-          className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5"
+          className="flex-1 overflow-y-auto py-3 px-3 space-y-0.5"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {navGroups.map((group) => {
@@ -232,13 +241,12 @@ export default function AdminLayout() {
             return (
               <div key={group.label} className="mb-1">
                 {!collapsed && (
-                  <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest px-3 py-2 select-none">
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-2 pt-2.5 pb-1 select-none">
                     {group.label}
                   </p>
                 )}
-                {collapsed && (
-                  <div className="border-t border-white/5 my-2 mx-1" />
-                )}
+                {collapsed && <div className="border-t border-slate-100 my-2 mx-1" />}
+
                 {visibleLinks.map((link) => {
                   const isActive = location.pathname.startsWith(link.path);
                   return (
@@ -246,34 +254,27 @@ export default function AdminLayout() {
                       key={link.path}
                       to={link.path}
                       title={collapsed ? link.name : undefined}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 group relative mb-0.5 ${
+                      className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all duration-150 group mb-0.5 ${
                         isActive
-                          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40'
-                          : 'text-slate-400 hover:text-slate-200'
+                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800'
                       } ${collapsed ? 'justify-center' : ''}`}
-                      style={!isActive ? { background: 'transparent' } : {}}
-                      onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
-                      onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
                     >
-                      <span className={`shrink-0 relative ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`}>
+                      <span className={`shrink-0 relative [&>svg]:w-[16px] [&>svg]:h-[16px] ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-700'}`}>
                         {link.icon}
                         {collapsed && link.path === '/admin/warehouse' && lowStockCount > 0 && (
                           <span className="absolute -top-1 -right-1 w-2 h-2 bg-rose-500 rounded-full" />
                         )}
                       </span>
                       {!collapsed && (
-                        <span className="text-[13px] font-medium truncate">{link.name}</span>
-                      )}
-                      {!collapsed && link.path === '/admin/warehouse' && lowStockCount > 0 && (
-                        <span className="ml-auto min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shrink-0">
-                          {lowStockCount > 99 ? '99+' : lowStockCount}
+                        <span className={`text-[12px] font-medium truncate flex-1 ${isActive ? 'font-semibold' : ''}`}>
+                          {link.name}
                         </span>
                       )}
-                      {!collapsed && isActive && link.path !== '/admin/warehouse' && (
-                        <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-200 shrink-0" />
-                      )}
-                      {!collapsed && isActive && link.path === '/admin/warehouse' && lowStockCount === 0 && (
-                        <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-200 shrink-0" />
+                      {!collapsed && link.path === '/admin/warehouse' && lowStockCount > 0 && (
+                        <span className={`min-w-[18px] h-[18px] px-1 text-white text-[10px] font-bold rounded-full flex items-center justify-center shrink-0 ${isActive ? 'bg-white/30' : 'bg-rose-500'}`}>
+                          {lowStockCount > 99 ? '99+' : lowStockCount}
+                        </span>
                       )}
                     </Link>
                   );
@@ -283,48 +284,47 @@ export default function AdminLayout() {
           })}
         </nav>
 
-        {/* User Profile */}
-        <div className="border-t border-white/5 p-3">
-          <div className={`flex items-center gap-2.5 ${collapsed ? 'flex-col' : ''}`}>
-            <div className={`w-8 h-8 rounded-xl bg-linear-to-br ${ROLE_GRADIENTS[user?.role] || 'from-slate-500 to-slate-700'} flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-lg`}>
-              {initials}
+        {/* Bottom: User + Logout */}
+        <div className="border-t border-slate-100 p-3 space-y-1">
+          {/* User info */}
+          {!collapsed && (
+            <div className="flex items-center gap-2.5 px-2 py-2 rounded-xl bg-slate-50">
+              <div className={`w-8 h-8 rounded-xl bg-linear-to-br ${ROLE_GRADIENTS[user?.role] || 'from-indigo-500 to-indigo-700'} flex items-center justify-center text-white text-xs font-bold shrink-0`}>
+                {initials}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-semibold text-slate-800 truncate leading-none mb-0.5">{user?.name}</p>
+                <p className="text-[11px] text-slate-400 truncate leading-none">{ROLE_LABELS[user?.role] || user?.role}</p>
+              </div>
             </div>
-            {!collapsed && (
-              <>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-semibold text-white truncate leading-none mb-0.5">{user?.name}</p>
-                  <p className="text-[10px] text-slate-400 truncate leading-none">{ROLE_LABELS[user?.role] || user?.role}</p>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="w-8 h-8 rounded-lg text-slate-500 hover:text-rose-400 flex items-center justify-center transition-all shrink-0"
-                  title="Chiqish"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                </button>
-              </>
-            )}
-            {collapsed && (
-              <button
-                onClick={handleLogout}
-                className="w-8 h-8 rounded-lg text-slate-500 hover:text-rose-400 flex items-center justify-center transition-all"
-                title="Chiqish"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-              </button>
-            )}
-          </div>
+          )}
+          {collapsed && (
+            <div className="flex justify-center py-1">
+              <div className={`w-8 h-8 rounded-xl bg-linear-to-br ${ROLE_GRADIENTS[user?.role] || 'from-indigo-500 to-indigo-700'} flex items-center justify-center text-white text-xs font-bold`}>
+                {initials}
+              </div>
+            </div>
+          )}
+
+          {/* Logout */}
+          <button
+            onClick={handleLogout}
+            title="Chiqish"
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-all duration-150 ${collapsed ? 'justify-center' : ''}`}
+          >
+            <svg className="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            {!collapsed && <span className="text-[13px] font-semibold">Chiqish</span>}
+          </button>
         </div>
       </aside>
 
-      {/* Main Content */}
+      {/* ── MAIN CONTENT ─────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
+
         {/* Top Header */}
-        <header className="bg-white border-b border-slate-100 px-6 py-3.5 flex items-center justify-between shrink-0 shadow-sm">
+        <header className="bg-white border-b border-slate-100 px-6 py-3.5 flex items-center justify-between shrink-0" style={{ boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
           <div className="flex items-center gap-3">
             <div>
               <h1 className="text-[15px] font-bold text-slate-800 leading-none">{currentPage}</h1>
@@ -333,13 +333,15 @@ export default function AdminLayout() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+
+          <div className="flex items-center gap-2.5">
+            {/* Tizim faol */}
             <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 rounded-full px-3 py-1.5">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-emerald-700 text-xs font-medium">Tizim faol</span>
             </div>
 
-            {/* Kam qoldiq ogohlantirish */}
+            {/* Kam qoldiq */}
             {lowStockCount > 0 && (
               <button
                 onClick={() => navigate('/admin/warehouse')}
@@ -356,43 +358,33 @@ export default function AdminLayout() {
               </button>
             )}
 
-            {/* Tashkilot kodi */}
-            <div className="flex flex-col items-center bg-indigo-50 border border-indigo-200 rounded-2xl px-4 py-2 min-w-[110px]">
-              <span className="text-indigo-400 text-[11px] font-medium leading-none mb-1">Kod</span>
-              <span className="text-indigo-700 text-[15px] font-black leading-none tracking-wide">{orgData.code}</span>
+            {/* Org kodi */}
+            <div className="flex flex-col items-center bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-1.5 min-w-[90px]">
+              <span className="text-slate-400 text-[10px] font-semibold leading-none mb-0.5 uppercase tracking-wide">Kod</span>
+              <span className="text-slate-700 text-[14px] font-black leading-none tracking-wide">{orgData.code}</span>
             </div>
 
             {/* Balans */}
-            <div className="flex flex-col items-center bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2 min-w-[110px]">
-              <span className="text-emerald-500 text-[11px] font-medium leading-none mb-1">Balans</span>
-              <span className="text-emerald-700 text-[15px] font-black leading-none tracking-wide">{fmt(orgData.balance)} s</span>
+            <div className="flex flex-col items-center bg-emerald-50 border border-emerald-200 rounded-xl px-3.5 py-1.5 min-w-[90px]">
+              <span className="text-emerald-500 text-[10px] font-semibold leading-none mb-0.5 uppercase tracking-wide">Balans</span>
+              <span className="text-emerald-700 text-[14px] font-black leading-none tracking-wide">{fmt(orgData.balance)} s</span>
             </div>
 
-            {/* Foydalanuvchi */}
-            <div className="flex items-center gap-2.5 bg-linear-to-r from-indigo-600 to-indigo-700 rounded-2xl px-4 py-2 shadow-lg shadow-indigo-200">
-              <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white text-sm font-black shrink-0">
+            {/* User */}
+            <div className="flex items-center gap-2.5 bg-indigo-600 rounded-xl px-3.5 py-2 shadow-md shadow-indigo-200">
+              <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center text-white text-[11px] font-black shrink-0">
                 {initials}
               </div>
               <div className="flex flex-col">
-                <span className="text-white text-[13px] font-black leading-none">{orgData.name}</span>
-                <span className="text-indigo-200 text-[11px] font-medium leading-none mt-0.5">{ROLE_LABELS[user?.role] || user?.role}</span>
+                <span className="text-white text-[12px] font-bold leading-none">{orgData.name}</span>
+                <span className="text-indigo-200 text-[10px] font-medium leading-none mt-0.5">{ROLE_LABELS[user?.role] || user?.role}</span>
               </div>
-              <button
-                onClick={handleLogout}
-                className="w-8 h-8 rounded-xl bg-white/10 hover:bg-rose-500 flex items-center justify-center text-white/60 hover:text-white transition-all ml-1"
-                title="Chiqish"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-              </button>
             </div>
-
           </div>
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 p-6">
+        <main className={`flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 ${location.pathname.startsWith('/admin/pos-kassa') ? '' : 'p-6'}`}>
           <Outlet />
         </main>
       </div>

@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 import api from '../../api/axios';
 
 const emptyForm = { name: '', phone: '', debt_limit: '', loyalty_points: 0, card_number: '', cashback_percent: 0 };
@@ -45,17 +47,131 @@ export default function Customers() {
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  const load = (q = search) => {
+  // --- Import States ---
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importRows, setImportRows] = useState([]);
+  const [colMap, setColMap] = useState({});
+  const [importLoading, setImportLoading] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+  const [importResult, setImportResult] = useState(null);
+  const [importError, setImportError] = useState('');
+  const [importPage, setImportPage] = useState(1);
+  const [skipRows, setSkipRows] = useState(1);
+  const [allowUpdate, setAllowUpdate] = useState(false);
+
+  const IMPORT_FIELDS = [
+    { key: '',                label: '— Tanlang —' },
+    { key: 'Ism',             label: 'Mijoz ismi *' },
+    { key: 'Telefon',         label: 'Telefon raqam' },
+    { key: 'Qarz',            label: 'Joriy qarz' },
+    { key: 'Kredit limit',    label: 'Kredit limiti' },
+    { key: 'Sodiqlik ballari',label: 'Sodiqlik ballari' },
+    { key: 'Karta raqami',    label: 'Karta raqami' },
+    { key: 'Cashback',        label: 'Keshbek (%)' },
+    { key: 'Bonus',           label: 'Bonus balansi' },
+    { key: '__SKIP__',        label: '— O\'tkazib yuborish —' },
+  ];
+
+  const resetImport = () => {
+    setImportOpen(false); setImportRows([]); setImportFile(null);
+    setImportResult(null); setImportError(''); setColMap({}); setImportPage(1);
+    setSkipRows(1); setAllowUpdate(false); setImportProgress(0);
+  };
+  const openImport = () => { resetImport(); setImportOpen(true); };
+
+  const autoMap = (rows) => {
+    if (!rows.length) return;
+    const cols = Object.keys(rows[0]);
+    const map = {};
+    cols.forEach(col => {
+      const lc = col.trim().toLowerCase();
+      const found = IMPORT_FIELDS.find(f => f.label.toLowerCase().includes(lc) || f.key.toLowerCase() === lc);
+      map[col] = found?.key && found.key !== '__SKIP__' ? found.key : '';
+    });
+    setColMap(map);
+  };
+
+  const parseExcel = (file) => {
+    setImportFile(file); setImportResult(null); setImportError(''); setImportPage(1);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+        setImportRows(rows);
+        autoMap(rows);
+      } catch {
+        setImportError('Fayl o\'qishda xatolik. Iltimos .xlsx formatdagi faylni tanlang.');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const buildPayload = () => {
+    const actualRows = skipRows > 0 ? importRows.slice(skipRows - 1) : importRows;
+    return actualRows.map((row, idx) => {
+      const obj = {};
+      Object.entries(colMap).forEach(([excelCol, fieldKey]) => {
+        if (fieldKey && fieldKey !== '__SKIP__') {
+          obj[fieldKey] = row[excelCol];
+        }
+      });
+      obj.__row_index = (skipRows > 0 ? skipRows - 1 : 0) + idx + 2;
+      return obj;
+    }).filter(r => r['Ism'] || r['Telefon'] || r['Karta raqami']);
+  };
+
+  const downloadTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([{
+      'Ism': 'Javohir Toshmatov', 'Telefon': '+998901234567',
+      'Qarz': 0, 'Kredit limit': 1000000, 'Sodiqlik ballari': 100,
+      'Karta raqami': '8888 1234 5678 9012', 'Cashback': 3.5, 'Bonus': 0
+    }]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Mijozlar');
+    saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), 'mijozlar_shablon.xlsx');
+  };
+
+  const handleImport = async () => {
+    const payload = buildPayload();
+    if (!payload.length) return;
+    setImportLoading(true); setImportResult(null); setImportError('');
+    try {
+      let totC = 0, totU = 0, totS = 0;
+      let errs = [];
+      const CHUNK_SIZE = 1000;
+      
+      for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
+        const chunk = payload.slice(i, i + CHUNK_SIZE);
+        const { data } = await api.post(`/customers/bulk-import?allow_update=${allowUpdate}`, chunk);
+        totC += data.created || 0;
+        totU += data.updated || 0;
+        totS += data.skipped || 0;
+        if (data.errors) errs = [...errs, ...data.errors];
+        setImportProgress(Math.round(((i + chunk.length) / payload.length) * 100));
+      }
+      
+      setImportResult({ created: totC, updated: totU, skipped: totS, errors: errs });
+      if (totC > 0 || totU > 0) load();
+    } catch (err) {
+      setImportError(err.response?.data?.detail || 'Server xatosi');
+    } finally { setImportLoading(false); }
+  };
+
+  const load = useCallback((q = search) => {
     api.get(`/customers${q ? '?search=' + encodeURIComponent(q) : ''}`)
       .then(r => setCustomers(r.data))
       .catch(() => {});
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
   useEffect(() => {
     const t = setTimeout(() => load(search), 400);
     return () => clearTimeout(t);
-  }, [search]);
+  }, [search, load]);
 
   const generateCard = () => {
     return '8888 ' + Math.floor(1000 + Math.random() * 9000) + ' ' + Math.floor(1000 + Math.random() * 9000) + ' ' + Math.floor(1000 + Math.random() * 9000);
@@ -73,7 +189,7 @@ export default function Customers() {
     try {
       const { data } = await api.get(`/customers/${c.id}/history`);
       setHistory(data);
-    } catch (err) {
+    } catch {
       setError("Tarixni yuklashda xatolik yuz berdi");
     } finally {
       setLoadingHistory(false);
@@ -143,15 +259,47 @@ export default function Customers() {
           <h1 className="text-2xl font-bold text-slate-800">Mijozlar CRM</h1>
           <p className="text-slate-500 text-sm mt-0.5">Mijozlar, qarzlar va bonuslar boshqaruvi</p>
         </div>
-        <button
-          onClick={openAdd}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-          </svg>
-          Yangi mijoz
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              const ws = XLSX.utils.json_to_sheet(customers.map(c => ({
+                'Ism': c.name,
+                'Telefon': c.phone || '—',
+                'Qarz (so\'m)': Number(c.debt_balance || 0),
+                'Kredit limiti': Number(c.debt_limit || 0),
+                'Bonus ball': c.loyalty_points || 0,
+                'Keshbek %': c.cashback_percent || 0,
+              })));
+              const wb = XLSX.utils.book_new();
+              XLSX.utils.book_append_sheet(wb, ws, 'Mijozlar');
+              saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `mijozlar_${new Date().toISOString().slice(0,10)}.xlsx`);
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-semibold rounded-xl transition-colors border border-emerald-200"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Eksport (Excel)
+          </button>
+          <button
+            onClick={openImport}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm font-semibold rounded-xl transition-colors border border-indigo-200"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+            Exceldan yuklash
+          </button>
+          <button
+            onClick={openAdd}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+            </svg>
+            Yangi mijoz
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -641,6 +789,167 @@ export default function Customers() {
                 Yopish
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── IMPORT MODAL (Full screen) ────────────── */}
+      {importOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-50 flex flex-col">
+          {/* Top Bar */}
+          <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-white shadow-sm shrink-0">
+            <div className="flex items-center gap-3">
+              <button onClick={resetImport} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+              <h2 className="text-xl font-bold text-slate-800">Mijozlarni Exceldan yuklash</h2>
+            </div>
+            <div className="flex items-center gap-3">
+              <button onClick={downloadTemplate} className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-lg transition-colors">
+                Shablon
+              </button>
+              <label className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 text-sm font-semibold rounded-lg border border-slate-200 cursor-pointer">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                Fayl tanlash
+                <input type="file" accept=".xlsx,.xls" className="hidden" onChange={e => { if (e.target.files[0]) parseExcel(e.target.files[0]); }} />
+              </label>
+              <button
+                onClick={handleImport}
+                disabled={!buildPayload().length || importLoading || !(Object.values(colMap).includes('Ism') || (allowUpdate && (Object.values(colMap).includes('Telefon') || Object.values(colMap).includes('Karta raqami'))))}
+                className="inline-flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors border border-transparent"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+                {importLoading ? `Saqlanmoqda... ${importProgress}%` : 'Saqlash'}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-auto flex flex-col">
+            {!importFile ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+                <svg className="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p className="text-lg font-medium">Boshlash uchun Excel fayl yuklang</p>
+              </div>
+            ) : (
+              <div className="flex-1 flex flex-col overflow-hidden">
+                {/* Options Toolbar */}
+                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shadow-sm bg-white shrink-0">
+                  <div className="flex items-center gap-6">
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <div className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${allowUpdate ? 'bg-indigo-600' : 'bg-slate-200'}`}>
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${allowUpdate ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </div>
+                      <span className="text-sm font-semibold text-slate-700 group-hover:text-indigo-600 transition-colors">Mijozlarni tahrirlash</span>
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3 bg-white border border-slate-200 px-3 py-1.5 rounded-xl">
+                      <span className="text-sm font-medium text-slate-600">O'tkazib yuborish (qator):</span>
+                      <button onClick={() => setSkipRows(Math.max(0, skipRows - 1))} className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors font-bold text-slate-600">−</button>
+                      <span className="text-sm font-bold w-6 text-center">{skipRows}</span>
+                      <button onClick={() => setSkipRows(skipRows + 1)} className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors font-bold text-slate-600">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  <div className="px-6 py-2.5 flex items-center justify-between border-b border-slate-100 shrink-0">
+                    <span className="text-sm text-slate-600 font-medium">
+                      Yuklanayotgan mijozlar soni: <strong>{buildPayload().length} ta</strong>
+                    </span>
+                    {!(Object.values(colMap).includes('Ism') || (allowUpdate && (Object.values(colMap).includes('Telefon') || Object.values(colMap).includes('Karta raqami')))) && (
+                      <span className="text-sm font-semibold text-red-500">
+                        * {allowUpdate ? 'Ism, Telefon yoki Karta raqami' : 'Ism'} ustunini tanlash majburiy
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex-1 overflow-auto">
+                    <table className="min-w-full text-sm border-collapse">
+                      <thead>
+                        <tr className="bg-slate-100">
+                          <th className="px-3 py-2.5 text-left font-bold text-slate-500 border-b border-slate-200 text-sm">#</th>
+                          {Object.keys(importRows[0] || {}).map(col => (
+                            <th key={col} className="px-2 py-2 border-b border-slate-200 min-w-[160px]">
+                              <select
+                                value={colMap[col] || ''}
+                                onChange={e => setColMap(m => ({ ...m, [col]: e.target.value }))}
+                                className="w-full bg-white border border-slate-300 px-2 py-1.5 rounded-lg text-sm font-semibold text-slate-700 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                              >
+                                {IMPORT_FIELDS.map(f => (
+                                  <option key={f.key} value={f.key}>{f.label}</option>
+                                ))}
+                              </select>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {importRows.slice(0, importPage * 50).map((row, i) => {
+                          const skipped = i < skipRows;
+                          return (
+                            <tr key={i} className={`hover:bg-slate-50/50 ${skipped ? 'opacity-40 bg-slate-50' : ''}`}>
+                              <td className="px-3 py-2 text-slate-400 font-medium border-r border-slate-100 bg-slate-50">{i + 1} {skipped && <span className="text-[10px] text-amber-500 block leading-none">Skip</span>}</td>
+                              {Object.keys(importRows[0] || {}).map((col, j) => (
+                                <td key={j} className="px-3 py-2 border-r border-slate-100 text-slate-700 truncate max-w-[200px]" title={row[col]}>
+                                  {row[col] || <span className="text-slate-300">—</span>}
+                                </td>
+                              ))}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    {importRows.length > importPage * 50 && (
+                      <div className="py-4 text-center">
+                        <button onClick={() => setImportPage(p => p + 1)} className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium hover:bg-slate-50">
+                          Yana ko'rsatish
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Result panel */}
+            {importResult && (
+              <div className="px-6 py-4 bg-white border-t border-slate-100">
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div className="px-5 py-3 bg-emerald-50 rounded-xl text-center min-w-[120px]">
+                    <div className="text-3xl font-black text-emerald-600">{importResult.created}</div>
+                    <div className="text-sm font-semibold text-emerald-500">Yangi qo'shildi</div>
+                  </div>
+                  {importResult.updated > 0 && (
+                    <div className="px-5 py-3 bg-indigo-50 rounded-xl text-center min-w-[120px]">
+                      <div className="text-3xl font-black text-indigo-600">{importResult.updated}</div>
+                      <div className="text-sm font-semibold text-indigo-500">Yangilandi</div>
+                    </div>
+                  )}
+                  <div className={`px-5 py-3 rounded-xl text-center min-w-[120px] ${importResult.skipped > 0 ? 'bg-amber-50' : 'bg-slate-50'}`}>
+                    <div className={`text-3xl font-black ${importResult.skipped > 0 ? 'text-amber-600' : 'text-slate-400'}`}>{importResult.skipped}</div>
+                    <div className={`text-sm font-semibold ${importResult.skipped > 0 ? 'text-amber-500' : 'text-slate-400'}`}>O'tkazib yuborildi</div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    {importResult.errors?.length > 0 && (
+                      <div className="space-y-1 max-h-32 overflow-y-auto">
+                        {importResult.errors.map((e, i) => (
+                          <div key={i} className="flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg text-sm">
+                            <span className="font-bold text-amber-600 shrink-0">#{e.row}</span>
+                            <span className="text-amber-700">{e.name && <span className="font-semibold">{e.name}: </span>}{e.error}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+            {importError && (
+              <div className="mx-6 mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{importError}</div>
+            )}
           </div>
         </div>
       )}

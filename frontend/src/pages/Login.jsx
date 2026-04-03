@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import axios from 'axios'
 import api from '../api/axios'
 
 const Icon = ({ d, cls = "w-4 h-4" }) => (
@@ -227,56 +226,37 @@ export default function Login() {
     }
   }
 
-  const quickLogin = (phone, password) => setForm({ phone, password })
-
   return (
     <div className="min-h-screen bg-linear-to-br from-slate-50 via-white to-indigo-50/40 flex">
 
       {/* ── Left panel ── */}
-      <div className="hidden lg:flex lg:w-[420px] xl:w-[480px] bg-linear-to-br from-indigo-600 via-indigo-700 to-purple-700 flex-col justify-between p-12 relative overflow-hidden shrink-0">
+      <div className="hidden lg:flex lg:w-[260px] xl:w-[300px] bg-linear-to-br from-indigo-600 via-indigo-700 to-purple-700 flex-col justify-between p-10 relative overflow-hidden shrink-0">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-white/5" />
           <div className="absolute -bottom-20 -left-20 w-80 h-80 rounded-full bg-white/5" />
           <div className="absolute top-1/2 right-0 w-40 h-40 rounded-full bg-purple-500/20" />
         </div>
 
+        {/* Logo */}
         <div className="relative flex items-center gap-3">
-          <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
-            <span className="text-white font-black text-sm tracking-tight">UBT</span>
+          <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center shadow-lg">
+            <span className="text-indigo-700 font-black text-sm tracking-tight">UBT</span>
           </div>
           <span className="text-white font-bold text-xl tracking-wide">UBT</span>
         </div>
 
-        <div className="relative space-y-8">
-          <div>
-            <h2 className="text-3xl font-black text-white leading-tight mb-3">
-              Biznesingizni<br />
-              <span className="text-indigo-200">boshqaring</span>
-            </h2>
-            <p className="text-indigo-200/80 text-sm leading-relaxed">
-              Savdo, ombor, moliya va hisobotlarni bitta tizimda boshqaring.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z", label: "Savdo", desc: "Real vaqtda kuzating" },
-              { icon: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4", label: "Ombor", desc: "Zaxira nazorati" },
-              { icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z", label: "Moliya", desc: "Daromad va xarajat" },
-              { icon: "M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z", label: "POS", desc: "Kassa tizimi" },
-            ].map(item => (
-              <div key={item.label} className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-                <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center mb-3">
-                  <Icon d={item.icon} cls="w-4 h-4 text-indigo-200" />
-                </div>
-                <p className="text-white font-semibold text-sm">{item.label}</p>
-                <p className="text-indigo-200/70 text-xs mt-0.5">{item.desc}</p>
-              </div>
-            ))}
-          </div>
+        {/* Center tagline */}
+        <div className="relative">
+          <h2 className="text-2xl font-black text-white leading-tight mb-2">
+            Biznesingizni<br />
+            <span className="text-indigo-200">boshqaring</span>
+          </h2>
+          <p className="text-indigo-300/80 text-xs leading-relaxed mt-3">
+            Savdo, ombor, moliya va hisobotlarni bitta tizimda boshqaring.
+          </p>
         </div>
 
-        <p className="relative text-indigo-300/60 text-xs">© 2026 UBT Tizimi</p>
+        <p className="relative text-indigo-300/50 text-xs">© 2026 UBT Tizimi</p>
       </div>
 
       {/* ── Right panel (form) ── */}
@@ -332,7 +312,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => setShowForgot(true)}
-                  className="text-xs text-indigo-600 hover:text-indigo-800 font-medium hover:underline"
+                  className="text-sm text-indigo-600 hover:text-indigo-700 font-semibold hover:underline transition-colors"
                 >
                   Parolni unutdingizmi?
                 </button>
@@ -381,31 +361,17 @@ export default function Login() {
             </button>
           </form>
 
-          {/* Quick login */}
-          <div className="mt-6 bg-slate-50 border border-slate-100 rounded-xl p-4">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Tez kirish</p>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { label: 'Admin', phone: '998901234567', pass: 'admin123', cls: 'bg-rose-50 text-rose-600 hover:bg-rose-100 border-rose-100' },
-                { label: 'Direktor', phone: '998901234568', pass: 'director123', cls: 'bg-purple-50 text-purple-600 hover:bg-purple-100 border-purple-100' },
-                { label: 'Kassir', phone: '998901234569', pass: 'cashier123', cls: 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border-indigo-100' },
-              ].map(item => (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => quickLogin(item.phone, item.pass)}
-                  className={`${item.cls} border text-xs font-semibold py-2 px-3 rounded-lg transition-colors`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
+          <div className="mt-8 text-center">
+            <p className="text-base text-slate-500">
+              Korxonangiz yo'qmi?{' '}
+              <Link
+                to="/register"
+                className="text-indigo-600 font-bold hover:text-indigo-800 hover:underline transition-colors text-base"
+              >
+                Ro'yxatdan o'ting
+              </Link>
+            </p>
           </div>
-
-          <p className="text-center text-sm text-slate-500 mt-5">
-            Korxonangiz yo'qmi?{' '}
-            <Link to="/register" className="text-indigo-600 font-semibold hover:underline">Ro'yxatdan o'ting</Link>
-          </p>
         </div>
       </div>
     </div>

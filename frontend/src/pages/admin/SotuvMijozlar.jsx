@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../api/axios';
-
+import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
 const fmt   = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -140,11 +140,18 @@ function Lbl({ className = '', t, children }) {
 
 /* ── Sale Create View ── */
 function SaleCreateView({ customers, onBack, onSaved }) {
-  const [products, setProds] = useState([]);
-  
+  const [products, setProds] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('pos_cache_products'))?.data || []; } catch { return []; }
+  });
+
   useEffect(() => {
-    api.get('/products/', { params: { limit: 200, status: 'active' } })
-       .then(r => setProds(Array.isArray(r.data) ? r.data : (r.data.items||[]))).catch(()=>{});
+    // Fon fonda yangilash — xato bo'lsa toast chiqarmaydi (_silent)
+    api.get('/products/pos-list', { _silent: true })
+       .then(r => {
+         const data = Array.isArray(r.data) ? r.data : (r.data.items || []);
+         setProds(data);
+         localStorage.setItem('pos_cache_products', JSON.stringify({ ts: Date.now(), data }));
+       }).catch(() => {});
   }, []);
 
   const [cart, setCart] = useState([]);
@@ -177,7 +184,7 @@ function SaleCreateView({ customers, onBack, onSaved }) {
   const debt = Math.max(0, finalTotal - paid);
   const change = Math.max(0, paid - finalTotal);
 
-  const doSave = async (paymentInfo = null) => {
+  const doSave = async (paymentInfo = null, shouldPrint = false) => {
     if (!cart.length) { setErr("Kamida bitta mahsulot qo'shing"); return; }
     setSaving(true); setErr(''); setPayErr('');
     try {
@@ -187,8 +194,29 @@ function SaleCreateView({ customers, onBack, onSaved }) {
 
       const rawPaid = paymentInfo ? paymentInfo.paid : finalTotal;
       const paidAmt = Math.max(0, rawPaid);
-      // If nothing paid → treat as full debt type
       const payType = paidAmt === 0 ? 'debt' : (paymentInfo ? paymentInfo.type : 'cash');
+
+      // Chekni API dan OLDIN print qilish — tez ishlash uchun
+      if (shouldPrint) {
+        const rSettings = getReceiptSettings();
+        const tpl = posSettings.paper === '58mm' ? '58' : posSettings.paper === 'A4' ? 'nak' : '80';
+        const cfg = tpl === 'nak' ? (rSettings.nak || {}) : (rSettings['r' + tpl] || rSettings[tpl] || {});
+        printReceiptHtml(buildReceiptHtml({
+          id: Date.now(), number: Date.now(),
+          cashier_name: 'Kassir',
+          created_at: new Date().toISOString(),
+          total_amount: finalTotal,
+          paid_amount: paidAmt,
+          discount_amount: discAmt,
+          payment_types_array: [{ type: payType, amount: paidAmt }],
+          items: cart.map(c => ({
+            product_name: c.product_name,
+            quantity: c.qty_ordered,
+            unit_price: c.unit_price,
+            subtotal: c.unit_price * c.qty_ordered,
+          })),
+        }, tpl, cfg));
+      }
 
       const payload = {
         items: cart.map(c => ({
@@ -220,19 +248,19 @@ function SaleCreateView({ customers, onBack, onSaved }) {
     } finally { setSaving(false); }
   };
 
-  // Called when user clicks "Sotuvni yakunlash"
-  const handlePaySubmit = () => {
+  // Called when user clicks "Sotuvni yakunlash" or "Saqlash va chop etish"
+  const handlePaySubmit = (shouldPrint = false) => {
     const paidAmt = Math.max(0, Math.round(Number(payForm.cash) || 0));
     const ft = Math.round(finalTotal);
     const debtAmt = Math.max(0, ft - paidAmt);
-    const info = { paid: paidAmt, type: payForm.payType, info: payForm.info };
+    const info = { paid: paidAmt, type: payForm.payType, info: payForm.info, shouldPrint };
     if (debtAmt > 0) {
       // Show muddat modal before saving
       setPendingPayInfo(info);
       setMuddatDate('');
       setShowMuddat(true);
     } else {
-      doSave(info);
+      doSave(info, shouldPrint);
     }
   };
 
@@ -371,6 +399,7 @@ function SaleCreateView({ customers, onBack, onSaved }) {
                   { key: 'require_customer', label: 'Mijoz majburiy',     sub: "Mijoz tanlanmasa mahsulot qo'shilmaydi",      color: '#f59e0b' },
                   { key: 'allow_negative',   label: 'Minusga sotish',     sub: "Qoldiq 0 bo'lsa ham sotishga ruxsat beradi",  color: '#ef4444' },
                   { key: 'always_wholesale', label: 'Ulgurji narx rejimi', sub: 'Har doim ulgurji narx bo\u2019yicha sotuv', color: '#10b981' },
+                  { key: 'autoPrint',        label: 'Avtomatik chop etish', sub: 'Sotuv tasdiqlanganda chek avtomatik chiqadi', color: '#6366f1' },
                 ].map(opt => (
                   <div key={opt.key}
                     className="flex items-center justify-between px-4 py-3 rounded-xl cursor-pointer transition-all"
@@ -390,6 +419,32 @@ function SaleCreateView({ customers, onBack, onSaved }) {
                   </div>
                 ))}
               </div>
+
+              {/* Paper size — only visible when autoPrint is on */}
+              {posSettings.autoPrint && (
+                <div className="rounded-xl px-4 py-3.5" style={{background:'rgba(99,102,241,0.08)', border:'1px solid rgba(99,102,241,0.2)'}}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-semibold text-white">Chek o'lchami</div>
+                      <div className="text-xs text-slate-500 mt-0.5">Chop etiladigan qog'oz kengligi</div>
+                    </div>
+                    <div className="flex gap-1.5">
+                      {['58mm','80mm','A4'].map(sz => (
+                        <button key={sz}
+                          onClick={() => savePosSettings({ paper: sz })}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                          style={{
+                            background: (posSettings.paper || '80mm') === sz ? '#6366f1' : 'rgba(255,255,255,0.08)',
+                            color: (posSettings.paper || '80mm') === sz ? '#fff' : '#94a3b8',
+                            border: '1px solid ' + ((posSettings.paper || '80mm') === sz ? '#6366f1' : 'rgba(255,255,255,0.1)'),
+                          }}>
+                          {sz}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Max Discount */}
               <div className="rounded-xl px-4 py-3.5" style={{background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)'}}>
@@ -666,11 +721,26 @@ function SaleCreateView({ customers, onBack, onSaved }) {
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-white rounded-b-2xl">
               {payErr && <div className="flex-1 px-4 py-2.5 bg-red-50 border border-red-200 text-red-600 text-sm font-semibold rounded-xl">{payErr}</div>}
               <button type="button" onClick={()=>{setShowPay(false);setPayErr('');setShowPayTypes(false);}} className="px-5 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-all text-sm">Bekor qilish</button>
-              <button type="button" disabled={saving}
-                onClick={handlePaySubmit}
-                className="px-8 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-black text-sm shadow-md flex items-center gap-2 transition-all active:scale-95">
-                {saving ? '...' : <><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>Sotuvni yakunlash</>}
-              </button>
+              {posSettings.autoPrint ? (
+                <button type="button" disabled={saving}
+                  onClick={() => handlePaySubmit(true)}
+                  className="px-8 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-black text-sm shadow-md flex items-center gap-2 transition-all active:scale-95">
+                  {saving ? '...' : <><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>Sotuvni yakunlash</>}
+                </button>
+              ) : (
+                <>
+                  <button type="button" disabled={saving}
+                    onClick={() => handlePaySubmit(true)}
+                    className="px-5 py-3 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed text-indigo-700 border border-indigo-200 rounded-xl font-bold text-sm flex items-center gap-2 transition-all active:scale-95">
+                    {saving ? '...' : <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z"/></svg>Saqlash va chop etish</>}
+                  </button>
+                  <button type="button" disabled={saving}
+                    onClick={() => handlePaySubmit(false)}
+                    className="px-8 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-black text-sm shadow-md flex items-center gap-2 transition-all active:scale-95">
+                    {saving ? '...' : <><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>Sotuvni saqlash</>}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -705,7 +775,7 @@ function SaleCreateView({ customers, onBack, onSaved }) {
                   Bekor
                 </button>
                 <button type="button" disabled={saving}
-                  onClick={() => { setShowMuddat(false); doSave({ ...pendingPayInfo, debtDueDate: muddatDate || null }); }}
+                  onClick={() => { setShowMuddat(false); doSave({ ...pendingPayInfo, debtDueDate: muddatDate || null }, pendingPayInfo?.shouldPrint); }}
                   className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl font-black text-sm shadow-md transition-all active:scale-95">
                   {saving ? '...' : 'Qarzga saqlash'}
                 </button>
@@ -888,138 +958,8 @@ function SaleEditModal({ sale, onClose, onSaved }) {
 }
 
 /* ══════════════════════════════════════════════════
-   RECEIPT SETTINGS HELPER
+   RECEIPT HTML BUILDER (MOVED TO utils/receiptBuilder.js)
 ══════════════════════════════════════════════════ */
-const RECEIPT_KEY = 'erp_receipt_settings';
-function getReceiptSettings() {
-  try { return JSON.parse(localStorage.getItem(RECEIPT_KEY) || '{}'); } catch { return {}; }
-}
-
-/* ══════════════════════════════════════════════════
-   RECEIPT HTML BUILDER (template-aware)
-══════════════════════════════════════════════════ */
-function buildReceiptHtml(sale, tpl, cfg) {
-  const narrow = tpl === '58';
-  const w = narrow ? '220px' : tpl === '80' ? '300px' : '100%';
-  const rows = sale.items.map(i =>
-    `<tr><td><b>${i.product_name}</b></td><td style="text-align:right">${Number(i.quantity)} × ${Number(i.unit_price).toLocaleString('uz-UZ')}</td><td style="text-align:right;white-space:nowrap"><b>${Number(i.subtotal).toLocaleString('uz-UZ')}</b></td></tr>`
-  ).join('');
-  const debt = Number(sale.total_amount) - Number(sale.paid_amount);
-  const change = Math.max(0, Number(sale.paid_amount) - Number(sale.total_amount));
-
-  if (tpl === 'nak') {
-    // Nakladnoy (A4) format
-    const itemRows = sale.items.map((i, idx) =>
-      `<tr><td>${idx+1}</td><td>${i.product_name}</td><td style="text-align:right">${Number(i.quantity)}</td><td style="text-align:right">${Number(i.unit_price).toLocaleString('uz-UZ')}</td><td style="text-align:right">${Number(i.subtotal).toLocaleString('uz-UZ')}</td></tr>`
-    ).join('');
-
-    // Logo for nakladnoy: left | center | right
-    const nakLogoPos = cfg.logo_position || 'center';
-    const nakLogoAlign = nakLogoPos === 'left' ? 'left' : nakLogoPos === 'right' ? 'right' : 'center';
-    const nakLogoSz = cfg.logo_size || 50;
-    const nakLogoHtml = cfg.logo
-      ? `<div style="text-align:${nakLogoAlign};margin-bottom:6px"><img src="${cfg.logo}" style="height:${nakLogoSz}px;max-width:${Math.round(nakLogoSz*3)}px;object-fit:contain" alt="logo"/></div>`
-      : '';
-
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Nakladnoy ${sale.number}</title>
-<style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: Arial, sans-serif; font-size: 10px; padding: 15px; }
-  .hdr { text-align:center; margin-bottom:10px; }
-  .hdr h1 { font-size:13px; }
-  .hdr p { font-size:9px; color:#555; }
-  .title { text-align:center; font-size:12px; font-weight:bold; margin:8px 0; }
-  table { width:100%; border-collapse:collapse; margin-bottom:6px; }
-  th, td { border:1px solid #666; padding:3px 5px; font-size:9px; }
-  th { background:#f0f0f0; font-weight:bold; text-align:center; }
-  .totals { margin-top:4px; }
-  .totals tr td { border:none; font-size:10px; padding:1px 3px; }
-  .totals tr td:last-child { text-align:right; font-weight:bold; }
-  .sigs { display:flex; justify-content:space-between; margin-top:14px; font-size:9px; }
-  @media print { body { padding:5px; } }
-</style></head><body onload="window.print()">
-  ${nakLogoHtml}
-  <div class="hdr">
-    <h1>${cfg.company || 'KORXONA NOMI'}</h1>
-    ${cfg.address ? `<p>${cfg.address}</p>` : ''}
-    ${cfg.phone ? `<p>Tel: ${cfg.phone}</p>` : ''}
-    ${cfg.inn ? `<p>STIR: ${cfg.inn}</p>` : ''}
-  </div>
-  <div class="title">NAKLADNOY № ${sale.number} / ${new Date(sale.created_at).toLocaleDateString('uz-UZ')}</div>
-  <table>
-    <thead><tr><th>№</th><th>Mahsulot nomi</th><th>Soni</th><th>Narxi (so'm)</th><th>Jami (so'm)</th></tr></thead>
-    <tbody>${itemRows}</tbody>
-    <tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold">JAMI:</td><td style="text-align:right;font-weight:bold">${Number(sale.total_amount).toLocaleString('uz-UZ')}</td></tr></tfoot>
-  </table>
-  <table class="totals">
-    <tr><td>To'langan:</td><td>${Number(sale.paid_amount).toLocaleString('uz-UZ')} so'm</td></tr>
-    ${debt>0?`<tr><td style="color:red">Qarz:</td><td style="color:red">${Number(debt).toLocaleString('uz-UZ')} so'm</td></tr>`:''}
-    ${change>0?`<tr><td style="color:green">Qaytim:</td><td style="color:green">${Number(change).toLocaleString('uz-UZ')} so'm</td></tr>`:''}
-  </table>
-  <div class="sigs">
-    ${cfg.director ? `<div>Direktor: ${cfg.director} _______</div>` : '<div>Direktor: ___________</div>'}
-    <div>Kassir: ${sale.cashier_name}</div>
-    ${cfg.accountant ? `<div>Buxgalter: ${cfg.accountant} _______</div>` : ''}
-  </div>
-  ${cfg.footer_note ? `<div style="text-align:center;margin-top:8px;font-size:9px;color:#555;font-style:italic">${cfg.footer_note}</div>` : ''}
-</body></html>`;
-  }
-
-  // Termal chek (58mm yoki 80mm) — logo centered at top, size from settings
-  const thermalSz = cfg.logo_size || 40;
-  const thermalLogoHtml = cfg.logo
-    ? `<div style="text-align:center;margin-bottom:3px"><img src="${cfg.logo}" style="height:${thermalSz}px;max-width:${Math.round(thermalSz*3)}px;object-fit:contain" alt="logo"/></div>`
-    : '';
-
-  const fsBig  = narrow ? '13px' : '17px';
-  const fsMid  = narrow ? '12px' : '15px';
-  const fsSmall= narrow ? '11px' : '13px';
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Chek ${sale.number}</title>
-<style>
-  * { margin:0; padding:0; box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-  body { font-family: 'Courier New', monospace; font-size: ${fsMid}; font-weight:bold; color:#000; width: ${w}; padding: 4px; }
-  .center { text-align:center; }
-  .norm { font-weight:normal; }
-  .sub { font-size:${fsSmall}; color:#000; font-weight:normal; }
-  hr { border:none; border-top:2px solid #000; margin:5px 0; }
-  hr.dash { border-top:1px dashed #000; margin:4px 0; }
-  table { width:100%; border-collapse:collapse; }
-  td, th { padding:3px 0; vertical-align:top; color:#000; font-size:${fsMid}; }
-  th { font-weight:bold; border-bottom:1px solid #000; }
-  .tr { text-align:right; }
-  .total-row td { font-weight:bold; font-size:${fsBig}; padding-top:5px; }
-  @media print { body { width:auto; margin:0; padding:2px; } @page { margin:1mm; } }
-</style></head><body onload="window.print()">
-  ${thermalLogoHtml}
-  ${cfg.company ? `<div class="center" style="font-size:${narrow?'15px':'19px'};font-weight:bold">${cfg.company}</div>` : (!cfg.logo ? `<div class="center" style="font-size:${fsBig};font-weight:bold">SOTUV CHEKI</div>` : '')}
-  ${cfg.address ? `<div class="center sub">${cfg.address}</div>` : ''}
-  ${cfg.phone ? `<div class="center sub">Tel: ${cfg.phone}</div>` : ''}
-  ${cfg.inn ? `<div class="center sub">STIR: ${cfg.inn}</div>` : ''}
-  ${cfg.header ? `<div class="center sub">${cfg.header}</div>` : ''}
-  <hr/>
-  <div style="display:flex;justify-content:space-between;font-size:${fsSmall}" class="norm">
-    <span><b>${sale.number}</b></span>
-    ${cfg.show_date !== false ? `<span>${new Date(sale.created_at).toLocaleString('uz-UZ')}</span>` : ''}
-  </div>
-  ${cfg.show_cashier !== false ? `<div class="sub">Kassir: <b>${sale.cashier_name}</b></div>` : ''}
-  <hr class="dash"/>
-  <table>
-    <tr><th style="text-align:left">Mahsulot</th><th class="tr">Soni×Narx</th><th class="tr">Jami</th></tr>
-    ${rows}
-  </table>
-  <hr/>
-  ${Number(sale.discount_amount)>0 ? `<div style="display:flex;justify-content:space-between;font-size:${fsSmall}"><span>Chegirma:</span><span>-${Number(sale.discount_amount).toLocaleString('uz-UZ')} so'm</span></div>` : ''}
-  <table>
-    <tr class="total-row"><td>JAMI:</td><td class="tr">${Number(sale.total_amount).toLocaleString('uz-UZ')} so'm</td></tr>
-    <tr style="font-size:${fsSmall}" class="norm"><td>To'langan:</td><td class="tr"><b>${Number(sale.paid_amount).toLocaleString('uz-UZ')} so'm</b></td></tr>
-    ${debt>0 ? `<tr style="font-size:${fsSmall}" class="norm"><td>Qarz:</td><td class="tr"><b>${Number(debt).toLocaleString('uz-UZ')} so'm</b></td></tr>` : ''}
-    ${change>0 ? `<tr style="font-size:${fsSmall}" class="norm"><td>Qaytim:</td><td class="tr"><b>${Number(change).toLocaleString('uz-UZ')} so'm</b></td></tr>` : ''}
-  </table>
-  <hr class="dash"/>
-  ${cfg.show_barcode !== false ? `<div class="center sub" style="margin:3px 0;letter-spacing:3px">||||||||||||||||||||||||||||<br/>${sale.number}</div><hr class="dash"/>` : ''}
-  <div class="center" style="margin-top:4px;font-size:${fsSmall};font-weight:bold">${cfg.footer || 'Xarid uchun rahmat!'}</div>
-</body></html>`;
-}
 
 /* ══════════════════════════════════════════════════
    PRINT INTO SAME-WINDOW IFRAME
@@ -1040,7 +980,7 @@ function printWithIframe(html) {
     } catch (e) {
       console.error("Iframe print error:", e);
     }
-  }, 250);
+  }, 50);
 }
 
 /* ══════════════════════════════════════════════════
@@ -1357,7 +1297,14 @@ function SotuvlarTab({ customers }) {
   const [loading, setLoading] = useState(false);
   const [skip, setSkip] = useState(0);
   const LIMIT = 20;
-  const [f, setF] = useState({ dateFrom: today(), dateTo: today(), status: '' });
+  const [f, setF] = useState({ dateFrom: today(), dateTo: today(), status: '', customer_id: '', branch_id: '', cashier_id: '', customerQ: '', branchQ: '', userQ: '' });
+  const [branches, setBranches] = useState([]);
+  const [users, setUsers] = useState([]);
+
+  useEffect(() => {
+    api.get('/branches/').then(r => setBranches(r.data)).catch(()=>{});
+    api.get('/users/').then(r => setUsers(r.data)).catch(()=>{});
+  }, []);
 
   // Modals
   const [detailId, setDetailId]     = useState(null);
@@ -1371,9 +1318,12 @@ function SotuvlarTab({ customers }) {
       if (f.dateFrom) params.date_from = f.dateFrom;
       if (f.dateTo)   params.date_to   = f.dateTo;
       if (f.status)   params.status    = f.status;
-      const r = await api.get('/sales', { params });
+      if (f.customer_id) params.customer_id = f.customer_id;
+      if (f.branch_id) params.branch_id = f.branch_id;
+      if (f.cashier_id) params.cashier_id = f.cashier_id;
+      const r = await api.get('/sales/', { params });
       setSales(r.data);
-    } catch {} finally { setLoading(false); }
+    } catch { /* ignore */ } finally { setLoading(false); }
   }, [skip, f]);
 
   useEffect(() => { if (mode === 'list') load(); }, [load, mode]);
@@ -1411,124 +1361,205 @@ function SotuvlarTab({ customers }) {
   };
 
   return (
-    <div className="space-y-4">
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5"><div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Jami sotuv</div><div className="text-2xl font-bold text-indigo-600 mt-0.5">{fmt(totals.sum)} so'm</div></div>
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5"><div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">To'langan</div><div className="text-2xl font-bold text-emerald-600 mt-0.5">{fmt(totals.paid)} so'm</div></div>
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5"><div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Qarzga</div><div className="text-2xl font-bold text-red-500 mt-0.5">{fmt(totals.sum - totals.paid)} so'm</div></div>
-      </div>
-
-      {/* Filters + actions */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex flex-wrap gap-3 items-end justify-between">
-        <div className="flex flex-wrap gap-3 items-end">
-          <div><div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Holat</div>
-            <select value={f.status} onChange={e => setF({...f, status: e.target.value})} className={ic}>
-              <option value="">Barchasi</option>
-              {Object.entries(saleMeta).map(([v,m]) => <option key={v} value={v}>{m.l}</option>)}
-            </select>
-          </div>
-          <div><div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Sanadan</div><input type="date" value={f.dateFrom} onChange={e => setF({...f, dateFrom: e.target.value})} className={ic}/></div>
-          <div><div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Sanagacha</div><input type="date" value={f.dateTo} onChange={e => setF({...f, dateTo: e.target.value})} className={ic}/></div>
-          <button onClick={load} className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-semibold text-sm rounded-xl mt-auto">Qidirish</button>
+    <div className="space-y-3">
+      {/* Header: actions */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3 text-sm">
+          <span className="text-slate-500">Jami:</span>
+          <span className="font-bold text-slate-800">{fmt(totals.sum)}</span>
+          <span className="text-slate-300">|</span>
+          <span className="text-emerald-600 font-semibold">{fmt(totals.paid)}</span>
+          <span className="text-slate-300">|</span>
+          <span className="text-red-500 font-semibold">{fmt(totals.sum - totals.paid)}</span>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Excel */}
-          <button onClick={() => exportExcel(sales)} title="Excel" className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-semibold rounded-xl border border-emerald-200 transition-colors">
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/><path d="M14 2v6h6"/><path d="M8 13h2m0 0h2m-2 0v4m4-4h-2m0 0v4" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round"/></svg>
+        <div className="flex items-center gap-2">
+          <button onClick={() => exportExcel(sales)} className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-semibold rounded-lg border border-emerald-200 transition-colors">
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/></svg>
             Excel
           </button>
-          {/* PDF */}
-          <button onClick={() => exportPDF(sales)} title="PDF" className="flex items-center gap-1.5 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 text-sm font-semibold rounded-xl border border-red-200 transition-colors">
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/><path d="M14 2v6h6"/></svg>
+          <button onClick={() => exportPDF(sales)} className="flex items-center gap-1.5 px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-700 text-sm font-semibold rounded-lg border border-red-200 transition-colors">
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/></svg>
             PDF
           </button>
-          {/* Yangi sotuv */}
-          <button onClick={() => setMode('create')} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl flex items-center gap-2">
+          <button onClick={() => setMode('create')} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg flex items-center gap-1.5 shadow-sm">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
             Yangi sotuv
           </button>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"/></div>
-        ) : (
-          <table className="min-w-full">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100">
-                {['Raqam','Kassir','Mijoz','Miqdor','Jami','Qarzga',"To'lov",'Holat','Sana',''].map(h => (
-                  <th key={h} className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
+      {/* Filters — rasmdagi kabi 2 qator, keng inputlar */}
+      <div className="space-y-2">
+        <div className="grid grid-cols-3 gap-3">
+          <input
+            type="text"
+            value={f.statusQ || ''}
+            onChange={e => {
+              const q = e.target.value;
+              const match = Object.entries(saleMeta).find(([,m]) => m.l.toLowerCase().startsWith(q.toLowerCase()));
+              setF({...f, statusQ: q, status: match ? match[0] : ''});
+            }}
+            placeholder="Status"
+            className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white"
+          />
+          <input type="date" value={f.dateFrom} onChange={e => setF({...f, dateFrom: e.target.value})} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-slate-400 bg-white"/>
+          <input type="date" value={f.dateTo} onChange={e => setF({...f, dateTo: e.target.value})} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-slate-400 bg-white"/>
+        </div>
+        <div className="grid grid-cols-[1fr_auto_1fr_1fr] gap-3 items-center">
+          <div className="relative">
+            <input
+              type="text"
+              value={f.customerQ || ''}
+              onChange={e => setF({...f, customerQ: e.target.value, customer_id: ''})}
+              onFocus={() => setF(p => ({...p, _custOpen: true}))}
+              onBlur={() => setTimeout(() => setF(p => ({...p, _custOpen: false})), 200)}
+              placeholder="Contragent"
+              className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white"
+            />
+            {f._custOpen && f.customerQ && (
+              <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-48 overflow-y-auto">
+                {customers.filter(c => c.name.toLowerCase().includes((f.customerQ||'').toLowerCase()) || (c.phone && c.phone.includes(f.customerQ||''))).slice(0,10).map(c => (
+                  <button key={c.id} onMouseDown={() => setF({...f, customer_id: String(c.id), customerQ: c.name, _custOpen: false})}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0">
+                    {c.name} {c.phone && <span className="text-slate-400 ml-1">{c.phone}</span>}
+                  </button>
                 ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {sales.map(s => {
-                const debt = Number(s.total_amount) - Number(s.paid_amount);
-                return (
-                  <tr key={s.id} className="hover:bg-slate-50 transition-colors group">
-                    <td className="px-4 py-3.5">
-                      <button onClick={() => setDetailId(s.id)} className="text-sm font-mono font-semibold text-indigo-600 hover:text-indigo-800 hover:underline">{s.number}</button>
-                    </td>
-                    <td className="px-4 py-3.5 text-sm text-slate-700">{s.cashier_name}</td>
-                    <td className="px-4 py-3.5 text-sm font-medium text-slate-800">
-                      {s.customer_name ? (
-                        <Link to={`/admin/customers/${s.customer_id}`} className="text-indigo-600 hover:underline hover:text-indigo-800">{s.customer_name}</Link>
-                      ) : <span className="text-slate-400">—</span>}
-                    </td>
-                    <td className="px-4 py-3.5 text-sm text-slate-500">{s.items_count} ta</td>
-                    <td className="px-4 py-3.5 text-sm font-semibold text-slate-800 font-mono">{fmt(s.total_amount)}</td>
-                    <td className="px-4 py-3.5 text-sm font-mono">
-                      {debt > 0 ? <span className="font-semibold text-red-500">{fmt(debt)}</span> : <span className="text-slate-300">—</span>}
-                    </td>
-                    <td className="px-4 py-3.5"><Badge meta={payMeta} val={s.payment_type}/></td>
-                    <td className="px-4 py-3.5"><Badge meta={saleMeta} val={s.status}/></td>
-                    <td className="px-4 py-3.5 text-xs text-slate-500">
-                      <div>{new Date(s.created_at).toLocaleDateString('uz-UZ')}</div>
-                      <div className="text-slate-400">{new Date(s.created_at).toLocaleTimeString('uz-UZ', {hour:'2-digit',minute:'2-digit'})}</div>
-                    </td>
-                    <td className="px-4 py-3.5">
-                      {/* Action buttons */}
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {/* View */}
-                        <button onClick={() => setDetailId(s.id)} title="Ko'rish" className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                        </button>
-                        {/* Edit */}
-                        <button onClick={() => setEditSale(s)} title="Tahrirlash" className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                        </button>
-                        {/* Print */}
-                        <button onClick={() => openPrintPicker(s.id)} title="Chek chop" className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-                        </button>
-                        {/* Delete */}
-                        <button onClick={() => handleDelete(s)} title="O'chirish" className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {sales.length === 0 && !loading && (
-                <tr><td colSpan={9} className="px-5 py-12 text-center text-slate-400 text-sm">Sotuvlar topilmadi</td></tr>
-              )}
-            </tbody>
-          </table>
-        )}
+              </div>
+            )}
+          </div>
+          <button className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-slate-500">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+          </button>
+          <div className="relative">
+            <input
+              type="text"
+              value={f.branchQ || ''}
+              onChange={e => setF({...f, branchQ: e.target.value, branch_id: ''})}
+              onFocus={() => setF(p => ({...p, _brOpen: true}))}
+              onBlur={() => setTimeout(() => setF(p => ({...p, _brOpen: false})), 200)}
+              placeholder="Xodim"
+              className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white"
+            />
+            {f._brOpen && f.branchQ && (
+              <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-48 overflow-y-auto">
+                {branches.filter(b => b.name.toLowerCase().includes((f.branchQ||'').toLowerCase())).slice(0,10).map(b => (
+                  <button key={b.id} onMouseDown={() => setF({...f, branch_id: String(b.id), branchQ: b.name, _brOpen: false})}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0">{b.name}</button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="relative">
+            <input
+              type="text"
+              value={f.userQ || ''}
+              onChange={e => setF({...f, userQ: e.target.value, cashier_id: ''})}
+              onFocus={() => setF(p => ({...p, _usOpen: true}))}
+              onBlur={() => setTimeout(() => setF(p => ({...p, _usOpen: false})), 200)}
+              placeholder="Foydalanuvchi"
+              className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white"
+            />
+            {f._usOpen && f.userQ && (
+              <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-48 overflow-y-auto">
+                {users.filter(u => u.name.toLowerCase().includes((f.userQ||'').toLowerCase())).slice(0,10).map(u => (
+                  <button key={u.id} onMouseDown={() => setF({...f, cashier_id: String(u.id), userQ: u.name, _usOpen: false})}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0">{u.name}</button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Pagination */}
-      {sales.length > 0 && (
-        <div className="flex items-center justify-between">
-          <button disabled={skip === 0} onClick={() => setSkip(Math.max(0, skip - LIMIT))} className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40">← Orqaga</button>
-          <span className="text-sm text-slate-500">{skip + 1}–{skip + sales.length} ta</span>
-          <button disabled={sales.length < LIMIT} onClick={() => setSkip(skip + LIMIT)} className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40">Keyingi →</button>
+      {/* Table */}
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        {loading ? (
+          <div className="flex items-center justify-center py-16"><div className="w-7 h-7 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"/></div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider w-10">#</th>
+                  <th className="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Raqam</th>
+                  <th className="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Kontragent</th>
+                  <th className="px-3 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Jami</th>
+                  <th className="px-3 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">To'langan</th>
+                  <th className="px-3 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Qarzga</th>
+                  <th className="px-3 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">To'lov</th>
+                  <th className="px-3 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Holat</th>
+                  <th className="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Kassir</th>
+                  <th className="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Sana</th>
+                  <th className="px-3 py-3 w-24"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {/* Summary row */}
+                {sales.length > 0 && (
+                  <tr className="bg-indigo-50/40 text-sm font-semibold">
+                    <td className="px-3 py-2.5" colSpan={3}><span className="text-slate-600">Jami: {sales.length} ta sotuv</span></td>
+                    <td className="px-3 py-2.5 text-right font-mono text-slate-800">{fmt(totals.sum)}</td>
+                    <td className="px-3 py-2.5 text-right font-mono text-emerald-600">{fmt(totals.paid)}</td>
+                    <td className="px-3 py-2.5 text-right font-mono text-red-500">{fmt(totals.sum - totals.paid)}</td>
+                    <td colSpan={5}></td>
+                  </tr>
+                )}
+                {sales.map((s, idx) => {
+                  const debt = Number(s.total_amount) - Number(s.paid_amount);
+                  return (
+                    <tr key={s.id} className="hover:bg-indigo-50/30 transition-colors group">
+                      <td className="px-3 py-2.5 text-slate-400 text-sm">{skip + idx + 1}</td>
+                      <td className="px-3 py-2.5">
+                        <button onClick={() => setDetailId(s.id)} className="font-mono font-semibold text-indigo-600 hover:text-indigo-800 hover:underline text-sm">{s.number}</button>
+                      </td>
+                      <td className="px-3 py-2.5 font-medium text-slate-800 text-sm">
+                        {s.customer_name ? (
+                          <Link to={`/admin/customers/${s.customer_id}`} className="text-indigo-600 hover:underline">{s.customer_name}</Link>
+                        ) : <span className="text-slate-400">—</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-mono font-semibold text-slate-800 text-sm">{fmt(s.total_amount)}</td>
+                      <td className="px-3 py-2.5 text-right font-mono text-emerald-600 text-sm">{fmt(s.paid_amount)}</td>
+                      <td className="px-3 py-2.5 text-right font-mono text-sm">
+                        {debt > 0 ? <span className="font-semibold text-red-500">{fmt(debt)}</span> : <span className="text-slate-300">—</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-center"><Badge meta={payMeta} val={s.payment_type}/></td>
+                      <td className="px-3 py-2.5 text-center"><Badge meta={saleMeta} val={s.status}/></td>
+                      <td className="px-3 py-2.5 text-sm text-slate-600 whitespace-nowrap">{s.cashier_name}</td>
+                      <td className="px-3 py-2.5 text-sm text-slate-500 whitespace-nowrap">{new Date(s.created_at).toLocaleDateString('uz-UZ')} <span className="text-slate-400">{new Date(s.created_at).toLocaleTimeString('uz-UZ', {hour:'2-digit',minute:'2-digit'})}</span></td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => setDetailId(s.id)} title="Ko'rish" className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                          </button>
+                          <button onClick={() => openPrintPicker(s.id)} title="Chek" className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-md">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                          </button>
+                          <button onClick={() => handleDelete(s)} title="O'chirish" className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {sales.length === 0 && !loading && (
+                  <tr><td colSpan={11} className="px-5 py-10 text-center text-slate-400 text-sm">Sotuvlar topilmadi</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Pagination - footer */}
+        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 bg-slate-50/50">
+          <span className="text-sm text-slate-500">{sales.length > 0 ? `${skip + 1}–${skip + sales.length} ko'rsatildi` : `0 ta ma'lumot`}</span>
+          <div className="flex items-center gap-2">
+            <button disabled={skip === 0} onClick={() => setSkip(Math.max(0, skip - LIMIT))} className="px-3.5 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors">Oldingi</button>
+            <button disabled={sales.length < LIMIT} onClick={() => setSkip(skip + LIMIT)} className="px-3.5 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors">Keyingi</button>
+          </div>
+          <span className="text-sm text-slate-400">Limit: {LIMIT}</span>
         </div>
-      )}
+      </div>
 
       {/* Detail modal */}
       {detailId && (
@@ -1591,7 +1622,9 @@ function MijozlarTab() {
   const [err, setErr] = useState('');
 
   const load = (q=search) => api.get(`/customers${q?'?search='+encodeURIComponent(q):''}`).then(r => setList(r.data)).catch(()=>{});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { const t = setTimeout(() => load(search), 400); return () => clearTimeout(t); }, [search]);
 
   const close = () => { setModal(null); setSel(null); setErr(''); };
@@ -1710,28 +1743,34 @@ const TABS = [
 
 export default function SotuvMijozlar() {
   const [tab, setTab] = useState('sotuvlar');
-  const [customers, setCustomers] = useState([]);
+  const [customers, setCustomers] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('pos_cache_customers'))?.data || []; } catch { return []; }
+  });
 
   useEffect(() => {
-    api.get('/customers', { params:{ limit:300 } }).then(r => setCustomers(r.data)).catch(()=>{});
+    api.get('/customers', { params: { limit: 300 }, _silent: true })
+      .then(r => {
+        const data = r.data;
+        setCustomers(data);
+        localStorage.setItem('pos_cache_customers', JSON.stringify({ ts: Date.now(), data }));
+      }).catch(() => {});
   }, []);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
+      {/* Sarlavha + tablar bir qatorda */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Sotuv va Mijozlar</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Sotuvlar, yangi sotuv va mijozlar boshqaruvi</p>
+        <div className="flex items-center gap-4">
+          <h1 className="text-lg font-bold text-slate-800">Sotuv va Mijozlar</h1>
+          <div className="flex gap-0.5 bg-slate-100 p-0.5 rounded-lg">
+            {TABS.map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)}
+                className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all flex items-center gap-1.5 ${tab===t.id?'bg-white text-slate-800 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>
+                <span className="text-xs">{t.icon}</span>{t.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
-
-      <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={`px-5 py-2 text-sm font-semibold rounded-lg transition-all flex items-center gap-2 ${tab===t.id?'bg-white text-slate-800 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>
-            <span>{t.icon}</span>{t.label}
-          </button>
-        ))}
       </div>
 
       {tab==='sotuvlar' && <SotuvlarTab customers={customers}/>}

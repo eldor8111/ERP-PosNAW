@@ -108,6 +108,7 @@ export default function usePosSync({ onSyncSuccess } = {}) {
     window.addEventListener('offline', goOffline);
 
     // Sahifa ochilganda ham pending bo'lsa yuborish
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshPendingCount();
     if (navigator.onLine) syncPending();
 
@@ -138,17 +139,25 @@ export default function usePosSync({ onSyncSuccess } = {}) {
   // ─── Kesh yordamida ma'lumot olish ────────────────────────────────────
   const fetchWithCache = useCallback(async (url, cacheKey, params = {}) => {
     if (!navigator.onLine) {
-      const cached = loadFromCache(cacheKey);
-      return cached || [];
+      return loadFromCache(cacheKey) || [];
     }
+    const cached = loadFromCache(cacheKey);
+    if (cached) {
+      // Kesh bor — darhol qaytar, fon fonda serverdan yangilasin
+      api.get(url, { params }).then(r => {
+        const fresh = Array.isArray(r.data) ? r.data : (r.data.items || []);
+        saveToCache(cacheKey, fresh);
+      }).catch(() => {});
+      return cached;
+    }
+    // Kesh yo'q — serverdan kutib olish (birinchi marta)
     try {
       const r = await api.get(url, { params });
       const data = Array.isArray(r.data) ? r.data : (r.data.items || []);
       saveToCache(cacheKey, data);
       return data;
     } catch {
-      const cached = loadFromCache(cacheKey);
-      return cached || [];
+      return [];
     }
   }, []);
 

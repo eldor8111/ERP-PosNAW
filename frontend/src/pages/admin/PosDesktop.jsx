@@ -1,13 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import usePosSync from '../../hooks/usePosSync';
+import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
-const calcNet = (price, dType, dVal) => {
-  const p = Number(price) || 0;
-  const d = Number(dVal) || 0;
-  return dType === 'pct' ? p * (1 - d / 100) : p - d;
-};
 
 /* ── Customer combobox ── */
 function CustSearch({ customers, value, onChange, placeholder = "Mijoz izlash..." }) {
@@ -64,6 +60,7 @@ export default function PosDesktop() {
   const [search, setSearch] = useState('');
   const [activeCat, setActiveCat] = useState(null);
   const [showCustPanel, setShowCustPanel] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   const { isOnline, syncing, pendingCount, submitSaleOrQueue, fetchProducts, fetchCustomers, fetchCategories } = usePosSync({
     onSyncSuccess: (count) => {
@@ -88,7 +85,7 @@ export default function PosDesktop() {
   // Settings state
   const [showSettings, setShowSettings] = useState(false);
   const [posSettings, setPosSettings] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('pos_desktop_settings') || '{"printer":"XP-80C","paper":"80mm","autoPrint":true,"shift":false,"unknownProduct":false,"fiscal":false,"receiptStoreName":"","receiptAddress":"","receiptFooter":"Xaridingiz uchun rahmat!"}'); } catch { return {printer:"XP-80C",paper:"80mm",autoPrint:true,shift:false,unknownProduct:false,fiscal:false,receiptStoreName:"",receiptAddress:"",receiptFooter:"Xaridingiz uchun rahmat!"}; }
+    try { return JSON.parse(localStorage.getItem('pos_desktop_settings') || '{"printer":"XP-80C","paper":"80mm","autoPrint":true,"shift":false,"unknownProduct":false,"fiscal":false}'); } catch { return {printer:"XP-80C",paper:"80mm",autoPrint:true,shift:false,unknownProduct:false,fiscal:false}; }
   });
   const savePosSettings = (updates) => {
     const next = { ...posSettings, ...updates };
@@ -105,16 +102,16 @@ export default function PosDesktop() {
       try {
         const s = JSON.parse(localStorage.getItem('pos_desktop_settings') || '{}');
         if (s.defaultCustomer) setCustId(s.defaultCustomer);
-      } catch { }
+      } catch { /* ignore */ }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filteredProducts = products.filter(p => {
-    const ms = p.name.toLowerCase().includes(search.toLowerCase()) || p.sku?.includes(search) || p.barcode?.includes(search);
+  const filteredProducts = useMemo(() => products.filter(p => {
+    const ms = !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.sku?.includes(search) || p.barcode?.includes(search);
     const mc = activeCat ? p.category_id === activeCat : true;
     return ms && mc;
-  });
+  }), [products, search, activeCat]);
 
   const totalNet = cart.reduce((s, c) => s + c.qty_ordered * c.net_cost, 0);
 
@@ -240,6 +237,7 @@ export default function PosDesktop() {
     }
   };
 
+  const orderNum = useRef(Math.floor(Math.random() * 90000) + 10000);
   const [showCheckout, setShowCheckout] = useState(false);
 
   const submitSale = async () => {
@@ -248,8 +246,8 @@ export default function PosDesktop() {
     setIsPaying(true);
     setErr('');
     try {
-      let paidAmt = Number(paidInput);
-      if (paidInput === '') paidAmt = totalNet; 
+      let paidAmt = payType === 'debt' ? 0 : Number(paidInput);
+      if (paidInput === '' && payType !== 'debt') paidAmt = totalNet;
       
       let pCash = 0;
       let pCard = 0;
@@ -287,72 +285,29 @@ export default function PosDesktop() {
 
       const result = await submitSaleOrQueue(payload, false);
 
-      // Auto Print Logic
-      if (posSettings.autoPrint && !result?.offline) {
-        const printWindow = window.open('', '_blank', `width=${posSettings.paper==='58mm'?320:420},height=600`);
-        if (printWindow) {
-          const paperWidth = posSettings.paper === '58mm' ? '58mm' : '80mm';
-          const html = `
-            <html>
-              <head>
-                <title>Chek #${result?.data?.id ?? ''}</title>
-                <style>
-                  body { font-family: monospace; width: ${paperWidth}; margin: 0; padding: 10px; color: #000; }
-                  .center { text-align: center; }
-                  .bold { font-weight: bold; }
-                  .line { border-bottom: 1px dashed #000; margin: 10px 0; }
-                  table { width: 100%; font-size: 13px; border-collapse: collapse; }
-                  th { text-align: left; border-bottom: 1px solid #000; padding-bottom: 4px; }
-                  td { padding: 4px 0; }
-                  .right { text-align: right; }
-                  .title { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 5px; }
-                  .fs-14 { font-size: 14px; }
-                </style>
-              </head>
-              <body>
-                <div class="title">${posSettings.receiptStoreName || "Do'kon"}</div>
-                <div class="center">${posSettings.receiptAddress || ''}</div>
-                <div class="line"></div>
-                <div>Sana: ${new Date().toLocaleString('uz-UZ')}</div>
-                <div>Chek №: ${result?.data?.id ?? '—'}</div>
-                <div class="line"></div>
-                <table>
-                  <thead>
-                    <tr><th>Nomi</th><th class="right">Soni</th><th class="right">Summa</th></tr>
-                  </thead>
-                  <tbody>
-                    ${cart.map(c => `
-                      <tr><td colspan="3" class="bold">${c.product_name}</td></tr>
-                      <tr>
-                        <td>${fmt(c.unit_price)}</td>
-                        <td class="right">${c.qty_ordered}</td>
-                        <td class="right">${fmt(c.unit_price * c.qty_ordered)}</td>
-                      </tr>
-                    `).join('')}
-                  </tbody>
-                </table>
-                <div class="line"></div>
-                <div class="bold fs-14">JAMI: <span style="float:right">${fmt(totalNet)}</span></div>
-                <div>To'lov turi: <span style="float:right">${finalType === 'mixed' ? 'ARALASH' : finalType.toUpperCase()}</span></div>
-                ${finalType === 'mixed' ? `
-                  <div class="fs-14">- ${mixedType1.toUpperCase()}: <span style="float:right">${fmt(Number(mixedAmt1)||0)}</span></div>
-                  <div class="fs-14">- ${mixedType2.toUpperCase()}: <span style="float:right">${fmt(Number(mixedAmt2)||0)}</span></div>
-                ` : ''}
-                <div>To'landi: <span style="float:right">${fmt(paidAmt)}</span></div>
-                ${paidAmt > totalNet ? `<div>Qaytim: <span style="float:right">${fmt(paidAmt - totalNet)}</span></div>` : ''}
-                <div class="line"></div>
-                <div class="center bold">${posSettings.receiptFooter || 'Xaridingiz uchun rahmat!'}</div>
-              </body>
-            </html>
-          `;
-          printWindow.document.write(html);
-          printWindow.document.close();
-          printWindow.focus();
-          setTimeout(() => {
-            printWindow.print();
-            printWindow.close();
-          }, 300);
-        }
+      // Auto Print — iframe (xuddi shu brauzer, tez)
+      if (posSettings.autoPrint) {
+        const settings = getReceiptSettings();
+        const templateType = posSettings.paper === '58mm' ? '58' : '80';
+        const tmplCfg = settings['r' + templateType] || settings[templateType] || {};
+        const meta = {
+          id: orderNum.current, number: orderNum.current,
+          cashier_name: 'Kassir',
+          created_at: new Date().toISOString(),
+          total_amount: totalNet,
+          paid_amount: paidAmt,
+          discount_amount: 0,
+          payment_types_array: finalType === 'mixed'
+            ? [{type: mixedType1, amount: Number(mixedAmt1)||0}, {type: mixedType2, amount: Number(mixedAmt2)||0}]
+            : [{type: finalType, amount: paidAmt}],
+          items: cart.map(c => ({
+            product_name: c.product_name,
+            quantity: c.qty_ordered,
+            unit_price: c.unit_price,
+            subtotal: c.unit_price * c.qty_ordered,
+          })),
+        };
+        printReceiptHtml(buildReceiptHtml(meta, templateType, tmplCfg));
       }
 
       setCart([]);
@@ -382,7 +337,7 @@ export default function PosDesktop() {
     <div className="w-full h-screen bg-slate-100 flex overflow-hidden font-sans select-none">
       
       {/* ── 1. THIN LEFT SIDEBAR ── */}
-      <div className="w-20 bg-slate-900 flex flex-col items-center py-6 gap-6 shadow-2xl z-20 shrink-0">
+      <div className={`bg-slate-900 flex flex-col items-center py-6 gap-6 shadow-2xl z-20 shrink-0 transition-all duration-300 ${expanded ? 'w-0 overflow-hidden py-0 opacity-0' : 'w-20 opacity-100'}`}>
         {/* User / Logo */}
         <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-black text-xl shadow-lg shadow-blue-500/30 mb-4">
           POS
@@ -502,7 +457,7 @@ export default function PosDesktop() {
         <div className="p-5 border-b border-slate-100 flex flex-col relative z-50">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-black text-slate-800">Buyurtma</h2>
-            <div className="text-sm font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">#{(Math.floor(Math.random()*90000)+10000).toString()}</div>
+            <div className="text-sm font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">#{orderNum.current}</div>
           </div>
           <CustSearch customers={customers} value={custId} onChange={setCustId} placeholder="Mijozni tanlang (Majburiy)..." />
         </div>
@@ -561,7 +516,7 @@ export default function PosDesktop() {
           </div>
 
           <div className="h-16 w-full mt-2">
-            <button onClick={() => { if(!cart.length) {setErr("Savat bo'sh!"); setTimeout(()=>setErr(''),2000); return;} setShowCheckout(true); if(!paidInput) setPaidInput(String(Math.round(totalNet))); }} className="w-full h-full bg-blue-600 border-2 border-blue-600 text-white rounded-2xl text-xl uppercase tracking-widest font-black hover:bg-blue-700 active:scale-95 transition-all shadow-lg flex items-center justify-center gap-3">
+            <button onClick={() => { if(!cart.length) {setErr("Savat bo'sh!"); setTimeout(()=>setErr(''),2000); return;} setShowCheckout(true); if(!paidInput && payType !== 'debt') setPaidInput(String(Math.round(totalNet))); }} className="w-full h-full bg-blue-600 border-2 border-blue-600 text-white rounded-2xl text-xl uppercase tracking-widest font-black hover:bg-blue-700 active:scale-95 transition-all shadow-lg flex items-center justify-center gap-3">
                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg> To'lash
             </button>
           </div>
@@ -585,11 +540,29 @@ export default function PosDesktop() {
             {search && <button onClick={()=>setSearch('')} className="text-slate-400 hover:text-red-500 p-1 font-bold text-xl leading-none">×</button>}
           </div>
 
-          <div className="text-right">
-             <div className="text-sm font-bold text-slate-500 flex items-center gap-2 justify-end">
-               <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Kassa faol
-             </div>
-             <div className="text-slate-400 text-xs font-semibold mt-1 pr-1">{new Date().toLocaleString('uz-UZ', {weekday:'long', hour:'2-digit', minute:'2-digit'})}</div>
+          <div className="flex items-center gap-3">
+            <div className="text-right hidden sm:block">
+              <div className="text-sm font-bold text-slate-500 flex items-center gap-2 justify-end">
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Kassa faol
+              </div>
+              <div className="text-slate-400 text-xs font-semibold mt-1 pr-1">{new Date().toLocaleString('uz-UZ', {weekday:'long', hour:'2-digit', minute:'2-digit'})}</div>
+            </div>
+            {/* Expand / Collapse toggle */}
+            <button
+              onClick={() => setExpanded(v => !v)}
+              title={expanded ? "Menyu ko'rsatish" : "Kengaytirish"}
+              className="w-10 h-10 rounded-xl flex items-center justify-center bg-white border-2 border-slate-200 text-slate-500 hover:border-indigo-400 hover:text-indigo-600 hover:shadow-md transition-all active:scale-95 shrink-0"
+            >
+              {expanded ? (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9l-6 6m0 0v-4m0 4h4M15 15l6-6m0 0v4m0-4h-4M9 15l-6-6m0 0v4m0-4h4M15 9l6 6m0 0v-4m0 4h-4" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                </svg>
+              )}
+            </button>
           </div>
         </div>
 
@@ -717,6 +690,7 @@ export default function PosDesktop() {
                     {v:'click', l:'Click', c:'bg-sky-50 text-sky-700 border-sky-300'},
                     {v:'payme', l:'Payme', c:'bg-cyan-50 text-cyan-700 border-cyan-300'},
                     {v:'mixed', l:'Aralash', c:'bg-orange-50 text-orange-700 border-orange-300'},
+                    {v:'debt', l:'Qarz', c:'bg-red-50 text-red-700 border-red-300'},
                   ].map(t => (
                     <button key={t.v} onClick={()=>setPayType(t.v)} className={`px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all border-2 shrink-0 active:scale-95 flex-1 ${payType===t.v ? t.c + ' ring-2 ring-offset-1 ring-'+(t.c.includes('slate')?'slate':t.c.split('-')[1])+'-500' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
                       {t.l}
@@ -759,9 +733,15 @@ export default function PosDesktop() {
                   </div>
                 )}
 
+                {payType === 'debt' && (
+                  <div className={`rounded-xl px-4 py-3 text-sm font-bold flex items-center gap-2 ${custId ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-amber-50 border border-amber-300 text-amber-700'}`}>
+                    {custId ? '🔴 Qarzga sotuv — mijoz hisobiga yoziladi' : '⚠️ Qarzga sotish uchun mijoz tanlash shart!'}
+                  </div>
+                )}
+
                 <div className="flex gap-3 mt-auto pt-4">
                   <button onClick={() => setShowCheckout(false)} className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-black rounded-xl transition-colors active:scale-95 uppercase tracking-widest text-sm border-2 border-transparent">Bekor qilish</button>
-                  <button onClick={submitSale} disabled={isPaying || (payType !== 'mixed' && Number(paidInput) < totalNet && !custId) || (payType === 'mixed' && (Number(mixedAmt1)+Number(mixedAmt2)) < totalNet && !custId)} className="flex-2 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2 border-2 border-blue-600 uppercase tracking-widest text-sm disabled:bg-blue-300 disabled:border-blue-300 disabled:shadow-none">
+                  <button onClick={submitSale} disabled={isPaying || (payType === 'debt' && !custId) || (payType !== 'mixed' && payType !== 'debt' && Number(paidInput) < totalNet && !custId) || (payType === 'mixed' && (Number(mixedAmt1)+Number(mixedAmt2)) < totalNet && !custId)} className="flex-2 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2 border-2 border-blue-600 uppercase tracking-widest text-sm disabled:bg-blue-300 disabled:border-blue-300 disabled:shadow-none">
                     {isPaying ? <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>} SAQLASH VA CHOP ETISH
                   </button>
                 </div>
@@ -778,7 +758,7 @@ export default function PosDesktop() {
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col p-6 animate-in zoom-in-95 duration-200">
             
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
-              <h2 className="text-xl font-bold text-slate-800">Общие настройки</h2>
+              <h2 className="text-xl font-bold text-slate-800">Sotuv sozlamalari</h2>
               <button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-slate-600">
                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
@@ -787,19 +767,19 @@ export default function PosDesktop() {
             <div className="grid grid-cols-2 gap-6 mb-6">
               {/* Left Column */}
               <div className="border border-slate-200 rounded-xl p-6 bg-slate-50/50">
-                <h3 className="font-semibold text-slate-600 mb-5">Настройки печати</h3>
-                
+                <h3 className="font-semibold text-slate-600 mb-5">Chek sozlamalari</h3>
+
                 <div className="grid grid-cols-2 gap-5 mb-6">
                   <div>
-                    <label className="block text-sm font-medium text-slate-500 mb-2">Принтер</label>
+                    <label className="block text-sm font-medium text-slate-500 mb-2">Printer</label>
                     <select value={posSettings.printer} onChange={e=>savePosSettings({printer:e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50">
                       <option value="XP-80C">XP-80C</option>
                       <option value="XP-58">XP-58</option>
-                      <option value="System Default">Системный по умолчанию</option>
+                      <option value="System Default">Standart tizim</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-500 mb-2">Размер чека</label>
+                    <label className="block text-sm font-medium text-slate-500 mb-2">Chek o'lchami</label>
                     <select value={posSettings.paper} onChange={e=>savePosSettings({paper:e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50">
                       <option value="80mm">80mm</option>
                       <option value="58mm">58mm</option>
@@ -808,7 +788,7 @@ export default function PosDesktop() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-slate-600">Автоматическая распечатать</span>
+                  <span className="text-sm font-medium text-slate-600">Avtomatik chek chop etish</span>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input type="checkbox" className="sr-only peer" checked={posSettings.autoPrint} onChange={e=>savePosSettings({autoPrint:e.target.checked})} />
                     <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -818,11 +798,11 @@ export default function PosDesktop() {
 
               {/* Right Column */}
               <div className="border border-slate-200 rounded-xl p-6 bg-slate-50/50">
-                <h3 className="font-semibold text-slate-600 mb-5">Функциональные настройки</h3>
+                <h3 className="font-semibold text-slate-600 mb-5">Funksional sozlamalar</h3>
                 
                 <div className="flex flex-col gap-6">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-slate-600">Смена</span>
+                    <span className="text-sm font-medium text-slate-600">Smena rejimi</span>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input type="checkbox" className="sr-only peer" checked={posSettings.shift} onChange={e=>savePosSettings({shift:e.target.checked})} />
                       <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -830,7 +810,7 @@ export default function PosDesktop() {
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-slate-600">Включить создание неизвестного товара</span>
+                    <span className="text-sm font-medium text-slate-600">Noma'lum mahsulot yaratish</span>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input type="checkbox" className="sr-only peer" checked={posSettings.unknownProduct} onChange={e=>savePosSettings({unknownProduct:e.target.checked})} />
                       <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -840,12 +820,12 @@ export default function PosDesktop() {
                   <div className="flex items-center">
                     <label className="relative inline-flex items-center cursor-pointer gap-3">
                       <input type="checkbox" checked={posSettings.fiscal} onChange={e=>savePosSettings({fiscal:e.target.checked})} className="w-5 h-5 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer" />
-                      <span className="text-sm font-medium text-slate-600">Фискализация</span>
+                      <span className="text-sm font-medium text-slate-600">Fiskalizatsiya</span>
                     </label>
                   </div>
                   
                   <div className="mt-4 border-t border-slate-100 pt-5">
-                    <label className="block text-sm font-medium text-slate-500 mb-2">Doimiy mijoz (По умолчанию)</label>
+                    <label className="block text-sm font-medium text-slate-500 mb-2">Doimiy mijoz (standart)</label>
                     <select value={posSettings.defaultCustomer || ''} onChange={e=>{savePosSettings({defaultCustomer:e.target.value}); setCustId(e.target.value);}} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white">
                       <option value="">-- Tanlanmagan --</option>
                       {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -856,27 +836,17 @@ export default function PosDesktop() {
             </div>
 
             {/* Receipt Template */}
-            <div className="border border-slate-200 rounded-xl p-6 bg-slate-50/50 mb-4">
-              <h3 className="font-semibold text-slate-600 mb-5">Шаблон чека</h3>
-              <div className="grid grid-cols-2 gap-5">
-                 <div>
-                   <label className="block text-sm font-medium text-slate-500 mb-2">Название магазина</label>
-                   <input value={posSettings.receiptStoreName || ''} onChange={e=>savePosSettings({receiptStoreName:e.target.value})} placeholder="SUPERMARKET" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white" />
-                 </div>
-                 <div>
-                   <label className="block text-sm font-medium text-slate-500 mb-2">Адрес / Телефон</label>
-                   <input value={posSettings.receiptAddress || ''} onChange={e=>savePosSettings({receiptAddress:e.target.value})} placeholder="Toshkent, Chilonzor 1... (+99890...)" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white" />
-                 </div>
-                 <div className="col-span-2">
-                   <label className="block text-sm font-medium text-slate-500 mb-2">Нижний текст (Футер)</label>
-                   <input value={posSettings.receiptFooter ?? 'Xaridingiz uchun rahmat!'} onChange={e=>savePosSettings({receiptFooter:e.target.value})} placeholder="Xaridingiz uchun rahmat!" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white" />
-                 </div>
+            <div className="border border-blue-200 rounded-xl p-5 bg-blue-50/50 mb-4 flex items-start gap-3">
+              <svg className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <div>
+                <p className="text-sm font-semibold text-blue-700">Chek shabloni Nastroykada sozlanadi</p>
+                <p className="text-xs text-blue-500 mt-0.5">Logotip, do'kon nomi, manzil, telefon va boshqalar → <b>Nastroyka → Chek shabloni</b> bo'limidan o'zgartiring.</p>
               </div>
             </div>
 
             <div className="flex justify-end pt-2">
                <button onClick={() => setShowSettings(false)} className="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm transition-colors text-sm">
-                 Сохранить
+                 Saqlash
                </button>
             </div>
           </div>

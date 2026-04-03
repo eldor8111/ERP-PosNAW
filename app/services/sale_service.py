@@ -6,6 +6,7 @@ from fastapi import HTTPException  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
 import threading
 import requests
+import os
 
 from app.core.audit import log_action  # type: ignore
 from app.models.product import Product, ProductStatus  # type: ignore
@@ -14,10 +15,19 @@ from app.models.batch import Batch
 from app.schemas.sale import SaleCreate  # type: ignore
 from app.services.inventory_service import deduct_stock, receive_stock  # type: ignore
 
-def send_tg_sync(token, chat_id, text):
+def send_tg_sync(token, chat_id, text, filepath=None):
     try:
-        requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
-                      json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"}, timeout=5)
+        if filepath and os.path.exists(filepath):
+            with open(filepath, "rb") as doc:
+                requests.post(
+                    f"https://api.telegram.org/bot{token}/sendDocument",
+                    data={"chat_id": chat_id, "caption": text, "parse_mode": "HTML"},
+                    files={"document": doc},
+                    timeout=10
+                )
+        else:
+            requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
+                          json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"}, timeout=5)
     except:
         pass
 def generate_sale_number(db: Session) -> str:
@@ -332,18 +342,54 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
     db.commit()
     db.refresh(sale)
     
-    # 5. Telegram notification
-    if data.payment_type.value == "debt" and getattr(data, 'customer_id', None):
+    # 5. Telegram notification — fully async, does NOT block the HTTP response
+    if getattr(data, 'customer_id', None):
         customer = db.query(Customer).filter(Customer.id == data.customer_id).first()
         if customer and getattr(customer, 'tg_chat_id', None):
             company = db.query(from_models_company).filter(from_models_company.id == current_user.company_id).first()
             if company and getattr(company, 'tg_bot_token', None):
-                comp_name = company.name
                 due_str = data.debt_due_date.strftime("%d.%m.%Y") if getattr(data, 'debt_due_date', None) else "belgilanmagan"
                 debt_val = total_amount - data.paid_amount
-                msg = f"🔔 <b>Qarz yozildi</b>\n\nHurmatli <b>{customer.name}</b>!\nSiz bugun <b>{comp_name}</b> do'konidan <b>{debt_val:,.0f} so'm</b> miqdorida qarzga xarid qildingiz.\n\n📅 Qarzni to'lash muddati: <b>{due_str}</b>\n\n<i>Xaridingiz uchun rahmat, iltimos qarzni o'z vaqtida to'lashni unutmang!</i>"
-                threading.Thread(target=send_tg_sync, args=(company.tg_bot_token, customer.tg_chat_id, msg)).start()
-                
+
+                if debt_val > 0:
+                    msg = f"🔔 <b>Qarz qo'shildi</b>\n\nHurmatli <b>{customer.name}</b>!\nSiz bugun <b>{company.name}</b> do'konidan qarzingiz tushdi.\n\n📅 Qarzni to'lash muddati: <b>{due_str}</b>\n\n<i>Iltimos qarzni o'z vaqtida to'lashni unutmang! Chek ilova qilindi.</i>"
+                else:
+                    msg = f"✅ Xaridingiz uchun rahmat, <b>{customer.name}</b>!\nHaridingiz cheki fayl sifatida ilova qilindi."
+
+                # Snapshot all needed values before launching thread
+                _token = company.tg_bot_token
+                _chat_id = customer.tg_chat_id
+                _sale_id = sale.id
+                _sale_num = sale.number
+                _msg = msg
+                _comp = company
+                _cust = customer
+
+                def _bg_send(token, chat_id, text, sale_id, comp, cust):
+                    """Runs in background thread: build PDF then send to Telegram"""
+                    try:
+                        from app.utils.pdf_generator import build_sale_pdf
+                        from app.database import SessionLocal
+                        _db = SessionLocal()
+                        try:
+                            from app.models.sale import Sale as _Sale
+                            _sale = _db.query(_Sale).filter(_Sale.id == sale_id).first()
+                            if _sale:
+                                filepath = build_sale_pdf(_sale, comp, cust)
+                                send_tg_sync(token, chat_id, text, filepath)
+                            else:
+                                send_tg_sync(token, chat_id, text)
+                        finally:
+                            _db.close()
+                    except Exception as e:
+                        print("Telegram BG error:", e)
+
+                threading.Thread(
+                    target=_bg_send,
+                    args=(_token, _chat_id, _msg, _sale_id, _comp, _cust),
+                    daemon=True
+                ).start()
+
     return sale
 
 
@@ -645,6 +691,18 @@ def create_return_sale(db: Session, data: SaleCreate, current_user, ip: str = No
             reference_id=sale.id,
             warehouse_id=data.warehouse_id,
         )
+
+        # FIFO: qaytarilgan tovarni yangi Batch sifatida kiritish
+        return_batch = Batch(
+            product_id=product.id,
+            warehouse_id=data.warehouse_id,
+            lot_number=f"RETURN-{sale.number}",
+            initial_quantity=qty_needed,
+            quantity=qty_needed,
+            purchase_price=product.cost_price,
+            company_id=current_user.company_id,
+        )
+        db.add(return_batch)
 
         sale_item = SaleItem(
             sale_id=sale.id,

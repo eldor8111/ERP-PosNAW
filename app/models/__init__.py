@@ -1,4 +1,5 @@
 from .audit_log import AuditLog  # type: ignore
+from .billing import Tariff  # type: ignore
 from .category import Category  # type: ignore
 from .company import Company  # type: ignore
 from .inventory import StockLevel, StockMovement  # type: ignore

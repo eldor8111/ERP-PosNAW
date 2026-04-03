@@ -668,7 +668,7 @@ function ListView({ onView }) {
       const params = statusFilter ? { status: statusFilter } : {};
       const { data } = await api.get('/inventory-counts', { params });
       setCounts(data);
-    } catch {}
+    } catch { /* ignore */ }
     finally { setLoading(false); }
   }, [statusFilter]);
 

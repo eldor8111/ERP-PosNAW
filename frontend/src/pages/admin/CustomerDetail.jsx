@@ -78,7 +78,7 @@ export default function CustomerDetail() {
       .then(r => setStats(r.data))
       .catch(() => navigate('/admin/customers'))
       .finally(() => setLoading(false))
-  }, [customerId])
+  }, [customerId, navigate])
 
   const loadSales = useCallback(async () => {
     setLoadingTab(true)
@@ -104,7 +104,7 @@ export default function CustomerDetail() {
   useEffect(() => {
     if (tab === 'sotuvlar' || tab === 'qaytarishlar' || tab === 'akt') loadSales()
     if (tab === 'operatsiyalar') loadHistory()
-  }, [tab])
+  }, [tab, loadSales, loadHistory])
 
   if (loading) {
     return (

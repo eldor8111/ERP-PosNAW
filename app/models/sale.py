@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Date, Enum, ForeignKey, Integer, Numeric, String, Text  # type: ignore
+from sqlalchemy import Column, DateTime, Date, Enum, ForeignKey, Integer, Numeric, String, Text, Index  # type: ignore
 from sqlalchemy.orm import relationship  # type: ignore
 
 from app.database import Base  # type: ignore
@@ -55,9 +55,13 @@ class Sale(Base):
     currency = relationship("Currency")
     warehouse = relationship("Warehouse")
     customer = relationship("Customer")
-
     cashier = relationship("User")
     items = relationship("SaleItem", back_populates="sale", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index('ix_sale_company_created', 'company_id', 'created_at'),
+        Index('ix_sale_company_status', 'company_id', 'status'),
+    )
 
 
 class SaleItem(Base):
@@ -75,6 +79,11 @@ class SaleItem(Base):
     sale = relationship("Sale", back_populates="items")
     product = relationship("Product", back_populates="sale_items")
     batches = relationship("SaleItemBatch", back_populates="sale_item", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index('ix_sale_item_sale_id', 'sale_id'),
+        Index('ix_sale_item_product_id', 'product_id'),
+    )
 
 
 class SaleItemBatch(Base):

@@ -11,6 +11,7 @@ class StockReceiveItem(BaseModel):
     product_id: int
     quantity: Decimal
     reason: Optional[str] = None
+    purchase_price: Optional[Decimal] = None  # FIFO uchun tannarx (ixtiyoriy)
 
     @field_validator("quantity")
     @classmethod
@@ -65,3 +66,46 @@ class StockMovementOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ChiqimBatchItem(BaseModel):
+    product_id: int
+    quantity: Decimal
+    type: str
+    doc_num: Optional[str] = None
+    reason: Optional[str] = None
+
+    @field_validator("quantity")
+    @classmethod
+    def must_be_positive_qty(cls, v):
+        if v <= 0:
+            raise ValueError("Miqdor musbat bo'lishi kerak")
+        return v
+
+
+class ChiqimBatchRequest(BaseModel):
+    items: List[ChiqimBatchItem]
+
+
+class ChiqimDocumentOut(BaseModel):
+    reference_id: int
+    created_at: datetime
+    type_hints: List[str]
+    doc_nums: List[str]
+    reasons: List[str]
+    total_qty: Decimal
+    item_count: int
+    user_name: Optional[str]
+
+
+class ChiqimDetailOut(BaseModel):
+    id: int  # movement id
+    product_id: int
+    product_name: str
+    product_sku: str
+    product_unit: str
+    type: str  # The specific type given, we'll parse it from reason if needed, or we can just send reason text.
+    quantity: Decimal
+    doc_num: Optional[str]
+    reason: Optional[str]
+

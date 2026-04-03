@@ -115,15 +115,210 @@ def list_products(
             wh_stock = next((s for s in all_stocks if s.warehouse_id == warehouse_id), None)
             item.stock_quantity = wh_stock.quantity if wh_stock else Decimal("0")
         else:
-            item.stock_quantity = sum((s.quantity for s in visible_stocks), Decimal("0")) or (
-                p.stock_level.quantity if p.stock_level else Decimal("0")
-            )
+            item.stock_quantity = sum((s.quantity for s in visible_stocks), Decimal("0"))
 
         result.append(item)
     return result
 
 
+@router.get("/pos-list")
+def list_products_for_pos(
+    warehouse_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    POS uchun yengil endpoint — faqat kerakli maydonlar.
+    /products/?limit=10000 o'rniga shu endpoint ishlatilsin.
+    Javob hajmi 3-5x kichik → POS tezroq yuklanadi.
+    """
+    from sqlalchemy import func as sqlfunc
+    from collections import defaultdict
 
+    q = db.query(
+        Product.id,
+        Product.name,
+        Product.barcode,
+        Product.sku,
+        Product.price,
+        Product.wholesale_price,
+        Product.cost_price,
+        Product.unit,
+        Product.status,
+        Product.category_id,
+        Product.image_url,
+    ).filter(
+        Product.is_deleted == False,
+        Product.company_id == current_user.company_id,
+        Product.status == ProductStatus.active,
+    ).order_by(Product.name)
+
+    products_raw = q.all()
+    product_ids = [p.id for p in products_raw]
+
+    # Stock levels — bitta so'rovda
+    stock_rows = db.query(
+        StockLevel.product_id,
+        sqlfunc.coalesce(sqlfunc.sum(StockLevel.quantity), 0).label("total_qty"),
+    ).filter(
+        StockLevel.product_id.in_(product_ids),
+        *([StockLevel.warehouse_id == warehouse_id] if warehouse_id else []),
+    ).group_by(StockLevel.product_id).all()
+
+    stock_map = {r.product_id: float(r.total_qty) for r in stock_rows}
+
+    return [
+        {
+            "id": p.id,
+            "name": p.name,
+            "barcode": p.barcode,
+            "sku": p.sku,
+            "price": float(p.price),
+            "wholesale_price": float(p.wholesale_price) if p.wholesale_price else None,
+            "cost_price": float(p.cost_price),
+            "unit": p.unit,
+            "status": p.status,
+            "category_id": p.category_id,
+            "image_url": p.image_url,
+            "stock_quantity": stock_map.get(p.id, 0.0),
+        }
+        for p in products_raw
+    ]
+
+
+@router.get("/paginated")
+def list_products_paginated(
+    search: Optional[str] = Query(None, description="Nomi yoki SKU bo'yicha qidiruv"),
+    category_id: Optional[int] = Query(None),
+    status: Optional[ProductStatus] = Query(None),
+    warehouse_id: Optional[int] = Query(None, description="Ombor bo'yicha filter"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=20000),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.models.inventory import StockLevel
+    from app.models.warehouse import Warehouse
+    from app.schemas.product import WarehouseStockOut
+
+    q = db.query(Product).filter(Product.is_deleted == False)
+    q = q.filter(Product.company_id == current_user.company_id)
+
+    if search:
+        q = q.filter(
+            (Product.name.ilike(f"%{search}%"))
+            | (Product.sku.ilike(f"%{search}%"))
+            | (Product.barcode.ilike(f"%{search}%"))
+        )
+    if category_id:
+        q = q.filter(Product.category_id == category_id)
+    if status:
+        q = q.filter(Product.status == status)
+    if warehouse_id:
+        q = q.join(StockLevel, (StockLevel.product_id == Product.id) & (StockLevel.warehouse_id == warehouse_id))
+
+    # ── Bitta so'rovda 3 ta COUNT: total, active, out_of_stock ──
+    from sqlalchemy import case, func as f2
+    branch_wh_set = None
+    ADMIN_ROLES_P = (UserRole.admin, UserRole.director)
+    if current_user.role not in ADMIN_ROLES_P and current_user.branch_id:
+        from app.models.warehouse import Warehouse
+        branch_wh_set = {
+            wh.id for wh in db.query(Warehouse.id).filter(
+                Warehouse.branch_id == current_user.branch_id
+            ).all()
+        }
+
+    stock_subq = db.query(
+        StockLevel.product_id,
+        f2.sum(StockLevel.quantity).label("total_stock")
+    )
+    if warehouse_id:
+        stock_subq = stock_subq.filter(StockLevel.warehouse_id == warehouse_id)
+    elif branch_wh_set:
+        stock_subq = stock_subq.filter(StockLevel.warehouse_id.in_(branch_wh_set))
+    stock_subq = stock_subq.group_by(StockLevel.product_id).subquery()
+
+    stats = q.outerjoin(stock_subq, Product.id == stock_subq.c.product_id).with_entities(
+        f2.count(Product.id).label("total"),
+        f2.sum(case((Product.status == ProductStatus.active, 1), else_=0)).label("active"),
+        f2.sum(case((f2.coalesce(stock_subq.c.total_stock, 0) <= Product.min_stock, 1), else_=0)).label("low"),
+    ).one()
+    total_count    = int(stats.total or 0)
+    total_active   = int(stats.active or 0)
+    out_of_stock   = int(stats.low or 0)
+
+    products = q.order_by(Product.name).offset(skip).limit(limit).all()
+
+    wh_q = db.query(Warehouse).filter(Warehouse.company_id == current_user.company_id)
+    warehouses = {w.id: w.name for w in wh_q.all()}
+
+    from collections import defaultdict
+    product_ids = [p.id for p in products]
+    all_stock_rows = (
+        db.query(StockLevel).filter(StockLevel.product_id.in_(product_ids)).all()
+    ) if product_ids else []
+    
+    stock_by_product: dict = defaultdict(list)
+    for s in all_stock_rows:
+        stock_by_product[s.product_id].append(s)
+
+    items = []
+    for p in products:
+        item = ProductListOut.model_validate(p)
+        all_stocks = stock_by_product[p.id]
+
+        visible_stocks = all_stocks
+        if branch_wh_set is not None:
+            visible_stocks = [s for s in all_stocks if s.warehouse_id in branch_wh_set]  # type: ignore[operator]
+
+        item.warehouse_stocks = [
+            WarehouseStockOut(
+                warehouse_id=s.warehouse_id,
+                warehouse_name=warehouses.get(s.warehouse_id, f"Ombor#{s.warehouse_id}"),
+                quantity=s.quantity,
+            )
+            for s in visible_stocks if s.warehouse_id is not None
+        ]
+
+        if warehouse_id:
+            wh_stock = next((s for s in all_stocks if s.warehouse_id == warehouse_id), None)
+            item.stock_quantity = wh_stock.quantity if wh_stock else Decimal("0")
+        else:
+            item.stock_quantity = sum((s.quantity for s in visible_stocks), Decimal("0"))
+        items.append(item.model_dump())
+
+    return {"items": items, "total": total_count, "total_active": total_active, "out_of_stock": out_of_stock}
+
+
+@router.get("/ids", response_model=List[int])
+def list_product_ids(
+    search: Optional[str] = Query(None),
+    category_id: Optional[int] = Query(None),
+    status: Optional[ProductStatus] = Query(None),
+    warehouse_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.models.inventory import StockLevel
+    q = db.query(Product.id).filter(Product.is_deleted == False)
+    q = q.filter(Product.company_id == current_user.company_id)
+
+    if search:
+        q = q.filter(
+            (Product.name.ilike(f"%{search}%"))
+            | (Product.sku.ilike(f"%{search}%"))
+            | (Product.barcode.ilike(f"%{search}%"))
+        )
+    if category_id:
+        q = q.filter(Product.category_id == category_id)
+    if status:
+        q = q.filter(Product.status == status)
+    if warehouse_id:
+        q = q.join(StockLevel, (StockLevel.product_id == Product.id) & (StockLevel.warehouse_id == warehouse_id))
+
+    rows = q.order_by(Product.name).all()
+    return [r[0] for r in rows]
 @router.get("/barcode/{barcode}", response_model=ProductOut)
 def get_by_barcode(
     barcode: str,
@@ -279,6 +474,198 @@ def update_product(
     return _attach_stock(product)
 
 
+@router.post("/bulk-import")
+def bulk_import_products(
+    rows: List[dict],
+    allow_update: bool = Query(False),
+    search_by_sku: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*WRITE_ROLES)),
+):
+    """Excel fayldan ko'plab mahsulotlarni yuklash yoki yangilash.
+    allow_update=True bo'lsa, mavjud mahsulotni topib, faqat yuborilgan maydonlarni yangilaydi.
+    """
+    # Mapping: row key from frontend → Product field and type
+    FIELD_MAP = {
+        "Nomi":          ("name",             str),
+        "Barkod":        ("barcode",          str),
+        "SKU":           ("sku",              str),
+        "O'lchov":       ("unit",             str),
+        "Tan narxi":     ("cost_price",       Decimal),
+        "Chakana narxi": ("sale_price",       Decimal),
+        "Ulgurji narxi": ("wholesale_price",  Decimal),
+        "Min. qoldiq":   ("min_stock",        Decimal),
+        "Qoldiq":        ("_stock",           Decimal),   # special: update stock_level
+        "Holat":         ("status",           str),
+        "Brand":         ("brand",            str),
+    }
+
+    STATUS_MAP = {
+        "faol": "active", "active": "active",
+        "nofaol": "inactive", "inactive": "inactive",
+        "arxiv": "archived", "archived": "archived",
+    }
+
+    created = 0
+    updated = 0
+    errors: list = []
+
+    all_products = db.query(Product).filter(
+        Product.is_deleted == False,
+        Product.company_id == current_user.company_id,
+    ).all()
+    
+    name_map = {p.name: p for p in all_products if p.name}
+    barcode_map = {p.barcode: p for p in all_products if p.barcode}
+    sku_map = {p.sku: p for p in all_products if p.sku}
+
+    db_skus = set(sku_map.keys())
+    db_barcodes = set(barcode_map.keys())
+
+    for idx, row in enumerate(rows):
+        row_num = row.get("__row_index", idx + 2)
+        name = str(row.get("Nomi") or "").strip()
+        barcode = str(row.get("Barkod") or "").strip()
+        sku_val = str(row.get("SKU") or "").strip() or None
+
+        if not name and not barcode:
+            errors.append({"row": row_num, "error": "Mahsulot nomi yoki barkod majburiy"})
+            continue
+
+        # ── Find existing product ──────────────────────────────────
+        existing = None
+        if name and name in name_map:
+            existing = name_map[name]
+        if not existing and barcode and barcode in barcode_map:
+            existing = barcode_map[barcode]
+        if not existing and search_by_sku and sku_val and sku_val in sku_map:
+            existing = sku_map[sku_val]
+
+        # ── UPDATE MODE ────────────────────────────────────────────
+        if existing:
+            if not allow_update:
+                errors.append({
+                    "row": row_num, "name": name or barcode,
+                    "error": f"'{name or barcode}' nomli mahsulot allaqachon mavjud — o'tkazib yuborildi"
+                })
+                continue
+
+            stock_val = None
+            for row_key, (field, cast) in FIELD_MAP.items():
+                raw = row.get(row_key)
+                if raw is None or str(raw).strip() == "":
+                    continue
+                try:
+                    if field == "_stock":
+                        stock_val = Decimal(str(raw))
+                    elif cast == Decimal:
+                        setattr(existing, field, Decimal(str(raw)))
+                    elif field == "status":
+                        mapped = STATUS_MAP.get(str(raw).strip().lower())
+                        if mapped:
+                            setattr(existing, field, mapped)
+                    else:
+                        val = str(raw).strip()
+                        if val:
+                            setattr(existing, field, val)
+                except Exception:
+                    errors.append({"row": row_num, "name": name, "error": f"'{row_key}' qiymati noto'g'ri"})
+                    continue
+
+            if stock_val is not None:
+                if existing.stock_level:
+                    existing.stock_level.quantity = stock_val
+                else:
+                    existing.stock_level = StockLevel(quantity=stock_val)
+
+            updated += 1
+            continue
+
+        # ── CREATE MODE ────────────────────────────────────────────
+        if not name:
+            errors.append({"row": row_num, "error": "Yangi mahsulot uchun Nomi majburiy"})
+            continue
+
+        cost_price = row.get("Tan narxi") or 0
+        sale_price = row.get("Chakana narxi") or 0
+        wholesale_price = row.get("Ulgurji narxi") or None
+        initial_stock = row.get("Qoldiq") or 0
+        min_stock_val = row.get("Min. qoldiq") or 0
+        unit = str(row.get("O'lchov") or "dona").strip()
+        brand = str(row.get("Brand") or "").strip() or None
+        status_raw = str(row.get("Holat") or "active").strip().lower()
+        status_val = STATUS_MAP.get(status_raw, "active")
+
+        try:
+            cost_price = Decimal(str(cost_price))
+            sale_price = Decimal(str(sale_price))
+            wholesale_price = Decimal(str(wholesale_price)) if wholesale_price else None
+            initial_stock = Decimal(str(initial_stock))
+            min_stock_val = Decimal(str(min_stock_val))
+        except Exception:
+            errors.append({"row": row_num, "name": name, "error": "Narx/qoldiq qiymatlari noto'g'ri"})
+            continue
+
+        if barcode and barcode in db_barcodes:
+            errors.append({"row": row_num, "name": name, "error": f"Barkod '{barcode}' allaqachon mavjud"})
+            continue
+
+        sku_final = sku_val
+        if not sku_final or sku_final in db_skus:
+            while True:
+                s = f"{random.randint(10000, 99999)}"
+                if s not in db_skus:
+                    sku_final = s
+                    break
+
+        if not barcode:
+            while True:
+                b = str(random.randint(10000000, 99999999))
+                if b not in db_barcodes:
+                    barcode = b
+                    break
+
+        # DB field uzunlik chegarasi: barcode va sku max 50 ta belgi
+        barcode = barcode[:50]
+        sku_final = sku_final[:50]
+
+        product = Product(
+            name=name[:255], barcode=barcode, sku=sku_final, unit=unit[:20] if unit else "dona",
+            cost_price=cost_price, sale_price=sale_price,
+            wholesale_price=wholesale_price, min_stock=min_stock_val,
+            status=status_val, brand=brand[:100] if brand else None,
+            company_id=current_user.company_id, images="[]",
+        )
+        product.stock_level = StockLevel(quantity=initial_stock)
+        db.add(product)
+
+        # O(1) in-memory state tracking to avoid DB flush/queries inside loop
+        db_barcodes.add(barcode)
+        db_skus.add(sku_final)
+        name_map[name] = product
+        barcode_map[barcode] = product
+        sku_map[sku_final] = product
+
+        created += 1
+
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        errors.append({"row": 0, "error": f"Saqlashda xato: {str(exc)[:300]}"})
+        created = 0
+        updated = 0
+
+    total_errors = len(errors)
+    return {
+        "created": created,
+        "updated": updated,
+        "skipped": total_errors,
+        "errors": errors[:200],          # max 200 ta xato qaytariladi
+        "total_errors": total_errors,    # haqiqiy jami xato soni
+    }
+
+
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_product(
     product_id: int,
@@ -302,3 +689,45 @@ def delete_product(
         ip_address=request.client.host if request.client else None,
     )
     db.commit()
+
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status, Body
+
+# ... (rest of imports remain intact, but we'll just fix the endpoint signature below) ...
+
+from pydantic import BaseModel
+
+class BulkDeleteProductsRequest(BaseModel):
+    product_ids: List[int]
+
+@router.post("/bulk-delete", status_code=status.HTTP_200_OK)
+def bulk_delete_products(
+    request: Request,
+    payload: BulkDeleteProductsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director)),
+):
+    q = db.query(Product).filter(
+        Product.id.in_(payload.product_ids),
+        Product.is_deleted == False,
+        Product.company_id == current_user.company_id
+    )
+    products = q.all()
+    if not products:
+        return {"deleted": 0}
+
+    deleted_ids = [p.id for p in products]
+    for p in products:
+        p.is_deleted = True
+
+    # Bitta bulk log yozamiz — har bir mahsulot uchun flush qilish o'rniga
+    log_action(
+        db=db,
+        action="BULK_DELETE",
+        entity_type="product",
+        user_id=current_user.id,
+        ip_address=request.client.host if request.client else None,
+        new_values={"total": len(deleted_ids), "ids": deleted_ids[:50]},
+    )
+    db.commit()
+    return {"deleted": len(products)}
