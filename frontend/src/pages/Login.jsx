@@ -73,7 +73,7 @@ function ForgotPasswordModal({ onClose, t }) {
       return
     }
     if (newPass.length < 6) {
-      setError('Parol kamida 6 ta belgidan iborat bo\'lishi kerak')
+      setError("Parol kamida 6 ta belgidan iborat bo'lishi kerak")
       return
     }
     setLoading(true)
@@ -225,9 +225,9 @@ export default function Login() {
           <div className="absolute top-1/2 right-0 w-40 h-40 rounded-full bg-purple-500/20" />
         </div>
 
-        <div className="relative flex items-center justify-between">
+        {/* Logo only — lang switcher moved to top-right of right panel */}
+        <div className="relative">
           <ECodeLogoPrimary size={40} />
-          <LoginLangSwitcher lang={lang} setLang={setLang} dark={true} />
         </div>
 
         <div className="relative">
@@ -248,7 +248,13 @@ export default function Login() {
       </div>
 
       {/* ── Right panel (form) ── */}
-      <div className="flex-1 flex items-center justify-center p-6 lg:p-12">
+      <div className="flex-1 flex items-center justify-center p-6 lg:p-12 relative">
+
+        {/* Desktop: lang switcher — top-right corner */}
+        <div className="hidden lg:flex absolute top-4 right-4">
+          <LoginLangSwitcher lang={lang} setLang={setLang} dark={false} />
+        </div>
+
         <div className="w-full max-w-md">
 
           {/* Mobile: logo + lang switcher */}
@@ -336,5 +342,3 @@ export default function Login() {
     </div>
   )
 }
-
-
