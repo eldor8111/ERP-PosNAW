@@ -183,7 +183,6 @@ export default function Landing() {
               <span>+998 88 911 81 71</span>
             </a>
           </div>
-          </div>
         </div>
       </div>
 
