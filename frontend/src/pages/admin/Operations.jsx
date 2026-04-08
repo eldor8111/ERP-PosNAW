@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLang } from '../../context/LangContext';
 import api from '../../api/axios';
 import InventoryCountsPage from './InventoryCounts';
@@ -466,22 +466,21 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
 
   const subtotal = cart.reduce((s, c) => s + c.qty * c.price - Number(c.discount || 0), 0);
 
-  const doSave = async (payType, paidAmount) => {
+  const doSave = (payType, paidAmount) => {
     if (!cart.length) { setErr("Kamida bitta mahsulot qo'shing"); return; }
+    if (saving) return;
     setSaving(true); setErr('');
-    try {
-      await api.post('/sales', {
-        items: cart.map(c => ({ product_id: c.product.id, quantity: c.qty, unit_price: c.price, discount: c.discount })),
-        payment_type:    payType,
-        paid_amount:     paidAmount,
-        discount_amount: 0,
-        note:            note || null,
-        customer_id:     custId ? Number(custId) : null,
-      });
-      onSaved(); onBack();
-    } catch (e) {
-      setErr(e.response?.data?.detail || 'Xatolik yuz berdi');
-    } finally { setSaving(false); setShowPay(false); }
+    setShowPay(false);
+    const promise = api.post('/sales', {
+      items: cart.map(c => ({ product_id: c.product.id, quantity: c.qty, unit_price: c.price, discount: c.discount })),
+      payment_type:    payType,
+      paid_amount:     paidAmount,
+      discount_amount: 0,
+      note:            note || null,
+      customer_id:     custId ? Number(custId) : null,
+    });
+    onBack();
+    promise.then(() => { onSaved(); }).catch(e => console.error('Sale:', e.response?.data?.detail || e));
   };
 
   return (
@@ -1011,42 +1010,40 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
   const totalNet = activeItems.reduce((s, i) => s + (sub==='po' ? i.qty_ordered : i.quantity) * (i.net_cost||0), 0);
   const hasCurrency = activeItems.some(i => i.currency === 'USD');
 
-  const savePo = async () => {
+  const savePo = () => {
     if (!poForm.supplier_id || !poForm.warehouse_id || !poItems.length) { setErr("Barcha majburiy maydonlarni to'ldiring"); return; }
+    if (saving) return;
     setSaving(true); setErr('');
-    try {
-      await api.post('/purchase-orders', {
-        supplier_id: Number(poForm.supplier_id), warehouse_id: Number(poForm.warehouse_id),
-        note: poForm.note || null, expected_date: poForm.expected_date || null,
-        update_retail: autoRetail, update_wholesale: autoWholesale,
-        items: poItems.map(i => ({ product_id: i.product_id, qty_ordered: i.qty_ordered, unit_cost: i.net_cost })),
-      });
-      onSaved(); onBack();
-    } catch (e) { setErr(e.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
+    onBack();
+    api.post('/purchase-orders', {
+      supplier_id: Number(poForm.supplier_id), warehouse_id: Number(poForm.warehouse_id),
+      note: poForm.note || null, expected_date: poForm.expected_date || null,
+      update_retail: autoRetail, update_wholesale: autoWholesale,
+      items: poItems.map(i => ({ product_id: i.product_id, qty_ordered: i.qty_ordered, unit_cost: i.net_cost })),
+    }).then(() => { onSaved(); }).catch(e => console.error('PO:', e.response?.data?.detail || e));
   };
 
-  const saveManual = async () => {
+  const saveManual = () => {
     const items = manItems.filter(i => i.quantity > 0);
     if (!items.length) { setErr("Mahsulot qo'shing"); return; }
+    if (saving) return;
     setSaving(true); setErr('');
-    try {
-      await api.post('/inventory/receive', {
-        supplier_id: manSupId ? Number(manSupId) : null,
-        warehouse_id: manWarehouseId ? Number(manWarehouseId) : null,
-        update_retail: autoRetail, update_wholesale: autoWholesale,
-        note: manNote || null,
-        items: items.map(i => {
-          const parts = [];
-          if (i.batch_num)   parts.push(`Partiya: ${i.batch_num}`);
-          if (i.lot_num)     parts.push(`Lot: ${i.lot_num}`);
-          if (i.mfg_date)    parts.push(`Ishlab: ${i.mfg_date}`);
-          if (i.expiry_date) parts.push(`Muddati: ${i.expiry_date}`);
-          if (i.reason)      parts.push(i.reason);
-          return { product_id: i.product_id, quantity: i.quantity, cost_price: i.net_cost, reason: parts.join(' | ') || null };
-        }),
-      });
-      onSaved(); onBack();
-    } catch (e) { setErr(e.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
+    onBack();
+    api.post('/inventory/receive', {
+      supplier_id: manSupId ? Number(manSupId) : null,
+      warehouse_id: manWarehouseId ? Number(manWarehouseId) : null,
+      update_retail: autoRetail, update_wholesale: autoWholesale,
+      note: manNote || null,
+      items: items.map(i => {
+        const parts = [];
+        if (i.batch_num)   parts.push(`Partiya: ${i.batch_num}`);
+        if (i.lot_num)     parts.push(`Lot: ${i.lot_num}`);
+        if (i.mfg_date)    parts.push(`Ishlab: ${i.mfg_date}`);
+        if (i.expiry_date) parts.push(`Muddati: ${i.expiry_date}`);
+        if (i.reason)      parts.push(i.reason);
+        return { product_id: i.product_id, quantity: i.quantity, cost_price: i.net_cost, reason: parts.join(' | ') || null };
+      }),
+    }).then(() => { onSaved(); }).catch(e => console.error('Manual:', e.response?.data?.detail || e));
   };
 
   return (
