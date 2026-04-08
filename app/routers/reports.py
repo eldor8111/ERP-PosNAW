@@ -318,7 +318,7 @@ def inventory_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
 ):
-    """Ombor qoldiqlari hisoboti"""
+    """Ombor qoldiqlari hisoboti — qiymat haqiqiy batch narxida (FIFO)"""
     q = (
         db.query(StockLevel, Product)
         .join(Product, Product.id == StockLevel.product_id)
@@ -326,18 +326,47 @@ def inventory_report(
     )
     q = q.filter(Product.company_id == current_user.company_id)
     rows = q.order_by(StockLevel.quantity).all()
-    return [
-        {
+
+    # Har bir mahsulot uchun haqiqiy batch narxlari (weighted average based on remaining batches)
+    # Batch.quantity > 0 bo'lganlari — hali sotilmagan qoldiq
+    from sqlalchemy import func as _func
+    batch_value_sq = (
+        db.query(
+            Batch.product_id,
+            _func.sum(Batch.quantity * Batch.purchase_price).label("total_cost"),
+            _func.sum(Batch.quantity).label("total_qty"),
+        )
+        .filter(
+            Batch.company_id == current_user.company_id,
+            Batch.quantity > 0,
+        )
+        .group_by(Batch.product_id)
+        .all()
+    )
+    # {product_id: avg_cost_per_unit}
+    batch_avg_cost: dict = {}
+    for row in batch_value_sq:
+        if row.total_qty and float(row.total_qty) > 0:
+            batch_avg_cost[row.product_id] = float(row.total_cost) / float(row.total_qty)
+
+    result = []
+    for s, p in rows:
+        qty = float(s.quantity)
+        # Haqiqiy batch weighted average narxi, yo'q bo'lsa product.cost_price
+        unit_cost = batch_avg_cost.get(p.id, float(p.cost_price))
+        result.append({
             "product_id": p.id,
             "product_name": p.name,
             "sku": p.sku,
-            "quantity": float(s.quantity),
+            "quantity": qty,
             "min_stock": p.min_stock,
-            "value": float(s.quantity * p.cost_price),
-            "is_low": s.quantity <= p.min_stock,
-        }
-        for s, p in rows
-    ]
+            "cost_price": unit_cost,           # haqiqiy FIFO narxi
+            "sale_price": float(p.sale_price),
+            "value": round(qty * unit_cost, 2), # haqiqiy qiymat
+            "is_low": qty <= p.min_stock,
+        })
+    return result
+
 
 
 # ─── Xarajatlar hisoboti ──────────────────────────────────────────────────────
