@@ -441,6 +441,7 @@ button { font-family: inherit; }
   .ent-hero-btns { flex-direction: column; width: 100%; gap: 12px; }
   .ent-hero-btns button { width: 100%; }
   .ent-trust > div { flex-direction: column; align-items: center; gap: 12px !important; }
+  .ent-hero-visual { display: none; } /* Hide the complex mockup on mobile to prevent overflow and keep it clean */
   .ent-tb-info a:last-child { display: none; }
   .ent-tb-divider:last-of-type { display: none; }
   .ent-bento { grid-template-columns: 1fr; }

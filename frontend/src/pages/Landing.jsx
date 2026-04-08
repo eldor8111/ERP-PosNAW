@@ -173,9 +173,9 @@ export default function Landing() {
       <div className="ent-topbar">
         <div className="ent-container ent-topbar-inner">
           <div className="ent-tb-info">
-            <a href="mailto:supergeroy2580@gmail.com" className="ent-contact-link">
+            <a href="mailto:ecode.uz@gmail.com" className="ent-contact-link">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-              <span>supergeroy2580@gmail.com</span>
+              <span>ecode.uz@gmail.com</span>
             </a>
             <span className="ent-tb-divider">|</span>
             <a href="tel:+998889118171" className="ent-contact-link">
@@ -183,19 +183,6 @@ export default function Landing() {
               <span>+998 88 911 81 71</span>
             </a>
           </div>
-          <div className="ent-lang-wrap">
-            <button className="ent-lang-btn" onClick={() => setLangOpen(!langOpen)}>
-              {currentLang?.short} {ICONS.lang}
-            </button>
-            {langOpen && (
-              <div className="ent-lang-dropdown">
-                {LANGUAGES.map(l => (
-                  <button key={l.code} onClick={() => { setLang(l.code); setLangOpen(false); }}>
-                    {l.flag} {l.label}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -211,6 +198,20 @@ export default function Landing() {
           </div>
 
           <div className="ent-nav-actions">
+            <div className="ent-lang-wrap">
+              <button className="ent-lang-btn" onClick={() => setLangOpen(!langOpen)}>
+                {currentLang?.short} {ICONS.lang}
+              </button>
+              {langOpen && (
+                <div className="ent-lang-dropdown">
+                  {LANGUAGES.map(l => (
+                    <button key={l.code} onClick={() => { setLang(l.code); setLangOpen(false); }}>
+                      {l.flag} {l.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <button className="ent-btn-ghost" onClick={() => navigate('/login')}>
               Tizimga kirish
             </button>
@@ -365,7 +366,7 @@ export default function Landing() {
           <div className="ent-footer-links">
             <div>
               <strong>{t('land.contact')}</strong>
-              <span>supergeroy2580@gmail.com</span>
+              <span>ecode.uz@gmail.com</span>
               <span>+998 88 911 81 71</span>
             </div>
             <div>
