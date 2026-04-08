@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     ENV: str = "production"
     CORS_ORIGINS: str = ""
+    # Telegram OTP bot
+    OTP_BOT_TOKEN: str = ""
+    OTP_BOT_USERNAME: str = "EcodeSmsuzbot"
 
     class Config:
         env_file = ".env"

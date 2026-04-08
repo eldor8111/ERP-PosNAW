@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
+import { useLang } from '../../context/LangContext';
 
 const fmtDate = (s) => s ? new Date(s).toLocaleString('ru-RU', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' }).replace(',','') : '—';
 
 export default function Warehouse() {
+  const { t } = useLang();
   const [warehouses, setWarehouses] = useState([]);
   const [branches, setBranches]     = useState([]);
   const [loading, setLoading]       = useState(true);
@@ -67,7 +69,7 @@ export default function Warehouse() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
-          <span className="text-base font-semibold">Barcha omborlar</span>
+          <span className="text-base font-semibold">{t('warehouse.title')}</span>
         </div>
         <button
           onClick={openCreate}
@@ -76,7 +78,7 @@ export default function Warehouse() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          Yangi Ombor Qo'shish
+          {t('warehouse.newTransfer')}
         </button>
       </div>
 
@@ -91,9 +93,9 @@ export default function Warehouse() {
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase w-12">#</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Nomi</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Filial</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Yaratilgan vaqti</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">{t('common.name')}</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">{t('common.branch') || 'Filial'}</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">{t('common.date')}</th>
                 <th className="px-4 py-3 w-24" />
               </tr>
             </thead>
@@ -135,7 +137,7 @@ export default function Warehouse() {
               {warehouses.length === 0 && (
                 <tr>
                   <td colSpan={4} className="px-4 py-12 text-center text-sm text-slate-400">
-                    Omborlar topilmadi
+                    {t('warehouse.noStocks')}
                   </td>
                 </tr>
               )}
@@ -149,7 +151,7 @@ export default function Warehouse() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm">
             <div className="px-6 py-5">
-              <h3 className="text-base font-semibold text-slate-800 mb-2">O'chirishni tasdiqlang</h3>
+              <h3 className="text-base font-semibold text-slate-800 mb-2">{t('confirm.delete')}</h3>
               <p className="text-sm text-slate-500">
                 <span className="font-medium text-slate-700">"{delConfirm.name}"</span> omborini o'chirishni xohlaysizmi?
               </p>
@@ -159,13 +161,13 @@ export default function Warehouse() {
                 onClick={() => setDelConfirm(null)}
                 className="px-4 py-2 text-sm font-medium text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
               >
-                Bekor
+                {t('common.cancel')}
               </button>
               <button
                 onClick={remove}
                 className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
               >
-                O'chirish
+                {t('common.delete')}
               </button>
             </div>
           </div>
@@ -179,7 +181,7 @@ export default function Warehouse() {
             {/* Modal header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <h3 className="text-base font-semibold text-slate-800">
-                {modal.mode === 'create' ? "Yangi ombor qo'shish" : 'Omborni tahrirlash'}
+                {modal.mode === 'create' ? t('warehouse.newTransfer') : t('common.edit')}
               </h3>
               <button onClick={closeModal} className="text-slate-400 hover:text-slate-600 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -200,7 +202,7 @@ export default function Warehouse() {
               />
               {branches.length > 0 && (
                 <div className="mt-3">
-                  <label className="block text-xs font-semibold text-slate-500 mb-1">Filial (ixtiyoriy)</label>
+                  <label className="block text-xs font-semibold text-slate-500 mb-1">{t('common.branch') || 'Filial'} (ixtiyoriy)</label>
                   <select
                     value={branchId}
                     onChange={e => setBranchId(e.target.value)}
@@ -220,7 +222,7 @@ export default function Warehouse() {
                 onClick={closeModal}
                 className="px-4 py-2 text-sm font-medium text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
               >
-                Bekor Qilish
+                {t('common.cancel')}
               </button>
               <button
                 onClick={save}
@@ -230,7 +232,7 @@ export default function Warehouse() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                 </svg>
-                {saving ? 'Saqlanmoqda...' : 'Saqlash'}
+                {saving ? t('common.saving') : t('common.save')}
               </button>
             </div>
           </div>

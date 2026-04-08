@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
+import { useLang } from '../../context/LangContext';
 
 // ── Valyutalar tab ────────────────────────────────────────────────────────────
 function CurrenciesTab() {
+  const { t } = useLang();
   const [currencies, setCurrencies] = useState([]);
   const [form, setForm] = useState({ name: '', code: '', rate: '', is_default: false });
   const [saving, setSaving] = useState(false);
@@ -65,12 +67,12 @@ function CurrenciesTab() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm("Valyutani o'chirishni tasdiqlaysizmi?")) return;
+    if (!confirm(t('confirm.delete'))) return;
     try {
       await api.delete(`/currencies/${id}`);
       load();
     } catch (err) {
-      alert(err.response?.data?.detail || "O'chirib bo'lmadi");
+      alert(err.response?.data?.detail || t('common.error'));
     }
   };
 
@@ -78,7 +80,7 @@ function CurrenciesTab() {
     <div className="space-y-6">
       {/* Add form */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-        <h3 className="text-base font-bold text-slate-800 mb-4">Yangi valyuta qo'shish</h3>
+        <h3 className="text-base font-bold text-slate-800 mb-4">{t('common.currency')} {t('common.add').toLowerCase()}</h3>
         <form onSubmit={handleAdd} className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1">Nom</label>
@@ -99,7 +101,7 @@ function CurrenciesTab() {
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Kurs (so'mga)</label>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">{t('common.currency')} ({t('common.sum')}ga)</label>
             <input
               required type="number" min="0.0001" step="any" value={form.rate}
               onChange={e => setForm({ ...form, rate: e.target.value })}
@@ -120,7 +122,7 @@ function CurrenciesTab() {
               type="submit" disabled={saving}
               className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors"
             >
-              {saving ? 'Saqlanmoqda...' : "Qo'shish"}
+              {saving ? t('common.saving') : t('common.add')}
             </button>
           </div>
         </form>
@@ -132,7 +134,7 @@ function CurrenciesTab() {
         <table className="min-w-full">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
-              {['#', 'Valyuta nomi', 'Kod', 'Kurs', 'Faollashtirish', 'Doimiy valyuta', ''].map(h => (
+              {['#', t('common.currency'), t('common.currency'), t('common.rate'), t('common.active'), t('common.status'), ''].map(h => (
                 <th key={h} className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -244,6 +246,7 @@ function CurrenciesTab() {
 
 // ── API Kalitlar tab ──────────────────────────────────────────────────────────
 function ApiKeysTab() {
+  const { t } = useLang();
   const [keys, setKeys] = useState([]);
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -292,7 +295,7 @@ function ApiKeysTab() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-amber-800 mb-1">"{newToken.name}" — tokenni nusxalab oling!</p>
-              <p className="text-xs text-amber-700 mb-3">Bu token faqat bir marta ko'rsatiladi. Keyinchalik uni qayta ko'ra olmaysiz.</p>
+              <p className="text-xs text-amber-700 mb-3">{t('settings.tokenWarning') || "Bu token faqat bir marta ko'rsatiladi."}</p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 px-3 py-2 bg-white border border-amber-300 rounded-lg text-xs font-mono text-amber-900 break-all">
                   {newToken.token}

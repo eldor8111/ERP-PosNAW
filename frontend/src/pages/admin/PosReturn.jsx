@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
+import { useLang } from '../../context/LangContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
@@ -7,7 +8,8 @@ const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 
 /* ── Customer combobox ── */
 function CustSearch({ customers, value, onChange, placeholder = "Mijoz izlash..." }) {
-  const [q, setQ] = useState('');
+  const { t } = useLang();
+const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const selected = customers.find(c => String(c.id) === String(value));
@@ -51,7 +53,8 @@ function CustSearch({ customers, value, onChange, placeholder = "Mijoz izlash...
 }
 
 export default function PosReturn() {
-  const navigate = useNavigate();
+  const { t } = useLang();
+const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -613,7 +616,7 @@ export default function PosReturn() {
                 )}
 
                 <div className="flex gap-3 mt-auto pt-4">
-                  <button onClick={() => setShowCheckout(false)} className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-black rounded-xl transition-colors active:scale-95 uppercase tracking-widest text-sm border-2 border-transparent">Bekor qilish</button>
+                  <button onClick={() => setShowCheckout(false)} className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-black rounded-xl transition-colors active:scale-95 uppercase tracking-widest text-sm border-2 border-transparent">{t('common.cancel')}</button>
                   <button onClick={submitSale} disabled={isPaying || (payType !== 'mixed' && Number(paidInput) < totalNet && !custId) || (payType === 'mixed' && (Number(mixedAmt1)+Number(mixedAmt2)) < totalNet && !custId)} className="flex-2 py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl shadow-lg shadow-rose-200 transition-all active:scale-95 flex items-center justify-center gap-2 border-2 border-rose-600 uppercase tracking-widest text-sm disabled:bg-rose-300 disabled:border-rose-300 disabled:shadow-none">
                     {isPaying ? <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>} QAYTARISH VA CHOP ETISH
                   </button>
@@ -737,3 +740,6 @@ export default function PosReturn() {
     </div>
   );
 }
+
+
+

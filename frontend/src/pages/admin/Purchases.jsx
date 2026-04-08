@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+﻿import { useState, useEffect, useCallback, useRef } from 'react';
+import { useLang } from '../../context/LangContext';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import api from '../../api/axios';const fmt    = (v) => Number(v || 0).toLocaleString('uz-UZ');
@@ -28,10 +29,12 @@ const poMeta = {
 };
 
 function Badge({ meta, val }) {
+  const { t } = useLang();
   const m = meta[val] || { l: val, c: 'bg-slate-100 text-slate-600' };
   return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${m.c}`}>{m.l}</span>;
 }
 function Btn({ v = 'primary', sm, children, ...p }) {
+  const { t } = useLang();
   const cl = {
     primary: 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shadow-indigo-200',
     green:   'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-200',
@@ -47,6 +50,7 @@ function Lbl({ t, children }) {
 
 /* ─── Page header (list mode) ─── */
 function ListHeader({ btn, btnLabel, children }) {
+  const { t } = useLang();
   return (
     <div className="flex flex-wrap items-end gap-3 mb-4">
       {children}
@@ -59,6 +63,7 @@ function ListHeader({ btn, btnLabel, children }) {
 
 /* ─── Create page header (back + title + right) ─── */
 function CreateHeader({ title, onBack, right }) {
+  const { t } = useLang();
   return (
     <div className="flex items-center gap-3 px-6 py-3.5 border-b border-slate-100 bg-white shrink-0 shadow-sm">
       <button onClick={onBack} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-indigo-600 px-3 py-2 rounded-xl hover:bg-indigo-50 transition-all text-sm font-semibold">
@@ -76,6 +81,7 @@ function CreateHeader({ title, onBack, right }) {
 
 /* ─── Paginator ─── */
 function Pager({ skip, limit, count, onChange }) {
+  const { t } = useLang();
   return (
     <div className="flex items-center justify-between px-5 py-3.5 border-t border-slate-100 bg-slate-50/60 text-sm">
       <span className="text-slate-400 text-xs font-medium">
@@ -99,6 +105,7 @@ function Pager({ skip, limit, count, onChange }) {
 
 /* ─── Data table ─── */
 function Tbl({ cols, rows, onRow, loading, skip = 0, limit, onChange }) {
+  const { t } = useLang();
   if (loading) return (
     <div className="py-20 text-center">
       <div className="inline-flex items-center gap-2 text-slate-400 text-sm">
@@ -114,7 +121,7 @@ function Tbl({ cols, rows, onRow, loading, skip = 0, limit, onChange }) {
       <svg className="w-10 h-10 mx-auto mb-2 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
       </svg>
-      <p className="text-sm">Ma'lumot topilmadi</p>
+      <p className="text-sm">{t('common.noData')}</p>
     </div>
   );
   return (
@@ -151,6 +158,7 @@ function Tbl({ cols, rows, onRow, loading, skip = 0, limit, onChange }) {
 
 /* ─── Product search dropdown ─── */
 function ProdSearch({ products, onSelect, inputRef, placeholder = 'Mahsulot qidiring...' }) {
+  const { t } = useLang();
   const [q, setQ]       = useState('');
   const [open, setOpen] = useState(false);
   const [navIdx, setNavIdx] = useState(-1);
@@ -225,6 +233,7 @@ function ProdSearch({ products, onSelect, inputRef, placeholder = 'Mahsulot qidi
 
 /* ─── Supplier search combobox ─── */
 function SupSearch({ suppliers, value, onChange, placeholder = "Ta'minotchi tanlang..." }) {
+  const { t } = useLang();
   const [q, setQ]       = useState('');
   const [open, setOpen] = useState(false);
   const ref             = useRef(null);
@@ -278,6 +287,7 @@ function SupSearch({ suppliers, value, onChange, placeholder = "Ta'minotchi tanl
 
 /* ─── Customer search combobox ─── */
 function CustSearch({ customers, value, onChange, placeholder = 'Ism yoki telefon...' }) {
+  const { t } = useLang();
   const [q, setQ]       = useState('');
   const [open, setOpen] = useState(false);
   const ref             = useRef(null);
@@ -336,6 +346,7 @@ function CustSearch({ customers, value, onChange, placeholder = 'Ism yoki telefo
 
 /* ─── Payment modal ─── */
 function PayModal({ total, onPay, onClose }) {
+  const { t } = useLang();
   const [type, setType] = useState('cash');
   const [paid, setPaid] = useState(String(total));
   const change = Number(paid) - total;
@@ -390,7 +401,7 @@ function PayModal({ total, onPay, onClose }) {
           )}
           {/* Action buttons */}
           <div className="flex gap-3">
-            <Btn v="ghost" onClick={onClose}>Bekor</Btn>
+            <Btn v="ghost" onClick={onClose}>{t('common.cancel')}</Btn>
             <button onClick={() => onPay(type, type === 'debt' ? 0 : Number(paid))}
               className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-indigo-200 active:scale-95">
               Tasdiqlash
@@ -406,6 +417,7 @@ function PayModal({ total, onPay, onClose }) {
    SALE CREATE VIEW — split panel, wholesale-ready
 ══════════════════════════════════════════════════════════ */
 function SaleCreateView({ products, customers, onBack, onSaved }) {
+  const { t } = useLang();
   const [cart, setCart]       = useState([]);
   const [custId, setCust]     = useState('');
   const [wholesale, setWhole] = useState(false);
@@ -675,7 +687,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
       {/* Footer */}
       <div className="flex items-center justify-between px-5 py-3.5 bg-white border-t border-slate-100 shrink-0 shadow-[0_-1px_8px_rgba(0,0,0,0.06)]">
         <div className="flex items-center gap-3">
-          <Btn v="ghost" onClick={onBack}>Bekor qilish</Btn>
+          <Btn v="ghost" onClick={onBack}>{t('common.cancel')}</Btn>
           {err && <span className="text-red-500 text-sm font-medium">{err}</span>}
         </div>
         <div className="flex items-center gap-3">
@@ -751,7 +763,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
               <span className="text-lg font-bold text-indigo-600">{fmt(Number(qaItem.qty) * Number(qaItem.price) - Number(qaItem.discount))} so'm</span>
             </div>
             <div className="flex gap-2">
-              <Btn v="ghost" onClick={() => setQaItem(null)} sm>Bekor</Btn>
+              <Btn v="ghost" onClick={() => setQaItem(null)} sm>{t('common.cancel')}</Btn>
               <button onClick={() => addToCart(qaItem.product, qaItem.qty, qaItem.price, qaItem.discount)}
                 className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm transition-colors">
                 + Savatga qo'shish
@@ -768,6 +780,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
 
 /* ─── Sale detail view ─── */
 function SaleDetailView({ saleId, onBack }) {
+  const { t } = useLang();
   const [sale, setSale] = useState(null);
   useEffect(() => {
     api.get(`/sales/${saleId}`).then(r => setSale(r.data)).catch(() => {});
@@ -832,6 +845,7 @@ function SaleDetailView({ saleId, onBack }) {
    KIRIM CREATE VIEW — split panel
 ══════════════════════════════════════════════════════════ */
 function KirimCreateView({ onBack, onSaved }) {
+  const { t } = useLang();
   // Fetch our own data — don't depend on parent props (avoids race condition)
   const [products,   setProds]  = useState([]);
   const [warehouses, setWhs]    = useState([]);
@@ -1221,7 +1235,7 @@ function KirimCreateView({ onBack, onSaved }) {
         </div>
         <div className="flex gap-2 ml-auto items-center">
           {err && <span className="text-red-500 text-sm whitespace-nowrap bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 font-semibold">{err}</span>}
-          <Btn v="ghost" onClick={onBack}>Bekor qilish</Btn>
+          <Btn v="ghost" onClick={onBack}>{t('common.cancel')}</Btn>
           <Btn v="secondary" onClick={() => savePo('draft')} disabled={saving}>Arxivga olib qo'yish</Btn>
           <Btn v="secondary" onClick={() => savePo('sent')} disabled={saving}>To'lovsiz saqlash</Btn>
           <Btn onClick={() => {
@@ -1322,7 +1336,7 @@ function KirimCreateView({ onBack, onSaved }) {
             {/* Modal Footer Buttons */}
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50 mt-auto rounded-b-2xl flex-wrap">
               <div className="text-sm font-semibold text-slate-500 flex-1">Ta'minotchi qoldiq qarzi: <span className="text-slate-800 ml-1">{fmt(debt)} UZS</span></div>
-              <button onClick={() => setShowPay(false)} className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-600 font-semibold bg-white hover:bg-slate-50 transition-colors">Bekor</button>
+              <button onClick={() => setShowPay(false)} className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-600 font-semibold bg-white hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
               <button disabled={saving} onClick={() => savePo('received', { paid: paid - change, info: payForm.info })} className="px-6 py-2.5 rounded-xl bg-orange-400 hover:bg-orange-500 text-white font-bold flex items-center gap-2 transition-colors disabled:opacity-50 shadow-sm">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                 Saqla va Chop
@@ -1348,6 +1362,7 @@ function KirimCreateView({ onBack, onSaved }) {
 ══════════════════════════════════════════════════════════ */
 // eslint-disable-next-line no-unused-vars
 function KirimlarTab({ products, warehouses, suppliers }) {
+  const { t } = useLang();
   const [mode, setMode]       = useState('list');
   const [pos, setPos]         = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1497,7 +1512,7 @@ function KirimlarTab({ products, warehouses, suppliers }) {
               ))}
             </div>
             <div className="flex gap-3">
-              <Btn v="ghost" onClick={() => setRec(null)} className="flex-1">Bekor</Btn>
+              <Btn v="ghost" onClick={() => setRec(null)} className="flex-1">{t('common.cancel')}</Btn>
               <Btn v="green" onClick={receivePo} disabled={recSaving} className="flex-1">{recSaving?'...':'Tasdiqlash'}</Btn>
             </div>
           </div>
@@ -1514,14 +1529,17 @@ const emptySupplier = {
   name: '', inn: '', phone: '', email: ''
 };
 function StarRating({ value }) {
+  const { t } = useLang();
   return <div className="flex gap-0.5">{[1,2,3,4,5].map(s=><span key={s} className={`text-base ${(value||0)>=s?'text-amber-400':'text-slate-200'}`}>\u2605</span>)}</div>;
 }
 function AvatarS({ name }) {
+  const { t } = useLang();
   const cols=['bg-indigo-100 text-indigo-600','bg-emerald-100 text-emerald-600','bg-violet-100 text-violet-600','bg-rose-100 text-rose-600','bg-amber-100 text-amber-600'];
   const c=cols[(name?.charCodeAt(0)||0)%cols.length];
   return <div className={`w-8 h-8 ${c} rounded-full flex items-center justify-center font-bold shrink-0 text-sm`}>{name?.charAt(0).toUpperCase()}</div>;
 }
 function SuppliersTab() {
+  const { t } = useLang();
   const [list, setList] = useState([]);
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(null);
@@ -1726,7 +1744,7 @@ function SuppliersTab() {
               {err&&<div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}
             </form>
             <div className="p-6 border-t border-slate-100 flex gap-3 shrink-0">
-              <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm font-medium rounded-xl hover:bg-slate-50">Bekor</button>
+              <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm font-medium rounded-xl hover:bg-slate-50">{t('common.cancel')}</button>
               <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving?'Saqlanmoqda...':'Saqlash'}</button>
             </div>
           </div>
@@ -1899,6 +1917,7 @@ function SuppliersTab() {
 
 /* ===================== BUYURTMALAR TAB ===================== */
 function PurchaseOrdersTab() {
+  const { t } = useLang();
   const [pos, setPos] = useState([]);
   const [loading, setLoading] = useState(true);
   const load = async () => {
@@ -1940,6 +1959,7 @@ const TABS = [
 ];
 
 export default function Purchases() {
+  const { t } = useLang();
   const [tab, setTab] = useState('kirimlar');
   const [products, setProducts] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
@@ -1971,3 +1991,4 @@ export default function Purchases() {
     </div>
   );
 }
+

@@ -26,6 +26,7 @@ class SaleStatus(str, enum.Enum):
     refunded = "refunded"
     partial_refund = "partial_refund"
     cancelled = "cancelled"
+    pending = "pending"
 
 
 class Sale(Base):

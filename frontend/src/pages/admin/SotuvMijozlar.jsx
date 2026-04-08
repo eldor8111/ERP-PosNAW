@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+﻿import { useState, useEffect, useCallback, useRef } from 'react';
+import { useLang } from '../../context/LangContext';
 import { Link } from 'react-router-dom';
 import api from '../../api/axios';
 import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
@@ -27,14 +28,17 @@ const inputCls = 'w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm 
 const ic = 'border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white';
 
 function Badge({ meta, val }) {
+  const { t } = useLang();
   const m = meta[val] || { l: val, c: 'bg-slate-100 text-slate-600' };
   return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${m.c}`}>{m.l}</span>;
 }
 function Btn({ v = 'primary', sm, children, ...p }) {
+  const { t } = useLang();
   const cl = { primary: 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm', ghost: 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200' }[v];
   return <button className={`${sm?'px-3 py-1.5 text-xs':'px-4 py-2.5 text-sm'} rounded-xl font-semibold transition-all ${cl} disabled:opacity-50`} {...p}>{children}</button>;
 }
 function Avatar({ name }) {
+  const { t } = useLang();
   const colors = ['bg-indigo-100 text-indigo-600','bg-emerald-100 text-emerald-600','bg-violet-100 text-violet-600','bg-rose-100 text-rose-600','bg-amber-100 text-amber-600'];
   const c = colors[(name?.charCodeAt(0)||0) % colors.length];
   return <div className={`w-8 h-8 ${c} rounded-full flex items-center justify-center font-bold shrink-0 text-sm`}>{name?.charAt(0).toUpperCase()}</div>;
@@ -42,6 +46,7 @@ function Avatar({ name }) {
 
 /* ── Customer combobox ── */
 function CustSearch({ customers, value, onChange, onAfterSelect }) {
+  const { t } = useLang();
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -71,6 +76,7 @@ function CustSearch({ customers, value, onChange, onAfterSelect }) {
 
 /* ── Product search ── */
 function ProdSearch({ products, onSelect, inputRef: externalRef }) {
+  const { t } = useLang();
   const [q, setQ] = useState('');
   const [activeIdx, setActiveIdx] = useState(-1);
   const internalRef = useRef(null);
@@ -140,6 +146,7 @@ function Lbl({ className = '', t, children }) {
 
 /* ── Sale Create View ── */
 function SaleCreateView({ customers, onBack, onSaved }) {
+  const { t } = useLang();
   const [products, setProds] = useState(() => {
     try { return JSON.parse(localStorage.getItem('pos_cache_products'))?.data || []; } catch { return []; }
   });
@@ -586,7 +593,7 @@ function SaleCreateView({ customers, onBack, onSaved }) {
 
       <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 bg-white shrink-0">
         <div className="flex gap-3">
-          <Btn v="ghost" onClick={onBack}>Bekor qilish</Btn>
+          <Btn v="ghost" onClick={onBack}>{t('common.cancel')}</Btn>
           {err && <span className="text-red-500 font-bold bg-red-50 px-3 py-1.5 rounded-xl border border-red-100">{err}</span>}
         </div>
         <div className="flex gap-3 items-center">
@@ -720,7 +727,7 @@ function SaleCreateView({ customers, onBack, onSaved }) {
             {/* Footer */}
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-white rounded-b-2xl">
               {payErr && <div className="flex-1 px-4 py-2.5 bg-red-50 border border-red-200 text-red-600 text-sm font-semibold rounded-xl">{payErr}</div>}
-              <button type="button" onClick={()=>{setShowPay(false);setPayErr('');setShowPayTypes(false);}} className="px-5 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-all text-sm">Bekor qilish</button>
+              <button type="button" onClick={()=>{setShowPay(false);setPayErr('');setShowPayTypes(false);}} className="px-5 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-all text-sm">{t('common.cancel')}</button>
               {posSettings.autoPrint ? (
                 <button type="button" disabled={saving}
                   onClick={() => handlePaySubmit(true)}
@@ -790,6 +797,7 @@ function SaleCreateView({ customers, onBack, onSaved }) {
 
 
 function SaleDetailModal({ saleId, onClose, onEdit, onDelete, onPrint }) {
+  const { t } = useLang();
   const [sale, setSale] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -896,6 +904,7 @@ function SaleDetailModal({ saleId, onClose, onEdit, onDelete, onPrint }) {
    SALE EDIT MODAL
 ══════════════════════════════════════════════════ */
 function SaleEditModal({ sale, onClose, onSaved }) {
+  const { t } = useLang();
   const [form, setForm] = useState({
     status: sale.status,
     note: sale.note || '',
@@ -948,7 +957,7 @@ function SaleEditModal({ sale, onClose, onSaved }) {
           </div>
           {err && <div className="px-3 py-2 bg-red-50 text-red-600 text-sm rounded-xl border border-red-100">{err}</div>}
           <div className="flex gap-3 pt-1">
-            <button onClick={onClose} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm font-semibold rounded-xl hover:bg-slate-50">Bekor</button>
+            <button onClick={onClose} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm font-semibold rounded-xl hover:bg-slate-50">{t('common.cancel')}</button>
             <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl">{saving ? '...' : 'Saqlash'}</button>
           </div>
         </div>
@@ -987,6 +996,7 @@ function printWithIframe(html) {
    PRINT PICKER MODAL
 ══════════════════════════════════════════════════ */
 function PrintPickerModal({ sale, onClose }) {
+  const { t } = useLang();
   const settings = getReceiptSettings();
   const templates = [
     { id: '58', icon: '🧾', label: 'Chek 58mm', desc: 'Kichik termal printer', cfg: settings.r58 || {} },
@@ -1292,6 +1302,7 @@ function exportSalePDF(sale) {
    TAB 1 — SOTUVLAR
 ══════════════════════════════════════════════════ */
 function SotuvlarTab({ customers }) {
+  const { t } = useLang();
   const [mode, setMode] = useState('list');
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1612,6 +1623,7 @@ const generateCard = () => {
 const emptyCustomer = { name: '', phone: '', debt_limit: '', loyalty_points: 0, card_number: '', cashback_percent: '' };
 
 function MijozlarTab() {
+  const { t } = useLang();
   const [list, setList] = useState([]);
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(null);
@@ -1711,7 +1723,7 @@ function MijozlarTab() {
                 <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">Kredit limiti</label><input type="number" min="0" className={inputCls} value={form.debt_limit} onChange={e => setForm({...form,debt_limit:e.target.value})} placeholder="0"/></div>
               </div>
               {err && <div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}
-              <div className="flex gap-3 pt-1"><button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm font-medium rounded-xl hover:bg-slate-50">Bekor</button><button type="submit" disabled={saving} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving?'...':'Saqlash'}</button></div>
+              <div className="flex gap-3 pt-1"><button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm font-medium rounded-xl hover:bg-slate-50">{t('common.cancel')}</button><button type="submit" disabled={saving} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving?'...':'Saqlash'}</button></div>
             </form>
           </div>
         </div>
@@ -1724,7 +1736,7 @@ function MijozlarTab() {
               <div className="p-3 bg-slate-50 rounded-xl"><div className="font-semibold text-slate-800">{sel.name}</div><div className="text-red-500 font-bold mt-0.5">Qarz: {fmt(sel.debt_balance)} so'm</div></div>
               <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">To'lov miqdori *</label><input type="number" min="1" max={sel.debt_balance} required autoFocus className={inputCls} value={payAmt} onChange={e => setPayAmt(e.target.value)} placeholder="Miqdor..."/></div>
               {err && <div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}
-              <div className="flex gap-3"><button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm rounded-xl hover:bg-slate-50">Bekor</button><button type="submit" disabled={saving} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving?'...':'Tasdiqlash'}</button></div>
+              <div className="flex gap-3"><button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm rounded-xl hover:bg-slate-50">{t('common.cancel')}</button><button type="submit" disabled={saving} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving?'...':'Tasdiqlash'}</button></div>
             </form>
           </div>
         </div>
@@ -1742,6 +1754,7 @@ const TABS = [
 ];
 
 export default function SotuvMijozlar() {
+  const { t } = useLang();
   const [tab, setTab] = useState('sotuvlar');
   const [customers, setCustomers] = useState(() => {
     try { return JSON.parse(localStorage.getItem('pos_cache_customers'))?.data || []; } catch { return []; }
@@ -1778,3 +1791,4 @@ export default function SotuvMijozlar() {
     </div>
   );
 }
+

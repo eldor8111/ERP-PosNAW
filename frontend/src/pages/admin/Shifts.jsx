@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
+import { useLang } from '../../context/LangContext';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 
@@ -14,6 +15,7 @@ const fmtDt = (dt) => {
 
 export default function Shifts() {
   const { user } = useAuth();
+  const { t } = useLang();
   const [shifts, setShifts] = useState([]);
   const [activeShift, setActiveShift] = useState(null);
   const [modal, setModal] = useState(null); // 'open' | 'close'
@@ -69,8 +71,8 @@ export default function Shifts() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Smena boshqaruvi</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Kassir smenalarini ochish va yopish</p>
+          <h1 className="text-2xl font-bold text-slate-800">{t('shift.title')}</h1>
+          <p className="text-slate-500 text-sm mt-0.5">{t('shift.open')} / {t('shift.close')}</p>
         </div>
         {activeShift ? (
           <button
@@ -80,7 +82,7 @@ export default function Shifts() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9 10h6M9 14h6" />
             </svg>
-            Smenani yopish
+            {t('shift.close')}
           </button>
         ) : (
           <button
@@ -90,7 +92,7 @@ export default function Shifts() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
             </svg>
-            Smena ochish
+            {t('shift.open')}
           </button>
         )}
       </div>
@@ -98,15 +100,15 @@ export default function Shifts() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Ochiq smenalar</div>
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{t('common.active')} {t('shift.title').toLowerCase()}</div>
           <div className={`text-2xl font-bold mt-1 ${openShifts > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>{openShifts}</div>
         </div>
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Bugun (smenalar)</div>
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{t('common.today')}</div>
           <div className="text-2xl font-bold mt-1 text-indigo-600">{todayShifts}</div>
         </div>
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Jami smenalar</div>
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{t('shift.totalSales')}</div>
           <div className="text-2xl font-bold mt-1 text-slate-700">{shifts.length}</div>
         </div>
       </div>
@@ -120,7 +122,7 @@ export default function Shifts() {
             </svg>
           </div>
           <div className="flex-1">
-            <div className="text-sm font-bold text-emerald-800">Sizning faol smenangiz mavjud</div>
+            <div className="text-sm font-bold text-emerald-800">{t('header.systemActive')}</div>
             <div className="text-xs text-emerald-600 mt-0.5">
               Boshlangan: {fmtDt(activeShift.opened_at)}
               <span className="mx-2">·</span>
@@ -136,7 +138,7 @@ export default function Shifts() {
       {/* Shifts Table */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-700">Barcha smenalar</h3>
+          <h3 className="text-sm font-bold text-slate-700">{t('shift.title')}</h3>
           <div className="flex items-center gap-3">
             {branches.length > 0 && (
               <select
@@ -158,7 +160,7 @@ export default function Shifts() {
         <table className="min-w-full">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
-              {['Kassir', 'Filial', 'Boshlangan', 'Tugatilgan', 'Kirish kassa', 'Chiqish kassa', 'Holat'].map(h => (
+              {[t('shift.cashier'), 'Filial', t('shift.startTime'), t('shift.endTime'), t('common.balance'), t('common.balance'), t('common.status')].map(h => (
                 <th key={h} className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
               ))}
             </tr>
@@ -187,13 +189,13 @@ export default function Shifts() {
                   <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
                     s.status === 'open' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
                   }`}>
-                    {s.status === 'open' ? 'Ochiq' : 'Yopiq'}
+                    {s.status === 'open' ? t('common.active') : t('common.inactive')}
                   </span>
                 </td>
               </tr>
             ))}
             {shifts.length === 0 && (
-              <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400 text-sm">Smenalar yo'q</td></tr>
+              <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400 text-sm">{t('shift.noShifts')}</td></tr>
             )}
           </tbody>
         </table>
@@ -204,7 +206,7 @@ export default function Shifts() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setModal(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-800">Smena ochish</h3>
+              <h3 className="text-lg font-bold text-slate-800">{t('shift.open')}</h3>
               <button onClick={() => setModal(null)} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -213,7 +215,7 @@ export default function Shifts() {
             </div>
             <form onSubmit={handleOpen} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Boshlang'ich kassadagi pul (so'm)</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('shift.cashier')} {t('common.balance').toLowerCase()} ({t('common.sum')})</label>
                 <input
                   type="number" min="0" autoFocus value={openingCash}
                   onChange={e => setOpeningCash(e.target.value)}
@@ -223,9 +225,9 @@ export default function Shifts() {
               </div>
               {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
               <div className="flex gap-3">
-                <button type="button" onClick={() => setModal(null)} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">Bekor</button>
+                <button type="button" onClick={() => setModal(null)} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
                 <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
-                  {saving ? '...' : 'Ochish'}
+                  {saving ? '...' : t('shift.open')}
                 </button>
               </div>
             </form>
@@ -238,7 +240,7 @@ export default function Shifts() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setModal(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-800">Smenani yopish</h3>
+              <h3 className="text-lg font-bold text-slate-800">{t('shift.close')}</h3>
               <button onClick={() => setModal(null)} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -248,11 +250,11 @@ export default function Shifts() {
             <form onSubmit={handleClose} className="p-6 space-y-4">
               <div className="p-4 bg-slate-50 rounded-xl text-sm space-y-1.5">
                 <div className="flex justify-between text-slate-600">
-                  <span>Boshlangan:</span>
+                  <span>{t('shift.startTime')}:</span>
                   <span className="font-medium text-slate-800">{fmtDt(activeShift.opened_at)}</span>
                 </div>
                 <div className="flex justify-between text-slate-600">
-                  <span>Kirish kassa:</span>
+                  <span>{t('shift.cashier')} {t('common.balance').toLowerCase()}:</span>
                   <span className="font-medium text-slate-800">{fmt(activeShift.opening_cash)} so'm</span>
                 </div>
               </div>
@@ -269,9 +271,9 @@ export default function Shifts() {
               </div>
               {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
               <div className="flex gap-3">
-                <button type="button" onClick={() => setModal(null)} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">Bekor</button>
+                <button type="button" onClick={() => setModal(null)} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
                 <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
-                  {saving ? '...' : 'Yopish'}
+                  {saving ? '...' : t('shift.close')}
                 </button>
               </div>
             </form>

@@ -7,6 +7,7 @@ import {
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
+import { useLang } from '../../context/LangContext';
 
 const fmt = (val) => {
   if (!val) return "0 so'm";
@@ -62,6 +63,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { t } = useLang();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -133,7 +135,7 @@ export default function Dashboard() {
             <div className="w-14 h-14 border-4 border-indigo-100 rounded-full" />
             <div className="absolute inset-0 w-14 h-14 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           </div>
-          <p className="text-slate-500 text-sm font-medium">Dashboard yuklanmoqda...</p>
+          <p className="text-slate-500 text-sm font-medium">{t('common.loading')}</p>
         </div>
       </div>
     );
@@ -151,7 +153,7 @@ export default function Dashboard() {
           <p className="text-slate-700 font-semibold text-lg">Ma&apos;lumot yuklanmadi</p>
           <p className="text-slate-400 text-sm mt-1 mb-5">Dashboard ma&apos;lumotlarini yuklashda xato</p>
           <button onClick={load} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-indigo-200">
-            Qayta urinish
+            {t('common.refresh')}
           </button>
         </div>
       </div>
@@ -161,9 +163,9 @@ export default function Dashboard() {
   if (!data) return null;
   const kpis = [
     {
-      label: "Bugungi sotuv",
+      label: t('dashboard.todaySales'),
       value: fmt(data.today?.sales),
-      sub: `${data.today?.orders ?? 0} ta sotuv`,
+      sub: `${data.today?.orders ?? 0} ${t('common.item')} ${t('sale.title').toLowerCase()}`,
       badge: data.today?.change_pct,
       gradient: "bg-linear-to-br from-indigo-500 to-indigo-700",
       iconBg: "bg-white/20",
@@ -175,9 +177,9 @@ export default function Dashboard() {
       ),
     },
     {
-      label: "Oylik sotuv",
+      label: t('dashboard.totalSales'),
       value: fmt(data.monthly?.sales),
-      sub: `${data.monthly?.orders ?? 0} ta sotuv`,
+      sub: `${data.monthly?.orders ?? 0} ${t('common.item')} ${t('sale.title').toLowerCase()}`,
       gradient: "bg-linear-to-br from-emerald-500 to-emerald-700",
       iconBg: "bg-white/20",
       icon: (
@@ -187,9 +189,9 @@ export default function Dashboard() {
       ),
     },
     {
-      label: "Oylik foyda",
+      label: t('dashboard.profit'),
       value: fmt(data.monthly?.profit),
-      sub: "Brutto margin",
+      sub: t('common.summary'),
       gradient: "bg-linear-to-br from-violet-500 to-violet-700",
       iconBg: "bg-white/20",
       icon: (
@@ -200,9 +202,9 @@ export default function Dashboard() {
       ),
     },
     {
-      label: "Kam qoldiq",
-      value: `${data.inventory?.low_stock_count ?? 0} ta`,
-      sub: `O'lik stok: ${data.inventory?.dead_stock_count ?? 0} ta`,
+      label: t('dashboard.lowStock'),
+      value: `${data.inventory?.low_stock_count ?? 0} ${t('common.item')}`,
+      sub: `${t('product.outOfStock')}: ${data.inventory?.dead_stock_count ?? 0} ${t('common.item')}`,
       gradient: "bg-linear-to-br from-rose-500 to-rose-700",
       iconBg: "bg-white/20",
       icon: (
@@ -213,11 +215,11 @@ export default function Dashboard() {
       ),
     },
     {
-      label: "Umumiy qarz",
+      label: t('customer.totalDebt'),
       value: fmt(data.debts?.total_debt),
       sub: data.debts?.overdue_count > 0
-        ? `⚠ ${data.debts.overdue_count} ta muddati o'tgan`
-        : `${data.debts?.debtor_count ?? 0} ta qarzdor`,
+        ? `⚠ ${data.debts.overdue_count} ${t('common.item')} ${t('common.warning').toLowerCase()}`
+        : `${data.debts?.debtor_count ?? 0} ${t('common.item')} ${t('customer.totalDebtors').toLowerCase()}`,
       gradient: data.debts?.overdue_count > 0
         ? "bg-linear-to-br from-orange-500 to-red-600"
         : "bg-linear-to-br from-amber-500 to-amber-700",
@@ -243,7 +245,7 @@ export default function Dashboard() {
                 onChange={handleBranchChange}
                 className="text-sm border border-slate-200 rounded-xl pl-8 pr-3 py-2 bg-white text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 appearance-none cursor-pointer"
               >
-                <option value="">Barcha filiallar</option>
+                <option value="">{t('common.all')} filiallar</option>
                 {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
               <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -258,7 +260,7 @@ export default function Dashboard() {
                 onChange={handleWarehouseChange}
                 className="text-sm border border-slate-200 rounded-xl pl-8 pr-3 py-2 bg-white text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 appearance-none cursor-pointer"
               >
-                <option value="">Barcha omborlar</option>
+                <option value="">{t('common.all')} omborlar</option>
                 {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
               </select>
               <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -274,7 +276,7 @@ export default function Dashboard() {
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
-          Yangilash
+          {t('common.refresh')}
         </button>
       </div>
       {/* KPI Cards */}
@@ -290,8 +292,8 @@ export default function Dashboard() {
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h3 className="text-base font-semibold text-slate-800">Haftalik sotuv</h3>
-              <p className="text-sm text-slate-400 mt-0.5">So'nggi 7 kunlik dinamika</p>
+              <h3 className="text-base font-semibold text-slate-800">{t('dashboard.recentSales')}</h3>
+              <p className="text-sm text-slate-400 mt-0.5">{t('common.today')} - 7 {t('common.date').toLowerCase()}</p>
             </div>
             <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center">
               <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -321,8 +323,8 @@ export default function Dashboard() {
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h3 className="text-base font-semibold text-slate-800">Top mahsulotlar</h3>
-              <p className="text-sm text-slate-400 mt-0.5">Bu oy daromad bo'yicha top 10</p>
+              <h3 className="text-base font-semibold text-slate-800">{t('dashboard.topProducts')}</h3>
+              <p className="text-sm text-slate-400 mt-0.5">{t('common.thisMonth')}</p>
             </div>
             <div className="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center">
               <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -400,9 +402,9 @@ export default function Dashboard() {
                 <thead>
                   <tr className="bg-slate-50">
                     <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">#</th>
-                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Kassir</th>
-                    <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Sotuvlar</th>
-                    <th className="text-right text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">Jami</th>
+                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">{t('shift.cashier')}</th>
+                    <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">{t('sale.title')}</th>
+                    <th className="text-right text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">{t('common.total')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -445,10 +447,10 @@ export default function Dashboard() {
               <table className="w-full">
                 <thead>
                   <tr className="bg-slate-50">
-                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">Mahsulot</th>
-                    <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Qoldiq</th>
-                    <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Min</th>
-                    <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Holat</th>
+                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">{t('product.title')}</th>
+                    <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">{t('product.stock')}</th>
+                    <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">{t('product.minStock')}</th>
+                    <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">{t('common.status')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -466,11 +468,11 @@ export default function Dashboard() {
                       <td className="px-4 py-3.5 text-center">
                         {item.qty <= 0 ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-rose-100 text-rose-700">
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />Tugadi
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />{t('product.outOfStock')}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />Kam
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />{t('product.lowStock')}
                           </span>
                         )}
                       </td>

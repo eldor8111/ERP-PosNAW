@@ -128,6 +128,9 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
         total_amount += subtotal
 
     total_amount -= data.discount_amount
+    # Chegirma summasi jami narxdan oshib ketmasligi kerak
+    if total_amount < Decimal("0"):
+        total_amount = Decimal("0")
 
     # Agar qarzga sotilayotgan bo'lsa, albatta mijozni tanlash majburiy
     if data.payment_type.value == "debt" and not data.customer_id:
@@ -445,12 +448,10 @@ def delete_sale(db: Session, sale_id: int, current_user: User) -> None:
     if sale.customer_id:
         customer = db.query(Customer).filter(Customer.id == sale.customer_id).first()
         if customer:
-            # 2.1. Qarzni qaytarish (agar qarzdorlik bo'lgan bo'lsa)
-            # Agar sotuv qarzga bo'lgan bo'lsa (payment_type == "debt"), qarzni kamaytirish kerak
-            if sale.payment_type == PaymentType.debt:
-                debt_in_sale = sale.total_amount - sale.paid_amount
-                if debt_in_sale > 0:
-                    customer.debt_balance = max(Decimal("0"), customer.debt_balance - debt_in_sale)
+            # 2.1. Qarzni qaytarish (agar qarzdorlik bo'lgan bo'lsa — istalgan to'lov turida)
+            debt_in_sale = sale.total_amount - sale.paid_amount
+            if debt_in_sale > 0:
+                customer.debt_balance = max(Decimal("0"), customer.debt_balance - debt_in_sale)
 
             # 2.2. Loyallik ballarini qaytarish
             # Avval ishlatilgan ballarni qaytaramiz

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
+import { useLang } from '../../context/LangContext';
 
 const fmtMoney = (n) => Number(n || 0).toLocaleString('uz-UZ');
 
@@ -17,6 +18,7 @@ const PHONE_ICON = (
 
 export default function Tariflar() {
   const { user } = useAuth();
+  const { t } = useLang();
   const [tariffs, setTariffs] = useState([]);
   const [billing, setBilling] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -73,12 +75,12 @@ export default function Tariflar() {
     setTrialLoading(true);
     try {
       const res = await api.post('/billing/activate-my-trial');
-      setToast({ msg: res.data.message || '7 kunlik sinov faollashtirildi!', ok: true });
+      setToast({ msg: res.data.message || t('common.success'), ok: true });
       // billing holatini yangilaymiz
       const b = await api.get('/billing/my-company');
       setBilling(b.data);
     } catch (e) {
-      setToast({ msg: e.response?.data?.detail || 'Xatolik yuz berdi', ok: false });
+      setToast({ msg: e.response?.data?.detail || t('common.error'), ok: false });
     } finally {
       setTrialLoading(false);
       setTimeout(() => setToast(null), 4000);
@@ -130,7 +132,7 @@ export default function Tariflar() {
     <div className="max-w-5xl mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-8 text-center">
-        <h1 className="text-3xl font-black text-slate-800 mb-2">Tariflar</h1>
+        <h1 className="text-3xl font-black text-slate-800 mb-2">{t('sidebar.tariffs')}</h1>
         <p className="text-slate-500">Biznesingiz uchun qulay tarifni tanlang</p>
       </div>
 

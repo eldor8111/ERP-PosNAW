@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
+import { useLang } from '../../context/LangContext';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import api from '../../api/axios';
@@ -40,14 +41,15 @@ function printTable(title, headers, rows, totalsRow = null) {
     <table><thead><tr>${headerHtml}</tr></thead>
     <tbody>${rowsHtml}${totalsHtml}</tbody></table>
     <div style="margin-top:16px;text-align:center">
-      <button onclick="window.print()" style="padding:8px 20px;background:#4f46e5;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px">Chop etish</button>
+      <button onclick="window.print()" style="padding:8px 20px;background:#4f46e5;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px">{t('common.print')}</button>
     </div></body></html>`);
   win.document.close();
 }
 
 // ─── Umumiy Tab tugmasi ────────────────────────────────────────────────────────
 function TabBtn({ label, icon, active, onClick }) {
-  return (
+  const { t } = useLang();
+return (
     <button onClick={onClick}
       className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
         active ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
@@ -62,7 +64,8 @@ function TabBtn({ label, icon, active, onClick }) {
 
 // ─── Sana filtri komponenti ────────────────────────────────────────────────────
 function DateFilter({ dateFrom, dateTo, setDateFrom, setDateTo, onSearch, loading }) {
-  const presets = [
+  const { t } = useLang();
+const presets = [
     { label: 'Bugun', from: today(), to: today() },
     { label: 'Bu hafta', from: daysAgo(6), to: today() },
     { label: 'Bu oy', from: firstOfMonth(), to: today() },
@@ -102,7 +105,8 @@ function DateFilter({ dateFrom, dateTo, setDateFrom, setDateTo, onSearch, loadin
 
 // ─── Excel va PDF tugmalari ────────────────────────────────────────────────────
 function ExportBtns({ onExcel, onPdf, on1c }) {
-  return (
+  const { t } = useLang();
+return (
     <div className="flex gap-2">
       {onExcel && (
         <button onClick={onExcel}
@@ -144,7 +148,8 @@ const Spinner = () => (
 
 // ─── Asosiy komponent ─────────────────────────────────────────────────────────
 export default function Reports() {
-  const [tab, setTab] = useState('sales');
+  const { t } = useLang();
+const [tab, setTab] = useState('sales');
   const [loading, setLoading] = useState(false);
   const [dateFrom, setDateFrom] = useState(firstOfMonth());
   const [dateTo, setDateTo] = useState(today());
@@ -332,7 +337,7 @@ export default function Reports() {
                           <td className="px-5 py-3.5 text-sm text-slate-400">{new Date(s.created_at).toLocaleString('uz-UZ')}</td>
                         </tr>
                       ))}
-                      {salesData.length === 0 && <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-400">Ma'lumot yo'q</td></tr>}
+                      {salesData.length === 0 && <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-400">{t('common.noData')}</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -400,7 +405,7 @@ export default function Reports() {
                         </td>
                       </tr>
                     ))}
-                    {profitData.length === 0 && <tr><td colSpan={7} className="px-6 py-12 text-center text-sm text-slate-400">Ma'lumot yo'q</td></tr>}
+                    {profitData.length === 0 && <tr><td colSpan={7} className="px-6 py-12 text-center text-sm text-slate-400">{t('common.noData')}</td></tr>}
                   </tbody>
                   {profitData.length > 0 && (
                     <tfoot>
@@ -482,7 +487,7 @@ export default function Reports() {
                   </div>
                 )}
               </div>
-            ) : <div className="py-12 text-center text-sm text-slate-400">Ma'lumot yo'q</div>}
+            ) : <div className="py-12 text-center text-sm text-slate-400">{t('common.noData')}</div>}
           </>
         )}
 
@@ -549,7 +554,7 @@ export default function Reports() {
                         <td className="px-5 py-3.5 text-sm text-slate-500">{fmtS(r.total_discount)}</td>
                       </tr>
                     ))}
-                    {cashierData.length === 0 && <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-400">Ma'lumot yo'q</td></tr>}
+                    {cashierData.length === 0 && <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-400">{t('common.noData')}</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -608,7 +613,7 @@ export default function Reports() {
                         </td>
                       </tr>
                     ))}
-                    {inventoryData.length === 0 && <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-400">Ma'lumot yo'q</td></tr>}
+                    {inventoryData.length === 0 && <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-400">{t('common.noData')}</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -790,7 +795,7 @@ export default function Reports() {
                         <td className="px-5 py-3.5 text-sm font-bold text-indigo-600">{fmtS(r.total_amount)}</td>
                       </tr>
                     ))}
-                    {purchasesData.length === 0 && <tr><td colSpan={4} className="px-6 py-12 text-center text-sm text-slate-400">Ma'lumot yo'q</td></tr>}
+                    {purchasesData.length === 0 && <tr><td colSpan={4} className="px-6 py-12 text-center text-sm text-slate-400">{t('common.noData')}</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -987,7 +992,7 @@ export default function Reports() {
                         </td>
                       </tr>
                     ))}
-                    {abcData.length === 0 && <tr><td colSpan={7} className="px-6 py-12 text-center text-sm text-slate-400">Ma'lumot yo'q</td></tr>}
+                    {abcData.length === 0 && <tr><td colSpan={7} className="px-6 py-12 text-center text-sm text-slate-400">{t('common.noData')}</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -998,3 +1003,4 @@ export default function Reports() {
     </div>
   );
 }
+

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
+import { useLang } from '../../context/LangContext';
 
 const fmt = (n) => Number(n ?? 0).toLocaleString('uz-UZ');
 const fmtDate = (s) =>
@@ -39,6 +40,7 @@ const TABS = [
 
 // ─── QOLDIQLAR TAB ─────────────────────────────────────────────────────────
 function QoldiqlarTab() {
+  const { t } = useLang();
   const [items, setItems]     = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch]   = useState('');
@@ -74,19 +76,19 @@ function QoldiqlarTab() {
         </div>
         <label className="flex items-center gap-2 cursor-pointer select-none">
           <input type="checkbox" checked={lowOnly} onChange={e => setLowOnly(e.target.checked)} className="w-4 h-4 rounded text-indigo-600" />
-          <span className="text-sm text-slate-600 font-medium">Faqat kam qoldiqlar</span>
+          <span className="text-sm text-slate-600 font-medium">{t('product.lowStock')}</span>
         </label>
         <button onClick={load} className="px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
-          Yangilash
+          {t('common.refresh')}
         </button>
       </div>
 
       {/* summary cards */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: "Jami mahsulotlar", value: items.length, color: "indigo" },
-          { label: "Kam qoldiq",       value: items.filter(i => i.is_low_stock).length, color: "amber" },
-          { label: "Normal qoldiq",    value: items.filter(i => !i.is_low_stock).length, color: "emerald" },
+          { label: t('dashboard.totalProducts'), value: items.length, color: "indigo" },
+          { label: t('product.lowStock'),         value: items.filter(i => i.is_low_stock).length, color: "amber" },
+          { label: t('product.active'),            value: items.filter(i => !i.is_low_stock).length, color: "emerald" },
         ].map(c => (
           <div key={c.label} className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
             <p className="text-xs text-slate-500 font-medium">{c.label}</p>
@@ -124,15 +126,15 @@ function QoldiqlarTab() {
                   <td className="px-4 py-3 text-sm text-right text-slate-500">{fmt(it.min_stock)}</td>
                   <td className="px-4 py-3">
                     {it.is_low_stock
-                      ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-100 text-red-600">⚠ Kam</span>
-                      : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700">✓ Normal</span>
+                      ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-100 text-red-600">⚠ {t('product.lowStock')}</span>
+                      : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700">✓ {t('common.active')}</span>
                     }
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-400">{fmtDate(it.updated_at)}</td>
                 </tr>
               ))}
               {items.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-400">Ma'lumot topilmadi</td></tr>
+                <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-400">{t('common.noData')}</td></tr>
               )}
             </tbody>
           </table>
@@ -144,6 +146,7 @@ function QoldiqlarTab() {
 
 // ─── HARAKATLAR (Kirim / Chiqim) TAB ──────────────────────────────────────
 function MovementsTab({ type }) {
+  const { t } = useLang();
   const [items, setItems]     = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -162,10 +165,10 @@ function MovementsTab({ type }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-500">
-          {type === 'in' ? "Omborga kirim harakatlari" : "Ombordan chiqim harakatlari"}
+          {type === 'in' ? t('ops.incoming') : t('ops.outgoing')}
         </p>
         <button onClick={load} className="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
-          Yangilash
+          {t('common.refresh')}
         </button>
       </div>
 
@@ -202,7 +205,7 @@ function MovementsTab({ type }) {
                 </tr>
               ))}
               {items.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-400">Ma'lumot topilmadi</td></tr>
+                <tr><td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-400">{t('common.noData')}</td></tr>
               )}
             </tbody>
           </table>
@@ -214,6 +217,7 @@ function MovementsTab({ type }) {
 
 // ─── KO'CHIRISH TAB ────────────────────────────────────────────────────────
 function KochirTab() {
+  const { t } = useLang();
   const [transfers, setTransfers]       = useState([]);
   const [warehouses, setWarehouses]     = useState([]);
   const [products, setProducts]         = useState([]);
@@ -290,7 +294,7 @@ function KochirTab() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          Yangi Ko'chirish
+          {t('warehouse.newTransfer')}
         </button>
       </div>
 
@@ -325,11 +329,11 @@ function KochirTab() {
                         <>
                           <button onClick={() => confirm(tr.id)}
                             className="px-2.5 py-1 text-xs font-semibold bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors">
-                            Tasdiqlash
+                            {t('common.confirm')}
                           </button>
                           <button onClick={() => cancel(tr.id)}
                             className="px-2.5 py-1 text-xs font-semibold bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors">
-                            Bekor
+                            {t('common.cancel')}
                           </button>
                         </>
                       )}
@@ -338,7 +342,7 @@ function KochirTab() {
                 </tr>
               ))}
               {transfers.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-slate-400">Ko'chirishlar topilmadi</td></tr>
+                <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-slate-400">{t('common.noData')}</td></tr>
               )}
             </tbody>
           </table>
@@ -350,7 +354,7 @@ function KochirTab() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-800">Yangi Ko'chirish</h3>
+              <h3 className="text-base font-bold text-slate-800">{t('warehouse.newTransfer')}</h3>
               <button onClick={() => { setShowModal(false); setErr(''); }} className="text-slate-400 hover:text-slate-600">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -414,11 +418,11 @@ function KochirTab() {
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100">
               <button onClick={() => { setShowModal(false); setErr(''); }}
                 className="px-4 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
-                Bekor
+                {t('common.cancel')}
               </button>
               <button onClick={submit} disabled={saving}
                 className="px-5 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-60 transition-colors">
-                {saving ? 'Saqlanmoqda...' : "Ko'chirish yaratish"}
+                {saving ? t('common.saving') : t('warehouse.transfer')}
               </button>
             </div>
           </div>
@@ -430,6 +434,7 @@ function KochirTab() {
 
 // ─── OMBORLAR TAB ──────────────────────────────────────────────────────────
 function OmborlarTab() {
+  const { t } = useLang();
   const [warehouses, setWarehouses] = useState([]);
   const [branches, setBranches]     = useState([]);
   const [loading, setLoading]       = useState(true);
@@ -481,7 +486,7 @@ function OmborlarTab() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          Yangi Ombor
+          {t('warehouse.newTransfer')}
         </button>
       </div>
 
@@ -527,7 +532,7 @@ function OmborlarTab() {
                 </tr>
               ))}
               {warehouses.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-12 text-center text-sm text-slate-400">Omborlar topilmadi</td></tr>
+                <tr><td colSpan={5} className="px-4 py-12 text-center text-sm text-slate-400">{t('warehouse.noStocks')}</td></tr>
               )}
             </tbody>
           </table>
@@ -540,7 +545,7 @@ function OmborlarTab() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-800">
-                {modal.mode === 'create' ? "Yangi ombor qo'shish" : 'Omborni tahrirlash'}
+                {modal.mode === 'create' ? t('warehouse.newTransfer') : t('common.edit')}
               </h3>
               <button onClick={() => setModal(null)} className="text-slate-400 hover:text-slate-600">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -570,11 +575,11 @@ function OmborlarTab() {
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100">
               <button onClick={() => setModal(null)}
                 className="px-4 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
-                Bekor
+                {t('common.cancel')}
               </button>
               <button onClick={save} disabled={saving}
                 className="px-5 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-60 transition-colors">
-                {saving ? 'Saqlanmoqda...' : 'Saqlash'}
+                {saving ? t('common.saving') : t('common.save')}
               </button>
             </div>
           </div>
@@ -594,11 +599,11 @@ function OmborlarTab() {
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100">
               <button onClick={() => setDelConfirm(null)}
                 className="px-4 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
-                Bekor
+                {t('common.cancel')}
               </button>
               <button onClick={remove}
                 className="px-4 py-2 bg-red-500 text-white text-sm font-semibold rounded-xl hover:bg-red-600 transition-colors">
-                O'chirish
+                {t('common.delete')}
               </button>
             </div>
           </div>
@@ -610,6 +615,7 @@ function OmborlarTab() {
 
 // ─── MAIN OMBOR PAGE ────────────────────────────────────────────────────────
 export default function Ombor() {
+  const { t } = useLang();
   const [activeTab, setActiveTab] = useState('qoldiq');
 
   return (
@@ -622,8 +628,8 @@ export default function Ombor() {
           </svg>
         </div>
         <div>
-          <h2 className="text-lg font-bold text-slate-800">Ombor</h2>
-          <p className="text-xs text-slate-500">Inventar boshqaruvi va qoldiqlar</p>
+          <h2 className="text-lg font-bold text-slate-800">{t('warehouse.title')}</h2>
+          <p className="text-xs text-slate-500">{t('warehouse.inventory')}</p>
         </div>
       </div>
 

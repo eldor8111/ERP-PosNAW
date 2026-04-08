@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
+import { useLang } from '../../context/LangContext';
 
 /* ── helpers ──────────────────────────────────────── */
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
@@ -38,6 +39,7 @@ const tierOf = (pts) => pts >= 10000 ? 'Gold' : pts >= 5000 ? 'Silver' : pts >= 
 const emptyCustomer = { name: '', phone: '', debt_limit: '', loyalty_points: 0 };
 
 function MijozlarTab() {
+  const { t } = useLang();
   const [list, setList] = useState([]);
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(null);
@@ -78,7 +80,7 @@ function MijozlarTab() {
     catch (e) { setErr(e.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
   };
 
-  const del = async (id) => { if (!confirm("O'chirilsinmi?")) return; await api.delete(`/customers/${id}`); load(); };
+  const del = async (id) => { if (!confirm(t('confirm.delete'))) return; await api.delete(`/customers/${id}`); load(); };
 
   const totalDebt = list.reduce((s, c) => s + Number(c.debt_balance || 0), 0);
 
@@ -87,9 +89,9 @@ function MijozlarTab() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Jami Mijozlar', val: list.length, color: 'indigo' },
-          { label: 'Jami Qarz', val: fmt(totalDebt) + ' so\'m', color: 'red' },
-          { label: 'Qarzdorlar', val: list.filter(c => Number(c.debt_balance) > 0).length, color: 'amber' },
+          { label: t('customer.totalCustomers'), val: list.length, color: 'indigo' },
+          { label: t('customer.totalDebt'), val: fmt(totalDebt) + ` ${t('common.sum')}`, color: 'red' },
+          { label: t('customer.totalDebtors'), val: list.filter(c => Number(c.debt_balance) > 0).length, color: 'amber' },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-center gap-4">
             <div className={`w-10 h-10 rounded-xl bg-${s.color}-100 flex items-center justify-center shrink-0`} />
@@ -117,15 +119,15 @@ function MijozlarTab() {
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <table className="min-w-full">
           <thead><tr className="bg-slate-50 border-b border-slate-100">
-            {['Ism','Telefon','Qarz','Kredit Limit','Bonus',''].map(h => <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>)}
+            {[t('common.name'), t('common.phone'), t('customer.debtBalance'), t('customer.creditLimit'), t('customer.bonusBalance'), ''].map(h => <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>)}
           </tr></thead>
           <tbody className="divide-y divide-slate-50">
             {list.map(c => (
               <tr key={c.id} className="hover:bg-slate-50 transition-colors">
                 <td className="px-5 py-4"><div className="flex items-center gap-2.5"><Avatar name={c.name}/><span className="text-sm font-medium text-slate-800">{c.name}</span></div></td>
                 <td className="px-5 py-4 text-sm text-slate-500">{c.phone || '—'}</td>
-                <td className="px-5 py-4 text-sm font-semibold"><span className={Number(c.debt_balance) > 0 ? 'text-red-500' : 'text-emerald-600'}>{fmt(c.debt_balance)} so'm</span></td>
-                <td className="px-5 py-4 text-sm text-slate-500">{fmt(c.debt_limit)} so'm</td>
+                <td className="px-5 py-4 text-sm font-semibold"><span className={Number(c.debt_balance) > 0 ? 'text-red-500' : 'text-emerald-600'}>{fmt(c.debt_balance)} {t('common.sum')}</span></td>
+                <td className="px-5 py-4 text-sm text-slate-500">{fmt(c.debt_limit)} {t('common.sum')}</td>
                 <td className="px-5 py-4">
                   <div className="flex flex-col gap-1">
                     <span className="text-xs font-semibold text-amber-600">⭐ {c.loyalty_points}</span>
@@ -142,7 +144,7 @@ function MijozlarTab() {
                 </td>
               </tr>
             ))}
-            {list.length === 0 && <tr><td colSpan={6} className="px-5 py-12 text-center text-slate-400 text-sm">Mijozlar topilmadi</td></tr>}
+            {list.length === 0 && <tr><td colSpan={6} className="px-5 py-12 text-center text-slate-400 text-sm">{t('customer.noCustomers')}</td></tr>}
           </tbody>
         </table>
       </div>
@@ -152,13 +154,13 @@ function MijozlarTab() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-800">{sel ? 'Mijozni tahrirlash' : "Yangi mijoz qo'shish"}</h3>
+              <h3 className="text-lg font-bold text-slate-800">{sel ? t('customer.editCustomer') : t('customer.addCustomer')}</h3>
               <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
             </div>
             <form onSubmit={handleSave} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Ism familiya *</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('common.name')} *</label>
                   <input required className={inputCls} value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Javohir Toshmatov"/>
                 </div>
                 <div>
@@ -166,14 +168,14 @@ function MijozlarTab() {
                   <input className={inputCls} value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} placeholder="+998 90 123 45 67"/>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Kredit limiti (so'm)</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('customer.creditLimit')} ({t('common.sum')})</label>
                   <input type="number" min="0" className={inputCls} value={form.debt_limit} onChange={e => setForm({...form, debt_limit: e.target.value})} placeholder="0"/>
                 </div>
               </div>
               {err && <div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}
               <div className="flex gap-3 pt-1">
-                <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm font-medium rounded-xl hover:bg-slate-50">Bekor</button>
-                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving ? '...' : 'Saqlash'}</button>
+                <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm font-medium rounded-xl hover:bg-slate-50">{t('common.cancel')}</button>
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving ? '...' : t('common.save')}</button>
               </div>
             </form>
           </div>
@@ -185,7 +187,7 @@ function MijozlarTab() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-800">Qarzni to'lash</h3>
+              <h3 className="text-lg font-bold text-slate-800">{t('customer.payDebt')}</h3>
               <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
             </div>
             <form onSubmit={handlePay} className="p-6 space-y-4">
@@ -194,13 +196,13 @@ function MijozlarTab() {
                 <div className="text-red-500 font-bold mt-0.5">Qarz: {fmt(sel.debt_balance)} so'm</div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">To'lov miqdori *</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('customer.paymentAmount')} *</label>
                 <input type="number" min="1" max={sel.debt_balance} required autoFocus className={inputCls} value={payAmt} onChange={e => setPayAmt(e.target.value)} placeholder="Miqdor..."/>
               </div>
               {err && <div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}
               <div className="flex gap-3">
-                <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm rounded-xl hover:bg-slate-50">Bekor</button>
-                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving ? '...' : 'Tasdiqlash'}</button>
+                <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm rounded-xl hover:bg-slate-50">{t('common.cancel')}</button>
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving ? '...' : t('common.confirm')}</button>
               </div>
             </form>
           </div>
@@ -212,7 +214,7 @@ function MijozlarTab() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-800">Bonus ballari</h3>
+              <h3 className="text-lg font-bold text-slate-800">{t('customer.loyaltyPoints')}</h3>
               <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
             </div>
             <form onSubmit={handlePoints} className="p-6 space-y-4">
@@ -226,8 +228,8 @@ function MijozlarTab() {
               </div>
               {err && <div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}
               <div className="flex gap-3">
-                <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm rounded-xl hover:bg-slate-50">Bekor</button>
-                <button type="submit" disabled={saving || !ptsDelta} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving ? '...' : 'Saqlash'}</button>
+                <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm rounded-xl hover:bg-slate-50">{t('common.cancel')}</button>
+                <button type="submit" disabled={saving || !ptsDelta} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving ? '...' : t('common.save')}</button>
               </div>
             </form>
           </div>
@@ -245,6 +247,7 @@ const emptySupplier = {
 };
 
 function SuppliersTab() {
+  const { t } = useLang();
   const [list, setList] = useState([]);
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(null);
@@ -280,7 +283,7 @@ function SuppliersTab() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm("O'chirilsinmi?")) return;
+    if (!confirm(t('confirm.delete'))) return;
     await api.delete(`/suppliers/${id}`);
     load();
   };
@@ -358,7 +361,7 @@ function SuppliersTab() {
                 </td>
               </tr>
             ))}
-            {list.length === 0 && <tr><td colSpan={7} className="px-5 py-12 text-center text-slate-400 text-sm">Ta'minotchilar topilmadi</td></tr>}
+            {list.length === 0 && <tr><td colSpan={7} className="px-5 py-12 text-center text-slate-400 text-sm">{t('common.noData')}</td></tr>}
           </tbody>
         </table>
       </div>
@@ -368,7 +371,7 @@ function SuppliersTab() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-100 shrink-0">
-              <h3 className="text-lg font-bold text-slate-800">{sel ? "Ta'minotchini tahrirlash" : "Yangi ta'minotchi qo'shish"}</h3>
+              <h3 className="text-lg font-bold text-slate-800">{sel ? t('purchase.editSupplier') : t('purchase.newSupplier')}</h3>
               <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
             </div>
             <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-6 space-y-5">
@@ -398,8 +401,8 @@ function SuppliersTab() {
               {err && <div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}
             </form>
             <div className="p-6 border-t border-slate-100 flex gap-3 shrink-0">
-              <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm font-medium rounded-xl hover:bg-slate-50">Bekor qilish</button>
-              <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving ? 'Saqlanmoqda...' : 'Saqlash'}</button>
+              <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm font-medium rounded-xl hover:bg-slate-50">{t('common.cancel')}</button>
+              <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving ? t('common.saving') : t('common.save')}</button>
             </div>
           </div>
         </div>
@@ -417,6 +420,7 @@ const TABS = [
 ];
 
 export default function Kontragentlar() {
+  const { t } = useLang();
   const [tab, setTab] = useState('mijozlar');
 
   return (
@@ -424,8 +428,8 @@ export default function Kontragentlar() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Kontragentlar</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Mijozlar va yetkazib beruvchilar boshqaruvi</p>
+          <h1 className="text-2xl font-bold text-slate-800">{t('nav.kontragentlar')}</h1>
+          <p className="text-slate-500 text-sm mt-0.5">{t('customer.title')} {t('common.list').toLowerCase()}</p>
         </div>
       </div>
 

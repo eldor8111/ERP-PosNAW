@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+﻿import { useState, useEffect, useRef, useMemo } from 'react';
+import { useLang } from '../../context/LangContext';
 import { useNavigate } from 'react-router-dom';
 import usePosSync from '../../hooks/usePosSync';
 import { toast } from '../../utils/toast';
@@ -11,7 +12,8 @@ const parseAmt = (str) => parseInt(String(str || '').replace(/\D/g, ''), 10) || 
 
 /* ── Customer combobox ── */
 function CustSearch({ customers, value, onChange, placeholder = "Mijoz izlash..." }) {
-  const [q, setQ] = useState('');
+  const { t } = useLang();
+const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const selected = customers.find(c => String(c.id) === String(value));
@@ -60,7 +62,8 @@ function CustSearch({ customers, value, onChange, placeholder = "Mijoz izlash...
 }
 
 export default function PosKassa() {
-  const navigate = useNavigate();
+  const { t } = useLang();
+const navigate = useNavigate();
   // Keshdan darhol o'qish — sahifa ochilishi bilan mahsulotlar ko'rinadi
   const [products, setProducts] = useState(() => {
     try { return JSON.parse(localStorage.getItem('pos_cache_products'))?.data || []; } catch { return []; }
@@ -908,7 +911,7 @@ export default function PosKassa() {
                 </div>
              </div>
              <div className="p-6 pt-0 flex gap-3">
-                <button onClick={()=>setShowDebtModal(false)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl active:scale-95 transition-all">Orqaga</button>
+                <button onClick={()=>setShowDebtModal(false)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl active:scale-95 transition-all">{t('common.back')}</button>
                 <button onClick={()=>checkout(true)} disabled={isPaying || !debtDueDate} className="flex-1 py-3 bg-rose-500 hover:bg-rose-600 disabled:opacity-50 text-white font-black rounded-xl active:scale-95 transition-all text-sm uppercase tracking-widest">
                   {isPaying ? 'To\'lanmoqda...' : 'Tasdiqlash'}
                 </button>
@@ -920,3 +923,6 @@ export default function PosKassa() {
     </div>
   );
 }
+
+
+

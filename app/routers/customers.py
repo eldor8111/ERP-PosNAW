@@ -35,7 +35,11 @@ class CustomerIn(BaseModel):
     def phone_valid(cls, v):
         if v is None:
             return v
-        clean = v.strip().replace("+", "").replace(" ", "").replace("-", "")
+        # Bo'sh string'ni None ga o'tkazish
+        stripped = v.strip()
+        if not stripped:
+            return None
+        clean = stripped.replace("+", "").replace(" ", "").replace("-", "")
         if not clean.isdigit() or not (7 <= len(clean) <= 15):
             raise ValueError("Telefon raqam noto'g'ri (faqat raqamlar, 7-15 ta belgi)")
         return v

@@ -32,6 +32,7 @@ const AgentsPage      = lazy(() => import('./pages/admin/SuperAdmin').then(m => 
 const Ombor           = lazy(() => import('./pages/admin/Ombor'))
 const Tariflar        = lazy(() => import('./pages/admin/Tariflar'))
 const Register        = lazy(() => import('./pages/Register'))
+const Landing         = lazy(() => import('./pages/Landing'))
 
 // Sahifa almashinayotganda ko'rinadigan loading spinner
 function PageLoader() {
@@ -90,8 +91,8 @@ export default function App() {
             } />
           </Route>
                       
-          <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
-          <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="/" element={<Suspense fallback={<PageLoader />}><Landing /></Suspense>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </Router>

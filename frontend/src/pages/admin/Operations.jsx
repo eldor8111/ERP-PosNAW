@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+﻿import { useState, useEffect, useCallback, useRef } from 'react';
+import { useLang } from '../../context/LangContext';
 import api from '../../api/axios';
 import InventoryCountsPage from './InventoryCounts';
 
@@ -43,11 +44,13 @@ const saleMeta = {
 
 /* ─── UI atoms ─── */
 function Badge({ meta, val }) {
+  const { t } = useLang();
   const m = meta[val] || { l: val, c: 'bg-slate-100 text-slate-600' };
   return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${m.c}`}>{m.l}</span>;
 }
 const ic = 'border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white transition-colors hover:border-slate-300';
 function Btn({ v = 'primary', sm, children, ...p }) {
+  const { t } = useLang();
   const cl = {
     primary: 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shadow-indigo-200',
     green:   'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-200',
@@ -63,6 +66,7 @@ function Lbl({ t, children }) {
 
 /* ─── Create page header (back + title + right) ─── */
 function CreateHeader({ title, onBack, right }) {
+  const { t } = useLang();
   return (
     <div className="flex items-center gap-3 px-6 py-3.5 border-b border-slate-100 bg-white shrink-0 shadow-sm">
       <button onClick={onBack} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-indigo-600 px-3 py-2 rounded-xl hover:bg-indigo-50 transition-all text-sm font-semibold">
@@ -80,6 +84,7 @@ function CreateHeader({ title, onBack, right }) {
 
 /* ─── Paginator ─── */
 function Pager({ skip, limit, count, onChange }) {
+  const { t } = useLang();
   return (
     <div className="flex items-center justify-between px-5 py-3.5 border-t border-slate-100 bg-slate-50/60 text-sm">
       <span className="text-slate-400 text-xs font-medium">
@@ -103,6 +108,7 @@ function Pager({ skip, limit, count, onChange }) {
 
 /* ─── Data table ─── */
 function Tbl({ cols, rows, onRow, loading, skip = 0, limit, onChange }) {
+  const { t } = useLang();
   if (loading) return (
     <div className="py-20 text-center">
       <div className="inline-flex items-center gap-2 text-slate-400 text-sm">
@@ -118,7 +124,7 @@ function Tbl({ cols, rows, onRow, loading, skip = 0, limit, onChange }) {
       <svg className="w-10 h-10 mx-auto mb-2 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
       </svg>
-      <p className="text-sm">Ma'lumot topilmadi</p>
+      <p className="text-sm">{t('common.noData')}</p>
     </div>
   );
   return (
@@ -155,6 +161,7 @@ function Tbl({ cols, rows, onRow, loading, skip = 0, limit, onChange }) {
 
 /* ─── Product search dropdown ─── */
 function ProdSearch({ products, onSelect, placeholder = 'Mahsulot qidiring...' }) {
+  const { t } = useLang();
   const [q, setQ]       = useState('');
   const [open, setOpen] = useState(false);
   const ref             = useRef(null);
@@ -226,6 +233,7 @@ function ProdSearch({ products, onSelect, placeholder = 'Mahsulot qidiring...' }
 
 /* ─── Supplier search combobox ─── */
 function SupSearch({ suppliers, value, onChange, placeholder = "Ta'minotchi tanlang..." }) {
+  const { t } = useLang();
   const [q, setQ]       = useState('');
   const [open, setOpen] = useState(false);
   const ref             = useRef(null);
@@ -279,6 +287,7 @@ function SupSearch({ suppliers, value, onChange, placeholder = "Ta'minotchi tanl
 
 /* ─── Customer search combobox ─── */
 function CustSearch({ customers, value, onChange, placeholder = 'Ism yoki telefon...' }) {
+  const { t } = useLang();
   const [q, setQ]       = useState('');
   const [open, setOpen] = useState(false);
   const ref             = useRef(null);
@@ -337,6 +346,7 @@ function CustSearch({ customers, value, onChange, placeholder = 'Ism yoki telefo
 
 /* ─── Payment modal ─── */
 function PayModal({ total, onPay, onClose }) {
+  const { t } = useLang();
   const [type, setType] = useState('cash');
   const [paid, setPaid] = useState(String(total));
   const change = Number(paid) - total;
@@ -397,7 +407,7 @@ function PayModal({ total, onPay, onClose }) {
           )}
           {/* Action buttons */}
           <div className="flex gap-3">
-            <Btn v="ghost" onClick={onClose}>Bekor</Btn>
+            <Btn v="ghost" onClick={onClose}>{t('common.cancel')}</Btn>
             <button onClick={() => onPay(type, type === 'debt' ? 0 : Number(paid))}
               className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-indigo-200 active:scale-95">
               Tasdiqlash
@@ -413,6 +423,7 @@ function PayModal({ total, onPay, onClose }) {
    SALE CREATE VIEW — split panel, wholesale-ready
 ══════════════════════════════════════════════════════════ */
 function SaleCreateView({ products, customers, onBack, onSaved }) {
+  const { t } = useLang();
   const [cart, setCart]       = useState([]);
   const [custId, setCust]     = useState('');
   const [wholesale, setWhole] = useState(false);
@@ -682,7 +693,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
       {/* Footer */}
       <div className="flex items-center justify-between px-5 py-3.5 bg-white border-t border-slate-100 shrink-0 shadow-[0_-1px_8px_rgba(0,0,0,0.06)]">
         <div className="flex items-center gap-3">
-          <Btn v="ghost" onClick={onBack}>Bekor qilish</Btn>
+          <Btn v="ghost" onClick={onBack}>{t('common.cancel')}</Btn>
           {err && <span className="text-red-500 text-sm font-medium">{err}</span>}
         </div>
         <div className="flex items-center gap-3">
@@ -758,7 +769,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
               <span className="text-lg font-bold text-indigo-600">{fmt(Number(qaItem.qty) * Number(qaItem.price) - Number(qaItem.discount))} so'm</span>
             </div>
             <div className="flex gap-2">
-              <Btn v="ghost" onClick={() => setQaItem(null)} sm>Bekor</Btn>
+              <Btn v="ghost" onClick={() => setQaItem(null)} sm>{t('common.cancel')}</Btn>
               <button onClick={() => addToCart(qaItem.product, qaItem.qty, qaItem.price, qaItem.discount)}
                 className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm transition-colors">
                 + Savatga qo'shish
@@ -775,6 +786,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
 
 /* ─── Sale detail view ─── */
 function SaleDetailView({ saleId, onBack }) {
+  const { t } = useLang();
   const [sale, setSale] = useState(null);
   useEffect(() => {
     api.get(`/sales/${saleId}`).then(r => setSale(r.data)).catch(() => {});
@@ -837,6 +849,7 @@ function SaleDetailView({ saleId, onBack }) {
    SALES TAB
 ══════════════════════════════════════════════════════════ */
 function SalesTab({ products, customers }) {
+  const { t } = useLang();
   const [mode, setMode]       = useState('list');
   const [selectedId, setSel]  = useState(null);
   const [sales, setSales]     = useState([]);
@@ -931,6 +944,7 @@ function SalesTab({ products, customers }) {
    KIRIM CREATE VIEW — split panel
 ══════════════════════════════════════════════════════════ */
 function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
+  const { t } = useLang();
   const [sub, setSub]             = useState('po');
   // PO form
   const [poForm, setPoForm]       = useState({ supplier_id:'', warehouse_id:'', note:'', expected_date:'' });
@@ -1318,7 +1332,7 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
         </div>
         <div className="flex gap-3 ml-auto items-center">
           {err && <span className="text-red-500 text-sm">{err}</span>}
-          <Btn v="ghost" onClick={onBack}>Bekor qilish</Btn>
+          <Btn v="ghost" onClick={onBack}>{t('common.cancel')}</Btn>
           <Btn onClick={sub==='po' ? savePo : saveManual} disabled={saving}>
             {saving ? 'Saqlanmoqda...' : (sub==='po' ? 'Buyurtma yaratish' : 'Qabul qilish')}
           </Btn>
@@ -1332,6 +1346,7 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
    KIRIMLAR TAB
 ══════════════════════════════════════════════════════════ */
 function KirimlarTab({ products, warehouses, suppliers, users }) {
+  const { t } = useLang();
   const [mode, setMode]       = useState('list');
   const [pos, setPos]         = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1528,7 +1543,7 @@ function KirimlarTab({ products, warehouses, suppliers, users }) {
               ))}
             </div>
             <div className="flex gap-3">
-              <Btn v="ghost" onClick={() => setRec(null)} className="flex-1">Bekor</Btn>
+              <Btn v="ghost" onClick={() => setRec(null)} className="flex-1">{t('common.cancel')}</Btn>
               <Btn v="green" onClick={receivePo} disabled={recSaving} className="flex-1">{recSaving?'...':'Tasdiqlash'}</Btn>
             </div>
           </div>
@@ -1542,6 +1557,7 @@ function KirimlarTab({ products, warehouses, suppliers, users }) {
    QAYTARISHLAR — split panel create view
 ══════════════════════════════════════════════════════════ */
 function QaytarishCreateView({ products, type, onBack }) {
+  const { t } = useLang();
   const isCustomer = type === 'customer';
   const [items, setItems]   = useState([]);
   const [note, setNote]     = useState('');
@@ -1670,7 +1686,7 @@ function QaytarishCreateView({ products, type, onBack }) {
           {err && <span className="text-red-500 text-sm">{err}</span>}
         </div>
         <div className="flex gap-3">
-          <Btn v="ghost" onClick={onBack}>Bekor qilish</Btn>
+          <Btn v="ghost" onClick={onBack}>{t('common.cancel')}</Btn>
           <Btn onClick={save} disabled={saving}>{saving?'...':'Saqlash'}</Btn>
         </div>
       </div>
@@ -1679,6 +1695,7 @@ function QaytarishCreateView({ products, type, onBack }) {
 }
 
 function QaytarishlarTab({ products }) {
+  const { t } = useLang();
   const [mode, setMode] = useState('list');
   const [sub, setSub]   = useState('customer');
 
@@ -1718,6 +1735,7 @@ function QaytarishlarTab({ products }) {
    TRANSFERLAR
 ══════════════════════════════════════════════════════════ */
 function TransferCreateView({ products: propProducts, warehouses, onBack, onSaved }) {
+  const { t } = useLang();
   const [localProducts, setLocalProducts] = useState(propProducts || []);
   const [step, setStep]     = useState(1);
 
@@ -2205,6 +2223,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
 
 
 function TransferlarTab({ products, warehouses, users = [] }) {
+  const { t } = useLang();
   const [mode, setMode]       = useState('list');
   const [transfers, setTr]    = useState([]);
   const [loading, setLoading] = useState(false);
@@ -2247,8 +2266,8 @@ function TransferlarTab({ products, warehouses, users = [] }) {
     { k:'created_at',          l:'Sana',  r: v => fmtDay(v) },
     { k:'id', l:'', r: (v,row) => row.status==='pending' ? (
       <div className="flex gap-1.5" onClick={e=>e.stopPropagation()}>
-        <Btn v="green" sm onClick={() => confirm(v)}>Tasdiqlash</Btn>
-        <Btn v="red"   sm onClick={() => cancel(v)}>Bekor</Btn>
+        <Btn v="green" sm onClick={() => confirm(v)}>{t('common.confirm')}</Btn>
+        <Btn v="red"   sm onClick={() => cancel(v)}>{t('common.cancel')}</Btn>
       </div>
     ) : null },
   ];
@@ -2367,6 +2386,7 @@ function TransferlarTab({ products, warehouses, users = [] }) {
    REVIZIYALAR
 ══════════════════════════════════════════════════════════ */
 function ReviziyalarTab() {
+  const { t } = useLang();
   return <InventoryCountsPage />;
 }
 
@@ -2383,6 +2403,7 @@ const CHIQIM_TYPES = [
 
 
 function ChiqimCreateView({ products, onBack, onSaved, editItems = [], editId = null }) {
+  const { t } = useLang();
   const [items, setItems]   = useState(() => {
     return editItems.map(i => ({
       product: { id: i.product_id, name: i.product_name, stock_quantity: 0, unit: i.product_unit },
@@ -2545,7 +2566,7 @@ function ChiqimCreateView({ products, onBack, onSaved, editItems = [], editId = 
           <div className="flex items-center justify-between px-6 py-4 bg-white border-t border-slate-200 shrink-0">
             <div>{err && <span className="text-red-500 text-sm font-semibold">{err}</span>}</div>
             <div className="flex items-center gap-3">
-              <button onClick={onBack} className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50">Bekor qilish</button>
+              <button onClick={onBack} className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50">{t('common.cancel')}</button>
               <button onClick={save} disabled={saving || !items.length} className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all disabled:opacity-50 shadow-sm flex items-center gap-2">
                 {saving ? 'Tasdiqlanmoqda...' : 'Tasdiqlash'}
               </button>
@@ -2558,6 +2579,7 @@ function ChiqimCreateView({ products, onBack, onSaved, editItems = [], editId = 
 }
 
 function ChiqimlarTab({ products, users = [] }) {
+  const { t } = useLang();
   const [mode, setMode] = useState('list');
   const [movements, setMov] = useState([]);
   const [movLoad, setML] = useState(false);
@@ -2692,7 +2714,7 @@ function ChiqimlarTab({ products, users = [] }) {
                     </td>
                     <td className="px-6 py-4 text-right">
                        <button onClick={() => openDetail(m.reference_id)} className="text-indigo-600 font-semibold hover:underline text-xs mr-3">Ko'rish / Tahrirlash</button>
-                       <button onClick={() => deleteChiqim(m.reference_id)} className="text-red-500 font-semibold hover:underline text-xs">O'chirish</button>
+                       <button onClick={() => deleteChiqim(m.reference_id)} className="text-red-500 font-semibold hover:underline text-xs">{t('common.delete')}</button>
                     </td>
                   </tr>
                 );
@@ -2741,7 +2763,7 @@ function ChiqimlarTab({ products, users = [] }) {
               )}
             </div>
             <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
-              <button onClick={startEdit} className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg">Tahrirlash</button>
+              <button onClick={startEdit} className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg">{t('common.edit')}</button>
               <button onClick={() => setDetailId(null)} className="px-4 py-2 text-sm font-bold text-white bg-slate-800 hover:bg-slate-700 rounded-lg">Yopish</button>
             </div>
           </div>
@@ -2755,6 +2777,7 @@ function ChiqimlarTab({ products, users = [] }) {
    QOLDIQ NAZORATI
 ══════════════════════════════════════════════════════════ */
 function QoldiqTab() {
+  const { t } = useLang();
   const [subtab, setSubtab]   = useState('low');
   const [allStocks, setAll]   = useState([]);
   const [loading, setLoading] = useState(false);
@@ -2931,6 +2954,7 @@ const TABS = [
 ];
 
 export default function Operations() {
+  const { t } = useLang();
   const [tab, setTab]               = useState('qaytarishlar');
   const [products, setProducts]     = useState([]);
   const [warehouses, setWarehouses] = useState([]);
@@ -2984,3 +3008,4 @@ export default function Operations() {
     </div>
   );
 }
+

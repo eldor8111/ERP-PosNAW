@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import api from '../../api/axios';
 import BarcodePrintModal from '../../components/BarcodeTemplates';
+import { useLang } from '../../context/LangContext';
 
 const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api').replace('/api', '');
 
@@ -284,6 +285,7 @@ function CurrencyDropdown({ value, onChange, currencies }) {
 
 /* ═══════════════════════════════════════════════════ */
 export default function Products() {
+  const { t } = useLang();
   const [printProduct, setPrintProduct] = useState(null);
   const [activeTab, setActiveTab] = useState('products');
 
@@ -513,7 +515,7 @@ export default function Products() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm("Mahsulot o'chirilsinmi? (Arxivlanadi)")) return;
+    if (!confirm(t('product.deleteConfirm'))) return;
     await api.delete(`/products/${id}`).catch(() => {});
     loadProducts();
   };
@@ -608,12 +610,12 @@ export default function Products() {
   };
 
   const handleDeleteCat = async (id) => {
-    if (!confirm("Kategoriya o'chirilsinmi?")) return;
+    if (!confirm(t('confirm.delete'))) return;
     try {
       await api.delete(`/categories/${id}`);
       loadCategories();
     } catch (err) {
-      alert(err.response?.data?.detail || "O'chirib bo'lmadi");
+      alert(err.response?.data?.detail || t('common.error'));
     }
   };
 
@@ -642,12 +644,12 @@ export default function Products() {
   };
 
   const handleDeleteBl = async (id) => {
-    if (!confirm("Joylashuv o'chirilsinmi?")) return;
+    if (!confirm(t('confirm.delete'))) return;
     try {
       await api.delete(`/bin-locations/${id}`);
       loadBinLocations();
     } catch (err) {
-      alert(err.response?.data?.detail || "O'chirib bo'lmadi");
+      alert(err.response?.data?.detail || t('common.error'));
     }
   };
 
@@ -842,7 +844,7 @@ export default function Products() {
                 onClick={() => setBulkDeleteModal(null)}
                 className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-semibold transition-colors"
               >
-                Bekor
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -850,7 +852,7 @@ export default function Products() {
                 disabled={bulkDeleteModal.entered !== String(bulkDeleteModal.code)}
                 className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
               >
-                O'chirish
+                {t('common.delete')}
               </button>
             </div>
           </div>
@@ -861,8 +863,8 @@ export default function Products() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Mahsulotlar</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Mahsulotlar va kategoriyalar boshqaruvi</p>
+          <h1 className="text-2xl font-bold text-slate-800">{t('product.title')}</h1>
+          <p className="text-slate-500 text-sm mt-0.5">{t('product.title')} {t('common.list').toLowerCase()}</p>
         </div>
         <div className="flex items-center gap-2">
           {activeTab === 'products' && (
@@ -875,7 +877,7 @@ export default function Products() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                Shablon
+                {t('common.download')}
               </button>
               <button
                 onClick={openImport}
@@ -884,7 +886,7 @@ export default function Products() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                 </svg>
-                Excel yuklash
+                {t('product.import')}
               </button>
               <button
                 onClick={() => {

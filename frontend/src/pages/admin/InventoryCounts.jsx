@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+﻿import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useLang } from '../../context/LangContext';
 import api from '../../api/axios';
 
 /* ─────────── helpers ─────────── */
@@ -14,7 +15,8 @@ const STATUS = {
 };
 
 function Loader() {
-  return (
+  const { t } = useLang();
+return (
     <div className="flex items-center justify-center py-24">
       <div className="w-9 h-9 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
     </div>
@@ -22,7 +24,8 @@ function Loader() {
 }
 
 function StatusBadge({ status }) {
-  const m = STATUS[status] || { l: status, c: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' };
+  const { t } = useLang();
+const m = STATUS[status] || { l: status, c: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' };
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${m.c}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${m.dot}`} />
@@ -32,7 +35,7 @@ function StatusBadge({ status }) {
 }
 
 /* ─────────── Print helpers ─────────── */
-function doPrint(html) {
+function doPrint(html, t) {
   const old = document.getElementById('__inv_iframe__');
   if (old) old.remove();
   const f = document.createElement('iframe');
@@ -44,7 +47,7 @@ function doPrint(html) {
   f.contentWindow.document.close();
 }
 
-function printCountSheet(count) {
+function printCountSheet(count, t) {
   const rows = count.items.map((item, i) => `
     <tr>
       <td style="text-align:center;width:30px">${i + 1}</td>
@@ -89,7 +92,7 @@ function printCountSheet(count) {
 </body></html>`);
 }
 
-function printVarianceReport(count) {
+function printVarianceReport(count, t) {
   const variances = count.items.filter(i => i.variance !== null && Number(i.variance) !== 0);
   const rows = variances.map((item, i) => {
     const v = Number(item.variance);
@@ -141,7 +144,8 @@ function printVarianceReport(count) {
 
 /* ─────────── Create Modal ─────────── */
 function CreateModal({ onClose, onCreated }) {
-  const [warehouses, setWarehouses] = useState([]);
+  const { t } = useLang();
+const [warehouses, setWarehouses] = useState([]);
   const [categories, setCategories] = useState([]);
   const [form, setForm]   = useState({ warehouse_id: '', note: '', countType: 'full', catIds: [] });
   const [saving, setSaving] = useState(false);
@@ -255,7 +259,7 @@ function CreateModal({ onClose, onCreated }) {
         </div>
 
         <div className="flex gap-3 px-6 pb-6">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50">Bekor</button>
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50">{t('common.cancel')}</button>
           <button onClick={submit} disabled={saving} className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold disabled:opacity-60 shadow-sm">
             {saving ? 'Yaratilmoqda...' : '✓ Yaratish'}
           </button>
@@ -267,7 +271,8 @@ function CreateModal({ onClose, onCreated }) {
 
 /* ─────────── Finalize Modal ─────────── */
 function FinalizeModal({ count, onConfirm, onClose, saving }) {
-  const variances = count.items.filter(i => i.variance !== null && Number(i.variance) !== 0);
+  const { t } = useLang();
+const variances = count.items.filter(i => i.variance !== null && Number(i.variance) !== 0);
   const uncounted = count.items.filter(i => i.counted_qty === null);
   const surplus   = variances.filter(i => Number(i.variance) > 0).length;
   const shortage  = variances.filter(i => Number(i.variance) < 0).length;
@@ -317,7 +322,7 @@ function FinalizeModal({ count, onConfirm, onClose, saving }) {
           </div>
         </div>
         <div className="flex gap-3 px-6 pb-6">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50">Orqaga</button>
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50">{t('common.back')}</button>
           <button onClick={onConfirm} disabled={saving} className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold disabled:opacity-60 shadow-sm">
             {saving ? 'Yakunlanmoqda...' : '✓ Ha, tasdiqlash'}
           </button>
@@ -329,7 +334,8 @@ function FinalizeModal({ count, onConfirm, onClose, saving }) {
 
 /* ─────────── Detail View ─────────── */
 function DetailView({ countId, onBack }) {
-  const [count,        setCount]        = useState(null);
+  const { t } = useLang();
+const [count,        setCount]        = useState(null);
   const [loading,      setLoading]      = useState(true);
   const [localQtys,    setLocalQtys]    = useState({});
   const [localReasons, setLocalReasons] = useState({});
@@ -433,7 +439,7 @@ function DetailView({ countId, onBack }) {
   }, [count, localQtys]);
 
   if (loading) return <Loader />;
-  if (!count)  return <div className="text-center py-20 text-slate-400">Ma'lumot topilmadi</div>;
+  if (!count)  return <div className="text-center py-20 text-slate-400">{t('common.noData')}</div>;
 
   return (
     <div className="space-y-5">
@@ -461,12 +467,12 @@ function DetailView({ countId, onBack }) {
         </div>
         {/* Actions */}
         <div className="flex items-center gap-2 flex-wrap shrink-0">
-          <button onClick={() => printCountSheet(count)}
+          <button onClick={() => printCountSheet(count, t)}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold bg-white border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-700 transition-colors">
             🖨 Sanash varaqasi
           </button>
           {count.status !== 'draft' && (
-            <button onClick={() => printVarianceReport(count)}
+            <button onClick={() => printVarianceReport(count, t)}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold bg-white border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-700 transition-colors">
               📋 Tafovutlar
             </button>
@@ -657,7 +663,8 @@ function DetailView({ countId, onBack }) {
 
 /* ─────────── List View ─────────── */
 function ListView({ onView }) {
-  const [counts,       setCounts]       = useState([]);
+  const { t } = useLang();
+const [counts,       setCounts]       = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   const [showCreate,   setShowCreate]   = useState(false);
@@ -780,7 +787,8 @@ function ListView({ onView }) {
 
 /* ─────────── Main export ─────────── */
 export default function InventoryCounts() {
-  const [view,       setView]       = useState('list');
+  const { t } = useLang();
+const [view,       setView]       = useState('list');
   const [selectedId, setSelectedId] = useState(null);
 
   if (view === 'detail' && selectedId) {
@@ -793,3 +801,6 @@ export default function InventoryCounts() {
   }
   return <ListView onView={(id) => { setSelectedId(id); setView('detail'); }} />;
 }
+
+
+

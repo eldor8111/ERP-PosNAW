@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
+import { useLang } from '../../context/LangContext';
 
 // super_admin ni dropdown dan yashiramiz — faqat DB orqali beriladi
 const ROLES = ['admin', 'director', 'manager', 'accountant', 'warehouse', 'cashier'];
 
-const ROLE_LABELS = {
-  super_admin: 'Super Admin',
-  admin: 'Admin', director: 'Direktor', manager: 'Menejer',
-  accountant: 'Buxgalter', warehouse: 'Omborchi', cashier: 'Kassir',
-};
+const getRoleLabels = (t) => ({
+  super_admin: t('role.super_admin'),
+  admin: t('role.admin'), director: t('role.director'), manager: t('role.manager'),
+  accountant: t('role.accountant') || 'Buxgalter', warehouse: t('role.warehouseman'), cashier: t('role.cashier'),
+});
 
 const ROLE_COLORS = {
   super_admin: 'bg-purple-100 text-purple-700',
@@ -36,6 +37,7 @@ function StatCard({ label, value, color = 'slate' }) {
 }
 
 export default function Users() {
+  const { t } = useLang();
   const [users, setUsers] = useState([]);
   const [branches, setBranches] = useState([]);
   const [modal, setModal] = useState(null); // 'create' | 'edit' | 'password'
@@ -44,6 +46,8 @@ export default function Users() {
   const [newPwd, setNewPwd] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  const ROLE_LABELS = getRoleLabels(t);
 
   const load = () => api.get('/users/').then(r => setUsers(r.data)).catch(() => {});
   useEffect(() => {
@@ -72,7 +76,7 @@ export default function Users() {
       };
       await api.post('/users/', payload);
       close(); load();
-    } catch (err) { setError(err.response?.data?.detail || 'Xatolik yuz berdi'); }
+    } catch (err) { setError(err.response?.data?.detail || t('common.error')); }
     finally { setSaving(false); }
   };
 
@@ -88,7 +92,7 @@ export default function Users() {
       };
       await api.put(`/users/${selected.id}`, payload);
       close(); load();
-    } catch (err) { setError(err.response?.data?.detail || 'Xatolik yuz berdi'); }
+    } catch (err) { setError(err.response?.data?.detail || t('common.error')); }
     finally { setSaving(false); }
   };
 
@@ -97,16 +101,16 @@ export default function Users() {
     try {
       await api.patch(`/users/${selected.id}/password`, { new_password: newPwd });
       close();
-    } catch (err) { setError(err.response?.data?.detail || 'Xatolik yuz berdi'); }
+    } catch (err) { setError(err.response?.data?.detail || t('common.error')); }
     finally { setSaving(false); }
   };
 
   const handleDeactivate = async (u) => {
-    if (!confirm(`"${u.name}" ni nofaol qilishni tasdiqlaysizmi?`)) return;
+    if (!confirm(t('confirm.delete') || `"${u.name}" ni nofaol qilishni tasdiqlaysizmi?`)) return;
     try {
       await api.delete(`/users/${u.id}`);
       load();
-    } catch (err) { alert(err.response?.data?.detail || "O'chirib bo'lmadi"); }
+    } catch (err) { alert(err.response?.data?.detail || t('common.error')); }
   };
 
   /* ────── shared field renderer ────── */
@@ -146,8 +150,8 @@ export default function Users() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Foydalanuvchilar</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Xodimlar va ularning rollari boshqaruvi</p>
+          <h1 className="text-2xl font-bold text-slate-800">{t('user.title')}</h1>
+          <p className="text-slate-500 text-sm mt-0.5">{t('user.subtitle') || 'Xodimlar va ularning rollari boshqaruvi'}</p>
         </div>
         <button
           onClick={openCreate}
@@ -156,16 +160,16 @@ export default function Users() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
           </svg>
-          Yangi xodim
+          {t('user.newUser')}
         </button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4">
-        <StatCard label="Jami xodimlar" value={users.length} color="indigo" />
-        <StatCard label="Kassirlar" value={users.filter(u => u.role === 'cashier').length} color="emerald" />
-        <StatCard label="Menejerlar" value={users.filter(u => u.role === 'manager').length} color="violet" />
-        <StatCard label="Adminlar" value={users.filter(u => u.role === 'admin' || u.role === 'director').length} color="slate" />
+        <StatCard label={t('user.totalEmployees') || "Jami xodimlar"} value={users.length} color="indigo" />
+        <StatCard label={t('user.cashiers') || "Kassirlar"} value={users.filter(u => u.role === 'cashier').length} color="emerald" />
+        <StatCard label={t('user.managers') || "Menejerlar"} value={users.filter(u => u.role === 'manager').length} color="violet" />
+        <StatCard label={t('user.admins') || "Adminlar"} value={users.filter(u => u.role === 'admin' || u.role === 'director').length} color="slate" />
       </div>
 
       {/* Table */}
@@ -173,7 +177,7 @@ export default function Users() {
         <table className="min-w-full">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
-              {['Xodim', 'Telefon', 'Email', 'Filial', 'Rol', 'Holat', ''].map(h => (
+              {[t('common.name') || 'Xodim', t('common.phone'), 'Email', t('branch.title') || 'Filial', t('user.role'), t('common.status'), ''].map(h => (
                 <th key={h} className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
               ))}
             </tr>
@@ -201,22 +205,22 @@ export default function Users() {
                 </td>
                 <td className="px-6 py-4">
                   <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${u.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                    {u.status === 'active' ? 'Faol' : 'Nofaol'}
+                    {u.status === 'active' ? t('common.active') : t('common.inactive')}
                   </span>
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-1 justify-end">
-                    <button onClick={() => openEdit(u)} title="Tahrirlash" className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors">
+                    <button onClick={() => openEdit(u)} title={t('common.edit')} className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
                     </button>
-                    <button onClick={() => openPwd(u)} title="Parolni o'zgartirish" className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg transition-colors">
+                    <button onClick={() => openPwd(u)} title={t('user.changePassword')} className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg transition-colors">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                       </svg>
                     </button>
-                    <button onClick={() => handleDeactivate(u)} title="Nofaol qilish" className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                    <button onClick={() => handleDeactivate(u)} title={t('common.delete')} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                       </svg>
@@ -226,7 +230,7 @@ export default function Users() {
               </tr>
             ))}
             {users.length === 0 && (
-              <tr><td colSpan={7} className="px-6 py-16 text-center text-slate-400 text-sm">Foydalanuvchilar topilmadi</td></tr>
+              <tr><td colSpan={7} className="px-6 py-16 text-center text-slate-400 text-sm">{t('user.noUsers')}</td></tr>
             )}
           </tbody>
         </table>
@@ -237,7 +241,7 @@ export default function Users() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-800">Yangi xodim qo'shish</h3>
+              <h3 className="text-lg font-bold text-slate-800">{t('user.newUser')}</h3>
               <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -245,12 +249,12 @@ export default function Users() {
               </button>
             </div>
             <form onSubmit={handleCreate} className="p-6 space-y-4">
-              <Field label="Ism *">
+              <Field label={`${t('common.name')} *`}>
                 <input type="text" required value={form.name}
                   onChange={e => setForm({ ...form, name: e.target.value })}
-                  placeholder="To'liq ism" className={inp} />
+                  placeholder={t('common.name')} className={inp} />
               </Field>
-              <Field label="Telefon *">
+              <Field label={`${t('common.phone')} *`}>
                 <input type="text" required value={form.phone}
                   onChange={e => setForm({ ...form, phone: e.target.value })}
                   placeholder="+998901234567" className={inp} />
@@ -260,18 +264,18 @@ export default function Users() {
                   onChange={e => setForm({ ...form, email: e.target.value })}
                   placeholder="email@example.com" className={inp} />
               </Field>
-              <Field label="Parol *">
+              <Field label={`${t('user.password')} *`}>
                 <input type="password" required minLength={6} value={form.password}
                   onChange={e => setForm({ ...form, password: e.target.value })}
-                  placeholder="Kamida 6 ta belgi" className={inp} />
+                  placeholder="******" className={inp} />
               </Field>
               <RoleSelect />
               {branches.length > 0 && <BranchSelect />}
               {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">Bekor</button>
+                <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
                 <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
-                  {saving ? 'Qo\'shilmoqda...' : 'Qo\'shish'}
+                  {saving ? t('common.saving') : t('common.add')}
                 </button>
               </div>
             </form>
@@ -284,7 +288,7 @@ export default function Users() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-800">Xodimni tahrirlash</h3>
+              <h3 className="text-lg font-bold text-slate-800">{t('user.editUser')}</h3>
               <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -292,11 +296,11 @@ export default function Users() {
               </button>
             </div>
             <form onSubmit={handleEdit} className="p-6 space-y-4">
-              <Field label="Ism *">
+              <Field label={`${t('common.name')} *`}>
                 <input type="text" required value={form.name}
                   onChange={e => setForm({ ...form, name: e.target.value })} className={inp} />
               </Field>
-              <Field label="Telefon *">
+              <Field label={`${t('common.phone')} *`}>
                 <input type="text" required value={form.phone}
                   onChange={e => setForm({ ...form, phone: e.target.value })} className={inp} />
               </Field>
@@ -308,9 +312,9 @@ export default function Users() {
               {branches.length > 0 && <BranchSelect />}
               {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">Bekor</button>
+                <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
                 <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
-                  {saving ? 'Saqlanmoqda...' : 'Saqlash'}
+                  {saving ? t('common.saving') : t('common.save')}
                 </button>
               </div>
             </form>
@@ -323,7 +327,7 @@ export default function Users() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-800">Parolni o'zgartirish</h3>
+              <h3 className="text-lg font-bold text-slate-800">{t('user.changePassword')}</h3>
               <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -331,18 +335,18 @@ export default function Users() {
               </button>
             </div>
             <form onSubmit={handlePwd} className="p-6 space-y-4">
-              <p className="text-sm text-slate-600"><strong>{selected.name}</strong> uchun yangi parol o'rnatiladi.</p>
-              <Field label="Yangi parol">
+              <p className="text-sm text-slate-600"><strong>{selected.name}</strong></p>
+              <Field label={t('user.password')}>
                 <input
                   type="password" required minLength={6} value={newPwd} autoFocus
                   onChange={e => setNewPwd(e.target.value)}
-                  placeholder="Kamida 6 ta belgi" className={inp} />
+                  placeholder="******" className={inp} />
               </Field>
               {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
               <div className="flex gap-3">
-                <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">Bekor</button>
+                <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
                 <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
-                  {saving ? '...' : 'O\'zgartirish'}
+                  {saving ? '...' : t('common.save')}
                 </button>
               </div>
             </form>

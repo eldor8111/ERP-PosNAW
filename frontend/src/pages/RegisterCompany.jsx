@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../api/axios'
+import { ECodeLogoPrimary } from '../components/ECodeLogo'
+import ECodeLogo from '../components/ECodeLogo'
 
 const REGIONS = {
   "Toshkent shahri": ["Bektemir","Chilonzor","Hamza","Mirzo Ulug'bek","Mirobod","Sergeli","Shayxontohur","Olmazor","Uchtepa","Yakkasaroy","Yunusobod"],
@@ -281,10 +283,7 @@ export default function RegisterCompany() {
 
         {/* Logo */}
         <div className="relative flex items-center gap-3">
-          <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center shadow-lg">
-            <span className="text-indigo-700 font-black text-sm tracking-tight">UBT</span>
-          </div>
-          <span className="text-white font-bold text-xl">UBT</span>
+          <ECodeLogoPrimary size={40} />
         </div>
 
         {/* Center content */}
@@ -316,7 +315,7 @@ export default function RegisterCompany() {
           </div>
         </div>
 
-        <p className="relative text-indigo-300/50 text-xs">© 2026 UBT Tizimi</p>
+        <p className="relative text-indigo-300/50 text-xs">© 2026 E-code ERP</p>
       </div>
 
       {/* ── Right panel (form) ── */}
@@ -325,10 +324,7 @@ export default function RegisterCompany() {
 
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-2 mb-8">
-            <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center">
-              <Icon d="M13 10V3L4 14h7v7l9-11h-7z" cls="w-5 h-5 text-white" />
-            </div>
-            <span className="font-bold text-slate-800 text-lg">ERP / POS</span>
+            <ECodeLogo size={34} showText={true} textClassName="text-lg" />
           </div>
 
           <div className="mb-7">
