@@ -194,6 +194,12 @@ function SaleCreateView({ customers, onBack, onSaved }) {
   const doSave = async (paymentInfo = null, shouldPrint = false) => {
     if (!cart.length) { setErr("Kamida bitta mahsulot qo'shing"); return; }
     setSaving(true); setErr(''); setPayErr('');
+
+    // ── Modalni DARHOL yopamiz — foydalanuvchi qotib qolgan ko'rinishni ko'rmaydi
+    // Xato bo'lsa quyida qaytadan ochamiz
+    setShowPay(false);
+    setShowMuddat(false);
+
     try {
       const discAmt = payForm.discType === 'pct'
         ? totalNet * (Number(payForm.discVal) || 0) / 100
@@ -254,6 +260,8 @@ function SaleCreateView({ customers, onBack, onSaved }) {
       const msg = e.response?.data?.detail || 'Xatolik';
       setPayErr(msg);
       setErr(msg);
+      // Xato bo'lsa to'lov modalini qaytib ochamiz — foydalanuvchi ma'lumotlarini yo'qotmasin
+      setShowPay(true);
     } finally { setSaving(false); }
   };
 
@@ -595,14 +603,24 @@ function SaleCreateView({ customers, onBack, onSaved }) {
 
       <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 bg-white shrink-0">
         <div className="flex gap-3">
-          <Btn v="ghost" onClick={onBack}>{t('common.cancel')}</Btn>
+          <Btn v="ghost" onClick={onBack} disabled={saving}>{t('common.cancel')}</Btn>
           {err && <span className="text-red-500 font-bold bg-red-50 px-3 py-1.5 rounded-xl border border-red-100">{err}</span>}
         </div>
         <div className="flex gap-3 items-center">
           {cart.length > 0 && <span className="mr-3 font-bold text-slate-500">Jami summasi: <span className="text-slate-800 text-lg ml-1">{fmt(totalNet)} UZS</span></span>}
-          <button onClick={()=>{ if(!cart.length){setErr("Savat bo'sh"); return;} setErr(''); setShowPay(true); }} className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-sm flex items-center gap-2">
-            To'lov
-          </button>
+          {saving ? (
+            <div className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-sm flex items-center gap-2.5 min-w-[130px] justify-center">
+              <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+              </svg>
+              Saqlanmoqda...
+            </div>
+          ) : (
+            <button onClick={()=>{ if(!cart.length){setErr("Savat bo'sh"); return;} setErr(''); setShowPay(true); }} className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-sm flex items-center gap-2">
+              To'lov
+            </button>
+          )}
         </div>
       </div>
 
