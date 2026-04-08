@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLang } from '../../context/LangContext';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
@@ -460,22 +460,26 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
 
   const subtotal = cart.reduce((s, c) => s + c.qty * c.price - Number(c.discount || 0), 0);
 
-  const doSave = async (payType, paidAmount) => {
+  const doSave = (payType, paidAmount) => {
     if (!cart.length) { setErr("Kamida bitta mahsulot qo'shing"); return; }
+    if (saving) return;
     setSaving(true); setErr('');
-    try {
-      await api.post('/sales', {
-        items: cart.map(c => ({ product_id: c.product.id, quantity: c.qty, unit_price: c.price, discount: c.discount })),
-        payment_type:    payType,
-        paid_amount:     paidAmount,
-        discount_amount: 0,
-        note:            note || null,
-        customer_id:     custId ? Number(custId) : null,
-      });
-      onSaved(); onBack();
-    } catch (e) {
-      setErr(e.response?.data?.detail || 'Xatolik yuz berdi');
-    } finally { setSaving(false); setShowPay(false); }
+    setShowPay(false);
+
+    // Darrov navigatsiya — API background da ishlaydi
+    const promise = api.post('/sales', {
+      items: cart.map(c => ({ product_id: c.product.id, quantity: c.qty, unit_price: c.price, discount: c.discount })),
+      payment_type:    payType,
+      paid_amount:     paidAmount,
+      discount_amount: 0,
+      note:            note || null,
+      customer_id:     custId ? Number(custId) : null,
+    });
+
+    onBack(); // Darrov ro'yxatga qaytish
+    promise
+      .then(() => { onSaved(); }) // Ro'yxatni yangilash
+      .catch(e => console.error('Sale error:', e.response?.data?.detail || e));
   };
 
   return (
@@ -937,34 +941,37 @@ function KirimCreateView({ onBack, onSaved }) {
   const debt = Math.max(0, finalTotal - paid);
   const change = Math.max(0, paid - finalTotal);
 
-  const savePo = async (status = 'draft', paymentInfo = null) => {
+  const savePo = (status = 'draft', paymentInfo = null) => {
     if (!poForm.supplier_id || !poForm.warehouse_id || !poItems.length) { setErr("Barcha majburiy maydonlarni to'ldiring"); return; }
+    if (saving) return;
     setSaving(true); setErr('');
-    try {
-      const payload = {
-        supplier_id: Number(poForm.supplier_id), warehouse_id: Number(poForm.warehouse_id),
-        status, 
-        note: poForm.note || null, expected_date: poForm.expected_date || null,
-        update_retail: autoRetail, update_wholesale: autoWholesale,
-        items: poItems.map(i => ({ 
-          product_id: i.product_id, 
-          qty_ordered: i.qty_ordered, 
-          unit_cost: i.net_cost,
-          new_sale_price: i.new_sale_price,
-          new_wholesale_price: i.new_wholesale_price
-        })),
-      };
 
-      if (paymentInfo) {
-         payload.paid_amount = paymentInfo.paid;
-         payload.discount_amount = totalNet - finalTotal; // total discount
-         payload.payment_type = 'cash';
-         if (paymentInfo.info) payload.note = (payload.note ? payload.note + '\n' : '') + paymentInfo.info;
-      }
+    const payload = {
+      supplier_id: Number(poForm.supplier_id), warehouse_id: Number(poForm.warehouse_id),
+      status,
+      note: poForm.note || null, expected_date: poForm.expected_date || null,
+      update_retail: autoRetail, update_wholesale: autoWholesale,
+      items: poItems.map(i => ({
+        product_id: i.product_id,
+        qty_ordered: i.qty_ordered,
+        unit_cost: i.net_cost,
+        new_sale_price: i.new_sale_price,
+        new_wholesale_price: i.new_wholesale_price
+      })),
+    };
 
-      await api.post('/purchase-orders', payload);
-      onSaved(); onBack();
-    } catch (e) { setErr(e.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
+    if (paymentInfo) {
+      payload.paid_amount = paymentInfo.paid;
+      payload.discount_amount = totalNet - finalTotal;
+      payload.payment_type = 'cash';
+      if (paymentInfo.info) payload.note = (payload.note ? payload.note + '\n' : '') + paymentInfo.info;
+    }
+
+    // Darrov navigatsiya — API background da ishlaydi
+    onBack();
+    api.post('/purchase-orders', payload)
+      .then(() => { onSaved(); })
+      .catch(e => console.error('PO error:', e.response?.data?.detail || e));
   };
 
   return (
