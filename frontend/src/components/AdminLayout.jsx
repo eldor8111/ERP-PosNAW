@@ -199,6 +199,7 @@ export default function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [orgData, setOrgData] = useState({ name: user?.company_name || 'Tizim', code: '...', balance: 0 });
   const [lowStockCount, setLowStockCount] = useState(0);
@@ -256,9 +257,19 @@ export default function AdminLayout() {
   return (
     <div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
 
+      {/* Mobile Backdrop */}
+      {mobileMenuOpen && (
+        <div 
+          className="lg:hidden fixed inset-0 bg-slate-900/50 z-40 backdrop-blur-sm transition-opacity"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
       {/* ── SIDEBAR ─────────────────────────────────── */}
       <aside
-        className={`${collapsed ? 'w-[60px]' : 'w-[220px]'} bg-white border-r border-slate-200 flex flex-col shrink-0 transition-all duration-300 ease-in-out`}
+        className={`fixed inset-y-0 left-0 z-50 lg:static lg:z-auto bg-white border-r border-slate-200 flex flex-col shrink-0 transition-transform duration-300 ease-in-out lg:transition-all ${
+          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        } ${collapsed ? 'w-[220px] lg:w-[60px]' : 'w-[220px]'}`}
         style={{ boxShadow: '1px 0 12px rgba(0,0,0,0.06)' }}
       >
         {/* Logo */}
@@ -314,12 +325,13 @@ export default function AdminLayout() {
                     <Link
                       key={link.path}
                       to={link.path}
+                      onClick={() => setMobileMenuOpen(false)}
                       title={collapsed ? link.name : undefined}
                       className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all duration-150 group mb-0.5 ${
                         isActive
                           ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
                           : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800'
-                      } ${collapsed ? 'justify-center' : ''}`}
+                      } ${collapsed ? 'justify-center lg:justify-center' : ''}`}
                     >
                       <span className={`shrink-0 relative [&>svg]:w-[16px] [&>svg]:h-[16px] ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-700'}`}>
                         {link.icon}
@@ -381,20 +393,28 @@ export default function AdminLayout() {
       </aside>
 
       {/* ── MAIN CONTENT ─────────────────────────────── */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden w-full relative">
 
         {/* Top Header */}
-        <header className="bg-white border-b border-slate-100 px-6 py-3.5 flex items-center justify-between shrink-0" style={{ boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
+        <header className="bg-white border-b border-slate-100 px-4 md:px-6 py-3.5 flex items-center justify-between shrink-0" style={{ boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
           <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setMobileMenuOpen(true)}
+              className="lg:hidden p-1.5 -ml-1.5 mr-1 text-slate-500 hover:bg-slate-100 rounded-lg"
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
             <div>
-              <h1 className="text-[15px] font-bold text-slate-800 leading-none">{currentPage}</h1>
-              <p className="text-[11px] text-slate-400 mt-0.5">
+              <h1 className="text-[14px] md:text-[15px] font-bold text-slate-800 leading-none truncate max-w-[150px] sm:max-w-xs">{currentPage}</h1>
+              <p className="text-[10px] md:text-[11px] text-slate-400 mt-1 hidden sm:block">
                 {new Date().toLocaleDateString(dateLocales[lang] || 'uz-UZ', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 sm:gap-2.5">
             {/* Tizim faol */}
             <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 rounded-full px-3 py-1.5">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -405,13 +425,13 @@ export default function AdminLayout() {
             {lowStockCount > 0 && (
               <button
                 onClick={() => navigate('/admin/warehouse')}
-                className="relative flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-full px-3 py-1.5 hover:bg-amber-100 transition-colors cursor-pointer"
+                className="relative flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-full px-2 sm:px-3 py-1.5 hover:bg-amber-100 transition-colors cursor-pointer"
                 title={`${lowStockCount} ${t('header.lowStock')}`}
               >
-                <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
-                <span className="text-amber-700 text-xs font-semibold">{t('header.lowStock')}</span>
+                <span className="hidden sm:inline text-amber-700 text-xs font-semibold">{t('header.lowStock')}</span>
                 <span className="min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                   {lowStockCount > 99 ? '99+' : lowStockCount}
                 </span>
@@ -419,13 +439,13 @@ export default function AdminLayout() {
             )}
 
             {/* Org kodi */}
-            <div className="flex flex-col items-center bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-1.5 min-w-[90px]">
+            <div className="hidden md:flex flex-col items-center bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-1.5 min-w-[90px]">
               <span className="text-slate-400 text-[10px] font-semibold leading-none mb-0.5 uppercase tracking-wide">{t('header.code')}</span>
               <span className="text-slate-700 text-[14px] font-black leading-none tracking-wide">{orgData.code}</span>
             </div>
 
             {/* Balans */}
-            <div className="flex flex-col items-center bg-emerald-50 border border-emerald-200 rounded-xl px-3.5 py-1.5 min-w-[90px]">
+            <div className="hidden lg:flex flex-col items-center bg-emerald-50 border border-emerald-200 rounded-xl px-3.5 py-1.5 min-w-[90px]">
               <span className="text-emerald-500 text-[10px] font-semibold leading-none mb-0.5 uppercase tracking-wide">{t('header.balance')}</span>
               <span className="text-emerald-700 text-[14px] font-black leading-none tracking-wide">{fmt(orgData.balance)} s</span>
             </div>
@@ -434,7 +454,7 @@ export default function AdminLayout() {
             <LangSwitcher t={t} lang={lang} setLang={setLang} LANGUAGES={LANGUAGES} />
 
             {/* User */}
-            <div className="flex items-center gap-2.5 bg-indigo-600 rounded-xl px-3.5 py-2 shadow-md shadow-indigo-200">
+            <div className="hidden md:flex items-center gap-2.5 bg-indigo-600 rounded-xl px-3.5 py-2 shadow-md shadow-indigo-200">
               <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center text-white text-[11px] font-black shrink-0">
                 {initials}
               </div>
