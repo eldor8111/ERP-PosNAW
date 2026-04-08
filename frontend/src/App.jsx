@@ -91,7 +91,11 @@ export default function App() {
             } />
           </Route>
                       
-          <Route path="/" element={<Suspense fallback={<PageLoader />}><Landing /></Suspense>} />
+          <Route path="/" element={
+            window.location.hostname.startsWith('erp.') || window.location.hostname.includes('biznes') 
+            ? <Navigate to="/login" replace /> 
+            : <Suspense fallback={<PageLoader />}><Landing /></Suspense>
+          } />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
