@@ -585,3 +585,15 @@ button { font-family: inherit; }
 .lead-success p {
   color: #666;
 }
+
+/* Fix mobile override for agency and lead grids */
+@media (max-width: 768px) {
+  .it-agency-grid { grid-template-columns: 1fr !important; }
+  .lead-grid { 
+    grid-template-columns: 1fr !important; 
+    padding: 30px 20px !important; 
+    text-align: center !important; 
+  }
+  .lead-text h2 { font-size: 2rem !important; }
+  .lead-text ul { align-items: center !important; }
+}
