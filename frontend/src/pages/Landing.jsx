@@ -356,32 +356,32 @@ export default function Landing() {
       </section>
 
       {/* ── Boshqa Xizmatlar / IT Agency ── */}
-      <section className="ent-section bg-gray" style={{ background: '#0a0a0a' }}>
+      <section className="ent-section bg-light" style={{ borderTop: '1px solid #eaeaea' }}>
         <div className="ent-container">
           <div className="ent-section-head">
-            <h2 className="ent-h2" style={{ color: '#fff' }}>Biz bilan faqat ERP emas...</h2>
-            <p className="ent-p" style={{ color: '#a1a1aa' }}>Butun biznesingizni raqamlashtiring. E-code LLC jamoasi noldan IT yechimlar yaratadi.</p>
+            <h2 className="ent-h2">Biz bilan faqat ERP emas...</h2>
+            <p className="ent-p">Butun biznesingizni raqamlashtiring. E-code LLC jamoasi noldan IT yechimlar yaratadi.</p>
           </div>
           <div className="ent-bento it-agency-grid">
             <div className="ent-bento-card agency-card">
               <div className="ent-bc-content">
                 <div className="agency-icon">🌐</div>
-                <h3>Maxsus Veb-saytlar</h3>
-                <p>Korporativ saytlar, E-commerce va mualliflik loyihalari.</p>
+                <h3 className="agency-h3">Maxsus Veb-saytlar</h3>
+                <p className="agency-p">Korporativ saytlar, E-commerce va mualliflik loyihalari.</p>
               </div>
             </div>
             <div className="ent-bento-card agency-card">
               <div className="ent-bc-content">
                 <div className="agency-icon">🤖</div>
-                <h3>Telegram Botlar</h3>
-                <p>Mijozlarga xizmat ko'rsatuvchi aqlli bot va yordamchilar.</p>
+                <h3 className="agency-h3">Telegram Botlar</h3>
+                <p className="agency-p">Mijozlarga xizmat ko'rsatuvchi aqlli bot va yordamchilar.</p>
               </div>
             </div>
             <div className="ent-bento-card agency-card">
               <div className="ent-bc-content">
                 <div className="agency-icon">💻</div>
-                <h3>Noyob Dasturlar</h3>
-                <p>Sizning g'oyangiz asosida murakkab ERP va dasturlar ishlab chiqish.</p>
+                <h3 className="agency-h3">Noyob Dasturlar</h3>
+                <p className="agency-p">Sizning g'oyangiz asosida murakkab ERP va dasturlar ishlab chiqish.</p>
               </div>
             </div>
           </div>
