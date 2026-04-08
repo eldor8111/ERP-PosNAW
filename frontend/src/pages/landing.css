@@ -387,6 +387,7 @@ button { font-family: inherit; }
   min-height: 380px; box-shadow: inset 0 4px 20px rgba(0,0,0,0.02);
 }
 .ent-tab-window { width: 100%; height: 100%; }
+.mock-image { width: 100%; max-width: 500px; border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.15); border: 1px solid rgba(0,0,0,0.05); object-fit: cover; }
 .fade-in { animation: fadeInUp 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
 
 /* ── Mockup Data Components ── */

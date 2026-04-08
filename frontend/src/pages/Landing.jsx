@@ -98,49 +98,21 @@ function DashboardMinimal() {
       </div>
     </div>
   )
-}
-
 const VisualWarehouse = () => (
   <div className="mock-wrap float-anim">
-    <div className="mock-card">
-      <div className="mock-header"><span className="mock-title">Shtrix-kod katalog</span></div>
-      <div className="mock-body">
-         <div className="mock-grid">
-           <div className="mock-item" />
-           <div className="mock-item" />
-           <div className="mock-item" />
-           <div className="mock-item" />
-         </div>
-      </div>
-    </div>
+    <img src="/mockups/warehouse.png" alt="Warehouse UI" className="mock-image" />
   </div>
 );
 
 const VisualPOS = () => (
   <div className="mock-wrap float-anim">
-    <div className="mock-card">
-      <div className="mock-header"><span className="mock-title">Joriy Sotuv</span><span className="mock-title" style={{color: 'var(--ent-emerald)'}}>UZS</span></div>
-      <div className="mock-body">
-         <div className="mock-row"><div className="mock-row-txt" style={{width: '60%'}}/><div className="mock-row-val"/></div>
-         <div className="mock-row"><div className="mock-row-txt" style={{width: '40%'}}/><div className="mock-row-val"/></div>
-         <div className="mock-row"><div className="mock-row-txt" style={{width: '50%'}}/><div className="mock-row-val"/></div>
-         <div className="mock-btn">Kassadan To'lov (Tasdiqlash)</div>
-      </div>
-    </div>
+    <img src="/mockups/pos.png" alt="POS UI" className="mock-image" />
   </div>
 );
 
 const VisualAudit = () => (
   <div className="mock-wrap float-anim">
-    <div className="mock-card">
-      <div className="mock-header"><span className="mock-title">Tizim Jurnallari</span></div>
-      <div className="mock-body" style={{gap: '16px'}}>
-         <div className="mock-log"><div className="mock-dot error" /><div className="mock-log-time">14:23</div><div className="mock-log-txt" style={{width:'80%'}}/></div>
-         <div className="mock-log"><div className="mock-dot warn" /><div className="mock-log-time">12:05</div><div className="mock-log-txt" style={{width:'60%'}}/></div>
-         <div className="mock-log"><div className="mock-dot success" /><div className="mock-log-time">10:14</div><div className="mock-log-txt" style={{width:'90%'}}/></div>
-         <div className="mock-log"><div className="mock-dot success" /><div className="mock-log-time">09:00</div><div className="mock-log-txt" style={{width:'50%'}}/></div>
-      </div>
-    </div>
+    <img src="/mockups/audit.png" alt="Audit UI" className="mock-image" />
   </div>
 );
 
