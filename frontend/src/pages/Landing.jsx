@@ -172,7 +172,7 @@ export default function Landing() {
     e.preventDefault()
     setLeadStatus('loading')
     try {
-      await axios.post('http://89.39.94.195/api/leads', leadForm)
+      await axios.post('/api/leads', leadForm)
       setLeadStatus('success')
     } catch (err) {
       // Depending on CORS, we might just fail but we will show success to user so they don't get stuck if chat_id missing on server

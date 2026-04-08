@@ -502,6 +502,8 @@ button { font-family: inherit; }
   border-radius: 16px;
   padding: 30px;
   color: #111;
+  align-self: center;
+  height: fit-content;
 }
 .lead-form {
   display: flex;
