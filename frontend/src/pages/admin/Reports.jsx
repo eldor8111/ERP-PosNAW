@@ -244,7 +244,7 @@ const [tab, setTab] = useState('sales');
     { key: 'customer-debts', label: 'Debitorlar', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
     { key: 'supplier-debts', label: 'Kreditorlar', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
     { key: 'abc', label: 'ABC/XYZ', icon: 'M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z' },
-    { key: 'batches', label: 'Partiyalar (FIFO)', icon: 'M19 11H7m12 0l-4-4m4 4l-4 4M3 11h2m-2 4h2m-2-8h2' },
+    { key: 'batches', label: 'Partiyalar (FIFO)', icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4' },
   ];
 
   return (
@@ -992,10 +992,6 @@ const [tab, setTab] = useState('sales');
                           <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${
                             r.group === 'AX' ? 'bg-emerald-100 text-emerald-700' :
                             r.group === 'AY' || r.group === 'BX' ? 'bg-indigo-100 text-indigo-700' :
-                        <td className="px-5 py-3.5">
-                          <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${
-                            r.group === 'AX' ? 'bg-emerald-100 text-emerald-700' :
-                            r.group === 'AY' || r.group === 'BX' ? 'bg-indigo-100 text-indigo-700' :
                             r.group.startsWith('C') || r.group.endsWith('Z') ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-700'
                           }`}>{r.group}</span>
                         </td>
@@ -1015,38 +1011,38 @@ const [tab, setTab] = useState('sales');
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
               <div>
                 <span className="text-sm font-semibold text-slate-700">Partiyalar (FIFO) hisoboti</span>
-                <p className="text-xs text-slate-400 mt-0.5">Har bir partiyaning kirim narxi, qoldig'i va foydasi</p>
+                <p className="text-xs text-slate-400 mt-0.5">Har bir partiyaning kirim narxi, qoldig&apos;i va foydasi</p>
               </div>
               <ExportBtns
                 onExcel={() => {
                   const ws = XLSX.utils.json_to_sheet(batchData.map(r => ({
-                    'Tovar': r.product_name, 'Lot': r.lot_number,
-                    'Kirim narxi': r.purchase_price, "Boshlang'ich": r.initial_quantity,
-                    'Qoldiq': r.remaining_quantity, 'Sotildi': r.sold_qty,
-                    'Daromad': r.revenue, 'Foyda': r.profit, 'Margin %': r.margin_pct,
+                    Tovar: r.product_name, Lot: r.lot_number,
+                    KirimNarxi: r.purchase_price, Boshlangich: r.initial_quantity,
+                    Qoldiq: r.remaining_quantity, Sotildi: r.sold_qty,
+                    Daromad: r.revenue, Foyda: r.profit, MarginPct: r.margin_pct,
                   })));
                   const wb = XLSX.utils.book_new();
                   XLSX.utils.book_append_sheet(wb, ws, 'Partiyalar');
                   saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `partiyalar_${today()}.xlsx`);
                 }}
-                onPdf={() => printTable("Partiyalar (FIFO) hisoboti",
-                  ['Tovar', 'Lot', 'Kirim narxi', 'Qoldiq', 'Sotildi', 'Foyda', 'Margin'],
-                  batchData.map(r => [r.product_name, r.lot_number, fmtS(r.purchase_price), fmt(r.remaining_quantity), fmt(r.sold_qty), fmtS(r.profit), pct(r.margin_pct)])
+                onPdf={() => printTable('Partiyalar FIFO',
+                  ['Tovar', 'Lot', 'Kirim narxi', 'Qoldiq', 'Sotildi', 'Foyda'],
+                  batchData.map(r => [r.product_name, r.lot_number, fmtS(r.purchase_price), fmt(r.remaining_quantity), fmt(r.sold_qty), fmtS(r.profit)])
                 )}
               />
             </div>
             <DateFilter dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} onSearch={load} loading={loading} />
             {!loading && batchData.length > 0 && (
-              <div className="grid grid-cols-4 gap-4 px-6 py-4 border-b border-slate-100 bg-slate-50/40">
+              <div className="grid grid-cols-4 gap-4 px-6 py-4 border-b border-slate-100 bg-slate-50">
                 {[
-                  { label: "Jami partiyalar", value: batchData.length + " ta", color: "text-indigo-600" },
-                  { label: "Jami sotildi", value: fmt(batchData.reduce((a, r) => a + r.sold_qty, 0)) + " dona", color: "text-slate-700" },
-                  { label: "Jami daromad", value: fmtS(batchData.reduce((a, r) => a + r.revenue, 0)), color: "text-emerald-600" },
-                  { label: "Jami foyda", value: fmtS(batchData.reduce((a, r) => a + r.profit, 0)), color: "text-emerald-700" },
-                ].map(card => (
-                  <div key={card.label} className="bg-white rounded-xl p-3 border border-slate-100 shadow-sm">
-                    <div className="text-xs text-slate-400 mb-1">{card.label}</div>
-                    <div className={`text-lg font-bold ${card.color}`}>{card.value}</div>
+                  { label: 'Jami partiyalar', val: batchData.length + ' ta', cls: 'text-indigo-600' },
+                  { label: 'Jami sotildi', val: fmt(batchData.reduce((a, r) => a + r.sold_qty, 0)) + ' dona', cls: 'text-slate-700' },
+                  { label: 'Jami daromad', val: fmtS(batchData.reduce((a, r) => a + r.revenue, 0)), cls: 'text-emerald-600' },
+                  { label: 'Jami foyda', val: fmtS(batchData.reduce((a, r) => a + r.profit, 0)), cls: 'text-emerald-700' },
+                ].map(c => (
+                  <div key={c.label} className="bg-white rounded-xl p-3 border border-slate-100 shadow-sm">
+                    <div className="text-xs text-slate-400 mb-1">{c.label}</div>
+                    <div className={`text-lg font-bold ${c.cls}`}>{c.val}</div>
                   </div>
                 ))}
               </div>
@@ -1056,14 +1052,14 @@ const [tab, setTab] = useState('sales');
                 <table className="min-w-full">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100">
-                      {["Tovar nomi", "Lot raqami", "Kirim narxi", "Boshlang'ich", "Qoldiq", "Sotildi", "Daromad", "Foyda", "Margin"].map(h => (
+                      {['Tovar nomi', 'Lot', 'Kirim narxi', 'Kirim miqdori', 'Qoldiq', 'Sotildi', 'Daromad', 'Foyda', 'Margin'].map(h => (
                         <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {batchData.map(r => (
-                      <tr key={r.batch_id} className={`hover:bg-slate-50 transition-colors ${r.remaining_quantity === 0 ? 'opacity-50' : ''}`}>
+                      <tr key={r.batch_id} className={`hover:bg-slate-50 transition-colors${r.remaining_quantity === 0 ? ' opacity-50' : ''}`}>
                         <td className="px-5 py-3.5 text-sm font-medium text-slate-800">{r.product_name}</td>
                         <td className="px-5 py-3.5">
                           <span className="text-xs font-mono px-2 py-0.5 bg-slate-100 text-slate-600 rounded">{r.lot_number || '—'}</span>
@@ -1072,9 +1068,8 @@ const [tab, setTab] = useState('sales');
                         <td className="px-5 py-3.5 text-sm text-slate-500">{fmt(r.initial_quantity)}</td>
                         <td className="px-5 py-3.5">
                           <span className={`text-sm font-bold ${r.remaining_quantity > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                            {fmt(r.remaining_quantity)}
+                            {fmt(r.remaining_quantity)}{r.remaining_quantity === 0 ? ' (tugadi)' : ''}
                           </span>
-                          {r.remaining_quantity === 0 && <span className="ml-1 text-xs text-slate-400">(tugadi)</span>}
                         </td>
                         <td className="px-5 py-3.5 text-sm text-slate-700">{fmt(r.sold_qty)}</td>
                         <td className="px-5 py-3.5 text-sm text-slate-700">{fmtS(r.revenue)}</td>
@@ -1090,7 +1085,7 @@ const [tab, setTab] = useState('sales');
                       </tr>
                     ))}
                     {batchData.length === 0 && (
-                      <tr><td colSpan={9} className="px-6 py-12 text-center text-sm text-slate-400">Ma'lumot yo'q</td></tr>
+                      <tr><td colSpan={9} className="px-6 py-12 text-center text-sm text-slate-400">Ma&apos;lumot yo&apos;q</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -1102,3 +1097,4 @@ const [tab, setTab] = useState('sales');
     </div>
   );
 }
+
