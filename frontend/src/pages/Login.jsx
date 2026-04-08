@@ -14,8 +14,6 @@ const Icon = ({ d, cls = "w-4 h-4" }) => (
 )
 
 function LoginLangSwitcher({ lang, setLang, dark = false }) {
-  const { t } = useLang();
-
   return (
     <div className="flex items-center gap-1">
       {LANGUAGES.map(l => (
@@ -35,29 +33,97 @@ function LoginLangSwitcher({ lang, setLang, dark = false }) {
   )
 }
 
-function ForgotPasswordModal({ onClose, t }) {
+// ─── OTP Input — 6 ta bo'sh katak ─────────────────────────────────────────
+function OtpInput({ value, onChange }) {
+  const digits = (value + '      ').slice(0, 6).split('')
+  const handleKey = (e, i) => {
+    const num = e.key
+    if (num >= '0' && num <= '9') {
+      const arr = value.padEnd(6, ' ').split('')
+      arr[i] = num
+      const next = arr.join('').trimEnd()
+      onChange(next)
+      // avtomatik keyingiga o'tish
+      const nextEl = document.getElementById(`otp-input-${i + 1}`)
+      if (nextEl) nextEl.focus()
+    } else if (num === 'Backspace') {
+      const trimmed = value.slice(0, Math.max(0, i))
+      onChange(trimmed)
+      const prevEl = document.getElementById(`otp-input-${i - 1}`)
+      if (prevEl) prevEl.focus()
+    }
+  }
 
-  const [step, setStep] = useState(1)
+  return (
+    <div className="flex gap-2 justify-center my-2">
+      {[0, 1, 2, 3, 4, 5].map(i => (
+        <input
+          key={i}
+          id={`otp-input-${i}`}
+          type="text"
+          inputMode="numeric"
+          maxLength={1}
+          value={digits[i].trim()}
+          readOnly
+          onKeyDown={(e) => handleKey(e, i)}
+          onFocus={e => e.target.select()}
+          className="w-11 h-13 text-center text-xl font-bold border-2 rounded-xl
+            border-slate-200 bg-white text-slate-800 focus:outline-none focus:border-indigo-500
+            focus:ring-2 focus:ring-indigo-200 transition-all caret-transparent select-none
+            focus:scale-105"
+          style={{ width: 44, height: 52 }}
+        />
+      ))}
+    </div>
+  )
+}
+
+// ─── Parolni unutdingizmi modal — 3 bosqim ─────────────────────────────────
+function ForgotPasswordModal({ onClose, t }) {
+  const [step, setStep] = useState(1)   // 1: telefon, 2: OTP, 3: yangi parol
   const [phone, setPhone] = useState('')
   const [userName, setUserName] = useState('')
-  const [resetToken, setResetToken] = useState('')
+  const [otp, setOtp] = useState('')
+  const [verifiedToken, setVerifiedToken] = useState('')
   const [newPass, setNewPass] = useState('')
   const [confirmPass, setConfirmPass] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [resendTimer, setResendTimer] = useState(0)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [devMode, setDevMode] = useState(false)
+  const [botLink, setBotLink] = useState('')
 
+  // Qayta yuborish taymer
+  const startResendTimer = () => {
+    setResendTimer(60)
+    const interval = setInterval(() => {
+      setResendTimer(prev => {
+        if (prev <= 1) { clearInterval(interval); return 0 }
+        return prev - 1
+      })
+    }, 1000)
+  }
+
+  // Step 1 → Step 2: Telefon tekshirish va OTP yuborish
   const checkPhone = async (e) => {
     e.preventDefault()
     setError('')
     setLoading(true)
     try {
       const res = await api.post('/auth/check-phone', { phone })
+      if (!res.data.otp_sent) {
+        // Bot ulanmagan
+        setBotLink(res.data.bot_link || '')
+        setError(res.data.message || 'Telegram bot ulanmagan')
+        return
+      }
       setUserName(res.data.name)
-      setResetToken(res.data.reset_token)
+      setDevMode(res.data.dev_mode || false)
       setStep(2)
+      startResendTimer()
     } catch (err) {
       setError(err.response?.data?.detail || t('error.notFound'))
     } finally {
@@ -65,20 +131,53 @@ function ForgotPasswordModal({ onClose, t }) {
     }
   }
 
+  // OTP qayta yuborish
+  const resendOtp = async () => {
+    if (resendTimer > 0) return
+    setError('')
+    setLoading(true)
+    try {
+      const res = await api.post('/auth/check-phone', { phone })
+      setDevMode(res.data.dev_mode || false)
+      startResendTimer()
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Xatolik')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Step 2 → Step 3: OTP tasdiqlash
+  const verifyOtp = async (e) => {
+    e.preventDefault()
+    if (otp.length < 6) { setError("6 xonali kodni to'liq kiriting"); return }
+    setError('')
+    setLoading(true)
+    try {
+      const res = await api.post('/auth/verify-otp', { phone, otp })
+      setVerifiedToken(res.data.verified_token)
+      setStep(3)
+    } catch (err) {
+      setError(err.response?.data?.detail || "OTP noto'g'ri")
+      setOtp('')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Step 3: Yangi parol o'rnatish
   const resetPassword = async (e) => {
     e.preventDefault()
     setError('')
-    if (newPass !== confirmPass) {
-      setError('Parollar mos kelmadi')
-      return
-    }
-    if (newPass.length < 6) {
-      setError("Parol kamida 6 ta belgidan iborat bo'lishi kerak")
-      return
-    }
+    if (newPass !== confirmPass) { setError('Parollar mos kelmadi'); return }
+    if (newPass.length < 6) { setError("Parol kamida 6 ta belgidan iborat bo'lishi kerak"); return }
     setLoading(true)
     try {
-      await api.post('/auth/reset-password', { phone, new_password: newPass, reset_token: resetToken })
+      await api.post('/auth/reset-password', {
+        phone,
+        verified_token: verifiedToken,
+        new_password: newPass
+      })
       setSuccess(true)
     } catch (err) {
       setError(err.response?.data?.detail || t('common.error'))
@@ -86,6 +185,9 @@ function ForgotPasswordModal({ onClose, t }) {
       setLoading(false)
     }
   }
+
+  const totalSteps = 3
+  const stepLabels = ['Telefon', 'OTP', 'Yangi parol']
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
@@ -96,8 +198,8 @@ function ForgotPasswordModal({ onClose, t }) {
 
         {success ? (
           <div className="text-center py-4">
-            <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Icon d="M5 13l4 4L19 7" cls="w-7 h-7 text-green-600" />
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Icon d="M5 13l4 4L19 7" cls="w-8 h-8 text-green-600" />
             </div>
             <h3 className="text-lg font-bold text-slate-800 mb-1">{t('auth.passUpdated')}</h3>
             <p className="text-sm text-slate-500 mb-5">{t('auth.loginWithNewPass')}</p>
@@ -107,25 +209,44 @@ function ForgotPasswordModal({ onClose, t }) {
           </div>
         ) : (
           <>
+            {/* Header + Progress */}
             <div className="mb-5">
               <h3 className="text-lg font-bold text-slate-800">{t('auth.resetPass')}</h3>
               <p className="text-sm text-slate-500 mt-0.5">
-                {step === 1 ? 'Telefon raqamingizni kiriting' : `Salom, ${userName}! Yangi parol o'rnating`}
+                {step === 1 ? 'Telefon raqamingizni kiriting'
+                  : step === 2 ? `Salom, ${userName}! Telegram botdagi kodni kiriting`
+                  : `Yangi parol o'rnating`}
               </p>
+              {/* Step indicator */}
               <div className="flex gap-1 mt-3">
-                <div className="h-1 flex-1 rounded-full bg-indigo-600" />
-                <div className={`h-1 flex-1 rounded-full ${step === 2 ? 'bg-indigo-600' : 'bg-slate-200'}`} />
+                {stepLabels.map((_, i) => (
+                  <div key={i} className={`h-1 flex-1 rounded-full transition-all ${i < step ? 'bg-indigo-600' : 'bg-slate-200'}`} />
+                ))}
+              </div>
+              <div className="flex justify-between mt-1">
+                {stepLabels.map((label, i) => (
+                  <span key={i} className={`text-[10px] font-semibold ${i < step ? 'text-indigo-500' : 'text-slate-400'}`}>{label}</span>
+                ))}
               </div>
             </div>
 
             {error && (
-              <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-600 rounded-xl px-3 py-2.5 mb-4 text-sm">
-                <Icon d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" cls="w-4 h-4 shrink-0" />
-                {error}
+              <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-600 rounded-xl px-3 py-2.5 mb-4 text-sm">
+                <Icon d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" cls="w-4 h-4 shrink-0 mt-0.5" />
+                <div>
+                  {error}
+                  {botLink && (
+                    <a href={botLink} target="_blank" rel="noreferrer"
+                      className="block mt-1.5 text-indigo-600 font-semibold underline hover:text-indigo-700">
+                      📱 Botni ochish →
+                    </a>
+                  )}
+                </div>
               </div>
             )}
 
-            {step === 1 ? (
+            {/* ── STEP 1: Telefon ── */}
+            {step === 1 && (
               <form onSubmit={checkPhone} className="space-y-4">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">{t('common.phone')}</label>
@@ -142,7 +263,42 @@ function ForgotPasswordModal({ onClose, t }) {
                   {loading ? t('common.loading') : <>{t('common.next')} <Icon d="M13 7l5 5m0 0l-5 5m5-5H6" /></>}
                 </button>
               </form>
-            ) : (
+            )}
+
+            {/* ── STEP 2: OTP ── */}
+            {step === 2 && (
+              <form onSubmit={verifyOtp} className="space-y-4">
+                {devMode && (
+                  <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl px-3 py-2.5 text-xs font-medium">
+                    <span>🛠</span>
+                    <span>Developer mode: OTP backend konsolga chiqarildi</span>
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs text-slate-500 text-center mb-3">
+                    <span className="font-semibold text-indigo-600">Telegram</span> botdagi 6 xonali kodni kiriting
+                  </p>
+                  <OtpInput value={otp} onChange={setOtp} />
+                </div>
+                <button type="submit" disabled={loading || otp.length < 6}
+                  className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2">
+                  {loading ? t('common.loading') : <>Tasdiqlash <Icon d="M5 13l4 4L19 7" /></>}
+                </button>
+                <div className="text-center">
+                  <button type="button" onClick={resendOtp} disabled={resendTimer > 0 || loading}
+                    className="text-sm text-indigo-600 hover:text-indigo-700 disabled:text-slate-400 font-medium transition-colors">
+                    {resendTimer > 0 ? `Qayta yuborish (${resendTimer}s)` : 'Kodni qayta yuborish'}
+                  </button>
+                </div>
+                <button type="button" onClick={() => { setStep(1); setError(''); setOtp('') }}
+                  className="w-full py-2 text-slate-500 hover:text-slate-700 text-sm font-medium transition-colors">
+                  ← Ortga
+                </button>
+              </form>
+            )}
+
+            {/* ── STEP 3: Yangi parol ── */}
+            {step === 3 && (
               <form onSubmit={resetPassword} className="space-y-4">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">{t('auth.newPass')}</label>
@@ -161,7 +317,7 @@ function ForgotPasswordModal({ onClose, t }) {
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">{t('auth.confirmPass')}</label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
-                      <Icon d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                      <Icon d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </div>
                     <input type={showConfirm ? 'text' : 'password'} placeholder="••••••" value={confirmPass} onChange={e => setConfirmPass(e.target.value)} required
                       className="w-full pl-10 pr-10 py-2.5 border border-slate-200 rounded-xl bg-white text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition-all" />
@@ -171,7 +327,7 @@ function ForgotPasswordModal({ onClose, t }) {
                   </div>
                 </div>
                 <div className="flex gap-2 pt-1">
-                  <button type="button" onClick={() => { setStep(1); setError('') }}
+                  <button type="button" onClick={() => { setStep(2); setError(''); setOtp('') }}
                     className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold text-sm transition-colors">
                     {t('common.back')}
                   </button>
@@ -190,7 +346,6 @@ function ForgotPasswordModal({ onClose, t }) {
 }
 
 export default function Login() {
-
   const { login } = useAuth()
   const { t, lang, setLang } = useLang()
   const navigate = useNavigate()
@@ -225,7 +380,6 @@ export default function Login() {
           <div className="absolute top-1/2 right-0 w-40 h-40 rounded-full bg-purple-500/20" />
         </div>
 
-        {/* Logo only — lang switcher moved to top-right of right panel */}
         <div className="relative">
           <ECodeLogoPrimary size={40} />
         </div>
@@ -250,14 +404,12 @@ export default function Login() {
       {/* ── Right panel (form) ── */}
       <div className="flex-1 flex items-center justify-center p-6 lg:p-12 relative">
 
-        {/* Desktop: lang switcher — top-right corner */}
         <div className="hidden lg:flex absolute top-4 right-4">
           <LoginLangSwitcher lang={lang} setLang={setLang} dark={false} />
         </div>
 
         <div className="w-full max-w-md">
 
-          {/* Mobile: logo + lang switcher */}
           <div className="lg:hidden flex items-center justify-between mb-8">
             <ECodeLogo size={34} showText={true} textClassName="text-lg" />
             <LoginLangSwitcher lang={lang} setLang={setLang} dark={false} />
@@ -278,7 +430,6 @@ export default function Login() {
           {showForgot && <ForgotPasswordModal onClose={() => setShowForgot(false)} t={t} />}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Phone */}
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">{t('login.username')}</label>
               <div className="relative">
@@ -291,7 +442,6 @@ export default function Login() {
               </div>
             </div>
 
-            {/* Password */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-sm font-semibold text-slate-700">{t('login.password')}</label>

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useLang } from '../context/LangContext';
 import { Link } from 'react-router-dom'
 import api from '../api/axios'
@@ -30,12 +30,47 @@ const Icon = ({ d, cls = "w-4 h-4" }) => (
 const EyeOpen = () => <Icon d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
 const EyeOff = () => <Icon d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
 
-function Steps({ current }) {
-  const { t } = useLang();
+// OTP Input — 6 ta katak
+function OtpInput({ value, onChange }) {
+  const handleKey = (e, i) => {
+    const num = e.key
+    if (num >= '0' && num <= '9') {
+      const arr = value.padEnd(6, ' ').split('')
+      arr[i] = num
+      onChange(arr.join('').trimEnd())
+      const next = document.getElementById(`reg-otp-${i + 1}`)
+      if (next) next.focus()
+    } else if (num === 'Backspace') {
+      onChange(value.slice(0, Math.max(0, i)))
+      const prev = document.getElementById(`reg-otp-${i - 1}`)
+      if (prev) prev.focus()
+    }
+  }
+  const digits = (value + '      ').slice(0, 6).split('')
+  return (
+    <div className="flex gap-2 justify-center my-1">
+      {[0,1,2,3,4,5].map(i => (
+        <input key={i} id={`reg-otp-${i}`} type="text" inputMode="numeric" maxLength={1}
+          value={digits[i].trim()} readOnly
+          onKeyDown={e => handleKey(e, i)} onFocus={e => e.target.select()}
+          className="w-11 text-center text-xl font-bold border-2 rounded-xl border-slate-200 bg-white text-slate-800
+            focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all caret-transparent"
+          style={{ width: 44, height: 52 }}
+        />
+      ))}
+    </div>
+  )
+}
 
+function Steps({ current }) {
+  const STEPS = [
+    { n: 1, label: "Korxona ma'lumotlari" },
+    { n: 2, label: 'Shaxsiy ma\'lumotlar' },
+    { n: 3, label: 'OTP Tasdiqlash' },
+  ]
   return (
     <div className="flex items-center mb-8">
-      {[{ n: 1, label: "Korxona ma'lumotlari" }, { n: 2, label: "Shaxsiy ma'lumotlar" }].map((s, i, arr) => (
+      {STEPS.map((s, i, arr) => (
         <div key={s.n} className="flex items-center flex-1">
           <div className="flex flex-col items-center">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all
@@ -167,6 +202,14 @@ export default function RegisterCompany() {
   const [agentName, setAgentName] = useState('')
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(null)
+  // OTP state
+  const [otp, setOtp] = useState('')
+  const [otpError, setOtpError] = useState('')
+  const [otpLoading, setOtpLoading] = useState(false)
+  const [otpSent, setOtpSent] = useState(false)
+  const [devMode, setDevMode] = useState(false)
+  const [resendTimer, setResendTimer] = useState(0)
+  const [verifiedToken, setVerifiedToken] = useState('')
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const clearErr = k => setErrors(e => { const n = { ...e }; delete n[k]; return n })
@@ -202,15 +245,80 @@ export default function RegisterCompany() {
     return !Object.keys(e).length
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  // Resend timer
+  const startResendTimer = useCallback(() => {
+    setResendTimer(60)
+    const interval = setInterval(() => {
+      setResendTimer(prev => {
+        if (prev <= 1) { clearInterval(interval); return 0 }
+        return prev - 1
+      })
+    }, 1000)
+  }, [])
+
+  // Step 2 → Step 3: OTP yuborish
+  const goToOtp = async () => {
     if (!validateStep2()) return
+    setOtpLoading(true)
+    setOtpError('')
+    try {
+      const normalized = form.phone.replace(/[^0-9]/g, '')
+      const res = await api.post('/auth/send-otp', { phone: normalized, purpose: 'register' })
+      setDevMode(res.data.dev_mode || false)
+      setOtpSent(true)
+      setStep(3)
+      startResendTimer()
+    } catch (err) {
+      setErrors({ submit: err.response?.data?.detail || 'OTP yuborishda xato' })
+    } finally {
+      setOtpLoading(false)
+    }
+  }
+
+  // OTP qayta yuborish
+  const resendOtp = async () => {
+    if (resendTimer > 0) return
+    setOtpLoading(true)
+    setOtpError('')
+    try {
+      const normalized = form.phone.replace(/[^0-9]/g, '')
+      const res = await api.post('/auth/send-otp', { phone: normalized, purpose: 'register' })
+      setDevMode(res.data.dev_mode || false)
+      startResendTimer()
+    } catch (err) {
+      setOtpError(err.response?.data?.detail || 'Xatolik')
+    } finally {
+      setOtpLoading(false)
+    }
+  }
+
+  // OTP tasdiqlash
+  const verifyOtp = async () => {
+    if (otp.length < 6) { setOtpError("6 xonali kodni to'liq kiriting"); return }
+    setOtpLoading(true)
+    setOtpError('')
+    try {
+      const normalized = form.phone.replace(/[^0-9]/g, '')
+      const res = await api.post('/auth/verify-otp', { phone: normalized, otp })
+      setVerifiedToken(res.data.verified_token)
+      // OTP tasdiqlandi — ro'yxatni yakunlash
+      await submitRegister(res.data.verified_token)
+    } catch (err) {
+      setOtpError(err.response?.data?.detail || "OTP noto'g'ri")
+      setOtp('')
+    } finally {
+      setOtpLoading(false)
+    }
+  }
+
+  const submitRegister = async (vToken) => {
     setLoading(true)
     try {
       const payload = {
         company_name: form.company_name, name: form.name,
         phone: form.phone, region: form.region,
         district: form.district, password: form.password,
+        otp_verified_token: vToken || verifiedToken || undefined,
       }
       if (form.agent_code.trim()) payload.agent_code = form.agent_code.trim().toUpperCase()
       const { data } = await api.post('/auth/register', payload)
@@ -218,8 +326,17 @@ export default function RegisterCompany() {
       localStorage.setItem('refresh_token', data.refresh_token)
       setDone({ org_code: data.org_code, company_name: data.company_name })
     } catch (err) {
-      setErrors({ submit: err.response?.data?.detail || "Xatolik yuz berdi" })
-    } finally { setLoading(false) }
+      setOtpError(err.response?.data?.detail || 'Xatolik yuz berdi')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!validateStep2()) return
+    // Dev modeda OTP skip — to'g'ridan submit
+    await submitRegister(null)
   }
 
   /* ── SUCCESS ── */
@@ -501,13 +618,14 @@ export default function RegisterCompany() {
                   Ortga
                 </button>
                 <button
-                  type="submit"
-                  disabled={loading}
+                  type="button"
+                  onClick={goToOtp}
+                  disabled={otpLoading || loading}
                   className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-sm transition-all shadow-md shadow-indigo-200 flex items-center justify-center gap-2"
                 >
-                  {loading ? (
-                    <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>{t('common.saving')}</>
-                  ) : (<>Ro'yxatdan o'tish <Icon d="M13 7l5 5m0 0l-5 5m5-5H6" /></>)}
+                  {otpLoading ? (
+                    <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>Yuklanmoqda...</>
+                  ) : (<>Keyingi qadam <Icon d="M13 7l5 5m0 0l-5 5m5-5H6" /></>)}
                 </button>
               </div>
 
@@ -517,6 +635,69 @@ export default function RegisterCompany() {
               </p>
             </form>
           )}
+
+          {/* ── STEP 3: OTP Tasdiqlash ── */}
+          {step === 3 && (
+            <div className="space-y-5">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                  <svg viewBox="0 0 24 24" className="w-8 h-8 text-indigo-600" fill="currentColor">
+                    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.941z"/>
+                  </svg>
+                </div>
+                <h3 className="text-base font-bold text-slate-800">Telegram tasdiqlash</h3>
+                <p className="text-sm text-slate-500 mt-1">
+                  <span className="font-semibold text-slate-700">{form.phone}</span> raqamiga bog'liq Telegram botga 6 xonali kod yuborildi
+                </p>
+              </div>
+
+              {devMode && (
+                <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl px-3 py-2.5 text-xs font-medium">
+                  <span>🛠</span>
+                  <span>Developer mode: OTP backend konsolga (terminalga) chiqarildi</span>
+                </div>
+              )}
+
+              <div>
+                <p className="text-xs text-center text-slate-500 mb-2">6 xonali kodni kiriting</p>
+                <OtpInput value={otp} onChange={setOtp} />
+              </div>
+
+              {otpError && (
+                <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-600 rounded-xl px-3 py-2.5 text-sm">
+                  <Icon d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" cls="w-4 h-4 shrink-0" />
+                  {otpError}
+                </div>
+              )}
+
+              <button
+                onClick={verifyOtp}
+                disabled={otpLoading || loading || otp.length < 6}
+                className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-sm transition-all shadow-md shadow-indigo-200 flex items-center justify-center gap-2"
+              >
+                {(otpLoading || loading) ? (
+                  <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>Tekshirilmoqda...</>
+                ) : (
+                  <>Tasdiqlash va ro'yxatdan o'tish <Icon d="M5 13l4 4L19 7" /></>
+                )}
+              </button>
+
+              <div className="text-center">
+                <button onClick={resendOtp} disabled={resendTimer > 0 || otpLoading}
+                  className="text-sm text-indigo-600 hover:text-indigo-700 disabled:text-slate-400 font-medium transition-colors">
+                  {resendTimer > 0 ? `Qayta yuborish (${resendTimer}s)` : 'Kodni qayta yuborish'}
+                </button>
+              </div>
+
+              <button
+                onClick={() => { setStep(2); setOtp(''); setOtpError('') }}
+                className="w-full py-2 text-slate-500 hover:text-slate-700 text-sm font-medium transition-colors flex items-center justify-center gap-1"
+              >
+                <Icon d="M11 17l-5-5m0 0l5-5m-5 5h12" cls="w-3.5 h-3.5" /> Ortga
+              </button>
+            </div>
+          )}
+
         </div>
       </div>
     </div>

@@ -26,14 +26,17 @@ from app.services.scheduler import start_scheduler
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    task = asyncio.create_task(start_scheduler())
+    from app.routers.auth import run_otp_bot_polling
+    scheduler_task = asyncio.create_task(start_scheduler())
+    otp_bot_task = asyncio.create_task(run_otp_bot_polling())
     yield
-    # Clean shutdown: cancel the scheduler so uvicorn doesn't hang on reload
-    task.cancel()
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
+    # Clean shutdown
+    for task in [scheduler_task, otp_bot_task]:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 _is_dev = os.environ.get("ENV", "production").lower() == "development"
 

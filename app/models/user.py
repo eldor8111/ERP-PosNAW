@@ -34,6 +34,7 @@ class User(Base):
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
     status = Column(Enum(UserStatus), default=UserStatus.active)
+    tg_chat_id = Column(String(50), nullable=True)  # Telegram OTP uchun
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     branch = relationship("Branch", back_populates="users")
