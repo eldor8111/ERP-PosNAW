@@ -16,7 +16,7 @@ from app.routers import (
     finance, customers, shifts, dashboard_mobile, currencies, api_keys,
     warehouses, branches, super_admin, companies, dashboard
 )
-from app.routers import bin_locations, uploads, agents, telegram  # type: ignore
+from app.routers import bin_locations, uploads, agents, telegram, lead  # type: ignore
 from app.routers import billing  # type: ignore
 from app.models import company  # noqa: F401 — ensure Alembic detects Company model
 from app.models import agent  # noqa: F401 — ensure Alembic detects Agent model
@@ -95,6 +95,7 @@ app.include_router(agents.router, prefix=API_PREFIX)
 app.include_router(telegram.router, prefix=API_PREFIX)
 app.include_router(dashboard.router, prefix=API_PREFIX)
 app.include_router(billing.router, prefix=API_PREFIX)
+app.include_router(lead.router, prefix=API_PREFIX)
 
 # Serve uploaded static files
 import os

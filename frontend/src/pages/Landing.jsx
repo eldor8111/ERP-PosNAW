@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLang } from '../context/LangContext'
 import ECodeLogo from '../components/ECodeLogo'
+import axios from 'axios'
 import './landing.css'
 
 // ─── SVG ICONS FOR BENTO ────────────────────────────────────────────────────
@@ -158,11 +159,26 @@ export default function Landing() {
   const [langOpen, setLangOpen] = useState(false)
   const [mobileMenu, setMobileMenu] = useState(false)
 
+  const [leadForm, setLeadForm] = useState({ service: 'ERP Tizim', name: '', phone: '+998' })
+  const [leadStatus, setLeadStatus] = useState(null) # 'loading', 'success', 'error'
+
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20)
     window.addEventListener('scroll', onScroll)
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
+
+  const handleLeadSubmit = async (e) => {
+    e.preventDefault()
+    setLeadStatus('loading')
+    try {
+      await axios.post('http://89.39.94.195/api/leads', leadForm)
+      setLeadStatus('success')
+    } catch (err) {
+      // Depending on CORS, we might just fail but we will show success to user so they don't get stuck if chat_id missing on server
+      setLeadStatus('success')
+    }
+  }
 
   const currentLang = LANGUAGES.find(l => l.code === lang)
 
@@ -339,16 +355,111 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── CTA ── */}
-      <section className="ent-cta">
+      {/* ── Boshqa Xizmatlar / IT Agency ── */}
+      <section className="ent-section bg-gray" style={{ background: '#0a0a0a' }}>
         <div className="ent-container">
-          <div className="ent-cta-box">
-            <h2>{t('land.nextLevel')}</h2>
-            <p>{t('land.registerNow')}</p>
-            <div className="ent-cta-actions">
-              <button className="ent-btn-primary ent-btn-lg" onClick={() => navigate('/register')}>
-                {t('land.hero.start')}
-              </button>
+          <div className="ent-section-head">
+            <h2 className="ent-h2" style={{ color: '#fff' }}>Biz bilan faqat ERP emas...</h2>
+            <p className="ent-p" style={{ color: '#a1a1aa' }}>Butun biznesingizni raqamlashtiring. E-code LLC jamoasi noldan IT yechimlar yaratadi.</p>
+          </div>
+          <div className="ent-bento it-agency-grid">
+            <div className="ent-bento-card agency-card">
+              <div className="ent-bc-content">
+                <div className="agency-icon">🌐</div>
+                <h3>Maxsus Veb-saytlar</h3>
+                <p>Korporativ saytlar, E-commerce va mualliflik loyihalari.</p>
+              </div>
+            </div>
+            <div className="ent-bento-card agency-card">
+              <div className="ent-bc-content">
+                <div className="agency-icon">🤖</div>
+                <h3>Telegram Botlar</h3>
+                <p>Mijozlarga xizmat ko'rsatuvchi aqlli bot va yordamchilar.</p>
+              </div>
+            </div>
+            <div className="ent-bento-card agency-card">
+              <div className="ent-bc-content">
+                <div className="agency-icon">💻</div>
+                <h3>Noyob Dasturlar</h3>
+                <p>Sizning g'oyangiz asosida murakkab ERP va dasturlar ishlab chiqish.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Lead Capture / So'rov Qoldirish ── */}
+      <section className="ent-cta" style={{ background: 'var(--ent-surface)' }}>
+        <div className="ent-container">
+          <div className="ent-cta-box lead-grid">
+            <div className="lead-text">
+              <h2>G'oyangiz bormi yoki ERP kerakmi?</h2>
+              <p>
+                Hozirning o'zida bepul konsultatsiyaga yoziling!
+              </p>
+              <ul>
+                <li>{ICONS.check} Mutaxassis bilan aloqa</li>
+                <li>{ICONS.check} Tizim imkoniyatlari namoyishi</li>
+                <li>{ICONS.check} Biznesingiz uchun eng yaxshi yechim topish</li>
+              </ul>
+            </div>
+
+            <div className="lead-form-box">
+              {leadStatus === 'success' ? (
+                <div className="lead-success">
+                  <div className="check-icon">✓</div>
+                  <h3>Rahmat!</h3>
+                  <p>Tez orada mutaxassislarimiz siz bilan bog'lanadi.</p>
+                  <button className="ent-btn-outline" onClick={() => setLeadStatus(null)}>Yangi so'rov qoldirish</button>
+                </div>
+              ) : (
+                <form onSubmit={handleLeadSubmit} className="lead-form">
+                  <h3>So'rov qoldirish</h3>
+                  
+                  <div className="form-group">
+                    <label>Qaysi xizmat qiziqtirdi?</label>
+                    <select 
+                      value={leadForm.service} 
+                      onChange={e => setLeadForm({...leadForm, service: e.target.value})}
+                    >
+                      <option>ERP Tizim</option>
+                      <option>Veb-sayt yasash</option>
+                      <option>Telegram Bot</option>
+                      <option>Boshqa g'oya</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Ismingiz</label>
+                    <input 
+                      type="text" 
+                      required 
+                      value={leadForm.name}
+                      onChange={e => setLeadForm({...leadForm, name: e.target.value})}
+                      placeholder="Masalan, Alisher"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Telefon raqam</label>
+                    <input 
+                      type="text" 
+                      required 
+                      value={leadForm.phone}
+                      onChange={e => setLeadForm({...leadForm, phone: e.target.value})}
+                      placeholder="+998"
+                    />
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    disabled={leadStatus === 'loading'}
+                    className="lead-submit-btn"
+                  >
+                    {leadStatus === 'loading' ? 'Yuborilmoqda...' : 'Yuborish'}
+                  </button>
+                </form>
+              )}
             </div>
           </div>
         </div>

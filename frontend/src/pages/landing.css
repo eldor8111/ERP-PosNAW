@@ -445,9 +445,111 @@ button { font-family: inherit; }
   .ent-tb-info a:last-child { display: none; }
   .ent-tb-divider:last-of-type { display: none; }
   .ent-bento { grid-template-columns: 1fr; }
+  .it-agency-grid { grid-template-columns: 1fr !important; }
+  .lead-grid { grid-template-columns: 1fr; padding: 30px; text-align: center; }
+  .lead-text h2 { font-size: 2rem; }
+  .lead-text ul { align-items: center; }
   .bento-span-2 { grid-column: span 1; }
   .row-flex { flex-direction: column; gap: 30px; align-items: flex-start; }
   .ent-checklist { width: 100%; min-width: 0; }
   .ent-footer-inner { flex-direction: column; }
   .ent-footer-links { flex-direction: column; gap: 40px; }
+}
+
+/* ── AGENCY & LEAD FORM CSS ── */
+.it-agency-grid {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+.agency-card {
+  background: #18181b;
+  color: #fff;
+  border: 1px solid #27272a;
+}
+.agency-icon {
+  font-size: 2.5rem;
+  margin-bottom: 16px;
+}
+
+.lead-grid {
+  background: var(--ent-primary);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  text-align: left;
+  padding: 60px;
+}
+.lead-text h2 {
+  font-size: 2.5rem;
+  margin-bottom: 20px;
+  color: #fff;
+}
+.lead-text p {
+  color: rgba(255,255,255,0.8);
+  font-size: 1.2rem;
+  margin-bottom: 30px;
+}
+.lead-text ul {
+  list-style: none;
+  padding: 0;
+  color: rgba(255,255,255,0.9);
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+.lead-form-box {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 30px;
+  color: #111;
+}
+.lead-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+.lead-form h3 {
+  font-size: 1.4rem;
+  margin-bottom: 10px;
+}
+.form-group label {
+  font-size: 0.9rem;
+  color: #555;
+  margin-bottom: 5px;
+  display: block;
+}
+.form-group select,
+.form-group input {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  font-size: 1rem;
+}
+.lead-submit-btn {
+  background: var(--ent-primary);
+  color: #fff;
+  padding: 14px;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  margin-top: 10px;
+}
+.lead-success {
+  text-align: center;
+  padding: 40px 0;
+}
+.check-icon {
+  font-size: 4rem;
+  color: var(--ent-emerald);
+  margin-bottom: 20px;
+}
+.lead-success h3 {
+  font-size: 1.5rem;
+  margin-bottom: 10px;
+}
+.lead-success p {
+  color: #666;
 }
