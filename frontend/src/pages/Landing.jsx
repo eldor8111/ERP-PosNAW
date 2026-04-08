@@ -160,7 +160,7 @@ export default function Landing() {
   const [mobileMenu, setMobileMenu] = useState(false)
 
   const [leadForm, setLeadForm] = useState({ service: 'ERP Tizim', name: '', phone: '+998' })
-  const [leadStatus, setLeadStatus] = useState(null) # 'loading', 'success', 'error'
+  const [leadStatus, setLeadStatus] = useState(null) // 'loading', 'success', 'error'
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20)
