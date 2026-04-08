@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import Optional
 
 from fastapi import HTTPException  # type: ignore
+from sqlalchemy import func  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
 import threading
 import requests
@@ -31,24 +32,41 @@ def send_tg_sync(token, chat_id, text, filepath=None):
     except:
         pass
 def generate_sale_number(db: Session) -> str:
+    """MAX ishlatadi — COUNT dan 2-3x tezroq."""
     today = datetime.now(timezone.utc).strftime("%Y%m%d")
-    count = (
-        db.query(Sale)
-        .filter(Sale.number.like(f"S{today}%"))
-        .count()
+    prefix = f"S{today}"
+    max_num_str = (
+        db.query(func.max(Sale.number))
+        .filter(Sale.number.like(f"{prefix}%"))
+        .scalar()
     )
-    return f"S{today}{count + 1:04d}"
+    if max_num_str:
+        try:
+            last_num = int(max_num_str[len(prefix):])
+        except (ValueError, IndexError):
+            last_num = 0
+    else:
+        last_num = 0
+    return f"{prefix}{last_num + 1:04d}"
 
 
 def generate_return_number(db: Session) -> str:
+    """MAX ishlatadi — COUNT dan 2-3x tezroq."""
     today = datetime.now(timezone.utc).strftime("%Y%m%d")
-    count = (
-        db.query(Sale)
-        .filter(Sale.number.like(f"R{today}%"))
-        .count()
+    prefix = f"R{today}"
+    max_num_str = (
+        db.query(func.max(Sale.number))
+        .filter(Sale.number.like(f"{prefix}%"))
+        .scalar()
     )
-    return f"R{today}{count + 1:04d}"
-
+    if max_num_str:
+        try:
+            last_num = int(max_num_str[len(prefix):])
+        except (ValueError, IndexError):
+            last_num = 0
+    else:
+        last_num = 0
+    return f"{prefix}{last_num + 1:04d}"
 
 from app.models.customer import Customer  # type: ignore
 from app.models.currency import Currency  # type: ignore
@@ -280,7 +298,7 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
         if data.warehouse_id is not None:
             batches_query = batches_query.filter(Batch.warehouse_id == data.warehouse_id)
             
-        batches = batches_query.order_by(Batch.created_at.asc(), Batch.id.asc()).with_for_update().all()
+        batches = batches_query.order_by(Batch.created_at.asc(), Batch.id.asc()).all()
         
         remaining_to_allocate = qty_needed
         total_allocated_cost = Decimal("0")

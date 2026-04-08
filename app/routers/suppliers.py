@@ -36,15 +36,27 @@ def create_supplier(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*ALLOWED)),
 ):
-    supplier_data = data.model_dump()
-    supplier_data["company_id"] = current_user.company_id
-    supplier = Supplier(**supplier_data)
-    db.add(supplier)
-    db.commit()
-    db.refresh(supplier)
-    log_action(db, current_user.id, "CREATE", "supplier", supplier.id, new_values={"name": supplier.name})
-    db.commit()
-    return supplier
+    try:
+        supplier_data = data.model_dump()
+        supplier_data["company_id"] = current_user.company_id
+        supplier = Supplier(**supplier_data)
+        db.add(supplier)
+        db.flush()
+        log_action(
+            db,
+            action="CREATE",
+            entity_type="supplier",
+            entity_id=supplier.id,
+            user_id=current_user.id,
+            new_values={"name": supplier.name},
+        )
+        db.commit()
+        db.refresh(supplier)
+        return supplier
+    except Exception:
+        db.rollback()
+        import traceback; traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Ta'minotchi saqlashda xato")
 
 
 @router.get("/{supplier_id}", response_model=SupplierOut)
@@ -76,10 +88,17 @@ def update_supplier(
     old = {"name": supplier.name}
     for field, value in data.model_dump(exclude_none=True).items():
         setattr(supplier, field, value)
+    log_action(
+        db,
+        action="UPDATE",
+        entity_type="supplier",
+        entity_id=supplier.id,
+        user_id=current_user.id,
+        old_values=old,
+        new_values={"name": supplier.name},
+    )
     db.commit()
     db.refresh(supplier)
-    log_action(db, current_user.id, "UPDATE", "supplier", supplier.id, old_values=old, new_values={"name": supplier.name})
-    db.commit()
     return supplier
 
 
@@ -187,6 +206,12 @@ def delete_supplier(
     if not supplier:
         raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
     supplier.is_active = False
-    db.commit()
-    log_action(db, current_user.id, "DELETE", "supplier", supplier.id, old_values={"name": supplier.name})
+    log_action(
+        db,
+        action="DELETE",
+        entity_type="supplier",
+        entity_id=supplier.id,
+        user_id=current_user.id,
+        old_values={"name": supplier.name},
+    )
     db.commit()
