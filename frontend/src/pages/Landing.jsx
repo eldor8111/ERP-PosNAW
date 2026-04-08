@@ -105,18 +105,18 @@ function TabbedModules({ t }) {
 
   const tabs = [
     {
-      title: "Tovarlar va Nomenklatura",
-      desc: "Minglab tovar pozitsiyalarini shtrix-kod kataloglari orqali yagona bazaga birlashtiring. O'lchov birliklari, qadoqlar, hamda yaroqlilik muddatlari monitoringini olib boring.",
+      title: t('land.tab1.title') || "Tovarlar va Nomenklatura",
+      desc: t('land.tab1.desc') || "Minglab tovar pozitsiyalarini shtrix-kod kataloglari orqali yagona bazaga birlashtiring...",
       img: "📦"
     },
     {
-      title: "Sotuv va Tranzaksiyalar",
-      desc: "B2B uchun shartnomaviy sotuv, yuridik shaxslarga schyot-fakturalar va B2C uchun umumlashgan tezkor POS darchasi.",
+      title: t('land.tab2.title') || "Sotuv va Tranzaksiyalar",
+      desc: t('land.tab2.desc') || "B2B uchun shartnomaviy sotuv...",
       img: "💳"
     },
     {
-      title: "Audit va Xavfsizlik",
-      desc: "Xodimlarning barcha harakatlari va tranzaksiya o'zgarishlari tizim loglariga muhrlanadi. To'liq ichki nazorat, Ruxsatlar tizimi (RBAC) va xavfsizlik protokollari.",
+      title: t('land.tab3.title') || "Audit va Xavfsizlik",
+      desc: t('land.tab3.desc') || "Xodimlarning barcha harakatlari va tranzaksiya o'zgarishlari tizim loglariga muhrlanadi...",
       img: "🛡️"
     }
   ]
@@ -212,10 +212,10 @@ export default function Landing() {
               )}
             </div>
             <button className="ent-btn-ghost" onClick={() => navigate('/login')}>
-              Tizimga kirish
+              {t('land.hero.login')}
             </button>
             <button className="ent-btn-primary" onClick={() => navigate('/register')}>
-              Boshlash
+              {t('land.hero.start')}
             </button>
             <button className="ent-hamburger" onClick={() => setMobileMenu(!mobileMenu)}>
               ☰
@@ -240,18 +240,18 @@ export default function Landing() {
           <div className="ent-hero-text">
             <div className="ent-badge">{t('land.b2b')}</div>
             <h1 className="ent-title">
-              Korporativ ERP <br/>
+              {t('land.erp')} <br/>
               <span className="ent-text-emerald">{t('land.eco')}</span>
             </h1>
             <p className="ent-subtitle">
-              Sotuv tarmog'ingizni to'liq raqamlashtiring. Bulutli texnologiyalar, ma'lumotlar xavfsizligi va ilg'or sinxronizatsiya yechimlari bilan ta'minlangan markazlashgan boshqaruv platformasi.
+              {t('land.desc1')}
             </p>
             <div className="ent-hero-btns">
               <button className="ent-btn-primary ent-btn-lg" onClick={() => navigate('/register')}>
-                Hisob yaratish {ICONS.arrowRight}
+                {t('land.hero.start')} {ICONS.arrowRight}
               </button>
               <button className="ent-btn-outline ent-btn-lg" onClick={() => navigate('/login')}>
-                Tizimni sinash
+                {t('land.try')}
               </button>
             </div>
             
@@ -317,9 +317,9 @@ export default function Landing() {
                   <p>{t('land.wmsDesc')}</p>
                 </div>
                 <ul className="ent-checklist">
-                  <li>{ICONS.check} Qoldiq zaxiralar avto-buyurtmasi</li>
-                  <li>{ICONS.check} Obyektlar aro ishonchli tranzitlar</li>
-                  <li>{ICONS.check} Inventarizatsiya va kalkulyatsiya retsepti</li>
+                  <li>{ICONS.check} {t('land.check1')}</li>
+                  <li>{ICONS.check} {t('land.check2')}</li>
+                  <li>{ICONS.check} {t('land.check3')}</li>
                 </ul>
               </div>
             </div>
@@ -332,7 +332,7 @@ export default function Landing() {
       <section id="modules" className="ent-section bg-gray">
         <div className="ent-container">
           <div className="ent-section-head">
-            <h2 className="ent-h2">Yagona ma'lumotlar bazasida </h2>
+            <h2 className="ent-h2">{t('land.singleDb')}</h2>
             <p className="ent-p">{t('land.noPaper')}</p>
           </div>
           <TabbedModules t={t} />
@@ -347,7 +347,7 @@ export default function Landing() {
             <p>{t('land.registerNow')}</p>
             <div className="ent-cta-actions">
               <button className="ent-btn-primary ent-btn-lg" onClick={() => navigate('/register')}>
-                Bepul boshlash
+                {t('land.hero.start')}
               </button>
             </div>
           </div>
@@ -359,7 +359,7 @@ export default function Landing() {
         <div className="ent-container ent-footer-inner">
           <div className="ent-footer-brand">
             <ECodeLogo size={24} />
-            <p className="copy">© {new Date().getFullYear()} E-code LLC. Barcha huquqlar himoyalangan.</p>
+            <p className="copy">© {new Date().getFullYear()} E-code LLC. {t('land.footer.rights')}</p>
           </div>
           
           <div className="ent-footer-links">

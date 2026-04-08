@@ -519,4 +519,15 @@ export default {
   'auth.confirmPass': 'Parolni tasdiqlang',
   'dashboard.income': 'Daromad',
   'sidebar.customers': 'Mijozlar',
+
+  // Added for Landing
+  'land.tab1.title': `Tovarlar va Nomenklatura`,
+  'land.tab1.desc': `Minglab tovar pozitsiyalarini shtrix-kod kataloglari orqali yagona bazaga birlashtiring. O'lchov birliklari, qadoqlar, hamda yaroqlilik muddatlari monitoringini olib boring.`,
+  'land.tab2.title': `Sotuv va Tranzaksiyalar`,
+  'land.tab2.desc': `B2B uchun shartnomaviy sotuv, yuridik shaxslarga schyot-fakturalar va B2C uchun umumlashgan tezkor POS darchasi.`,
+  'land.tab3.title': `Audit va Xavfsizlik`,
+  'land.tab3.desc': `Xodimlarning barcha harakatlari va tranzaksiya o'zgarishlari tizim loglariga muhrlanadi. To'liq ichki nazorat, Ruxsatlar tizimi (RBAC) va xavfsizlik protokollari.`,
+  'land.check1': `Qoldiq zaxiralar avto-buyurtmasi`,
+  'land.check2': `Obyektlar aro ishonchli tranzitlar`,
+  'land.check3': `Inventarizatsiya va kalkulyatsiya retsepti`,
 };
