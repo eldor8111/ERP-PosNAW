@@ -263,11 +263,14 @@ export default function Landing() {
               {t('land.desc1')}
             </p>
             <div className="ent-hero-btns">
-              <button className="ent-btn-primary ent-btn-lg" onClick={() => navigate('/register')}>
-                {t('land.hero.start')} {ICONS.arrowRight}
-              </button>
-              <button className="ent-btn-outline ent-btn-lg" onClick={() => navigate('/login')}>
-                {t('land.try')}
+              <button 
+                className="ent-btn-primary ent-btn-lg" 
+                onClick={() => {
+                  const leadSection = document.getElementById('lead-form');
+                  if(leadSection) leadSection.scrollIntoView({behavior: 'smooth'});
+                }}
+              >
+                So'rov qoldirish <span className="ent-btn-icon">{ICONS.arrowRight}</span>
               </button>
             </div>
             
@@ -389,7 +392,7 @@ export default function Landing() {
       </section>
 
       {/* ── Lead Capture / So'rov Qoldirish ── */}
-      <section className="ent-cta" style={{ background: 'var(--ent-surface)' }}>
+      <section id="lead-form" className="ent-cta" style={{ background: 'var(--ent-surface)' }}>
         <div className="ent-container">
           <div className="ent-cta-box lead-grid">
             <div className="lead-text">
