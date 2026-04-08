@@ -13,7 +13,7 @@ class LeadRequest(BaseModel):
     phone: str
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8572484074:AAFMbjXaquRUz4ObVMGGI1AVK_9oO5V5MeQ")
-TELEGRAM_LEAD_CHAT_ID = os.environ.get("TELEGRAM_LEAD_CHAT_ID", "")
+TELEGRAM_LEAD_CHAT_ID = os.environ.get("TELEGRAM_LEAD_CHAT_ID", "8756706353")
 
 async def send_to_telegram(lead: LeadRequest):
     if not TELEGRAM_LEAD_CHAT_ID:
