@@ -41,7 +41,7 @@ export function clearCache() { _cache.clear(); _inflight.clear() }
 const api = axios.create({
   baseURL: getBaseUrl(),
   headers: { 'Content-Type': 'application/json' },
-  timeout: 60000,
+  timeout: 15000,   // 15 soniya — POS uchun yetarli, keraksiz kutish oldini oladi
 })
 
 // ── Request interceptor ───────────────────────────────────────────────────

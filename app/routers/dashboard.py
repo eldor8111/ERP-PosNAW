@@ -74,22 +74,20 @@ def dashboard_summary(
     )
     sale_stats = filter_sales(sale_q).first()
 
-    # ── 2. Kassa balansi (transactions) ──────────────────────
-    tx_in_q = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
-        Transaction.company_id == cid,
-        Transaction.type == "income",
-    )
-    tx_out_q = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
-        Transaction.company_id == cid,
-        Transaction.type == "expense",
-    )
+    # ── 2. Kassa balansi — bitta query bilan income/expense (CASE ifodalari)
+    from sqlalchemy import case as sa_case
+    tx_q = db.query(
+        func.coalesce(
+            func.sum(sa_case((Transaction.type == "income", Transaction.amount), else_=0)), 0
+        ).label("income"),
+        func.coalesce(
+            func.sum(sa_case((Transaction.type == "expense", Transaction.amount), else_=0)), 0
+        ).label("expense"),
+    ).filter(Transaction.company_id == cid)
     if branch_id:
-        tx_in_q = tx_in_q.filter(Transaction.branch_id == branch_id)
-        tx_out_q = tx_out_q.filter(Transaction.branch_id == branch_id)
-
-    cash_in = tx_in_q.scalar() or 0
-    cash_out = tx_out_q.scalar() or 0
-    cash_balance = float(cash_in) - float(cash_out)
+        tx_q = tx_q.filter(Transaction.branch_id == branch_id)
+    tx_row = tx_q.first()
+    cash_balance = float(tx_row.income) - float(tx_row.expense)
 
     # ── 3. Kam qolgan mahsulotlar soni ────────────────────────
     low_stock_q = db.query(func.count(StockLevel.id)).filter(

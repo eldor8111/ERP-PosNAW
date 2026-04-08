@@ -18,11 +18,13 @@ class MovementType(str, enum.Enum):
 
 class StockLevel(Base):
     __tablename__ = "stock_levels"
-    __table_args__ = (UniqueConstraint("product_id", "warehouse_id", name="uq_stock_product_warehouse"),)
+    __table_args__ = (
+        UniqueConstraint("product_id", "warehouse_id", name="uq_stock_product_warehouse"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
-    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
-    warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=True)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False, index=True)
+    warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=True, index=True)
     quantity = Column(Numeric(12, 3), default=0)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 

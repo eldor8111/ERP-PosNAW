@@ -163,7 +163,7 @@ export default function usePosSync({ onSyncSuccess } = {}) {
 
   // ─── Kesh funksiyalari ─────────────────────────────────────────────────
   const fetchProducts = useCallback(
-    (params = {}) => fetchWithCache('/products/', CACHE_PRODUCTS_KEY, { limit: 12000, status: 'active', ...params }),
+    (params = {}) => fetchWithCache('/products/pos-list', CACHE_PRODUCTS_KEY, params),
     [fetchWithCache]
   );
 

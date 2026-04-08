@@ -5,12 +5,17 @@ from app.config import settings
 
 engine = create_engine(
     settings.DATABASE_URL,
-    pool_size=10,          # Har doim 10 ta ulanish tayyor
-    max_overflow=20,       # Zarur bo'lsa 20 ta qo'shimcha
-    pool_pre_ping=True,    # Ulanish hali tirik ekanini tekshiradi
-    pool_recycle=1800,     # 30 daqiqada yangi ulanish (PostgreSQL timeout oldini olish)
-    pool_timeout=30,       # 30 soniya kutadi, keyin xato qaytaradi
-    connect_args={"sslmode": "require"},  # SSL majburiy (Supabase va production uchun)
+    pool_size=20,          # Ko'proq parallel ulanish
+    max_overflow=10,       # Ortiqcha ulanishlar
+    pool_pre_ping=True,    # Ulanish tirikligini tekshiradi
+    pool_recycle=900,      # 15 daqiqada yangilash (Supabase idle timeout oldini olish)
+    pool_timeout=20,       # 20 soniya kutadi
+    connect_args={
+        "sslmode": "require",
+        "connect_timeout": 10,          # Ulanish 10 soniyada bajarilsin
+        "options": "-c statement_timeout=15000",  # 15 soniyadan uzun query xato qaytarsin
+    },
+    execution_options={"no_parameters": False},
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

@@ -98,6 +98,8 @@ function DashboardMinimal() {
       </div>
     </div>
   )
+}
+
 const VisualWarehouse = () => (
   <div className="mock-wrap float-anim">
     <img src="/mockups/warehouse.png" alt="Warehouse UI" className="mock-image" />
