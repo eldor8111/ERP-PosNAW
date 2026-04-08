@@ -270,61 +270,128 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
                 )
                 db.add(tx)
 
-    # 4. Har mahsulot uchun: SaleItem + qoldiq kamaytirish
+    # 4. Optimized: barcha mahsulotlar uchun Batch larni BITTA query bilan olamiz (N+1 muammosi hal qilindi)
+    product_ids = [item_d["product"].id for item_d in sale_items_data]
+    batches_q = db.query(Batch).filter(
+        Batch.product_id.in_(product_ids),
+        Batch.quantity > 0,
+        Batch.company_id == current_user.company_id
+    )
+    if data.warehouse_id is not None:
+        batches_q = batches_q.filter(Batch.warehouse_id == data.warehouse_id)
+    all_batches = batches_q.order_by(Batch.created_at.asc(), Batch.id.asc()).all()
+
+    # product_id → sorted list of batches (FIFO)
+    from collections import defaultdict
+    batches_by_product = defaultdict(list)
+    for b in all_batches:
+        batches_by_product[b.product_id].append(b)
+
+    # StockLevel larni ham bitta query bilan olamiz
+    from app.models.inventory import StockLevel as _SL
+    if data.warehouse_id is not None:
+        stock_rows = db.query(_SL).filter(
+            _SL.product_id.in_(product_ids),
+            _SL.warehouse_id == data.warehouse_id
+        ).with_for_update().all()
+    else:
+        stock_rows = db.query(_SL).filter(
+            _SL.product_id.in_(product_ids),
+            _SL.quantity > 0
+        ).order_by(_SL.quantity.desc()).with_for_update().all()
+    
+    stocks_by_product = defaultdict(list)
+    for s in stock_rows:
+        stocks_by_product[s.product_id].append(s)
+
+    new_sale_items = []
+    new_sibs = []
+    new_movements = []
+
     for item_d in sale_items_data:
         product = item_d["product"]
         qty_needed = Decimal(item_d["quantity"])
 
-        # Qoldiqni kamaytirish — agar yetmasa HTTPException ko'tariladi
-        deduct_stock(
-            db=db,
-            product_id=product.id,
-            quantity=qty_needed,
-            user_id=current_user.id,
-            reason=f"Sotuv #{sale.number}",
-            reference_type="sale",
-            reference_id=sale.id,
-            warehouse_id=data.warehouse_id,
-            allow_negative=True
-        )
-
-        # FIFO Batch Allocation
-        # Fetch available batches for this product
-        batches_query = db.query(Batch).filter(
-            Batch.product_id == product.id,
-            Batch.quantity > 0,
-            Batch.company_id == current_user.company_id
-        )
+        # --- Stock kamaytirish (DB lock allaqachon olindi yuqorida) ---
         if data.warehouse_id is not None:
-            batches_query = batches_query.filter(Batch.warehouse_id == data.warehouse_id)
-            
-        batches = batches_query.order_by(Batch.created_at.asc(), Batch.id.asc()).all()
-        
+            stocks = stocks_by_product.get(product.id, [])
+            if not stocks:
+                # Yangi yaratamiz
+                from app.models.inventory import StockLevel as _SL2
+                new_sl = _SL2(product_id=product.id, warehouse_id=data.warehouse_id, quantity=Decimal("0"))
+                db.add(new_sl)
+                stocks = [new_sl]
+                stocks_by_product[product.id] = stocks
+            stock = stocks[0]
+            qty_before = stock.quantity
+            stock.quantity -= qty_needed
+            from app.models.inventory import StockMovement, MovementType
+            new_movements.append(StockMovement(
+                product_id=product.id,
+                type=MovementType.OUT,
+                qty_before=qty_before,
+                qty_after=stock.quantity,
+                quantity=qty_needed,
+                reference_type="sale",
+                reference_id=sale.id,
+                user_id=current_user.id,
+                reason=f"Sotuv #{sale.number}",
+            ))
+        else:
+            # Barcha omborlardan yechamiz
+            stocks = stocks_by_product.get(product.id, [])
+            total_avail = sum((s.quantity for s in stocks), Decimal("0"))
+            remaining_deduct = qty_needed
+            if total_avail < qty_needed:
+                if not stocks:
+                    from app.models.inventory import StockLevel as _SL3
+                    new_sl = _SL3(product_id=product.id, warehouse_id=None, quantity=Decimal("0"))
+                    db.add(new_sl)
+                    stocks = [new_sl]
+                stocks[0].quantity -= (qty_needed - total_avail)
+                remaining_deduct = total_avail
+            from app.models.inventory import StockMovement, MovementType
+            for stock in stocks:
+                if remaining_deduct <= 0:
+                    break
+                take = min(remaining_deduct, stock.quantity)
+                qty_before = stock.quantity
+                stock.quantity -= take
+                remaining_deduct -= take
+                new_movements.append(StockMovement(
+                    product_id=product.id,
+                    type=MovementType.OUT,
+                    qty_before=qty_before,
+                    qty_after=stock.quantity,
+                    quantity=take,
+                    reference_type="sale",
+                    reference_id=sale.id,
+                    user_id=current_user.id,
+                    reason=f"Sotuv #{sale.number}",
+                ))
+
+        # --- FIFO Batch Allocation (keshdan) ---
+        batches = batches_by_product.get(product.id, [])
         remaining_to_allocate = qty_needed
         total_allocated_cost = Decimal("0")
         allocated_batches = []
-        
+
         for batch in batches:
             if remaining_to_allocate <= 0:
                 break
-                
             qty_from_batch = min(remaining_to_allocate, batch.quantity)
             batch.quantity -= qty_from_batch
             remaining_to_allocate -= qty_from_batch
-            
             cost = qty_from_batch * (batch.purchase_price or Decimal("0"))
             total_allocated_cost += cost
-            
             allocated_batches.append({
                 "batch_id": batch.id,
                 "quantity": qty_from_batch,
                 "unit_cost": batch.purchase_price or Decimal("0")
             })
-            
+
         if remaining_to_allocate > 0:
-            # Fallback for negative stock (or missing batches)
-            fallback_qty = remaining_to_allocate
-            cost = fallback_qty * (product.cost_price or Decimal("0"))
+            cost = remaining_to_allocate * (product.cost_price or Decimal("0"))
             total_allocated_cost += cost
 
         exact_unit_cost = (total_allocated_cost / qty_needed) if qty_needed > 0 else Decimal("0")
@@ -338,17 +405,24 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
             discount=item_d["discount"],
             subtotal=item_d["subtotal"],
         )
+        new_sale_items.append((sale_item, allocated_batches))
+
+    # Barcha SaleItem larni birdan qo'shish
+    for sale_item, allocated_batches in new_sale_items:
         db.add(sale_item)
-        db.flush()
-        
+    db.flush()  # sale_item.id lar tayyor bo'lsin
+
+    # SaleItemBatch va StockMovement larni birdan qo'shish
+    for sale_item, allocated_batches in new_sale_items:
         for ab in allocated_batches:
-            sib = SaleItemBatch(
+            db.add(SaleItemBatch(
                 sale_item_id=sale_item.id,
                 batch_id=ab["batch_id"],
                 quantity=ab["quantity"],
                 unit_cost=ab["unit_cost"]
-            )
-            db.add(sib)
+            ))
+    for mov in new_movements:
+        db.add(mov)
 
     log_action(
         db=db,
@@ -361,7 +435,7 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
     )
 
     db.commit()
-    db.refresh(sale)
+    # refresh is NOT needed here — router will call _load_sale with a fresh joinedload query
     
     # 5. Telegram notification — fully async, does NOT block the HTTP response
     if getattr(data, 'customer_id', None):

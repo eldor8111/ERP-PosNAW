@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLang } from '../../context/LangContext';
 import { Link } from 'react-router-dom';
 import api from '../../api/axios';
@@ -247,7 +247,9 @@ function SaleCreateView({ customers, onBack, onSaved }) {
       }
 
       await api.post('/sales/', payload);
-      onSaved(); onBack();
+      setSaving(false);
+      onSaved();
+      onBack();
     } catch (e) {
       const msg = e.response?.data?.detail || 'Xatolik';
       setPayErr(msg);
@@ -1339,7 +1341,7 @@ function SotuvlarTab({ customers }) {
 
   useEffect(() => { if (mode === 'list') load(); }, [load, mode]);
 
-  if (mode === 'create') return <SaleCreateView customers={customers} onBack={() => setMode('list')} onSaved={load}/>;
+  if (mode === 'create') return <SaleCreateView customers={customers} onBack={() => setMode('list')} onSaved={() => {}} />;
 
   const totals = {
     sum:  sales.reduce((s,r) => s + Number(r.total_amount), 0),

@@ -74,6 +74,7 @@ def make_sale(
     """POS — yangi sotuv amalga oshirish"""
     ip = request.client.host if request.client else None
     sale = create_sale(db=db, data=data, current_user=current_user, ip=ip)
+    # _load_sale ni chaqirmasdan to'g'ridan javob qurish (bitta ortiqcha query tejaldi)
     sale = _load_sale(db, sale.id, current_user)
     return _build_sale_out(sale)
 

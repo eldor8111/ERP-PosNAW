@@ -140,9 +140,10 @@ def list_products_for_pos(
         Product.name,
         Product.barcode,
         Product.sku,
-        Product.price,
+        Product.sale_price,
         Product.wholesale_price,
         Product.cost_price,
+        Product.min_stock,
         Product.unit,
         Product.status,
         Product.category_id,
@@ -154,16 +155,20 @@ def list_products_for_pos(
     ).order_by(Product.name)
 
     products_raw = q.all()
+    if not products_raw:
+        return []
     product_ids = [p.id for p in products_raw]
 
     # Stock levels — bitta so'rovda
-    stock_rows = db.query(
+    stock_q = db.query(
         StockLevel.product_id,
         sqlfunc.coalesce(sqlfunc.sum(StockLevel.quantity), 0).label("total_qty"),
     ).filter(
         StockLevel.product_id.in_(product_ids),
-        *([StockLevel.warehouse_id == warehouse_id] if warehouse_id else []),
-    ).group_by(StockLevel.product_id).all()
+    )
+    if warehouse_id:
+        stock_q = stock_q.filter(StockLevel.warehouse_id == warehouse_id)
+    stock_rows = stock_q.group_by(StockLevel.product_id).all()
 
     stock_map = {r.product_id: float(r.total_qty) for r in stock_rows}
 
@@ -173,9 +178,10 @@ def list_products_for_pos(
             "name": p.name,
             "barcode": p.barcode,
             "sku": p.sku,
-            "price": float(p.price),
+            "sale_price": float(p.sale_price),
             "wholesale_price": float(p.wholesale_price) if p.wholesale_price else None,
             "cost_price": float(p.cost_price),
+            "min_stock": p.min_stock,
             "unit": p.unit,
             "status": p.status,
             "category_id": p.category_id,
