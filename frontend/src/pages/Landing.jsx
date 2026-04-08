@@ -100,6 +100,50 @@ function DashboardMinimal() {
   )
 }
 
+const VisualWarehouse = () => (
+  <div className="mock-wrap float-anim">
+    <div className="mock-card">
+      <div className="mock-header"><span className="mock-title">Shtrix-kod katalog</span></div>
+      <div className="mock-body">
+         <div className="mock-grid">
+           <div className="mock-item" />
+           <div className="mock-item" />
+           <div className="mock-item" />
+           <div className="mock-item" />
+         </div>
+      </div>
+    </div>
+  </div>
+);
+
+const VisualPOS = () => (
+  <div className="mock-wrap float-anim">
+    <div className="mock-card">
+      <div className="mock-header"><span className="mock-title">Joriy Sotuv</span><span className="mock-title" style={{color: 'var(--ent-emerald)'}}>UZS</span></div>
+      <div className="mock-body">
+         <div className="mock-row"><div className="mock-row-txt" style={{width: '60%'}}/><div className="mock-row-val"/></div>
+         <div className="mock-row"><div className="mock-row-txt" style={{width: '40%'}}/><div className="mock-row-val"/></div>
+         <div className="mock-row"><div className="mock-row-txt" style={{width: '50%'}}/><div className="mock-row-val"/></div>
+         <div className="mock-btn">Kassadan To'lov (Tasdiqlash)</div>
+      </div>
+    </div>
+  </div>
+);
+
+const VisualAudit = () => (
+  <div className="mock-wrap float-anim">
+    <div className="mock-card">
+      <div className="mock-header"><span className="mock-title">Tizim Jurnallari</span></div>
+      <div className="mock-body" style={{gap: '16px'}}>
+         <div className="mock-log"><div className="mock-dot error" /><div className="mock-log-time">14:23</div><div className="mock-log-txt" style={{width:'80%'}}/></div>
+         <div className="mock-log"><div className="mock-dot warn" /><div className="mock-log-time">12:05</div><div className="mock-log-txt" style={{width:'60%'}}/></div>
+         <div className="mock-log"><div className="mock-dot success" /><div className="mock-log-time">10:14</div><div className="mock-log-txt" style={{width:'90%'}}/></div>
+         <div className="mock-log"><div className="mock-dot success" /><div className="mock-log-time">09:00</div><div className="mock-log-txt" style={{width:'50%'}}/></div>
+      </div>
+    </div>
+  </div>
+);
+
 // ─── TABBED MODULE (HOW IT WORKS) ───────────────────────────────────────────
 function TabbedModules({ t }) {
   const [activeTab, setActiveTab] = useState(0)
@@ -108,17 +152,17 @@ function TabbedModules({ t }) {
     {
       title: t('land.tab1.title') || "Tovarlar va Nomenklatura",
       desc: t('land.tab1.desc') || "Minglab tovar pozitsiyalarini shtrix-kod kataloglari orqali yagona bazaga birlashtiring...",
-      img: "📦"
+      visual: <VisualWarehouse />
     },
     {
       title: t('land.tab2.title') || "Sotuv va Tranzaksiyalar",
       desc: t('land.tab2.desc') || "B2B uchun shartnomaviy sotuv...",
-      img: "💳"
+      visual: <VisualPOS />
     },
     {
       title: t('land.tab3.title') || "Audit va Xavfsizlik",
       desc: t('land.tab3.desc') || "Xodimlarning barcha harakatlari va tranzaksiya o'zgarishlari tizim loglariga muhrlanadi...",
-      img: "🛡️"
+      visual: <VisualAudit />
     }
   ]
 
@@ -138,12 +182,7 @@ function TabbedModules({ t }) {
       </div>
       <div className="ent-tabs-display">
         <div className="ent-tab-window fade-in" key={activeTab}>
-           <div className="ent-tab-mock-icon">{tabs[activeTab].img}</div>
-           <div className="ent-tab-mock-lines">
-             <div className="ent-tml" />
-             <div className="ent-tml" style={{ width: '80%' }} />
-             <div className="ent-tml" style={{ width: '60%' }} />
-           </div>
+           {tabs[activeTab].visual}
         </div>
       </div>
     </div>
