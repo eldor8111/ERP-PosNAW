@@ -14,6 +14,8 @@ const Icon = ({ d, cls = "w-4 h-4" }) => (
 )
 
 function LoginLangSwitcher({ lang, setLang, dark = false }) {
+  const { t } = useLang();
+
   return (
     <div className="flex items-center gap-1">
       {LANGUAGES.map(l => (
@@ -34,6 +36,7 @@ function LoginLangSwitcher({ lang, setLang, dark = false }) {
 }
 
 function ForgotPasswordModal({ onClose, t }) {
+
   const [step, setStep] = useState(1)
   const [phone, setPhone] = useState('')
   const [userName, setUserName] = useState('')
@@ -96,8 +99,8 @@ function ForgotPasswordModal({ onClose, t }) {
             <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Icon d="M5 13l4 4L19 7" cls="w-7 h-7 text-green-600" />
             </div>
-            <h3 className="text-lg font-bold text-slate-800 mb-1">Parol yangilandi!</h3>
-            <p className="text-sm text-slate-500 mb-5">Yangi parolingiz bilan tizimga kiring</p>
+            <h3 className="text-lg font-bold text-slate-800 mb-1">{t('auth.passUpdated')}</h3>
+            <p className="text-sm text-slate-500 mb-5">{t('auth.loginWithNewPass')}</p>
             <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-colors">
               {t('common.back')}
             </button>
@@ -105,7 +108,7 @@ function ForgotPasswordModal({ onClose, t }) {
         ) : (
           <>
             <div className="mb-5">
-              <h3 className="text-lg font-bold text-slate-800">Parolni tiklash</h3>
+              <h3 className="text-lg font-bold text-slate-800">{t('auth.resetPass')}</h3>
               <p className="text-sm text-slate-500 mt-0.5">
                 {step === 1 ? 'Telefon raqamingizni kiriting' : `Salom, ${userName}! Yangi parol o'rnating`}
               </p>
@@ -142,7 +145,7 @@ function ForgotPasswordModal({ onClose, t }) {
             ) : (
               <form onSubmit={resetPassword} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Yangi parol</label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">{t('auth.newPass')}</label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
                       <Icon d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -155,7 +158,7 @@ function ForgotPasswordModal({ onClose, t }) {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Parolni tasdiqlang</label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">{t('auth.confirmPass')}</label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
                       <Icon d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
@@ -187,6 +190,7 @@ function ForgotPasswordModal({ onClose, t }) {
 }
 
 export default function Login() {
+
   const { login } = useAuth()
   const { t, lang, setLang } = useLang()
   const navigate = useNavigate()
@@ -240,7 +244,7 @@ export default function Login() {
           </p>
         </div>
 
-        <p className="relative text-indigo-300/50 text-xs">© 2026 E-code ERP</p>
+        <p className="relative text-indigo-300/50 text-xs">{t('common.copyright')}</p>
       </div>
 
       {/* ── Right panel (form) ── */}
@@ -332,3 +336,5 @@ export default function Login() {
     </div>
   )
 }
+
+

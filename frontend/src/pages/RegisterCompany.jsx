@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useLang } from '../context/LangContext';
 import { Link } from 'react-router-dom'
 import api from '../api/axios'
 import { ECodeLogoPrimary } from '../components/ECodeLogo'
@@ -30,6 +31,8 @@ const EyeOpen = () => <Icon d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7
 const EyeOff = () => <Icon d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
 
 function Steps({ current }) {
+  const { t } = useLang();
+
   return (
     <div className="flex items-center mb-8">
       {[{ n: 1, label: "Korxona ma'lumotlari" }, { n: 2, label: "Shaxsiy ma'lumotlar" }].map((s, i, arr) => (
@@ -86,6 +89,8 @@ function TInput({ icon, right, err, ...props }) {
 }
 
 function FloatingSelect({ label, value, onChange, options, disabled, error }) {
+  const { t } = useLang();
+
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
@@ -147,6 +152,8 @@ function FloatingSelect({ label, value, onChange, options, disabled, error }) {
 }
 
 export default function RegisterCompany() {
+  const { t } = useLang();
+
   const [step, setStep] = useState(1)
   const [form, setForm] = useState({
     company_name: '', region: '', district: '',
@@ -227,18 +234,18 @@ export default function RegisterCompany() {
               <Icon d="M5 13l4 4L19 7" cls="w-12 h-12 text-white" />
             </div>
 
-            <h2 className="text-3xl font-black text-slate-800 mb-2">Muvaffaqiyatli!</h2>
-            <p className="text-slate-500 text-base mb-8">Korxona ro'yxatdan o'tdi. Tizimga kiring.</p>
+            <h2 className="text-3xl font-black text-slate-800 mb-2">{t('common.success')}</h2>
+            <p className="text-slate-500 text-base mb-8">{t('auth.companyRegistered')}</p>
 
             {/* Company Name */}
             <div className="mb-4 bg-slate-50 border-2 border-slate-200 rounded-2xl px-6 py-4">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Korxona nomi</p>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{t('settings.companyName')}</p>
               <div className="text-2xl font-black text-slate-800">{done.company_name}</div>
             </div>
 
             {/* Org Code */}
             <div className="mb-5 bg-linear-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200 rounded-2xl px-6 py-5">
-              <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-3">Korxona kodi</p>
+              <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-3">{t('settings.orgCode')}</p>
               <div className="text-6xl font-black text-indigo-700 tracking-[0.25em] leading-none">{done.org_code}</div>
               <div className="flex items-center justify-center gap-2 text-sm text-amber-700 bg-amber-50 rounded-xl px-4 py-2.5 mt-4 border border-amber-200 font-semibold">
                 <Icon d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" cls="w-5 h-5 shrink-0 text-amber-600" />
@@ -252,8 +259,8 @@ export default function RegisterCompany() {
                 <Icon d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" cls="w-5 h-5 text-emerald-600" />
               </div>
               <div className="text-left">
-                <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide">Balans ochildi</p>
-                <p className="text-sm text-emerald-600">Tarif sotib olish uchun balansni to'ldiring</p>
+                <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide">{t('auth.balanceOpened')}</p>
+                <p className="text-sm text-emerald-600">{t('auth.fillBalance')}</p>
               </div>
             </div>
 
@@ -291,7 +298,7 @@ export default function RegisterCompany() {
           <div>
             <h2 className="text-2xl font-black text-white leading-tight mb-2">
               Biznesingizni<br />
-              <span className="text-indigo-200">boshqaring</span>
+              <span className="text-indigo-200">{t('auth.manageBusiness')}</span>
             </h2>
             <p className="text-indigo-300/80 text-xs leading-relaxed mt-3">
               Ro'yxatdan o'tib, savdo, ombor va moliyani bitta tizimda boshqaring.
@@ -315,7 +322,7 @@ export default function RegisterCompany() {
           </div>
         </div>
 
-        <p className="relative text-indigo-300/50 text-xs">© 2026 E-code ERP</p>
+        <p className="relative text-indigo-300/50 text-xs">{t('common.copyright')}</p>
       </div>
 
       {/* ── Right panel (form) ── */}
@@ -328,8 +335,8 @@ export default function RegisterCompany() {
           </div>
 
           <div className="mb-7">
-            <h1 className="text-2xl font-black text-slate-800">Ro'yxatdan o'tish</h1>
-            <p className="text-slate-500 text-sm mt-1">Yangi korxona uchun hisob yarating</p>
+            <h1 className="text-2xl font-black text-slate-800">{t('land.nav.register')}</h1>
+            <p className="text-slate-500 text-sm mt-1">{t('auth.createAccount')}</p>
           </div>
 
           <Steps current={step} />
@@ -379,7 +386,7 @@ export default function RegisterCompany() {
 
               <p className="text-center text-sm text-slate-500">
                 Allaqachon hisobingiz bormi?{' '}
-                <Link to="/login" className="text-indigo-600 font-semibold hover:underline">Kiring</Link>
+                <Link to="/login" className="text-indigo-600 font-semibold hover:underline">{t('land.nav.login')}</Link>
               </p>
             </div>
           )}
@@ -499,14 +506,14 @@ export default function RegisterCompany() {
                   className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-sm transition-all shadow-md shadow-indigo-200 flex items-center justify-center gap-2"
                 >
                   {loading ? (
-                    <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>Saqlanmoqda...</>
+                    <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>{t('common.saving')}</>
                   ) : (<>Ro'yxatdan o'tish <Icon d="M13 7l5 5m0 0l-5 5m5-5H6" /></>)}
                 </button>
               </div>
 
               <p className="text-center text-sm text-slate-500">
                 Allaqachon hisobingiz bormi?{' '}
-                <Link to="/login" className="text-indigo-600 font-semibold hover:underline">Kiring</Link>
+                <Link to="/login" className="text-indigo-600 font-semibold hover:underline">{t('land.nav.login')}</Link>
               </p>
             </form>
           )}

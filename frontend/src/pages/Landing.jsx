@@ -50,6 +50,8 @@ const ICONS = {
 
 // ─── DASHBOARD MOCKUP (MINIMAL ENTERPRISE) ───────────────────────────────────
 function DashboardMinimal() {
+  const { t } = useLang();
+
   return (
     <div className="ent-board">
       <div className="ent-board-header">
@@ -70,15 +72,15 @@ function DashboardMinimal() {
         <div className="ent-board-content">
           <div className="ent-bc-metrics">
             <div className="ent-metric-card">
-              <span className="ent-metric-lbl">Daromad</span>
+              <span className="ent-metric-lbl">{t('dashboard.income')}</span>
               <span className="ent-metric-val">12.4M</span>
             </div>
             <div className="ent-metric-card">
-              <span className="ent-metric-lbl">Mijozlar</span>
+              <span className="ent-metric-lbl">{t('sidebar.customers')}</span>
               <span className="ent-metric-val">342</span>
             </div>
             <div className="ent-metric-card">
-              <span className="ent-metric-lbl">Buyurtma</span>
+              <span className="ent-metric-lbl">{t('purchase.order')}</span>
               <span className="ent-metric-val">1,890</span>
             </div>
           </div>
@@ -149,6 +151,7 @@ function TabbedModules({ t }) {
 
 // ─── MAIN COMPONENT ─────────────────────────────────────────────────────────
 export default function Landing() {
+
   const { t, lang, setLang, LANGUAGES } = useLang()
   const navigate = useNavigate()
   const [scrolled, setScrolled] = useState(false)
@@ -203,8 +206,8 @@ export default function Landing() {
           <ECodeLogo size={32} />
 
           <div className="ent-nav-links">
-            <a href="#features">Imkoniyatlar</a>
-            <a href="#modules">Modullar</a>
+            <a href="#features">{t('land.features.badge')}</a>
+            <a href="#modules">{t('land.modules')}</a>
           </div>
 
           <div className="ent-nav-actions">
@@ -222,10 +225,10 @@ export default function Landing() {
 
         {mobileMenu && (
           <div className="ent-mobile-menu">
-            <a href="#features" onClick={() => setMobileMenu(false)}>Imkoniyatlar</a>
-            <a href="#modules" onClick={() => setMobileMenu(false)}>Modullar</a>
-            <button onClick={() => navigate('/login')}>Kirish</button>
-            <button className="ent-btn-primary" onClick={() => navigate('/register')}>Ro'yxatdan o'tish</button>
+            <a href="#features" onClick={() => setMobileMenu(false)}>{t('land.features.badge')}</a>
+            <a href="#modules" onClick={() => setMobileMenu(false)}>{t('land.modules')}</a>
+            <button onClick={() => navigate('/login')}>{t('land.nav.login')}</button>
+            <button className="ent-btn-primary" onClick={() => navigate('/register')}>{t('land.nav.register')}</button>
           </div>
         )}
       </nav>
@@ -235,10 +238,10 @@ export default function Landing() {
         <div className="ent-hero-bg-grid" />
         <div className="ent-container ent-hero-inner">
           <div className="ent-hero-text">
-            <div className="ent-badge">B2B va B2C segmentlari uchun</div>
+            <div className="ent-badge">{t('land.b2b')}</div>
             <h1 className="ent-title">
               Korporativ ERP <br/>
-              <span className="ent-text-emerald">Ekosistemasi</span>
+              <span className="ent-text-emerald">{t('land.eco')}</span>
             </h1>
             <p className="ent-subtitle">
               Sotuv tarmog'ingizni to'liq raqamlashtiring. Bulutli texnologiyalar, ma'lumotlar xavfsizligi va ilg'or sinxronizatsiya yechimlari bilan ta'minlangan markazlashgan boshqaruv platformasi.
@@ -254,9 +257,9 @@ export default function Landing() {
             
             <div className="ent-trust">
               <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', fontWeight: '600', color: 'var(--ent-primary)' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>🔒 Bank darajasidagi himoya</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>⚡ 99.9% Barqaror ishlash</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>☁️ 24/7 Avtomatik zaxira</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>{t('land.sec1')}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>{t('land.sec2')}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>{t('land.sec3')}</span>
               </div>
             </div>
           </div>
@@ -271,8 +274,8 @@ export default function Landing() {
       <section id="features" className="ent-section">
         <div className="ent-container">
           <div className="ent-section-head">
-            <h2 className="ent-h2">Cheksiz imkoniyatlar ekotizimi</h2>
-            <p className="ent-p">Bir-biriga bog'langan modullar arxitekturasi.</p>
+            <h2 className="ent-h2">{t('land.ecosystem')}</h2>
+            <p className="ent-p">{t('land.arch')}</p>
           </div>
 
           <div className="ent-bento">
@@ -281,8 +284,8 @@ export default function Landing() {
             <div className="ent-bento-card bento-span-2">
               <div className="ent-bc-content">
                 <div className="ent-bc-icon">{ICONS.pos}</div>
-                <h3>Omnichannel POS Terminal</h3>
-                <p>Kassirlar uchun moslashtirilgan tezkor ishlash maydoni. Shtrix-kod, QR-to'lovlar, tarozilar apparati bilan bevosita lokal integratsiya. Offlayn bufer xotira.</p>
+                <h3>{t('land.omni')}</h3>
+                <p>{t('land.omniDesc')}</p>
               </div>
               <div className="ent-bc-visual pos-bg" />
             </div>
@@ -291,8 +294,8 @@ export default function Landing() {
             <div className="ent-bento-card">
               <div className="ent-bc-content">
                 <div className="ent-bc-icon">{ICONS.chart}</div>
-                <h3>BI & Moliyaviy Analitika</h3>
-                <p>Real vaqt rejimida rentabellik dushbordlari. Barcha moliyaviy operatsiyalar, debitor-kreditor qarzlarini chuqur tahlil qilish.</p>
+                <h3>{t('land.bi')}</h3>
+                <p>{t('land.biDesc')}</p>
               </div>
             </div>
 
@@ -300,8 +303,8 @@ export default function Landing() {
             <div className="ent-bento-card">
               <div className="ent-bc-content">
                 <div className="ent-bc-icon">{ICONS.crm}</div>
-                <h3>Smart CRM Platformasi</h3>
-                <p>Avtomatlashgan keshbek, VIP mijozlar xaritasi (RFM tahlil) va korporativ mijozlar uchun xususiy qarz limitlari marshrutizatsiyasi.</p>
+                <h3>{t('land.crm')}</h3>
+                <p>{t('land.crmDesc')}</p>
               </div>
             </div>
 
@@ -310,8 +313,8 @@ export default function Landing() {
               <div className="ent-bc-content row-flex">
                 <div>
                   <div className="ent-bc-icon">{ICONS.warehouse}</div>
-                  <h3>Ko'p Tarmoqli Ombor (WMS)</h3>
-                  <p>Murakkab Nomenklaturalar tarmog'ini partiyalar, hisob va xarajat narxlari hamda filiallarga avtomatik xizmat ko'rsatish orqali boshqarish.</p>
+                  <h3>{t('land.wms')}</h3>
+                  <p>{t('land.wmsDesc')}</p>
                 </div>
                 <ul className="ent-checklist">
                   <li>{ICONS.check} Qoldiq zaxiralar avto-buyurtmasi</li>
@@ -330,7 +333,7 @@ export default function Landing() {
         <div className="ent-container">
           <div className="ent-section-head">
             <h2 className="ent-h2">Yagona ma'lumotlar bazasida </h2>
-            <p className="ent-p">Qog'ozlar va bir nechta dasyurlarni unuting.</p>
+            <p className="ent-p">{t('land.noPaper')}</p>
           </div>
           <TabbedModules t={t} />
         </div>
@@ -340,8 +343,8 @@ export default function Landing() {
       <section className="ent-cta">
         <div className="ent-container">
           <div className="ent-cta-box">
-            <h2>Biznesingizni keyingi bosqichga olib chiqing</h2>
-            <p>Hoziroq ro'yxatdan o'ting va platformaning barcha funksiyalaridan foydalaning.</p>
+            <h2>{t('land.nextLevel')}</h2>
+            <p>{t('land.registerNow')}</p>
             <div className="ent-cta-actions">
               <button className="ent-btn-primary ent-btn-lg" onClick={() => navigate('/register')}>
                 Bepul boshlash
@@ -361,14 +364,14 @@ export default function Landing() {
           
           <div className="ent-footer-links">
             <div>
-              <strong>Bog'lanish</strong>
+              <strong>{t('land.contact')}</strong>
               <span>supergeroy2580@gmail.com</span>
               <span>+998 88 911 81 71</span>
             </div>
             <div>
-              <strong>Tizim</strong>
-              <span onClick={() => navigate('/login')} className="clickable">Kirish</span>
-              <span onClick={() => navigate('/register')} className="clickable">Ro'yxatdan o'tish</span>
+              <strong>{t('land.system')}</strong>
+              <span onClick={() => navigate('/login')} className="clickable">{t('land.nav.login')}</span>
+              <span onClick={() => navigate('/register')} className="clickable">{t('land.nav.register')}</span>
             </div>
           </div>
         </div>
@@ -376,3 +379,4 @@ export default function Landing() {
     </div>
   )
 }
+

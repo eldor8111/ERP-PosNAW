@@ -1,10 +1,13 @@
 import { useState } from 'react';
+import { useLang } from '../context/LangContext';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import { ECodeIconLight } from '../components/ECodeLogo';
 
 export default function PosLogin() {
+  const { t } = useLang();
+
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -63,8 +66,8 @@ export default function PosLogin() {
         <div className="w-full max-w-md">
           <div className="text-center mb-10">
             <ECodeIconLight size={60} className="mx-auto mb-4" />
-            <h1 className="text-2xl font-black text-white mb-2">Korxonani tanlang</h1>
-            <p className="text-slate-400 text-sm">Qaysi korxona bilan ishlashni tanlang</p>
+            <h1 className="text-2xl font-black text-white mb-2">{t('pos.selectEnterprise')}</h1>
+            <p className="text-slate-400 text-sm">{t('pos.selectEnterpriseSub')}</p>
           </div>
 
           <div className="space-y-3">
@@ -108,8 +111,8 @@ export default function PosLogin() {
         {/* Logo */}
         <div className="text-center mb-10">
           <ECodeIconLight size={72} className="mx-auto mb-5" />
-          <h1 className="text-2xl font-black text-white mb-2">Kassaga kirish</h1>
-          <p className="text-slate-400 text-sm">Hisob ma'lumotlarini kiriting</p>
+          <h1 className="text-2xl font-black text-white mb-2">{t('pos.loginCashier')}</h1>
+          <p className="text-slate-400 text-sm">{t('pos.enterCredentials')}</p>
         </div>
 
         {/* Error */}
@@ -125,7 +128,7 @@ export default function PosLogin() {
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Phone */}
           <div>
-            <label className="block text-sm font-semibold text-slate-300 mb-2">Telefon raqam</label>
+            <label className="block text-sm font-semibold text-slate-300 mb-2">{t('settings.phone')}</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-slate-500">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -146,7 +149,7 @@ export default function PosLogin() {
 
           {/* Password */}
           <div>
-            <label className="block text-sm font-semibold text-slate-300 mb-2">Parol</label>
+            <label className="block text-sm font-semibold text-slate-300 mb-2">{t('user.password')}</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-slate-500">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -223,8 +226,8 @@ export default function PosLogin() {
         {showServerModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
             <div className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm p-6">
-              <h3 className="text-white font-bold text-lg mb-1">🌐 Server Sozlamalari</h3>
-              <p className="text-slate-400 text-sm mb-4">Backend API manzilini kiriting</p>
+              <h3 className="text-white font-bold text-lg mb-1">{t('pos.serverSettings')}</h3>
+              <p className="text-slate-400 text-sm mb-4">{t('pos.enterApiUrl')}</p>
               <input
                 type="text"
                 value={serverUrlInput}
