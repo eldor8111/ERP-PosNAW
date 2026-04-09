@@ -17,8 +17,8 @@ echo [OK] Virtual environment topildi.
 call venv\Scripts\activate.bat
 
 echo [OK] Virtual environment faollashtirildi.
-echo [INFO] Backend server 8000-portda ishga tushmoqda...
-echo [INFO] Brauzerda: http://localhost:8000/docs
+echo [INFO] Backend server 8010-portda ishga tushmoqda...
+echo [INFO] Brauzerda: http://localhost:8010/docs
 echo.
 python start.py
 pause

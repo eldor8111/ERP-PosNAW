@@ -5,7 +5,7 @@ import api from '../../api/axios';
 import BarcodePrintModal from '../../components/BarcodeTemplates';
 import { useLang } from '../../context/LangContext';
 
-const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api').replace('/api', '');
+const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8010/api').replace('/api', '');
 
 /* ─── helpers ─────────────────────────────────────── */
 const fmt = (v) => {

@@ -8,7 +8,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
-        port=8000,
+        port=8010,
         reload=True,
         reload_dirs=["app"],          # faqat app/ papkasini kuzat
         reload_excludes=[             # bularni hech qachon kuzatma

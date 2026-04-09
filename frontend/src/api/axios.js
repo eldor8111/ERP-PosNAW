@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { toast } from '../utils/toast'
 
-const DEFAULT_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+const DEFAULT_URL = import.meta.env.VITE_API_URL || 'http://localhost:8010/api'
 const getBaseUrl = () => {
   try { return localStorage.getItem('api_server_url') || DEFAULT_URL; } catch { return DEFAULT_URL; }
 }
