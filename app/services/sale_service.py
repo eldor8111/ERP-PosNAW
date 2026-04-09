@@ -647,7 +647,6 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
     )
 
     db.commit()
-    db.refresh(sale)
     return sale
 
 

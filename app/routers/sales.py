@@ -64,7 +64,7 @@ def _build_sale_out(sale: Sale) -> SaleOut:
     )
 
 
-@router.post("/", response_model=SaleOut)
+@router.post("/", response_model=SaleListOut)
 def make_sale(
     data: SaleCreate,
     request: Request,
@@ -74,12 +74,26 @@ def make_sale(
     """POS — yangi sotuv amalga oshirish"""
     ip = request.client.host if request.client else None
     sale = create_sale(db=db, data=data, current_user=current_user, ip=ip)
-    # _load_sale ni chaqirmasdan to'g'ridan javob qurish (bitta ortiqcha query tejaldi)
-    sale = _load_sale(db, sale.id, current_user)
-    return _build_sale_out(sale)
+    # _load_sale chaqirilmaydi — ortiqcha query yo'q, tezroq ishlaydi
+    return SaleListOut(
+        id=sale.id,
+        number=sale.number,
+        cashier_name=current_user.name,
+        total_amount=sale.total_amount,
+        discount_amount=sale.discount_amount,
+        paid_amount=sale.paid_amount,
+        paid_cash=sale.paid_cash,
+        paid_card=sale.paid_card,
+        payment_type=sale.payment_type,
+        status=sale.status,
+        customer_id=sale.customer_id,
+        customer_name=None,
+        items_count=len(data.items),
+        created_at=sale.created_at,
+    )
 
 
-@router.post("/return", response_model=SaleOut)
+@router.post("/return", response_model=SaleListOut)
 def make_return_sale(
     data: SaleCreate,
     request: Request,
@@ -89,8 +103,22 @@ def make_return_sale(
     """POS — qaytarish (vazvrat) amalga oshirish"""
     ip = request.client.host if request.client else None
     sale = create_return_sale(db=db, data=data, current_user=current_user, ip=ip)
-    sale = _load_sale(db, sale.id, current_user)
-    return _build_sale_out(sale)
+    return SaleListOut(
+        id=sale.id,
+        number=sale.number,
+        cashier_name=current_user.name,
+        total_amount=sale.total_amount,
+        discount_amount=sale.discount_amount,
+        paid_amount=sale.paid_amount,
+        paid_cash=sale.paid_cash,
+        paid_card=sale.paid_card,
+        payment_type=sale.payment_type,
+        status=sale.status,
+        customer_id=sale.customer_id,
+        customer_name=None,
+        items_count=len(data.items),
+        created_at=sale.created_at,
+    )
 
 
 @router.get("/", response_model=List[SaleListOut])

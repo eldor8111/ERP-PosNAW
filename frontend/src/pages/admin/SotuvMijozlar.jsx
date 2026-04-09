@@ -252,15 +252,25 @@ function SaleCreateView({ customers, onBack, onSaved }) {
         payload.note = (payload.note ? payload.note + '\n' : '') + paymentInfo.info;
       }
 
-      await api.post('/sales/', payload);
+      // ── OPTIMISTIK UI: Darhol orqaga ketamiz (server javobini KUTMAYMIZ) ──
       setSaving(false);
-      onSaved();
-      onBack();
+      setShowPay(false);
+      setShowMuddat(false);
+      onBack(); // ← 0ms! Foydalanuvchi darhol ro'yxatga qaytadi
+
+      // API ga fon rejimida yuboramiz
+      api.post('/sales/', payload)
+        .then(() => { onSaved(); })
+        .catch((e) => {
+          const msg = e.response?.data?.detail || 'Sotuv saqlanmadi!';
+          window.alert('\u26A0\uFE0F Sotuv xatosi:\n' + msg);
+          onSaved();
+        });
     } catch (e) {
       const msg = e.response?.data?.detail || 'Xatolik';
       setPayErr(msg);
       setErr(msg);
-      // Xato bo'lsa to'lov modalini qaytib ochamiz — foydalanuvchi ma'lumotlarini yo'qotmasin
+      setSaving(false);
       setShowPay(true);
     } finally { setSaving(false); }
   };
