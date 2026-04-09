@@ -47,7 +47,10 @@ def create_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.super_admin)),
 ):
-    existing = db.query(User).filter(User.phone == data.phone).first()
+    existing = db.query(User).filter(
+        User.phone == data.phone,
+        User.status == UserStatus.active
+    ).first()
     if existing:
         raise HTTPException(status_code=400, detail="Bu telefon raqam allaqachon ro'yxatdan o'tgan")
 
