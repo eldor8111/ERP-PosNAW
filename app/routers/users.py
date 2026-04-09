@@ -19,7 +19,7 @@ ADMIN_ROLES = (UserRole.admin, UserRole.director, UserRole.super_admin)
 @router.get("/", response_model=List[UserOut])
 def list_users(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.super_admin)),
+    current_user: User = Depends(get_current_user),
 ):
     q = db.query(User).filter(User.status == UserStatus.active)
     q = q.filter(User.company_id == current_user.company_id)

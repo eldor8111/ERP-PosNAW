@@ -215,10 +215,11 @@ export default function AdminLayout() {
   }, []);
 
   const refreshLowStock = useCallback(() => {
+    if (!ROLE_GROUPS.WAREHOUSE_ACCESS.includes(user?.role)) return;
     api.get('/inventory/low-stock-count').then(r => {
       setLowStockCount(r.data.count || 0);
     }).catch(() => {});
-  }, []);
+  }, [user?.role]);
 
   useEffect(() => {
     refreshBalance();
