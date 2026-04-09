@@ -264,6 +264,11 @@ export default function RegisterCompany() {
     try {
       const normalized = form.phone.replace(/[^0-9]/g, '')
       const res = await api.post('/auth/send-otp', { phone: normalized, purpose: 'register' })
+      if (!res.data.sent) {
+        setErrors({ submit: res.data.message || 'Botga ulanmagan' })
+        setOtpLoading(false)
+        return
+      }
       setDevMode(res.data.dev_mode || false)
       setOtpSent(true)
       setStep(3)
@@ -283,6 +288,11 @@ export default function RegisterCompany() {
     try {
       const normalized = form.phone.replace(/[^0-9]/g, '')
       const res = await api.post('/auth/send-otp', { phone: normalized, purpose: 'register' })
+      if (!res.data.sent) {
+        setOtpError(res.data.message || 'Botga ulanmagan')
+        setOtpLoading(false)
+        return
+      }
       setDevMode(res.data.dev_mode || false)
       startResendTimer()
     } catch (err) {
