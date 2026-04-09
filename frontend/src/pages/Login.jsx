@@ -366,8 +366,12 @@ export default function Login() {
     setError('')
     setLoading(true)
     try {
-      await login(form.phone, form.password)
-      navigate('/admin/dashboard')
+      const userRes = await login(form.phone, form.password)
+      if (userRes?.role === 'cashier') {
+        navigate('/admin/pos-kassa')
+      } else {
+        navigate('/admin/dashboard')
+      }
     } catch (err) {
       // 202 = OTP talab qilinadi (kassir/sub-foydalanuvchi)
       const detail = err.response?.data?.detail
@@ -397,7 +401,11 @@ export default function Login() {
       localStorage.setItem('refresh_token', refresh_token)
       localStorage.setItem('user', JSON.stringify(user))
       // Auth context ni reload qilish uchun sahifani yangilaymiz
-      window.location.href = '/admin/dashboard'
+      if (user?.role === 'cashier') {
+        window.location.href = '/admin/pos-kassa'
+      } else {
+        window.location.href = '/admin/dashboard'
+      }
     } catch (err) {
       setError(err.response?.data?.detail || "OTP noto'g'ri")
       setOtp('')
