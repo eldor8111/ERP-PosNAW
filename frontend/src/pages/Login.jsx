@@ -354,6 +354,12 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [showPass, setShowPass] = useState(false)
   const [showForgot, setShowForgot] = useState(false)
+  // OTP bosqich
+  const [otpStep, setOtpStep] = useState(false)
+  const [otp, setOtp] = useState('')
+  const [otpName, setOtpName] = useState('')
+  const [otpDevMode, setOtpDevMode] = useState(false)
+  const [otpLoading, setOtpLoading] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -363,10 +369,39 @@ export default function Login() {
       await login(form.phone, form.password)
       navigate('/admin/dashboard')
     } catch (err) {
-      setError(err.response?.data?.detail || t('login.error'))
+      // 202 = OTP talab qilinadi (kassir/sub-foydalanuvchi)
+      const detail = err.response?.data?.detail
+      if (err.response?.status === 202 && detail?.otp_required) {
+        setOtpName(detail.name || '')
+        setOtpDevMode(detail.dev_mode || false)
+        setOtpStep(true)
+        setError('')
+      } else {
+        setError(detail || t('login.error'))
+      }
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleOtpVerify = async (e) => {
+    e.preventDefault()
+    if (otp.length < 6) { setError("6 xonali kodni to'liq kiriting"); return }
+    setOtpLoading(true); setError('')
+    try {
+      const normalized = form.phone.replace(/[+ -]/g, '')
+      const res = await api.post('/auth/login-verify', { phone: normalized, otp })
+      // login context ni yangilaymiz
+      const { access_token, refresh_token, user } = res.data
+      localStorage.setItem('access_token', access_token)
+      localStorage.setItem('refresh_token', refresh_token)
+      // Auth context ni reload qilish uchun sahifani yangilaymiz
+      window.location.href = '/admin/dashboard'
+    } catch (err) {
+      setError(err.response?.data?.detail || "OTP noto'g'ri")
+      setOtp('')
+    } finally {
+      setOtpLoading(false) }
   }
 
   return (
@@ -415,6 +450,47 @@ export default function Login() {
             <LoginLangSwitcher lang={lang} setLang={setLang} dark={false} />
           </div>
 
+          {/* ── OTP bosqich ── */}
+          {otpStep ? (
+            <>
+              <div className="mb-8">
+                <h1 className="text-2xl font-black text-slate-800">Telegram OTP tasdiqlash</h1>
+                <p className="text-slate-500 text-sm mt-1">Salom, <strong>{otpName}</strong>! Telegram botdagi kodni kiriting.</p>
+              </div>
+              {otpDevMode && (
+                <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl px-3 py-2.5 text-xs font-medium mb-4">
+                  <span>🛠</span><span>Dev mode: OTP backend konsolga chiqarildi</span>
+                </div>
+              )}
+              {error && (
+                <div className="flex items-center gap-2.5 bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 mb-6 text-sm">
+                  <Icon d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" cls="w-4 h-4 shrink-0" />
+                  {error}
+                </div>
+              )}
+              <form onSubmit={handleOtpVerify} className="space-y-5">
+                <div>
+                  <p className="text-xs text-slate-500 text-center mb-3">
+                    <span className="font-semibold text-indigo-600">Telegram</span> botdagi 6 xonali kodni kiriting
+                  </p>
+                  <OtpInput value={otp} onChange={setOtp} />
+                </div>
+                <button type="submit" disabled={otpLoading || otp.length < 6}
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 text-white font-bold text-sm transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2">
+                  {otpLoading ? (
+                    <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Tekshirilmoqda...</>
+                  ) : (
+                    <>Tasdiqlash <Icon d="M5 13l4 4L19 7" /></>
+                  )}
+                </button>
+                <button type="button" onClick={() => { setOtpStep(false); setOtp(''); setError(''); }}
+                  className="w-full py-2 text-slate-500 hover:text-slate-700 text-sm font-medium transition-colors">
+                  ← Parolga qaytish
+                </button>
+              </form>
+            </>
+          ) : (
+            <>
           <div className="mb-8">
             <h1 className="text-2xl font-black text-slate-800">{t('login.welcome')}</h1>
             <p className="text-slate-500 text-sm mt-1">{t('login.subtitle')}</p>
@@ -467,7 +543,7 @@ export default function Login() {
             </div>
 
             <button type="submit" disabled={loading}
-              className="w-full py-3 rounded-xl bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 text-white font-bold text-sm transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 mt-2">
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 text-white font-bold text-sm transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 mt-2">
               {loading ? (
                 <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -487,6 +563,8 @@ export default function Login() {
               </Link>
             </p>
           </div>
+            </>
+          )}
         </div>
       </div>
     </div>

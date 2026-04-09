@@ -518,6 +518,20 @@ def register_company(request: Request, data: CompanyRegisterRequest, db: Session
 
 # ─── Login ───────────────────────────────────────────────────────────────────
 
+class LoginRequest(BaseModel):
+    phone: str
+    password: str
+
+
+class LoginOtpVerifyRequest(BaseModel):
+    phone: str
+    otp: str
+
+
+# Rollarni aniqlash: bu rollar login da OTP talab qiladi
+_OTP_REQUIRED_ROLES = {"cashier", "manager", "accountant", "warehouse"}
+
+
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("5/minute")
 def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
@@ -531,24 +545,59 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
                 detail="Telefon yoki parol noto'g'ri",
             )
 
-        access_token = create_access_token({"sub": str(user.id), "role": user.role.value})
-        refresh_token = create_refresh_token({"sub": str(user.id)})
+        # Admin, director, super_admin — OTP talab qilinmaydi
+        user_role = user.role.value if hasattr(user.role, 'value') else str(user.role)
+        if user_role not in _OTP_REQUIRED_ROLES:
+            # To'g'ridan token beramiz
+            access_token = create_access_token({"sub": str(user.id), "role": user_role})
+            refresh_token = create_refresh_token({"sub": str(user.id)})
+            log_action(db=db, action="LOGIN", entity_type="user", entity_id=user.id,
+                       user_id=user.id, ip_address=request.client.host if request.client else None)
+            db.commit()
+            return TokenResponse(access_token=access_token, refresh_token=refresh_token, user=UserOut.model_validate(user))
 
-        log_action(
-            db=db,
-            action="LOGIN",
-            entity_type="user",
-            entity_id=user.id,
-            user_id=user.id,
-            ip_address=request.client.host if request.client else None,
-        )
-        db.commit()
+        # Kassir/boshqa rollar — OTP yuboramiz
+        otp = _generate_otp()
+        _otp_store[normalized_phone] = {
+            "otp": otp,
+            "expires": datetime.now(timezone.utc) + timedelta(minutes=5),
+            "purpose": "login",
+        }
+        bot_token = _get_otp_bot_token()
+        is_dev_mode = not bot_token or bot_token == "YOUR_TELEGRAM_BOT_TOKEN_HERE"
 
-        return TokenResponse(
-            access_token=access_token,
-            refresh_token=refresh_token,
-            user=UserOut.model_validate(user),
+        otp_sent = False
+        if not is_dev_mode:
+            chat_id = _find_chat_id_by_phone(normalized_phone)
+            if chat_id:
+                try:
+                    import httpx
+                    httpx.post(
+                        f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                        json={"chat_id": chat_id,
+                              "text": f"🔐 ERP kirish kodi: *{otp}*\n\nBu kod 5 daqiqa amal qiladi.",
+                              "parse_mode": "Markdown"},
+                        timeout=5,
+                    )
+                    otp_sent = True
+                except Exception as e:
+                    print(f"[OTP Login] Yuborishda xato: {e}")
+        else:
+            print(f"[OTP Login DEV] {normalized_phone} → {otp}")
+            otp_sent = True
+
+        # OTP talab qilinmoqda — to'liq token BERMAYMIZ
+        raise HTTPException(
+            status_code=202,
+            detail={
+                "otp_required": True,
+                "otp_sent": otp_sent,
+                "name": user.name,
+                "dev_mode": is_dev_mode,
+                "message": "OTP Telegram orqali yuborildi" if otp_sent else "Telegram bot ulanmagan",
+            }
         )
+
     except HTTPException:
         raise
     except Exception:
@@ -556,6 +605,36 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
         print("LOGIN ERROR TRACEBACK:")
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@router.post("/login-verify", response_model=TokenResponse)
+def login_verify_otp(request: Request, data: LoginOtpVerifyRequest, db: Session = Depends(get_db)):
+    """OTP ni tekshiradi va token beradi (kassir/sub-foydalanuvchilar uchun)"""
+    normalized = data.phone.strip().replace("+", "").replace(" ", "").replace("-", "")
+    stored = _otp_store.get(normalized)
+    if not stored or stored["purpose"] != "login":
+        raise HTTPException(status_code=400, detail="OTP topilmadi. Qayta urinib ko'ring.")
+    if datetime.now(timezone.utc) > stored["expires"]:
+        _otp_store.pop(normalized, None)
+        raise HTTPException(status_code=400, detail="OTP muddati o'tgan. Qayta kirish tugmasini bosing.")
+    if stored["otp"] != data.otp.strip():
+        raise HTTPException(status_code=400, detail="OTP noto'g'ri")
+
+    _otp_store.pop(normalized, None)
+
+    user = db.query(User).filter(User.phone == normalized, User.status == UserStatus.active).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
+
+    user_role = user.role.value if hasattr(user.role, 'value') else str(user.role)
+    access_token = create_access_token({"sub": str(user.id), "role": user_role})
+    refresh_token = create_refresh_token({"sub": str(user.id)})
+
+    log_action(db=db, action="LOGIN_OTP", entity_type="user", entity_id=user.id,
+               user_id=user.id, ip_address=request.client.host if request.client else None)
+    db.commit()
+
+    return TokenResponse(access_token=access_token, refresh_token=refresh_token, user=UserOut.model_validate(user))
 
 
 @router.post("/refresh", response_model=TokenResponse)

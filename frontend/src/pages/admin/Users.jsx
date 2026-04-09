@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
 import { useLang } from '../../context/LangContext';
 
@@ -23,6 +23,9 @@ const ROLE_COLORS = {
 
 const BLANK_FORM = { name: '', phone: '', email: '', password: '', role: 'cashier', branch_id: '' };
 
+// ✅ Fix: komponentlarni tashqarida e'lon qilish — kursor muammosini hal qiladi
+const inp = "w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500";
+
 function StatCard({ label, value, color = 'slate' }) {
   const txt = {
     indigo: 'text-indigo-600', emerald: 'text-emerald-600',
@@ -33,6 +36,37 @@ function StatCard({ label, value, color = 'slate' }) {
       <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{label}</div>
       <div className={`text-2xl font-bold mt-1 ${txt[color]}`}>{value}</div>
     </div>
+  );
+}
+
+// ✅ Fix: Field, RoleSelect, BranchSelect tashqarida — props orqali ishlaydi
+function Field({ label, children }) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-slate-600 mb-1.5">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function RoleSelect({ value, onChange, roles, roleLabels }) {
+  return (
+    <Field label="Rol">
+      <select value={value} onChange={e => onChange(e.target.value)} className={inp}>
+        {roles.map(r => <option key={r} value={r}>{roleLabels[r]}</option>)}
+      </select>
+    </Field>
+  );
+}
+
+function BranchSelect({ value, onChange, branches }) {
+  return (
+    <Field label="Filial">
+      <select value={value} onChange={e => onChange(e.target.value)} className={inp}>
+        <option value="">— Filialsiz —</option>
+        {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+      </select>
+    </Field>
   );
 }
 
@@ -49,11 +83,14 @@ export default function Users() {
 
   const ROLE_LABELS = getRoleLabels(t);
 
-  const load = () => api.get('/users/').then(r => setUsers(r.data)).catch(() => {});
+  const load = useCallback(() => {
+    api.get('/users/').then(r => setUsers(r.data)).catch(() => {});
+  }, []);
+
   useEffect(() => {
     load();
     api.get('/branches').then(r => setBranches(r.data)).catch(() => {});
-  }, []);
+  }, [load]);
 
   const openCreate = () => { setForm(BLANK_FORM); setError(''); setModal('create'); };
   const openEdit = (u) => {
@@ -62,6 +99,10 @@ export default function Users() {
   };
   const openPwd = (u) => { setSelected(u); setNewPwd(''); setError(''); setModal('password'); };
   const close = () => { setModal(null); setSelected(null); setError(''); };
+
+  const setField = useCallback((key, val) => {
+    setForm(prev => ({ ...prev, [key]: val }));
+  }, []);
 
   const handleCreate = async (e) => {
     e.preventDefault(); setSaving(true); setError('');
@@ -112,38 +153,6 @@ export default function Users() {
       load();
     } catch (err) { alert(err.response?.data?.detail || t('common.error')); }
   };
-
-  /* ────── shared field renderer ────── */
-  const Field = ({ label, children }) => (
-    <div>
-      <label className="block text-xs font-semibold text-slate-600 mb-1.5">{label}</label>
-      {children}
-    </div>
-  );
-  const inp = "w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500";
-  const BranchSelect = () => (
-    <Field label="Filial">
-      <select
-        value={form.branch_id}
-        onChange={e => setForm({ ...form, branch_id: e.target.value })}
-        className={inp}
-      >
-        <option value="">— Filialsiz —</option>
-        {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-      </select>
-    </Field>
-  );
-  const RoleSelect = () => (
-    <Field label="Rol">
-      <select
-        value={form.role}
-        onChange={e => setForm({ ...form, role: e.target.value })}
-        className={inp}
-      >
-        {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-      </select>
-    </Field>
-  );
 
   return (
     <div className="space-y-6">
@@ -250,27 +259,38 @@ export default function Users() {
             </div>
             <form onSubmit={handleCreate} className="p-6 space-y-4">
               <Field label={`${t('common.name')} *`}>
-                <input type="text" required value={form.name}
-                  onChange={e => setForm({ ...form, name: e.target.value })}
-                  placeholder={t('common.name')} className={inp} />
+                <input
+                  type="text" required value={form.name}
+                  onChange={e => setField('name', e.target.value)}
+                  placeholder={t('common.name')} className={inp}
+                  autoFocus
+                />
               </Field>
               <Field label={`${t('common.phone')} *`}>
-                <input type="text" required value={form.phone}
-                  onChange={e => setForm({ ...form, phone: e.target.value })}
-                  placeholder="+998901234567" className={inp} />
+                <input
+                  type="text" required value={form.phone}
+                  onChange={e => setField('phone', e.target.value)}
+                  placeholder="+998901234567" className={inp}
+                />
               </Field>
               <Field label="Email">
-                <input type="email" value={form.email}
-                  onChange={e => setForm({ ...form, email: e.target.value })}
-                  placeholder="email@example.com" className={inp} />
+                <input
+                  type="email" value={form.email}
+                  onChange={e => setField('email', e.target.value)}
+                  placeholder="email@example.com" className={inp}
+                />
               </Field>
               <Field label={`${t('user.password')} *`}>
-                <input type="password" required minLength={6} value={form.password}
-                  onChange={e => setForm({ ...form, password: e.target.value })}
-                  placeholder="******" className={inp} />
+                <input
+                  type="password" required minLength={6} value={form.password}
+                  onChange={e => setField('password', e.target.value)}
+                  placeholder="Kamida 6 ta belgi" className={inp}
+                />
               </Field>
-              <RoleSelect />
-              {branches.length > 0 && <BranchSelect />}
+              <RoleSelect value={form.role} onChange={v => setField('role', v)} roles={ROLES} roleLabels={ROLE_LABELS} />
+              {branches.length > 0 && (
+                <BranchSelect value={form.branch_id} onChange={v => setField('branch_id', v)} branches={branches} />
+              )}
               {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
@@ -297,19 +317,18 @@ export default function Users() {
             </div>
             <form onSubmit={handleEdit} className="p-6 space-y-4">
               <Field label={`${t('common.name')} *`}>
-                <input type="text" required value={form.name}
-                  onChange={e => setForm({ ...form, name: e.target.value })} className={inp} />
+                <input type="text" required value={form.name} onChange={e => setField('name', e.target.value)} className={inp} autoFocus />
               </Field>
               <Field label={`${t('common.phone')} *`}>
-                <input type="text" required value={form.phone}
-                  onChange={e => setForm({ ...form, phone: e.target.value })} className={inp} />
+                <input type="text" required value={form.phone} onChange={e => setField('phone', e.target.value)} className={inp} />
               </Field>
               <Field label="Email">
-                <input type="email" value={form.email}
-                  onChange={e => setForm({ ...form, email: e.target.value })} className={inp} />
+                <input type="email" value={form.email} onChange={e => setField('email', e.target.value)} className={inp} />
               </Field>
-              <RoleSelect />
-              {branches.length > 0 && <BranchSelect />}
+              <RoleSelect value={form.role} onChange={v => setField('role', v)} roles={ROLES} roleLabels={ROLE_LABELS} />
+              {branches.length > 0 && (
+                <BranchSelect value={form.branch_id} onChange={v => setField('branch_id', v)} branches={branches} />
+              )}
               {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
@@ -340,7 +359,7 @@ export default function Users() {
                 <input
                   type="password" required minLength={6} value={newPwd} autoFocus
                   onChange={e => setNewPwd(e.target.value)}
-                  placeholder="******" className={inp} />
+                  placeholder="Kamida 6 ta belgi" className={inp} />
               </Field>
               {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
               <div className="flex gap-3">
