@@ -78,12 +78,16 @@ def list_counts(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*ALLOWED)),
 ):
+    from sqlalchemy import func
+    
     q = (
-        db.query(InventoryCount)
-        .options(
-            joinedload(InventoryCount.warehouse),
-            joinedload(InventoryCount.items),
+        db.query(
+            InventoryCount,
+            func.count(InventoryCountItem.id).label("item_count")
         )
+        .outerjoin(InventoryCountItem, InventoryCount.id == InventoryCountItem.count_id)
+        .options(joinedload(InventoryCount.warehouse))
+        .group_by(InventoryCount.id)
         .order_by(InventoryCount.created_at.desc())
     )
     if current_user.role != UserRole.super_admin:
@@ -93,17 +97,19 @@ def list_counts(
         q = q.filter(InventoryCount.warehouse_id.in_(company_wh_ids))
     if status:
         q = q.filter(InventoryCount.status == status)
-    counts = q.offset(skip).limit(limit).all()
+    
+    counts_with_len = q.offset(skip).limit(limit).all()
+    
     return [
         InventoryCountListOut(
-            id=c.id,
-            number=c.number,
-            warehouse_name=c.warehouse.name,
-            status=c.status,
-            created_at=c.created_at,
-            item_count=len(c.items),
+            id=c.InventoryCount.id,
+            number=c.InventoryCount.number,
+            warehouse_name=c.InventoryCount.warehouse.name,
+            status=c.InventoryCount.status,
+            created_at=c.InventoryCount.created_at,
+            item_count=c.item_count,
         )
-        for c in counts
+        for c in counts_with_len
     ]
 
 

@@ -1691,7 +1691,7 @@ function SuppliersTab() {
         <button
           onClick={() => {
             const ws = XLSX.utils.json_to_sheet(list.map(s => ({
-              "Ta'minotchi": s.name, 'INN': s.inn || '—', 'Telefon': s.phone || '—', 'Email': s.email || '—'
+              "Ta'minotchi": s.name, 'INN': s.inn || '—', 'Telefon': s.phone || '—', 'Email': s.email || '—', 'Qarz': s.debt_balance || 0
             })));
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Ta'minotchilar");
@@ -1714,9 +1714,13 @@ function SuppliersTab() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>Yangi
         </button>
       </div>
+      <div className="flex items-center justify-between px-4 py-3 bg-white border border-slate-100 rounded-xl shadow-sm">
+        <span className="text-sm font-medium text-slate-500">Jami ta'minotchilar qarzi:</span>
+        <span className="text-lg font-bold text-red-500">{fmt(list.reduce((sum, s) => sum + Number(s.debt_balance || 0), 0))} so'm</span>
+      </div>
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <table className="min-w-full">
-          <thead><tr className="bg-slate-50 border-b border-slate-100">{["Ta'minotchi",'INN','Telefon','Reyting',''].map(h=><th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>)}</tr></thead>
+          <thead><tr className="bg-slate-50 border-b border-slate-100">{["Ta'minotchi",'INN','Telefon','Reyting','Qarz',''].map(h=><th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>)}</tr></thead>
           <tbody className="divide-y divide-slate-50">
             {list.map(s=>(
               <tr key={s.id} className="hover:bg-slate-50">
@@ -1724,6 +1728,7 @@ function SuppliersTab() {
                 <td className="px-5 py-4 text-sm font-mono text-slate-600">{s.inn||'\u2014'}</td>
                 <td className="px-5 py-4 text-sm text-slate-500">{s.phone||'\u2014'}</td>
                 <td className="px-5 py-4"><StarRating value={s.rating}/></td>
+                <td className="px-5 py-4 text-sm font-semibold">{s.debt_balance > 0 ? <span className="text-red-500">{fmt(s.debt_balance)} so'm</span> : <span className="text-emerald-500">0 so'm</span>}</td>
                 <td className="px-5 py-4"><div className="flex items-center gap-1">
                   <button onClick={()=>openEdit(s)} className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
                   <button onClick={()=>del(s.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
