@@ -479,6 +479,53 @@ button { font-family: inherit; }
   .ent-footer-links { flex-direction: column; gap: 40px; }
 }
 
+/* ── Mobile Menu Sidebar ── */
+.ent-mobile-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: white;
+  padding: 24px;
+  border-top: 1px solid var(--ent-border);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  z-index: 90;
+  animation: fadeDown 0.3s ease-out;
+}
+
+.ent-mobile-menu a {
+  text-decoration: none;
+  color: var(--ent-text-main);
+  font-size: 16px;
+  font-weight: 600;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+.ent-mobile-menu a:last-of-type {
+  border-bottom: none;
+}
+
+.ent-mobile-menu button {
+  padding: 12px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 15px;
+  margin-top: 8px;
+  cursor: pointer;
+  border: 1px solid var(--ent-border);
+  background: white;
+}
+
+.ent-mobile-menu .ent-btn-primary {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: white;
+  border: none;
+}
+
 /* ── AGENCY & LEAD FORM CSS ── */
 .it-agency-grid {
   grid-template-columns: repeat(3, 1fr);
