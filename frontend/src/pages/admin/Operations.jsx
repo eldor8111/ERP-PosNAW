@@ -2779,6 +2779,8 @@ function QoldiqTab() {
   const [allStocks, setAll]   = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch]   = useState('');
+  const [page, setPage]       = useState(1);
+  const rowsPerPage = 100;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -2841,7 +2843,7 @@ function QoldiqTab() {
         <div className="flex gap-3 items-center flex-wrap">
           <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
             {[['low','Kam qoldiq'],['zero',"Qoldiq yo'q"],['dead',"O'lik qoldiq"],['all','Barchasi']].map(([v,l]) => (
-              <button key={v} onClick={() => setSubtab(v)}
+              <button key={v} onClick={() => { setSubtab(v); setPage(1); }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${subtab===v?'bg-white shadow text-indigo-700':'text-slate-500 hover:text-slate-700'}`}>
                 {l}
                 {v==='low' && lowCount>0 && <span className="ml-1.5 bg-amber-500 text-white rounded-full text-[10px] px-1.5 py-0.5">{lowCount}</span>}
@@ -2854,7 +2856,7 @@ function QoldiqTab() {
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
             </svg>
-            <input value={search} onChange={e => setSearch(e.target.value)}
+            <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
               placeholder="Mahsulot nomi yoki SKU..." className={`${ic} w-full pl-9`} />
           </div>
           <Btn v="ghost" onClick={load}>
@@ -2885,7 +2887,8 @@ function QoldiqTab() {
                      subtab==='zero' ? "Qoldiqi yo'q mahsulotlar yo'q" :
                      subtab==='dead' ? "6 oydan ortiq harakatsiz mahsulotlar yo'q" : "Ma'lumot topilmadi"}
                   </td></tr>
-                ) : filtered.map((s, i) => {
+                ) : filtered.slice((page - 1) * rowsPerPage, page * rowsPerPage).map((s, idx) => {
+                  const i = (page - 1) * rowsPerPage + idx;
                   const qty = Number(s.quantity);
                   const min = Number(s.min_stock ?? 0);
                   const daysSince = Math.floor((Date.now() - new Date(s.updated_at)) / 86400000);
@@ -2917,9 +2920,29 @@ function QoldiqTab() {
                 })}
               </tbody>
             </table>
-            <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 text-xs text-slate-400 flex justify-between">
-              <span>Jami <strong className="text-slate-600">{filtered.length}</strong> ta mahsulot ko'rsatildi</span>
-              {subtab==='dead' && <span className="text-slate-500">6 oydan ortiq hech qanday harakatsiz mahsulotlar</span>}
+            <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 text-xs text-slate-400 flex items-center justify-between">
+              <div>
+                <span>Jami <strong className="text-slate-600">{filtered.length}</strong> ta mahsulot </span>
+                {subtab==='dead' && <span className="text-slate-500 ml-2">(6 oydan ortiq harakatsiz)</span>}
+              </div>
+              {Math.ceil(filtered.length / rowsPerPage) > 1 && (
+                <div className="flex gap-2">
+                  <button 
+                    disabled={page === 1} 
+                    onClick={() => setPage(page - 1)}
+                    className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold bg-white text-slate-600 disabled:opacity-40 hover:border-indigo-300 transition-all"
+                  >
+                    Oldingi
+                  </button>
+                  <button 
+                    disabled={page === Math.ceil(filtered.length / rowsPerPage)} 
+                    onClick={() => setPage(page + 1)}
+                    className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold bg-white text-slate-600 disabled:opacity-40 hover:border-indigo-300 transition-all"
+                  >
+                    Keyingi
+                  </button>
+                </div>
+              )}
             </div>
           </>
         )}

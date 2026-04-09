@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLang } from '../../context/LangContext';
 import api from '../../api/axios';
 
@@ -348,6 +348,8 @@ const [count,        setCount]        = useState(null);
   const [catFilter,    setCatFilter]    = useState(null);
   const [err,          setErr]          = useState('');
   const [savedMsg,     setSavedMsg]     = useState('');
+  const [page,         setPage]         = useState(1);
+  const rowsPerPage = 100;
 
   const loadCount = useCallback(async () => {
     setLoading(true);
@@ -426,8 +428,12 @@ const [count,        setCount]        = useState(null);
       const q = search.toLowerCase();
       items = items.filter(i => i.product_name.toLowerCase().includes(q) || (i.product_sku && i.product_sku.toLowerCase().includes(q)));
     }
+    setPage(1);
     return items;
   }, [count, filter, search, localQtys, catFilter]);
+
+  const totalPages = Math.ceil(filteredItems.length / rowsPerPage);
+  const visibleItems = filteredItems.slice((page - 1) * rowsPerPage, page * rowsPerPage);
 
   const stats = useMemo(() => {
     if (!count) return { total: 0, counted: 0, uncounted: 0, variances: 0, surplus: 0, shortage: 0 };
@@ -560,7 +566,8 @@ const [count,        setCount]        = useState(null);
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {filteredItems.map((item, idx) => {
+              {visibleItems.map((item, idx) => {
+                const absoluteIdx = (page - 1) * rowsPerPage + idx;
                 const lqRaw   = localQtys[item.product_id];
                 const dispQty = lqRaw !== undefined ? lqRaw : (item.counted_qty !== null ? String(item.counted_qty) : '');
                 const sysQty  = Number(item.system_qty);
@@ -577,7 +584,7 @@ const [count,        setCount]        = useState(null);
 
                 return (
                   <tr key={item.id} className={`hover:bg-slate-50/80 transition-colors ${rowBg}`}>
-                    <td className="px-4 py-3 text-xs text-slate-400">{idx + 1}</td>
+                    <td className="px-4 py-3 text-xs text-slate-400">{absoluteIdx + 1}</td>
                     <td className="px-4 py-3 text-xs font-mono text-slate-500">{item.product_sku || '—'}</td>
                     <td className="px-4 py-3 text-sm font-medium text-slate-800">{item.product_name}</td>
                     <td className="px-4 py-3 text-xs text-slate-500 text-center">{item.product_unit}</td>
@@ -633,6 +640,28 @@ const [count,        setCount]        = useState(null);
             </tbody>
           </table>
         </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50">
+            <span className="text-xs text-slate-500 font-medium">Barchasi: {filteredItems.length} ta (Hozirgi sahifa: {page} / {totalPages})</span>
+            <div className="flex gap-2">
+              <button 
+                disabled={page === 1} 
+                onClick={() => setPage(page - 1)}
+                className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold bg-white text-slate-600 disabled:opacity-40 hover:border-indigo-300 transition-all"
+              >
+                Oldingi
+              </button>
+              <button 
+                disabled={page === totalPages} 
+                onClick={() => setPage(page + 1)}
+                className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold bg-white text-slate-600 disabled:opacity-40 hover:border-indigo-300 transition-all"
+              >
+                Keyingi
+              </button>
+            </div>
+          </div>
+        )}
 
         {canEdit && filteredItems.length > 0 && (
           <div className="flex items-center justify-between px-6 py-3 bg-slate-50 border-t border-slate-100">
