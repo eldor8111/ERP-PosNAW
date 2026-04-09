@@ -64,10 +64,10 @@ export default function LandingLayout({ children }) {
                 </div>
               )}
             </div>
-            <button className="ent-btn-ghost" onClick={() => window.location.href = 'http://erp.e-code.uz/login'}>
+            <button className="ent-btn-ghost" onClick={() => window.location.href = 'https://savdo.e-code.uz/login'}>
               Kirish
             </button>
-            <button className="ent-btn-primary" onClick={() => window.location.href = 'http://erp.e-code.uz/register'}>
+            <button className="ent-btn-primary" onClick={() => window.location.href = 'https://savdo.e-code.uz/register'}>
               Boshlash
             </button>
             <button className="ent-hamburger" onClick={() => setMobileMenu(!mobileMenu)}>☰</button>
@@ -81,8 +81,8 @@ export default function LandingLayout({ children }) {
                 {link.label}
               </a>
             ))}
-            <button onClick={() => window.location.href = 'http://erp.e-code.uz/login'}>Kirish</button>
-            <button className="ent-btn-primary" onClick={() => window.location.href = 'http://erp.e-code.uz/register'}>Boshlash</button>
+            <button onClick={() => window.location.href = 'https://savdo.e-code.uz/login'}>Kirish</button>
+            <button className="ent-btn-primary" onClick={() => window.location.href = 'https://savdo.e-code.uz/register'}>Boshlash</button>
           </div>
         )}
       </nav>
@@ -113,8 +113,8 @@ export default function LandingLayout({ children }) {
             </div>
             <div>
               <strong>Tizim</strong>
-              <span onClick={() => window.location.href = 'http://erp.e-code.uz/login'} className="clickable">Kirish</span>
-              <span onClick={() => window.location.href = 'http://erp.e-code.uz/register'} className="clickable">Ro'yxatdan o'tish</span>
+              <span onClick={() => window.location.href = 'https://savdo.e-code.uz/login'} className="clickable">Kirish</span>
+              <span onClick={() => window.location.href = 'https://savdo.e-code.uz/register'} className="clickable">Ro'yxatdan o'tish</span>
             </div>
           </div>
         </div>

@@ -226,10 +226,10 @@ export default function Landing() {
                 </div>
               )}
             </div>
-            <button className="ent-btn-ghost" onClick={() => window.location.href = 'http://erp.e-code.uz/login'}>
+            <button className="ent-btn-ghost" onClick={() => window.location.href = 'https://savdo.e-code.uz/login'}>
               {t('land.hero.login')}
             </button>
-            <button className="ent-btn-primary" onClick={() => window.location.href = 'http://erp.e-code.uz/register'}>
+            <button className="ent-btn-primary" onClick={() => window.location.href = 'https://savdo.e-code.uz/register'}>
               {t('land.hero.start')}
             </button>
             <button className="ent-hamburger" onClick={() => setMobileMenu(!mobileMenu)}>
@@ -245,8 +245,8 @@ export default function Landing() {
             <a onClick={() => navigate('/telegram-botlar')} style={{ cursor: 'pointer' }}>Telegram Botlar</a>
             <a onClick={() => navigate('/noyob-dasturlar')} style={{ cursor: 'pointer' }}>Noyob Dasturlar</a>
             <a onClick={() => navigate('/aloqa')} style={{ cursor: 'pointer' }}>Aloqa</a>
-            <button onClick={() => window.location.href = 'http://erp.e-code.uz/login'}>{t('land.nav.login')}</button>
-            <button className="ent-btn-primary" onClick={() => window.location.href = 'http://erp.e-code.uz/register'}>{t('land.nav.register')}</button>
+            <button onClick={() => window.location.href = 'https://savdo.e-code.uz/login'}>{t('land.nav.login')}</button>
+            <button className="ent-btn-primary" onClick={() => window.location.href = 'https://savdo.e-code.uz/register'}>{t('land.nav.register')}</button>
           </div>
         )}
       </nav>
@@ -528,8 +528,8 @@ export default function Landing() {
             </div>
             <div>
               <strong>{t('land.system')}</strong>
-              <span onClick={() => window.location.href = 'http://erp.e-code.uz/login'} className="clickable">{t('land.nav.login')}</span>
-              <span onClick={() => window.location.href = 'http://erp.e-code.uz/register'} className="clickable">{t('land.nav.register')}</span>
+              <span onClick={() => window.location.href = 'https://savdo.e-code.uz/login'} className="clickable">{t('land.nav.login')}</span>
+              <span onClick={() => window.location.href = 'https://savdo.e-code.uz/register'} className="clickable">{t('land.nav.register')}</span>
             </div>
           </div>
         </div>

@@ -97,7 +97,7 @@ export default function App() {
           </Route>
                       
           <Route path="/" element={
-            window.location.hostname.startsWith('erp.') || window.location.hostname.includes('biznes') 
+            window.location.hostname.startsWith('savdo.') || window.location.hostname.includes('biznes') 
             ? <Navigate to="/login" replace /> 
             : <Suspense fallback={<PageLoader />}><Landing /></Suspense>
           } />
