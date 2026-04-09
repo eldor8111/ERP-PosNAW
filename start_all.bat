@@ -17,9 +17,9 @@ start "ERP-POS Frontend" cmd /k "call start_frontend.bat"
 echo.
 echo =============================================
 echo   Ikkala server ham ishga tushirildi!
-echo   Backend:  http://localhost:8010
+echo   Backend:  http://localhost:8000
 echo   Frontend: http://localhost:5173
-echo   API docs: http://localhost:8010/docs
+echo   API docs: http://localhost:8000/docs
 echo =============================================
 echo.
 pause

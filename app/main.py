@@ -60,6 +60,16 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+from starlette.middleware.base import BaseHTTPMiddleware # type: ignore
+class ForceHTTPSMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        # Nginx ba'zan HTTPS ni bildirmaydi, shuning uchun manual https qilamiz (agar erp.e-code.uz bo'lsa)
+        host = request.headers.get("host", "").lower()
+        if "erp.e-code.uz" in host or "e-code.uz" in host:
+            request.scope["scheme"] = "https"
+        return await call_next(request)
+
+app.add_middleware(ForceHTTPSMiddleware)
 app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(
     CORSMiddleware,

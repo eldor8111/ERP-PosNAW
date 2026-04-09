@@ -48,17 +48,19 @@ def create_inventory_count(db: Session, data, user_id: int) -> InventoryCount:
         for s in db.query(StockLevel).filter(StockLevel.warehouse_id == data.warehouse_id).all()
     }
 
-    for product in products:
-        item = InventoryCountItem(
-            count_id=count.id,
-            product_id=product.id,
-            system_qty=stock_map.get(product.id, 0),
-            counted_qty=None,
-            variance=None,
-        )
-        db.add(item)
+    items_to_insert = [
+        {
+            "count_id": count.id,
+            "product_id": product.id,
+            "system_qty": stock_map.get(product.id, 0),
+            "counted_qty": None,
+            "variance": None,
+        }
+        for product in products
+    ]
+    if items_to_insert:
+        db.execute(InventoryCountItem.__table__.insert(), items_to_insert)
 
-    db.flush()
     return count
 
 

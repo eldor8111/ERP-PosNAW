@@ -107,7 +107,7 @@ def list_counts(
     ]
 
 
-@router.post("", response_model=InventoryCountOut)
+@router.post("", response_model=InventoryCountListOut)
 def create_count(
     data: CountCreate,
     db: Session = Depends(get_db),
@@ -117,7 +117,14 @@ def create_count(
     db.commit()
     cid = None if current_user.role == UserRole.super_admin else current_user.company_id
     c = _load_count(db, count.id, cid)
-    return _build_count_out(c)
+    return InventoryCountListOut(
+        id=c.id,
+        number=c.number,
+        warehouse_name=c.warehouse.name,
+        status=c.status,
+        created_at=c.created_at,
+        item_count=len(c.items),
+    )
 
 
 @router.get("/{count_id}", response_model=InventoryCountOut)
@@ -133,7 +140,7 @@ def get_count(
     return _build_count_out(c)
 
 
-@router.post("/{count_id}/start", response_model=InventoryCountOut)
+@router.post("/{count_id}/start", response_model=InventoryCountListOut)
 def start_count(
     count_id: int,
     db: Session = Depends(get_db),
@@ -143,10 +150,17 @@ def start_count(
     db.commit()
     cid = None if current_user.role == UserRole.super_admin else current_user.company_id
     c = _load_count(db, count_id, cid)
-    return _build_count_out(c)
+    return InventoryCountListOut(
+        id=c.id,
+        number=c.number,
+        warehouse_name=c.warehouse.name,
+        status=c.status,
+        created_at=c.created_at,
+        item_count=len(c.items),
+    )
 
 
-@router.post("/{count_id}/items", response_model=InventoryCountOut)
+@router.post("/{count_id}/items", response_model=InventoryCountListOut)
 def update_items(
     count_id: int,
     items: List[CountItemUpdate],
@@ -157,10 +171,17 @@ def update_items(
     db.commit()
     cid = None if current_user.role == UserRole.super_admin else current_user.company_id
     c = _load_count(db, count_id, cid)
-    return _build_count_out(c)
+    return InventoryCountListOut(
+        id=c.id,
+        number=c.number,
+        warehouse_name=c.warehouse.name,
+        status=c.status,
+        created_at=c.created_at,
+        item_count=len(c.items),
+    )
 
 
-@router.post("/{count_id}/finalize", response_model=InventoryCountOut)
+@router.post("/{count_id}/finalize", response_model=InventoryCountListOut)
 def finalize_count(
     count_id: int,
     db: Session = Depends(get_db),
@@ -170,4 +191,11 @@ def finalize_count(
     db.commit()
     cid = None if current_user.role == UserRole.super_admin else current_user.company_id
     c = _load_count(db, count_id, cid)
-    return _build_count_out(c)
+    return InventoryCountListOut(
+        id=c.id,
+        number=c.number,
+        warehouse_name=c.warehouse.name,
+        status=c.status,
+        created_at=c.created_at,
+        item_count=len(c.items),
+    )
