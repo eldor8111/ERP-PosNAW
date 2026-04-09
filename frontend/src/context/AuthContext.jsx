@@ -10,7 +10,13 @@ export function AuthProvider({ children }) {
   })
 
   const login = useCallback(async (phone, password) => {
-    const { data } = await api.post('/auth/login', { phone, password })
+    const res = await api.post('/auth/login', { phone, password })
+    if (res.status === 202) {
+      const err = new Error('OTP Required')
+      err.response = res
+      throw err
+    }
+    const { data } = res
     localStorage.setItem('access_token', data.access_token)
     localStorage.setItem('user', JSON.stringify(data.user))
     setUser(data.user)
