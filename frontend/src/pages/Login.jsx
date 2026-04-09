@@ -395,6 +395,7 @@ export default function Login() {
       const { access_token, refresh_token, user } = res.data
       localStorage.setItem('access_token', access_token)
       localStorage.setItem('refresh_token', refresh_token)
+      localStorage.setItem('user', JSON.stringify(user))
       // Auth context ni reload qilish uchun sahifani yangilaymiz
       window.location.href = '/admin/dashboard'
     } catch (err) {
