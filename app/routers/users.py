@@ -47,15 +47,22 @@ def create_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.super_admin)),
 ):
-    existing = db.query(User).filter(
+    # Faol foydalanuvchini bloklash
+    active_existing = db.query(User).filter(
         User.phone == data.phone,
         User.status == UserStatus.active
     ).first()
-    if existing:
+    if active_existing:
         raise HTTPException(status_code=400, detail="Bu telefon raqam allaqachon ro'yxatdan o'tgan")
 
+    # Nofaol (o'chirilgan) foydalanuvchi topilsa — uni qayta faollashtirish
+    inactive_existing = db.query(User).filter(
+        User.phone == data.phone,
+        User.status == UserStatus.inactive
+    ).first()
+
     company_id = current_user.company_id if current_user.role != UserRole.super_admin else getattr(data, 'company_id', None)
-    
+
     # ── Tarif limit tekshiruvi (inline) ──────────────────────
     if current_user.role != UserRole.super_admin:
         from app.models.company import Company as Co
@@ -92,16 +99,28 @@ def create_user(
             )
     # ─────────────────────────────────────────────────────────
 
-    user = User(
-        name=data.name,
-        phone=data.phone,
-        email=data.email,
-        hashed_password=hash_password(data.password),
-        role=data.role,
-        branch_id=data.branch_id,
-        company_id=company_id,
-    )
-    db.add(user)
+    if inactive_existing:
+        # Mavjud nofaol foydalanuvchini yangilash va qayta faollashtirish
+        user = inactive_existing
+        user.name = data.name
+        user.email = data.email
+        user.hashed_password = hash_password(data.password)
+        user.role = data.role
+        user.branch_id = data.branch_id
+        user.company_id = company_id
+        user.status = UserStatus.active
+    else:
+        user = User(
+            name=data.name,
+            phone=data.phone,
+            email=data.email,
+            hashed_password=hash_password(data.password),
+            role=data.role,
+            branch_id=data.branch_id,
+            company_id=company_id,
+        )
+        db.add(user)
+
     db.flush()
 
     log_action(
