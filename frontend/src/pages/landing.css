@@ -145,20 +145,6 @@ button { font-family: inherit; }
 .ent-btn-ghost:hover { color: var(--ent-text-main); background: rgba(0,0,0,0.03); }
 .ent-btn-lg { padding: 16px 32px; font-size: 16px; border-radius: 14px; }
 
-/* ── Topbar ── */
-.ent-topbar {
-  background: rgba(255,255,255,0.6); border-bottom: 1px solid var(--ent-border);
-  font-size: 13px; color: var(--ent-text-muted); backdrop-filter: blur(20px);
-  animation: slideUp 0.5s ease-out backwards;
-}
-.ent-topbar-inner { display: flex; justify-content: flex-end; align-items: center; height: 44px; gap: 32px; }
-.ent-tb-info { display: flex; align-items: center; gap: 20px; margin-right: auto; }
-.ent-contact-link { display: flex; align-items: center; gap: 8px; color: var(--ent-text-muted); text-decoration: none; transition: color 0.2s; font-weight: 500; }
-.ent-contact-link svg { width: 14px; height: 14px; color: var(--ent-primary); opacity: 0.8; }
-.ent-contact-link:hover { color: var(--ent-text-main); }
-.ent-contact-link:hover svg { opacity: 1; }
-.ent-tb-divider { color: var(--ent-border); opacity: 0.6; }
-
 .ent-lang-wrap { position: relative; }
 .ent-lang-btn {
   background: white; border: 1px solid var(--ent-border);
@@ -621,6 +607,55 @@ button { font-family: inherit; }
 }
 .lead-success p {
   color: #666;
+}
+
+/* ── Clickable Bento Cards ── */
+.bento-clickable {
+  cursor: pointer;
+}
+
+.bento-learn-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ent-primary);
+  margin-top: 20px;
+  opacity: 0;
+  transform: translateX(-8px);
+  transition: all 0.3s ease;
+}
+
+.bento-clickable:hover .bento-learn-more {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.bento-learn-more svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.3s;
+}
+
+.bento-clickable:hover .bento-learn-more svg {
+  transform: translateX(4px);
+}
+
+.agency-learn-more {
+  display: inline-block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ent-primary);
+  margin-top: 14px;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: all 0.3s ease;
+}
+
+.bento-clickable:hover .agency-learn-more {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /* Fix mobile override for agency and lead grids */

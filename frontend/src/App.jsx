@@ -33,6 +33,11 @@ const Ombor           = lazy(() => import('./pages/admin/Ombor'))
 const Tariflar        = lazy(() => import('./pages/admin/Tariflar'))
 const Register        = lazy(() => import('./pages/Register'))
 const Landing         = lazy(() => import('./pages/Landing'))
+const ERPTizim        = lazy(() => import('./pages/ERPTizim'))
+const VebSaytlar      = lazy(() => import('./pages/VebSaytlar'))
+const TelegramBotlar  = lazy(() => import('./pages/TelegramBotlar'))
+const NoyobDasturlar  = lazy(() => import('./pages/NoyobDasturlar'))
+const Aloqa           = lazy(() => import('./pages/Aloqa'))
 
 // Sahifa almashinayotganda ko'rinadigan loading spinner
 function PageLoader() {
@@ -96,6 +101,11 @@ export default function App() {
             ? <Navigate to="/login" replace /> 
             : <Suspense fallback={<PageLoader />}><Landing /></Suspense>
           } />
+          <Route path="/erp-tizim" element={<Suspense fallback={<PageLoader />}><ERPTizim /></Suspense>} />
+          <Route path="/veb-saytlar" element={<Suspense fallback={<PageLoader />}><VebSaytlar /></Suspense>} />
+          <Route path="/telegram-botlar" element={<Suspense fallback={<PageLoader />}><TelegramBotlar /></Suspense>} />
+          <Route path="/noyob-dasturlar" element={<Suspense fallback={<PageLoader />}><NoyobDasturlar /></Suspense>} />
+          <Route path="/aloqa" element={<Suspense fallback={<PageLoader />}><Aloqa /></Suspense>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>

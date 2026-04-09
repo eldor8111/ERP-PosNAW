@@ -1,0 +1,386 @@
+/* ═══════════════════════════════════════════════════════════════
+   Aloqa Sahifasi — Premium Contact Page
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Hero ── */
+.aloqa-hero {
+  position: relative;
+  padding: 100px 0 120px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #0f172a 100%);
+  overflow: hidden;
+  text-align: center;
+}
+
+.aloqa-hero-bg {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.aloqa-hero-inner {
+  position: relative;
+  z-index: 2;
+}
+
+/* ── Contact Cards Grid ── */
+.aloqa-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.aloqa-card {
+  background: white;
+  border: 1.5px solid rgba(0,0,0,0.06);
+  border-radius: 24px;
+  padding: 32px;
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+}
+
+.aloqa-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--aloqa-color);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s ease;
+}
+
+.aloqa-card:hover {
+  transform: translateY(-8px);
+  border-color: var(--aloqa-color);
+  box-shadow: 0 24px 48px rgba(0,0,0,0.08);
+}
+
+.aloqa-card:hover::before {
+  transform: scaleX(1);
+}
+
+.aloqa-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 4px;
+}
+
+.aloqa-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.aloqa-icon svg {
+  width: 26px;
+  height: 26px;
+}
+
+.aloqa-card:hover .aloqa-icon {
+  transform: scale(1.12) rotate(5deg);
+}
+
+.aloqa-badge {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: 100px;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: all 0.3s ease;
+}
+
+.aloqa-card:hover .aloqa-badge {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.aloqa-name {
+  font-size: 22px;
+  font-weight: 900;
+  margin: 4px 0 2px;
+  letter-spacing: -0.02em;
+}
+
+.aloqa-handle {
+  font-size: 15px;
+  font-weight: 700;
+  color: #334155;
+  font-family: 'Courier New', monospace;
+}
+
+.aloqa-desc {
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.6;
+  margin: 0;
+  flex: 1;
+}
+
+.aloqa-cta {
+  margin-top: 10px;
+  color: white;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 12px 20px;
+  border-radius: 12px;
+  text-align: center;
+  transform: translateY(4px);
+  opacity: 0;
+  transition: all 0.35s ease;
+}
+
+.aloqa-card:hover .aloqa-cta {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Info Grid (Hours + Location) ── */
+.aloqa-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.aloqa-hours-card,
+.aloqa-location-card {
+  background: white;
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+}
+
+.aloqa-info-icon {
+  font-size: 36px;
+  margin-bottom: 16px;
+}
+
+.aloqa-info-title {
+  font-size: 28px;
+  font-weight: 900;
+  color: #0f172a;
+  letter-spacing: -0.03em;
+  margin: 0 0 6px;
+}
+
+.aloqa-info-sub {
+  font-size: 15px;
+  color: #64748b;
+  margin: 0 0 28px;
+}
+
+.aloqa-hours-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(0,0,0,0.06);
+  margin-bottom: 20px;
+}
+
+.aloqa-hour-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(0,0,0,0.04);
+  transition: background 0.2s;
+}
+
+.aloqa-hour-row:last-child {
+  border-bottom: none;
+}
+
+.aloqa-hour-row:hover {
+  background: #f8fafc;
+}
+
+.aloqa-hour-off {
+  opacity: 0.6;
+}
+
+.aloqa-hour-day {
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.aloqa-hour-time {
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.aloqa-hours-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(16,185,129,0.08);
+  border: 1px solid rgba(16,185,129,0.2);
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: 14px;
+  color: #065f46;
+  font-weight: 600;
+}
+
+/* Location */
+.aloqa-map-placeholder {
+  background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+  border-radius: 16px;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  border: 1px solid rgba(0,0,0,0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.aloqa-map-placeholder::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(0,0,0,0.06) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.aloqa-map-pin {
+  font-size: 48px;
+  position: relative;
+  z-index: 2;
+  animation: pinBounce 2s ease-in-out infinite;
+}
+
+@keyframes pinBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.aloqa-map-text {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.aloqa-map-text strong {
+  font-size: 18px;
+  color: #0f172a;
+  font-weight: 800;
+}
+
+.aloqa-map-text span {
+  font-size: 14px;
+  color: #64748b;
+}
+
+.aloqa-location-links {
+  display: flex;
+  gap: 12px;
+}
+
+.aloqa-loc-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #0f172a;
+  color: white;
+  border-radius: 12px;
+  padding: 14px 20px;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 14px;
+  transition: all 0.3s;
+}
+
+.aloqa-loc-btn:hover {
+  background: #1e293b;
+  transform: translateY(-2px);
+}
+
+/* ── FAQ ── */
+.aloqa-faq-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.aloqa-faq-card {
+  background: white;
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 20px;
+  padding: 28px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.03);
+  transition: all 0.3s;
+}
+
+.aloqa-faq-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.07);
+}
+
+.aloqa-faq-q {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 17px;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.aloqa-faq-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.aloqa-faq-a {
+  font-size: 15px;
+  color: #475569;
+  line-height: 1.7;
+  margin: 0;
+  padding-left: 30px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+  .aloqa-grid { grid-template-columns: repeat(2, 1fr); }
+  .aloqa-info-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 768px) {
+  .aloqa-hero { padding: 60px 0 80px; }
+  .aloqa-grid { grid-template-columns: 1fr; }
+  .aloqa-faq-grid { grid-template-columns: 1fr; }
+  .aloqa-card { padding: 24px; }
+  .aloqa-hours-card,
+  .aloqa-location-card { padding: 24px; }
+  .aloqa-cta { opacity: 1; transform: none; }
+  .aloqa-badge { opacity: 1; transform: none; }
+}

@@ -197,23 +197,6 @@ export default function Landing() {
 
   return (
     <div className="ent-root">
-      
-      {/* ── Top Contact Bar ── */}
-      <div className="ent-topbar">
-        <div className="ent-container ent-topbar-inner">
-          <div className="ent-tb-info">
-            <a href="mailto:ecode.uz@gmail.com" className="ent-contact-link">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-              <span>ecode.uz@gmail.com</span>
-            </a>
-            <span className="ent-tb-divider">|</span>
-            <a href="tel:+998889118171" className="ent-contact-link">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-              <span>+998 88 911 81 71</span>
-            </a>
-          </div>
-        </div>
-      </div>
 
       {/* ── Navbar ── */}
       <nav className={`ent-nav ${scrolled ? 'scrolled' : ''}`}>
@@ -221,8 +204,11 @@ export default function Landing() {
           <ECodeLogo size={32} />
 
           <div className="ent-nav-links">
-            <a href="#features">{t('land.features.badge')}</a>
-            <a href="#modules">{t('land.modules')}</a>
+            <a onClick={() => navigate('/erp-tizim')} style={{ cursor: 'pointer' }}>ERP Tizim</a>
+            <a onClick={() => navigate('/veb-saytlar')} style={{ cursor: 'pointer' }}>Veb-saytlar</a>
+            <a onClick={() => navigate('/telegram-botlar')} style={{ cursor: 'pointer' }}>Telegram Botlar</a>
+            <a onClick={() => navigate('/noyob-dasturlar')} style={{ cursor: 'pointer' }}>Noyob Dasturlar</a>
+            <a onClick={() => navigate('/aloqa')} style={{ cursor: 'pointer' }}>Aloqa</a>
           </div>
 
           <div className="ent-nav-actions">
@@ -254,8 +240,11 @@ export default function Landing() {
 
         {mobileMenu && (
           <div className="ent-mobile-menu">
-            <a href="#features" onClick={() => setMobileMenu(false)}>{t('land.features.badge')}</a>
-            <a href="#modules" onClick={() => setMobileMenu(false)}>{t('land.modules')}</a>
+            <a onClick={() => navigate('/erp-tizim')} style={{ cursor: 'pointer' }}>ERP Tizim</a>
+            <a onClick={() => navigate('/veb-saytlar')} style={{ cursor: 'pointer' }}>Veb-saytlar</a>
+            <a onClick={() => navigate('/telegram-botlar')} style={{ cursor: 'pointer' }}>Telegram Botlar</a>
+            <a onClick={() => navigate('/noyob-dasturlar')} style={{ cursor: 'pointer' }}>Noyob Dasturlar</a>
+            <a onClick={() => navigate('/aloqa')} style={{ cursor: 'pointer' }}>Aloqa</a>
             <button onClick={() => window.location.href = 'http://erp.e-code.uz/login'}>{t('land.nav.login')}</button>
             <button className="ent-btn-primary" onClick={() => window.location.href = 'http://erp.e-code.uz/register'}>{t('land.nav.register')}</button>
           </div>
@@ -312,41 +301,61 @@ export default function Landing() {
 
           <div className="ent-bento">
             
-            {/* Box 1 - Hero Bento */}
-            <div className="ent-bento-card bento-span-2">
+            {/* Box 1 - Hero Bento → ERP Tizim */}
+            <div
+              className="ent-bento-card bento-span-2 bento-clickable"
+              onClick={() => navigate('/erp-tizim')}
+              title="ERP Tizim haqida batafsil"
+            >
               <div className="ent-bc-content">
                 <div className="ent-bc-icon">{ICONS.pos}</div>
                 <h3>{t('land.omni')}</h3>
                 <p>{t('land.omniDesc')}</p>
+                <span className="bento-learn-more">Batafsil ko'rish {ICONS.arrowRight}</span>
               </div>
               <div className="ent-bc-visual pos-bg" />
             </div>
 
-            {/* Box 2 */}
-            <div className="ent-bento-card">
+            {/* Box 2 → ERP Tizim (Analitika) */}
+            <div
+              className="ent-bento-card bento-clickable"
+              onClick={() => navigate('/erp-tizim')}
+              title="Analitika va hisobotlar"
+            >
               <div className="ent-bc-content">
                 <div className="ent-bc-icon">{ICONS.chart}</div>
                 <h3>{t('land.bi')}</h3>
                 <p>{t('land.biDesc')}</p>
+                <span className="bento-learn-more">Batafsil {ICONS.arrowRight}</span>
               </div>
             </div>
 
-            {/* Box 3 */}
-            <div className="ent-bento-card">
+            {/* Box 3 → ERP Tizim (CRM) */}
+            <div
+              className="ent-bento-card bento-clickable"
+              onClick={() => navigate('/erp-tizim')}
+              title="CRM — Mijozlar boshqaruvi"
+            >
               <div className="ent-bc-content">
                 <div className="ent-bc-icon">{ICONS.crm}</div>
                 <h3>{t('land.crm')}</h3>
                 <p>{t('land.crmDesc')}</p>
+                <span className="bento-learn-more">Batafsil {ICONS.arrowRight}</span>
               </div>
             </div>
 
-            {/* Box 4 - Wide Bento */}
-            <div className="ent-bento-card bento-span-2">
+            {/* Box 4 - Wide Bento → ERP Tizim (Ombor) */}
+            <div
+              className="ent-bento-card bento-span-2 bento-clickable"
+              onClick={() => navigate('/erp-tizim')}
+              title="Ombor boshqaruvi — WMS"
+            >
               <div className="ent-bc-content row-flex">
                 <div>
                   <div className="ent-bc-icon">{ICONS.warehouse}</div>
                   <h3>{t('land.wms')}</h3>
                   <p>{t('land.wmsDesc')}</p>
+                  <span className="bento-learn-more" style={{ display: 'inline-flex', marginTop: 16 }}>Batafsil ko'rish {ICONS.arrowRight}</span>
                 </div>
                 <ul className="ent-checklist">
                   <li>{ICONS.check} {t('land.check1')}</li>
@@ -379,27 +388,49 @@ export default function Landing() {
             <p className="ent-p">Butun biznesingizni raqamlashtiring. E-code LLC jamoasi noldan IT yechimlar yaratadi.</p>
           </div>
           <div className="ent-bento it-agency-grid">
-            <div className="ent-bento-card agency-card">
+
+            {/* Veb-saytlar */}
+            <div
+              className="ent-bento-card agency-card bento-clickable"
+              onClick={() => navigate('/veb-saytlar')}
+              title="Maxsus Veb-saytlar haqida batafsil"
+            >
               <div className="ent-bc-content">
                 <div className="agency-icon">🌐</div>
                 <h3 className="agency-h3">Maxsus Veb-saytlar</h3>
                 <p className="agency-p">Korporativ saytlar, E-commerce va mualliflik loyihalari.</p>
+                <span className="agency-learn-more">Batafsil ko'rish →</span>
               </div>
             </div>
-            <div className="ent-bento-card agency-card">
+
+            {/* Telegram Botlar */}
+            <div
+              className="ent-bento-card agency-card bento-clickable"
+              onClick={() => navigate('/telegram-botlar')}
+              title="Telegram Botlar haqida batafsil"
+            >
               <div className="ent-bc-content">
                 <div className="agency-icon">🤖</div>
                 <h3 className="agency-h3">Telegram Botlar</h3>
                 <p className="agency-p">Mijozlarga xizmat ko'rsatuvchi aqlli bot va yordamchilar.</p>
+                <span className="agency-learn-more">Batafsil ko'rish →</span>
               </div>
             </div>
-            <div className="ent-bento-card agency-card">
+
+            {/* Noyob Dasturlar */}
+            <div
+              className="ent-bento-card agency-card bento-clickable"
+              onClick={() => navigate('/noyob-dasturlar')}
+              title="Noyob Dasturlar haqida batafsil"
+            >
               <div className="ent-bc-content">
                 <div className="agency-icon">💻</div>
                 <h3 className="agency-h3">Noyob Dasturlar</h3>
                 <p className="agency-p">Sizning g'oyangiz asosida murakkab ERP va dasturlar ishlab chiqish.</p>
+                <span className="agency-learn-more">Batafsil ko'rish →</span>
               </div>
             </div>
+
           </div>
         </div>
       </section>
