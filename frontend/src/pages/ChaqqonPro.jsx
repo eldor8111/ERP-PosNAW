@@ -116,7 +116,7 @@ export default function ChaqqonPro() {
             <div className="sp-stat"><span className="sp-stat-val">To'liq</span><span className="sp-stat-lbl">Kalkulyatsiya</span></div>
           </div>
           <div className="sp-hero-ctas">
-            <button className="sp-btn-primary" style={{ background: 'linear-gradient(135deg, #ea580c, #c2410c)', borderColor: '#c2410c' }} onClick={() => window.location.href = 'https://chaqqonpro.e-code.uz/login'}>
+            <button className="sp-btn-primary" style={{ background: 'linear-gradient(135deg, #ea580c, #c2410c)', borderColor: '#c2410c' }} onClick={() => window.location.href = 'https://chaqqonpro.e-code.uz/ubt-pos/login'}>
               Tizimni sinab ko'rish <ArrowRight />
             </button>
             <button className="sp-btn-ghost" onClick={() => { const el = document.getElementById('sp-contact'); if(el) el.scrollIntoView({behavior:'smooth'}); }}>
