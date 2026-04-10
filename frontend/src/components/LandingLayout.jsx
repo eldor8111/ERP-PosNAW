@@ -20,8 +20,8 @@ export default function LandingLayout({ children }) {
   const currentLang = LANGUAGES.find(l => l.code === lang)
 
   const isChaqqon = location.pathname === '/chaqqon-pro'
-  const loginUrl = isChaqqon ? 'https://chaqqonpro.e-code.uz/ubt-pos/login' : 'https://savdo.e-code.uz/login'
-  const registerUrl = isChaqqon ? 'https://chaqqonpro.e-code.uz/ubt-pos/login' : 'https://savdo.e-code.uz/register'
+  const loginUrl = isChaqqon ? 'https://chaqqonpro.e-code.uz/' : 'https://savdo.e-code.uz/login'
+  const registerUrl = isChaqqon ? 'https://chaqqonpro.e-code.uz/' : 'https://savdo.e-code.uz/register'
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20)
