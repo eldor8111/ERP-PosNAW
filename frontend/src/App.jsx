@@ -37,6 +37,7 @@ const ERPTizim        = lazy(() => import('./pages/ERPTizim'))
 const VebSaytlar      = lazy(() => import('./pages/VebSaytlar'))
 const TelegramBotlar  = lazy(() => import('./pages/TelegramBotlar'))
 const NoyobDasturlar  = lazy(() => import('./pages/NoyobDasturlar'))
+const ChaqqonPro      = lazy(() => import('./pages/ChaqqonPro'))
 const Aloqa           = lazy(() => import('./pages/Aloqa'))
 
 // Sahifa almashinayotganda ko'rinadigan loading spinner
@@ -105,6 +106,7 @@ export default function App() {
           <Route path="/veb-saytlar" element={<Suspense fallback={<PageLoader />}><VebSaytlar /></Suspense>} />
           <Route path="/telegram-botlar" element={<Suspense fallback={<PageLoader />}><TelegramBotlar /></Suspense>} />
           <Route path="/noyob-dasturlar" element={<Suspense fallback={<PageLoader />}><NoyobDasturlar /></Suspense>} />
+          <Route path="/chaqqon-pro" element={<Suspense fallback={<PageLoader />}><ChaqqonPro /></Suspense>} />
           <Route path="/aloqa" element={<Suspense fallback={<PageLoader />}><Aloqa /></Suspense>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

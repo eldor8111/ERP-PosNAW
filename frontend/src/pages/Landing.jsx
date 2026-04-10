@@ -205,6 +205,7 @@ export default function Landing() {
 
           <div className="ent-nav-links">
             <a onClick={() => navigate('/erp-tizim')} style={{ cursor: 'pointer' }}>ERP Tizim</a>
+            <a onClick={() => navigate('/chaqqon-pro')} style={{ cursor: 'pointer', color: '#f97316' }}>Chaqqon Pro</a>
             <a onClick={() => navigate('/veb-saytlar')} style={{ cursor: 'pointer' }}>Veb-saytlar</a>
             <a onClick={() => navigate('/telegram-botlar')} style={{ cursor: 'pointer' }}>Telegram Botlar</a>
             <a onClick={() => navigate('/noyob-dasturlar')} style={{ cursor: 'pointer' }}>Noyob Dasturlar</a>
@@ -241,6 +242,7 @@ export default function Landing() {
         {mobileMenu && (
           <div className="ent-mobile-menu">
             <a onClick={() => navigate('/erp-tizim')} style={{ cursor: 'pointer' }}>ERP Tizim</a>
+            <a onClick={() => navigate('/chaqqon-pro')} style={{ cursor: 'pointer', color: '#f97316' }}>Chaqqon Pro</a>
             <a onClick={() => navigate('/veb-saytlar')} style={{ cursor: 'pointer' }}>Veb-saytlar</a>
             <a onClick={() => navigate('/telegram-botlar')} style={{ cursor: 'pointer' }}>Telegram Botlar</a>
             <a onClick={() => navigate('/noyob-dasturlar')} style={{ cursor: 'pointer' }}>Noyob Dasturlar</a>
@@ -380,6 +382,40 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ── Chaqqon Pro ── */}
+      <section className="ent-section" style={{ background: 'linear-gradient(135deg, #fffbeb 0%, #ffedd5 100%)', borderTop: '1px solid #fed7aa', borderBottom: '1px solid #fed7aa' }}>
+        <div className="ent-container">
+          <div className="ent-section-head">
+            <div style={{ color: '#ea580c', background: 'rgba(234,88,12,0.1)', display: 'inline-block', padding: '4px 12px', borderRadius: '12px', fontWeight: 'bold', marginBottom: '16px' }}>🍽️ Yangi tizim</div>
+            <h2 className="ent-h2" style={{ color: '#9a3412' }}>Chaqqon Pro: Restoran va Oshxonalar uchun yechim</h2>
+            <p className="ent-p" style={{ color: '#c2410c' }}>Ovqatlanish sohasi uchun tezkor, chiroyli va to'liq avtomatlashgan POS tizimini kashf qiling.</p>
+          </div>
+          <div className="ent-bento">
+            <div
+              className="ent-bento-card bento-span-2 bento-clickable"
+              onClick={() => navigate('/chaqqon-pro')}
+              style={{ background: '#fff', border: '1px solid #fdba74', boxShadow: '0 10px 25px -5px rgba(234,88,12,0.1)' }}
+              title="Chaqqon Pro haqida batafsil"
+            >
+              <div className="ent-bc-content row-flex">
+                <div>
+                  <div className="ent-bc-icon" style={{ background: '#ffedd5', color: '#ea580c' }}>🍔</div>
+                  <h3 style={{ color: '#9a3412', marginTop: '16px' }}>Maxsus Restoran POS</h3>
+                  <p style={{ color: '#78350f', marginTop: '8px' }}>Kassalar, ofitsiantlar, oshxona ekranlari va ombor retseptlari markazlashtiriladi.</p>
+                  <span className="bento-learn-more" style={{ color: '#ea580c', display: 'inline-flex', marginTop: 16 }}>Batafsil ko'rish {ICONS.arrowRight}</span>
+                </div>
+                <ul className="ent-checklist" style={{ color: '#9a3412' }}>
+                  <li>{ICONS.check} Qulay POS kassa</li>
+                  <li>{ICONS.check} KDS (Oshxona Ekrani)</li>
+                  <li>{ICONS.check} To'liq Kalkulyatsiya</li>
+                  <li>{ICONS.check} ABC tahlil va Monitoring</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── Boshqa Xizmatlar / IT Agency ── */}
       <section className="ent-section bg-light" style={{ borderTop: '1px solid #eaeaea' }}>
         <div className="ent-container">
@@ -470,6 +506,7 @@ export default function Landing() {
                       onChange={e => setLeadForm({...leadForm, service: e.target.value})}
                     >
                       <option>ERP Tizim</option>
+                      <option>Chaqqon Pro (Restoran POS)</option>
                       <option>Veb-sayt yasash</option>
                       <option>Telegram Bot</option>
                       <option>Boshqa g'oya</option>
