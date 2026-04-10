@@ -17,44 +17,45 @@ const ArrowRight = () => (
 
 // Modules moved into the component
 
-const tariffs = [
-  {
-    name: 'Starter',
-    price: 'Arzon narxda',
-    badge: '💼 Kichik biznes',
-    color: '#2563eb',
-    popular: false,
-    desc: 'Savdoni boshlash uchun ideal',
-    hint: 'Narx biznes hajmiga qarab belgilanadi',
-    features: ['1 ta omborxona', '2 ta kassa', '3 ta foydalanuvchi', 'POS + Ombor modullari', 'Email qo\'llab-quvvatlash'],
-  },
-  {
-    name: 'Business',
-    price: 'Kelishilgan narxda',
-    badge: '🚀 Eng mashhur',
-    color: '#10b981',
-    popular: true,
-    desc: 'O\'sib borayotgan biznes uchun',
-    hint: 'Bepul demo va narx hisob-kitobi uchun murojaat qiling',
-    features: ['5 ta omborxona', '10 ta kassa', '20 ta foydalanuvchi', 'Barcha modullar', 'Telegram xabarnoma', 'CRM + Analitika', 'Telegram qo\'llab-quvvatlash'],
-  },
-  {
-    name: 'Enterprise',
-    price: 'Individual narx',
-    badge: '🏢 Yirik korxona',
-    color: '#8b5cf6',
-    popular: false,
-    desc: 'Maxsus talablar uchun',
-    hint: 'Mutaxassis bilan bepul konsultatsiya',
-    features: ['Cheksiz omborxona', 'Cheksiz kassa', 'Cheksiz foydalanuvchi', 'Custom integratsiya', 'API kirish', 'Dedicated server', '24/7 qo\'llab-quvvatlash'],
-  },
-]
 
 import { useLang } from '../i18n'
 
 export default function ERPTizim() {
   const navigate = useNavigate()
   const { t } = useLang()
+
+const tariffs = [
+  {
+    name: t('erp.tariffs.starter.name') || 'Starter',
+    price: t('erp.tariffs.arzonnar.price') || 'Arzon narxda',
+    badge: t('erp.tariffs.kichikbi.badge') || '💼 Kichik biznes',
+    color: '#2563eb',
+    popular: false,
+    desc: t('erp.tariffs.savdonib.desc') || 'Savdoni boshlash uchun ideal',
+    hint: t('erp.tariffs.narxbizn.hint') || 'Narx biznes hajmiga qarab belgilanadi',
+    features: ['1 ta omborxona', '2 ta kassa', '3 ta foydalanuvchi', 'POS + Ombor modullari', 'Email qo\'llab-quvvatlash'],
+  },
+  {
+    name: t('erp.tariffs.business.name') || 'Business',
+    price: t('erp.tariffs.kelishil.price') || 'Kelishilgan narxda',
+    badge: t('erp.tariffs.engmashh.badge') || '🚀 Eng mashhur',
+    color: '#10b981',
+    popular: true,
+    desc: t('erp.tariffs.o.desc') || 'O\'sib borayotgan biznes uchun',
+    hint: t('erp.tariffs.bepuldem.hint') || 'Bepul demo va narx hisob-kitobi uchun murojaat qiling',
+    features: ['5 ta omborxona', '10 ta kassa', '20 ta foydalanuvchi', 'Barcha modullar', 'Telegram xabarnoma', 'CRM + Analitika', 'Telegram qo\'llab-quvvatlash'],
+  },
+  {
+    name: t('erp.tariffs.enterpri.name') || 'Enterprise',
+    price: t('erp.tariffs.individu.price') || 'Individual narx',
+    badge: t('erp.tariffs.yirikkor.badge') || '🏢 Yirik korxona',
+    color: '#8b5cf6',
+    popular: false,
+    desc: t('erp.tariffs.maxsusta.desc') || 'Maxsus talablar uchun',
+    hint: t('erp.tariffs.mutaxass.hint') || 'Mutaxassis bilan bepul konsultatsiya',
+    features: ['Cheksiz omborxona', 'Cheksiz kassa', 'Cheksiz foydalanuvchi', 'Custom integratsiya', 'API kirish', 'Dedicated server', '24/7 qo\'llab-quvvatlash'],
+  },
+]
   const [activeModule, setActiveModule] = useState(0)
 
   const modules = [
@@ -74,7 +75,7 @@ export default function ERPTizim() {
         t('erp.m1.f5') || 'Chek chiqarish (termal printer)',
         t('erp.m1.f6') || 'Qaytarish (return) boshqaruvi',
       ],
-      stats: [{ val: '< 2 son', label: 'Sotuv qayta ishlash' }, { val: '∞', label: 'Mahsulot soni' }, { val: '99.9%', label: t('erp.hero.stat3.lbl') || 'Uptime kafolat' }]
+      stats: [{ val: t('erp.stats.2son.val') || '< 2 son', label: t('erp.stats.sotuvqay.label') || 'Sotuv qayta ishlash' }, { val: t('erp.stats.item.val') || '∞', label: t('erp.stats.mahsulot.label') || 'Mahsulot soni' }, { val: t('erp.stats.999.val') || '99.9%', label: t('erp.hero.stat3.lbl') || 'Uptime kafolat' }]
     },
     {
       id: 'ombor',
@@ -92,7 +93,7 @@ export default function ERPTizim() {
         t('erp.m2.f5') || 'Shtrix-kod va QR kod yetkazib berish',
         t('erp.m2.f6') || 'Inventarizatsiya (reviziya)',
       ],
-      stats: [{ val: '10+', label: 'Omborxona parallel' }, { val: 'FIFO', label: 'Hisob metodi' }, { val: 'Real-vaqt', label: 'Qoldiq kuzatuvi' }]
+      stats: [{ val: t('erp.stats.10.val') || '10+', label: t('erp.stats.omborxon.label') || 'Omborxona parallel' }, { val: t('erp.stats.fifo.val') || 'FIFO', label: t('erp.stats.hisobmet.label') || 'Hisob metodi' }, { val: t('erp.stats.realvaqt.val') || 'Real-vaqt', label: t('erp.stats.qoldiqku.label') || 'Qoldiq kuzatuvi' }]
     },
     {
       id: 'crm',
@@ -110,7 +111,7 @@ export default function ERPTizim() {
         t('erp.m3.f5') || 'Telegram xabarnoma yuborish',
         t('erp.m3.f6') || 'Mijoz segmentatsiyasi',
       ],
-      stats: [{ val: '100K+', label: 'Mijoz bazasi' }, { val: 'B2B+B2C', label: 'Sotuv modeli' }, { val: 'Telegram', label: 'Xabarnoma kanal' }]
+      stats: [{ val: t('erp.stats.100k.val') || '100K+', label: t('erp.stats.mijozbaz.label') || 'Mijoz bazasi' }, { val: t('erp.stats.b2bb2c.val') || 'B2B+B2C', label: t('erp.stats.sotuvmod.label') || 'Sotuv modeli' }, { val: t('erp.stats.telegram.val') || 'Telegram', label: t('erp.stats.xabarnom.label') || 'Xabarnoma kanal' }]
     },
     {
       id: 'moliya',
@@ -128,7 +129,7 @@ export default function ERPTizim() {
         t('erp.m4.f5') || 'Bank hisobvaraqlari integratsiyasi',
         t('erp.m4.f6') || 'Soliq hisobot eksport',
       ],
-      stats: [{ val: 'P&L', label: 'Foyda/zarar' }, { val: '3+', label: 'Valyuta qo\'llab quvvatlash' }, { val: 'Excel', label: 'Eksport format' }]
+      stats: [{ val: t('erp.stats.pl.val') || 'P&L', label: t('erp.stats.foydazar.label') || 'Foyda/zarar' }, { val: t('erp.stats.3.val') || '3+', label: t('erp.stats.valyutaq.label') || 'Valyuta qo\'llab quvvatlash' }, { val: t('erp.stats.excel.val') || 'Excel', label: t('erp.stats.eksportf.label') || 'Eksport format' }]
     },
     {
       id: 'hisobot',
@@ -146,7 +147,7 @@ export default function ERPTizim() {
         t('erp.m5.f5') || 'Daromad prognozi',
         t('erp.m5.f6') || 'PDF / Excel eksport',
       ],
-      stats: [{ val: '20+', label: 'Hisobot turi' }, { val: 'ABC', label: 'Tovar tahlil metodi' }, { val: 'PDF/Excel', label: 'Eksport format' }]
+      stats: [{ val: t('erp.stats.20.val') || '20+', label: t('erp.stats.hisobott.label') || 'Hisobot turi' }, { val: t('erp.stats.abc.val') || 'ABC', label: t('erp.stats.tovartah.label') || 'Tovar tahlil metodi' }, { val: t('erp.stats.pdfexcel.val') || 'PDF/Excel', label: t('erp.stats.eksportf.label') || 'Eksport format' }]
     },
     {
       id: 'users',
@@ -164,7 +165,7 @@ export default function ERPTizim() {
         t('erp.m6.f5') || 'Super admin panel',
         t('erp.m6.f6') || 'Smena va navbat boshqaruvi',
       ],
-      stats: [{ val: '10+', label: 'Rol turi' }, { val: '100%', label: 'Audit log' }, { val: 'OTP', label: 'Ikki faktorli kirish' }]
+      stats: [{ val: t('erp.stats.10.val') || '10+', label: t('erp.stats.rolturi.label') || 'Rol turi' }, { val: t('erp.stats.100.val') || '100%', label: t('erp.stats.auditlog.label') || 'Audit log' }, { val: t('erp.stats.otp.val') || 'OTP', label: t('erp.stats.ikkifakt.label') || 'Ikki faktorli kirish' }]
     },
   ]
 
