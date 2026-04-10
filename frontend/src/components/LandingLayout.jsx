@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useLang } from '../context/LangContext'
 import ECodeLogo from './ECodeLogo'
 
@@ -13,10 +13,15 @@ const LangIcon = () => (
 export default function LandingLayout({ children }) {
   const { t, lang, setLang, LANGUAGES } = useLang()
   const navigate = useNavigate()
+  const location = useLocation()
   const [scrolled, setScrolled] = useState(false)
   const [langOpen, setLangOpen] = useState(false)
   const [mobileMenu, setMobileMenu] = useState(false)
   const currentLang = LANGUAGES.find(l => l.code === lang)
+
+  const isChaqqon = location.pathname === '/chaqqon-pro'
+  const loginUrl = isChaqqon ? 'https://chaqqonpro.e-code.uz/ubt-pos/login' : 'https://savdo.e-code.uz/login'
+  const registerUrl = isChaqqon ? 'https://chaqqonpro.e-code.uz/ubt-pos/login' : 'https://savdo.e-code.uz/register'
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20)
@@ -64,10 +69,10 @@ export default function LandingLayout({ children }) {
                 </div>
               )}
             </div>
-            <button className="ent-btn-ghost" onClick={() => window.location.href = 'https://savdo.e-code.uz/login'}>
+            <button className="ent-btn-ghost" onClick={() => window.location.href = loginUrl}>
               Kirish
             </button>
-            <button className="ent-btn-primary" onClick={() => window.location.href = 'https://savdo.e-code.uz/register'}>
+            <button className="ent-btn-primary" onClick={() => window.location.href = registerUrl}>
               Boshlash
             </button>
             <button className="ent-hamburger" onClick={() => setMobileMenu(!mobileMenu)}>☰</button>
@@ -81,8 +86,8 @@ export default function LandingLayout({ children }) {
                 {link.label}
               </a>
             ))}
-            <button onClick={() => window.location.href = 'https://savdo.e-code.uz/login'}>Kirish</button>
-            <button className="ent-btn-primary" onClick={() => window.location.href = 'https://savdo.e-code.uz/register'}>Boshlash</button>
+            <button onClick={() => window.location.href = loginUrl}>Kirish</button>
+            <button className="ent-btn-primary" onClick={() => window.location.href = registerUrl}>Boshlash</button>
           </div>
         )}
       </nav>
@@ -113,8 +118,8 @@ export default function LandingLayout({ children }) {
             </div>
             <div>
               <strong>Tizim</strong>
-              <span onClick={() => window.location.href = 'https://savdo.e-code.uz/login'} className="clickable">Kirish</span>
-              <span onClick={() => window.location.href = 'https://savdo.e-code.uz/register'} className="clickable">Ro'yxatdan o'tish</span>
+              <span onClick={() => window.location.href = loginUrl} className="clickable">Kirish</span>
+              <span onClick={() => window.location.href = registerUrl} className="clickable">Boshlash</span>
             </div>
           </div>
         </div>
