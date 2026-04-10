@@ -204,12 +204,12 @@ export default function Landing() {
           <ECodeLogo size={32} />
 
           <div className="ent-nav-links">
-            <a onClick={() => navigate('/erp-tizim')} style={{ cursor: 'pointer' }}>ERP Tizim</a>
-            <a onClick={() => navigate('/chaqqon-pro')} style={{ cursor: 'pointer', color: '#f97316' }}>Chaqqon Pro</a>
-            <a onClick={() => navigate('/veb-saytlar')} style={{ cursor: 'pointer' }}>Veb-saytlar</a>
-            <a onClick={() => navigate('/telegram-botlar')} style={{ cursor: 'pointer' }}>Telegram Botlar</a>
-            <a onClick={() => navigate('/noyob-dasturlar')} style={{ cursor: 'pointer' }}>Noyob Dasturlar</a>
-            <a onClick={() => navigate('/aloqa')} style={{ cursor: 'pointer' }}>Aloqa</a>
+            <a onClick={() => navigate('/erp-tizim')} style={{ cursor: 'pointer' }}>{t('land.nav.erp') || 'ERP Tizim'}</a>
+            <a onClick={() => navigate('/chaqqon-pro')} style={{ cursor: 'pointer', color: '#f97316' }}>{t('land.nav.chaqqon') || 'Chaqqon Pro'}</a>
+            <a onClick={() => navigate('/veb-saytlar')} style={{ cursor: 'pointer' }}>{t('land.nav.websites') || 'Veb-saytlar'}</a>
+            <a onClick={() => navigate('/telegram-botlar')} style={{ cursor: 'pointer' }}>{t('land.nav.bots') || 'Telegram Botlar'}</a>
+            <a onClick={() => navigate('/noyob-dasturlar')} style={{ cursor: 'pointer' }}>{t('land.nav.custom') || 'Noyob Dasturlar'}</a>
+            <a onClick={() => navigate('/aloqa')} style={{ cursor: 'pointer' }}>{t('land.nav.contact') || 'Aloqa'}</a>
           </div>
 
           <div className="ent-nav-actions">
@@ -241,14 +241,14 @@ export default function Landing() {
 
         {mobileMenu && (
           <div className="ent-mobile-menu">
-            <a onClick={() => navigate('/erp-tizim')} style={{ cursor: 'pointer' }}>ERP Tizim</a>
-            <a onClick={() => navigate('/chaqqon-pro')} style={{ cursor: 'pointer', color: '#f97316' }}>Chaqqon Pro</a>
-            <a onClick={() => navigate('/veb-saytlar')} style={{ cursor: 'pointer' }}>Veb-saytlar</a>
-            <a onClick={() => navigate('/telegram-botlar')} style={{ cursor: 'pointer' }}>Telegram Botlar</a>
-            <a onClick={() => navigate('/noyob-dasturlar')} style={{ cursor: 'pointer' }}>Noyob Dasturlar</a>
-            <a onClick={() => navigate('/aloqa')} style={{ cursor: 'pointer' }}>Aloqa</a>
-            <button onClick={() => window.location.href = 'https://savdo.e-code.uz/login'}>{t('land.nav.login')}</button>
-            <button className="ent-btn-primary" onClick={() => window.location.href = 'https://savdo.e-code.uz/register'}>{t('land.nav.register')}</button>
+            <a onClick={() => navigate('/erp-tizim')} style={{ cursor: 'pointer' }}>{t('land.nav.erp') || 'ERP Tizim'}</a>
+            <a onClick={() => navigate('/chaqqon-pro')} style={{ cursor: 'pointer', color: '#f97316' }}>{t('land.nav.chaqqon') || 'Chaqqon Pro'}</a>
+            <a onClick={() => navigate('/veb-saytlar')} style={{ cursor: 'pointer' }}>{t('land.nav.websites') || 'Veb-saytlar'}</a>
+            <a onClick={() => navigate('/telegram-botlar')} style={{ cursor: 'pointer' }}>{t('land.nav.bots') || 'Telegram Botlar'}</a>
+            <a onClick={() => navigate('/noyob-dasturlar')} style={{ cursor: 'pointer' }}>{t('land.nav.custom') || 'Noyob Dasturlar'}</a>
+            <a onClick={() => navigate('/aloqa')} style={{ cursor: 'pointer' }}>{t('land.nav.contact') || 'Aloqa'}</a>
+            <button onClick={() => window.location.href = 'https://savdo.e-code.uz/login'}>{t('land.nav.login') || 'Kirish'}</button>
+            <button className="ent-btn-primary" onClick={() => window.location.href = 'https://savdo.e-code.uz/register'}>{t('land.nav.register') || 'Ro\'yxatdan o\'tish'}</button>
           </div>
         )}
       </nav>
@@ -274,7 +274,7 @@ export default function Landing() {
                   if(leadSection) leadSection.scrollIntoView({behavior: 'smooth'});
                 }}
               >
-                So'rov qoldirish <span className="ent-btn-icon">{ICONS.arrowRight}</span>
+                {t('land.hero.req_quote') || 'So\'rov qoldirish'} <span className="ent-btn-icon">{ICONS.arrowRight}</span>
               </button>
             </div>
             
@@ -313,7 +313,7 @@ export default function Landing() {
                 <div className="ent-bc-icon">{ICONS.pos}</div>
                 <h3>{t('land.omni')}</h3>
                 <p>{t('land.omniDesc')}</p>
-                <span className="bento-learn-more">Batafsil ko'rish {ICONS.arrowRight}</span>
+                <span className="bento-learn-more">{t('land.chaqqon.box_more') || 'Batafsil ko\'rish'} {ICONS.arrowRight}</span>
               </div>
               <div className="ent-bc-visual pos-bg" />
             </div>
@@ -328,7 +328,7 @@ export default function Landing() {
                 <div className="ent-bc-icon">{ICONS.chart}</div>
                 <h3>{t('land.bi')}</h3>
                 <p>{t('land.biDesc')}</p>
-                <span className="bento-learn-more">Batafsil {ICONS.arrowRight}</span>
+                <span className="bento-learn-more">{t('land.chaqqon.box_more') || 'Batafsil'} {ICONS.arrowRight}</span>
               </div>
             </div>
 
@@ -342,7 +342,7 @@ export default function Landing() {
                 <div className="ent-bc-icon">{ICONS.crm}</div>
                 <h3>{t('land.crm')}</h3>
                 <p>{t('land.crmDesc')}</p>
-                <span className="bento-learn-more">Batafsil {ICONS.arrowRight}</span>
+                <span className="bento-learn-more">{t('land.chaqqon.box_more') || 'Batafsil'} {ICONS.arrowRight}</span>
               </div>
             </div>
 
@@ -357,7 +357,7 @@ export default function Landing() {
                   <div className="ent-bc-icon">{ICONS.warehouse}</div>
                   <h3>{t('land.wms')}</h3>
                   <p>{t('land.wmsDesc')}</p>
-                  <span className="bento-learn-more" style={{ display: 'inline-flex', marginTop: 16 }}>Batafsil ko'rish {ICONS.arrowRight}</span>
+                  <span className="bento-learn-more" style={{ display: 'inline-flex', marginTop: 16 }}>{t('land.chaqqon.box_more') || 'Batafsil ko\'rish'} {ICONS.arrowRight}</span>
                 </div>
                 <ul className="ent-checklist">
                   <li>{ICONS.check} {t('land.check1')}</li>
@@ -386,29 +386,28 @@ export default function Landing() {
       <section className="ent-section" style={{ background: 'linear-gradient(135deg, #fffbeb 0%, #ffedd5 100%)', borderTop: '1px solid #fed7aa', borderBottom: '1px solid #fed7aa' }}>
         <div className="ent-container">
           <div className="ent-section-head">
-            <div style={{ color: '#ea580c', background: 'rgba(234,88,12,0.1)', display: 'inline-block', padding: '4px 12px', borderRadius: '12px', fontWeight: 'bold', marginBottom: '16px' }}>🍽️ Yangi tizim</div>
-            <h2 className="ent-h2" style={{ color: '#9a3412' }}>Chaqqon Pro: Restoran va Oshxonalar uchun yechim</h2>
-            <p className="ent-p" style={{ color: '#c2410c' }}>Ovqatlanish sohasi uchun tezkor, chiroyli va to'liq avtomatlashgan POS tizimini kashf qiling.</p>
+            <div style={{ color: '#ea580c', background: 'rgba(234,88,12,0.1)', display: 'inline-block', padding: '4px 12px', borderRadius: '12px', fontWeight: 'bold', marginBottom: '16px' }}>🍽️ {t('land.chaqqon.badge') || 'Yangi tizim'}</div>
+            <h2 className="ent-h2" style={{ color: '#9a3412' }}>{t('land.chaqqon.title') || 'Chaqqon Pro'}</h2>
+            <p className="ent-p" style={{ color: '#c2410c' }}>{t('land.chaqqon.sub') || 'Restoran POS'}</p>
           </div>
           <div className="ent-bento">
             <div
               className="ent-bento-card bento-span-2 bento-clickable"
               onClick={() => navigate('/chaqqon-pro')}
               style={{ background: '#fff', border: '1px solid #fdba74', boxShadow: '0 10px 25px -5px rgba(234,88,12,0.1)' }}
-              title="Chaqqon Pro haqida batafsil"
             >
               <div className="ent-bc-content row-flex">
                 <div>
                   <div className="ent-bc-icon" style={{ background: '#ffedd5', color: '#ea580c' }}>🍔</div>
-                  <h3 style={{ color: '#9a3412', marginTop: '16px' }}>Maxsus Restoran POS</h3>
-                  <p style={{ color: '#78350f', marginTop: '8px' }}>Kassalar, ofitsiantlar, oshxona ekranlari va ombor retseptlari markazlashtiriladi.</p>
-                  <span className="bento-learn-more" style={{ color: '#ea580c', display: 'inline-flex', marginTop: 16 }}>Batafsil ko'rish {ICONS.arrowRight}</span>
+                  <h3 style={{ color: '#9a3412', marginTop: '16px' }}>{t('land.chaqqon.box_title') || 'Maxsus Restoran POS'}</h3>
+                  <p style={{ color: '#78350f', marginTop: '8px' }}>{t('land.chaqqon.box_desc') || 'Kassalar, ofitsiantlar va h.k'}</p>
+                  <span className="bento-learn-more" style={{ color: '#ea580c', display: 'inline-flex', marginTop: 16 }}>{t('land.chaqqon.box_more') || 'Batafsil'} {ICONS.arrowRight}</span>
                 </div>
                 <ul className="ent-checklist" style={{ color: '#9a3412' }}>
-                  <li>{ICONS.check} Qulay POS kassa</li>
-                  <li>{ICONS.check} KDS (Oshxona Ekrani)</li>
-                  <li>{ICONS.check} To'liq Kalkulyatsiya</li>
-                  <li>{ICONS.check} ABC tahlil va Monitoring</li>
+                  <li>{ICONS.check} {t('land.chaqqon.l1')}</li>
+                  <li>{ICONS.check} {t('land.chaqqon.l2')}</li>
+                  <li>{ICONS.check} {t('land.chaqqon.l3')}</li>
+                  <li>{ICONS.check} {t('land.chaqqon.l4')}</li>
                 </ul>
               </div>
             </div>
@@ -420,8 +419,8 @@ export default function Landing() {
       <section className="ent-section bg-light" style={{ borderTop: '1px solid #eaeaea' }}>
         <div className="ent-container">
           <div className="ent-section-head">
-            <h2 className="ent-h2">Biz bilan faqat ERP emas...</h2>
-            <p className="ent-p">Butun biznesingizni raqamlashtiring. E-code LLC jamoasi noldan IT yechimlar yaratadi.</p>
+            <h2 className="ent-h2">{t('land.agency.title') || 'Biz bilan faqat ERP emas...'}</h2>
+            <p className="ent-p">{t('land.agency.sub')}</p>
           </div>
           <div className="ent-bento it-agency-grid">
 
@@ -429,13 +428,12 @@ export default function Landing() {
             <div
               className="ent-bento-card agency-card bento-clickable"
               onClick={() => navigate('/veb-saytlar')}
-              title="Maxsus Veb-saytlar haqida batafsil"
             >
               <div className="ent-bc-content">
                 <div className="agency-icon">🌐</div>
-                <h3 className="agency-h3">Maxsus Veb-saytlar</h3>
-                <p className="agency-p">Korporativ saytlar, E-commerce va mualliflik loyihalari.</p>
-                <span className="agency-learn-more">Batafsil ko'rish →</span>
+                <h3 className="agency-h3">{t('land.agency.w_title')}</h3>
+                <p className="agency-p">{t('land.agency.w_desc')}</p>
+                <span className="agency-learn-more">{t('land.chaqqon.box_more')} →</span>
               </div>
             </div>
 
@@ -443,13 +441,12 @@ export default function Landing() {
             <div
               className="ent-bento-card agency-card bento-clickable"
               onClick={() => navigate('/telegram-botlar')}
-              title="Telegram Botlar haqida batafsil"
             >
               <div className="ent-bc-content">
                 <div className="agency-icon">🤖</div>
-                <h3 className="agency-h3">Telegram Botlar</h3>
-                <p className="agency-p">Mijozlarga xizmat ko'rsatuvchi aqlli bot va yordamchilar.</p>
-                <span className="agency-learn-more">Batafsil ko'rish →</span>
+                <h3 className="agency-h3">{t('land.agency.b_title')}</h3>
+                <p className="agency-p">{t('land.agency.b_desc')}</p>
+                <span className="agency-learn-more">{t('land.chaqqon.box_more')} →</span>
               </div>
             </div>
 
@@ -457,13 +454,12 @@ export default function Landing() {
             <div
               className="ent-bento-card agency-card bento-clickable"
               onClick={() => navigate('/noyob-dasturlar')}
-              title="Noyob Dasturlar haqida batafsil"
             >
               <div className="ent-bc-content">
                 <div className="agency-icon">💻</div>
-                <h3 className="agency-h3">Noyob Dasturlar</h3>
-                <p className="agency-p">Sizning g'oyangiz asosida murakkab ERP va dasturlar ishlab chiqish.</p>
-                <span className="agency-learn-more">Batafsil ko'rish →</span>
+                <h3 className="agency-h3">{t('land.agency.s_title')}</h3>
+                <p className="agency-p">{t('land.agency.s_desc')}</p>
+                <span className="agency-learn-more">{t('land.chaqqon.box_more')} →</span>
               </div>
             </div>
 
@@ -476,14 +472,12 @@ export default function Landing() {
         <div className="ent-container">
           <div className="ent-cta-box lead-grid">
             <div className="lead-text">
-              <h2>G'oyangiz bormi yoki ERP kerakmi?</h2>
-              <p>
-                Hozirning o'zida bepul konsultatsiyaga yoziling!
-              </p>
+              <h2>{t('land.lead.title')}</h2>
+              <p>{t('land.lead.sub')}</p>
               <ul>
-                <li>{ICONS.check} Mutaxassis bilan aloqa</li>
-                <li>{ICONS.check} Tizim imkoniyatlari namoyishi</li>
-                <li>{ICONS.check} Biznesingiz uchun eng yaxshi yechim topish</li>
+                <li>{ICONS.check} {t('land.lead.l1')}</li>
+                <li>{ICONS.check} {t('land.lead.l2')}</li>
+                <li>{ICONS.check} {t('land.lead.l3')}</li>
               </ul>
             </div>
 
@@ -491,16 +485,16 @@ export default function Landing() {
               {leadStatus === 'success' ? (
                 <div className="lead-success">
                   <div className="check-icon">✓</div>
-                  <h3>Rahmat!</h3>
-                  <p>Tez orada mutaxassislarimiz siz bilan bog'lanadi.</p>
-                  <button className="ent-btn-outline" onClick={() => setLeadStatus(null)}>Yangi so'rov qoldirish</button>
+                  <h3>{t('land.form.success')}</h3>
+                  <p>{t('land.form.successDesc')}</p>
+                  <button className="ent-btn-outline" onClick={() => setLeadStatus(null)}>{t('land.form.newReq')}</button>
                 </div>
               ) : (
                 <form onSubmit={handleLeadSubmit} className="lead-form">
-                  <h3>So'rov qoldirish</h3>
+                  <h3>{t('land.form.title')}</h3>
                   
                   <div className="form-group">
-                    <label>Qaysi xizmat qiziqtirdi?</label>
+                    <label>{t('land.form.service')}</label>
                     <select 
                       value={leadForm.service} 
                       onChange={e => setLeadForm({...leadForm, service: e.target.value})}
@@ -514,18 +508,18 @@ export default function Landing() {
                   </div>
 
                   <div className="form-group">
-                    <label>Ismingiz</label>
+                    <label>{t('land.form.name')}</label>
                     <input 
                       type="text" 
                       required 
                       value={leadForm.name}
                       onChange={e => setLeadForm({...leadForm, name: e.target.value})}
-                      placeholder="Masalan, Alisher"
+                      placeholder="Alisher"
                     />
                   </div>
 
                   <div className="form-group">
-                    <label>Telefon raqam</label>
+                    <label>{t('land.form.phone')}</label>
                     <input 
                       type="text" 
                       required 
@@ -540,7 +534,7 @@ export default function Landing() {
                     disabled={leadStatus === 'loading'}
                     className="lead-submit-btn"
                   >
-                    {leadStatus === 'loading' ? 'Yuborilmoqda...' : 'Yuborish'}
+                    {leadStatus === 'loading' ? t('land.form.loading') : t('land.form.submit')}
                   </button>
                 </form>
               )}

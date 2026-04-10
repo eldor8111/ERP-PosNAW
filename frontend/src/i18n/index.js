@@ -35,3 +35,7 @@ export function createTranslator(lang) {
 }
 
 export default translations;
+
+// Re-export context hooks so pages can use:
+//   import { useLang } from '../i18n'
+export { useLang, LangProvider } from '../context/LangContext.jsx';

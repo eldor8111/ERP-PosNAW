@@ -15,116 +15,7 @@ const ArrowRight = () => (
   </svg>
 )
 
-const modules = [
-  {
-    id: 'pos',
-    icon: '🖥️',
-    color: '#2563eb',
-    bg: 'rgba(37,99,235,0.08)',
-    title: 'POS Kassa',
-    subtitle: 'Tezkor sotuv terminali',
-    desc: 'Bir nechta kassa punktlarini yagona tizimga ulang. Shtrix-kod, skanerlash, naqd va bank kartasi to\'lovlari.',
-    features: [
-      'Tezkor mahsulot qidirish va skanerlash',
-      'Naqd, karta, nasiya to\'lov usullari',
-      'Bir vaqtda bir nechta kassa',
-      'Smena ochish/yopish hisobotlari',
-      'Chek chiqarish (termal printer)',
-      'Qaytarish (return) boshqaruvi',
-    ],
-    stats: [{ val: '< 2 son', label: 'Sotuv qayta ishlash' }, { val: '∞', label: 'Mahsulot soni' }, { val: '99.9%', label: 'Uptime kafolat' }]
-  },
-  {
-    id: 'ombor',
-    icon: '🏭',
-    color: '#10b981',
-    bg: 'rgba(16,185,129,0.08)',
-    title: 'Ombor Boshqaruvi',
-    subtitle: 'WMS — Warehouse Management System',
-    desc: 'Real-vaqtda tovar harakatini kuzating. Kirim, chiqim, ko\'chirish va inventarizatsiya to\'liq avtomatlashtirilgan.',
-    features: [
-      'Tovar kirim/chiqim/ko\'chirish',
-      'Bir nechta omborxona boshqaruvi',
-      'FIFO / LIFO hisobi',
-      'Minimal qoldiq ogohlantirish',
-      'Shtrix-kod va QR kod yetkazib berish',
-      'Inventarizatsiya (reviziya)',
-    ],
-    stats: [{ val: '10+', label: 'Omborxona parallel' }, { val: 'FIFO', label: 'Hisob metodi' }, { val: 'Real-vaqt', label: 'Qoldiq kuzatuvi' }]
-  },
-  {
-    id: 'crm',
-    icon: '👥',
-    color: '#8b5cf6',
-    bg: 'rgba(139,92,246,0.08)',
-    title: 'CRM — Mijozlar',
-    subtitle: 'Mijozlar munosabatlari boshqaruvi',
-    desc: 'Har bir mijozning sotib olish tarixi, qarzi, shartnomalari va muloqotlarini bir joyda saqlang.',
-    features: [
-      'Mijoz profili va kontakt ma\'lumotlari',
-      'Qarzdorlik va nasiya hisobi',
-      'Sotuv tarixi va statistika',
-      'B2B: Shartnomaviy sotuv',
-      'Telegram xabarnoma yuborish',
-      'Mijoz segmentatsiyasi',
-    ],
-    stats: [{ val: '100K+', label: 'Mijoz bazasi' }, { val: 'B2B+B2C', label: 'Sotuv modeli' }, { val: 'Telegram', label: 'Xabarnoma kanal' }]
-  },
-  {
-    id: 'moliya',
-    icon: '💰',
-    color: '#f59e0b',
-    bg: 'rgba(245,158,11,0.08)',
-    title: 'Moliya va Kassa',
-    subtitle: 'To\'liq moliyaviy nazorat',
-    desc: 'Har kungi kassa harakati, xarajatlar, daromadlar va foyda/zarar hisobotini real-vaqtda kuzating.',
-    features: [
-      'Kassa kirim/chiqim operatsiyalari',
-      'Xarajatlar kategoriyasi',
-      'Foyda/zarar P&L hisoboti',
-      'Valyuta konvertatsiyasi',
-      'Bank hisobvaraqlari integratsiyasi',
-      'Soliq hisobot eksport',
-    ],
-    stats: [{ val: 'P&L', label: 'Foyda/zarar' }, { val: '3+', label: 'Valyuta qo\'llab quvvatlash' }, { val: 'Excel', label: 'Eksport format' }]
-  },
-  {
-    id: 'hisobot',
-    icon: '📊',
-    color: '#ef4444',
-    bg: 'rgba(239,68,68,0.08)',
-    title: 'Analitika va Hisobotlar',
-    subtitle: 'Business Intelligence Dashboard',
-    desc: 'Savdoni, omborni, moliyani va xodimlarni tahlil qiling. Vizual grafiklar va chuqur insight\'lar.',
-    features: [
-      'Sotuv dinamikasi grafigi',
-      'ABC tovar tahlili',
-      'Xodim unumdorligi hisoboti',
-      'Mijoz faoliyati tahlili',
-      'Daromad prognozi',
-      'PDF / Excel eksport',
-    ],
-    stats: [{ val: '20+', label: 'Hisobot turi' }, { val: 'ABC', label: 'Tovar tahlil metodi' }, { val: 'PDF/Excel', label: 'Eksport format' }]
-  },
-  {
-    id: 'users',
-    icon: '🔐',
-    color: '#0891b2',
-    bg: 'rgba(8,145,178,0.08)',
-    title: 'Foydalanuvchi & Huquqlar',
-    subtitle: 'Rol asosida kirish nazorati',
-    desc: 'Kassir, menejer, ombordor, direktor — har bir xodimga alohida huquqlar bering. Audit log to\'liq.',
-    features: [
-      'Rol asosida huquq tizimi (RBAC)',
-      'Har bir operatsiya audit logi',
-      'Telegram orqali OTP kirish',
-      'Ko\'p filial boshqaruvi',
-      'Super admin panel',
-      'Smena va navbat boshqaruvi',
-    ],
-    stats: [{ val: '10+', label: 'Rol turi' }, { val: '100%', label: 'Audit log' }, { val: 'OTP', label: 'Ikki faktorli kirish' }]
-  },
-]
+// Modules moved into the component
 
 const tariffs = [
   {
@@ -159,9 +50,123 @@ const tariffs = [
   },
 ]
 
+import { useLang } from '../i18n'
+
 export default function ERPTizim() {
   const navigate = useNavigate()
+  const { t } = useLang()
   const [activeModule, setActiveModule] = useState(0)
+
+  const modules = [
+    {
+      id: 'pos',
+      icon: '🖥️',
+      color: '#2563eb',
+      bg: 'rgba(37,99,235,0.08)',
+      title: t('erp.m1.t') || 'POS Kassa',
+      subtitle: t('erp.m1.s') || 'Tezkor sotuv terminali',
+      desc: t('erp.m1.d') || 'Bir nechta kassa punktlarini yagona tizimga ulang. Shtrix-kod, skanerlash, naqd va bank kartasi to\'lovlari.',
+      features: [
+        t('erp.m1.f1') || 'Tezkor mahsulot qidirish va skanerlash',
+        t('erp.m1.f2') || 'Naqd, karta, nasiya to\'lov usullari',
+        t('erp.m1.f3') || 'Bir vaqtda bir nechta kassa',
+        t('erp.m1.f4') || 'Smena ochish/yopish hisobotlari',
+        t('erp.m1.f5') || 'Chek chiqarish (termal printer)',
+        t('erp.m1.f6') || 'Qaytarish (return) boshqaruvi',
+      ],
+      stats: [{ val: '< 2 son', label: 'Sotuv qayta ishlash' }, { val: '∞', label: 'Mahsulot soni' }, { val: '99.9%', label: t('erp.hero.stat3.lbl') || 'Uptime kafolat' }]
+    },
+    {
+      id: 'ombor',
+      icon: '🏭',
+      color: '#10b981',
+      bg: 'rgba(16,185,129,0.08)',
+      title: t('erp.m2.t') || 'Ombor Boshqaruvi',
+      subtitle: t('erp.m2.s') || 'WMS — Warehouse Management System',
+      desc: t('erp.m2.d') || 'Real-vaqtda tovar harakatini kuzating. Kirim, chiqim, ko\'chirish va inventarizatsiya to\'liq avtomatlashtirilgan.',
+      features: [
+        t('erp.m2.f1') || 'Tovar kirim/chiqim/ko\'chirish',
+        t('erp.m2.f2') || 'Bir nechta omborxona boshqaruvi',
+        t('erp.m2.f3') || 'FIFO / LIFO hisobi',
+        t('erp.m2.f4') || 'Minimal qoldiq ogohlantirish',
+        t('erp.m2.f5') || 'Shtrix-kod va QR kod yetkazib berish',
+        t('erp.m2.f6') || 'Inventarizatsiya (reviziya)',
+      ],
+      stats: [{ val: '10+', label: 'Omborxona parallel' }, { val: 'FIFO', label: 'Hisob metodi' }, { val: 'Real-vaqt', label: 'Qoldiq kuzatuvi' }]
+    },
+    {
+      id: 'crm',
+      icon: '👥',
+      color: '#8b5cf6',
+      bg: 'rgba(139,92,246,0.08)',
+      title: t('erp.m3.t') || 'CRM — Mijozlar',
+      subtitle: t('erp.m3.s') || 'Mijozlar munosabatlari boshqaruvi',
+      desc: t('erp.m3.d') || 'Har bir mijozning sotib olish tarixi, qarzi, shartnomalari va muloqotlarini bir joyda saqlang.',
+      features: [
+        t('erp.m3.f1') || 'Mijoz profili va kontakt ma\'lumotlari',
+        t('erp.m3.f2') || 'Qarzdorlik va nasiya hisobi',
+        t('erp.m3.f3') || 'Sotuv tarixi va statistika',
+        t('erp.m3.f4') || 'B2B: Shartnomaviy sotuv',
+        t('erp.m3.f5') || 'Telegram xabarnoma yuborish',
+        t('erp.m3.f6') || 'Mijoz segmentatsiyasi',
+      ],
+      stats: [{ val: '100K+', label: 'Mijoz bazasi' }, { val: 'B2B+B2C', label: 'Sotuv modeli' }, { val: 'Telegram', label: 'Xabarnoma kanal' }]
+    },
+    {
+      id: 'moliya',
+      icon: '💰',
+      color: '#f59e0b',
+      bg: 'rgba(245,158,11,0.08)',
+      title: t('erp.m4.t') || 'Moliya va Kassa',
+      subtitle: t('erp.m4.s') || 'To\'liq moliyaviy nazorat',
+      desc: t('erp.m4.d') || 'Har kungi kassa harakati, xarajatlar, daromadlar va foyda/zarar hisobotini real-vaqtda kuzating.',
+      features: [
+        t('erp.m4.f1') || 'Kassa kirim/chiqim operatsiyalari',
+        t('erp.m4.f2') || 'Xarajatlar kategoriyasi',
+        t('erp.m4.f3') || 'Foyda/zarar P&L hisoboti',
+        t('erp.m4.f4') || 'Valyuta konvertatsiyasi',
+        t('erp.m4.f5') || 'Bank hisobvaraqlari integratsiyasi',
+        t('erp.m4.f6') || 'Soliq hisobot eksport',
+      ],
+      stats: [{ val: 'P&L', label: 'Foyda/zarar' }, { val: '3+', label: 'Valyuta qo\'llab quvvatlash' }, { val: 'Excel', label: 'Eksport format' }]
+    },
+    {
+      id: 'hisobot',
+      icon: '📊',
+      color: '#ef4444',
+      bg: 'rgba(239,68,68,0.08)',
+      title: t('erp.m5.t') || 'Analitika va Hisobotlar',
+      subtitle: t('erp.m5.s') || 'Business Intelligence Dashboard',
+      desc: t('erp.m5.d') || 'Savdoni, omborni, moliyani va xodimlarni tahlil qiling. Vizual grafiklar va chuqur insight\'lar.',
+      features: [
+        t('erp.m5.f1') || 'Sotuv dinamikasi grafigi',
+        t('erp.m5.f2') || 'ABC tovar tahlili',
+        t('erp.m5.f3') || 'Xodim unumdorligi hisoboti',
+        t('erp.m5.f4') || 'Mijoz faoliyati tahlili',
+        t('erp.m5.f5') || 'Daromad prognozi',
+        t('erp.m5.f6') || 'PDF / Excel eksport',
+      ],
+      stats: [{ val: '20+', label: 'Hisobot turi' }, { val: 'ABC', label: 'Tovar tahlil metodi' }, { val: 'PDF/Excel', label: 'Eksport format' }]
+    },
+    {
+      id: 'users',
+      icon: '🔐',
+      color: '#0891b2',
+      bg: 'rgba(8,145,178,0.08)',
+      title: t('erp.m6.t') || 'Foydalanuvchi & Huquqlar',
+      subtitle: t('erp.m6.s') || 'Rol asosida kirish nazorati',
+      desc: t('erp.m6.d') || 'Kassir, menejer, ombordor, direktor — har bir xodimga alohida huquqlar bering. Audit log to\'liq.',
+      features: [
+        t('erp.m6.f1') || 'Rol asosida huquq tizimi (RBAC)',
+        t('erp.m6.f2') || 'Har bir operatsiya audit logi',
+        t('erp.m6.f3') || 'Telegram orqali OTP kirish',
+        t('erp.m6.f4') || 'Ko\'p filial boshqaruvi',
+        t('erp.m6.f5') || 'Super admin panel',
+        t('erp.m6.f6') || 'Smena va navbat boshqaruvi',
+      ],
+      stats: [{ val: '10+', label: 'Rol turi' }, { val: '100%', label: 'Audit log' }, { val: 'OTP', label: 'Ikki faktorli kirish' }]
+    },
+  ]
 
   return (
     <LandingLayout>
@@ -170,36 +175,33 @@ export default function ERPTizim() {
         <div className="sp-hero-bg-dots" />
         <div className="ent-container sp-hero-inner">
           <div className="sp-breadcrumb">
-            <span onClick={() => navigate('/')} style={{ cursor: 'pointer', opacity: 0.6 }}>Bosh sahifa</span>
+            <span onClick={() => navigate('/')} style={{ cursor: 'pointer', opacity: 0.6 }}>{t('erp.bc.home') || 'Bosh sahifa'}</span>
             <span className="sp-bc-sep">›</span>
-            <span>ERP Tizim</span>
+            <span>{t('erp.bc.current') || 'ERP Tizim'}</span>
           </div>
-          <div className="sp-tag" style={{ background: 'rgba(37,99,235,0.3)', color: '#93c5fd', borderColor: 'rgba(37,99,235,0.4)' }}>
-            🏆 &nbsp;Enterprise ERP — POS
-          </div>
+          <div className="sp-tag" style={{ background: 'rgba(37,99,235,0.3)', color: '#93c5fd', borderColor: 'rgba(37,99,235,0.4)' }} dangerouslySetInnerHTML={{ __html: t('erp.tag') || '🏆 &nbsp;Enterprise ERP — POS' }} />
           <h1 className="sp-hero-title">
-            Biznesingizni to'liq<br />
-            <span className="sp-gradient-text">raqamlashtiring</span>
+            {t('erp.hero.title1') || 'Biznesingizni to\'liq'}<br />
+            <span className="sp-gradient-text">{t('erp.hero.title2') || 'raqamlashtiring'}</span>
           </h1>
           <p className="sp-hero-desc">
-            Savdo, ombor, moliya, mijozlar va xodimlarni — barchasini yagona tizimda boshqaring. 
-            Real-vaqtda analitika va professional hisobotlar.
+            {t('erp.hero.desc') || 'Savdo, ombor, moliya, mijozlar va xodimlarni — barchasini yagona tizimda boshqaring...'}
           </p>
           <div className="sp-hero-stats">
-            <div className="sp-stat"><span className="sp-stat-val">500+</span><span className="sp-stat-lbl">Faol foydalanuvchi</span></div>
+            <div className="sp-stat"><span className="sp-stat-val">{t('erp.hero.stat1.val') || '500+'}</span><span className="sp-stat-lbl">{t('erp.hero.stat1.lbl') || 'Faol foydalanuvchi'}</span></div>
             <div className="sp-stat-div" />
-            <div className="sp-stat"><span className="sp-stat-val">6</span><span className="sp-stat-lbl">Asosiy modul</span></div>
+            <div className="sp-stat"><span className="sp-stat-val">{t('erp.hero.stat2.val') || '6'}</span><span className="sp-stat-lbl">{t('erp.hero.stat2.lbl') || 'Asosiy modul'}</span></div>
             <div className="sp-stat-div" />
-            <div className="sp-stat"><span className="sp-stat-val">99.9%</span><span className="sp-stat-lbl">Uptime kafolat</span></div>
+            <div className="sp-stat"><span className="sp-stat-val">{t('erp.hero.stat3.val') || '99.9%'}</span><span className="sp-stat-lbl">{t('erp.hero.stat3.lbl') || 'Uptime kafolat'}</span></div>
             <div className="sp-stat-div" />
-            <div className="sp-stat"><span className="sp-stat-val">3 yil</span><span className="sp-stat-lbl">Bozorda tajriba</span></div>
+            <div className="sp-stat"><span className="sp-stat-val">{t('erp.hero.stat4.val') || '3 yil'}</span><span className="sp-stat-lbl">{t('erp.hero.stat4.lbl') || 'Bozorda tajriba'}</span></div>
           </div>
           <div className="sp-hero-ctas">
             <button className="sp-btn-primary" onClick={() => window.location.href = 'https://savdo.e-code.uz/register'}>
-              Bepul sinab ko'ring <ArrowRight />
+              {t('erp.hero.btn1') || 'Bepul sinab ko\'ring'} <ArrowRight />
             </button>
             <button className="sp-btn-ghost" onClick={() => { const el = document.getElementById('sp-contact'); if(el) el.scrollIntoView({behavior:'smooth'}); }}>
-              Demo so'rash
+              {t('erp.hero.btn2') || 'Demo so\'rash'}
             </button>
           </div>
         </div>
@@ -209,9 +211,9 @@ export default function ERPTizim() {
       <section className="sp-section" id="modullar">
         <div className="ent-container">
           <div className="sp-section-head">
-            <div className="sp-section-tag">Modullar</div>
-            <h2 className="sp-section-title">6 ta kuchli modul — bitta tizim</h2>
-            <p className="sp-section-desc">Har bir biznes jarayoni uchun maxsus ishlab chiqilgan, bir-biri bilan to'liq integratsiya qilingan modullar</p>
+            <div className="sp-section-tag">{t('erp.mod.tag') || 'Modullar'}</div>
+            <h2 className="sp-section-title">{t('erp.mod.title') || '6 ta kuchli modul — bitta tizim'}</h2>
+            <p className="sp-section-desc">{t('erp.mod.desc') || 'Har bir biznes jarayoni uchun maxsus ishlab chiqilgan, bir-biri bilan to\'liq integratsiya qilingan modullar'}</p>
           </div>
 
           <div className="sp-modules-wrap">
@@ -271,54 +273,52 @@ export default function ERPTizim() {
                 style={{ background: `linear-gradient(135deg, ${modules[activeModule].color}, ${modules[activeModule].color}cc)` }}
                 onClick={() => window.location.href = 'https://savdo.e-code.uz/register'}
               >
-                Bu modul bilan boshlash <ArrowRight />
+                {t('erp.mod.btn') || 'Bu modul bilan boshlash'} <ArrowRight />
               </button>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── Why ERP ── */}
+      {/* ── Nima uchun E-code ERP? ── */}
       <section className="sp-section sp-section-alt">
         <div className="ent-container">
           <div className="sp-section-head">
-            <div className="sp-section-tag">Nima uchun E-code ERP?</div>
-            <h2 className="sp-section-title">Raqobatchilardan farqi</h2>
+            <div className="sp-section-tag">{t('erp.why.tag') || 'Nima uchun E-code ERP?'}</div>
+            <h2 className="sp-section-title">{t('erp.why.title') || 'Raqobatchilardan farqi'}</h2>
           </div>
           <div className="sp-compare-grid">
             <div className="sp-compare-col sp-compare-bad">
               <div className="sp-compare-header">
-                <span className="sp-compare-icon sp-bad">✗</span>
-                <h3>Oddiy yondashuv</h3>
+                <span className="sp-compare-icon sp-bad">✕</span>
+                <h3>{t('erp.why.bad.title') || 'Oddiy yondashuv'}</h3>
               </div>
               {[
-                'Excel jadvallar — xato va sekin',
-                'Ma\'lumotlar tarqoq — bir joyda emas',
-                'Hisobotlar qo\'lda — vaqt yo\'qotish',
-                'Ombor nazorati yo\'q',
-                'Mijoz tarixi saqlanmaydi',
-                'Real-vaqt ma\'lumot yo\'q',
-              ].map((t, i) => (
+                {k: '1', default: 'Excel jadvallar — xato va sekin'},
+                {k: '2', default: 'Ma\'lumotlar tarqoq'},
+                {k: '3', default: 'Hisobotlar qo\'lda'},
+                {k: '4', default: 'Ombor nazorati yo\'q'},
+                {k: '5', default: 'Mijoz tarixi saqlanmaydi'}
+              ].map((item, i) => (
                 <div key={i} className="sp-compare-item sp-compare-item-bad">
-                  <span>✗</span> {t}
+                  <span>✕</span> {t(`erp.why.bad.${item.k}`) || item.default}
                 </div>
               ))}
             </div>
             <div className="sp-compare-col sp-compare-good">
               <div className="sp-compare-header">
                 <span className="sp-compare-icon sp-good">✓</span>
-                <h3>E-code ERP bilan</h3>
+                <h3>{t('erp.why.good.title') || 'E-code ERP bilan'}</h3>
               </div>
               {[
-                'Avtomatlashtirilgan raqamli hisob',
-                'Barcha ma\'lumotlar yagona bazada',
-                'Bir klik — to\'liq hisobot',
-                '100% real-vaqt ombor nazorati',
-                'Har bir mijozning to\'liq tarixi',
-                'Dashboard — har qanday qurilmadan',
-              ].map((t, i) => (
+                {k: '1', default: 'Avtomatlashtirilgan raqamli hisob'},
+                {k: '2', default: 'Barcha ma\'lumotlar yagona bazada'},
+                {k: '3', default: 'Bir klik — to\'liq hisobot'},
+                {k: '4', default: '100% real-vaqt ombor nazorati'},
+                {k: '5', default: 'Mijozning to\'liq tarixi'}
+              ].map((item, i) => (
                 <div key={i} className="sp-compare-item sp-compare-item-good">
-                  <CheckIcon /> {t}
+                  <CheckIcon /> {t(`erp.why.good.${item.k}`) || item.default}
                 </div>
               ))}
             </div>
@@ -330,26 +330,26 @@ export default function ERPTizim() {
       <section className="sp-section" id="tariff">
         <div className="ent-container">
           <div className="sp-section-head">
-            <div className="sp-section-tag">Rejalar</div>
-            <h2 className="sp-section-title">Biznesingiz uchun mos reja</h2>
-            <p className="sp-section-desc">Narx biznesingiz hajmi va ehtiyojlariga qarab belgilanadi. Bepul konsultatsiya oling.</p>
+            <div className="sp-section-tag">{t('erp.plan.tag') || 'Rejalar'}</div>
+            <h2 className="sp-section-title">{t('erp.plan.title') || 'Biznesingiz uchun mos reja'}</h2>
+            <p className="sp-section-desc">{t('erp.plan.desc') || 'Narx biznesingiz hajmi va ehtiyojlariga qarab belgilanadi. Bepul konsultatsiya oling.'}</p>
           </div>
 
           <div className="sp-price-notice">
             <span className="sp-price-notice-icon">💬</span>
             <div>
-              <strong>Narxni bilish uchun murojaat qiling</strong>
-              <p>Biznes hajmingiz, modul tanlovi va foydalanuvchilar soniga qarab individual narx taklif qilamiz. Bepul demo seans o'tkazamiz.</p>
+              <strong>{t('erp.plan.notice.title') || 'Narxni bilish uchun murojaat qiling'}</strong>
+              <p>{t('erp.plan.notice.desc') || 'Biznes hajmingiz, modul tanlovi va foydalanuvchilar soniga qarab individual narx taklif qilamiz. Bepul demo seans o\'tkazamiz.'}</p>
             </div>
             <a href="https://t.me/ecode_uz" target="_blank" rel="noreferrer" className="sp-price-contact-btn">
-              💬 Narxni so'rash
+              💬 {t('erp.plan.notice.btn') || 'Narxni so\'rash'}
             </a>
           </div>
 
           <div className="sp-tariff-grid">
             {tariffs.map((tariff) => (
               <div key={tariff.name} className={`sp-tariff-card ${tariff.popular ? 'sp-tariff-popular' : ''}`}>
-                {tariff.popular && <div className="sp-tariff-badge">⭐ Eng mashhur</div>}
+                {tariff.popular && <div className="sp-tariff-badge">⭐ {t('erp.plan.popular') || 'Eng mashhur'}</div>}
                 <div className="sp-tariff-badge-top">{tariff.badge}</div>
                 <div className="sp-tariff-name" style={{ color: tariff.color }}>{tariff.name}</div>
                 <div className="sp-tariff-desc">{tariff.desc}</div>
@@ -370,7 +370,7 @@ export default function ERPTizim() {
                   style={tariff.popular ? { background: `linear-gradient(135deg, ${tariff.color}, ${tariff.color}cc)`, color: 'white' } : { borderColor: tariff.color, color: tariff.color }}
                   onClick={() => { const el = document.getElementById('sp-contact'); if(el) el.scrollIntoView({behavior:'smooth'}); }}
                 >
-                  Narxni so'rash →
+                  {t('erp.hero.btn2') || "Narxni so'rash"}
                 </button>
               </div>
             ))}
@@ -382,14 +382,14 @@ export default function ERPTizim() {
       <section className="sp-cta-section" id="sp-contact">
         <div className="ent-container">
           <div className="sp-cta-box">
-            <h2>Tizimni bepul 14 kun sinab ko'ring</h2>
-            <p>Kartangizni bog'lashingiz shart emas. Biznes ma'lumotlaringizni kiriting va darhol boshlang.</p>
+            <h2>{t('erp.cta.title') || 'Tizimni bepul 14 kun sinab ko\'ring'}</h2>
+            <p>{t('erp.cta.desc') || 'Kartangizni bog\'lashingiz shart emas. Biznes ma\'lumotlaringizni kiriting va darhol boshlang.'}</p>
             <div className="sp-cta-btns">
               <button className="sp-btn-white" onClick={() => window.location.href = 'https://savdo.e-code.uz/register'}>
-                Bepul ro'yxatdan o'tish <ArrowRight />
+                {t('erp.cta.btn1') || 'Bepul ro\'yxatdan o\'tish'} <ArrowRight />
               </button>
               <a href="https://t.me/ecode_uz" target="_blank" rel="noreferrer" className="sp-btn-tg">
-                💬 Telegram orqali bog'lanish
+                📞 {t('erp.cta.btn2') || 'Telegram orqali bog\'lanish'}
               </a>
             </div>
           </div>

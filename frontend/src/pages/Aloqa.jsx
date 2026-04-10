@@ -2,6 +2,14 @@ import { useNavigate } from 'react-router-dom'
 import LandingLayout from '../components/LandingLayout'
 import './service-pages.css'
 import './aloqa.css'
+import { useLang } from '../i18n'
+
+
+
+
+export default function Aloqa() {
+  const navigate = useNavigate()
+  const { t } = useLang()
 
 const contacts = [
   {
@@ -13,7 +21,7 @@ const contacts = [
     ),
     name: 'Telegram',
     handle: '@ecode_uz',
-    desc: 'Tezkor murojaat va maslahat uchun',
+    desc: t('aloqa.tezkormu.d') || 'Tezkor murojaat va maslahat uchun',
     url: 'https://t.me/ecode_uz',
     color: '#229ED9',
     bg: 'rgba(34,158,217,0.08)',
@@ -28,7 +36,7 @@ const contacts = [
     ),
     name: 'Instagram',
     handle: '@ecode.uz',
-    desc: 'Loyihalarimiz va yangiliklar',
+    desc: t('aloqa.loyihala.d') || 'Loyihalarimiz va yangiliklar',
     url: 'https://instagram.com/ecode.uz',
     color: '#E1306C',
     bg: 'rgba(225,48,108,0.08)',
@@ -43,7 +51,7 @@ const contacts = [
     ),
     name: 'WhatsApp',
     handle: '+998 88 911 81 71',
-    desc: 'Qo\'ng\'iroq yoki xabar uchun',
+    desc: t('aloqa.qo.d') || 'Qo\'ng\'iroq yoki xabar uchun',
     url: 'https://wa.me/998889118171',
     color: '#25D366',
     bg: 'rgba(37,211,102,0.08)',
@@ -59,7 +67,7 @@ const contacts = [
     ),
     name: 'Email',
     handle: 'ecode.uz@gmail.com',
-    desc: 'Rasmiy murojaat va hamkorlik uchun',
+    desc: t('aloqa.rasmiymu.d') || 'Rasmiy murojaat va hamkorlik uchun',
     url: 'mailto:ecode.uz@gmail.com',
     color: '#EA4335',
     bg: 'rgba(234,67,53,0.08)',
@@ -74,7 +82,7 @@ const contacts = [
     ),
     name: 'Telefon',
     handle: '+998 88 911 81 71',
-    desc: 'Ish kunlari 09:00 – 18:00',
+    desc: t('aloqa.ishkunla.d') || 'Ish kunlari 09:00 – 18:00',
     url: 'tel:+998889118171',
     color: '#2563eb',
     bg: 'rgba(37,99,235,0.08)',
@@ -89,7 +97,7 @@ const contacts = [
     ),
     name: 'YouTube',
     handle: 'E-code LLC',
-    desc: 'Darsliklar va tizim ko\'rsatmalari',
+    desc: t('aloqa.darslikl.d') || 'Darsliklar va tizim ko\'rsatmalari',
     url: 'https://youtube.com/@ecode_uz',
     color: '#FF0000',
     bg: 'rgba(255,0,0,0.08)',
@@ -122,9 +130,6 @@ const faq = [
   },
 ]
 
-export default function Aloqa() {
-  const navigate = useNavigate()
-
   return (
     <LandingLayout>
       {/* Hero */}
@@ -132,20 +137,17 @@ export default function Aloqa() {
         <div className="aloqa-hero-bg" />
         <div className="ent-container aloqa-hero-inner">
           <div className="sp-breadcrumb">
-            <span onClick={() => navigate('/')} style={{ cursor: 'pointer', opacity: 0.6 }}>Bosh sahifa</span>
+            <span onClick={() => navigate('/')} style={{ cursor: 'pointer', opacity: 0.6 }}>{t('aloqa.bc.home') || 'Bosh sahifa'}</span>
             <span className="sp-bc-sep">›</span>
-            <span>Aloqa</span>
+            <span>{t('aloqa.bc.current') || 'Aloqa'}</span>
           </div>
-          <div className="sp-tag" style={{ background: 'rgba(37,99,235,0.25)', color: '#93c5fd', borderColor: 'rgba(37,99,235,0.4)' }}>
-            📬 &nbsp;Biz bilan bog'laning
-          </div>
+          <div className="sp-tag" style={{ background: 'rgba(37,99,235,0.25)', color: '#93c5fd', borderColor: 'rgba(37,99,235,0.4)' }} dangerouslySetInnerHTML={{ __html: t('aloqa.tag') || '📬 &nbsp;Biz bilan bog\'laning' }} />
           <h1 className="sp-hero-title">
-            Savollaringiz bormi?<br />
-            <span className="sp-gradient-text">Bog'laning!</span>
+            {t('aloqa.hero.title1') || 'Savollaringiz bormi?'}<br />
+            <span className="sp-gradient-text">{t('aloqa.hero.title2') || 'Bog\'laning!'}</span>
           </h1>
           <p className="sp-hero-desc">
-            Istalgan murojaat uchun qulay kanal orqali yozing yoki qo'ng'iroq qiling. 
-            Biz sizga 30 daqiqa ichida javob beramiz.
+            {t('aloqa.hero.desc') || 'Istalgan murojaat uchun qulay kanal orqali yozing yoki qo\'ng\'iroq qiling. Biz sizga 30 daqiqa ichida javob beramiz.'}
           </p>
         </div>
       </section>
@@ -154,9 +156,9 @@ export default function Aloqa() {
       <section className="sp-section">
         <div className="ent-container">
           <div className="sp-section-head">
-            <div className="sp-section-tag">Murojaat kanallari</div>
-            <h2 className="sp-section-title">Qaysi orqali bog'lanasiz?</h2>
-            <p className="sp-section-desc">Hammasi ishlaydi — qulay bo'lgani bo'yicha tanlang</p>
+            <div className="sp-section-tag">{t('aloqa.ch.tag') || 'Murojaat kanallari'}</div>
+            <h2 className="sp-section-title">{t('aloqa.ch.title') || 'Qaysi orqali bog\'lanasiz?'}</h2>
+            <p className="sp-section-desc">{t('aloqa.ch.desc') || 'Hammasi ishlaydi — qulay bo\'lgani bo\'yicha tanlang'}</p>
           </div>
           <div className="aloqa-grid">
             {contacts.map((c) => (
@@ -195,8 +197,8 @@ export default function Aloqa() {
           {/* Ish vaqti */}
           <div className="aloqa-hours-card">
             <div className="aloqa-info-icon">🕐</div>
-            <h2 className="aloqa-info-title">Ish vaqti</h2>
-            <p className="aloqa-info-sub">Telegram va WhatsApp orqali tezroq javob beramiz</p>
+            <h2 className="aloqa-info-title">{t('aloqa.hours.title') || 'Ish vaqti'}</h2>
+            <p className="aloqa-info-sub">{t('aloqa.hours.sub') || 'Telegram va WhatsApp orqali tezroq javob beramiz'}</p>
             <div className="aloqa-hours-list">
               {workingHours.map((w, i) => (
                 <div key={i} className={`aloqa-hour-row ${!w.active ? 'aloqa-hour-off' : ''}`}>
@@ -216,8 +218,8 @@ export default function Aloqa() {
           {/* Joylashuv */}
           <div className="aloqa-location-card">
             <div className="aloqa-info-icon">📍</div>
-            <h2 className="aloqa-info-title">Manzil</h2>
-            <p className="aloqa-info-sub">Oldindan murojaat qilib keling</p>
+            <h2 className="aloqa-info-title">{t('aloqa.loc.title') || 'Manzil'}</h2>
+            <p className="aloqa-info-sub">{t('aloqa.loc.sub') || 'Oldindan murojaat qilib keling'}</p>
             <div className="aloqa-map-placeholder">
               <div className="aloqa-map-pin">📍</div>
               <div className="aloqa-map-text">
@@ -239,8 +241,8 @@ export default function Aloqa() {
       <section className="sp-section">
         <div className="ent-container">
           <div className="sp-section-head">
-            <div className="sp-section-tag">Ko'p so'raladigan savollar</div>
-            <h2 className="sp-section-title">Tez-tez beriladigan savollar</h2>
+            <div className="sp-section-tag">{t('aloqa.faq.tag') || 'Ko\'p so\'raladigan savollar'}</div>
+            <h2 className="sp-section-title">{t('aloqa.faq.title') || 'Tez-tez beriladigan savollar'}</h2>
           </div>
           <div className="aloqa-faq-grid">
             {faq.map((item, i) => (
@@ -260,14 +262,14 @@ export default function Aloqa() {
       <section className="sp-cta-section">
         <div className="ent-container">
           <div className="sp-cta-box">
-            <h2>Hali ham savolingiz bormi?</h2>
-            <p>Telegram orqali yozing — 30 daqiqa ichida javob beramiz.</p>
+            <h2>{t('aloqa.cta.title') || 'Hali ham savolingiz bormi?'}</h2>
+            <p>{t('aloqa.cta.desc') || 'Telegram orqali yozing — 30 daqiqa ichida javob beramiz.'}</p>
             <div className="sp-cta-btns">
               <a href="https://t.me/ecode_uz" target="_blank" rel="noreferrer" className="sp-btn-white">
                 <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: 20, height: 20 }}>
                   <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.247-2.01 9.471c-.148.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L6.24 14.26l-2.95-.924c-.642-.2-.654-.643.136-.953l11.526-4.445c.537-.194 1.006.131.61.31z"/>
                 </svg>
-                Telegram yozish
+                {t('aloqa.cta.btn1') || 'Telegram yozish'}
               </a>
               <a href="tel:+998889118171" className="sp-btn-tg">
                 📞 +998 88 911 81 71

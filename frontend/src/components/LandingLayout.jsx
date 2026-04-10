@@ -30,11 +30,11 @@ export default function LandingLayout({ children }) {
   }, [])
 
   const navLinks = [
-    { label: 'ERP Tizim', path: '/erp-tizim' },
-    { label: 'Veb-saytlar', path: '/veb-saytlar' },
-    { label: 'Telegram Botlar', path: '/telegram-botlar' },
-    { label: 'Noyob Dasturlar', path: '/noyob-dasturlar' },
-    { label: 'Aloqa', path: '/aloqa' },
+    { label: t('land.nav.erp') || 'ERP Tizim', path: '/erp-tizim' },
+    { label: t('land.nav.websites') || 'Veb-saytlar', path: '/veb-saytlar' },
+    { label: t('land.nav.bots') || 'Telegram Botlar', path: '/telegram-botlar' },
+    { label: t('land.nav.custom') || 'Noyob Dasturlar', path: '/noyob-dasturlar' },
+    { label: t('land.nav.contact') || 'Aloqa', path: '/aloqa' },
   ]
 
   return (
@@ -70,10 +70,10 @@ export default function LandingLayout({ children }) {
               )}
             </div>
             <button className="ent-btn-ghost" onClick={() => window.location.href = loginUrl}>
-              Kirish
+              {t('land.nav.login') || 'Kirish'}
             </button>
             <button className="ent-btn-primary" onClick={() => window.location.href = registerUrl}>
-              Boshlash
+              {t('land.nav.register') || 'Boshlash'}
             </button>
             <button className="ent-hamburger" onClick={() => setMobileMenu(!mobileMenu)}>☰</button>
           </div>
@@ -86,8 +86,8 @@ export default function LandingLayout({ children }) {
                 {link.label}
               </a>
             ))}
-            <button onClick={() => window.location.href = loginUrl}>Kirish</button>
-            <button className="ent-btn-primary" onClick={() => window.location.href = registerUrl}>Boshlash</button>
+            <button onClick={() => window.location.href = loginUrl}>{t('land.nav.login') || 'Kirish'}</button>
+            <button className="ent-btn-primary" onClick={() => window.location.href = registerUrl}>{t('land.nav.register') || 'Boshlash'}</button>
           </div>
         )}
       </nav>
@@ -102,24 +102,24 @@ export default function LandingLayout({ children }) {
             <span onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
               <ECodeLogo size={24} />
             </span>
-            <p className="copy">© {new Date().getFullYear()} E-code LLC. Barcha huquqlar himoyalangan.</p>
+            <p className="copy">© {new Date().getFullYear()} E-code LLC. {t('land.footer.rights') || 'Barcha huquqlar himoyalangan.'}</p>
           </div>
           <div className="ent-footer-links">
             <div>
-              <strong>Xizmatlar</strong>
+              <strong>{t('land.footer.services') || 'Xizmatlar'}</strong>
               {navLinks.map(link => (
                 <span key={link.path} onClick={() => navigate(link.path)} className="clickable">{link.label}</span>
               ))}
             </div>
             <div>
-              <strong>Aloqa</strong>
+              <strong>{t('land.footer.contact') || 'Aloqa'}</strong>
               <span>ecode.uz@gmail.com</span>
               <span>+998 88 911 81 71</span>
             </div>
             <div>
-              <strong>Tizim</strong>
-              <span onClick={() => window.location.href = loginUrl} className="clickable">Kirish</span>
-              <span onClick={() => window.location.href = registerUrl} className="clickable">Boshlash</span>
+              <strong>{t('land.footer.system') || 'Tizim'}</strong>
+              <span onClick={() => window.location.href = loginUrl} className="clickable">{t('land.nav.login') || 'Kirish'}</span>
+              <span onClick={() => window.location.href = registerUrl} className="clickable">{t('land.nav.register') || 'Boshlash'}</span>
             </div>
           </div>
         </div>

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import LandingLayout from '../components/LandingLayout'
 import './service-pages.css'
+import { useLang } from '../i18n'
 
 const CheckIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="sp-check-svg">
@@ -14,81 +15,40 @@ const ArrowRight = () => (
   </svg>
 )
 
-const botTypes = [
-  {
-    icon: '🛒',
-    color: '#10b981',
-    bg: 'rgba(16,185,129,0.08)',
-    title: 'Onlayn Do\'kon Boti',
-    desc: 'Telegram orqali tovarlarni ko\'rsatish, buyurtma qabul qilish va to\'lovni avtomatlashtirish.',
-    examples: ['Mahsulotlar katalogi', 'Buyurtma qabul qilish', 'Payme/Click to\'lov', 'Buyurtma holati kuzatuvi', 'Yetkazib berish manzili'],
-    popular: false,
-  },
-  {
-    icon: '🤖',
-    color: '#2563eb',
-    bg: 'rgba(37,99,235,0.08)',
-    title: 'Mijozlarga Xizmat Boti',
-    desc: 'Savollarga avtomatik javob, muammolarni hal qilish va operator bilan bog\'lanish.',
-    examples: ['FAQ avtomatik javob', 'Tiket tizimi', 'Operator bilan ulash', 'Qo\'ng\'iroq jadval', 'Ko\'p tilli qo\'llab-quvvatlash'],
-    popular: true,
-  },
-  {
-    icon: '📢',
-    color: '#f59e0b',
-    bg: 'rgba(245,158,11,0.08)',
-    title: 'Marketing & Xabarnoma Boti',
-    desc: 'Yangi mahsulotlar, aktsiyalar va yangiliklar haqida subscriberlarga avtomatik xabar.',
-    examples: ['Bulk xabar yuborish', 'Segmentatsiya', 'Reaksiya va statistika', 'Jadval bo\'yicha xabarlar', 'Fayl va rasm yuborish'],
-    popular: false,
-  },
-  {
-    icon: '📊',
-    color: '#8b5cf6',
-    bg: 'rgba(139,92,246,0.08)',
-    title: 'CRM & Analitika Boti',
-    desc: 'ERP tizimingiz ma\'lumotlarini Telegram orqali ko\'rish va boshqarish.',
-    examples: ['Kunlik hisobot', 'Sotuvlar statistikasi', 'Yangi buyurtma bildirishnoma', 'Ombor qoldiq alert', 'Xodim faoliyati'],
-    popular: false,
-  },
-  {
-    icon: '🎓',
-    color: '#0891b2',
-    bg: 'rgba(8,145,178,0.08)',
-    title: 'Ta\'lim & Test Botlari',
-    desc: 'O\'quv kurslari, testlar va sertifikatlash uchun interaktiv Telegram boti.',
-    examples: ['Test va viktorina', 'Kurs materiallari', 'Progress kuzatuvi', 'Sertifikat berish', 'To\'lov integratsiyasi'],
-    popular: false,
-  },
-  {
-    icon: '💼',
-    color: '#ef4444',
-    bg: 'rgba(239,68,68,0.08)',
-    title: 'HR & Ichki Korporativ Botlar',
-    desc: 'Xodimlar uchun ichki vositalar: bayram simshollar, ta\'til ariza, ish topshiriq.',
-    examples: ['Ta\'til ariza tizimi', 'Ish topshiriq berish', 'Xodim kuzatuvi', 'Maosh hisoboti', 'Korporativ xabarlar'],
-    popular: false,
-  },
-]
-
-const features = [
-  { icon: '⚡', title: 'Tez ishlab chiqish', desc: '1-2 haftada tayyor bot yetkazib beramiz' },
-  { icon: '🔗', title: 'API Integratsiya', desc: 'Mavjud tizim va bazangiz bilan ulash' },
-  { icon: '📈', title: 'Analitika', desc: 'Bot statistikasi va foydalanuvchi faoliyati' },
-  { icon: '🛡️', title: 'Xavfsizlik', desc: 'Shifrlangan aloqa va ma\'lumot himoyasi' },
-  { icon: '🌍', title: 'Ko\'p tilli', desc: 'Uzbek, Rus, Ingliz tili qo\'llab-quvvatlash' },
-  { icon: '♾️', title: 'Cheksiz foydalanuvchi', desc: 'Biznesiz o\'sib borgan boti bilan' },
-]
-
-const showcase = [
-  { emoji: '🏪', name: 'BozorBot', desc: 'Onlayn savdo boti', users: '2,400+ foydalanuvchi', color: '#10b981' },
-  { emoji: '🎓', name: 'O\'quv Boti', desc: 'Ta\'lim platformasi', users: '1,800+ talaba', color: '#2563eb' },
-  { emoji: '🏥', name: 'Klinika Boti', desc: 'Navbat yozish tizimi', users: '3,100+ bemor', color: '#8b5cf6' },
-]
-
 export default function TelegramBotlar() {
   const navigate = useNavigate()
+  const { t } = useLang()
   const [activeBot, setActiveBot] = useState(0)
+
+  const botTypes = [
+    { icon: '🛒', color: '#10b981', bg: 'rgba(16,185,129,0.08)', title: t('tg.b1.t'), desc: t('tg.b1.d'), examples: [t('tg.b1.f1'), t('tg.b1.f2'), t('tg.b1.f3'), t('tg.b1.f4'), t('tg.b1.f5')], popular: false },
+    { icon: '🤖', color: '#2563eb', bg: 'rgba(37,99,235,0.08)', title: t('tg.b2.t'), desc: t('tg.b2.d'), examples: [t('tg.b2.f1'), t('tg.b2.f2'), t('tg.b2.f3'), t('tg.b2.f4'), t('tg.b2.f5')], popular: true },
+    { icon: '📢', color: '#f59e0b', bg: 'rgba(245,158,11,0.08)', title: t('tg.b3.t'), desc: t('tg.b3.d'), examples: [t('tg.b3.f1'), t('tg.b3.f2'), t('tg.b3.f3'), t('tg.b3.f4'), t('tg.b3.f5')], popular: false },
+    { icon: '📊', color: '#8b5cf6', bg: 'rgba(139,92,246,0.08)', title: t('tg.b4.t'), desc: t('tg.b4.d'), examples: [t('tg.b4.f1'), t('tg.b4.f2'), t('tg.b4.f3'), t('tg.b4.f4'), t('tg.b4.f5')], popular: false },
+    { icon: '🎓', color: '#0891b2', bg: 'rgba(8,145,178,0.08)', title: t('tg.b5.t'), desc: t('tg.b5.d'), examples: [t('tg.b5.f1'), t('tg.b5.f2'), t('tg.b5.f3'), t('tg.b5.f4'), t('tg.b5.f5')], popular: false },
+    { icon: '💼', color: '#ef4444', bg: 'rgba(239,68,68,0.08)', title: t('tg.b6.t'), desc: t('tg.b6.d'), examples: [t('tg.b6.f1'), t('tg.b6.f2'), t('tg.b6.f3'), t('tg.b6.f4'), t('tg.b6.f5')], popular: false },
+  ]
+
+  const features = [
+    { icon: '⚡', title: t('tg.feat.1.t'), desc: t('tg.feat.1.d') },
+    { icon: '🔗', title: t('tg.feat.2.t'), desc: t('tg.feat.2.d') },
+    { icon: '📈', title: t('tg.feat.3.t'), desc: t('tg.feat.3.d') },
+    { icon: '🛡️', title: t('tg.feat.4.t'), desc: t('tg.feat.4.d') },
+    { icon: '🌍', title: t('tg.feat.5.t'), desc: t('tg.feat.5.d') },
+    { icon: '♾️', title: t('tg.feat.6.t'), desc: t('tg.feat.6.d') },
+  ]
+
+  const showcase = [
+    { emoji: '🏪', name: t('tg.port.1.t'), desc: t('tg.port.1.d'), users: t('tg.port.1.u'), color: '#10b981' },
+    { emoji: '🎓', name: t('tg.port.2.t'), desc: t('tg.port.2.d'), users: t('tg.port.2.u'), color: '#2563eb' },
+    { emoji: '🏥', name: t('tg.port.3.t'), desc: t('tg.port.3.d'), users: t('tg.port.3.u'), color: '#8b5cf6' },
+  ]
+
+  const plans = [
+    { name: t('tg.p1.n'), badge: `⚡ ${t('tg.p1.b')}`, label: t('tg.p1.l'), hint: t('tg.p1.h'), popular: false, color: '#10b981', desc: t('tg.p1.d'), features: [t('tg.p1.f1'), t('tg.p1.f2'), t('tg.p1.f3'), t('tg.p1.f4'), t('tg.p1.f5')] },
+    { name: t('tg.p2.n'), badge: `🔥 ${t('tg.p2.b')}`, label: t('tg.p2.l'), hint: t('tg.p2.h'), popular: true, color: '#2563eb', desc: t('tg.p2.d'), features: [t('tg.p2.f1'), t('tg.p2.f2'), t('tg.p2.f3'), t('tg.p2.f4'), t('tg.p2.f5'), t('tg.p2.f6')] },
+    { name: t('tg.p3.n'), badge: `🏢 ${t('tg.p3.b')}`, label: t('tg.p3.l'), hint: t('tg.p3.h'), popular: false, color: '#8b5cf6', desc: t('tg.p3.d'), features: [t('tg.p3.f1'), t('tg.p3.f2'), t('tg.p3.f3'), t('tg.p3.f4'), t('tg.p3.f5'), t('tg.p3.f6')] },
+  ]
 
   return (
     <LandingLayout>
@@ -97,37 +57,32 @@ export default function TelegramBotlar() {
         <div className="sp-hero-bg-dots" />
         <div className="ent-container sp-hero-inner">
           <div className="sp-breadcrumb">
-            <span onClick={() => navigate('/')} style={{ cursor: 'pointer', opacity: 0.6 }}>Bosh sahifa</span>
+            <span onClick={() => navigate('/')} style={{ cursor: 'pointer', opacity: 0.6 }}>{t('tg.bc.home')}</span>
             <span className="sp-bc-sep">›</span>
-            <span>Telegram Botlar</span>
+            <span>{t('tg.bc.current')}</span>
           </div>
-          <div className="sp-tag" style={{ background: 'rgba(16,185,129,0.3)', color: '#6ee7b7', borderColor: 'rgba(16,185,129,0.4)' }}>
-            🤖 &nbsp;Aqlli Telegram Bot Ishlab Chiqish
-          </div>
+          <div className="sp-tag" style={{ background: 'rgba(16,185,129,0.3)', color: '#6ee7b7', borderColor: 'rgba(16,185,129,0.4)' }} dangerouslySetInnerHTML={{ __html: t('tg.tag') }} />
           <h1 className="sp-hero-title">
-            Biznesingizni<br />
-            <span className="sp-gradient-text-green">Telegram orqali</span> avtomatlashtiring
+            {t('tg.hero.title1')}<br />
+            <span className="sp-gradient-text-green">{t('tg.hero.title2')}</span> {t('tg.hero.title3')}
           </h1>
-          <p className="sp-hero-desc">
-            32 milliondan ortiq o'zbekistonliklar har kun Telegram ishlatadilar. 
-            Mijozlaringizni ana shu platform orqali xizmat qiling, soting, xabardor qiling.
-          </p>
+          <p className="sp-hero-desc">{t('tg.hero.desc')}</p>
           <div className="sp-hero-stats">
-            <div className="sp-stat"><span className="sp-stat-val">30+</span><span className="sp-stat-lbl">Yaratilgan botlar</span></div>
+            <div className="sp-stat"><span className="sp-stat-val">{t('tg.hero.stat1.val')}</span><span className="sp-stat-lbl">{t('tg.hero.stat1.lbl')}</span></div>
             <div className="sp-stat-div" />
-            <div className="sp-stat"><span className="sp-stat-val">15K+</span><span className="sp-stat-lbl">Bot foydalanuvchilari</span></div>
+            <div className="sp-stat"><span className="sp-stat-val">{t('tg.hero.stat2.val')}</span><span className="sp-stat-lbl">{t('tg.hero.stat2.lbl')}</span></div>
             <div className="sp-stat-div" />
-            <div className="sp-stat"><span className="sp-stat-val">7 kun</span><span className="sp-stat-lbl">O'rtacha yetkazib berish</span></div>
+            <div className="sp-stat"><span className="sp-stat-val">{t('tg.hero.stat3.val')}</span><span className="sp-stat-lbl">{t('tg.hero.stat3.lbl')}</span></div>
             <div className="sp-stat-div" />
-            <div className="sp-stat"><span className="sp-stat-val">24/7</span><span className="sp-stat-lbl">Bot ishlash vaqti</span></div>
+            <div className="sp-stat"><span className="sp-stat-val">{t('tg.hero.stat4.val')}</span><span className="sp-stat-lbl">{t('tg.hero.stat4.lbl')}</span></div>
           </div>
           <div className="sp-hero-ctas">
             <button className="sp-btn-primary" style={{ background: 'linear-gradient(135deg, #059669, #10b981)' }}
               onClick={() => { const el = document.getElementById('sp-contact'); if(el) el.scrollIntoView({behavior:'smooth'}); }}>
-              Bot buyurtma berish <ArrowRight />
+              {t('tg.hero.btn1')} <ArrowRight />
             </button>
             <a href="https://t.me/ecode_uz" target="_blank" rel="noreferrer" className="sp-btn-ghost">
-              💬 Maslahat olish
+              💬 {t('tg.hero.btn2')}
             </a>
           </div>
         </div>
@@ -137,9 +92,9 @@ export default function TelegramBotlar() {
       <section className="sp-section">
         <div className="ent-container">
           <div className="sp-section-head">
-            <div className="sp-section-tag">Bot turlari</div>
-            <h2 className="sp-section-title">Qanday botlar yaratamiz?</h2>
-            <p className="sp-section-desc">Sizning biznesingizga mos bot turini tanlang</p>
+            <div className="sp-section-tag">{t('tg.bot.tag')}</div>
+            <h2 className="sp-section-title">{t('tg.bot.title')}</h2>
+            <p className="sp-section-desc">{t('tg.bot.desc')}</p>
           </div>
 
           {/* Bot tabs + preview */}
@@ -179,7 +134,7 @@ export default function TelegramBotlar() {
                     <div className="sp-tg-time">10:01</div>
                   </div>
                   <div className="sp-tg-msg sp-tg-msg-in">
-                    <div className="sp-tg-bubble">Albatta! Quyidagi bo'limlardan birini tanlang 👇</div>
+                    <div className="sp-tg-bubble">{t('tg.mock.opt')}</div>
                     <div className="sp-tg-btns">
                       {botTypes[activeBot].examples.slice(0, 3).map((ex, i) => (
                         <div key={i} className="sp-tg-btn" style={{ borderColor: botTypes[activeBot].color, color: botTypes[activeBot].color }}>
@@ -206,7 +161,7 @@ export default function TelegramBotlar() {
                   style={{ background: `linear-gradient(135deg, ${botTypes[activeBot].color}, ${botTypes[activeBot].color}cc)` }}
                   onClick={() => { const el = document.getElementById('sp-contact'); if(el) el.scrollIntoView({behavior:'smooth'}); }}
                 >
-                  Bu bot turini buyurtma berish <ArrowRight />
+                  {t('tg.mock.btn')} <ArrowRight />
                 </button>
               </div>
             </div>
@@ -218,8 +173,8 @@ export default function TelegramBotlar() {
       <section className="sp-section sp-section-alt">
         <div className="ent-container">
           <div className="sp-section-head">
-            <div className="sp-section-tag">Imkoniyatlar</div>
-            <h2 className="sp-section-title">Nima uchun E-code Boti?</h2>
+            <div className="sp-section-tag">{t('tg.feat.tag')}</div>
+            <h2 className="sp-section-title">{t('tg.feat.title')}</h2>
           </div>
           <div className="sp-features-grid">
             {features.map((f, i) => (
@@ -237,8 +192,8 @@ export default function TelegramBotlar() {
       <section className="sp-section">
         <div className="ent-container">
           <div className="sp-section-head">
-            <div className="sp-section-tag">Portfolio</div>
-            <h2 className="sp-section-title">Ishlab chiqilgan botlar</h2>
+            <div className="sp-section-tag">{t('tg.port.tag')}</div>
+            <h2 className="sp-section-title">{t('tg.port.title')}</h2>
           </div>
           <div className="sp-showcase-grid">
             {showcase.map((item, i) => (
@@ -257,77 +212,46 @@ export default function TelegramBotlar() {
       <section className="sp-section sp-section-alt">
         <div className="ent-container">
           <div className="sp-section-head">
-            <div className="sp-section-tag">Rejalar</div>
-            <h2 className="sp-section-title">Bot xizmati rejalari</h2>
-            <p className="sp-section-desc">Narx bot murakkabligiga, integratsiyalarga va qo'llab-quvvatlash muddatiga qarab belgilanadi</p>
+            <div className="sp-section-tag">{t('tg.plan.tag')}</div>
+            <h2 className="sp-section-title">{t('tg.plan.title')}</h2>
+            <p className="sp-section-desc">{t('tg.plan.desc')}</p>
           </div>
 
           <div className="sp-price-notice">
             <span className="sp-price-notice-icon">💬</span>
             <div>
-              <strong>Bepul narx hisob-kitobi</strong>
-              <p>Bot talablaringizni aytib bering — biz loyihangizga mos narxni hisoblab beramiz. Hech qanday yashirin to'lovlar yo'q.</p>
+              <strong>{t('tg.plan.notice.title')}</strong>
+              <p>{t('tg.plan.notice.desc')}</p>
             </div>
             <a href="https://t.me/ecode_uz" target="_blank" rel="noreferrer" className="sp-price-contact-btn">
-              💬 Narxni so'rash
+              💬 {t('tg.plan.notice.btn')}
             </a>
           </div>
 
           <div className="sp-tariff-grid">
-            {[
-              {
-                name: 'Oddiy Bot',
-                badge: '⚡ Tez yetkazib berish',
-                label: 'Murojaat asosida',
-                hint: 'Funksiyalar soniga qarab narx belgilanadi',
-                popular: false,
-                color: '#10b981',
-                desc: 'Asosiy funksiyali bot',
-                features: ['Mahsulotlar katalogi', 'Buyurtma qabul qilish', 'Admin panel', 'Telegram bildirishnoma', '1 oy qo\'llab-quvvatlash'],
-              },
-              {
-                name: 'Pro Bot',
-                badge: '🔥 Eng mashhur',
-                label: 'Kelishilgan narxda',
-                hint: 'To\'lov integratsiyasi va analitika bilan',
-                popular: true,
-                color: '#2563eb',
-                desc: 'To\'liq funksiyali bot tizimi',
-                features: ['Barcha asosiy funksiyalar', 'To\'lov integratsiyasi (Payme/Click)', 'Statistika va analitika', 'Ko\'p tilli qo\'llab-quvvatlash', 'API integratsiya', '3 oy qo\'llab-quvvatlash'],
-              },
-              {
-                name: 'Enterprise',
-                badge: '🏢 Yirik loyiha',
-                label: 'Individual narx',
-                hint: 'Bepul texnik tahlil va narx taklif',
-                popular: false,
-                color: '#8b5cf6',
-                desc: 'Murakkab custom yechimlar',
-                features: ['Custom bot arxitekturasi', 'CRM integratsiya', 'ERP bog\'lash', 'Maxsus funksiyalar', 'Dedicated server', '12 oy qo\'llab-quvvatlash'],
-              },
-            ].map(t => (
-              <div key={t.name} className={`sp-tariff-card ${t.popular ? 'sp-tariff-popular' : ''}`}>
-                {t.popular && <div className="sp-tariff-badge">🔥 Eng mashhur</div>}
-                <div className="sp-tariff-badge-top">{t.badge}</div>
-                <div className="sp-tariff-name" style={{ color: t.color }}>{t.name}</div>
-                <div className="sp-tariff-desc">{t.desc}</div>
-                <div className="sp-tariff-price-contact" style={{ borderColor: `${t.color}30`, background: `${t.color}08` }}>
-                  <span className="sp-tariff-contact-label" style={{ color: t.color }}>{t.label}</span>
-                  <span className="sp-tariff-contact-hint">{t.hint}</span>
+            {plans.map(plan => (
+              <div key={plan.name} className={`sp-tariff-card ${plan.popular ? 'sp-tariff-popular' : ''}`}>
+                {plan.popular && <div className="sp-tariff-badge">🔥 {t('tg.p2.b')}</div>}
+                <div className="sp-tariff-badge-top">{plan.badge}</div>
+                <div className="sp-tariff-name" style={{ color: plan.color }}>{plan.name}</div>
+                <div className="sp-tariff-desc">{plan.desc}</div>
+                <div className="sp-tariff-price-contact" style={{ borderColor: `${plan.color}30`, background: `${plan.color}08` }}>
+                  <span className="sp-tariff-contact-label" style={{ color: plan.color }}>{plan.label}</span>
+                  <span className="sp-tariff-contact-hint">{plan.hint}</span>
                 </div>
                 <div className="sp-tariff-features">
-                  {t.features.map((f, i) => (
+                  {plan.features.map((f, i) => (
                     <div key={i} className="sp-tariff-feature">
-                      <span className="sp-tf-check" style={{ color: t.color }}><CheckIcon /></span> {f}
+                      <span className="sp-tf-check" style={{ color: plan.color }}><CheckIcon /></span> {f}
                     </div>
                   ))}
                 </div>
                 <button
                   className="sp-tariff-btn"
-                  style={t.popular ? { background: `linear-gradient(135deg, ${t.color}, ${t.color}cc)`, color: 'white' } : { borderColor: t.color, color: t.color }}
+                  style={plan.popular ? { background: `linear-gradient(135deg, ${plan.color}, ${plan.color}cc)`, color: 'white' } : { borderColor: plan.color, color: plan.color }}
                   onClick={() => { const el = document.getElementById('sp-contact'); if(el) el.scrollIntoView({behavior:'smooth'}); }}
                 >
-                  Narxni so'rash →
+                  {t('tg.plan.notice.btn')} →
                 </button>
               </div>
             ))}
@@ -340,14 +264,14 @@ export default function TelegramBotlar() {
       <section className="sp-cta-section sp-cta-green" id="sp-contact">
         <div className="ent-container">
           <div className="sp-cta-box">
-            <h2>Botingizni bugun boshlaylik</h2>
-            <p>Telegram yozing — bepul maslahat va loyiha tahlilini qilamiz.</p>
+            <h2>{t('tg.cta.title')}</h2>
+            <p>{t('tg.cta.desc')}</p>
             <div className="sp-cta-btns">
               <a href="https://t.me/ecode_uz" target="_blank" rel="noreferrer" className="sp-btn-white">
-                🤖 @ecode_uz ga yozish <ArrowRight />
+                🤖 {t('tg.cta.btn1')} <ArrowRight />
               </a>
               <a href="tel:+998889118171" className="sp-btn-tg">
-                📞 Qo'ng'iroq qilish
+                📞 {t('tg.cta.btn2')}
               </a>
             </div>
           </div>
