@@ -1,9 +1,11 @@
+import { useLang } from '../../context/LangContext';
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 
 function KpiCard({ label, value, sub, color = 'indigo', icon }) {
+  const { t } = useLang();
   const colors = {
     indigo: 'bg-indigo-50 text-indigo-600 border-indigo-100',
     emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100',
@@ -23,6 +25,7 @@ function KpiCard({ label, value, sub, color = 'indigo', icon }) {
 }
 
 export default function MobileDashboard() {
+  const { t } = useLang();
   const [summary, setSummary] = useState(null);
   const [topProducts, setTopProducts] = useState([]);
   const [loading, setLoading] = useState(true);

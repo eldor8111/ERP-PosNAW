@@ -569,12 +569,12 @@ function SaleCreateView({ customers, onBack, onSaved }) {
               <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
                 <tr>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 w-8">№</th>
-                  <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase">Mahsulot</th>
+                  <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.product') || 'Mahsulot'}</th>
                   <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase w-24">Soni</th>
                   <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase w-32">Narxi</th>
                   <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase w-28">Chegirma</th>
                   <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase w-32">Sof narx</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase w-32">Jami</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase w-32">{t('admin.dict.total') || 'Jami'}</th>
                   <th className="w-8"></th>
                 </tr>
               </thead>
@@ -669,7 +669,7 @@ function SaleCreateView({ customers, onBack, onSaved }) {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Kassa</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">{t('admin.dict.pos') || 'Kassa'}</label>
                   <select className="w-full h-12 bg-white border-2 border-slate-200 rounded-xl px-4 font-bold shadow-sm outline-none text-sm">
                     <option value="1">KASSA</option>
                   </select>
@@ -921,9 +921,9 @@ function SaleDetailModal({ saleId, onClose, onEdit, onDelete, onPrint }) {
         <div className="border-t border-slate-100 px-6 py-4 space-y-1.5 bg-slate-50 rounded-b-2xl">
           <div className="flex justify-between text-sm text-slate-500"><span>Mahsulotlar ({sale.items.length} ta)</span><span className="font-mono">{fmt(Number(sale.total_amount) + Number(sale.discount_amount))} so'm</span></div>
           {Number(sale.discount_amount) > 0 && <div className="flex justify-between text-sm text-amber-600 font-semibold"><span>Chegirma</span><span className="font-mono">−{fmt(sale.discount_amount)} so'm</span></div>}
-          <div className="flex justify-between text-base font-bold text-slate-800 border-t border-slate-200 pt-1.5"><span>JAMI</span><span className="font-mono text-indigo-700">{fmt(sale.total_amount)} so'm</span></div>
+          <div className="flex justify-between text-base font-bold text-slate-800 border-t border-slate-200 pt-1.5"><span>{t('admin.dict.th_total') || 'JAMI'}</span><span className="font-mono text-indigo-700">{fmt(sale.total_amount)} so'm</span></div>
           <div className="flex justify-between text-sm text-emerald-600 font-semibold"><span>To'langan</span><span className="font-mono">{fmt(sale.paid_amount)} so'm</span></div>
-          {debt > 0 && <div className="flex justify-between text-sm text-red-500 font-bold"><span>Qarz</span><span className="font-mono">{fmt(debt)} so'm</span></div>}
+          {debt > 0 && <div className="flex justify-between text-sm text-red-500 font-bold"><span>{t('admin.dict.debt') || 'Qarz'}</span><span className="font-mono">{fmt(debt)} so'm</span></div>}
         </div>
       </div>
     </div>
@@ -967,7 +967,7 @@ function SaleEditModal({ sale, onClose, onSaved }) {
         </div>
         <div className="p-6 space-y-4">
           <div>
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Holat</div>
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t('admin.dict.status') || 'Holat'}</div>
             <div className="flex gap-2">
               {Object.entries(saleMeta).map(([v, m]) => (
                 <button key={v} onClick={() => setForm(f => ({...f, status: v}))}
@@ -982,7 +982,7 @@ function SaleEditModal({ sale, onClose, onSaved }) {
             <input type="number" className={inputCls} value={form.paid_amount} onChange={e => setForm(f => ({...f, paid_amount: e.target.value}))}/>
           </div>
           <div>
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Izoh</div>
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t('admin.dict.comment') || 'Izoh'}</div>
             <textarea rows={2} className={inputCls} value={form.note} onChange={e => setForm(f => ({...f, note: e.target.value}))} placeholder="Izoh..."/>
           </div>
           {err && <div className="px-3 py-2 bg-red-50 text-red-600 text-sm rounded-xl border border-red-100">{err}</div>}
@@ -1406,7 +1406,7 @@ function SotuvlarTab({ customers }) {
       {/* Header: actions */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3 text-sm">
-          <span className="text-slate-500">Jami:</span>
+          <span className="text-slate-500">{t('admin.dict.total_colon') || 'Jami:'}</span>
           <span className="font-bold text-slate-800">{fmt(totals.sum)}</span>
           <span className="text-slate-300">|</span>
           <span className="text-emerald-600 font-semibold">{fmt(totals.paid)}</span>
@@ -1440,7 +1440,7 @@ function SotuvlarTab({ customers }) {
               const match = Object.entries(saleMeta).find(([,m]) => m.l.toLowerCase().startsWith(q.toLowerCase()));
               setF({...f, statusQ: q, status: match ? match[0] : ''});
             }}
-            placeholder="Status"
+            placeholder={t('admin.dict.status2') || 'Status'}
             className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white"
           />
           <input type="date" value={f.dateFrom} onChange={e => setF({...f, dateFrom: e.target.value})} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-slate-400 bg-white"/>
@@ -1478,7 +1478,7 @@ function SotuvlarTab({ customers }) {
               onChange={e => setF({...f, branchQ: e.target.value, branch_id: ''})}
               onFocus={() => setF(p => ({...p, _brOpen: true}))}
               onBlur={() => setTimeout(() => setF(p => ({...p, _brOpen: false})), 200)}
-              placeholder="Xodim"
+              placeholder={t('admin.dict.employee') || 'Xodim'}
               className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white"
             />
             {f._brOpen && f.branchQ && (
@@ -1497,7 +1497,7 @@ function SotuvlarTab({ customers }) {
               onChange={e => setF({...f, userQ: e.target.value, cashier_id: ''})}
               onFocus={() => setF(p => ({...p, _usOpen: true}))}
               onBlur={() => setTimeout(() => setF(p => ({...p, _usOpen: false})), 200)}
-              placeholder="Foydalanuvchi"
+              placeholder={t('admin.dict.user') || 'Foydalanuvchi'}
               className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white"
             />
             {f._usOpen && f.userQ && (
@@ -1522,15 +1522,15 @@ function SotuvlarTab({ customers }) {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
                   <th className="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider w-10">#</th>
-                  <th className="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Raqam</th>
-                  <th className="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Kontragent</th>
-                  <th className="px-3 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Jami</th>
+                  <th className="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">{t('admin.dict.number') || 'Raqam'}</th>
+                  <th className="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">{t('admin.dict.contragent') || 'Kontragent'}</th>
+                  <th className="px-3 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">{t('admin.dict.total') || 'Jami'}</th>
                   <th className="px-3 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">To'langan</th>
                   <th className="px-3 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Qarzga</th>
-                  <th className="px-3 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">To'lov</th>
-                  <th className="px-3 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Holat</th>
-                  <th className="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Kassir</th>
-                  <th className="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Sana</th>
+                  <th className="px-3 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">{t('admin.dict.payment') || 'To\'lov'}</th>
+                  <th className="px-3 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">{t('admin.dict.status') || 'Holat'}</th>
+                  <th className="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">{t('admin.dict.cashier') || 'Kassir'}</th>
+                  <th className="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">{t('admin.dict.date') || 'Sana'}</th>
                   <th className="px-3 py-3 w-24"></th>
                 </tr>
               </thead>
@@ -1595,8 +1595,8 @@ function SotuvlarTab({ customers }) {
         <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 bg-slate-50/50">
           <span className="text-sm text-slate-500">{sales.length > 0 ? `${skip + 1}–${skip + sales.length} ko'rsatildi` : `0 ta ma'lumot`}</span>
           <div className="flex items-center gap-2">
-            <button disabled={skip === 0} onClick={() => setSkip(Math.max(0, skip - LIMIT))} className="px-3.5 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors">Oldingi</button>
-            <button disabled={sales.length < LIMIT} onClick={() => setSkip(skip + LIMIT)} className="px-3.5 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors">Keyingi</button>
+            <button disabled={skip === 0} onClick={() => setSkip(Math.max(0, skip - LIMIT))} className="px-3.5 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors">{t('admin.dict.prev') || 'Oldingi'}</button>
+            <button disabled={sales.length < LIMIT} onClick={() => setSkip(skip + LIMIT)} className="px-3.5 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors">{t('admin.dict.next') || 'Keyingi'}</button>
           </div>
           <span className="text-sm text-slate-400">Limit: {LIMIT}</span>
         </div>
@@ -1740,7 +1740,7 @@ function MijozlarTab() {
             <div className="flex items-center justify-between p-6 border-b border-slate-100"><h3 className="text-lg font-bold text-slate-800">{sel?'Tahrirlash':"Yangi mijoz qo'shish"}</h3><button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg></button></div>
             <form onSubmit={handleSave} className="p-6 space-y-4">
               <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">Ism familiya *</label><input required className={inputCls} value={form.name} onChange={e => setForm({...form,name:e.target.value})} placeholder="Javohir Toshmatov"/></div>
-              <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">Telefon</label><input className={inputCls} value={form.phone} onChange={e => setForm({...form,phone:e.target.value})} placeholder="+998 90 123 45 67"/></div>
+              <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('admin.dict.phone') || 'Telefon'}</label><input className={inputCls} value={form.phone} onChange={e => setForm({...form,phone:e.target.value})} placeholder="+998 90 123 45 67"/></div>
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-semibold text-slate-600">Karta raqami</label>

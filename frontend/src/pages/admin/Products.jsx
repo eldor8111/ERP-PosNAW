@@ -64,6 +64,7 @@ const emptyProduct = {
 
 /* ─── RowMenu (3 dots) ─────────────────────────────────── */
 function RowMenu({ onEdit, onDelete, onPrint }) {
+  const { t } = useLang();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -119,6 +120,7 @@ const emptyBinLoc   = { code: '', label: '' };
 
 /* ─── StatusBadge ──────────────────────────────────── */
 function StatusBadge({ status }) {
+  const { t } = useLang();
   const m = statusMeta[status] || { label: status, cls: 'bg-slate-100 text-slate-500' };
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${m.cls}`}>
@@ -130,6 +132,7 @@ function StatusBadge({ status }) {
 
 /* ─── Modal wrapper ────────────────────────────────── */
 function Modal({ title, onClose, children, size = 'md', z = 'z-50' }) {
+  const { t } = useLang();
   const sizeMap = { sm: 'max-w-lg', md: 'max-w-2xl', lg: 'max-w-4xl', xl: 'max-w-6xl' };
   return (
     <div className={`fixed inset-0 ${z} flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm`} onClick={onClose}>
@@ -153,6 +156,7 @@ function Modal({ title, onClose, children, size = 'md', z = 'z-50' }) {
 
 /* ─── Field wrapper ────────────────────────────────── */
 function Field({ label, required, children, hint }) {
+  const { t } = useLang();
   return (
     <div>
       <label className="block text-sm font-semibold text-slate-600 mb-1.5">
@@ -169,6 +173,7 @@ const errCls   = "border-red-400 ring-1 ring-red-400";
 
 /* ─── ImageUploadZone ──────────────────────────────── */
 function ImageUploadZone({ images, onAdd, onRemove, uploading }) {
+  const { t } = useLang();
   const inputRef = useRef(null);
 
   const handleDrop = (e) => {
@@ -232,6 +237,7 @@ function ImageUploadZone({ images, onAdd, onRemove, uploading }) {
 
 /* ─── CurrencyDropdown ─────────────────────────────── */
 function CurrencyDropdown({ value, onChange, currencies }) {
+  const { t } = useLang();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -1047,8 +1053,8 @@ export default function Products() {
             <select className="px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white shadow-sm text-slate-700"
               value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
               <option value="">Barcha holat</option>
-              <option value="active">Faol</option>
-              <option value="inactive">Nofaol</option>
+              <option value="active">{t('admin.dict.active') || 'Faol'}</option>
+              <option value="inactive">{t('admin.dict.inactive') || 'Nofaol'}</option>
               <option value="archived">Arxiv</option>
             </select>
             {warehouses.length > 0 && (
@@ -1466,7 +1472,7 @@ export default function Products() {
 
                 {/* Category + Unit */}
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label="Kategoriya">
+                  <Field label={t('admin.dict.category') || 'Kategoriya'}>
                     <div className="flex gap-2">
                       <select className={`${inputCls} flex-1`} value={form.category_id}
                         onChange={e => setForm({ ...form, category_id: e.target.value })}>
@@ -1650,11 +1656,11 @@ export default function Products() {
                 </div>
 
                 {/* Status */}
-                <Field label="Holat">
+                <Field label={t('admin.dict.status') || 'Holat'}>
                   <select className={inputCls} value={form.status}
                     onChange={e => setForm({ ...form, status: e.target.value })}>
-                    <option value="active">Faol</option>
-                    <option value="inactive">Nofaol</option>
+                    <option value="active">{t('admin.dict.active') || 'Faol'}</option>
+                    <option value="inactive">{t('admin.dict.inactive') || 'Nofaol'}</option>
                     <option value="archived">Arxiv</option>
                   </select>
                 </Field>
@@ -2031,7 +2037,7 @@ export default function Products() {
                       onClick={() => setImportPage(p => Math.max(1, p-1))}
                       disabled={importPage === 1}
                       className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors"
-                    >Oldingi</button>
+                    >{t('admin.dict.prev') || 'Oldingi'}</button>
                     {Array.from({length: Math.ceil(importRows.length/IMPORT_LIMIT)}, (_, i) => i+1).slice(
                       Math.max(0, importPage-3), Math.min(Math.ceil(importRows.length/IMPORT_LIMIT), importPage+2)
                     ).map(p => (
@@ -2044,8 +2050,8 @@ export default function Products() {
                       onClick={() => setImportPage(p => Math.min(Math.ceil(importRows.length/IMPORT_LIMIT), p+1))}
                       disabled={importPage >= Math.ceil(importRows.length/IMPORT_LIMIT)}
                       className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors"
-                    >Keyingi</button>
-                    <span className="text-sm text-slate-400 ml-2">Limit</span>
+                    >{t('admin.dict.next') || 'Keyingi'}</button>
+                    <span className="text-sm text-slate-400 ml-2">{t('admin.dict.limit') || 'Limit'}</span>
                     <span className="px-2 py-1 border border-slate-200 rounded-lg text-sm font-bold text-slate-600">{IMPORT_LIMIT}</span>
                   </div>
                 </div>

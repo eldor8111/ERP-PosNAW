@@ -254,7 +254,7 @@ export default function Finance() {
             {showAddExpense && (
               <form onSubmit={addExpense} className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex flex-wrap gap-3 items-end">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Kategoriya</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('admin.dict.category') || 'Kategoriya'}</label>
                   <select required className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     onChange={e => setForm({ ...form, category_id: e.target.value })} value={form.category_id}>
                     <option value="">Tanlang...</option>
@@ -268,7 +268,7 @@ export default function Finance() {
                     onChange={e => setForm({ ...form, amount: e.target.value })} value={form.amount} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Izoh</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('admin.dict.comment') || 'Izoh'}</label>
                   <input type="text" placeholder="Xarajat haqida..."
                     className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     onChange={e => setForm({ ...form, description: e.target.value })} value={form.description} />
@@ -319,7 +319,7 @@ export default function Finance() {
                 {expenses.length > 0 && (
                   <tfoot>
                     <tr className="bg-red-50">
-                      <td className="px-6 py-3 text-sm font-semibold text-slate-600">JAMI</td>
+                      <td className="px-6 py-3 text-sm font-semibold text-slate-600">{t('admin.dict.th_total') || 'JAMI'}</td>
                       <td className="px-6 py-3 text-sm font-bold text-red-600">{fmt(expenses.reduce((a, e) => a + Number(e.amount), 0))}</td>
                       <td colSpan={3} />
                     </tr>
@@ -396,7 +396,7 @@ export default function Finance() {
                   className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <button onClick={loadTab}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors">Filtrlash</button>
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors">{t('admin.dict.filter') || 'Filtrlash'}</button>
             </div>
             {loading ? <Spinner /> : (
               <table className="min-w-full">

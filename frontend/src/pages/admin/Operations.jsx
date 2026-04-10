@@ -367,7 +367,7 @@ function PayModal({ total, onPay, onClose }) {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
         {/* Modal header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-slate-800">To'lov</h3>
+          <h3 className="text-lg font-bold text-slate-800">{t('admin.dict.payment') || 'To\'lov'}</h3>
           <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
@@ -627,8 +627,8 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                 <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
                   <tr>
                     <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 w-8">№</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">MAHSULOT</th>
-                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-28">MIQDOR</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">{t('admin.dict.th_prod') || 'MAHSULOT'}</th>
+                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-28">{t('admin.dict.th_qty') || 'MIQDOR'}</th>
                     <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-32">NARXI</th>
                     <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-28">CHEGIRMA</th>
                     <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500 w-32">SUMMA</th>
@@ -681,7 +681,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
             <div className="border-t border-slate-200 px-4 py-3 bg-slate-50 flex items-center justify-between shrink-0">
               <span className="text-sm text-slate-500">{cart.length} xil, {cart.reduce((s,c) => s + c.qty, 0)} ta mahsulot</span>
               <div className="text-right">
-                <span className="text-xs text-slate-400 mr-2">Jami:</span>
+                <span className="text-xs text-slate-400 mr-2">{t('admin.dict.total_colon') || 'Jami:'}</span>
                 <span className="text-xl font-bold text-indigo-600">{fmt(subtotal)} so'm</span>
               </div>
             </div>
@@ -729,7 +729,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
             </div>
             <div className="grid grid-cols-3 gap-3 mb-4">
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Miqdor</label>
+                <label className="text-xs font-medium text-slate-500 mb-1 block">{t('admin.dict.qty') || 'Miqdor'}</label>
                 <input type="number" min="0.001" step="any" value={qaItem.qty}
                   autoFocus
                   onChange={e => setQaItem(v => ({ ...v, qty: e.target.value }))}
@@ -764,7 +764,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
               </div>
             )}
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs text-slate-400">Jami:</span>
+              <span className="text-xs text-slate-400">{t('admin.dict.total_colon') || 'Jami:'}</span>
               <span className="text-lg font-bold text-indigo-600">{fmt(Number(qaItem.qty) * Number(qaItem.price) - Number(qaItem.discount))} so'm</span>
             </div>
             <div className="flex gap-2">
@@ -810,11 +810,11 @@ function SaleDetailView({ saleId, onBack }) {
           <thead className="bg-slate-50">
             <tr>
               <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">№</th>
-              <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">Mahsulot</th>
+              <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.product') || 'Mahsulot'}</th>
               <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">Soni</th>
               <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">Narxi</th>
               <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">Chegirma</th>
-              <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">Jami</th>
+              <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.total') || 'Jami'}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -895,7 +895,7 @@ function SalesTab({ products, customers }) {
       {/* Header: stats + action */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3 text-sm">
-          <span className="text-slate-500">Jami:</span>
+          <span className="text-slate-500">{t('admin.dict.total_colon') || 'Jami:'}</span>
           <span className="font-bold text-slate-800">{fmt(totals.sum)}</span>
           <span className="text-slate-300">|</span>
           <span className="text-emerald-600 font-semibold">{fmt(totals.paid)}</span>
@@ -914,7 +914,7 @@ function SalesTab({ products, customers }) {
       {/* Filters — rasmdagi kabi 2 qator */}
       <div className="space-y-2">
         <div className="grid grid-cols-3 gap-3">
-          <input type="text" placeholder="Status" value={f.statusQ||''} onChange={e => {
+          <input type="text" placeholder={t('admin.dict.status2') || 'Status'} value={f.statusQ||''} onChange={e => {
             const q = e.target.value;
             const match = Object.entries(saleMeta).find(([,m]) => m.l.toLowerCase().startsWith(q.toLowerCase()));
             setF({...f, statusQ: q, status: match ? match[0] : ''});
@@ -925,8 +925,8 @@ function SalesTab({ products, customers }) {
         <div className="grid grid-cols-[1fr_auto_1fr_1fr] gap-3 items-center">
           <input type="text" placeholder="Contragent" className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white"/>
           <span className="text-slate-300 text-lg">+</span>
-          <input type="text" placeholder="Xodim" className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white"/>
-          <input type="text" placeholder="Foydalanuvchi" className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white"/>
+          <input type="text" placeholder={t('admin.dict.employee') || 'Xodim'} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white"/>
+          <input type="text" placeholder={t('admin.dict.user') || 'Foydalanuvchi'} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white"/>
         </div>
       </div>
 
@@ -1090,7 +1090,7 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
             <span className="text-xs text-slate-500">so'm</span>
           </div>
         )}
-        <input placeholder="Izoh" value={sub==='po' ? poForm.note : manNote}
+        <input placeholder={t('admin.dict.comment') || 'Izoh'} value={sub==='po' ? poForm.note : manNote}
           onChange={e => sub==='po' ? setPoForm(f=>({...f,note:e.target.value})) : setManNote(e.target.value)}
           className={`${ic} flex-1 min-w-32`} />
       </div>
@@ -1211,16 +1211,16 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
               <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
                 <tr>
                   <th className="text-left px-3 py-3 text-xs font-semibold text-slate-400 w-8">№</th>
-                  <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase">Mahsulot</th>
+                  <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.product') || 'Mahsulot'}</th>
                   <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase w-20">Soni</th>
                   <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase">Narxi</th>
                   <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase w-28">Chegirma</th>
                   <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase">Sof narx</th>
-                  <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase">Jami</th>
+                  <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.total') || 'Jami'}</th>
                   {sub==='manual' && <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase">Partiya</th>}
                   {sub==='manual' && <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase">Lot</th>}
                   {sub==='manual' && <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase">Muddati</th>}
-                  {sub==='manual' && <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase">Izoh</th>}
+                  {sub==='manual' && <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.comment') || 'Izoh'}</th>}
                   <th className="w-8"></th>
                 </tr>
               </thead>
@@ -1293,7 +1293,7 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
                       )}
                       {sub==='manual' && (
                         <td className="px-2 py-2">
-                          <input placeholder="Izoh" value={it.reason}
+                          <input placeholder={t('admin.dict.comment') || 'Izoh'} value={it.reason}
                             onChange={e => updManItem(i,'reason',e.target.value)}
                             className={`min-w-[90px] ${ic} text-xs`} />
                         </td>
@@ -1419,7 +1419,7 @@ function KirimlarTab({ products, warehouses, suppliers, users }) {
       {/* Filters — Custom 2-row grid */}
       <div className="space-y-2">
         <div className="grid grid-cols-3 gap-3">
-          <input type="text" placeholder="Status" value={f.statusQ||''} onChange={e => {
+          <input type="text" placeholder={t('admin.dict.status2') || 'Status'} value={f.statusQ||''} onChange={e => {
             const q = e.target.value;
             const match = Object.entries(poMeta).find(([,m]) => m.l.toLowerCase().startsWith(q.toLowerCase()));
             setF({...f, statusQ: q, status: match ? match[0] : ''});
@@ -1463,7 +1463,7 @@ function KirimlarTab({ products, warehouses, suppliers, users }) {
           </div>
           {/* User */}
           <div className="relative">
-            <input type="text" value={f.userQ||''} placeholder="Foydalanuvchi"
+            <input type="text" value={f.userQ||''} placeholder={t('admin.dict.user') || 'Foydalanuvchi'}
               onChange={e => setF({...f, userQ: e.target.value, user_id: ''})}
               onFocus={() => setF(p => ({...p, _usOpen: true}))}
               onBlur={() => setTimeout(() => setF(p => ({...p, _usOpen: false})), 200)}
@@ -1498,11 +1498,11 @@ function KirimlarTab({ products, warehouses, suppliers, users }) {
               </div>
               <table className="w-full text-sm border border-slate-200 rounded-xl overflow-hidden">
                 <thead className="bg-slate-50"><tr>
-                  <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">Mahsulot</th>
+                  <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.product') || 'Mahsulot'}</th>
                   <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">Buyurtma</th>
                   <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">Qabul</th>
-                  <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">Narx</th>
-                  <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">Jami</th>
+                  <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.price') || 'Narx'}</th>
+                  <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.total') || 'Jami'}</th>
                 </tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   {detail.items?.map(item => (
@@ -1518,7 +1518,7 @@ function KirimlarTab({ products, warehouses, suppliers, users }) {
               </table>
             </div>
             <div className="flex justify-end gap-3 px-6 py-4 border-t">
-              <Btn v="ghost" onClick={() => setDetail(null)}>Yopish</Btn>
+              <Btn v="ghost" onClick={() => setDetail(null)}>{t('admin.dict.close') || 'Yopish'}</Btn>
               {['draft','ordered','partial'].includes(detail.status) && (
                 <Btn v="green" onClick={() => { setRec(detail); setDetail(null); }}>Qabul qilish</Btn>
               )}
@@ -2045,7 +2045,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                   <thead className="sticky top-0 bg-white border-b border-slate-200 z-10">
                     <tr>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">№</th>
-                      <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase">Mahsulot</th>
+                      <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.product') || 'Mahsulot'}</th>
                       <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Joriy qoldiq</th>
                       <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Ko'chirish miqdori</th>
                       <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">O'lchov</th>
@@ -2161,8 +2161,8 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                 <thead className="bg-slate-50 border-b border-slate-100">
                   <tr>
                     <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">№</th>
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase">Mahsulot</th>
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Miqdor</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.product') || 'Mahsulot'}</th>
+                    <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.qty') || 'Miqdor'}</th>
                     <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">O'lchov</th>
                   </tr>
                 </thead>
@@ -2284,7 +2284,7 @@ function TransferlarTab({ products, warehouses, users = [] }) {
       {/* Filters — Custom 2-row grid */}
       <div className="space-y-2">
         <div className="grid grid-cols-3 gap-3">
-          <input type="text" placeholder="Status" value={f.statusQ||''} onChange={e => {
+          <input type="text" placeholder={t('admin.dict.status2') || 'Status'} value={f.statusQ||''} onChange={e => {
             const q = e.target.value;
             const match = Object.entries(trMeta).find(([,m]) => m.l.toLowerCase().startsWith(q.toLowerCase()));
             setF({...f, statusQ: q, status: match ? match[0] : ''});
@@ -2328,7 +2328,7 @@ function TransferlarTab({ products, warehouses, users = [] }) {
           </div>
           {/* Foydalanuvchi */}
           <div className="relative">
-            <input type="text" value={f.userQ||''} placeholder="Foydalanuvchi"
+            <input type="text" value={f.userQ||''} placeholder={t('admin.dict.user') || 'Foydalanuvchi'}
               onChange={e => setF({...f, userQ: e.target.value, user_id: ''})}
               onFocus={() => setF(p => ({...p, _usOpen: true}))}
               onBlur={() => setTimeout(() => setF(p => ({...p, _usOpen: false})), 200)}
@@ -2362,8 +2362,8 @@ function TransferlarTab({ products, warehouses, users = [] }) {
               </div>
               <table className="w-full text-sm border border-slate-200 rounded-xl overflow-hidden">
                 <thead className="bg-slate-50"><tr>
-                  <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">Mahsulot</th>
-                  <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">Miqdor</th>
+                  <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.product') || 'Mahsulot'}</th>
+                  <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.qty') || 'Miqdor'}</th>
                 </tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   {detail.items?.map(item => (
@@ -2522,7 +2522,7 @@ function ChiqimCreateView({ products, onBack, onSaved, editItems = [], editId = 
         <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
           <div className="flex items-center justify-between px-6 py-3.5 bg-white border-b border-slate-100 shrink-0">
             <span className="text-sm font-bold text-slate-700">Chiqim qilinadigan mahsulotlar</span>
-            {items.length > 0 && <button onClick={() => setItems([])} className="text-xs text-red-500 font-semibold hover:underline">Tozalash</button>}
+            {items.length > 0 && <button onClick={() => setItems([])} className="text-xs text-red-500 font-semibold hover:underline">{t('admin.dict.clear') || 'Tozalash'}</button>}
           </div>
           <div className="flex-1 overflow-y-auto">
             {items.length === 0 ? (
@@ -2535,9 +2535,9 @@ function ChiqimCreateView({ products, onBack, onSaved, editItems = [], editId = 
                 <thead className="sticky top-0 bg-white border-b border-slate-200 z-10">
                   <tr>
                     <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">№</th>
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Mahsulot</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">{t('admin.dict.product') || 'Mahsulot'}</th>
                     <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Turi / Sabab</th>
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500">Miqdor</th>
+                    <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500">{t('admin.dict.qty') || 'Miqdor'}</th>
                     <th className="w-10"/>
                   </tr>
                 </thead>
@@ -2649,16 +2649,16 @@ function ChiqimlarTab({ products, users = [] }) {
       {/* Filters — Custom 2-row grid */}
       <div className="space-y-2">
         <div className="grid grid-cols-3 gap-3">
-          <input type="text" placeholder="Status" disabled className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-400 focus:outline-none bg-slate-50 cursor-not-allowed"/>
+          <input type="text" placeholder={t('admin.dict.status2') || 'Status'} disabled className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-400 focus:outline-none bg-slate-50 cursor-not-allowed"/>
           <input type="date" value={f.dateFrom} onChange={e => setF({...f, dateFrom:e.target.value})} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-slate-400 bg-white"/>
           <input type="date" value={f.dateTo} onChange={e => setF({...f, dateTo:e.target.value})} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-slate-400 bg-white"/>
         </div>
         <div className="grid grid-cols-[1fr_auto_1fr_1fr] gap-3 items-center">
           <input type="text" placeholder="Contragent" disabled className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-400 bg-slate-50 cursor-not-allowed" />
           <span className="text-slate-300 text-lg">+</span>
-          <input type="text" placeholder="Xodim" disabled className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-400 bg-slate-50 cursor-not-allowed" />
+          <input type="text" placeholder={t('admin.dict.employee') || 'Xodim'} disabled className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-400 bg-slate-50 cursor-not-allowed" />
           <div className="relative">
-            <input type="text" value={f.userQ||''} placeholder="Foydalanuvchi"
+            <input type="text" value={f.userQ||''} placeholder={t('admin.dict.user') || 'Foydalanuvchi'}
               onChange={e => setF({...f, userQ: e.target.value, user_id: ''})}
               onFocus={() => setF(p => ({...p, _usOpen: true}))}
               onBlur={() => setTimeout(() => setF(p => ({...p, _usOpen: false})), 200)}
@@ -2685,7 +2685,7 @@ function ChiqimlarTab({ products, users = [] }) {
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase">Hujjat raqami</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase">Sana</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.date') || 'Sana'}</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase">Sabab</th>
                 <th className="px-6 py-4 text-center text-xs font-semibold text-slate-500 uppercase">Tarkibi</th>
                 <th className="px-6 py-4 text-right text-xs font-semibold text-slate-500 uppercase">Amallar</th>
@@ -2735,9 +2735,9 @@ function ChiqimlarTab({ products, users = [] }) {
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">Mahsulot</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">{t('admin.dict.product') || 'Mahsulot'}</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">Sabab</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500">Miqdor</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500">{t('admin.dict.qty') || 'Miqdor'}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -2761,7 +2761,7 @@ function ChiqimlarTab({ products, users = [] }) {
             </div>
             <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
               <button onClick={startEdit} className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg">{t('common.edit')}</button>
-              <button onClick={() => setDetailId(null)} className="px-4 py-2 text-sm font-bold text-white bg-slate-800 hover:bg-slate-700 rounded-lg">Yopish</button>
+              <button onClick={() => setDetailId(null)} className="px-4 py-2 text-sm font-bold text-white bg-slate-800 hover:bg-slate-700 rounded-lg">{t('admin.dict.close') || 'Yopish'}</button>
             </div>
           </div>
         </div>

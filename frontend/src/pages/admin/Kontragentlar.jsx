@@ -164,7 +164,7 @@ function MijozlarTab() {
                   <input required className={inputCls} value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Javohir Toshmatov"/>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Telefon</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('admin.dict.phone') || 'Telefon'}</label>
                   <input className={inputCls} value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} placeholder="+998 90 123 45 67"/>
                 </div>
                 <div>
@@ -388,7 +388,7 @@ function SuppliersTab() {
                     <input className={inputCls} value={form.inn} onChange={e => setForm({...form, inn: e.target.value})} placeholder="123456789"/>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Telefon</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('admin.dict.phone') || 'Telefon'}</label>
                     <input className={inputCls} value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} placeholder="+998 90 123 45 67"/>
                   </div>
                   <div className="col-span-2">

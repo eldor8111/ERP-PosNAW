@@ -1144,7 +1144,7 @@ const FIELDS = [
                 <div className="text-[#2AABEE] font-bold text-sm">@{saved.tg_username || '—'}</div>
               </div>
               <div className="bg-emerald-50 rounded-xl px-4 py-3">
-                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Telefon</div>
+                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">{t('admin.dict.phone') || 'Telefon'}</div>
                 <div className="text-emerald-700 font-bold text-sm">{saved.phone || '—'}</div>
               </div>
             </div>

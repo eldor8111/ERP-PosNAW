@@ -1,3 +1,4 @@
+import { useLang } from '../../context/LangContext';
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
@@ -40,6 +41,7 @@ const TABS = [
 ]
 
 function StatCard({ icon, label, value, sub, color = 'indigo' }) {
+  const { t } = useLang();
   const colors = {
     indigo: 'bg-indigo-50 text-indigo-600',
     emerald: 'bg-emerald-50 text-emerald-600',
@@ -62,6 +64,7 @@ function StatCard({ icon, label, value, sub, color = 'indigo' }) {
 }
 
 export default function CustomerDetail() {
+  const { t } = useLang();
   const { customerId } = useParams()
   const navigate = useNavigate()
 
@@ -305,6 +308,7 @@ export default function CustomerDetail() {
 }
 
 function SalesTable({ rows, loading, emptyText = "Sotuvlar yo'q" }) {
+  const { t } = useLang();
   if (loading) return <LoadingSpinner />
   if (!rows.length) return <Empty text={emptyText} />
   return (
@@ -312,13 +316,13 @@ function SalesTable({ rows, loading, emptyText = "Sotuvlar yo'q" }) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-slate-100">
-            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-4">Raqam</th>
-            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-4">Holat</th>
+            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-4">{t('admin.dict.number') || 'Raqam'}</th>
+            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-4">{t('admin.dict.status') || 'Holat'}</th>
             <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-4">To'lov turi</th>
-            <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-4">Jami</th>
+            <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-4">{t('admin.dict.total') || 'Jami'}</th>
             <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-4">To'langan</th>
-            <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">Qarz</th>
-            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pl-4">Sana</th>
+            <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">{t('admin.dict.debt') || 'Qarz'}</th>
+            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pl-4">{t('admin.dict.date') || 'Sana'}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-50">
@@ -349,7 +353,7 @@ function SalesTable({ rows, loading, emptyText = "Sotuvlar yo'q" }) {
         </tbody>
         <tfoot>
           <tr className="border-t-2 border-slate-200">
-            <td colSpan={3} className="pt-3 text-xs font-semibold text-slate-400 uppercase">Jami</td>
+            <td colSpan={3} className="pt-3 text-xs font-semibold text-slate-400 uppercase">{t('admin.dict.total') || 'Jami'}</td>
             <td className="pt-3 text-right font-bold text-slate-800">
               {fmt(rows.reduce((s, r) => s + Number(r.total_amount), 0))}
             </td>
@@ -368,6 +372,7 @@ function SalesTable({ rows, loading, emptyText = "Sotuvlar yo'q" }) {
 }
 
 function OperationsTable({ rows, loading }) {
+  const { t } = useLang();
   if (loading) return <LoadingSpinner />
   if (!rows.length) return <Empty text="Operatsiyalar yo'q" />
   return (
@@ -406,6 +411,7 @@ function OperationsTable({ rows, loading }) {
 }
 
 function AktSverka({ stats, sales, returns, loading }) {
+  const { t } = useLang();
   if (loading) return <LoadingSpinner />
 
   const totalSales = sales.reduce((s, r) => s + Number(r.total_amount), 0)
@@ -475,6 +481,7 @@ function AktSverka({ stats, sales, returns, loading }) {
 }
 
 function LoadingSpinner() {
+  const { t } = useLang();
   return (
     <div className="flex items-center justify-center h-32">
       <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
@@ -483,6 +490,7 @@ function LoadingSpinner() {
 }
 
 function Empty({ text }) {
+  const { t } = useLang();
   return (
     <div className="flex flex-col items-center justify-center h-32 text-slate-400">
       <svg className="w-10 h-10 mb-2 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">

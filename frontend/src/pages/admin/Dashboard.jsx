@@ -24,6 +24,7 @@ const fmtFull = (val) => {
 };
 
 function KpiCard({ label, value, sub, icon, gradient, iconBg, badge }) {
+  const { t } = useLang();
   return (
     <div className={`relative overflow-hidden rounded-2xl p-6 text-white ${gradient}`}>
       <div className="flex items-start justify-between">

@@ -485,7 +485,7 @@ const navigate = useNavigate();
         {/* TOTAL PAY PANEL */}
         <div className="bg-white border-t border-slate-200 flex flex-col px-2 py-1 shrink-0 z-30">
           <div className="flex justify-between items-center mb-0.5 text-slate-500 leading-none">
-            <span className="font-bold text-[10px] uppercase">Jami:</span>
+            <span className="font-bold text-[10px] uppercase">{t('admin.dict.total_colon') || 'Jami:'}</span>
             <span className="font-bold">{fmt(totalSubtotal)}</span>
           </div>
           <div className="flex justify-between items-center mb-0.5 text-red-500 leading-none">
@@ -805,7 +805,7 @@ const navigate = useNavigate();
 
               {/* Kategoriya */}
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Kategoriya</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">{t('admin.dict.category') || 'Kategoriya'}</label>
                 <select
                   value={newProd.category_id}
                   onChange={e => setNewProd(p => ({...p, category_id: e.target.value}))}
@@ -881,7 +881,7 @@ const navigate = useNavigate();
                </div>
              </div>
              <div className="mt-8 flex justify-end gap-3">
-               <button onClick={()=>setShowSettings(false)} className="px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl active:scale-95 transition-all">Yopish</button>
+               <button onClick={()=>setShowSettings(false)} className="px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl active:scale-95 transition-all">{t('admin.dict.close') || 'Yopish'}</button>
              </div>
            </div>
         </div>

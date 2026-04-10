@@ -361,7 +361,7 @@ function PayModal({ total, onPay, onClose }) {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
         {/* Modal header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-slate-800">To'lov</h3>
+          <h3 className="text-lg font-bold text-slate-800">{t('admin.dict.payment') || 'To\'lov'}</h3>
           <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
@@ -626,8 +626,8 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                 <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
                   <tr>
                     <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 w-8">№</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">MAHSULOT</th>
-                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-28">MIQDOR</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">{t('admin.dict.th_prod') || 'MAHSULOT'}</th>
+                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-28">{t('admin.dict.th_qty') || 'MIQDOR'}</th>
                     <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-32">NARXI</th>
                     <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-28">CHEGIRMA</th>
                     <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500 w-32">SUMMA</th>
@@ -680,7 +680,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
             <div className="border-t border-slate-200 px-4 py-3 bg-slate-50 flex items-center justify-between shrink-0">
               <span className="text-sm text-slate-500">{cart.length} xil, {cart.reduce((s,c) => s + c.qty, 0)} ta mahsulot</span>
               <div className="text-right">
-                <span className="text-xs text-slate-400 mr-2">Jami:</span>
+                <span className="text-xs text-slate-400 mr-2">{t('admin.dict.total_colon') || 'Jami:'}</span>
                 <span className="text-xl font-bold text-indigo-600">{fmt(subtotal)} so'm</span>
               </div>
             </div>
@@ -728,7 +728,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
             </div>
             <div className="grid grid-cols-3 gap-3 mb-4">
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Miqdor</label>
+                <label className="text-xs font-medium text-slate-500 mb-1 block">{t('admin.dict.qty') || 'Miqdor'}</label>
                 <input type="number" min="0.001" step="any" value={qaItem.qty}
                   autoFocus
                   onChange={e => setQaItem(v => ({ ...v, qty: e.target.value }))}
@@ -763,7 +763,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
               </div>
             )}
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs text-slate-400">Jami:</span>
+              <span className="text-xs text-slate-400">{t('admin.dict.total_colon') || 'Jami:'}</span>
               <span className="text-lg font-bold text-indigo-600">{fmt(Number(qaItem.qty) * Number(qaItem.price) - Number(qaItem.discount))} so'm</span>
             </div>
             <div className="flex gap-2">
@@ -809,11 +809,11 @@ function SaleDetailView({ saleId, onBack }) {
           <thead className="bg-slate-50">
             <tr>
               <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">№</th>
-              <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">Mahsulot</th>
+              <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.product') || 'Mahsulot'}</th>
               <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">Soni</th>
               <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">Narxi</th>
               <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">Chegirma</th>
-              <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">Jami</th>
+              <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.total') || 'Jami'}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -1008,7 +1008,7 @@ function KirimCreateView({ onBack, onSaved }) {
             <span className="text-xs text-slate-500">so'm</span>
           </div>
         )}
-        <input placeholder="Izoh" value={poForm.note}
+        <input placeholder={t('admin.dict.comment') || 'Izoh'} value={poForm.note}
           onChange={e => setPoForm(f=>({...f,note:e.target.value}))}
           className={`${ic} flex-1 min-w-32`} />
       </div>
@@ -1156,12 +1156,12 @@ function KirimCreateView({ onBack, onSaved }) {
               <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
                 <tr>
                   <th className="text-left px-3 py-3 text-xs font-semibold text-slate-400 w-8">№</th>
-                  <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase">Mahsulot</th>
+                  <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.product') || 'Mahsulot'}</th>
                   <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase w-20">Soni</th>
                   <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase">Narxi</th>
                   <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase w-28">Chegirma</th>
                   <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase">Sof narx</th>
-                  <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase">Jami</th>
+                  <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.total') || 'Jami'}</th>
                   <th className="w-8"></th>
                 </tr>
               </thead>
@@ -1252,7 +1252,7 @@ function KirimCreateView({ onBack, onSaved }) {
             }
             setErr('');
             setShowPay(true);
-          }} disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-200">To'lov</Btn>
+          }} disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-200">{t('admin.dict.payment') || 'To\'lov'}</Btn>
         </div>
       </div>
 
@@ -1289,7 +1289,7 @@ function KirimCreateView({ onBack, onSaved }) {
 
                 {/* Kassa */}
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-600">Kassa</label>
+                  <label className="text-sm font-semibold text-slate-600">{t('admin.dict.pos') || 'Kassa'}</label>
                   <select className={`${ic} h-11 bg-white text-base`} defaultValue="1">
                     <option value="1">KASSA</option>
                   </select>
@@ -1298,7 +1298,7 @@ function KirimCreateView({ onBack, onSaved }) {
 
               {/* To'lov */}
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-600">To'lov</label>
+                <label className="text-sm font-semibold text-slate-600">{t('admin.dict.payment') || 'To\'lov'}</label>
                 <div className="flex gap-2 h-11 items-center">
                   {/* Naqd label separated */}
                   <div className="bg-slate-50 px-5 flex items-center border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 h-full shadow-sm">Naqd</div>
@@ -1438,7 +1438,7 @@ function KirimlarTab({ products, warehouses, suppliers }) {
         <div className="flex flex-wrap items-end gap-3">
           <Lbl t="Holat">
             <select value={stFilter} onChange={e => setStFil(e.target.value)} className={ic}>
-              <option value="">Barchasi</option>
+              <option value="">{t('admin.dict.all2') || 'Barchasi'}</option>
               {Object.entries(poMeta).map(([v,m]) => <option key={v} value={v}>{m.l}</option>)}
             </select>
           </Lbl>
@@ -1477,11 +1477,11 @@ function KirimlarTab({ products, warehouses, suppliers }) {
               </div>
               <table className="w-full text-sm border border-slate-200 rounded-xl overflow-hidden">
                 <thead className="bg-slate-50"><tr>
-                  <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">Mahsulot</th>
+                  <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.product') || 'Mahsulot'}</th>
                   <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">Buyurtma</th>
                   <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">Qabul</th>
-                  <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">Narx</th>
-                  <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">Jami</th>
+                  <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.price') || 'Narx'}</th>
+                  <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.total') || 'Jami'}</th>
                 </tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   {detail.items?.map(item => (
@@ -1497,7 +1497,7 @@ function KirimlarTab({ products, warehouses, suppliers }) {
               </table>
             </div>
             <div className="flex justify-end gap-3 px-6 py-4 border-t">
-              <Btn v="ghost" onClick={() => setDetail(null)}>Yopish</Btn>
+              <Btn v="ghost" onClick={() => setDetail(null)}>{t('admin.dict.close') || 'Yopish'}</Btn>
               {['draft','ordered','partial'].includes(detail.status) && (
                 <Btn v="green" onClick={() => { setRec(detail); setDetail(null); }}>Qabul qilish</Btn>
               )}
@@ -1750,7 +1750,7 @@ function SuppliersTab() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2"><label className="block text-xs font-semibold text-slate-600 mb-1.5">Nomi *</label><input required className={inp} value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Kompaniya nomi"/></div>
                 <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">INN</label><input className={inp} value={form.inn} onChange={e=>setForm({...form,inn:e.target.value})}/></div>
-                <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">Telefon</label><input className={inp} value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/></div>
+                <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('admin.dict.phone') || 'Telefon'}</label><input className={inp} value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/></div>
                 <div className="col-span-2"><label className="block text-xs font-semibold text-slate-600 mb-1.5">Email</label><input type="email" className={inp} value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></div>
               </div>
               {err&&<div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}

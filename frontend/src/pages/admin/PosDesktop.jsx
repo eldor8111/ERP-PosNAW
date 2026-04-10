@@ -407,7 +407,7 @@ const navigate = useNavigate();
         return (
           <div className="w-72 bg-slate-900 border-r border-slate-700 flex flex-col p-5 shrink-0 z-10 shadow-2xl">
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-white font-black text-base">Kontragent</h3>
+              <h3 className="text-white font-black text-base">{t('admin.dict.contragent') || 'Kontragent'}</h3>
               <button onClick={() => setShowCustPanel(false)} className="text-slate-400 hover:text-white transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>

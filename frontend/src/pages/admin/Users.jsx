@@ -27,6 +27,7 @@ const BLANK_FORM = { name: '', phone: '', email: '', password: '', role: 'cashie
 const inp = "w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500";
 
 function StatCard({ label, value, color = 'slate' }) {
+  const { t } = useLang();
   const txt = {
     indigo: 'text-indigo-600', emerald: 'text-emerald-600',
     violet: 'text-violet-600', slate: 'text-slate-700',
@@ -41,6 +42,7 @@ function StatCard({ label, value, color = 'slate' }) {
 
 // ✅ Fix: Field, RoleSelect, BranchSelect tashqarida — props orqali ishlaydi
 function Field({ label, children }) {
+  const { t } = useLang();
   return (
     <div>
       <label className="block text-xs font-semibold text-slate-600 mb-1.5">{label}</label>
@@ -50,6 +52,7 @@ function Field({ label, children }) {
 }
 
 function RoleSelect({ value, onChange, roles, roleLabels }) {
+  const { t } = useLang();
   return (
     <Field label="Rol">
       <select value={value} onChange={e => onChange(e.target.value)} className={inp}>
@@ -60,6 +63,7 @@ function RoleSelect({ value, onChange, roles, roleLabels }) {
 }
 
 function BranchSelect({ value, onChange, branches }) {
+  const { t } = useLang();
   return (
     <Field label="Filial">
       <select value={value} onChange={e => onChange(e.target.value)} className={inp}>

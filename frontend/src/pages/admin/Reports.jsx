@@ -272,7 +272,7 @@ const [tab, setTab] = useState('sales');
           </select>
           {branchId && (
             <button onClick={() => setBranchId('')}
-              className="text-xs text-slate-400 hover:text-slate-600 underline">Tozalash</button>
+              className="text-xs text-slate-400 hover:text-slate-600 underline">{t('admin.dict.clear') || 'Tozalash'}</button>
           )}
         </div>
       )}
@@ -415,7 +415,7 @@ const [tab, setTab] = useState('sales');
                   {profitData.length > 0 && (
                     <tfoot>
                       <tr className="bg-indigo-50 font-bold">
-                        <td className="px-5 py-3 text-sm text-slate-700">JAMI</td>
+                        <td className="px-5 py-3 text-sm text-slate-700">{t('admin.dict.th_total') || 'JAMI'}</td>
                         <td />
                         <td className="px-5 py-3 text-sm">{fmt(profitData.reduce((a, r) => a + r.qty_sold, 0))}</td>
                         <td className="px-5 py-3 text-sm">{fmtS(profitData.reduce((a, r) => a + r.revenue, 0))}</td>

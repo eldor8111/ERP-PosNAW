@@ -396,6 +396,7 @@ function ApiKeysTab() {
 
 // ── Password tab ─────────────────────────────────────────────────────────────
 function PasswordTab() {
+  const { t } = useLang();
   const [form, setForm]   = useState({ new_password: '', confirm: '' });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg]     = useState('');
@@ -516,6 +517,7 @@ function PasswordTab() {
 
 // ── Telegram Bot Tab ───────────────────────────────────────────────────────────
 function TelegramBotTab() {
+  const { t } = useLang();
   const [token, setToken] = useState('');
   const [savedToken, setSavedToken] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -659,6 +661,7 @@ const defaultNakladnoyCfg = {
 
 // ── Receipt preview ────────────────────────────────────────────────────────────
 function ReceiptPreview({ cfg, mm }) {
+  const { t } = useLang();
   const narrow = mm === 58;
   return (
     <div className={`${narrow ? 'w-48' : 'w-64'} bg-white border border-slate-300 shadow-xl rounded-sm mx-auto font-mono leading-snug text-slate-800`}
@@ -722,6 +725,7 @@ function ReceiptPreview({ cfg, mm }) {
 
 // ── Nakladnoy preview ─────────────────────────────────────────────────────────
 function NakladnoyPreview({ cfg }) {
+  const { t } = useLang();
   const logoPos = cfg.logo_position || 'center';
   return (
     <div className="bg-white border border-slate-300 shadow-lg rounded p-4 w-full max-w-sm mx-auto text-[8px] font-mono text-slate-700 leading-snug">
@@ -779,6 +783,7 @@ const SUB_TABS = [
 
 // ── These must be module-level functions — NOT defined inside ReceiptTab ───────
 function LogoUpload({ logo, size, onUpload, onRemove, onSizeChange, positionPicker, position, onPositionChange }) {
+  const { t } = useLang();
   const handleFile = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -845,6 +850,7 @@ function LogoUpload({ logo, size, onUpload, onRemove, onSizeChange, positionPick
 }
 
 function ReceiptFields({ cfg, upd }) {
+  const { t } = useLang();
   return (
     <div className="space-y-4">
       {/* Logo upload (centered for thermal) */}
@@ -862,11 +868,11 @@ function ReceiptFields({ cfg, upd }) {
           <input value={cfg.company} onChange={e => upd('company', e.target.value)} placeholder="Masalan: Farrukh Do'koni" className={RIC} />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">Telefon</label>
+          <label className="block text-xs font-semibold text-slate-500 mb-1">{t('admin.dict.phone') || 'Telefon'}</label>
           <input value={cfg.phone} onChange={e => upd('phone', e.target.value)} placeholder="+998 90 000 00 00" className={RIC} />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">Manzil</label>
+          <label className="block text-xs font-semibold text-slate-500 mb-1">{t('admin.dict.address') || 'Manzil'}</label>
           <input value={cfg.address} onChange={e => upd('address', e.target.value)} placeholder="Shahar, ko'cha, uy" className={RIC} />
         </div>
         <div>
@@ -910,6 +916,7 @@ function ReceiptFields({ cfg, upd }) {
 }
 
 function NakladnoyFields({ cfg, upd }) {
+  const { t } = useLang();
   return (
     <div className="space-y-4">
       {/* Logo upload with position picker + size */}
@@ -933,11 +940,11 @@ function NakladnoyFields({ cfg, upd }) {
           <input value={cfg.inn} onChange={e => upd('inn', e.target.value)} placeholder="123456789" className={RIC} />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">Manzil</label>
+          <label className="block text-xs font-semibold text-slate-500 mb-1">{t('admin.dict.address') || 'Manzil'}</label>
           <input value={cfg.address} onChange={e => upd('address', e.target.value)} className={RIC} />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">Telefon</label>
+          <label className="block text-xs font-semibold text-slate-500 mb-1">{t('admin.dict.phone') || 'Telefon'}</label>
           <input value={cfg.phone} onChange={e => upd('phone', e.target.value)} className={RIC} />
         </div>
       </div>
@@ -985,6 +992,7 @@ function NakladnoyFields({ cfg, upd }) {
 
 // ── Receipt / Nakladnoy settings tab ──────────────────────────────────────────
 function ReceiptTab() {
+  const { t } = useLang();
   const [loading, setLoading] = useState(true);
   const [sub, setSub]       = useState('58');
   const [cfg58, setCfg58]   = useState({ ...defaultReceiptCfg });
@@ -1091,6 +1099,7 @@ function ReceiptTab() {
 
 // ── Filiallar tab ────────────────────────────────────────────────────────────
 function BranchesTab() {
+  const { t } = useLang();
   const [branches, setBranches] = useState([]);
   const [form, setForm] = useState({ name: '', address: '', phone: '' });
   const [editId, setEditId] = useState(null);
@@ -1140,12 +1149,12 @@ function BranchesTab() {
               placeholder="Masalan: Asosiy filial" className={inputCls} />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Manzil</label>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">{t('admin.dict.address') || 'Manzil'}</label>
             <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })}
               placeholder="Shahar, ko'cha" className={inputCls} />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Telefon</label>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">{t('admin.dict.phone') || 'Telefon'}</label>
             <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
               placeholder="+998 90 000 00 00" className={inputCls} />
           </div>
@@ -1210,7 +1219,7 @@ function BranchesTab() {
                     {editId === b.id ? (
                       <>
                         <button onClick={() => handleSaveEdit(b.id)}
-                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg">Saqlash</button>
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg">{t('admin.dict.save') || 'Saqlash'}</button>
                         <button onClick={() => setEditId(null)}
                           className="px-3 py-1.5 border border-slate-200 text-slate-500 text-xs rounded-lg">Bekor</button>
                       </>
@@ -1248,6 +1257,7 @@ function BranchesTab() {
 
 // ── Main Settings page ────────────────────────────────────────────────────────
 export default function Settings() {
+  const { t } = useLang();
   const [tab, setTab] = useState('valyuta');
 
   const TABS = [

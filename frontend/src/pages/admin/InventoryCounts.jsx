@@ -245,7 +245,7 @@ const [warehouses, setWarehouses] = useState([]);
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Izoh</label>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('admin.dict.comment') || 'Izoh'}</label>
             <input
               type="text"
               placeholder="Ixtiyoriy..."
