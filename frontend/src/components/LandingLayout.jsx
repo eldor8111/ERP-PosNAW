@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useLang } from '../context/LangContext'
 import ECodeLogo from './ECodeLogo'
+import '../pages/landing.css'
 
 const LangIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
@@ -31,6 +32,7 @@ export default function LandingLayout({ children }) {
 
   const navLinks = [
     { label: t('land.nav.erp') || 'ERP Tizim', path: '/erp-tizim' },
+    { label: t('land.nav.chaqqon') || 'Chaqqon Pro', path: '/chaqqon-pro', active: true },
     { label: t('land.nav.websites') || 'Veb-saytlar', path: '/veb-saytlar' },
     { label: t('land.nav.bots') || 'Telegram Botlar', path: '/telegram-botlar' },
     { label: t('land.nav.custom') || 'Noyob Dasturlar', path: '/noyob-dasturlar' },
@@ -48,7 +50,14 @@ export default function LandingLayout({ children }) {
 
           <div className="ent-nav-links">
             {navLinks.map(link => (
-              <a key={link.path} onClick={() => navigate(link.path)} style={{ cursor: 'pointer' }}>
+              <a 
+                key={link.path} 
+                onClick={() => navigate(link.path)} 
+                style={{ 
+                  cursor: 'pointer', 
+                  color: link.active ? '#f97316' : undefined 
+                }}
+              >
                 {link.label}
               </a>
             ))}

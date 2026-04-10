@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLang } from '../context/LangContext'
-import ECodeLogo from '../components/ECodeLogo'
+import LandingLayout from '../components/LandingLayout'
 import axios from 'axios'
 import './landing.css'
 
@@ -165,21 +165,11 @@ function TabbedModules({ t }) {
 
 // ─── MAIN COMPONENT ─────────────────────────────────────────────────────────
 export default function Landing() {
-
-  const { t, lang, setLang, LANGUAGES } = useLang()
+  const { t } = useLang()
   const navigate = useNavigate()
-  const [scrolled, setScrolled] = useState(false)
-  const [langOpen, setLangOpen] = useState(false)
-  const [mobileMenu, setMobileMenu] = useState(false)
 
   const [leadForm, setLeadForm] = useState({ service: 'ERP Tizim', name: '', phone: '+998' })
   const [leadStatus, setLeadStatus] = useState(null) // 'loading', 'success', 'error'
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20)
-    window.addEventListener('scroll', onScroll)
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
 
   const handleLeadSubmit = async (e) => {
     e.preventDefault()
@@ -188,71 +178,12 @@ export default function Landing() {
       await axios.post('/api/leads', leadForm)
       setLeadStatus('success')
     } catch (err) {
-      // Depending on CORS, we might just fail but we will show success to user so they don't get stuck if chat_id missing on server
       setLeadStatus('success')
     }
   }
 
-  const currentLang = LANGUAGES.find(l => l.code === lang)
-
   return (
-    <div className="ent-root">
-
-      {/* ── Navbar ── */}
-      <nav className={`ent-nav ${scrolled ? 'scrolled' : ''}`}>
-        <div className="ent-container ent-nav-inner">
-          <ECodeLogo size={32} />
-
-          <div className="ent-nav-links">
-            <a onClick={() => navigate('/erp-tizim')} style={{ cursor: 'pointer' }}>{t('land.nav.erp') || 'ERP Tizim'}</a>
-            <a onClick={() => navigate('/chaqqon-pro')} style={{ cursor: 'pointer', color: '#f97316' }}>{t('land.nav.chaqqon') || 'Chaqqon Pro'}</a>
-            <a onClick={() => navigate('/veb-saytlar')} style={{ cursor: 'pointer' }}>{t('land.nav.websites') || 'Veb-saytlar'}</a>
-            <a onClick={() => navigate('/telegram-botlar')} style={{ cursor: 'pointer' }}>{t('land.nav.bots') || 'Telegram Botlar'}</a>
-            <a onClick={() => navigate('/noyob-dasturlar')} style={{ cursor: 'pointer' }}>{t('land.nav.custom') || 'Noyob Dasturlar'}</a>
-            <a onClick={() => navigate('/aloqa')} style={{ cursor: 'pointer' }}>{t('land.nav.contact') || 'Aloqa'}</a>
-          </div>
-
-          <div className="ent-nav-actions">
-            <div className="ent-lang-wrap">
-              <button className="ent-lang-btn" onClick={() => setLangOpen(!langOpen)}>
-                {currentLang?.short} {ICONS.lang}
-              </button>
-              {langOpen && (
-                <div className="ent-lang-dropdown">
-                  {LANGUAGES.map(l => (
-                    <button key={l.code} onClick={() => { setLang(l.code); setLangOpen(false); }}>
-                      {l.flag} {l.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <button className="ent-btn-ghost" onClick={() => window.location.href = 'https://savdo.e-code.uz/login'}>
-              {t('land.hero.login')}
-            </button>
-            <button className="ent-btn-primary" onClick={() => window.location.href = 'https://savdo.e-code.uz/register'}>
-              {t('land.hero.start')}
-            </button>
-            <button className="ent-hamburger" onClick={() => setMobileMenu(!mobileMenu)}>
-              ☰
-            </button>
-          </div>
-        </div>
-
-        {mobileMenu && (
-          <div className="ent-mobile-menu">
-            <a onClick={() => navigate('/erp-tizim')} style={{ cursor: 'pointer' }}>{t('land.nav.erp') || 'ERP Tizim'}</a>
-            <a onClick={() => navigate('/chaqqon-pro')} style={{ cursor: 'pointer', color: '#f97316' }}>{t('land.nav.chaqqon') || 'Chaqqon Pro'}</a>
-            <a onClick={() => navigate('/veb-saytlar')} style={{ cursor: 'pointer' }}>{t('land.nav.websites') || 'Veb-saytlar'}</a>
-            <a onClick={() => navigate('/telegram-botlar')} style={{ cursor: 'pointer' }}>{t('land.nav.bots') || 'Telegram Botlar'}</a>
-            <a onClick={() => navigate('/noyob-dasturlar')} style={{ cursor: 'pointer' }}>{t('land.nav.custom') || 'Noyob Dasturlar'}</a>
-            <a onClick={() => navigate('/aloqa')} style={{ cursor: 'pointer' }}>{t('land.nav.contact') || 'Aloqa'}</a>
-            <button onClick={() => window.location.href = 'https://savdo.e-code.uz/login'}>{t('land.nav.login') || 'Kirish'}</button>
-            <button className="ent-btn-primary" onClick={() => window.location.href = 'https://savdo.e-code.uz/register'}>{t('land.nav.register') || 'Ro\'yxatdan o\'tish'}</button>
-          </div>
-        )}
-      </nav>
-
+    <LandingLayout>
       {/* ── Hero ── */}
       <header className="ent-hero">
         <div className="ent-hero-bg-grid" />
@@ -542,30 +473,7 @@ export default function Landing() {
           </div>
         </div>
       </section>
-
-      {/* ── Footer ── */}
-      <footer className="ent-footer">
-        <div className="ent-container ent-footer-inner">
-          <div className="ent-footer-brand">
-            <ECodeLogo size={24} />
-            <p className="copy">© {new Date().getFullYear()} E-code LLC. {t('land.footer.rights')}</p>
-          </div>
-          
-          <div className="ent-footer-links">
-            <div>
-              <strong>{t('land.contact')}</strong>
-              <span>ecode.uz@gmail.com</span>
-              <span>+998 88 911 81 71</span>
-            </div>
-            <div>
-              <strong>{t('land.system')}</strong>
-              <span onClick={() => window.location.href = 'https://savdo.e-code.uz/login'} className="clickable">{t('land.nav.login')}</span>
-              <span onClick={() => window.location.href = 'https://savdo.e-code.uz/register'} className="clickable">{t('land.nav.register')}</span>
-            </div>
-          </div>
-        </div>
-      </footer>
-    </div>
+    </LandingLayout>
   )
 }
 
