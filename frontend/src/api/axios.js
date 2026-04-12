@@ -108,7 +108,7 @@ api.interceptors.response.use(
       return Promise.reject(error)
     }
     if (status === 402) {
-      toast.error(detail || "Obuna muddati tugagan. Iltimos to'lov qiling.")
+      localStorage.setItem('subscription_expired', detail || "Obuna muddati tugagan. Iltimos to'lov qiling.")
       localStorage.removeItem('access_token')
       localStorage.removeItem('user')
       if (window.location.protocol === 'file:') window.location.hash = '#/login'

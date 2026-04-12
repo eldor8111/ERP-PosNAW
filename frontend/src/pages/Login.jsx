@@ -360,6 +360,12 @@ export default function Login() {
   const [otpName, setOtpName] = useState('')
   const [otpDevMode, setOtpDevMode] = useState(false)
   const [otpLoading, setOtpLoading] = useState(false)
+  // Obuna tugagan ogohlantirish (faqat o'qiladi, o'zgartirilmaydi)
+  const expiredMsg = useState(() => {
+    const msg = localStorage.getItem('subscription_expired')
+    if (msg) { localStorage.removeItem('subscription_expired'); return msg }
+    return ''
+  })[0]
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -458,6 +464,19 @@ export default function Login() {
             <ECodeLogo size={34} showText={true} textClassName="text-lg" />
             <LoginLangSwitcher lang={lang} setLang={setLang} dark={false} />
           </div>
+
+          {/* ── Obuna tugagan ogohlantirish ── */}
+          {expiredMsg && (
+            <div className="mb-6 flex items-start gap-3 bg-red-50 border border-red-300 text-red-700 rounded-2xl px-4 py-4 shadow-sm">
+              <svg className="w-5 h-5 mt-0.5 shrink-0 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+              <div>
+                <p className="font-bold text-sm text-red-700">Obuna muddati tugagan</p>
+                <p className="text-xs text-red-600 mt-0.5">{expiredMsg}</p>
+              </div>
+            </div>
+          )}
 
           {/* ── OTP bosqich ── */}
           {otpStep ? (
