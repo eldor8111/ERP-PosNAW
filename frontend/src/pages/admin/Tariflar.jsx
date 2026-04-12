@@ -132,7 +132,7 @@ export default function Tariflar() {
     <div className="max-w-5xl mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-8 text-center">
-        <h1 className="text-3xl font-black text-slate-800 mb-2">{t('sidebar.tariffs')}</h1>
+        <h1 className="text-3xl font-black text-slate-800 mb-2">{t('nav.tariffs')}</h1>
         <p className="text-slate-500">Biznesingiz uchun qulay tarifni tanlang</p>
       </div>
 
