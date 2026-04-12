@@ -108,12 +108,15 @@ api.interceptors.response.use(
       return Promise.reject(error)
     }
     if (status === 402) {
-      // Tokenlarni o'chirmaymiz — foydalanuvchi ichkarida qoladi
-      localStorage.setItem('subscription_expired', detail || "Obuna muddati tugagan. Iltimos to'lov qiling.")
-      // Login sahifasida bo'lsa yo'naltirmaymiz (login xatosi sifatida ko'rsatiladi)
-      const onLoginPage = window.location.pathname === '/login' || window.location.hash.includes('/login')
+      const path = window.location.pathname
+      const onLoginPage = path === '/login' || window.location.hash.includes('/login')
+      const onTariflarPage = path.includes('/admin/tariflar')
       if (!onLoginPage) {
-        window.location.href = '/admin/tariflar'
+        localStorage.setItem('subscription_expired', detail || "Obuna muddati tugagan. Iltimos to'lov qiling.")
+        // Tariflar sahifasida bo'lsa redirect qilmaymiz (infinite loop oldini olish)
+        if (!onTariflarPage) {
+          window.location.href = '/admin/tariflar'
+        }
       }
       return Promise.reject(error)
     }
