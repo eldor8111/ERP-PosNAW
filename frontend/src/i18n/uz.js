@@ -155,6 +155,8 @@ export default {
 
   // === SALES ===
   'sale.title': 'Sotuvlar',
+  'sale.salesAndCustomers': 'Sotuv va Mijozlar',
+  'sale.notFound': 'Sotuvlar topilmadi',
   'sale.newSale': 'Yangi sotuv',
   'sale.number': 'Raqam',
   'sale.customer': 'Kontragent',
@@ -204,6 +206,8 @@ export default {
 
   // === CUSTOMERS ===
   'customer.title': 'Mijozlar CRM',
+  'customer.customers': 'Mijozlar',
+  'customer.fullName': 'Ism familiya',
   'customer.subtitle': 'Mijozlar, qarzlar va bonuslar boshqaruvi',
   'customer.debtBalance': 'Qarzdorlik',
   'customer.creditLimit': 'Kredit limiti',

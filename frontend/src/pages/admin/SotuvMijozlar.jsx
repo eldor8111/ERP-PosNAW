@@ -1424,7 +1424,7 @@ function SotuvlarTab({ customers }) {
           </button>
           <button onClick={() => setMode('create')} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg flex items-center gap-1.5 shadow-sm">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
-            Yangi sotuv
+            {t('sale.newSale')}
           </button>
         </div>
       </div>
@@ -1454,7 +1454,7 @@ function SotuvlarTab({ customers }) {
               onChange={e => setF({...f, customerQ: e.target.value, customer_id: ''})}
               onFocus={() => setF(p => ({...p, _custOpen: true}))}
               onBlur={() => setTimeout(() => setF(p => ({...p, _custOpen: false})), 200)}
-              placeholder="Contragent"
+              placeholder={t('sale.customer')}
               className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white"
             />
             {f._custOpen && f.customerQ && (
@@ -1525,8 +1525,8 @@ function SotuvlarTab({ customers }) {
                   <th className="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">{t('admin.dict.number') || 'Raqam'}</th>
                   <th className="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">{t('admin.dict.contragent') || 'Kontragent'}</th>
                   <th className="px-3 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">{t('admin.dict.total') || 'Jami'}</th>
-                  <th className="px-3 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">To'langan</th>
-                  <th className="px-3 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Qarzga</th>
+                  <th className="px-3 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">{t('sale.paid')}</th>
+                  <th className="px-3 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">{t('sale.debt')}</th>
                   <th className="px-3 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">{t('admin.dict.payment') || 'To\'lov'}</th>
                   <th className="px-3 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">{t('admin.dict.status') || 'Holat'}</th>
                   <th className="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">{t('admin.dict.cashier') || 'Kassir'}</th>
@@ -1538,7 +1538,7 @@ function SotuvlarTab({ customers }) {
                 {/* Summary row */}
                 {sales.length > 0 && (
                   <tr className="bg-indigo-50/40 text-sm font-semibold">
-                    <td className="px-3 py-2.5" colSpan={3}><span className="text-slate-600">Jami: {sales.length} ta sotuv</span></td>
+                    <td className="px-3 py-2.5" colSpan={3}><span className="text-slate-600">{t('common.total')}: {sales.length} {t('dashboard.salesCount')}</span></td>
                     <td className="px-3 py-2.5 text-right font-mono text-slate-800">{fmt(totals.sum)}</td>
                     <td className="px-3 py-2.5 text-right font-mono text-emerald-600">{fmt(totals.paid)}</td>
                     <td className="px-3 py-2.5 text-right font-mono text-red-500">{fmt(totals.sum - totals.paid)}</td>
@@ -1584,7 +1584,7 @@ function SotuvlarTab({ customers }) {
                   );
                 })}
                 {sales.length === 0 && !loading && (
-                  <tr><td colSpan={11} className="px-5 py-10 text-center text-slate-400 text-sm">Sotuvlar topilmadi</td></tr>
+                  <tr><td colSpan={11} className="px-5 py-10 text-center text-slate-400 text-sm">{t('sale.notFound')}</td></tr>
                 )}
               </tbody>
             </table>
@@ -1593,7 +1593,7 @@ function SotuvlarTab({ customers }) {
 
         {/* Pagination - footer */}
         <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 bg-slate-50/50">
-          <span className="text-sm text-slate-500">{sales.length > 0 ? `${skip + 1}–${skip + sales.length} ko'rsatildi` : `0 ta ma'lumot`}</span>
+          <span className="text-sm text-slate-500">{sales.length > 0 ? `${skip + 1}–${skip + sales.length} ${t('common.shown')}` : t('common.noData')}</span>
           <div className="flex items-center gap-2">
             <button disabled={skip === 0} onClick={() => setSkip(Math.max(0, skip - LIMIT))} className="px-3.5 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors">{t('admin.dict.prev') || 'Oldingi'}</button>
             <button disabled={sales.length < LIMIT} onClick={() => setSkip(skip + LIMIT)} className="px-3.5 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors">{t('admin.dict.next') || 'Keyingi'}</button>
@@ -1699,19 +1699,19 @@ function MijozlarTab() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5"><div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Jami Mijozlar</div><div className="text-2xl font-bold text-indigo-600 mt-0.5">{list.length}</div></div>
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5"><div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Jami Qarz</div><div className="text-2xl font-bold text-red-500 mt-0.5">{fmt(totalDebt)} so'm</div></div>
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5"><div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Qarzdorlar</div><div className="text-2xl font-bold text-amber-600 mt-0.5">{list.filter(c=>Number(c.debt_balance)>0).length}</div></div>
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5"><div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{t('customer.totalCustomers')}</div><div className="text-2xl font-bold text-indigo-600 mt-0.5">{list.length}</div></div>
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5"><div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{t('customer.totalDebt')}</div><div className="text-2xl font-bold text-red-500 mt-0.5">{fmt(totalDebt)} {t('common.sum')}</div></div>
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5"><div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{t('customer.totalDebtors')}</div><div className="text-2xl font-bold text-amber-600 mt-0.5">{list.filter(c=>Number(c.debt_balance)>0).length}</div></div>
       </div>
       <div className="flex gap-3">
-        <div className="relative flex-1"><svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg><input className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Ism yoki telefon..." value={search} onChange={e => setSearch(e.target.value)}/></div>
+        <div className="relative flex-1"><svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg><input className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder={t('customer.searchPlaceholder')} value={search} onChange={e => setSearch(e.target.value)}/></div>
         <button onClick={() => { setForm(emptyCustomer); setSel(null); setErr(''); setModal('form'); }} className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl flex items-center gap-2">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>Yangi Mijoz
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>{t('customer.newCustomer')}
         </button>
       </div>
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <table className="min-w-full">
-          <thead><tr className="bg-slate-50 border-b border-slate-100">{['Ism','Telefon','Qarz','Kredit Limit','Bonus',''].map(h => <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
+          <thead><tr className="bg-slate-50 border-b border-slate-100">{[t('common.name'),t('common.phone'),t('common.debt'),t('customer.creditLimit'),t('customer.loyaltyPoints'),''].map(h => <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
           <tbody className="divide-y divide-slate-50">
             {list.map(c => (
               <tr key={c.id} className="hover:bg-slate-50 transition-colors">
@@ -1729,7 +1729,7 @@ function MijozlarTab() {
                 </td>
               </tr>
             ))}
-            {list.length===0&&<tr><td colSpan={6} className="px-5 py-12 text-center text-slate-400 text-sm">Mijozlar topilmadi</td></tr>}
+            {list.length===0&&<tr><td colSpan={6} className="px-5 py-12 text-center text-slate-400 text-sm">{t('customer.noCustomers')}</td></tr>}
           </tbody>
         </table>
       </div>
@@ -1737,23 +1737,23 @@ function MijozlarTab() {
       {modal==='form' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-slate-100"><h3 className="text-lg font-bold text-slate-800">{sel?'Tahrirlash':"Yangi mijoz qo'shish"}</h3><button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg></button></div>
+            <div className="flex items-center justify-between p-6 border-b border-slate-100"><h3 className="text-lg font-bold text-slate-800">{sel ? t('customer.editCustomer') : t('customer.addCustomer')}</h3><button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg></button></div>
             <form onSubmit={handleSave} className="p-6 space-y-4">
-              <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">Ism familiya *</label><input required className={inputCls} value={form.name} onChange={e => setForm({...form,name:e.target.value})} placeholder="Javohir Toshmatov"/></div>
+              <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('customer.fullName')} *</label><input required className={inputCls} value={form.name} onChange={e => setForm({...form,name:e.target.value})} placeholder="Javohir Toshmatov"/></div>
               <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('admin.dict.phone') || 'Telefon'}</label><input className={inputCls} value={form.phone} onChange={e => setForm({...form,phone:e.target.value})} placeholder="+998 90 123 45 67"/></div>
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold text-slate-600">Karta raqami</label>
-                  <button type="button" onClick={() => setForm({ ...form, card_number: generateCard() })} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">Generatsiya qilish</button>
+                  <label className="block text-xs font-semibold text-slate-600">{t('customer.cardNumber')}</label>
+                  <button type="button" onClick={() => setForm({ ...form, card_number: generateCard() })} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">{t('customer.generateCard')}</button>
                 </div>
                 <input className={`${inputCls} font-mono`} value={form.card_number} onChange={e => setForm({...form,card_number:e.target.value})} placeholder="Masalan: 8888 1234 5678 9012"/>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">Keshbek (%)</label><input type="number" min="0" max="100" step="0.1" className={inputCls} value={form.cashback_percent} onChange={e => setForm({...form,cashback_percent:e.target.value})} placeholder="Masalan: 3.5"/></div>
-                <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">Kredit limiti</label><input type="number" min="0" className={inputCls} value={form.debt_limit} onChange={e => setForm({...form,debt_limit:e.target.value})} placeholder="0"/></div>
+                <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('customer.cashback')} (%)</label><input type="number" min="0" max="100" step="0.1" className={inputCls} value={form.cashback_percent} onChange={e => setForm({...form,cashback_percent:e.target.value})} placeholder="Masalan: 3.5"/></div>
+                <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('customer.creditLimit')}</label><input type="number" min="0" className={inputCls} value={form.debt_limit} onChange={e => setForm({...form,debt_limit:e.target.value})} placeholder="0"/></div>
               </div>
               {err && <div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}
-              <div className="flex gap-3 pt-1"><button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm font-medium rounded-xl hover:bg-slate-50">{t('common.cancel')}</button><button type="submit" disabled={saving} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving?'...':'Saqlash'}</button></div>
+              <div className="flex gap-3 pt-1"><button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm font-medium rounded-xl hover:bg-slate-50">{t('common.cancel')}</button><button type="submit" disabled={saving} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving ? '...' : t('common.save')}</button></div>
             </form>
           </div>
         </div>
@@ -1761,12 +1761,12 @@ function MijozlarTab() {
       {modal==='pay'&&sel&&(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-slate-100"><h3 className="text-lg font-bold text-slate-800">Qarzni to'lash</h3><button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg></button></div>
+            <div className="flex items-center justify-between p-6 border-b border-slate-100"><h3 className="text-lg font-bold text-slate-800">{t('customer.payDebt')}</h3><button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg></button></div>
             <form onSubmit={handlePay} className="p-6 space-y-4">
-              <div className="p-3 bg-slate-50 rounded-xl"><div className="font-semibold text-slate-800">{sel.name}</div><div className="text-red-500 font-bold mt-0.5">Qarz: {fmt(sel.debt_balance)} so'm</div></div>
-              <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">To'lov miqdori *</label><input type="number" min="1" max={sel.debt_balance} required autoFocus className={inputCls} value={payAmt} onChange={e => setPayAmt(e.target.value)} placeholder="Miqdor..."/></div>
+              <div className="p-3 bg-slate-50 rounded-xl"><div className="font-semibold text-slate-800">{sel.name}</div><div className="text-red-500 font-bold mt-0.5">{t('common.debt')}: {fmt(sel.debt_balance)} {t('common.sum')}</div></div>
+              <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('customer.paymentAmount')} *</label><input type="number" min="1" max={sel.debt_balance} required autoFocus className={inputCls} value={payAmt} onChange={e => setPayAmt(e.target.value)} placeholder="Miqdor..."/></div>
               {err && <div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}
-              <div className="flex gap-3"><button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm rounded-xl hover:bg-slate-50">{t('common.cancel')}</button><button type="submit" disabled={saving} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving?'...':'Tasdiqlash'}</button></div>
+              <div className="flex gap-3"><button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm rounded-xl hover:bg-slate-50">{t('common.cancel')}</button><button type="submit" disabled={saving} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving ? '...' : t('common.confirm')}</button></div>
             </form>
           </div>
         </div>
@@ -1778,14 +1778,13 @@ function MijozlarTab() {
 /* ══════════════════════════════════════════════════
    MAIN PAGE
 ══════════════════════════════════════════════════ */
-const TABS = [
-  { id: 'sotuvlar', label: 'Sotuvlar',   icon: '🛒' },
-  { id: 'mijozlar', label: 'Mijozlar',   icon: '👥' },
-];
-
 export default function SotuvMijozlar() {
   const { t } = useLang();
   const [tab, setTab] = useState('sotuvlar');
+  const TABS = [
+    { id: 'sotuvlar', label: t('sale.title'),       icon: '🛒' },
+    { id: 'mijozlar', label: t('customer.customers'), icon: '👥' },
+  ];
   const [customers, setCustomers] = useState(() => {
     try { return JSON.parse(localStorage.getItem('pos_cache_customers'))?.data || []; } catch { return []; }
   });
@@ -1804,12 +1803,12 @@ export default function SotuvMijozlar() {
       {/* Sarlavha + tablar bir qatorda */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <h1 className="text-lg font-bold text-slate-800">Sotuv va Mijozlar</h1>
+          <h1 className="text-lg font-bold text-slate-800">{t('sale.salesAndCustomers')}</h1>
           <div className="flex gap-0.5 bg-slate-100 p-0.5 rounded-lg">
-            {TABS.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)}
-                className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all flex items-center gap-1.5 ${tab===t.id?'bg-white text-slate-800 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>
-                <span className="text-xs">{t.icon}</span>{t.label}
+            {TABS.map(tabItem => (
+              <button key={tabItem.id} onClick={() => setTab(tabItem.id)}
+                className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all flex items-center gap-1.5 ${tab===tabItem.id?'bg-white text-slate-800 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>
+                <span className="text-xs">{tabItem.icon}</span>{tabItem.label}
               </button>
             ))}
           </div>

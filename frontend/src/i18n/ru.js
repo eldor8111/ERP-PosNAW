@@ -157,6 +157,8 @@ export default {
 
   // === SALES ===
   'sale.title': 'Продажи',
+  'sale.salesAndCustomers': 'Продажи и Клиенты',
+  'sale.notFound': 'Продажи не найдены',
   'sale.newSale': 'Новая продажа',
   'sale.number': 'Номер',
   'sale.customer': 'Контрагент',
@@ -206,6 +208,8 @@ export default {
 
   // === CUSTOMERS ===
   'customer.title': 'CRM Клиентов',
+  'customer.customers': 'Клиенты',
+  'customer.fullName': 'Имя фамилия',
   'customer.subtitle': 'Управление клиентами, долгами и бонусами',
   'customer.debtBalance': 'Задолженность',
   'customer.creditLimit': 'Кредитный лимит',

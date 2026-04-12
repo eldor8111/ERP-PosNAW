@@ -157,6 +157,8 @@ export default {
 
   // === SALES ===
   'sale.title': 'Sales',
+  'sale.salesAndCustomers': 'Sales and Customers',
+  'sale.notFound': 'Sales not found',
   'sale.newSale': 'New Sale',
   'sale.number': 'Number',
   'sale.customer': 'Customer',
@@ -206,6 +208,8 @@ export default {
 
   // === CUSTOMERS ===
   'customer.title': 'Customers CRM',
+  'customer.customers': 'Customers',
+  'customer.fullName': 'Full name',
   'customer.subtitle': 'Manage customers, debts and bonuses',
   'customer.debtBalance': 'Debt Balance',
   'customer.creditLimit': 'Credit Limit',
