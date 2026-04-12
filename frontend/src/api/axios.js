@@ -107,6 +107,14 @@ api.interceptors.response.use(
       else window.location.href = '/login'
       return Promise.reject(error)
     }
+    if (status === 402) {
+      toast.error(detail || "Obuna muddati tugagan. Iltimos to'lov qiling.")
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('user')
+      if (window.location.protocol === 'file:') window.location.hash = '#/login'
+      else window.location.href = '/login'
+      return Promise.reject(error)
+    }
     if (status === 400) { toast.error(detail || "Noto'g'ri ma'lumot kiritildi"); return Promise.reject(error) }
     if (status === 403) { toast.warn("Sizda bu amalni bajarish huquqi yo'q"); return Promise.reject(error) }
     if (status === 404) { toast.warn(detail || "Ma'lumot topilmadi"); return Promise.reject(error) }

@@ -545,6 +545,17 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
                 detail="Telefon yoki parol noto'g'ri",
             )
 
+        # Obuna muddatini tekshirish (super_admin uchun emas)
+        if user.company_id:
+            from app.models.company import Company as _Company
+            _company = db.query(_Company).filter(_Company.id == user.company_id).first()
+            if _company and _company.subscription_ends_at:
+                _ends = _company.subscription_ends_at
+                if _ends.tzinfo is None:
+                    _ends = _ends.replace(tzinfo=timezone.utc)
+                if _ends < datetime.now(timezone.utc):
+                    raise HTTPException(status_code=402, detail="Obuna muddati tugagan. Iltimos to'lov qiling.")
+
         # Admin, director, super_admin — OTP talab qilinmaydi
         user_role = user.role.value if hasattr(user.role, 'value') else str(user.role)
         if user_role not in _OTP_REQUIRED_ROLES:
@@ -626,6 +637,17 @@ def login_verify_otp(request: Request, data: LoginOtpVerifyRequest, db: Session 
     if not user:
         raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
 
+    # Obuna muddatini tekshirish
+    if user.company_id:
+        from app.models.company import Company as _Company
+        _company = db.query(_Company).filter(_Company.id == user.company_id).first()
+        if _company and _company.subscription_ends_at:
+            _ends = _company.subscription_ends_at
+            if _ends.tzinfo is None:
+                _ends = _ends.replace(tzinfo=timezone.utc)
+            if _ends < datetime.now(timezone.utc):
+                raise HTTPException(status_code=402, detail="Obuna muddati tugagan. Iltimos to'lov qiling.")
+
     user_role = user.role.value if hasattr(user.role, 'value') else str(user.role)
     access_token = create_access_token({"sub": str(user.id), "role": user_role})
     refresh_token = create_refresh_token({"sub": str(user.id)})
@@ -645,6 +667,16 @@ def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == int(payload["sub"]), User.status == UserStatus.active).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Foydalanuvchi topilmadi")
+    # Obuna muddatini tekshirish
+    if user.company_id:
+        from app.models.company import Company as _Company
+        _company = db.query(_Company).filter(_Company.id == user.company_id).first()
+        if _company and _company.subscription_ends_at:
+            _ends = _company.subscription_ends_at
+            if _ends.tzinfo is None:
+                _ends = _ends.replace(tzinfo=timezone.utc)
+            if _ends < datetime.now(timezone.utc):
+                raise HTTPException(status_code=402, detail="Obuna muddati tugagan. Iltimos to'lov qiling.")
     access_token = create_access_token({"sub": str(user.id), "role": user.role.value})
     new_refresh_token = create_refresh_token({"sub": str(user.id)})
     return TokenResponse(
