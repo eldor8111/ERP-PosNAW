@@ -988,7 +988,7 @@ export default function Products() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
-                Excel yuklab olish
+                {t('product.excelExport')}
               </button>
             </>
           )}
@@ -999,10 +999,10 @@ export default function Products() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
             </svg>
-            {activeTab === 'products' ? "Mahsulot qo'shish" : activeTab === 'categories' ? "Kategoriya qo'shish" : "Joylashuv qo'shish"}
+            {activeTab === 'products' ? t('product.addProduct') : activeTab === 'categories' ? t('product.addCategory') : t('product.addLocation')}
           </button>
           <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
-            {[['products', 'Mahsulotlar'], ['categories', 'Kategoriyalar'], ['binloc', 'Joylashuvlar']].map(([key, label]) => (
+            {[['products', t('product.title')], ['categories', t('product.categories')], ['binloc', t('product.locations')]].map(([key, label]) => (
               <button key={key} onClick={() => setActiveTab(key)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === key ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                 {label}
@@ -1018,9 +1018,9 @@ export default function Products() {
           {/* Stats */}
           <div className="grid grid-cols-3 gap-4">
             {[
-              { label: 'Jami Mahsulot', val: totalRecords,  icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', bg: 'bg-indigo-100',  ic: 'text-indigo-600',  vl: 'text-slate-800' },
-              { label: 'Faol',          val: totalActive,       icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',                        bg: 'bg-emerald-100', ic: 'text-emerald-600', vl: 'text-emerald-600' },
-              { label: "Qoldiq yo'q",   val: outOfStock,          icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z', bg: 'bg-red-100', ic: 'text-red-500', vl: 'text-red-500' },
+              { label: t('product.totalProducts'), val: totalRecords,  icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', bg: 'bg-indigo-100',  ic: 'text-indigo-600',  vl: 'text-slate-800' },
+              { label: t('product.active'),        val: totalActive,   icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',                        bg: 'bg-emerald-100', ic: 'text-emerald-600', vl: 'text-emerald-600' },
+              { label: t('product.outOfStockStat'),val: outOfStock,    icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z', bg: 'bg-red-100', ic: 'text-red-500', vl: 'text-red-500' },
             ].map(s => (
               <div key={s.label} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 flex items-center gap-4">
                 <div className={`w-12 h-12 rounded-xl ${s.bg} flex items-center justify-center shrink-0`}>
@@ -1047,22 +1047,22 @@ export default function Products() {
             </div>
             <select className="px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white shadow-sm text-slate-700"
               value={filterCat} onChange={e => setFilterCat(e.target.value)}>
-              <option value="">Barcha kategoriyalar</option>
+              <option value="">{t('product.allCategories')}</option>
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <select className="px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white shadow-sm text-slate-700"
               value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-              <option value="">Barcha holat</option>
+              <option value="">{t('product.allStatus')}</option>
               <option value="active">{t('admin.dict.active') || 'Faol'}</option>
               <option value="inactive">{t('admin.dict.inactive') || 'Nofaol'}</option>
-              <option value="archived">Arxiv</option>
+              <option value="archived">{t('product.archived')}</option>
             </select>
             {warehouses.length > 0 && (
               <select className={`px-3.5 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white shadow-sm text-slate-700 ${
                 filterWarehouse ? 'border-indigo-400 ring-1 ring-indigo-300 text-indigo-700 font-semibold' : 'border-slate-200'
               }`}
                 value={filterWarehouse} onChange={e => setFilterWarehouse(e.target.value)}>
-                <option value="">🏭 Barcha omborlar</option>
+                <option value="">🏭 {t('common.allWarehouses')}</option>
                 {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
               </select>
             )}
@@ -1070,7 +1070,7 @@ export default function Products() {
               <div className="flex items-center gap-3 px-4 py-2 bg-red-50 border border-red-200 rounded-xl min-w-[220px]">
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-red-600">O'chirilmoqda...</span>
+                    <span className="text-xs font-semibold text-red-600">{t('product.deleting')}</span>
                     <span className="text-xs font-bold text-red-700">{deletePercent}%</span>
                   </div>
                   <div className="w-full bg-red-200 rounded-full h-2 overflow-hidden">
@@ -1084,24 +1084,19 @@ export default function Products() {
             ) : selectedIds.length > 0 && (
               <button onClick={handleBulkDelete} className="px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-semibold rounded-xl transition-colors inline-flex items-center gap-2 shrink-0">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                {selectedIds.length} tani o'chirish
+                {selectedIds.length} {t('common.delete')}
               </button>
             )}
             
             <select className="px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white shadow-sm text-slate-700 font-medium"
               value={limit} onChange={e => { const v = Number(e.target.value); localStorage.setItem('products_limit', v); setLimit(v); }}>
-              <option value={10}>10 ta</option>
-              <option value={20}>20 ta</option>
-              <option value={50}>50 ta</option>
-              <option value={100}>100 ta</option>
-              <option value={200}>200 ta</option>
-              <option value={500}>500 ta</option>
-              <option value={1000}>1000 ta</option>
-              <option value={5000}>5000 ta</option>
+              {[10,20,50,100,200,500,1000,5000].map(n => (
+                <option key={n} value={n}>{n} {t('common.item')}</option>
+              ))}
             </select>
             <button onClick={loadProducts}
               className="px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-sm font-semibold rounded-xl transition-colors">
-              Qidirish
+              {t('common.search').replace('...','')}
             </button>
           </div>
 
@@ -1137,7 +1132,7 @@ export default function Products() {
                           className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
                         />
                       </th>
-                      {['Barkod / SKU', 'Rasm', 'Mahsulot / Brend', 'Kategoriya', 'Birlik', 'Tan narxi', 'Ulgurji', 'Chakana', 'Qoldiq', 'Holat', ''].map(h => (
+                      {[t('product.thBarcode'), t('product.thImage'), t('product.thProduct'), t('product.category'), t('product.thUnit'), t('product.thCost'), t('product.thWholesale'), t('product.thRetail'), t('product.stock'), t('common.status'), ''].map(h => (
                         <th key={h} className="px-2 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap overflow-hidden">{h}</th>
                       ))}
                     </tr>
@@ -1191,7 +1186,7 @@ export default function Products() {
                           </td>
                           <td className="px-2 py-3">
                             <span className="text-sm font-black text-slate-900">{fmt(p.sale_price)}</span>
-                            <span className="text-xs text-slate-400 ml-0.5">so'm</span>
+                            <span className="text-xs text-slate-400 ml-0.5">{t('common.sum')}</span>
                           </td>
                           <td className="px-2 py-3">
                             <div className="flex flex-col gap-1">
@@ -1250,7 +1245,7 @@ export default function Products() {
                             <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                             </svg>
-                            <span className="text-sm font-medium">Mahsulotlar topilmadi</span>
+                            <span className="text-sm font-medium">{t('product.noProducts')}</span>
                           </div>
                         </td>
                       </tr>
@@ -1260,8 +1255,8 @@ export default function Products() {
                 {products.length > 0 && (
                   <div className="px-6 py-3 border-t border-slate-100 flex items-center justify-between text-sm text-slate-500 bg-slate-50">
                     <div className="flex gap-4">
-                      <span>Jami <strong className="text-slate-700">{totalRecords}</strong> ta mahsulot</span>
-                      <span>Hozirgi sahifada: <strong className="text-slate-700">{products.length}</strong></span>
+                      <span>{t('common.total')} <strong className="text-slate-700">{totalRecords}</strong> {t('common.item')} {t('product.title').toLowerCase()}</span>
+                      <span>{t('product.currentPage')} <strong className="text-slate-700">{products.length}</strong></span>
                     </div>
 
                     <div className="flex items-center gap-1">
@@ -1289,16 +1284,16 @@ export default function Products() {
       {activeTab === 'categories' && (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-            <span className="text-sm font-semibold text-slate-700">Barcha kategoriyalar ({categories.length})</span>
+            <span className="text-sm font-semibold text-slate-700">{t('product.allCategoriesLabel')} ({categories.length})</span>
             <button onClick={openAddCat}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-semibold rounded-lg transition-colors">
-              + Kategoriya
+              + {t('product.addCategory')}
             </button>
           </div>
           <table className="min-w-full">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
-                {['#', 'Nomi', 'Ota kategoriya', 'Tartib', 'Yaratilgan', ''].map(h => (
+                {['#', t('common.name'), t('product.parentCategory'), t('product.sortOrder'), t('common.created'), ''].map(h => (
                   <th key={h} className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -1337,7 +1332,7 @@ export default function Products() {
                 </tr>
               ))}
               {categories.length === 0 && (
-                <tr><td colSpan={6} className="px-6 py-14 text-center text-sm text-slate-400">Kategoriyalar topilmadi</td></tr>
+                <tr><td colSpan={6} className="px-6 py-14 text-center text-sm text-slate-400">{t('product.noCategories')}</td></tr>
               )}
             </tbody>
           </table>
@@ -1386,7 +1381,7 @@ export default function Products() {
                 </tr>
               ))}
               {binLocations.length === 0 && (
-                <tr><td colSpan={3} className="px-6 py-14 text-center text-sm text-slate-400">Joylashuvlar topilmadi. "Joylashuv qo'shish" tugmasini bosing.</td></tr>
+                <tr><td colSpan={3} className="px-6 py-14 text-center text-sm text-slate-400">{t('product.noLocations')}</td></tr>
               )}
             </tbody>
           </table>
@@ -1661,7 +1656,7 @@ export default function Products() {
                     onChange={e => setForm({ ...form, status: e.target.value })}>
                     <option value="active">{t('admin.dict.active') || 'Faol'}</option>
                     <option value="inactive">{t('admin.dict.inactive') || 'Nofaol'}</option>
-                    <option value="archived">Arxiv</option>
+                    <option value="archived">{t('product.archived')}</option>
                   </select>
                 </Field>
 
@@ -1691,7 +1686,7 @@ export default function Products() {
               <input required className={inputCls} value={catForm.name}
                 onChange={e => setCatForm({ ...catForm, name: e.target.value })} placeholder="Masalan: Ichimliklar" />
             </Field>
-            <Field label="Ota kategoriya (ixtiyoriy)">
+            <Field label={t('product.parentCategoryOpt')}>
               <select className={inputCls} value={catForm.parent_id}
                 onChange={e => setCatForm({ ...catForm, parent_id: e.target.value })}>
                 <option value="">Yo'q (asosiy kategoriya)</option>
@@ -1700,7 +1695,7 @@ export default function Products() {
                 ))}
               </select>
             </Field>
-            <Field label="Tartib raqami">
+            <Field label={t('product.sortNumber')}>
               <input type="number" min="0" className={inputCls} value={catForm.sort_order}
                 onChange={e => setCatForm({ ...catForm, sort_order: e.target.value })} />
             </Field>
@@ -1782,7 +1777,7 @@ export default function Products() {
                 <div className="w-7 h-7 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
               </div>
             ) : history.length === 0 ? (
-              <div className="text-center py-10 text-slate-400 text-sm">Harakatlar tarixi topilmadi</div>
+              <div className="text-center py-10 text-slate-400 text-sm">{t('common.noData')}</div>
             ) : (
               <div>
                 <div className="flex items-center justify-between mb-3">
