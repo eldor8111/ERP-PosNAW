@@ -24,7 +24,6 @@ const fmtFull = (val) => {
 };
 
 function KpiCard({ label, value, sub, icon, gradient, iconBg, badge }) {
-  const { t } = useLang();
   return (
     <div className={`relative overflow-hidden rounded-2xl p-6 text-white ${gradient}`}>
       <div className="flex items-start justify-between">
@@ -52,12 +51,13 @@ function KpiCard({ label, value, sub, icon, gradient, iconBg, badge }) {
 }
 
 const CustomTooltip = ({ active, payload, label }) => {
+  const { t } = useLang();
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 shadow-xl">
       <p className="text-slate-400 text-xs mb-1">{label}</p>
       <p className="text-white text-sm font-semibold">{fmtFull(payload[0]?.value)}</p>
-      {payload[1] && <p className="text-slate-300 text-xs mt-0.5">{payload[1]?.value} ta sotuv</p>}
+      {payload[1] && <p className="text-slate-300 text-xs mt-0.5">{payload[1]?.value} {t('dashboard.salesCount')}</p>}
     </div>
   );
 };
@@ -151,8 +151,8 @@ export default function Dashboard() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
-          <p className="text-slate-700 font-semibold text-lg">Ma&apos;lumot yuklanmadi</p>
-          <p className="text-slate-400 text-sm mt-1 mb-5">Dashboard ma&apos;lumotlarini yuklashda xato</p>
+          <p className="text-slate-700 font-semibold text-lg">{t('dashboard.errorTitle')}</p>
+          <p className="text-slate-400 text-sm mt-1 mb-5">{t('dashboard.errorDesc')}</p>
           <button onClick={load} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-indigo-200">
             {t('common.refresh')}
           </button>
@@ -246,7 +246,7 @@ export default function Dashboard() {
                 onChange={handleBranchChange}
                 className="text-sm border border-slate-200 rounded-xl pl-8 pr-3 py-2 bg-white text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 appearance-none cursor-pointer"
               >
-                <option value="">{t('common.all')} filiallar</option>
+                <option value="">{t('common.allBranches')}</option>
                 {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
               <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -261,7 +261,7 @@ export default function Dashboard() {
                 onChange={handleWarehouseChange}
                 className="text-sm border border-slate-200 rounded-xl pl-8 pr-3 py-2 bg-white text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 appearance-none cursor-pointer"
               >
-                <option value="">{t('common.all')} omborlar</option>
+                <option value="">{t('common.allWarehouses')}</option>
                 {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
               </select>
               <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -350,8 +350,8 @@ export default function Dashboard() {
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-base font-semibold text-slate-800">Oylik trend (30 kun)</h3>
-            <p className="text-sm text-slate-400 mt-0.5">So'nggi 30 kunlik kunlik sotuv dinamikasi</p>
+            <h3 className="text-base font-semibold text-slate-800">{t('dashboard.monthlyTrend')}</h3>
+            <p className="text-sm text-slate-400 mt-0.5">{t('dashboard.monthlyTrendDesc')}</p>
           </div>
           <div className="w-8 h-8 bg-violet-50 rounded-lg flex items-center justify-center">
             <svg className="w-4 h-4 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -378,7 +378,7 @@ export default function Dashboard() {
             </ComposedChart>
           </ResponsiveContainer>
         ) : (
-          <div className="flex items-center justify-center h-40 text-slate-300 text-sm">Ma'lumot yo'q</div>
+          <div className="flex items-center justify-center h-40 text-slate-300 text-sm">{t('common.noData')}</div>
         )}
       </div>
 
@@ -394,8 +394,8 @@ export default function Dashboard() {
                 </svg>
               </div>
               <div>
-                <h3 className="text-base font-semibold text-slate-800">Kassir samaradorligi</h3>
-                <p className="text-sm text-slate-400">Bu oy natijalari</p>
+                <h3 className="text-base font-semibold text-slate-800">{t('dashboard.cashierPerformance')}</h3>
+                <p className="text-sm text-slate-400">{t('dashboard.cashierPerformanceMonth')}</p>
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -419,7 +419,7 @@ export default function Dashboard() {
                         }`}>{i + 1}</span>
                       </td>
                       <td className="px-4 py-3.5 text-sm font-medium text-slate-800">{c.name}</td>
-                      <td className="px-4 py-3.5 text-center text-sm text-slate-500">{c.count} ta</td>
+                      <td className="px-4 py-3.5 text-center text-sm text-slate-500">{c.count} {t('dashboard.salesCount')}</td>
                       <td className="px-6 py-3.5 text-right text-sm font-semibold text-emerald-600">{fmt(c.total)}</td>
                     </tr>
                   ))}
@@ -440,8 +440,8 @@ export default function Dashboard() {
                 </svg>
               </div>
               <div>
-                <h3 className="text-base font-semibold text-slate-800">Kam qoldiqli mahsulotlar</h3>
-                <p className="text-sm text-slate-400">{data.low_stock.length} ta mahsulot zaxira chegarasidan past</p>
+                <h3 className="text-base font-semibold text-slate-800">{t('dashboard.lowStockProducts')}</h3>
+                <p className="text-sm text-slate-400">{data.low_stock.length} {t('dashboard.lowStockBelowMin')}</p>
               </div>
             </div>
             <div className="overflow-x-auto">
