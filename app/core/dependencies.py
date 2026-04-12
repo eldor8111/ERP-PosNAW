@@ -58,6 +58,25 @@ def get_current_user(
     return user
 
 
+def get_current_user_allow_expired(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> User:
+    """get_current_user kabi, lekin obuna muddati tugagan bo'lsa ham o'tkazadi.
+    Billing sahifalari uchun ishlatiladi."""
+    token = credentials.credentials
+    payload = decode_token(token)
+    if not payload or payload.get("type") != "access":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token yaroqsiz yoki muddati o'tgan")
+    user_id: int = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token noto'g'ri")
+    user = db.query(User).filter(User.id == int(user_id), User.status == UserStatus.active).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Foydalanuvchi topilmadi")
+    return user
+
+
 def require_roles(*roles: UserRole):
     def checker(current_user: User = Depends(get_current_user)) -> User:
         # super_admin barcha amallardan o'ta oladi

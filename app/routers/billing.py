@@ -10,7 +10,7 @@ from pydantic import BaseModel  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
 
 from app.database import get_db  # type: ignore
-from app.core.dependencies import get_current_user  # type: ignore
+from app.core.dependencies import get_current_user, get_current_user_allow_expired  # type: ignore
 from app.models.user import User, UserRole  # type: ignore
 from app.models.company import Company  # type: ignore
 from app.models.billing import Tariff, BalanceLog  # type: ignore
@@ -92,7 +92,7 @@ def _company_billing_out(c: Company) -> dict:
 @router.get("/settings")
 def get_payment_settings(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(get_current_user_allow_expired),
 ):
     """Karta raqami, Telegram, Telefon — barcha login qilganlar uchun"""
     return _get_settings_dict(db)
@@ -103,7 +103,7 @@ def get_payment_settings(
 @router.get("/tariffs")
 def list_tariffs(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(get_current_user_allow_expired),
 ):
     """Barcha faol tariflar (hamma foydalanuvchilar ko'ra oladi)"""
     tariffs = db.query(Tariff).filter(Tariff.is_active == True).order_by(Tariff.sort_order).all()
@@ -189,7 +189,7 @@ def delete_tariff(
 @router.get("/my-company")
 def get_my_company_billing(
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_allow_expired),
 ):
     """Foydalanuvchi o'z korxonasining billing holatini ko'radi"""
     if not user.company_id:

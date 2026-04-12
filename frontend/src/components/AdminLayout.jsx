@@ -201,6 +201,17 @@ export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Obuna tugagan holat
+  const [subExpiredMsg] = useState(() => localStorage.getItem('subscription_expired') || '');
+  const isSubExpired = !!subExpiredMsg;
+
+  // Obuna tugagan bo'lsa tariflar sahifasiga yo'naltirish
+  useEffect(() => {
+    if (isSubExpired && !location.pathname.includes('/admin/tariflar')) {
+      navigate('/admin/tariflar', { replace: true });
+    }
+  }, [isSubExpired, location.pathname, navigate]);
+
   const [orgData, setOrgData] = useState({ name: user?.company_name || 'Tizim', code: '...', balance: 0 });
   const [lowStockCount, setLowStockCount] = useState(0);
 
@@ -256,7 +267,7 @@ export default function AdminLayout() {
   const dateLocales = { uz: 'uz-UZ', ru: 'ru-RU', en: 'en-US' };
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
+    <div className="flex h-screen bg-slate-50 font-sans overflow-hidden relative">
 
       {/* Mobile Backdrop */}
       {mobileMenuOpen && (
@@ -322,16 +333,19 @@ export default function AdminLayout() {
 
                 {visibleLinks.map((link) => {
                   const isActive = location.pathname.startsWith(link.path);
+                  const isBlocked = isSubExpired && !link.path.includes('/admin/tariflar');
                   return (
                     <Link
                       key={link.path}
-                      to={link.path}
+                      to={isBlocked ? '/admin/tariflar' : link.path}
                       onClick={() => setMobileMenuOpen(false)}
                       title={collapsed ? link.name : undefined}
                       className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all duration-150 group mb-0.5 ${
-                        isActive
-                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
-                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800'
+                        isBlocked
+                          ? 'opacity-35 cursor-not-allowed pointer-events-none'
+                          : isActive
+                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800'
                       } ${collapsed ? 'justify-center lg:justify-center' : ''}`}
                     >
                       <span className={`shrink-0 relative [&>svg]:w-[16px] [&>svg]:h-[16px] ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-700'}`}>
@@ -468,8 +482,29 @@ export default function AdminLayout() {
         </header>
 
         {/* Page Content */}
-        <main className={`flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 ${location.pathname.startsWith('/admin/pos-kassa') ? '' : 'p-6'}`}>
+        <main className={`flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 relative ${location.pathname.startsWith('/admin/pos-kassa') ? '' : 'p-6'}`}>
           <Outlet />
+
+          {/* ── Obuna tugagan blok overlay ── */}
+          {isSubExpired && !location.pathname.includes('/admin/tariflar') && (
+            <div className="absolute inset-0 z-50 bg-white/80 backdrop-blur-sm flex items-center justify-center p-6">
+              <div className="bg-white rounded-2xl border border-red-200 shadow-2xl max-w-md w-full p-8 text-center">
+                <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-black text-slate-800 mb-2">Obuna muddati tugagan</h2>
+                <p className="text-sm text-slate-500 mb-6">{subExpiredMsg || "Tizimdan foydalanish uchun obunani yangilang."}</p>
+                <button
+                  onClick={() => navigate('/admin/tariflar')}
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold text-sm hover:opacity-90 transition-all shadow-lg"
+                >
+                  To'lovga o'tish →
+                </button>
+              </div>
+            </div>
+          )}
         </main>
       </div>
     </div>
