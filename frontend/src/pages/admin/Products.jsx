@@ -1391,7 +1391,7 @@ export default function Products() {
       {/* ════ PRODUCT ADD / EDIT MODAL ════ */}
       {modal && (
         <Modal
-          title={modal === 'add' ? "Yangi mahsulot qo'shish" : 'Mahsulotni tahrirlash'}
+          title={modal === 'add' ? t('product.addNewProduct') : t('product.editProduct')}
           onClose={closeModal}
           size="xl"
         >
@@ -1414,28 +1414,28 @@ export default function Products() {
               <div className="col-span-2 space-y-5">
 
                 {/* Name */}
-                <Field label="Mahsulot nomi" required>
+                <Field label={t('product.productName')} required>
                   <input
                     className={`${inputCls} text-base ${!form.name?.trim() && error ? errCls : ''}`}
                     value={form.name}
                     onChange={e => setForm({ ...form, name: e.target.value })}
-                    placeholder="Masalan: Coca-Cola 0.5L"
+                    placeholder={t('product.productNamePlaceholder')}
                   />
                 </Field>
 
                 {/* Brand */}
-                <Field label="Brend (ishlab chiqaruvchi)" hint="Masalan: Coca-Cola, Samsung, Nestle">
+                <Field label={t('product.brandLabel')} hint={t('product.brandHint')}>
                   <input
                     className={inputCls}
                     value={form.brand}
                     onChange={e => setForm({ ...form, brand: e.target.value })}
-                    placeholder="Brend nomi (ixtiyoriy)"
+                    placeholder={t('product.brandPlaceholder')}
                   />
                 </Field>
 
                 {/* Barcode + SKU */}
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label="Barkod" required>
+                  <Field label={t('product.barcodeLabel')} required>
                     <div className="flex gap-2">
                       <select
                         className="px-2 py-3 border border-slate-200 rounded-xl text-xs font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-700 shrink-0"
@@ -1451,7 +1451,7 @@ export default function Products() {
                         placeholder="12345678"
                       />
                       <button type="button" onClick={() => setForm({ ...form, barcode: genBarcodeByFormat(form.barcode_format) })}
-                        title="Yangi barkod yaratish"
+                        title={t('product.newBarcodeTitle')}
                         className="px-3 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors shrink-0">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -1459,9 +1459,9 @@ export default function Products() {
                       </button>
                     </div>
                   </Field>
-                  <Field label="SKU (Artikul)" hint="Bo'sh qolsa avtomatik yaratiladi">
+                  <Field label={t('product.skuLabel')} hint={t('product.skuHint')}>
                     <input className={inputCls} value={form.sku}
-                      onChange={e => setForm({ ...form, sku: e.target.value })} placeholder="avtomatik" />
+                      onChange={e => setForm({ ...form, sku: e.target.value })} placeholder={t('product.skuPlaceholder')} />
                   </Field>
                 </div>
 
@@ -1471,18 +1471,18 @@ export default function Products() {
                     <div className="flex gap-2">
                       <select className={`${inputCls} flex-1`} value={form.category_id}
                         onChange={e => setForm({ ...form, category_id: e.target.value })}>
-                        <option value="">Kategoriyasiz</option>
+                        <option value="">{t('product.noCategory')}</option>
                         {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
                       <button
                         type="button"
-                        title="Yangi kategoriya qo'shish"
+                        title={t('product.addCategoryTitle')}
                         onClick={() => { openAddCat(); }}
                         className="shrink-0 w-11 h-11 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold text-xl rounded-xl border-2 border-indigo-100 hover:border-indigo-300 transition-all"
                       >+</button>
                     </div>
                   </Field>
-                  <Field label="O'lchov birligi">
+                  <Field label={t('product.unit')}>
                     <select className={inputCls} value={form.unit}
                       onChange={e => setForm({ ...form, unit: e.target.value })}>
                       {['dona', 'kg', 'g', 'litr', 'ml', 'metr', 'sm', 'quti', 'paket', 'juft'].map(u => (
@@ -1498,7 +1498,7 @@ export default function Products() {
                   <div className="grid grid-cols-2 gap-4">
                     {/* Tan narxi */}
                     <div>
-                      <label className="block text-sm font-semibold text-slate-600 mb-1.5">Tan narxi</label>
+                      <label className="block text-sm font-semibold text-slate-600 mb-1.5">{t('product.costPriceLabel')}</label>
                       <div className="flex rounded-xl border border-slate-200 focus-within:ring-2 focus-within:ring-indigo-500 bg-white">
                         <input type="number" min="0" step="0.01"
                           className="flex-1 min-w-0 px-3 py-3 text-base focus:outline-none bg-transparent rounded-l-xl"
@@ -1512,14 +1512,14 @@ export default function Products() {
                       {form.cost_price_cur && (() => {
                         const cur = currencies.find(c => String(c.id) === form.cost_price_cur);
                         return cur && form.cost_price ? (
-                          <p className="text-xs text-amber-600 mt-1">≈ {fmt(Math.round(Number(form.cost_price) * Number(cur.rate)))} so'm</p>
+                          <p className="text-xs text-amber-600 mt-1">≈ {fmt(Math.round(Number(form.cost_price) * Number(cur.rate)))} {t('common.sum')}</p>
                         ) : null;
                       })()}
                     </div>
 
                     {/* Ulgurji narxi */}
                     <div>
-                      <label className="block text-sm font-semibold text-slate-600 mb-1.5">Ulgurji narxi</label>
+                      <label className="block text-sm font-semibold text-slate-600 mb-1.5">{t('product.wholesalePriceLabel')}</label>
                       <div className="flex rounded-xl border border-slate-200 focus-within:ring-2 focus-within:ring-indigo-500 bg-white">
                         <input type="number" min="0" step="0.01"
                           className="flex-1 min-w-0 px-3 py-3 text-base focus:outline-none bg-transparent rounded-l-xl"
@@ -1533,7 +1533,7 @@ export default function Products() {
                       {form.wholesale_price_cur && (() => {
                         const cur = currencies.find(c => String(c.id) === form.wholesale_price_cur);
                         return cur && form.wholesale_price ? (
-                          <p className="text-xs text-amber-600 mt-1">≈ {fmt(Math.round(Number(form.wholesale_price) * Number(cur.rate)))} so'm</p>
+                          <p className="text-xs text-amber-600 mt-1">≈ {fmt(Math.round(Number(form.wholesale_price) * Number(cur.rate)))} {t('common.sum')}</p>
                         ) : null;
                       })()}
                     </div>
@@ -1542,8 +1542,8 @@ export default function Products() {
                   {/* Row 2: Chakana (full width — most important price) */}
                   <div>
                     <label className="block text-sm font-semibold text-slate-600 mb-1.5">
-                      Chakana narxi <span className="text-red-500">*</span>
-                      <span className="ml-2 text-xs font-normal text-slate-400">Asosiy sotuv narxi</span>
+                      {t('product.retailPriceLabel')} <span className="text-red-500">*</span>
+                      <span className="ml-2 text-xs font-normal text-slate-400">{t('product.mainSalePrice')}</span>
                     </label>
                     <div className={`flex rounded-xl border focus-within:ring-2 focus-within:ring-indigo-500 bg-white ${
                       (form.sale_price === '' || form.sale_price === null) && error ? 'border-red-400 ring-1 ring-red-400' : 'border-slate-200'
@@ -1560,7 +1560,7 @@ export default function Products() {
                     {form.sale_price_cur && (() => {
                       const cur = currencies.find(c => String(c.id) === form.sale_price_cur);
                       return cur && form.sale_price ? (
-                        <p className="text-xs text-amber-600 mt-1">≈ {fmt(Math.round(Number(form.sale_price) * Number(cur.rate)))} so'm</p>
+                        <p className="text-xs text-amber-600 mt-1">≈ {fmt(Math.round(Number(form.sale_price) * Number(cur.rate)))} {t('common.sum')}</p>
                       ) : null;
                     })()}
                   </div>
@@ -1569,10 +1569,10 @@ export default function Products() {
                 {/* UZS preview */}
                 {priceCurSelected && (form.cost_price || form.sale_price) && (
                   <div className="px-4 py-3 bg-amber-50 border border-amber-100 rounded-xl text-sm text-amber-700 flex flex-wrap gap-x-5 gap-y-1">
-                    <span className="font-semibold">UZS da saqlanganda:</span>
-                    {form.cost_price && <span>Tan: <strong>{fmt(Math.round(Number(form.cost_price) * priceRate))}</strong></span>}
-                    {form.wholesale_price && <span>Ulgurji: <strong>{fmt(Math.round(Number(form.wholesale_price) * priceRate))}</strong></span>}
-                    {form.sale_price && <span>Chakana: <strong>{fmt(Math.round(Number(form.sale_price) * priceRate))}</strong></span>}
+                    <span className="font-semibold">{t('product.uzsPreview')}</span>
+                    {form.cost_price && <span>{t('product.costShort')} <strong>{fmt(Math.round(Number(form.cost_price) * priceRate))}</strong></span>}
+                    {form.wholesale_price && <span>{t('product.wholesaleShort')} <strong>{fmt(Math.round(Number(form.wholesale_price) * priceRate))}</strong></span>}
+                    {form.sale_price && <span>{t('product.retailShort')} <strong>{fmt(Math.round(Number(form.sale_price) * priceRate))}</strong></span>}
                   </div>
                 )}
 
@@ -1580,25 +1580,25 @@ export default function Products() {
                 {form.cost_price && form.sale_price && Number(form.sale_price) > 0 && (
                   <div className="px-4 py-3 bg-indigo-50 rounded-xl text-sm text-indigo-700">
                     Margin: <strong>{(((Number(form.sale_price) - Number(form.cost_price)) / Number(form.sale_price)) * 100).toFixed(1)}%</strong>
-                    &nbsp;|&nbsp; Foyda: <strong>{fmt(Number(form.sale_price) - Number(form.cost_price))} {priceCurCode}</strong>
+                    &nbsp;|&nbsp; {t('product.profit')} <strong>{fmt(Number(form.sale_price) - Number(form.cost_price))} {priceCurCode}</strong>
                   </div>
                 )}
 
                 {/* Stock */}
                 <div className="grid grid-cols-3 gap-4">
                   {modal === 'add' && (
-                    <Field label="Boshlang'ich qoldiq">
+                    <Field label={t('product.initialStock')}>
                       <input type="number" min="0" step="0.01" className={`${inputCls} text-base`}
                         value={form.initial_stock} onChange={e => setForm({ ...form, initial_stock: e.target.value })} placeholder="0" />
                     </Field>
                   )}
-                  <Field label="Min. qoldiq">
+                  <Field label={t('product.minStockLabel')}>
                     <input type="number" min="0" className={`${inputCls} text-base`}
                       value={form.min_stock} onChange={e => setForm({ ...form, min_stock: e.target.value })} />
                   </Field>
-                  <Field label="Maks. qoldiq">
+                  <Field label={t('product.maxStock')}>
                     <input type="number" min="0" className={`${inputCls} text-base`}
-                      value={form.max_stock} onChange={e => setForm({ ...form, max_stock: e.target.value })} placeholder="Cheksiz" />
+                      value={form.max_stock} onChange={e => setForm({ ...form, max_stock: e.target.value })} placeholder={t('product.maxStockPlaceholder')} />
                   </Field>
                   {modal !== 'add' && <div />}
                 </div>
@@ -1609,7 +1609,7 @@ export default function Products() {
               <div className="col-span-1 space-y-5">
 
                 {/* Images */}
-                <Field label="Mahsulot rasmlari (JPG/PNG)">
+                <Field label={t('product.images')}>
                   <ImageUploadZone
                     images={form.images}
                     onAdd={handleImageFile}
@@ -1619,17 +1619,17 @@ export default function Products() {
                 </Field>
 
                 {/* Bin location */}
-                <Field label="Ombor joylashuvi" hint="Mahsulot saqlanadigan joyni tanlang">
+                <Field label={t('product.binLocationLabel')} hint={t('product.binLocationHint')}>
                   <div className="flex gap-2">
                     <select className={`${inputCls} flex-1`} value={form.bin_location}
                       onChange={e => setForm({ ...form, bin_location: e.target.value })}>
-                      <option value="">— Tanlang —</option>
+                      <option value="">{t('product.selectOption')}</option>
                       {binLocations.map(b => (
                         <option key={b.id} value={b.code}>{b.code}{b.label ? ` — ${b.label}` : ''}</option>
                       ))}
                     </select>
                     <button type="button" onClick={openAddBl}
-                      title="Yangi joylashuv qo'shish"
+                      title={t('product.addBinTitle')}
                       className="px-3 py-3 bg-slate-100 hover:bg-indigo-100 text-slate-600 hover:text-indigo-600 rounded-xl transition-colors shrink-0">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -1640,11 +1640,11 @@ export default function Products() {
 
                 {/* Weight + Dimensions */}
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="Vazn (kg)">
+                  <Field label={t('product.weight')}>
                     <input type="number" min="0" step="0.001" className={inputCls}
                       value={form.weight} onChange={e => setForm({ ...form, weight: e.target.value })} placeholder="0.000" />
                   </Field>
-                  <Field label="O'lchamlar (sm)">
+                  <Field label={t('product.dimensions')}>
                     <input className={inputCls} value={form.dimensions}
                       onChange={e => setForm({ ...form, dimensions: e.target.value })} placeholder="UxBxH" />
                   </Field>
@@ -1667,11 +1667,11 @@ export default function Products() {
             <div className="flex gap-3 mt-8 pt-6 border-t border-slate-100">
               <button type="button" onClick={closeModal}
                 className="flex-1 py-3 border border-slate-200 text-slate-600 font-semibold text-base rounded-xl hover:bg-slate-50 transition-colors">
-                Bekor qilish
+                {t('product.cancelAction')}
               </button>
               <button type="submit" disabled={saving}
                 className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-bold text-base rounded-xl transition-colors">
-                {saving ? 'Saqlanmoqda...' : 'Saqlash'}
+                {saving ? t('common.saving') : t('common.save')}
               </button>
             </div>
           </form>
@@ -1680,16 +1680,16 @@ export default function Products() {
 
       {/* ════ CATEGORY MODAL ════ */}
       {catModal && (
-        <Modal title={catModal === 'add' ? 'Yangi kategoriya' : 'Kategoriyani tahrirlash'} onClose={closeCatModal} size="sm" z="z-60">
+        <Modal title={catModal === 'add' ? t('product.newCategory') : t('product.editCategory')} onClose={closeCatModal} size="sm" z="z-60">
           <form onSubmit={handleSaveCat} className="p-6 space-y-4">
-            <Field label="Kategoriya nomi" required>
+            <Field label={t('product.categoryName')} required>
               <input required className={inputCls} value={catForm.name}
-                onChange={e => setCatForm({ ...catForm, name: e.target.value })} placeholder="Masalan: Ichimliklar" />
+                onChange={e => setCatForm({ ...catForm, name: e.target.value })} placeholder={t('product.categoryNamePlaceholder')} />
             </Field>
             <Field label={t('product.parentCategoryOpt')}>
               <select className={inputCls} value={catForm.parent_id}
                 onChange={e => setCatForm({ ...catForm, parent_id: e.target.value })}>
-                <option value="">Yo'q (asosiy kategoriya)</option>
+                <option value="">{t('product.noParentCategory')}</option>
                 {categories.filter(c => !catSelected || c.id !== catSelected.id).map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
@@ -1702,10 +1702,10 @@ export default function Products() {
             {catError && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{catError}</div>}
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={closeCatModal}
-                className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">Bekor</button>
+                className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
               <button type="submit" disabled={catSaving}
                 className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
-                {catSaving ? 'Saqlanmoqda...' : 'Saqlash'}
+                {catSaving ? t('common.saving') : t('common.save')}
               </button>
             </div>
           </form>
@@ -1714,25 +1714,25 @@ export default function Products() {
 
       {/* ════ BIN LOCATION MODAL ════ */}
       {blModal && (
-        <Modal title={blModal === 'add' ? "Yangi joylashuv qo'shish" : 'Joylashuvni tahrirlash'} onClose={closeBlModal} size="sm" z="z-60">
+        <Modal title={blModal === 'add' ? t('product.newBinLocation') : t('product.editBinLocation')} onClose={closeBlModal} size="sm" z="z-60">
           <form onSubmit={handleSaveBl} className="p-6 space-y-4">
-            <Field label="Joylashuv kodi" required hint="Masalan: A-01, B-12, Shkaf-3">
+            <Field label={t('product.binCode')} required hint={t('product.binCodeHint')}>
               <input required className={inputCls} value={blForm.code}
                 onChange={e => setBlForm({ ...blForm, code: e.target.value.toUpperCase() })}
                 placeholder="A-01" />
             </Field>
-            <Field label="Tavsif (ixtiyoriy)">
+            <Field label={t('product.binDescLabel')}>
               <input className={inputCls} value={blForm.label}
                 onChange={e => setBlForm({ ...blForm, label: e.target.value })}
-                placeholder="Masalan: 1-qator, 1-javon" />
+                placeholder={t('product.binDescPlaceholder')} />
             </Field>
             {blError && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{blError}</div>}
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={closeBlModal}
-                className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">Bekor</button>
+                className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
               <button type="submit" disabled={blSaving}
                 className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
-                {blSaving ? 'Saqlanmoqda...' : 'Saqlash'}
+                {blSaving ? t('common.saving') : t('common.save')}
               </button>
             </div>
           </form>
@@ -1741,7 +1741,7 @@ export default function Products() {
 
       {/* ════ HISTORY MODAL ════ */}
       {histProduct && (
-        <Modal title={`Tarix: ${histProduct.name}`} onClose={closeHistory} size="lg">
+        <Modal title={`${t('product.historyTitle')} ${histProduct.name}`} onClose={closeHistory} size="lg">
           <div className="p-6">
             <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl mb-5">
               {((Array.isArray(histProduct.images) && histProduct.images[0]) || histProduct.image_url) ? (
@@ -1767,8 +1767,8 @@ export default function Products() {
                 </div>
               </div>
               <div className="text-right shrink-0">
-                <div className="text-xs text-slate-400">Chakana</div>
-                <div className="text-lg font-bold text-slate-800">{fmt(histProduct.sale_price)} so'm</div>
+                <div className="text-xs text-slate-400">{t('product.retailShortLabel')}</div>
+                <div className="text-lg font-bold text-slate-800">{fmt(histProduct.sale_price)} {t('common.sum')}</div>
               </div>
             </div>
 
@@ -1782,10 +1782,10 @@ export default function Products() {
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Qoldiq harakati — so'nggi {history.length} ta operatsiya
+                    {t('product.historyMovement')} {history.length} {t('product.historyOperations')}
                   </div>
                   <div className="text-xs text-slate-400 font-semibold">
-                    Joriy qoldiq: <span className="text-indigo-600 font-bold">{fmt(histProduct.stock_quantity)} {histProduct.unit}</span>
+                    {t('product.currentStock')} <span className="text-indigo-600 font-bold">{fmt(histProduct.stock_quantity)} {histProduct.unit}</span>
                   </div>
                 </div>
                 <div className="overflow-x-auto rounded-xl border border-slate-200">
