@@ -19,8 +19,6 @@ def _check_company_subscription(user: User, db: Session) -> None:
     company = db.query(Company).filter(Company.id == user.company_id).first()
     if not company:
         return
-    if not company.is_active:
-        raise HTTPException(status_code=402, detail="Kompaniya bloklangan. Iltimos admin bilan bog'laning.")
     if company.subscription_ends_at:
         ends_at = company.subscription_ends_at
         if ends_at.tzinfo is None:
