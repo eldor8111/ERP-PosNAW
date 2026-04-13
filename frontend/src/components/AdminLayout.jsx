@@ -209,7 +209,7 @@ export default function AdminLayout() {
   const subExpiredMsg = isSubExpired ? "Obuna muddati tugagan. Iltimos to'lov qiling." : '';
 
   useEffect(() => {
-    if (!user?.company_id) return; // super_admin yoki kompaniyasiz
+    if (!user?.company_id || user?.role === 'super_admin') return;
     api.get('/billing/my-company').then(res => {
       const d = res.data;
       // Faqat subscription_ends_at o'rnatilgan VA muddati o'tgan bo'lsa blok

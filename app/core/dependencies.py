@@ -14,8 +14,10 @@ bearer_scheme = HTTPBearer()
 
 def _check_company_subscription(user: User, db: Session) -> None:
     """Foydalanuvchining kompaniyasi obuna muddatini tekshiradi. Super admin tekshirilmaydi."""
+    if user.role == UserRole.super_admin:
+        return  # super_admin hech qachon bloklanmaydi
     if not user.company_id:
-        return  # super_admin yoki kompaniyasiz foydalanuvchi
+        return  # kompaniyasiz foydalanuvchi
     company = db.query(Company).filter(Company.id == user.company_id).first()
     if not company:
         return
