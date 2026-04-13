@@ -166,7 +166,7 @@ export default function Tariflar() {
       {/* Tarif kartalar */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {tariffs
-          .filter(t => t.price_per_month > 0 || (!billing?.is_trial && !billing?.subscription_ends_at)) // sinov: hech qachon obuna bo'lmagan yangi foydalanuvchilar uchun
+          .filter(t => t.price_per_month > 0 || !billing?.subscription_ends_at || (billing?.is_trial && billing?.subscription_active))
           .map(t => (
           <div
             key={t.id}
