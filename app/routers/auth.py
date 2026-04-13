@@ -569,6 +569,8 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
         otp_sent = False
         if not is_dev_mode:
             chat_id = _find_chat_id_by_phone(normalized_phone)
+            if not chat_id and user.tg_chat_id:
+                chat_id = user.tg_chat_id
             if chat_id:
                 try:
                     import httpx
