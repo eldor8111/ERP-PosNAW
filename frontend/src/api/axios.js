@@ -111,12 +111,8 @@ api.interceptors.response.use(
       const path = window.location.pathname
       const onLoginPage = path === '/login' || window.location.hash.includes('/login')
       const onTariflarPage = path.includes('/admin/tariflar')
-      if (!onLoginPage) {
-        localStorage.setItem('subscription_expired', detail || "Obuna muddati tugagan. Iltimos to'lov qiling.")
-        // Tariflar sahifasida bo'lsa redirect qilmaymiz (infinite loop oldini olish)
-        if (!onTariflarPage) {
-          window.location.href = '/admin/tariflar'
-        }
+      if (!onLoginPage && !onTariflarPage) {
+        window.location.href = '/admin/tariflar'
       }
       return Promise.reject(error)
     }

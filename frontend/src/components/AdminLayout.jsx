@@ -201,16 +201,26 @@ export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Obuna tugagan holat
-  const [subExpiredMsg] = useState(() => localStorage.getItem('subscription_expired') || '');
-  const isSubExpired = !!subExpiredMsg;
+  // Eski localStorage flagni tozalaymiz (oldingi implementatsiyadan qolgan)
+  useState(() => { localStorage.removeItem('subscription_expired'); });
 
-  // Obuna tugagan bo'lsa tariflar sahifasiga yo'naltirish
+  // Obuna muddati — serverdan tekshiriladi (localStorage ishlatilmaydi)
+  const [isSubExpired, setIsSubExpired] = useState(false);
+  const subExpiredMsg = isSubExpired ? "Obuna muddati tugagan. Iltimos to'lov qiling." : '';
+
   useEffect(() => {
-    if (isSubExpired && !location.pathname.includes('/admin/tariflar')) {
-      navigate('/admin/tariflar', { replace: true });
-    }
-  }, [isSubExpired, location.pathname, navigate]);
+    if (!user?.company_id) return; // super_admin yoki kompaniyasiz
+    api.get('/billing/my-company').then(res => {
+      const d = res.data;
+      // Faqat subscription_ends_at o'rnatilgan VA muddati o'tgan bo'lsa blok
+      const expired = d.subscription_ends_at !== null && d.subscription_active === false;
+      setIsSubExpired(expired);
+      if (expired && !location.pathname.includes('/admin/tariflar')) {
+        navigate('/admin/tariflar', { replace: true });
+      }
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.company_id]);
 
   const [orgData, setOrgData] = useState({ name: user?.company_name || 'Tizim', code: '...', balance: 0 });
   const [lowStockCount, setLowStockCount] = useState(0);
