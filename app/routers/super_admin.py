@@ -226,7 +226,7 @@ def get_branch_detail(branch_id: int, db: Session = Depends(get_db), _: User = D
 
     users = db.query(User).filter(User.branch_id == branch_id).order_by(User.id).all()
     users_data = [
-        {"id": u.id, "name": u.name, "phone": u.phone, "role": u.role.value, "status": u.status.value, "created_at": str(u.created_at)}
+        {"id": u.id, "name": u.name, "phone": u.phone, "role": u.role.value if u.role else None, "status": u.status.value if u.status else None, "created_at": str(u.created_at)}
         for u in users
     ]
 
@@ -270,7 +270,7 @@ def list_all_users(
     return [
         {
             "id": u.id, "name": u.name, "phone": u.phone, "email": u.email,
-            "role": u.role.value, "status": u.status.value,
+            "role": u.role.value if u.role else None, "status": u.status.value if u.status else None,
             "branch_id": u.branch_id,
             "branch_name": u.branch.name if u.branch else None,
             "created_at": str(u.created_at),
