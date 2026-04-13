@@ -159,14 +159,31 @@ def get_company_detail(company_id: int, db: Session = Depends(get_db), _: User =
     total_users = sum(b["users_count"] for b in branches_data)
     total_warehouses = sum(b["warehouses_count"] for b in branches_data)
 
+    from datetime import datetime, timezone as tz
+    now = datetime.now(tz.utc)
+    sub_ends = company.subscription_ends_at
+    if sub_ends and sub_ends.tzinfo is None:
+        sub_ends = sub_ends.replace(tzinfo=tz.utc)
+    is_active_sub = sub_ends is not None and sub_ends > now
+    days_left = max(0, (sub_ends - now).days) if is_active_sub else 0
+
     return {
         "id": company.id,
         "name": company.name,
         "address": company.address,
         "phone": company.phone,
         "email": company.email,
+        "region": company.region,
+        "district": company.district,
         "is_active": company.is_active,
         "created_at": str(company.created_at),
+        "balance": float(company.balance or 0),
+        "tariff_id": company.tariff_id,
+        "tariff_name": company.tariff.name if company.tariff else None,
+        "subscription_ends_at": sub_ends.isoformat() if sub_ends else None,
+        "is_trial": bool(company.is_trial),
+        "subscription_active": is_active_sub,
+        "days_left": days_left,
         "stats": {
             "branches": len(branches_data),
             "users": total_users,

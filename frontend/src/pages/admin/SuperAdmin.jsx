@@ -21,15 +21,16 @@ const Ic = ({ d, cls = "w-4 h-4" }) => (
   </svg>
 );
 
-/* ─── Company Detail Panel (Modal) ─────────────────── */
+/* ─── Company Detail Drawer (o'ng tomondan siljib chiqadigan katta panel) ─── */
 function CompanyDetailPanel({ companyId, companyName, onClose }) {
   const { t } = useLang();
-const [detail, setDetail] = useState(null);
+  const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('branches');
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTimeout(() => setVisible(true), 10);
     setLoading(true);
     api.get(`/super-admin/companies/${companyId}`)
       .then(r => setDetail(r.data))
@@ -37,93 +38,158 @@ const [detail, setDetail] = useState(null);
       .finally(() => setLoading(false));
   }, [companyId]);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-base">
-              {companyName?.[0]?.toUpperCase()}
-            </div>
-            <div>
-              <h3 className="font-bold text-slate-800">{companyName}</h3>
-              {detail && (
-                <p className="text-xs text-slate-400">
-                  {detail.stats?.branches} filial · {detail.stats?.users} xodim · {detail.stats?.warehouses} ombor
-                </p>
-              )}
-            </div>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600">
-            <Ic d="M6 18L18 6M6 6l12 12" />
-          </button>
-        </div>
+  const handleClose = () => {
+    setVisible(false);
+    setTimeout(onClose, 280);
+  };
 
-        {loading ? (
-          <div className="flex justify-center items-center py-20">
-            <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+  const totalUsers = detail?.branches?.reduce((s, b) => s + (b.users_count || 0), 0) || 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex">
+      {/* Backdrop */}
+      <div
+        className={`flex-1 bg-black/30 backdrop-blur-sm transition-opacity duration-300 ${visible ? 'opacity-100' : 'opacity-0'}`}
+        onClick={handleClose}
+      />
+      {/* Drawer */}
+      <div className={`w-full max-w-2xl bg-white h-full flex flex-col shadow-2xl transition-transform duration-300 ease-out ${visible ? 'translate-x-0' : 'translate-x-full'}`}>
+
+        {/* ── Header ── */}
+        <div className="shrink-0 bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-5 text-white">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center font-black text-xl">
+                {companyName?.[0]?.toUpperCase()}
+              </div>
+              <div>
+                <h2 className="text-lg font-black leading-tight">{companyName}</h2>
+                {detail && (
+                  <div className="flex items-center gap-3 mt-1 flex-wrap">
+                    {detail.region && (
+                      <span className="flex items-center gap-1 text-xs bg-white/20 px-2 py-0.5 rounded-full">
+                        <Ic d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" cls="w-3 h-3" />
+                        {detail.region}
+                        {detail.district && ` · ${detail.district}`}
+                      </span>
+                    )}
+                    {detail.phone && (
+                      <span className="text-xs text-white/70">{detail.phone}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            <button onClick={handleClose} className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/20 hover:bg-white/30 text-white shrink-0">
+              <Ic d="M6 18L18 6M6 6l12 12" />
+            </button>
           </div>
-        ) : !detail ? (
-          <div className="text-center text-slate-400 py-16">{t('common.noData')}</div>
-        ) : (
-          <>
-            {/* Tabs */}
-            <div className="flex gap-1 px-6 pt-4 shrink-0">
+
+          {/* Stats row */}
+          {detail && (
+            <div className="grid grid-cols-4 gap-2 mt-4">
               {[
-                { id: 'branches', label: `Filiallar (${detail.branches?.length || 0})` },
-                { id: 'users', label: `Xodimlar (${detail.branches?.reduce((s, b) => s + (b.users_count || 0), 0) || 0})` },
-              ].map(t => (
-                <button key={t.id} onClick={() => setTab(t.id)}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${tab === t.id ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
-                  {t.label}
-                </button>
+                { label: 'Filiallar', value: detail.stats?.branches ?? 0, icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16' },
+                { label: 'Xodimlar', value: detail.stats?.users ?? 0, icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0' },
+                { label: 'Omborlar', value: detail.stats?.warehouses ?? 0, icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
+                { label: 'Balans', value: `${Number(detail.balance || 0).toLocaleString('uz-UZ')} s`, icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+              ].map(s => (
+                <div key={s.label} className="bg-white/15 rounded-xl px-3 py-2 text-center">
+                  <div className="text-lg font-black">{s.value}</div>
+                  <div className="text-xs text-white/70 mt-0.5">{s.label}</div>
+                </div>
               ))}
             </div>
+          )}
+        </div>
 
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto px-6 py-4">
-              {tab === 'branches' && (
-                <div className="space-y-2">
-                  {detail.branches?.length === 0 && (
-                    <p className="text-slate-400 text-sm text-center py-8">Filiallar yo'q</p>
-                  )}
-                  {detail.branches?.map(b => (
-                    <div key={b.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm">
-                        {b.name?.[0]?.toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-slate-800 text-sm truncate">{b.name}</div>
-                        {b.address && <div className="text-xs text-slate-400 truncate">{b.address}</div>}
-                      </div>
-                      <div className="text-xs text-slate-400">{b.users_count} xodim</div>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${b.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
-                        {b.is_active ? 'Faol' : 'Nofaol'}
-                      </span>
+        {/* ── Tabs ── */}
+        <div className="shrink-0 flex gap-1 px-5 pt-4 pb-2 border-b border-slate-100">
+          {[
+            { id: 'branches', label: `Filiallar (${detail?.branches?.length || 0})`, icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16' },
+            { id: 'users',    label: `Xodimlar (${totalUsers})`,                    icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0' },
+            { id: 'tariff',   label: 'Tarif hisoboti',                               icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
+          ].map(tb => (
+            <button key={tb.id} onClick={() => setTab(tb.id)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${tab === tb.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}>
+              <Ic d={tb.icon} cls="w-3.5 h-3.5" />
+              {tb.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ── Body ── */}
+        {loading ? (
+          <div className="flex-1 flex justify-center items-center">
+            <div className="w-9 h-9 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : !detail ? (
+          <div className="flex-1 flex items-center justify-center text-slate-400">{t('common.noData')}</div>
+        ) : (
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+
+            {/* ── FILIALLAR ── */}
+            {tab === 'branches' && (
+              <div className="space-y-2">
+                {detail.branches?.length === 0 && (
+                  <div className="text-center text-slate-400 py-16">Filiallar yo'q</div>
+                )}
+                {detail.branches?.map((b, i) => (
+                  <div key={b.id} className="flex items-center gap-3 p-4 bg-slate-50 hover:bg-indigo-50/50 rounded-2xl border border-slate-100 transition-colors">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm shrink-0">
+                      {b.name?.[0]?.toUpperCase()}
                     </div>
-                  ))}
-                </div>
-              )}
-              {tab === 'users' && (
-                <BranchUsersView branches={detail.branches || []} />
-              )}
-            </div>
-          </>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-800 text-sm">{b.name}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 ${b.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+                          {b.is_active ? 'Faol' : 'Nofaol'}
+                        </span>
+                      </div>
+                      {b.address && (
+                        <div className="flex items-center gap-1 mt-0.5 text-xs text-slate-400">
+                          <Ic d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" cls="w-3 h-3 shrink-0" />
+                          {b.address}
+                        </div>
+                      )}
+                      {b.phone && (
+                        <div className="flex items-center gap-1 mt-0.5 text-xs text-slate-400">
+                          <Ic d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" cls="w-3 h-3 shrink-0" />
+                          {b.phone}
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-sm font-bold text-indigo-700">{b.users_count}</div>
+                      <div className="text-xs text-slate-400">xodim</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── XODIMLAR ── */}
+            {tab === 'users' && (
+              <DrawerBranchUsers branches={detail.branches || []} />
+            )}
+
+            {/* ── TARIF HISOBOTI ── */}
+            {tab === 'tariff' && (
+              <DrawerTariffReport detail={detail} />
+            )}
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-function BranchUsersView({ branches }) {
-  const { t } = useLang();
-const [branchId, setBranchId] = useState(null);
+function DrawerBranchUsers({ branches }) {
+  const [branchId, setBranchId] = useState('');
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!branchId) { setUsers([]); return; }
     setLoading(true);
     api.get(`/super-admin/branches/${branchId}`)
@@ -134,31 +200,107 @@ const [branchId, setBranchId] = useState(null);
 
   return (
     <div className="space-y-3">
-      <select value={branchId || ''} onChange={e => setBranchId(e.target.value || null)}
-        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
-        <option value="">Filialni tanlang</option>
+      <select value={branchId} onChange={e => setBranchId(e.target.value)}
+        className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-slate-50">
+        <option value="">— Filialni tanlang —</option>
         {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
       </select>
-      {loading && <div className="flex justify-center py-6"><div className="w-6 h-6 border-4 border-indigo-400 border-t-transparent rounded-full animate-spin" /></div>}
-      {!loading && users.length === 0 && branchId && <p className="text-slate-400 text-sm text-center py-6">Xodimlar yo'q</p>}
-      {!loading && !branchId && <p className="text-slate-400 text-sm text-center py-6">Filialni tanlang</p>}
-      {users.map(u => (
-        <div key={u.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-          <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold">
+
+      {!branchId && (
+        <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+          <Ic d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0" cls="w-10 h-10 mb-2 opacity-30" />
+          <p className="text-sm">Filialni tanlang</p>
+        </div>
+      )}
+      {loading && <div className="flex justify-center py-10"><div className="w-7 h-7 border-4 border-indigo-400 border-t-transparent rounded-full animate-spin" /></div>}
+      {!loading && branchId && users.length === 0 && (
+        <p className="text-slate-400 text-sm text-center py-10">Bu filialda xodimlar yo'q</p>
+      )}
+      {!loading && users.map(u => (
+        <div key={u.id} className="flex items-center gap-3 p-4 bg-slate-50 hover:bg-indigo-50/50 rounded-2xl border border-slate-100 transition-colors">
+          <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-sm font-bold shrink-0">
             {u.name?.[0]?.toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="font-semibold text-slate-800 text-sm">{u.name}</div>
-            <div className="text-xs text-slate-400">{u.phone}</div>
+            <div className="font-bold text-slate-800 text-sm">{u.name}</div>
+            <div className="text-xs text-slate-400 mt-0.5">{u.phone}</div>
           </div>
-          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${ROLE_COLORS[u.role] || 'bg-slate-100 text-slate-500'}`}>
-            {ROLE_LABELS[u.role] || u.role}
-          </span>
-          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${u.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
-            {u.status === 'active' ? 'Faol' : 'Nofaol'}
-          </span>
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${ROLE_COLORS[u.role] || 'bg-slate-100 text-slate-500'}`}>
+              {ROLE_LABELS[u.role] || u.role}
+            </span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${u.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+              {u.status === 'active' ? 'Faol' : 'Nofaol'}
+            </span>
+          </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function DrawerTariffReport({ detail }) {
+  const fmtMon = v => Number(v || 0).toLocaleString('uz-UZ');
+  const fmtDt = d => d ? new Date(d).toLocaleDateString('uz-UZ', { year: 'numeric', month: 'long', day: 'numeric' }) : '—';
+
+  const subActive = detail.subscription_active;
+  const daysLeft = detail.days_left ?? 0;
+  const daysColor = daysLeft > 14 ? 'text-emerald-600' : daysLeft > 3 ? 'text-amber-500' : 'text-red-500';
+
+  return (
+    <div className="space-y-4">
+      {/* Tarif kartasi */}
+      <div className="bg-gradient-to-br from-indigo-50 to-violet-50 rounded-2xl border border-indigo-100 p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="font-bold text-slate-700 text-sm">Joriy tarif</h4>
+          {detail.is_trial && (
+            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">Sinov muddati</span>
+          )}
+        </div>
+        <div className="text-2xl font-black text-indigo-700 mb-1">
+          {detail.tariff_name || 'Tarif belgilanmagan'}
+        </div>
+        <div className="flex items-center gap-2 mt-3">
+          <span className={`w-2 h-2 rounded-full ${subActive ? 'bg-emerald-500' : 'bg-red-400'}`} />
+          <span className={`text-sm font-semibold ${subActive ? 'text-emerald-600' : 'text-red-500'}`}>
+            {subActive ? 'Obuna faol' : 'Obuna tugagan'}
+          </span>
+        </div>
+      </div>
+
+      {/* Ma'lumotlar grid */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4">
+          <div className="text-xs text-slate-400 mb-1">Balans</div>
+          <div className="text-xl font-black text-slate-800">{fmtMon(detail.balance)} <span className="text-sm font-semibold text-slate-400">so'm</span></div>
+        </div>
+        <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4">
+          <div className="text-xs text-slate-400 mb-1">Qolgan kunlar</div>
+          <div className={`text-xl font-black ${daysColor}`}>{daysLeft} <span className="text-sm font-semibold text-slate-400">kun</span></div>
+        </div>
+        <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4 col-span-2">
+          <div className="text-xs text-slate-400 mb-1">Obuna tugash sanasi</div>
+          <div className="text-base font-bold text-slate-700">{fmtDt(detail.subscription_ends_at)}</div>
+        </div>
+      </div>
+
+      {/* Qo'shimcha ma'lumotlar */}
+      <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4 space-y-2.5">
+        <h4 className="font-bold text-slate-600 text-xs uppercase tracking-wider mb-3">Korxona ma'lumotlari</h4>
+        {[
+          { label: "Ro'yxatdan o'tgan", value: fmtDt(detail.created_at) },
+          { label: 'Viloyat', value: detail.region || '—' },
+          { label: 'Tuman', value: detail.district || '—' },
+          { label: 'Manzil', value: detail.address || '—' },
+          { label: 'Telefon', value: detail.phone || '—' },
+          { label: 'Email', value: detail.email || '—' },
+        ].map(row => (
+          <div key={row.label} className="flex items-start justify-between gap-3">
+            <span className="text-xs text-slate-400 shrink-0">{row.label}</span>
+            <span className="text-xs font-semibold text-slate-700 text-right">{row.value}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
