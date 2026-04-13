@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useLang } from '../../context/LangContext';
 import api from '../../api/axios';
 
@@ -1239,9 +1239,9 @@ const [tariffs, setTariffs] = useState([]);
     setShowForm(true);
   };
 
-  const openEdit = (t) => {
-    setEditItem(t);
-    setForm({ name:t.name, description:t.description||'', price_per_month:t.price_per_month, duration_days:t.duration_days, max_users:t.max_users, max_branches:t.max_branches, sort_order:t.sort_order });
+  const openEdit = (tariff) => {
+    setEditItem(tariff);
+    setForm({ name:tariff.name, description:tariff.description||'', price_per_month:tariff.price_per_month, duration_days:tariff.duration_days, max_users:tariff.max_users, max_branches:tariff.max_branches, sort_order:tariff.sort_order });
     setShowForm(true);
   };
 
@@ -1287,29 +1287,29 @@ const [tariffs, setTariffs] = useState([]);
           <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 p-5">
-            {tariffs.map(t => (
-              <div key={t.id} className="border border-slate-200 rounded-2xl p-5 flex flex-col gap-3 hover:border-indigo-300 hover:shadow-md transition-all">
+            {tariffs.map(tariff => (
+              <div key={tariff.id} className="border border-slate-200 rounded-2xl p-5 flex flex-col gap-3 hover:border-indigo-300 hover:shadow-md transition-all">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h4 className="font-black text-slate-800 text-base">{t.name}</h4>
-                    {t.description && <p className="text-xs text-slate-400 mt-1">{t.description}</p>}
+                    <h4 className="font-black text-slate-800 text-base">{tariff.name}</h4>
+                    {tariff.description && <p className="text-xs text-slate-400 mt-1">{tariff.description}</p>}
                   </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${t.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
-                    {t.is_active ? 'Faol' : 'Nofaol'}
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${tariff.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+                    {tariff.is_active ? 'Faol' : 'Nofaol'}
                   </span>
                 </div>
                 <div className="text-2xl font-black text-indigo-700">
-                  {t.price_per_month === 0 ? 'Bepul' : `${fmtMoney(t.price_per_month)} s`}
-                  {t.price_per_month > 0 && <span className="text-sm font-semibold text-slate-400">/oy</span>}
+                  {tariff.price_per_month === 0 ? 'Bepul' : `${fmtMoney(tariff.price_per_month)} s`}
+                  {tariff.price_per_month > 0 && <span className="text-sm font-semibold text-slate-400">/oy</span>}
                 </div>
                 <div className="space-y-1 text-xs text-slate-500">
-                  <div>⏱ Muddat: <span className="font-bold text-slate-700">{t.duration_days} kun</span></div>
-                  <div>👤 Max xodim: <span className="font-bold text-slate-700">{t.max_users >= 9999 ? 'Cheksiz' : t.max_users}</span></div>
-                  <div>🏢 Max filial: <span className="font-bold text-slate-700">{t.max_branches >= 9999 ? 'Cheksiz' : t.max_branches}</span></div>
+                  <div>⏱ Muddat: <span className="font-bold text-slate-700">{tariff.duration_days} kun</span></div>
+                  <div>👤 Max xodim: <span className="font-bold text-slate-700">{tariff.max_users >= 9999 ? 'Cheksiz' : tariff.max_users}</span></div>
+                  <div>🏢 Max filial: <span className="font-bold text-slate-700">{tariff.max_branches >= 9999 ? 'Cheksiz' : tariff.max_branches}</span></div>
                 </div>
                 <div className="flex gap-2 mt-auto pt-2 border-t border-slate-100">
-                  <button onClick={() => openEdit(t)} className="flex-1 py-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-all">{t('common.edit')}</button>
-                  <button onClick={() => deactivate(t.id)} className="flex-1 py-1.5 text-xs font-bold bg-red-50 hover:bg-red-100 text-red-500 rounded-lg transition-all">{t('common.delete')}</button>
+                  <button onClick={() => openEdit(tariff)} className="flex-1 py-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-all">{t('common.edit')}</button>
+                  <button onClick={() => deactivate(tariff.id)} className="flex-1 py-1.5 text-xs font-bold bg-red-50 hover:bg-red-100 text-red-500 rounded-lg transition-all">{t('common.delete')}</button>
                 </div>
               </div>
             ))}
