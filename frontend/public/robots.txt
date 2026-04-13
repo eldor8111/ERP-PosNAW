@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+Allow: /erp-tizim
+Allow: /veb-saytlar
+Allow: /telegram-botlar
+Allow: /noyob-dasturlar
+Allow: /chaqqon-pro
+Allow: /aloqa
+
+Disallow: /admin/
+Disallow: /login
+Disallow: /pos-login
+Disallow: /register
+
+Sitemap: https://e-code.uz/sitemap.xml

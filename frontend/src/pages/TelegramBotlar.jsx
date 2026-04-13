@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import LandingLayout from '../components/LandingLayout'
 import './service-pages.css'
 import { useLang } from '../i18n'
+import { useSeo } from '../hooks/useSeo'
 
 const CheckIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="sp-check-svg">
@@ -19,6 +20,10 @@ export default function TelegramBotlar() {
   const navigate = useNavigate()
   const { t } = useLang()
   const [activeBot, setActiveBot] = useState(0)
+  useSeo(
+    "Telegram Bot Yaratish – Biznes uchun Avtomatik Botlar | E-code",
+    "E-code: savdo, yetkazib berish, support va boshqa maqsadlar uchun Telegram botlar ishlab chiqamiz. O'zbekistonda professional Telegram bot yaratish xizmati."
+  )
 
   const botTypes = [
     { icon: '🛒', color: '#10b981', bg: 'rgba(16,185,129,0.08)', title: t('tg.b1.t'), desc: t('tg.b1.d'), examples: [t('tg.b1.f1'), t('tg.b1.f2'), t('tg.b1.f3'), t('tg.b1.f4'), t('tg.b1.f5')], popular: false },

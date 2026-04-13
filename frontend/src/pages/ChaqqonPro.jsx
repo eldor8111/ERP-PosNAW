@@ -18,11 +18,16 @@ const ArrowRight = () => (
 // We will move this inside the component to use the t() function.
 
 import { useLang } from '../i18n'
+import { useSeo } from '../hooks/useSeo'
 
 export default function ChaqqonPro() {
   const navigate = useNavigate()
   const { t } = useLang()
   const [activeModule, setActiveModule] = useState(0)
+  useSeo(
+    "ChaqqonPro – Restoran va Kafe uchun POS Tizimi | E-code",
+    "ChaqqonPro: restoran, kafe va mehmonxonalar uchun buyurtma boshqaruvi, oshxona ekrani, kuryer va moliya hisobi. O'zbekistonda eng qulay POS tizimi."
+  )
 
   const modules = [
     {

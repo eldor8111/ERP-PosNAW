@@ -3,13 +3,15 @@ import LandingLayout from '../components/LandingLayout'
 import './service-pages.css'
 import './aloqa.css'
 import { useLang } from '../i18n'
-
-
-
+import { useSeo } from '../hooks/useSeo'
 
 export default function Aloqa() {
   const navigate = useNavigate()
   const { t } = useLang()
+  useSeo(
+    "Aloqa – Biz bilan Bog'laning | E-code",
+    "E-code bilan bog'laning: ERP, POS, veb sayt yoki Telegram bot bo'yicha maslahat oling. Telefon, Telegram yoki email orqali murojaat qiling."
+  )
 
 const contacts = [
   {

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import LandingLayout from '../components/LandingLayout'
 import './service-pages.css'
 import { useLang } from '../i18n'
+import { useSeo } from '../hooks/useSeo'
 
 const CheckIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="sp-check-svg">
@@ -22,6 +23,10 @@ const ArrowRight = () => (
 export default function NoyobDasturlar() {
   const navigate = useNavigate()
   const { t } = useLang()
+  useSeo(
+    "Noyob Dasturlar – Maxsus Dasturiy Yechimlar | E-code",
+    "E-code: sizning biznesingiz uchun maxsus ishlab chiqilgan noyob dasturlar va avtomatlashtirish yechimlari. O'zbekistonda professional dastur yaratish."
+  )
 
 const solutionTypes = [
   {

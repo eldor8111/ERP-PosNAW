@@ -19,10 +19,15 @@ const ArrowRight = () => (
 
 
 import { useLang } from '../i18n'
+import { useSeo } from '../hooks/useSeo'
 
 export default function ERPTizim() {
   const navigate = useNavigate()
   const { t } = useLang()
+  useSeo(
+    "ERP Tizimi – Savdo, Ombor va Moliya Boshqaruvi | E-code",
+    "E-code ERP tizimi: savdo, ombor, xodimlar, moliya va hisobotlarni bir joyda boshqaring. O'zbekiston bizneslar uchun professional yechim."
+  )
 
 const tariffs = [
   {

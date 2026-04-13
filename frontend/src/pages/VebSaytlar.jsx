@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import LandingLayout from '../components/LandingLayout'
 import './service-pages.css'
 import { useLang } from '../i18n'
+import { useSeo } from '../hooks/useSeo'
 
 const CheckIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="sp-check-svg">
@@ -21,6 +22,10 @@ const ArrowRight = () => (
 export default function VebSaytlar() {
   const navigate = useNavigate()
   const { t } = useLang()
+  useSeo(
+    "Veb Sayt Yaratish – Professional Dizayn va Ishlab Chiqish | E-code",
+    "E-code: biznes uchun zamonaviy veb saytlar yaratish. Landing page, korporativ sayt, onlayn do'kon. O'zbekistondagi professional veb dizayn studiyasi."
+  )
 
 const services = [
   {

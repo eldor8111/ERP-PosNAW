@@ -4,6 +4,7 @@ import { useLang } from '../context/LangContext'
 import LandingLayout from '../components/LandingLayout'
 import axios from 'axios'
 import './landing.css'
+import { useSeo } from '../hooks/useSeo'
 
 // ─── SVG ICONS FOR BENTO ────────────────────────────────────────────────────
 const ICONS = {
@@ -167,6 +168,10 @@ function TabbedModules({ t }) {
 export default function Landing() {
   const { t } = useLang()
   const navigate = useNavigate()
+  useSeo(
+    "E-code – ERP, POS, Veb Sayt va Telegram Bot Yechimlari | O'zbekiston",
+    "E-code — O'zbekiston uchun ERP tizimi, POS kassa, veb sayt yaratish, Telegram botlar va noyob dasturiy yechimlar. Biznesingizni raqamlashtiring."
+  )
 
   const [leadForm, setLeadForm] = useState({ service: 'ERP Tizim', name: '', phone: '+998' })
   const [leadStatus, setLeadStatus] = useState(null) // 'loading', 'success', 'error'
