@@ -4,7 +4,7 @@ import { saveAs } from 'file-saver';
 import api from '../../api/axios';
 import { useLang } from '../../context/LangContext';
 
-const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ') + " so'm";
+const fmt = (v, t) => Number(v || 0).toLocaleString('uz-UZ') + " " + (t ? (t('common.sum') || "so'm") : "so'm");
 const today = () => new Date().toISOString().slice(0, 10);
 const firstOfMonth = () => { const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10); };
 
@@ -141,8 +141,8 @@ export default function Finance() {
     { key: 'categories', label: t('common.category') },
     { key: 'transactions', label: t('finance.transaction') },
     { key: 'customer-debts', label: t('customer.totalDebtors') || 'Debitorlar' },
-    { key: 'supplier-debts', label: 'Kreditorlar' },
-    { key: 'pl', label: 'Foyda/Zarar' },
+    { key: 'supplier-debts', label: t('customer.totalCreditors') || 'Kreditorlar' },
+    { key: 'pl', label: t('finance.pl') || 'Foyda/Zarar' },
   ];
 
   return (
@@ -164,7 +164,7 @@ export default function Finance() {
             </div>
             <div>
               <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{t('finance.income')}</div>
-              <div className="text-xl font-bold text-emerald-600 mt-0.5">{fmt(balance.total_income)}</div>
+              <div className="text-xl font-bold text-emerald-600 mt-0.5">{fmt(balance.total_income, t)}</div>
             </div>
           </div>
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 flex items-center gap-4">
@@ -175,7 +175,7 @@ export default function Finance() {
             </div>
             <div>
               <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{t('finance.expense')}</div>
-              <div className="text-xl font-bold text-red-500 mt-0.5">{fmt(balance.total_expense)}</div>
+              <div className="text-xl font-bold text-red-500 mt-0.5">{fmt(balance.total_expense, t)}</div>
             </div>
           </div>
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 flex items-center gap-4">
@@ -187,7 +187,7 @@ export default function Finance() {
             <div>
               <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{t('finance.cashBalance')}</div>
               <div className={`text-xl font-bold mt-0.5 ${balance.balance >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>
-                {fmt(balance.balance)}
+                {fmt(balance.balance, t)}
               </div>
             </div>
           </div>
@@ -214,7 +214,7 @@ export default function Finance() {
         {activeTab === 'expenses' && (
           <div>
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-50">
-              <span className="text-sm font-semibold text-slate-700">Barcha xarajatlar</span>
+              <span className="text-sm font-semibold text-slate-700">{t('finance.allExpenses') || 'Barcha xarajatlar'}</span>
               <div className="flex gap-2">
                 <button onClick={exportExpenses}
                   className="inline-flex items-center gap-2 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-semibold rounded-xl transition-colors">
@@ -262,14 +262,14 @@ export default function Finance() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Summa (so'm)</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('finance.amount') || 'Summa'} ({t('common.sum') || "so'm"})</label>
                   <input type="number" required placeholder="100000"
                     className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     onChange={e => setForm({ ...form, amount: e.target.value })} value={form.amount} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('admin.dict.comment') || 'Izoh'}</label>
-                  <input type="text" placeholder="Xarajat haqida..."
+                  <input type="text" placeholder={t('finance.expenseAbout') || "Xarajat haqida..."}
                     className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     onChange={e => setForm({ ...form, description: e.target.value })} value={form.description} />
                 </div>
@@ -299,7 +299,7 @@ export default function Finance() {
                       <td className="px-6 py-4">
                         <span className="inline-flex items-center px-2.5 py-1 bg-indigo-50 text-indigo-600 text-xs font-medium rounded-lg">{e.category_name}</span>
                       </td>
-                      <td className="px-6 py-4 text-sm font-semibold text-red-500">{fmt(e.amount)}</td>
+                      <td className="px-6 py-4 text-sm font-semibold text-red-500">{fmt(e.amount, t)}</td>
                       <td className="px-6 py-4 text-sm text-slate-500">{e.description || '—'}</td>
                       <td className="px-6 py-4 text-sm text-slate-400">{new Date(e.created_at).toLocaleDateString('uz-UZ')}</td>
                       <td className="px-6 py-4">
@@ -313,14 +313,14 @@ export default function Finance() {
                     </tr>
                   ))}
                   {expenses.length === 0 && (
-                    <tr><td colSpan={5} className="px-6 py-12 text-center text-sm text-slate-400">Xarajat yo'q</td></tr>
+                    <tr><td colSpan={5} className="px-6 py-12 text-center text-sm text-slate-400">{t('finance.noExpenses') || "Xarajat yo'q"}</td></tr>
                   )}
                 </tbody>
                 {expenses.length > 0 && (
                   <tfoot>
                     <tr className="bg-red-50">
                       <td className="px-6 py-3 text-sm font-semibold text-slate-600">{t('admin.dict.th_total') || 'JAMI'}</td>
-                      <td className="px-6 py-3 text-sm font-bold text-red-600">{fmt(expenses.reduce((a, e) => a + Number(e.amount), 0))}</td>
+                      <td className="px-6 py-3 text-sm font-bold text-red-600">{fmt(expenses.reduce((a, e) => a + Number(e.amount), 0), t)}</td>
                       <td colSpan={3} />
                     </tr>
                   </tfoot>
@@ -334,7 +334,7 @@ export default function Finance() {
         {activeTab === 'categories' && (
           <div>
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-50">
-              <span className="text-sm font-semibold text-slate-700">Xarajat kategoriyalari</span>
+              <span className="text-sm font-semibold text-slate-700">{t('finance.expenseCategories') || 'Xarajat kategoriyalari'}</span>
               <button onClick={() => setShowAddCat(!showAddCat)}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -346,14 +346,14 @@ export default function Finance() {
             {showAddCat && (
               <form onSubmit={addCategory} className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex flex-wrap gap-3 items-end">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Nomi</label>
-                  <input required placeholder="Kategoriya nomi"
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('common.name') || 'Nomi'}</label>
+                  <input required placeholder={t('finance.categoryName') || "Kategoriya nomi"}
                     className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     onChange={e => setCatForm({ ...catForm, name: e.target.value })} value={catForm.name} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Tavsif</label>
-                  <input placeholder="Qisqacha tavsif"
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('common.description') || 'Tavsif'}</label>
+                  <input placeholder={t('common.descPlaceholder') || "Qisqacha tavsif"}
                     className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     onChange={e => setCatForm({ ...catForm, description: e.target.value })} value={catForm.description} />
                 </div>
@@ -374,7 +374,7 @@ export default function Finance() {
                 </div>
               ))}
               {categories.length === 0 && (
-                <div className="col-span-4 text-center py-10 text-sm text-slate-400">Kategoriyalar topilmadi</div>
+                <div className="col-span-4 text-center py-10 text-sm text-slate-400">{t('finance.noCategories') || 'Kategoriyalar topilmadi'}</div>
               )}
             </div>
           </div>
@@ -384,14 +384,14 @@ export default function Finance() {
         {activeTab === 'transactions' && (
           <div>
             <div className="flex flex-wrap items-end gap-3 px-6 py-4 border-b border-slate-50">
-              <span className="text-sm font-semibold text-slate-700 self-center mr-2">Kassa harakatlari</span>
+              <span className="text-sm font-semibold text-slate-700 self-center mr-2">{t('finance.cashMovements') || 'Kassa harakatlari'}</span>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Dan</label>
+                <label className="block text-xs font-medium text-slate-500 mb-1">{t('common.from') || 'Dan'}</label>
                 <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
                   className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Gacha</label>
+                <label className="block text-xs font-medium text-slate-500 mb-1">{t('common.to') || 'Gacha'}</label>
                 <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
                   className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
@@ -402,7 +402,7 @@ export default function Finance() {
               <table className="min-w-full">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-100">
-                    {['Tur', 'Summa', 'Izoh', 'Manba', 'Sana'].map(h => (
+                    {[t('common.type') || 'Tur', t('common.amount') || 'Summa', t('admin.dict.comment') || 'Izoh', t('finance.source') || 'Manba', t('common.date') || 'Sana'].map(h => (
                       <th key={h} className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
@@ -417,11 +417,11 @@ export default function Finance() {
                           {t.type === 'income'
                             ? <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 11l5-5m0 0l5 5m-5-5v12" /></svg>
                             : <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 13l-5 5m0 0l-5-5m5 5V6" /></svg>}
-                          {t.type === 'income' ? 'Kirim' : 'Chiqim'}
+                          {t.type === 'income' ? (t('finance.income') || 'Kirim') : (t('finance.expense') || 'Chiqim')}
                         </span>
                       </td>
                       <td className={`px-6 py-4 text-sm font-semibold ${t.type === 'income' ? 'text-emerald-600' : 'text-red-500'}`}>
-                        {fmt(t.amount)}
+                        {fmt(t.amount, t)}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-500">{t.description || '—'}</td>
                       <td className="px-6 py-4 text-sm text-slate-400">{t.reference_type || '—'}</td>
@@ -429,7 +429,7 @@ export default function Finance() {
                     </tr>
                   ))}
                   {transactions.length === 0 && (
-                    <tr><td colSpan={5} className="px-6 py-12 text-center text-sm text-slate-400">Tranzaksiyalar topilmadi</td></tr>
+                    <tr><td colSpan={5} className="px-6 py-12 text-center text-sm text-slate-400">{t('finance.noTransactions') || 'Tranzaksiyalar topilmadi'}</td></tr>
                   )}
                 </tbody>
               </table>
@@ -442,11 +442,11 @@ export default function Finance() {
           <div>
             {/* Toolbar */}
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
-              <span className="text-sm font-semibold text-slate-700">Debitor qarzdorlik — Mijozlar</span>
+              <span className="text-sm font-semibold text-slate-700">{t('finance.customerDebts') || 'Debitor qarzdorlik — Mijozlar'}</span>
               <div className="flex items-center gap-2">
                 <input
                   value={debtSearch} onChange={e => setDebtSearch(e.target.value)}
-                  placeholder="Ism yoki telefon..."
+                  placeholder={t('finance.searchDebt') || "Ism yoki telefon..."}
                   className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-300 w-52"
                 />
                 <button
@@ -478,7 +478,7 @@ export default function Finance() {
               <>
                 {/* Summary bar */}
                 <div className="px-6 py-3 border-b border-slate-100 bg-amber-50 flex flex-wrap gap-4 items-center">
-                  <span className="text-sm text-slate-600">Jami qarz: <strong className="text-amber-700">{fmt(customerDebts.total_debt)}</strong></span>
+                  <span className="text-sm text-slate-600">{t('finance.totalDebt') || 'Jami qarz:'} <strong className="text-amber-700">{fmt(customerDebts.total_debt, t)}</strong></span>
                   <span className="text-sm text-slate-500">{customerDebts.count} ta mijoz</span>
                   {customerDebts.overdue_count > 0 && (
                     <span className="text-sm font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-lg">
@@ -489,7 +489,7 @@ export default function Finance() {
                 <table className="min-w-full">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100">
-                      {['Mijoz', 'Telefon', "Qarz (so'm)", 'Muddat', 'Holat', 'Amal'].map(h => (
+                      {[t('nav.clients') || 'Mijoz', t('settings.phone') || 'Telefon', (t('common.debt')||'Qarz') + ' (' + (t('common.sum')||"so'm") + ')', t('common.deadline') || 'Muddat', t('common.status') || 'Holat', t('common.action') || 'Amal'].map(h => (
                         <th key={h} className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                       ))}
                     </tr>
@@ -501,7 +501,7 @@ export default function Finance() {
                         <tr key={c.id} className={`transition-colors ${c.overdue ? 'bg-red-50/50 hover:bg-red-50' : 'hover:bg-slate-50'}`}>
                           <td className="px-6 py-4 text-sm font-semibold text-slate-800">{c.name}</td>
                           <td className="px-6 py-4 text-sm text-slate-500">{c.phone || '—'}</td>
-                          <td className="px-6 py-4 text-sm font-bold text-amber-600">{fmt(c.debt_balance)}</td>
+                          <td className="px-6 py-4 text-sm font-bold text-amber-600">{fmt(c.debt_balance, t)}</td>
                           <td className="px-6 py-4 text-sm text-slate-500">{c.earliest_due_date || '—'}</td>
                           <td className="px-6 py-4">
                             {c.overdue
@@ -522,7 +522,7 @@ export default function Finance() {
                     ))}
                     {customerDebts.items.filter(c => !debtSearch || c.name.toLowerCase().includes(debtSearch.toLowerCase()) || (c.phone||'').includes(debtSearch)).length === 0 && (
                       <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-400">
-                        {debtSearch ? 'Natija topilmadi' : 'Debitorlar yo\'q!'}
+                        {debtSearch ? (t('common.noResult') || 'Natija topilmadi') : (t('finance.noDebtors') || 'Debitorlar yo\\'q!')}
                       </td></tr>
                     )}
                   </tbody>
@@ -536,18 +536,18 @@ export default function Finance() {
         {activeTab === 'supplier-debts' && (
           <div>
             <div className="px-6 py-4 border-b border-slate-50">
-              <span className="text-sm font-semibold text-slate-700">Kreditor qarzdorlik — Supplierlar</span>
+              <span className="text-sm font-semibold text-slate-700">{t('finance.supplierDebts') || 'Kreditor qarzdorlik — Supplierlar'}</span>
             </div>
             {loading ? <Spinner /> : supplierDebts ? (
               <>
                 <div className="px-6 py-3 border-b border-slate-100 bg-red-50 flex gap-4">
-                  <span className="text-sm text-slate-600">Jami qarz: <strong className="text-red-600">{fmt(supplierDebts.total_debt)}</strong></span>
+                  <span className="text-sm text-slate-600">{t('finance.totalDebt') || 'Jami qarz:'} <strong className="text-red-600">{fmt(supplierDebts.total_debt, t)}</strong></span>
                   <span className="text-sm text-slate-500">({supplierDebts.count} ta supplier)</span>
                 </div>
                 <table className="min-w-full">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100">
-                      {['Supplier', 'Telefon', 'Qarz balansi', "To'lov muddati", 'Amal'].map(h => (
+                      {[t('nav.suppliers') || 'Ta\'minotchi', t('settings.phone') || 'Telefon', t('finance.debtBalance') || 'Qarz balansi', t('finance.paymentTerms') || "To'lov muddati", t('common.action') || 'Amal'].map(h => (
                         <th key={h} className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                       ))}
                     </tr>
@@ -569,7 +569,7 @@ export default function Finance() {
                       </tr>
                     ))}
                     {supplierDebts.items.length === 0 && (
-                      <tr><td colSpan={5} className="px-6 py-12 text-center text-sm text-emerald-600">Kreditorlar yo'q!</td></tr>
+                      <tr><td colSpan={5} className="px-6 py-12 text-center text-sm text-emerald-600">{t('finance.noCreditors') || "Kreditorlar yo'q!"}</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -582,41 +582,41 @@ export default function Finance() {
         {activeTab === 'pl' && (
           <div>
             <div className="flex flex-wrap items-end gap-3 px-6 py-4 border-b border-slate-50">
-              <span className="text-sm font-semibold text-slate-700 self-center mr-2">Foyda va Zarar (P&L)</span>
+              <span className="text-sm font-semibold text-slate-700 self-center mr-2">{t('finance.pl') || 'Foyda va Zarar (P&L)'}</span>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Dan</label>
+                <label className="block text-xs font-medium text-slate-500 mb-1">{t('common.from') || 'Dan'}</label>
                 <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
                   className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Gacha</label>
+                <label className="block text-xs font-medium text-slate-500 mb-1">{t('common.to') || 'Gacha'}</label>
                 <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
                   className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <button onClick={loadTab}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors">
-                Hisoblash
+                {t('finance.plCalc') || 'Hisoblash'}
               </button>
             </div>
             {loading ? <Spinner /> : plData ? (
               <div className="p-6 max-w-2xl">
                 <p className="text-sm text-slate-500 mb-5">
-                  Davr: <strong>{plData.period?.from}</strong> — <strong>{plData.period?.to}</strong>
+                  {t('finance.period') || 'Davr:'} <strong>{plData.period?.from}</strong> — <strong>{plData.period?.to}</strong>
                 </p>
                 <div className="space-y-2">
                   {[
-                    { label: 'Daromad (sotuv)', value: plData.revenue, cls: 'text-slate-800', pct: 100, bg: 'bg-slate-50' },
-                    { label: 'Tannarx (COGS)', value: plData.cogs, neg: true, cls: 'text-red-500', pct: plData.revenue ? plData.cogs / plData.revenue * 100 : 0, bg: '' },
-                    { label: 'Brutto foyda', value: plData.gross_profit, cls: 'font-bold text-indigo-600', pct: plData.gross_margin_pct, bg: 'bg-indigo-50' },
-                    { label: 'Jami xarajatlar', value: plData.expenses?.total, neg: true, cls: 'text-red-500', pct: plData.revenue ? plData.expenses?.total / plData.revenue * 100 : 0, bg: '' },
-                    { label: 'Net foyda', value: plData.net_profit, cls: `font-bold ${plData.net_profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`, pct: plData.net_margin_pct, bg: plData.net_profit >= 0 ? 'bg-emerald-50' : 'bg-red-50' },
+                    { label: t('finance.revenue') || 'Daromad (sotuv)', value: plData.revenue, cls: 'text-slate-800', pct: 100, bg: 'bg-slate-50' },
+                    { label: t('finance.cogs') || 'Tannarx (COGS)', value: plData.cogs, neg: true, cls: 'text-red-500', pct: plData.revenue ? plData.cogs / plData.revenue * 100 : 0, bg: '' },
+                    { label: t('finance.grossProfit') || 'Brutto foyda', value: plData.gross_profit, cls: 'font-bold text-indigo-600', pct: plData.gross_margin_pct, bg: 'bg-indigo-50' },
+                    { label: t('finance.totalExpenses') || 'Jami xarajatlar', value: plData.expenses?.total, neg: true, cls: 'text-red-500', pct: plData.revenue ? plData.expenses?.total / plData.revenue * 100 : 0, bg: '' },
+                    { label: t('finance.netProfit') || 'Net foyda', value: plData.net_profit, cls: `font-bold ${plData.net_profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`, pct: plData.net_margin_pct, bg: plData.net_profit >= 0 ? 'bg-emerald-50' : 'bg-red-50' },
                   ].map(row => (
                     <div key={row.label} className={`flex items-center justify-between p-3 rounded-xl ${row.bg || 'border border-slate-100'}`}>
                       <span className={`text-sm ${row.cls}`}>{row.label}</span>
                       <div className="flex items-center gap-4">
                         <span className="text-xs text-slate-400">{Number(Math.abs(row.pct || 0)).toFixed(1)}%</span>
                         <span className={`text-sm font-semibold min-w-36 text-right ${row.cls}`}>
-                          {row.neg && Number(row.value) > 0 ? '-' : ''}{fmt(Math.abs(Number(row.value) || 0))}
+                          {row.neg && Number(row.value) > 0 ? '-' : ''}{fmt(Math.abs(Number(row.value) || 0), t)}
                         </span>
                       </div>
                     </div>
@@ -624,19 +624,19 @@ export default function Finance() {
                 </div>
                 {plData.expenses?.by_category?.length > 0 && (
                   <div className="mt-6">
-                    <p className="text-sm font-semibold text-slate-600 mb-3">Xarajatlar kategoriya bo'yicha:</p>
+                    <p className="text-sm font-semibold text-slate-600 mb-3">{t('finance.expenseByCategory') || "Xarajatlar kategoriya bo'yicha:"}</p>
                     <div className="space-y-1.5">
                       {plData.expenses.by_category.map(c => (
                         <div key={c.name} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg bg-slate-50 border border-slate-100">
                           <span className="text-slate-600">{c.name}</span>
-                          <span className="font-medium text-red-500">{fmt(c.total)}</span>
+                          <span className="font-medium text-red-500">{fmt(c.total, t)}</span>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
               </div>
-            ) : <div className="py-12 text-center text-sm text-slate-400">Davr tanlang va hisoblang</div>}
+            ) : <div className="py-12 text-center text-sm text-slate-400">{t('finance.selectPeriod') || 'Davr tanlang va hisoblang'}</div>}
           </div>
         )}
       </div>
@@ -647,10 +647,10 @@ export default function Finance() {
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4">
             <h3 className="text-base font-bold text-slate-800 mb-1">{t('customer.payDebt')}</h3>
             <p className="text-sm text-slate-500 mb-4">
-              {payModal.name} — joriy qarz: <strong className="text-amber-600">{fmt(payModal.balance)}</strong>
+              {payModal.name} — {t('finance.currentDebt') || 'joriy qarz'}: <strong className="text-amber-600">{fmt(payModal.balance, t)}</strong>
             </p>
             <div className="mb-4">
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">To'lov summasi (so'm)</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('finance.paymentAmount') || "To'lov summasi"} ({t('common.sum') || "so'm"})</label>
               <input type="number" placeholder="0" max={payModal.balance}
                 className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 value={payAmount} onChange={e => setPayAmount(e.target.value)} />
