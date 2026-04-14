@@ -522,7 +522,7 @@ export default function Finance() {
                     ))}
                     {customerDebts.items.filter(c => !debtSearch || c.name.toLowerCase().includes(debtSearch.toLowerCase()) || (c.phone||'').includes(debtSearch)).length === 0 && (
                       <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-400">
-                        {debtSearch ? (t('common.noResult') || 'Natija topilmadi') : (t('finance.noDebtors') || 'Debitorlar yo\\'q!')}
+                        {debtSearch ? (t('common.noResult') || 'Natija topilmadi') : (t('finance.noDebtors') || "Debitorlar yo'q!")}
                       </td></tr>
                     )}
                   </tbody>
