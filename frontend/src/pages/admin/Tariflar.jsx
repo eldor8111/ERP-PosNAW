@@ -126,14 +126,14 @@ export default function Tariflar() {
     return 'bg-purple-600 hover:bg-purple-700 shadow-purple-200';
   };
 
-  const isCurrent = (t) => billing?.tariff_id === t.id;
+  const isCurrent = (tariff) => billing?.tariff_id === tariff.id;
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-8 text-center">
         <h1 className="text-3xl font-black text-slate-800 mb-2">{t('nav.tariffs')}</h1>
-        <p className="text-slate-500">Biznesingiz uchun qulay tarifni tanlang</p>
+        <p className="text-slate-500">{t('tariffs.subtitle')}</p>
       </div>
 
       {/* Joriy obuna holati */}
@@ -143,20 +143,20 @@ export default function Tariflar() {
             {billing.subscription_active ? '✓' : '✕'}
           </div>
           <div className="flex-1">
-            <div className="font-bold text-slate-800 text-sm mb-0.5">Joriy obuna holati</div>
+            <div className="font-bold text-slate-800 text-sm mb-0.5">{t('tariffs.currentStatus')}</div>
             {billing.subscription_active ? (
               <div className="text-sm text-emerald-700">
                 <span className="font-semibold">{billing.tariff_name || 'Noma\'lum tarif'}</span>
-                {billing.is_trial && <span className="ml-2 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-bold">Sinov</span>}
-                <span className="ml-2 text-slate-500">— {billing.days_left} kun qoldi</span>
+                {billing.is_trial && <span className="ml-2 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-bold">{t('tariffs.trial')}</span>}
+                <span className="ml-2 text-slate-500">— {billing.days_left} {t('tariffs.daysLeft')}</span>
               </div>
             ) : (
-              <div className="text-sm text-red-600 font-semibold">Obuna muddati tugagan. Quyida tarif tanlang va to'lov qiling.</div>
+              <div className="text-sm text-red-600 font-semibold">{t('tariffs.expired')}</div>
             )}
           </div>
           {billing.subscription_active && billing.subscription_ends_at && (
             <div className="text-right text-xs text-slate-400">
-              <div>Tugash sanasi</div>
+              <div>{t('tariffs.expiresOn')}</div>
               <div className="font-bold text-slate-600">{new Date(billing.subscription_ends_at).toLocaleDateString('uz-UZ')}</div>
             </div>
           )}
@@ -166,28 +166,28 @@ export default function Tariflar() {
       {/* Tarif kartalar */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {tariffs
-          .filter(t => t.price_per_month > 0 || !billing?.subscription_ends_at || (billing?.is_trial && billing?.subscription_active))
-          .map(t => (
+          .filter(tariff => tariff.price_per_month > 0 || !billing?.subscription_ends_at || (billing?.is_trial && billing?.subscription_active))
+          .map(tariff => (
           <div
-            key={t.id}
-            className={`relative rounded-2xl border-2 bg-linear-to-br p-5 flex flex-col transition-all hover:shadow-lg ${bgAccent(t.price_per_month)} ${isCurrent(t) ? 'ring-2 ring-offset-2 ring-indigo-400' : ''}`}
+            key={tariff.id}
+            className={`relative rounded-2xl border-2 bg-linear-to-br p-5 flex flex-col transition-all hover:shadow-lg ${bgAccent(tariff.price_per_month)} ${isCurrent(tariff) ? 'ring-2 ring-offset-2 ring-indigo-400' : ''}`}
           >
-            {isCurrent(t) && (
+            {isCurrent(tariff) && (
               <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-indigo-600 text-white text-xs font-black rounded-full whitespace-nowrap shadow">
-                Hozirgi tarif
+                {t('tariffs.currentPlan')}
               </span>
             )}
 
             <div className="mb-3">
-              <h3 className="font-black text-slate-800 text-base">{t.name}</h3>
-              {t.description && <p className="text-xs text-slate-500 mt-0.5">{t.description}</p>}
+              <h3 className="font-black text-slate-800 text-base">{tariff.name}</h3>
+              {tariff.description && <p className="text-xs text-slate-500 mt-0.5">{tariff.description}</p>}
             </div>
 
-            <div className={`text-3xl font-black mb-1 ${priceColor(t.price_per_month)}`}>
-              {t.price_per_month > 0 ? (
-                <>{fmtMoney(t.price_per_month)} <span className="text-base font-semibold text-slate-400">s/oy</span></>
+            <div className={`text-3xl font-black mb-1 ${priceColor(tariff.price_per_month)}`}>
+              {tariff.price_per_month > 0 ? (
+                <>{fmtMoney(tariff.price_per_month)} <span className="text-base font-semibold text-slate-400">{t('tariffs.perMonth')}</span></>
               ) : (
-                'Sinov'
+                t('tariffs.trial')
               )}
             </div>
 
@@ -196,39 +196,39 @@ export default function Tariflar() {
                 <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Muddat: <span className="font-bold">{t.duration_days} kun</span>
+                {t('tariffs.duration')} <span className="font-bold">{tariff.duration_days} kun</span>
               </div>
               <div className="flex items-center gap-2 text-xs text-slate-600">
                 <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
-                Max xodim: <span className="font-bold">{t.max_users >= 9999 ? 'Cheksiz' : t.max_users}</span>
+                {t('tariffs.maxUsers')} <span className="font-bold">{tariff.max_users >= 9999 ? t('tariffs.unlimited') : tariff.max_users}</span>
               </div>
               <div className="flex items-center gap-2 text-xs text-slate-600">
                 <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
-                Max filial: <span className="font-bold">{t.max_branches >= 9999 ? 'Cheksiz' : t.max_branches}</span>
+                {t('tariffs.maxBranches')} <span className="font-bold">{tariff.max_branches >= 9999 ? t('tariffs.unlimited') : tariff.max_branches}</span>
               </div>
             </div>
 
             {/* Tugma */}
             <div className="mt-5">
-              {!isCurrent(t) && (
-                t.price_per_month <= 0 ? (
+              {!isCurrent(tariff) && (
+                tariff.price_per_month <= 0 ? (
                   <button
                     onClick={activateTrial}
                     disabled={trialLoading}
                     className="w-full py-2.5 text-white font-bold rounded-xl text-sm shadow-lg transition-all bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200 disabled:opacity-60"
                   >
-                    {trialLoading ? 'Faollashtirilmoqda…' : "Sinab ko'rish"}
+                    {trialLoading ? t('tariffs.activating') : t('tariffs.tryFree')}
                   </button>
                 ) : (
                   <button
-                    onClick={() => openBuy(t)}
-                    className={`w-full py-2.5 text-white font-bold rounded-xl text-sm shadow-lg transition-all ${btnColor(t.price_per_month)}`}
+                    onClick={() => openBuy(tariff)}
+                    className={`w-full py-2.5 text-white font-bold rounded-xl text-sm shadow-lg transition-all ${btnColor(tariff.price_per_month)}`}
                   >
-                    Sotib olish
+                    {t('tariffs.buy')}
                   </button>
                 )
               )}
@@ -275,7 +275,7 @@ export default function Tariflar() {
             <div className="p-6 space-y-5">
               {/* Muddat tanlash */}
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Muddat (oy)</label>
+                <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">{t('tariffs.durationMonths')}</label>
                 <div className="grid grid-cols-5 gap-2">
                   {[1, 2, 3, 6, 12].map(m => (
                     <button key={m} onClick={() => setMonths(m)}
@@ -298,7 +298,7 @@ export default function Tariflar() {
 
               {/* Karta raqami */}
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">To'lov karta raqami</label>
+                <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">{t('tariffs.cardNumber')}</label>
                 <div className="bg-linear-to-r from-slate-800 to-slate-700 rounded-xl p-4 flex items-center justify-between">
                   <div>
                     <div className="text-white font-mono text-lg font-bold tracking-widest">{settings.card_number}</div>
@@ -306,14 +306,14 @@ export default function Tariflar() {
                   </div>
                   <button onClick={copyCard}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${copied ? 'bg-emerald-500 text-white' : 'bg-white/10 hover:bg-white/20 text-white'}`}>
-                    {copied ? '✓ Nusxalandi' : 'Nusxa olish'}
+                    {copied ? `✓ ${t('tariffs.copied')}` : t('tariffs.copy')}
                   </button>
                 </div>
               </div>
 
               {/* Yo'riqnoma */}
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                <div className="text-xs font-bold text-amber-700 mb-2">To'lov tartibi:</div>
+                <div className="text-xs font-bold text-amber-700 mb-2">{t('tariffs.paymentInstructions')}</div>
                 <ol className="space-y-1.5 text-xs text-amber-800">
                   <li className="flex gap-2"><span className="font-black w-4">1.</span>Yuqoridagi kartaga <span className="font-bold">{fmtMoney(total)} so'm</span> o'tkazing</li>
                   <li className="flex gap-2"><span className="font-black w-4">2.</span>To'lov cheki (screenshot) bilan Telegramga yozing</li>
@@ -334,7 +334,7 @@ export default function Tariflar() {
                   href={`tel:${settings.phone_raw}`}
                   className="flex items-center justify-center gap-2 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-emerald-200"
                 >
-                  {PHONE_ICON} Qo'ng'iroq
+                  {PHONE_ICON} {t('tariffs.call')}
                 </a>
               </div>
             </div>

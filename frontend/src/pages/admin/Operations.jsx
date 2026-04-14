@@ -2954,24 +2954,26 @@ function QoldiqTab() {
 /* ══════════════════════════════════════════════════════════
    MAIN
 ══════════════════════════════════════════════════════════ */
-const TABS = [
-  {
-    id: 'qaytarishlar', label: 'Qaytarishlar',
-    icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>,
-  },
-  {
-    id: 'transferlar', label: 'Transferlar',
-    icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>,
-  },
-  {
-    id: 'reviziyalar', label: 'Reviziyalar',
-    icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>,
-  },
-  {
-    id: 'chiqimlar', label: 'Chiqimlar',
-    icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>,
-  },
-];
+function getOpsTabs(t) {
+  return [
+    {
+      id: 'qaytarishlar', label: t('ops.tab.returns'),
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>,
+    },
+    {
+      id: 'transferlar', label: t('ops.tab.transfers'),
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>,
+    },
+    {
+      id: 'reviziyalar', label: t('ops.tab.revisions'),
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>,
+    },
+    {
+      id: 'chiqimlar', label: t('ops.tab.expenses'),
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>,
+    },
+  ];
+}
 
 export default function Operations() {
   const { t } = useLang();
@@ -2996,24 +2998,26 @@ export default function Operations() {
   }, []);
 
 
+  const TABS = getOpsTabs(t);
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Operatsiyalar</h1>
-          <p className="text-slate-400 text-sm mt-0.5">Sotuvlar, kirimlar, transferlar va omborxona operatsiyalari</p>
+          <h1 className="text-2xl font-bold text-slate-800">{t('ops.title')}</h1>
+          <p className="text-slate-400 text-sm mt-0.5">{t('ops.subtitle')}</p>
         </div>
       </div>
 
       <div className="flex gap-1 bg-white border border-slate-200 rounded-2xl p-1.5 overflow-x-auto shadow-sm">
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
+        {TABS.map(tab_item => (
+          <button key={tab_item.id} onClick={() => setTab(tab_item.id)}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${
-              tab === t.id
+              tab === tab_item.id
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
                 : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
             }`}>
-            {t.icon}<span>{t.label}</span>
+            {tab_item.icon}<span>{tab_item.label}</span>
           </button>
         ))}
       </div>

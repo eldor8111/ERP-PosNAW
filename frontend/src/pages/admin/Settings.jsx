@@ -83,7 +83,7 @@ function CurrenciesTab() {
         <h3 className="text-base font-bold text-slate-800 mb-4">{t('common.currency')} {t('common.add').toLowerCase()}</h3>
         <form onSubmit={handleAdd} className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Nom</label>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">{t('settings.currencyName')}</label>
             <input
               required value={form.name}
               onChange={e => setForm({ ...form, name: e.target.value })}
@@ -92,7 +92,7 @@ function CurrenciesTab() {
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Kod</label>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">{t('settings.currencyCode')}</label>
             <input
               required value={form.code} maxLength={5}
               onChange={e => setForm({ ...form, code: e.target.value })}
@@ -116,7 +116,7 @@ function CurrenciesTab() {
                 onChange={e => setForm({ ...form, is_default: e.target.checked })}
                 className="w-4 h-4 accent-indigo-600"
               />
-              Asosiy valyuta
+              {t('settings.primaryCurrency')}
             </label>
             <button
               type="submit" disabled={saving}
@@ -150,10 +150,10 @@ function CurrenciesTab() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-medium text-slate-800">{c.name || c.code}</span>
                     {c.code === 'UZS' && (
-                      <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-semibold rounded">Milliy valyuta</span>
+                      <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-semibold rounded">{t('settings.nationalCurrency')}</span>
                     )}
                     {c.is_default && (
-                      <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-semibold rounded">Doimiy</span>
+                      <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-semibold rounded">{t('settings.permanent')}</span>
                     )}
                   </div>
                 </td>
@@ -180,7 +180,7 @@ function CurrenciesTab() {
                         disabled={updatingId === c.id}
                         className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap"
                       >
-                        {updatingId === c.id ? '...' : 'Kursni Yangilash'}
+                        {updatingId === c.id ? '...' : t('settings.updateRate')}
                       </button>
                     </div>
                   )}
@@ -213,7 +213,7 @@ function CurrenciesTab() {
                       disabled={makingDefaultId === c.id}
                       className="px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-500 text-xs font-semibold rounded-lg border border-slate-200 hover:border-indigo-300 transition-all disabled:opacity-50 whitespace-nowrap"
                     >
-                      {makingDefaultId === c.id ? '...' : 'Asosiy qilish'}
+                      {makingDefaultId === c.id ? '...' : t('settings.makeDefault')}
                     </button>
                   )}
                 </td>
@@ -235,7 +235,7 @@ function CurrenciesTab() {
               </tr>
             ))}
             {currencies.length === 0 && (
-              <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 text-sm">Valyutalar yuklanmoqda...</td></tr>
+              <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 text-sm">{t('settings.currenciesLoading')}</td></tr>
             )}
           </tbody>
         </table>
@@ -1130,7 +1130,7 @@ function BranchesTab() {
   };
 
   const handleDeactivate = async (id) => {
-    if (!confirm("Filialni faolsizlashtirishni tasdiqlaysizmi?")) return;
+    if (!confirm(t('settings.deactivateBranch'))) return;
     try { await api.patch(`/branches/${id}`, { is_active: false }); load(); }
     catch (err) { alert(err.response?.data?.detail || 'Xatolik'); }
   };
@@ -1141,10 +1141,10 @@ function BranchesTab() {
     <div className="space-y-6">
       {/* Add form */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-        <h3 className="text-base font-bold text-slate-800 mb-4">Yangi filial qo'shish</h3>
+        <h3 className="text-base font-bold text-slate-800 mb-4">{t('settings.addBranch')}</h3>
         <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Filial nomi *</label>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">{t('settings.branchName')} *</label>
             <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
               placeholder="Masalan: Asosiy filial" className={inputCls} />
           </div>
@@ -1173,7 +1173,7 @@ function BranchesTab() {
         <table className="min-w-full">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
-              {['#', 'Filial nomi', 'Manzil', 'Telefon', 'Holat', ''].map(h => (
+              {['#', t('settings.branchName'), t('common.address'), t('settings.phone'), t('common.status'), ''].map(h => (
                 <th key={h} className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
               ))}
             </tr>
@@ -1246,7 +1246,7 @@ function BranchesTab() {
               </tr>
             ))}
             {branches.length === 0 && (
-              <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400 text-sm">Filiallar yo'q. Yuqorida yangi filial qo'shing.</td></tr>
+              <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400 text-sm">{t('settings.branchEmpty')}</td></tr>
             )}
           </tbody>
         </table>
@@ -1261,28 +1261,28 @@ export default function Settings() {
   const [tab, setTab] = useState('valyuta');
 
   const TABS = [
-    { id:'filiyal', label:'Filiallar', icon:<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg> },
-    { id:'valyuta', label:'Valyutalar', icon:<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
-    { id:'api',     label:'API Kalitlar', icon:<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg> },
-    { id:'chek',    label:'Chek shabloni', icon:<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg> },
-    { id:'tgbot',   label:'Telegram Bot',  icon:<svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a5.962 5.962 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.699 1.201-1.22 1.28-.106.016-.215.023-.324.023-.329 0-.655-.078-.962-.23-.09-.045-2.072-1.373-2.91-2.133-.255-.23-.55-.664-.047-1.12.13-.12 2.4-2.2 4.414-4.043.203-.186.417-.384.417-.61 0-.306-.275-.417-.463-.384l-.536.09-5.694 3.447c-.382.235-.905.39-1.424.39-.17 0-.339-.022-.505-.065L4.053 12.55c-.71-.225-.71-.708.15-1.047 2.768-1.196 9.2-3.953 11.233-4.279.172-.027.35-.042.508-.042z"/></svg> },
-    { id:'parol',   label:'Parol', icon:<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg> },
+    { id:'filiyal', label:t('settings.tab.branches'), icon:<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg> },
+    { id:'valyuta', label:t('settings.tab.currencies'), icon:<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+    { id:'api',     label:t('settings.tab.api'), icon:<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg> },
+    { id:'chek',    label:t('settings.tab.receipt'), icon:<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg> },
+    { id:'tgbot',   label:t('settings.tab.telegram'),  icon:<svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a5.962 5.962 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.699 1.201-1.22 1.28-.106.016-.215.023-.324.023-.329 0-.655-.078-.962-.23-.09-.045-2.072-1.373-2.91-2.133-.255-.23-.55-.664-.047-1.12.13-.12 2.4-2.2 4.414-4.043.203-.186.417-.384.417-.61 0-.306-.275-.417-.463-.384l-.536.09-5.694 3.447c-.382.235-.905.39-1.424.39-.17 0-.339-.022-.505-.065L4.053 12.55c-.71-.225-.71-.708.15-1.047 2.768-1.196 9.2-3.953 11.233-4.279.172-.027.35-.042.508-.042z"/></svg> },
+    { id:'parol',   label:t('settings.tab.password'), icon:<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg> },
   ];
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">Sozlamalar</h1>
-        <p className="text-slate-500 text-sm mt-0.5">Valyutalar, chek shablonlari, API va xavfsizlik sozlamalari</p>
+        <h1 className="text-2xl font-bold text-slate-800">{t('settings.title')}</h1>
+        <p className="text-slate-500 text-sm mt-0.5">{t('settings.subtitle')}</p>
       </div>
 
       <div className="flex gap-1 bg-white border border-slate-200 rounded-2xl p-1.5 w-fit shadow-sm">
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
+        {TABS.map(tab_item => (
+          <button key={tab_item.id} onClick={() => setTab(tab_item.id)}
             className={`flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-xl transition-all ${
-              tab === t.id ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+              tab === tab_item.id ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
             }`}>
-            {t.icon}<span>{t.label}</span>
+            {tab_item.icon}<span>{tab_item.label}</span>
           </button>
         ))}
       </div>
