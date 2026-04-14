@@ -151,16 +151,6 @@ export default function ChaqqonPro() {
                <p style={{ color: '#64748b', fontSize: '14px', lineHeight: '1.5' }}>{t('cp.portals.p1.desc') || 'Restoran adminstratori, ombor hisob-kitobi va moliyaviy tahlil'}</p>
             </div>
 
-            {/* Kassir / Ofitsiant */}
-            <div 
-              style={{ background: '#f8fafc', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', cursor: 'pointer', transition: 'all 0.3s ease' }}
-              onClick={() => window.location.href = 'https://chaqqonpro.e-code.uz/kassa/login'}
-            >
-               <div style={{ fontSize: '36px', marginBottom: '16px' }}>💻</div>
-               <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1e293b', marginBottom: '8px' }}>{t('cp.portals.p2.title') || 'Kassa / POS'}</h3>
-               <p style={{ color: '#64748b', fontSize: '14px', lineHeight: '1.5' }}>{t('cp.portals.p2.desc') || 'Kassirlar savdosi xaritasi, Ofitsiantlar va KDS oshxona ekrani'}</p>
-            </div>
-
             {/* Super Admin */}
             <div 
               style={{ background: '#f8fafc', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', cursor: 'pointer', transition: 'all 0.3s ease' }}
