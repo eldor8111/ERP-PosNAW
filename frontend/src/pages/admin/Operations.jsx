@@ -1599,14 +1599,14 @@ function QaytarishCreateView({ products, type, onBack }) {
 
   return (
     <div className="fixed inset-0 z-40 bg-slate-50 flex flex-col">
-      <CreateHeader title={isCustomer ? 'Mijozdan qaytarish' : "Ta'minotchiga qaytarish"} onBack={onBack} />
+      <CreateHeader title={isCustomer ? (t('ops.returnFromCustomer') || 'Mijozdan qaytarish') : (t('ops.returnToSupplier') || "Ta'minotchiga qaytarish")} onBack={onBack} />
       <div className="flex items-center gap-3 px-6 py-3.5 border-b border-slate-100 bg-white shadow-sm shrink-0">
-        <input placeholder={isCustomer ? "Mijoz ismi (ixtiyoriy)" : "Izoh (ixtiyoriy)"} value={note} onChange={e => setNote(e.target.value)} className={`${ic} w-72`} />
+        <input placeholder={isCustomer ? (t('ops.customerNameOpt') || "Mijoz ismi (ixtiyoriy)") : (t('ops.noteOpt') || "Izoh (ixtiyoriy)")} value={note} onChange={e => setNote(e.target.value)} className={`${ic} w-72`} />
         <span className="text-xs text-slate-400 font-medium ml-auto">{new Date().toLocaleString('uz-UZ')}</span>
       </div>
       <div className="flex flex-1 overflow-hidden">
         <div className="w-80 border-r border-slate-100 p-5 flex flex-col gap-4 overflow-y-auto shrink-0 bg-white shadow-sm">
-          <Lbl t="Mahsulot qidirish">
+          <Lbl t={t('pos.searchProduct') || "Mahsulot qidirish"}>
             <ProdSearch products={products} onSelect={p => { setSel(p); setQty('1'); }} />
           </Lbl>
           {sel ? (
@@ -1617,10 +1617,10 @@ function QaytarishCreateView({ products, type, onBack }) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-slate-800 text-sm">{sel.name}</div>
-                  <div className="text-xs text-slate-500 mt-0.5">Joriy qoldiq: <strong>{fmt(sel.stock_quantity)}</strong> {sel.unit||'dona'}</div>
+                  <div className="text-xs text-slate-500 mt-0.5">{t('pos.stockLabel') || 'Joriy qoldiq:'} <strong>{fmt(sel.stock_quantity)}</strong> {sel.unit||'dona'}</div>
                 </div>
               </div>
-              <Lbl t="Qaytarish miqdori">
+              <Lbl t={t('ops.returnQty') || "Qaytarish miqdori"}>
                 <div className="flex gap-2 items-center">
                   <input type="number" min="0.001" step="any" value={qty} onChange={e => setQty(e.target.value)} className={`flex-1 ${ic} text-center font-bold`} />
                   <span className="text-sm text-slate-500 font-medium shrink-0">{sel.unit||'dona'}</span>
@@ -1632,30 +1632,30 @@ function QaytarishCreateView({ products, type, onBack }) {
               <svg className="w-12 h-12 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
               </svg>
-              <p className="text-sm text-center">Mahsulot qidiring va tanlang</p>
+              <p className="text-sm text-center">{t('ops.searchAndSelect') || "Mahsulot qidiring va tanlang"}</p>
             </div>
           )}
           <button onClick={addItem} disabled={!sel||!qty}
             className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl font-bold text-sm transition-all shadow-sm shadow-indigo-200 active:scale-95">
             <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            Ro'yxatga qo'shish
+            {t('ops.addToList') || "Ro'yxatga qo'shish"}
           </button>
         </div>
         <div className="flex-1 overflow-y-auto">
           {items.length === 0 ? (
             <div className="flex items-center justify-center h-full text-slate-300 flex-col gap-2">
               <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
-              <p>Mahsulot qo'shing</p>
+              <p>{t('ops.addProduct') || "Mahsulot qo'shing"}</p>
             </div>
           ) : (
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500">№</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Nomi</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Soni</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">O'lchov</th>
-                  {!isCustomer && <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Joriy qoldiq</th>}
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t('common.name') || 'Nomi'}</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t('common.quantity') || 'Soni'}</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t('common.unit') || "O'lchov"}</th>
+                  {!isCustomer && <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t('pos.stockLabel') || 'Joriy qoldiq'}</th>}
                   <th className="w-10"></th>
                 </tr>
               </thead>
@@ -1684,7 +1684,7 @@ function QaytarishCreateView({ products, type, onBack }) {
         </div>
         <div className="flex gap-3">
           <Btn v="ghost" onClick={onBack}>{t('common.cancel')}</Btn>
-          <Btn onClick={save} disabled={saving}>{saving?'...':'Saqlash'}</Btn>
+          <Btn onClick={save} disabled={saving}>{saving?'...':(t('common.save')||'Saqlash')}</Btn>
         </div>
       </div>
     </div>
@@ -1705,7 +1705,7 @@ function QaytarishlarTab({ products }) {
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
-            {[['customer','Mijozdan qaytarish'],['supplier',"Ta'minotchiga qaytarish"]].map(([v,l]) => (
+            {[['customer', t('ops.returnFromCustomer') || 'Mijozdan qaytarish'],['supplier', t('ops.returnToSupplier') || "Ta'minotchiga qaytarish"]].map(([v,l]) => (
               <button key={v} onClick={() => setSub(v)}
                 className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${sub===v?'bg-white shadow text-indigo-700':'text-slate-500 hover:text-slate-700'}`}>{l}</button>
             ))}
@@ -1713,7 +1713,7 @@ function QaytarishlarTab({ products }) {
           <div className="ml-auto">
             <Btn onClick={() => setMode('create')}>
               <svg className="w-4 h-4 inline mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-              Yangi qaytaruv
+              {t('ops.newReturn') || 'Yangi qaytaruv'}
             </Btn>
           </div>
         </div>
@@ -1722,7 +1722,7 @@ function QaytarishlarTab({ products }) {
         <svg className="w-12 h-12 mx-auto mb-3 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
         </svg>
-        <p className="text-slate-400 text-sm">Qaytarish tarixini ko'rish uchun yuqoridagi tugmani bosing</p>
+        <p className="text-slate-400 text-sm">{t('ops.returnHistoryHint') || "Qaytarish tarixini ko'rish uchun yuqoridagi tugmani bosing"}</p>
       </div>
     </div>
   );

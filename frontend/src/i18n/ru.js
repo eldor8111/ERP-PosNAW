@@ -543,6 +543,17 @@ export default {
   'ops.transfer': 'Перемещение',
   'ops.adjustment': 'Корректировка',
   'ops.newOperation': 'Новая операция',
+  'ops.returnFromCustomer': "Возврат от клиента",
+  'ops.returnToSupplier': "Возврат поставщику",
+  'ops.newReturn': "Новый возврат",
+  'ops.returnHistoryHint': "Нажмите кнопку выше, чтобы просмотреть историю возвратов",
+  'ops.customerNameOpt': "Имя клиента (необязательно)",
+  'ops.noteOpt': "Примечание (необязательно)",
+  'ops.returnQty': "Количество возврата",
+  'ops.searchAndSelect': "Найдите и выберите товар",
+  'ops.addToList': "Добавить в список",
+  'ops.addProduct': "Добавить товар",
+  'ops.returnedItemsMsg': "товаров возвращено",
 
   // === REPORTS ===
   'reports.title': 'Отчёты',

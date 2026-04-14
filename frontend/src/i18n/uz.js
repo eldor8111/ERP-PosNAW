@@ -544,6 +544,17 @@ export default {
   'ops.transfer': "Ko'chirish",
   'ops.adjustment': 'Tuzatish',
   'ops.newOperation': 'Yangi operatsiya',
+  'ops.returnFromCustomer': "Mijozdan qaytarish",
+  'ops.returnToSupplier': "Ta'minotchiga qaytarish",
+  'ops.newReturn': "Yangi qaytaruv",
+  'ops.returnHistoryHint': "Qaytarish tarixini ko'rish uchun yuqoridagi tugmani bosing",
+  'ops.customerNameOpt': "Mijoz ismi (ixtiyoriy)",
+  'ops.noteOpt': "Izoh (ixtiyoriy)",
+  'ops.returnQty': "Qaytarish miqdori",
+  'ops.searchAndSelect': "Mahsulot qidiring va tanlang",
+  'ops.addToList': "Ro'yxatga qo'shish",
+  'ops.addProduct': "Mahsulot qo'shing",
+  'ops.returnedItemsMsg': "ta mahsulot qaytarildi",
 
   // === REPORTS ===
   'reports.title': 'Hisobotlar',

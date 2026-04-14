@@ -475,6 +475,17 @@ export default {
   'ops.transfer': 'Transfer',
   'ops.adjustment': 'Adjustment',
   'ops.newOperation': 'New Operation',
+  'ops.returnFromCustomer': "Return from customer",
+  'ops.returnToSupplier': "Return to supplier",
+  'ops.newReturn': "New return",
+  'ops.returnHistoryHint': "Click the button above to view return history",
+  'ops.customerNameOpt': "Customer Name (optional)",
+  'ops.noteOpt': "Note (optional)",
+  'ops.returnQty': "Return quantity",
+  'ops.searchAndSelect': "Search and select product",
+  'ops.addToList': "Add to list",
+  'ops.addProduct': "Add product",
+  'ops.returnedItemsMsg': "items returned",
 
   // === POS ===
   'pos.title': 'POS Terminal',
