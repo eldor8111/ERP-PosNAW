@@ -37,14 +37,14 @@ export default function Register() {
     setLoading(true)
     try {
       const { data } = await api.post('/users/', form)
-      setSuccess(`Foydalanuvchi "${data.name}" muvaffaqiyatli yaratildi!`)
+      setSuccess(`${t('user.newUser')}: "${data.name}" — ${t('common.success').toLowerCase()}!`)
       setForm({ phone: '', password: '', name: '', role: 'cashier' })
     } catch (err) {
       const detail = err.response?.data?.detail
       if (Array.isArray(detail)) {
         setError(detail.map(d => d.msg).join(', '))
       } else {
-        setError(detail || 'Xatolik yuz berdi')
+        setError(detail || t('auth.errGeneral') || 'Xatolik yuz berdi')
       }
     } finally {
       setLoading(false)
@@ -63,7 +63,7 @@ export default function Register() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
-          Foydalanuvchilar
+          {t('user.title')}
         </button>
 
         {/* Header */}
@@ -96,7 +96,7 @@ export default function Register() {
           {/* Full Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              To'liq ism
+              {t('customer.fullName') || "To'liq ism"}
             </label>
             <input
               type="text"
@@ -112,7 +112,7 @@ export default function Register() {
           {/* Phone */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Telefon raqam
+              {t('common.phone') || "Telefon raqam"}
             </label>
             <input
               type="text"
@@ -128,12 +128,12 @@ export default function Register() {
           {/* Password */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Parol
+              {t('login.password') || "Parol"}
             </label>
             <input
               type="password"
               name="password"
-              placeholder="Kamida 6 ta belgi"
+              placeholder={t('auth.passwordPl') || "Kamida 6 ta belgi"}
               value={form.password}
               onChange={handleChange}
               required
@@ -145,7 +145,7 @@ export default function Register() {
           {/* Role */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Lavozim
+              {t('user.role') || "Lavozim"}
             </label>
             <select
               name="role"
@@ -170,9 +170,9 @@ export default function Register() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
                 </svg>
-                Saqlanmoqda...
+                {t('common.saving') || "Saqlanmoqda..."}
               </span>
-            ) : 'Saqlash'}
+            ) : t('common.save') || 'Saqlash'}
           </button>
         </form>
       </div>
