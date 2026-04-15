@@ -13,6 +13,9 @@ class Customer(Base):
     loyalty_points = Column(Integer, default=0)
     tg_chat_id = Column(String(50), unique=True, index=True, nullable=True)
     
+    # Skidka (sotuvda avtomatik qo'llaniladi)
+    discount_percent = Column(Numeric(5, 2), default=0)
+
     # Keshbek va Sodiqlik kartasi
     card_number = Column(String(20), unique=True, index=True, nullable=True)
     cashback_percent = Column(Numeric(5, 2), default=0)
