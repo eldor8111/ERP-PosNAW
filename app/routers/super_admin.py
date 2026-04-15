@@ -257,7 +257,7 @@ def get_branch_detail(branch_id: int, db: Session = Depends(get_db), _: User = D
     ]
 
     warehouses = db.query(Warehouse).filter(Warehouse.branch_id == branch_id, Warehouse.is_active == True).all()
-    warehouses_data = [{"id": w.id, "name": w.name, "address": w.address} for w in warehouses]
+    warehouses_data = [{"id": w.id, "name": w.name, "type": w.type.value if w.type else None} for w in warehouses]
 
     return {
         "id": branch.id,
