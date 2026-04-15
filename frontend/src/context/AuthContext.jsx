@@ -30,6 +30,11 @@ export function AuthProvider({ children }) {
       throw err
     }
     const { data } = res
+    
+    if (data.needs_company_selection) {
+      return data // UI da tanlash uchun ob'ektni qaytaramiz
+    }
+    
     // Eski foydalanuvchi keshini tozalaymiz — boshqa korxona ma'lumotlari qolmasin
     clearPosCache()
     localStorage.setItem('access_token', data.access_token)

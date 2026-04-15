@@ -9,6 +9,7 @@ export default {
   'nav.admin_group': 'Admin',
   'nav.dashboard': 'Dashboard',
   'nav.sales': 'Sotuv va Mijozlar',
+  'nav.wholesale': 'Ulgurji sotuv',
   'nav.pos': 'POS (Chakana)',
   'nav.shifts': 'Smenalar',
   'nav.products': 'Mahsulotlar',

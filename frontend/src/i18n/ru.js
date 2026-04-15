@@ -9,6 +9,7 @@ export default {
   'nav.admin_group': 'Администратор',
   'nav.dashboard': 'Панель управления',
   'nav.sales': 'Продажи и Клиенты',
+  'nav.wholesale': 'Оптовые продажи',
   'nav.pos': 'POS (Розница)',
   'nav.shifts': 'Смены',
   'nav.products': 'Товары',

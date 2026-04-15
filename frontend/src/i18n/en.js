@@ -9,6 +9,7 @@ export default {
   'nav.admin_group': 'Administrator',
   'nav.dashboard': 'Dashboard',
   'nav.sales': 'Sales & Customers',
+  'nav.wholesale': 'Wholesale Sales',
   'nav.pos': 'POS (Retail)',
   'nav.shifts': 'Shifts',
   'nav.products': 'Products',
