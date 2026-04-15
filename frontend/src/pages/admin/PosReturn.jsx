@@ -3,6 +3,7 @@ import { useLang } from '../../context/LangContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
+import toast from 'react-hot-toast';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 
@@ -89,9 +90,9 @@ const navigate = useNavigate();
   // Load data
   useEffect(() => {
     api.get('/categories/', { params: { limit: 200 } })
-      .then(r => setCategories(Array.isArray(r.data) ? r.data : (r.data.items || []))).catch(() => { });
+      .then(r => setCategories(Array.isArray(r.data) ? r.data : (r.data.items || []))).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
     api.get('/products/', { params: { limit: 12000, status: 'active' } })
-      .then(r => setProducts(Array.isArray(r.data) ? r.data : (r.data.items || []))).catch(() => { });
+      .then(r => setProducts(Array.isArray(r.data) ? r.data : (r.data.items || []))).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
     api.get('/customers/', { params: { limit: 200 } })
       .then(r => {
         const custs = Array.isArray(r.data) ? r.data : (r.data.items || []);
@@ -100,7 +101,7 @@ const navigate = useNavigate();
           const s = JSON.parse(localStorage.getItem('pos_return_settings') || '{}');
           if (s.defaultCustomer) setCustId(s.defaultCustomer);
         } catch { /* ignore */ }
-      }).catch(() => { });
+      }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, []);
 
   const filteredProducts = products.filter(p => {

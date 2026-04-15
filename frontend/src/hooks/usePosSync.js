@@ -10,6 +10,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api/axios';
+import toast from 'react-hot-toast';
 
 const PENDING_SALES_KEY = 'pos_pending_sales';
 const PENDING_RETURNS_KEY = 'pos_pending_returns';
@@ -148,7 +149,7 @@ export default function usePosSync({ onSyncSuccess } = {}) {
       api.get(url, { params }).then(r => {
         const fresh = Array.isArray(r.data) ? r.data : (r.data.items || []);
         saveToCache(cacheKey, fresh);
-      }).catch(() => {});
+      }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
       return cached;
     }
     // Kesh yo'q — serverdan kutib olish (birinchi marta)

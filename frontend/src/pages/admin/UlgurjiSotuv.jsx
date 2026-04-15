@@ -157,7 +157,7 @@ function ProductSearch({ onSelect }) {
       setLoading(true);
       api.get('/products/pos-list', { params: { search: q, limit: 12 } })
         .then(r => setResults(Array.isArray(r.data) ? r.data : (r.data?.items || [])))
-        .catch(() => {})
+        .catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") })
         .finally(() => setLoading(false));
     }, 200);
     return () => clearTimeout(timerRef.current);
@@ -272,8 +272,8 @@ export default function UlgurjiSotuv() {
   const LIMIT = 25;
 
   useEffect(() => {
-    api.get('/customers/?limit=200').then(r => setCustomers(Array.isArray(r.data) ? r.data : (r.data?.items || []))).catch(() => {});
-    api.get('/warehouses/').then(r => setWarehouses(Array.isArray(r.data) ? r.data : [])).catch(() => {});
+    api.get('/customers/?limit=200').then(r => setCustomers(Array.isArray(r.data) ? r.data : (r.data?.items || []))).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/warehouses/').then(r => setWarehouses(Array.isArray(r.data) ? r.data : [])).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, []);
 
   const loadSales = useCallback(() => {
@@ -283,7 +283,7 @@ export default function UlgurjiSotuv() {
     if (!params.search) delete params.search;
     api.get('/sales/', { params })
       .then(r => setSales(Array.isArray(r.data) ? r.data : []))
-      .catch(() => {})
+      .catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") })
       .finally(() => setLoadingSales(false));
   }, [filters, page]);
 
@@ -980,7 +980,7 @@ function SaleDetailContent({ saleId }) {
   useEffect(() => {
     api.get(`/sales/${saleId}`)
       .then(r => setData(r.data))
-      .catch(() => {})
+      .catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") })
       .finally(() => setLoading(false));
   }, [saleId]);
 

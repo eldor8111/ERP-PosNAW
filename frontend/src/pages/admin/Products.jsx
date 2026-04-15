@@ -4,6 +4,7 @@ import { saveAs } from 'file-saver';
 import api from '../../api/axios';
 import BarcodePrintModal from '../../components/BarcodeTemplates';
 import { useLang } from '../../context/LangContext';
+import toast from 'react-hot-toast';
 
 const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8010/api').replace('/api', '');
 
@@ -345,11 +346,11 @@ export default function Products() {
 
   /* ── loaders ────────────────────────────────────── */
   const loadCategories = useCallback(() => {
-    api.get('/categories/all').then(r => setCategories(r.data)).catch(() => {});
+    api.get('/categories/all').then(r => setCategories(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, []);
 
   const loadBinLocations = useCallback(() => {
-    api.get('/bin-locations').then(r => setBinLocations(r.data)).catch(() => {});
+    api.get('/bin-locations').then(r => setBinLocations(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, []);
 
   const loadProducts = useCallback(() => {
@@ -369,7 +370,7 @@ export default function Products() {
         setOutOfStock(r.data.out_of_stock || 0);
         setSelectedIds([]);
       })
-      .catch(() => {})
+      .catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") })
       .finally(() => setLoading(false));
   }, [search, filterCat, filterStatus, filterWarehouse, limit, page]);
 
@@ -378,8 +379,8 @@ export default function Products() {
   useEffect(() => {
     loadCategories();
     loadBinLocations();
-    api.get('/currencies/').then(r => setCurrencies(r.data)).catch(() => {});
-    api.get('/inventory/warehouses').then(r => setWarehouses(r.data)).catch(() => {});
+    api.get('/currencies/').then(r => setCurrencies(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/inventory/warehouses').then(r => setWarehouses(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -522,7 +523,7 @@ export default function Products() {
 
   const handleDelete = async (id) => {
     if (!confirm(t('product.deleteConfirm'))) return;
-    await api.delete(`/products/${id}`).catch(() => {});
+    await api.delete(`/products/${id}`).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
     loadProducts();
   };
 

@@ -3,6 +3,7 @@ import { useLang } from '../../context/LangContext';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import api from '../../api/axios';
+import toast from 'react-hot-toast';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const fmtS = (v) => Number(v || 0).toLocaleString('uz-UZ') + " so'm";
@@ -173,7 +174,7 @@ const [tab, setTab] = useState('sales');
 
   // Load branches on mount
   useEffect(() => {
-    api.get('/branches').then(r => setBranches(r.data.filter(b => b.is_active))).catch(() => {});
+    api.get('/branches').then(r => setBranches(r.data.filter(b => b.is_active))).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, []);
 
   const qs = () => {

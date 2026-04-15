@@ -53,11 +53,14 @@ function PageLoader() {
   )
 }
 
+import { Toaster } from 'react-hot-toast'
+
 export default function App() {
   const Router = window.location.protocol === 'file:' ? HashRouter : BrowserRouter
 
   return (
     <Router>
+      <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
       <Toast />
       <AuthProvider>
         <Routes>

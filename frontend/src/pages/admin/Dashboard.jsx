@@ -8,6 +8,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
 import { useLang } from '../../context/LangContext';
+import toast from 'react-hot-toast';
 
 const fmt = (val) => {
   if (!val) return "0 so'm";
@@ -81,8 +82,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (user?.role !== 'super_admin') {
-      api.get('/warehouses').then(r => setWarehouses(r.data)).catch(() => {});
-      api.get('/branches').then(r => setBranches(r.data.filter(b => b.is_active))).catch(() => {});
+      api.get('/warehouses').then(r => setWarehouses(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+      api.get('/branches').then(r => setBranches(r.data.filter(b => b.is_active))).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
     }
   }, [user]);
 

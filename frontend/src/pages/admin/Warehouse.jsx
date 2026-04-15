@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { useLang } from '../../context/LangContext';
+import toast from 'react-hot-toast';
 
 const fmtDate = (s) => s ? new Date(s).toLocaleString('ru-RU', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' }).replace(',','') : '—';
 
@@ -25,7 +26,7 @@ export default function Warehouse() {
 
   useEffect(() => {
     load();
-    api.get('/branches').then(r => setBranches(r.data)).catch(() => {});
+    api.get('/branches').then(r => setBranches(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, []);
 
   const openCreate = () => { setName(''); setBranchId(''); setErr(''); setModal({ mode:'create' }); };

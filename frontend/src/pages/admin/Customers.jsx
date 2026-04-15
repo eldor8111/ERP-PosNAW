@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import api from '../../api/axios';
 import { useLang } from '../../context/LangContext';
+import toast from 'react-hot-toast';
 
 const emptyForm = { name: '', phone: '', debt_limit: '', loyalty_points: 0, card_number: '', cashback_percent: 0 };
 
@@ -165,7 +166,7 @@ export default function Customers() {
   const load = useCallback((q = search) => {
     api.get(`/customers${q ? '?search=' + encodeURIComponent(q) : ''}`)
       .then(r => setCustomers(r.data))
-      .catch(() => {});
+      .catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

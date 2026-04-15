@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLang } from '../../context/LangContext';
 import api from '../../api/axios';
+import toast from 'react-hot-toast';
 
 /* ─────────── helpers ─────────── */
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
@@ -152,8 +153,8 @@ const [warehouses, setWarehouses] = useState([]);
   const [err, setErr]     = useState('');
 
   useEffect(() => {
-    api.get('/inventory/warehouses').then(r => setWarehouses(r.data)).catch(() => {});
-    api.get('/categories/all').then(r => setCategories(r.data)).catch(() => {});
+    api.get('/inventory/warehouses').then(r => setWarehouses(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/categories/all').then(r => setCategories(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, []);
 
   const toggleCat = (id) =>

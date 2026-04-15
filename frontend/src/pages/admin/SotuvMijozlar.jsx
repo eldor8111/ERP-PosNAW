@@ -3,6 +3,7 @@ import { useLang } from '../../context/LangContext';
 import { Link } from 'react-router-dom';
 import api from '../../api/axios';
 import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
+import toast from 'react-hot-toast';
 const fmt   = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -158,7 +159,7 @@ function SaleCreateView({ customers, onBack, onSaved }) {
          const data = Array.isArray(r.data) ? r.data : (r.data.items || []);
          setProds(data);
          localStorage.setItem('pos_cache_products', JSON.stringify({ ts: Date.now(), data }));
-       }).catch(() => {});
+       }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, []);
 
   const [cart, setCart] = useState([]);
@@ -834,7 +835,7 @@ function SaleDetailModal({ saleId, onClose, onEdit, onDelete, onPrint }) {
   useEffect(() => {
     api.get(`/sales/${saleId}`)
       .then(r => setSale(r.data))
-      .catch(() => {})
+      .catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") })
       .finally(() => setLoading(false));
   }, [saleId]);
 
@@ -1343,8 +1344,8 @@ function SotuvlarTab({ customers }) {
   const [users, setUsers] = useState([]);
 
   useEffect(() => {
-    api.get('/branches/').then(r => setBranches(r.data)).catch(()=>{});
-    api.get('/users/').then(r => setUsers(r.data)).catch(()=>{});
+    api.get('/branches/').then(r => setBranches(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/users/').then(r => setUsers(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, []);
 
   // Modals
@@ -1663,7 +1664,7 @@ function MijozlarTab() {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
 
-  const load = (q=search) => api.get(`/customers${q?'?search='+encodeURIComponent(q):''}`).then(r => setList(r.data)).catch(()=>{});
+  const load = (q=search) => api.get(`/customers${q?'?search='+encodeURIComponent(q):''}`).then(r => setList(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1795,7 +1796,7 @@ export default function SotuvMijozlar() {
         const data = r.data;
         setCustomers(data);
         localStorage.setItem('pos_cache_customers', JSON.stringify({ ts: Date.now(), data }));
-      }).catch(() => {});
+      }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, []);
 
   return (

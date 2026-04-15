@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLang } from '../../context/LangContext';
 import api from '../../api/axios';
 import InventoryCountsPage from './InventoryCounts';
+import toast from 'react-hot-toast';
 
 /* ─── Helpers ─── */
 const fmt    = (v) => Number(v || 0).toLocaleString('uz-UZ');
@@ -788,7 +789,7 @@ function SaleDetailView({ saleId, onBack }) {
   const { t } = useLang();
   const [sale, setSale] = useState(null);
   useEffect(() => {
-    api.get(`/sales/${saleId}`).then(r => setSale(r.data)).catch(() => {});
+    api.get(`/sales/${saleId}`).then(r => setSale(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, [saleId]);
   if (!sale) return <div className="py-20 text-center text-slate-400">Yuklanmoqda...</div>;
   const debt = Number(sale.total_amount) - Number(sale.paid_amount);
@@ -1752,7 +1753,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
           const data = r.data;
           setLocalProducts(Array.isArray(data) ? data : (data.items || []));
         })
-        .catch(() => {});
+        .catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
@@ -2591,7 +2592,7 @@ function ChiqimlarTab({ products, users = [] }) {
 
     api.get('/inventory/chiqims', { params })
       .then(r => setMov(r.data))
-      .catch(() => {})
+      .catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") })
       .finally(() => setML(false));
   }, [f]);
   useEffect(() => { if (mode==='list') loadMov(); }, [mode, loadMov]);
@@ -2989,12 +2990,12 @@ export default function Operations() {
     api.get('/products/', { params:{ limit:200 } }).then(r => {
       const data = r.data;
       setProducts(Array.isArray(data) ? data : (data.items || []));
-    }).catch(()=>{});
-    api.get('/inventory/warehouses').then(r => setWarehouses(r.data)).catch(()=>{});
-    api.get('/suppliers',  { params:{ limit:200 } }).then(r => setSuppliers(r.data)).catch(()=>{});
-    api.get('/customers',  { params:{ limit:500 } }).then(r => setCustomers(r.data)).catch(()=>{});
-    api.get('/users/').then(r => setUsers(r.data)).catch(()=>{});
-    api.get('/branches').then(r => setBranches(r.data)).catch(()=>{});
+    }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/inventory/warehouses').then(r => setWarehouses(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/suppliers',  { params:{ limit:200 } }).then(r => setSuppliers(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/customers',  { params:{ limit:500 } }).then(r => setCustomers(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/users/').then(r => setUsers(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/branches').then(r => setBranches(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, []);
 
 

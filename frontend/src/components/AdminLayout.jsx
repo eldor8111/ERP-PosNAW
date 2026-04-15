@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import { ROLES, ROLE_GROUPS, ROLE_LABELS, ROLE_GRADIENTS } from '../constants/roles';
 import ECodeLogo, { ECodeIcon } from './ECodeLogo';
+import toast from 'react-hot-toast';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU');
 
@@ -224,7 +225,7 @@ export default function AdminLayout() {
       if (expired && !location.pathname.includes('/admin/tariflar')) {
         navigate('/admin/tariflar', { replace: true });
       }
-    }).catch(() => {});
+    }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.company_id]);
 
@@ -238,14 +239,14 @@ export default function AdminLayout() {
         code: r.data.org_code || '-',
         balance: r.data.balance || 0
       });
-    }).catch(() => {});
+    }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, []);
 
   const refreshLowStock = useCallback(() => {
     if (!ROLE_GROUPS.WAREHOUSE_ACCESS.includes(user?.role)) return;
     api.get('/inventory/low-stock-count').then(r => {
       setLowStockCount(r.data.count || 0);
-    }).catch(() => {});
+    }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, [user?.role]);
 
   useEffect(() => {

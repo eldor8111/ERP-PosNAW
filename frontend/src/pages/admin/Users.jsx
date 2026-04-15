@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
 import { useLang } from '../../context/LangContext';
+import toast from 'react-hot-toast';
 
 // super_admin ni dropdown dan yashiramiz — faqat DB orqali beriladi
 const ROLES = ['admin', 'director', 'manager', 'accountant', 'warehouse', 'cashier'];
@@ -88,12 +89,12 @@ export default function Users() {
   const ROLE_LABELS = getRoleLabels(t);
 
   const load = useCallback(() => {
-    api.get('/users/').then(r => setUsers(r.data)).catch(() => {});
+    api.get('/users/').then(r => setUsers(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, []);
 
   useEffect(() => {
     load();
-    api.get('/branches').then(r => setBranches(r.data)).catch(() => {});
+    api.get('/branches').then(r => setBranches(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, [load]);
 
   const openCreate = () => { setForm(BLANK_FORM); setError(''); setModal('create'); };

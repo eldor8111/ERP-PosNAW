@@ -3,6 +3,7 @@ import { useLang } from '../../context/LangContext';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import api from '../../api/axios';const fmt    = (v) => Number(v || 0).toLocaleString('uz-UZ');
+import toast from 'react-hot-toast';
 const fmtDay = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
 const fmtDt  = (d) => d ? new Date(d).toLocaleString('uz-UZ') : '—';
 const saleMeta = {
@@ -787,7 +788,7 @@ function SaleDetailView({ saleId, onBack }) {
   const { t } = useLang();
   const [sale, setSale] = useState(null);
   useEffect(() => {
-    api.get(`/sales/${saleId}`).then(r => setSale(r.data)).catch(() => {});
+    api.get(`/sales/${saleId}`).then(r => setSale(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, [saleId]);
   if (!sale) return <div className="py-20 text-center text-slate-400">Yuklanmoqda...</div>;
   const debt = Number(sale.total_amount) - Number(sale.paid_amount);
@@ -857,9 +858,9 @@ function KirimCreateView({ onBack, onSaved }) {
 
   useEffect(() => {
     api.get('/products/',           { params:{ limit:200, status:'active' } })
-       .then(r => setProds(Array.isArray(r.data) ? r.data : (r.data.items||[]))).catch(()=>{});
-    api.get('/inventory/warehouses').then(r => setWhs(r.data)).catch(()=>{});
-    api.get('/suppliers',           { params:{ limit:100 } }).then(r => setSups(r.data)).catch(()=>{});
+       .then(r => setProds(Array.isArray(r.data) ? r.data : (r.data.items||[]))).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/inventory/warehouses').then(r => setWhs(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/suppliers',           { params:{ limit:100 } }).then(r => setSups(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, []);
 
   // PO form
@@ -1383,7 +1384,7 @@ function KirimlarTab({ products, warehouses, suppliers }) {
   const LIMIT = 20;
 
   useEffect(() => {
-    api.get('/branches').then(r => setBranches(r.data.filter(b => b.is_active))).catch(() => {});
+    api.get('/branches').then(r => setBranches(r.data.filter(b => b.is_active))).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, []);
 
   const load = useCallback(async () => {
@@ -1667,7 +1668,7 @@ function SuppliersTab() {
     } finally { setImportLoading(false); }
   };
 
-  const load = (q=search) => api.get(`/suppliers${q?'?search='+encodeURIComponent(q):''}`).then(r=>setList(r.data)).catch(()=>{});
+  const load = (q=search) => api.get(`/suppliers${q?'?search='+encodeURIComponent(q):''}`).then(r=>setList(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{load();},[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1978,9 +1979,9 @@ export default function Purchases() {
   const [suppliers, setSuppliers] = useState([]);
 
   useEffect(() => {
-    api.get('/products/', { params:{ limit:300 } }).then(r => setProducts(r.data.items||r.data)).catch(()=>{});
-    api.get('/inventory/warehouses').then(r => setWarehouses(r.data)).catch(()=>{});
-    api.get('/suppliers', { params:{ limit:100 } }).then(r => setSuppliers(r.data)).catch(()=>{});
+    api.get('/products/', { params:{ limit:300 } }).then(r => setProducts(r.data.items||r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/inventory/warehouses').then(r => setWarehouses(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/suppliers', { params:{ limit:100 } }).then(r => setSuppliers(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, []);
 
   return (

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../api/axios'
+import toast from 'react-hot-toast';
 
 const roleLabels = {
   admin: 'Admin',
@@ -21,7 +22,7 @@ export default function Dashboard() {
   useEffect(() => {
     api.get('/reports/dashboard')
       .then(res => setStats(res.data))
-      .catch(() => {})
+      .catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") })
       .finally(() => setLoading(false))
   }, [])
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { useLang } from '../../context/LangContext';
+import toast from 'react-hot-toast';
 
 /* ── helpers ──────────────────────────────────────── */
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
@@ -50,7 +51,7 @@ function MijozlarTab() {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
 
-  const load = (q = search) => api.get(`/customers${q ? '?search=' + encodeURIComponent(q) : ''}`).then(r => setList(r.data)).catch(() => {});
+  const load = (q = search) => api.get(`/customers${q ? '?search=' + encodeURIComponent(q) : ''}`).then(r => setList(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -256,7 +257,7 @@ function SuppliersTab() {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
 
-  const load = (q = search) => api.get(`/suppliers${q ? '?search=' + encodeURIComponent(q) : ''}`).then(r => setList(r.data)).catch(() => {});
+  const load = (q = search) => api.get(`/suppliers${q ? '?search=' + encodeURIComponent(q) : ''}`).then(r => setList(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
   // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -148,7 +148,7 @@ export async function apiGetCached(url, params, onChange) {
       if (onChange && JSON.stringify(res.data) !== JSON.stringify(cached.data)) {
         onChange(res.data)
       }
-    }).catch(() => {})
+    }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") })
     return cached.data
   }
 

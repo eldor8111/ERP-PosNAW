@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { useLang } from '../../context/LangContext';
+import toast from 'react-hot-toast';
 
 // ── Valyutalar tab ────────────────────────────────────────────────────────────
 function CurrenciesTab() {
@@ -20,7 +21,7 @@ function CurrenciesTab() {
       const init = {};
       r.data.forEach(c => { init[c.id] = String(c.rate); });
       setEditRates(init);
-    }).catch(() => {});
+    }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
 
   // On mount: load currencies
   useEffect(() => { load(); }, []);
@@ -253,7 +254,7 @@ function ApiKeysTab() {
   const [newToken, setNewToken] = useState(null);
   const [copied, setCopied] = useState(false);
 
-  const load = () => api.get('/api-keys/').then(r => setKeys(r.data)).catch(() => {});
+  const load = () => api.get('/api-keys/').then(r => setKeys(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
 
   useEffect(() => { load(); }, []);
 
@@ -531,7 +532,7 @@ function TelegramBotTab() {
         setSavedToken(r.data[0].tg_bot_token || null);
         setCompanyId(r.data[0].id);
       }
-    }).catch(()=>{});
+    }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   };
 
   useEffect(() => {
@@ -1107,7 +1108,7 @@ function BranchesTab() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const load = () => api.get('/branches').then(r => setBranches(r.data)).catch(() => {});
+  const load = () => api.get('/branches').then(r => setBranches(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   useEffect(() => { load(); }, []);
 
   const handleAdd = async (e) => {

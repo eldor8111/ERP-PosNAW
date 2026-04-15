@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLang } from '../../context/LangContext';
 import api from '../../api/axios';
+import toast from 'react-hot-toast';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
 
@@ -356,7 +357,7 @@ const [agents, setAgents] = useState([]);
 
   const load = () => {
     setLoading(true);
-    api.get('/agents/').then(r => setAgents(r.data)).catch(() => {}).finally(() => setLoading(false));
+    api.get('/agents/').then(r => setAgents(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") }).finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, []);
 
@@ -690,11 +691,11 @@ const [companies, setCompanies] = useState([]);
 
   const loadCompanies = () => {
     setLoading(true);
-    api.get('/super-admin/companies').then(r => setCompanies(r.data)).catch(() => {}).finally(() => setLoading(false));
+    api.get('/super-admin/companies').then(r => setCompanies(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") }).finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    api.get('/super-admin/overview').then(r => setOverview(r.data)).catch(() => {});
+    api.get('/super-admin/overview').then(r => setOverview(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
     loadCompanies();
   }, []);
 
@@ -958,7 +959,7 @@ const [list, setList] = useState([]);
     ]).then(([r1, r2]) => {
       setList(r1.data);
       setTariffs(r2.data);
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") }).finally(() => setLoading(false));
   };
 
   useEffect(() => { load(); }, []);
@@ -1399,7 +1400,7 @@ const [tariffs, setTariffs] = useState([]);
 
   const load = () => {
     setLoading(true);
-    api.get('/billing/tariffs').then(r => setTariffs(r.data)).catch(() => {}).finally(() => setLoading(false));
+    api.get('/billing/tariffs').then(r => setTariffs(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") }).finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, []);
 
@@ -1433,7 +1434,7 @@ const [tariffs, setTariffs] = useState([]);
 
   const deactivate = async (id) => {
     if (!confirm("Tarifni o'chirishni tasdiqlaysizmi?")) return;
-    await api.delete(`/billing/tariffs/${id}`).catch(() => {});
+    await api.delete(`/billing/tariffs/${id}`).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
     load();
   };
 
