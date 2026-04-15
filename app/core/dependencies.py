@@ -53,6 +53,15 @@ def get_current_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Foydalanuvchi topilmadi")
 
+    # Multi-company: agar tokenda company_id va role bo'lsa, ularni dinamik override qilamiz
+    payload_company_id = payload.get("company_id")
+    if payload_company_id is not None:
+        user.company_id = int(payload_company_id)
+        
+    payload_role = payload.get("role")
+    if payload_role:
+        user.role = UserRole(payload_role)  # type: ignore
+
     _check_company_subscription(user, db)
 
     return user
@@ -68,12 +77,23 @@ def get_current_user_allow_expired(
     payload = decode_token(token)
     if not payload or payload.get("type") != "access":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token yaroqsiz yoki muddati o'tgan")
+        
     user_id: int = payload.get("sub")
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token noto'g'ri")
+        
     user = db.query(User).filter(User.id == int(user_id), User.status == UserStatus.active).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Foydalanuvchi topilmadi")
+    
+    payload_company_id = payload.get("company_id")
+    if payload_company_id is not None:
+        user.company_id = int(payload_company_id)
+        
+    payload_role = payload.get("role")
+    if payload_role:
+        user.role = UserRole(payload_role)  # type: ignore
+        
     return user
 
 

@@ -6,6 +6,7 @@ from .inventory import StockLevel, StockMovement  # type: ignore
 from .product import Product  # type: ignore
 from .sale import Sale, SaleItem, SaleItemBatch  # type: ignore
 from .user import User  # type: ignore
+from .user_company import UserCompany  # type: ignore  # multi-korxona
 from .warehouse import Warehouse  # type: ignore
 from .supplier import Supplier  # type: ignore
 from .purchase_order import PurchaseOrder, POItem, POStatus  # type: ignore

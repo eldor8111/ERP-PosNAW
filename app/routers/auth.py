@@ -531,6 +531,60 @@ class LoginOtpVerifyRequest(BaseModel):
 # Rollarni aniqlash: bu rollar login da OTP talab qiladi
 _OTP_REQUIRED_ROLES = {"cashier", "manager", "accountant", "warehouse"}
 
+def _process_login_success(user: User, db: Session, request: Request, is_otp: bool = False) -> TokenResponse:
+    from app.models.user_company import UserCompany
+    companies = db.query(UserCompany).filter(UserCompany.user_id == user.id, UserCompany.is_active == True).all()
+
+    if len(companies) > 1:
+        # Multi-company
+        comps = [
+            {
+                "company_id": c.company_id,
+                "company_name": c.company.name if c.company else "Noma'lum",
+                "role": c.role,
+                "is_active": c.is_active
+            } for c in companies
+        ]
+        action = "LOGIN_OTP_MULTI" if is_otp else "LOGIN_MULTI"
+        log_action(db=db, action=action, entity_type="user", entity_id=user.id,
+                   user_id=user.id, ip_address=request.client.host if request.client else None)
+        db.commit()
+        # Vaqtinchalik token
+        temp_token = secrets.token_urlsafe(32)
+        _verified_tokens[temp_token] = {
+            "user_id": user.id,
+            "expires": datetime.now(timezone.utc) + timedelta(minutes=15)
+        }
+        return TokenResponse(
+            needs_company_selection=True,
+            companies=comps,
+            user=UserOut.model_validate(user),
+            temp_token=temp_token
+        )
+
+    # 1 yoki 0 korxona
+    if len(companies) == 1:
+        company_id = companies[0].company_id
+        role = companies[0].role
+    else:
+        company_id = user.company_id
+        role = user.role
+
+    role_val = role.value if hasattr(role, 'value') else str(role)
+    access_token = create_access_token({"sub": str(user.id), "role": role_val, "company_id": company_id})
+    refresh_token = create_refresh_token({"sub": str(user.id)})
+
+    action = "LOGIN_OTP" if is_otp else "LOGIN"
+    log_action(db=db, action=action, entity_type="user", entity_id=user.id,
+               user_id=user.id, ip_address=request.client.host if request.client else None)
+    db.commit()
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        user=UserOut.model_validate(user)
+    )
+
 
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("5/minute")
@@ -548,13 +602,7 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
         # Admin, director, super_admin — OTP talab qilinmaydi
         user_role = user.role.value if hasattr(user.role, 'value') else str(user.role)
         if user_role not in _OTP_REQUIRED_ROLES:
-            # To'g'ridan token beramiz
-            access_token = create_access_token({"sub": str(user.id), "role": user_role})
-            refresh_token = create_refresh_token({"sub": str(user.id)})
-            log_action(db=db, action="LOGIN", entity_type="user", entity_id=user.id,
-                       user_id=user.id, ip_address=request.client.host if request.client else None)
-            db.commit()
-            return TokenResponse(access_token=access_token, refresh_token=refresh_token, user=UserOut.model_validate(user))
+            return _process_login_success(user, db, request, is_otp=False)
 
         # Kassir/boshqa rollar — OTP yuboramiz
         otp = _generate_otp()
@@ -628,15 +676,55 @@ def login_verify_otp(request: Request, data: LoginOtpVerifyRequest, db: Session 
     if not user:
         raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
 
-    user_role = user.role.value if hasattr(user.role, 'value') else str(user.role)
-    access_token = create_access_token({"sub": str(user.id), "role": user_role})
+    return _process_login_success(user, db, request, is_otp=True)
+
+
+class SelectCompanyRequest(BaseModel):
+    temp_token: str
+    company_id: int
+
+@router.post("/select-company", response_model=TokenResponse)
+def select_company(request: Request, data: SelectCompanyRequest, db: Session = Depends(get_db)):
+    """Ko'p korxonali foydalanuvchi korxonani tanlaganda token berish"""
+    token_data = _verified_tokens.get(data.temp_token)
+    if not token_data:
+        raise HTTPException(status_code=400, detail="Sessiya yaroqsiz yoki eskirgan. Iltimos qayta login qiling")
+    if datetime.now(timezone.utc) > token_data["expires"]:
+        del _verified_tokens[data.temp_token]
+        raise HTTPException(status_code=400, detail="Sessiya muddati tugagan. Qayta login qiling")
+    
+    user_id = token_data["user_id"]
+    user = db.query(User).filter(User.id == user_id, User.status == UserStatus.active).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
+    
+    from app.models.user_company import UserCompany
+    uc = db.query(UserCompany).filter(
+        UserCompany.user_id == user.id, 
+        UserCompany.company_id == data.company_id,
+        UserCompany.is_active == True
+    ).first()
+    
+    if not uc:
+        raise HTTPException(status_code=403, detail="Siz bu korxonaga biriktirilmagansiz")
+
+    role_val = uc.role.value if hasattr(uc.role, 'value') else str(uc.role)
+    access_token = create_access_token({"sub": str(user.id), "role": role_val, "company_id": uc.company_id})
     refresh_token = create_refresh_token({"sub": str(user.id)})
 
-    log_action(db=db, action="LOGIN_OTP", entity_type="user", entity_id=user.id,
+    log_action(db=db, action="LOGIN_SELECT_COMPANY", entity_type="user", entity_id=user.id,
                user_id=user.id, ip_address=request.client.host if request.client else None)
     db.commit()
 
-    return TokenResponse(access_token=access_token, refresh_token=refresh_token, user=UserOut.model_validate(user))
+    # temp_token ni o'chirib yuboramiz - 1 martalik
+    del _verified_tokens[data.temp_token]
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        user=UserOut.model_validate(user)
+    )
+
 
 
 @router.post("/refresh", response_model=TokenResponse)

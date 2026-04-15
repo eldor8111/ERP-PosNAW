@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr, field_validator
+from typing import List, Optional
 
 from app.models.user import UserRole, UserStatus
 
@@ -59,12 +60,25 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class UserCompanyOut(BaseModel):
+    company_id: int
+    company_name: str
+    role: UserRole
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
 class TokenResponse(BaseModel):
-    access_token: str
-    refresh_token: str
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
     token_type: str = "bearer"
-    user: UserOut
+    user: Optional[UserOut] = None
+    companies: Optional[List[UserCompanyOut]] = None
+    needs_company_selection: bool = False
+    temp_token: Optional[str] = None
 
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+

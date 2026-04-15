@@ -39,3 +39,5 @@ class User(Base):
 
     branch = relationship("Branch", back_populates="users")
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    # Multi-korxona bog'lanish (company_id backward compat. uchun saqlanadi)
+    user_companies = relationship("UserCompany", back_populates="user", lazy="dynamic")

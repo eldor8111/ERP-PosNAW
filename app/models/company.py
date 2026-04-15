@@ -31,3 +31,5 @@ class Company(Base):
     branches = relationship("Branch", back_populates="company")
     agent    = relationship("Agent")
     tariff   = relationship("Tariff", foreign_keys=[tariff_id])
+    # Multi-korxona bog'lanish
+    user_companies = relationship("UserCompany", back_populates="company", lazy="dynamic")

@@ -360,6 +360,12 @@ export default function Login() {
   const [otpName, setOtpName] = useState('')
   const [otpDevMode, setOtpDevMode] = useState(false)
   const [otpLoading, setOtpLoading] = useState(false)
+  
+  // Multi-company bosqich
+  const [companyStep, setCompanyStep] = useState(false)
+  const [companiesList, setCompaniesList] = useState([])
+  const [tempToken, setTempToken] = useState('')
+  const [companyLoading, setCompanyLoading] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -367,6 +373,14 @@ export default function Login() {
     setLoading(true)
     try {
       const userRes = await login(form.phone, form.password)
+      
+      if (userRes?.needs_company_selection) {
+        setCompaniesList(userRes.companies || [])
+        setTempToken(userRes.temp_token)
+        setCompanyStep(true)
+        return
+      }
+      
       if (userRes?.role === 'cashier') {
         navigate('/admin/pos-kassa')
       } else {
@@ -395,8 +409,18 @@ export default function Login() {
     try {
       const normalized = form.phone.replace(/[+ -]/g, '')
       const res = await api.post('/auth/login-verify', { phone: normalized, otp })
+      const { data } = res
+      
+      if (data.needs_company_selection) {
+        setCompaniesList(data.companies || [])
+        setTempToken(data.temp_token)
+        setOtpStep(false)
+        setCompanyStep(true)
+        return
+      }
+      
       // login context ni yangilaymiz
-      const { access_token, refresh_token, user } = res.data
+      const { access_token, refresh_token, user } = data
       localStorage.setItem('access_token', access_token)
       localStorage.setItem('refresh_token', refresh_token)
       localStorage.setItem('user', JSON.stringify(user))
@@ -410,7 +434,33 @@ export default function Login() {
       setError(err.response?.data?.detail || "OTP noto'g'ri")
       setOtp('')
     } finally {
-      setOtpLoading(false) }
+      setOtpLoading(false) 
+    }
+  }
+
+  const handleSelectCompany = async (company_id) => {
+    setCompanyLoading(true)
+    setError('')
+    try {
+      const res = await api.post('/auth/select-company', {
+        temp_token: tempToken,
+        company_id
+      })
+      const { access_token, refresh_token, user } = res.data
+      localStorage.setItem('access_token', access_token)
+      localStorage.setItem('refresh_token', refresh_token)
+      localStorage.setItem('user', JSON.stringify(user))
+      
+      if (user?.role === 'cashier') {
+        window.location.href = '/admin/pos-kassa'
+      } else {
+        window.location.href = '/admin/dashboard'
+      }
+    } catch (err) {
+      setError(err.response?.data?.detail || "Korxona tanlashda xato")
+    } finally {
+      setCompanyLoading(false)
+    }
   }
 
   return (
@@ -460,7 +510,48 @@ export default function Login() {
           </div>
 
           {/* ── OTP bosqich ── */}
-          {otpStep ? (
+          {companyStep ? (
+            <>
+              <div className="mb-8">
+                <h1 className="text-2xl font-black text-slate-800">Korxonani tanlang</h1>
+                <p className="text-slate-500 text-sm mt-1">Siz bir nechta korxonaga biriktirilgansiz. Ishni qaysi biri nomidan boshlamoqchisiz?</p>
+              </div>
+              {error && (
+                <div className="flex items-center gap-2.5 bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 mb-6 text-sm">
+                  <Icon d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" cls="w-4 h-4 shrink-0" />
+                  {error}
+                </div>
+              )}
+              <div className="space-y-3 mb-6">
+                {companiesList.map(c => (
+                  <button
+                    key={c.company_id}
+                    onClick={() => handleSelectCompany(c.company_id)}
+                    disabled={companyLoading || !c.is_active}
+                    className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-center justify-between group
+                      ${companyLoading ? 'opacity-50 cursor-not-allowed' : 'hover:border-indigo-500 hover:shadow-md hover:shadow-indigo-100'} 
+                      ${!c.is_active ? 'opacity-50 grayscale bg-slate-50 border-slate-200' : 'bg-white border-slate-200'}`}
+                  >
+                    <div>
+                      <h3 className="font-bold text-slate-800 text-lg group-hover:text-indigo-700 transition-colors">{c.company_name}</h3>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 mt-1 inline-block uppercase tracking-wider">
+                        {c.role} {c.is_active ? '' : '(Bloklangan)'}
+                      </span>
+                    </div>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors
+                      ${!c.is_active ? 'bg-slate-200 text-slate-400' : 'bg-indigo-50 text-indigo-500 group-hover:bg-indigo-600 group-hover:text-white'}`}>
+                      <Icon d="M9 5l7 7-7 7" cls="w-4 h-4" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <button type="button" onClick={() => { setCompanyStep(false); setError(''); }}
+                disabled={companyLoading}
+                className="w-full py-2 text-slate-500 hover:text-slate-700 text-sm font-medium transition-colors">
+                ← Boshqa hisob bilan kirish
+              </button>
+            </>
+          ) : otpStep ? (
             <>
               <div className="mb-8">
                 <h1 className="text-2xl font-black text-slate-800">Telegram OTP tasdiqlash</h1>
