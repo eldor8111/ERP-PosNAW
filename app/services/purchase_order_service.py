@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from app.models.purchase_order import POItem, POStatus, PurchaseOrder
 from app.models.batch import Batch
 from app.models.warehouse import Warehouse
+from app.models.product import Product
+from app.models.user import User, UserRole
 from app.services.inventory_service import receive_stock
 
 
@@ -17,9 +19,6 @@ def generate_po_number(db: Session) -> str:
     count = db.query(PurchaseOrder).filter(PurchaseOrder.number.like(f"{prefix}%")).count()
     return f"{prefix}{count + 1:04d}"
 
-
-from app.models.user import User
-from app.models.product import Product
 
 def create_purchase_order(db: Session, data, current_user: User) -> PurchaseOrder:
     warehouse = db.query(Warehouse).filter(Warehouse.id == data.warehouse_id, Warehouse.is_active == True).first()
@@ -46,9 +45,12 @@ def create_purchase_order(db: Session, data, current_user: User) -> PurchaseOrde
 
     total = Decimal("0")
     for item_data in data.items:
-        # Update product prices if requested
+        # Update product prices if requested — faqat shu korxona mahsuloti
         if item_data.new_sale_price is not None or item_data.new_wholesale_price is not None:
-            prod = db.query(Product).filter(Product.id == item_data.product_id).first()
+            prod = db.query(Product).filter(
+                Product.id == item_data.product_id,
+                Product.company_id == current_user.company_id,
+            ).first()
             if prod:
                 if item_data.new_sale_price is not None:
                     prod.sale_price = item_data.new_sale_price
@@ -113,7 +115,7 @@ def create_purchase_order(db: Session, data, current_user: User) -> PurchaseOrde
 
 def receive_purchase_order(db: Session, po_id: int, data, current_user: User) -> PurchaseOrder:
     q = db.query(PurchaseOrder).filter(PurchaseOrder.id == po_id)
-    if current_user.role != "super_admin":
+    if current_user.role != UserRole.super_admin:
         q = q.filter(PurchaseOrder.company_id == current_user.company_id)
     po = q.first()
     if not po:
@@ -185,7 +187,7 @@ def delete_purchase_order(db: Session, po_id: int, current_user: User) -> None:
     from decimal import Decimal
 
     q = db.query(PurchaseOrder).filter(PurchaseOrder.id == po_id)
-    if current_user.role != "super_admin":
+    if current_user.role != UserRole.super_admin:
         q = q.filter(PurchaseOrder.company_id == current_user.company_id)
     po = q.first()
     if not po:

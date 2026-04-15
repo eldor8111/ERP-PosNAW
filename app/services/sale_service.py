@@ -9,6 +9,8 @@ import threading
 import requests
 import os
 
+from app.models.user import UserRole  # type: ignore
+
 from app.core.audit import log_action  # type: ignore
 from app.models.product import Product, ProductStatus  # type: ignore
 from app.models.sale import Sale, SaleItem, SaleStatus, PaymentType, SaleItemBatch  # type: ignore
@@ -112,9 +114,10 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
     total_amount = Decimal("0")
 
     for item_data in data.items:
-        # Pydantic orqali tekshirishda filter() kodi o'zgartirildi
+        # Xavfsizlik: faqat shu korxona mahsulotlari olinadi
         product = db.query(Product).filter(
             Product.id == item_data.product_id,
+            Product.company_id == current_user.company_id,
             Product.is_deleted == False,
             Product.status == ProductStatus.active,
         ).first()
@@ -168,7 +171,11 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
     # CRM Va Loyallik ballari hisob-kitobi
     loyalty_earned = 0
     if data.customer_id:
-        customer = db.query(Customer).filter(Customer.id == data.customer_id).first()
+        # Xavfsizlik: faqat shu korxona mijozi olinadi
+        customer = db.query(Customer).filter(
+            Customer.id == data.customer_id,
+            Customer.company_id == current_user.company_id,
+        ).first()
         if not customer:
             raise HTTPException(status_code=404, detail="Mijoz topilmadi")
             
@@ -439,7 +446,11 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
     
     # 5. Telegram notification — fully async, does NOT block the HTTP response
     if getattr(data, 'customer_id', None):
-        customer = db.query(Customer).filter(Customer.id == data.customer_id).first()
+        # Xavfsizlik: faqat shu korxona mijozi (Telegram xabarnoma uchun)
+        customer = db.query(Customer).filter(
+            Customer.id == data.customer_id,
+            Customer.company_id == current_user.company_id,
+        ).first()
         if customer and getattr(customer, 'tg_chat_id', None):
             company = db.query(from_models_company).filter(from_models_company.id == current_user.company_id).first()
             if company and getattr(company, 'tg_bot_token', None):
@@ -493,7 +504,7 @@ def delete_sale(db: Session, sale_id: int, current_user: User) -> None:
     from app.models.inventory import StockMovement  # type: ignore
 
     q = db.query(Sale).filter(Sale.id == sale_id)
-    if current_user.role != "super_admin": # UserRole.super_admin is string
+    if current_user.role != UserRole.super_admin:
         q = q.filter(Sale.company_id == current_user.company_id)
     sale = q.first()
     if not sale:
@@ -538,7 +549,11 @@ def delete_sale(db: Session, sale_id: int, current_user: User) -> None:
 
     # 2. Mijoz qarzini va loyallik ballarini to'g'irlash
     if sale.customer_id:
-        customer = db.query(Customer).filter(Customer.id == sale.customer_id).first()
+        # Xavfsizlik: faqat shu korxona mijozi (sale.company_id orqali)
+        customer = db.query(Customer).filter(
+            Customer.id == sale.customer_id,
+            Customer.company_id == sale.company_id,
+        ).first()
         if customer:
             # 2.1. Qarzni qaytarish (agar qarzdorlik bo'lgan bo'lsa — istalgan to'lov turida)
             debt_in_sale = sale.total_amount - sale.paid_amount
@@ -615,7 +630,7 @@ def delete_sale(db: Session, sale_id: int, current_user: User) -> None:
 def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
     """Sotuvni qisman yangilash: holat, izoh, to'lov miqdori."""
     q = db.query(Sale).filter(Sale.id == sale_id)
-    if current_user.role != "super_admin":
+    if current_user.role != UserRole.super_admin:
         q = q.filter(Sale.company_id == current_user.company_id)
     sale = q.first()
     if not sale:
@@ -666,7 +681,11 @@ def create_return_sale(db: Session, data: SaleCreate, current_user, ip: str = No
 
     # 1. Mahsulotlarni tekshirish va narxni hisoblash
     for item_d in data.items:
-        product = db.query(Product).filter(Product.id == item_d.product_id).first()
+        # Xavfsizlik: faqat shu korxona mahsulotlari olinadi
+        product = db.query(Product).filter(
+            Product.id == item_d.product_id,
+            Product.company_id == current_user.company_id,
+        ).first()
         if not product:
             raise HTTPException(status_code=404, detail=f"Mahsulot topilmadi: {item_d.product_id}")
 
@@ -693,7 +712,11 @@ def create_return_sale(db: Session, data: SaleCreate, current_user, ip: str = No
     # Mijoz qarzini hisoblash (orqaga qaytarish)
     if data.customer_id:
         from app.models.customer import Customer # type: ignore
-        customer = db.query(Customer).filter(Customer.id == data.customer_id).with_for_update().first()
+        # Xavfsizlik: faqat shu korxona mijozi olinadi
+        customer = db.query(Customer).filter(
+            Customer.id == data.customer_id,
+            Customer.company_id == current_user.company_id,
+        ).with_for_update().first()
         if not customer:
             raise HTTPException(status_code=404, detail="Mijoz topilmadi")
         
