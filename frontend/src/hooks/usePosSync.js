@@ -28,7 +28,8 @@ function setPending(key, arr) {
 }
 
 function saveToCache(key, data) {
-  localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data }));
+  const user = (() => { try { return JSON.parse(localStorage.getItem('user')); } catch { return null; } })();
+  localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data, company_id: user?.company_id }));
 }
 
 function loadFromCache(key) {

@@ -64,16 +64,23 @@ const [q, setQ] = useState('');
 export default function PosKassa() {
   const { t } = useLang();
 const navigate = useNavigate();
-  // Keshdan darhol o'qish — sahifa ochilishi bilan mahsulotlar ko'rinadi
-  const [products, setProducts] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('pos_cache_products'))?.data || []; } catch { return []; }
-  });
-  const [customers, setCustomers] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('pos_cache_customers'))?.data || []; } catch { return []; }
-  });
-  const [categories, setCategories] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('pos_cache_categories'))?.data || []; } catch { return []; }
-  });
+  // Keshdan darhol o'qish — faqat joriy foydalanuvchi company_id ga mos kelsa
+  const currentUser = (() => { try { return JSON.parse(localStorage.getItem('user')); } catch { return null; } })();
+  const currentCompanyId = currentUser?.company_id;
+
+  const readCache = (key) => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(key));
+      if (!raw?.data) return [];
+      // Boshqa korxona keshi bo'lsa — ishlatma
+      if (currentCompanyId && raw.company_id && raw.company_id !== currentCompanyId) return [];
+      return raw.data;
+    } catch { return []; }
+  };
+
+  const [products, setProducts] = useState(() => readCache('pos_cache_products'));
+  const [customers, setCustomers] = useState(() => readCache('pos_cache_customers'));
+  const [categories, setCategories] = useState(() => readCache('pos_cache_categories'));
   const [refreshing, setRefreshing] = useState(false);
   
   // Savat va UI holatlari

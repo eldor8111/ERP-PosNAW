@@ -1,7 +1,20 @@
 import { createContext, useContext, useState, useMemo, useCallback } from 'react'
-import api from '../api/axios'
+import api, { clearCache } from '../api/axios'
 
 const AuthContext = createContext(null)
+
+const POS_CACHE_KEYS = [
+  'pos_cache_products',
+  'pos_cache_customers',
+  'pos_cache_categories',
+  'pos_pending_sales',
+  'pos_pending_returns',
+]
+
+function clearPosCache() {
+  POS_CACHE_KEYS.forEach(k => localStorage.removeItem(k))
+  clearCache()
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
@@ -17,6 +30,8 @@ export function AuthProvider({ children }) {
       throw err
     }
     const { data } = res
+    // Eski foydalanuvchi keshini tozalaymiz — boshqa korxona ma'lumotlari qolmasin
+    clearPosCache()
     localStorage.setItem('access_token', data.access_token)
     localStorage.setItem('user', JSON.stringify(data.user))
     setUser(data.user)
@@ -24,6 +39,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   const logout = useCallback(() => {
+    clearPosCache()
     localStorage.removeItem('access_token')
     localStorage.removeItem('user')
     setUser(null)
