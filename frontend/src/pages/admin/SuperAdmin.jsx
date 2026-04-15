@@ -26,15 +26,17 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
   const { t } = useLang();
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [tab, setTab] = useState('branches');
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     setTimeout(() => setVisible(true), 10);
     setLoading(true);
+    setLoadError(false);
     api.get(`/super-admin/companies/${companyId}`)
       .then(r => setDetail(r.data))
-      .catch(() => {})
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, [companyId]);
 
@@ -123,6 +125,19 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
           <div className="flex-1 flex justify-center items-center">
             <div className="w-9 h-9 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           </div>
+        ) : loadError ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 text-slate-400 px-6">
+            <div className="w-14 h-14 rounded-2xl bg-red-100 text-red-500 flex items-center justify-center">
+              <Ic d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" cls="w-7 h-7" />
+            </div>
+            <p className="text-sm font-semibold text-slate-600">Ma'lumotlarni yuklashda xatolik</p>
+            <button
+              onClick={() => { setLoadError(false); setLoading(true); api.get(`/super-admin/companies/${companyId}`).then(r => setDetail(r.data)).catch(() => setLoadError(true)).finally(() => setLoading(false)); }}
+              className="text-xs px-4 py-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-xl font-semibold transition-all"
+            >
+              Qayta urinish
+            </button>
+          </div>
         ) : !detail ? (
           <div className="flex-1 flex items-center justify-center text-slate-400">{t('common.noData')}</div>
         ) : (
@@ -134,7 +149,7 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
                 {detail.branches?.length === 0 && (
                   <div className="text-center text-slate-400 py-16">Filiallar yo'q</div>
                 )}
-                {detail.branches?.map((b, i) => (
+                {detail.branches?.map((b) => (
                   <div key={b.id} className="flex items-center gap-3 p-4 bg-slate-50 hover:bg-indigo-50/50 rounded-2xl border border-slate-100 transition-colors">
                     <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm shrink-0">
                       {b.name?.[0]?.toUpperCase()}
@@ -188,13 +203,15 @@ function DrawerBranchUsers({ branches }) {
   const [branchId, setBranchId] = useState('');
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
 
   useEffect(() => {
-    if (!branchId) { setUsers([]); return; }
+    if (!branchId) { setUsers([]); setFetchError(false); return; }
     setLoading(true);
+    setFetchError(false);
     api.get(`/super-admin/branches/${branchId}`)
       .then(r => setUsers(r.data.users || []))
-      .catch(() => {})
+      .catch(() => setFetchError(true))
       .finally(() => setLoading(false));
   }, [branchId]);
 
@@ -213,7 +230,19 @@ function DrawerBranchUsers({ branches }) {
         </div>
       )}
       {loading && <div className="flex justify-center py-10"><div className="w-7 h-7 border-4 border-indigo-400 border-t-transparent rounded-full animate-spin" /></div>}
-      {!loading && branchId && users.length === 0 && (
+      {!loading && fetchError && (
+        <div className="flex flex-col items-center justify-center py-10 gap-2">
+          <div className="w-10 h-10 rounded-xl bg-red-100 text-red-500 flex items-center justify-center">
+            <Ic d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" cls="w-5 h-5" />
+          </div>
+          <p className="text-sm text-red-500 font-semibold">Xodimlarni yuklab bo'lmadi</p>
+          <button onClick={() => { const id = branchId; setBranchId(''); setTimeout(() => setBranchId(id), 50); }}
+            className="text-xs px-3 py-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg font-semibold">
+            Qayta urinish
+          </button>
+        </div>
+      )}
+      {!loading && !fetchError && branchId && users.length === 0 && (
         <p className="text-slate-400 text-sm text-center py-10">Bu filialda xodimlar yo'q</p>
       )}
       {!loading && users.map(u => (
@@ -594,8 +623,7 @@ const [agents, setAgents] = useState([]);
 
 /* ─── Standalone Agents Page ─────────────────────── */
 export function AgentsPage() {
-  const { t } = useLang();
-return (
+  return (
     <div className="space-y-5">
       <AgentsTab />
     </div>
@@ -682,7 +710,7 @@ const [companies, setCompanies] = useState([]);
       {/* Header Stats */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-2xl bg-linear-to-br from-purple-600 to-indigo-700 flex items-center justify-center shadow-lg shadow-indigo-200 shrink-0">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-700 flex items-center justify-center shadow-lg shadow-indigo-200 shrink-0">
             <Ic d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" cls="w-5 h-5 text-white" />
           </div>
           <div>
@@ -1247,7 +1275,7 @@ const FIELDS = [
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 max-w-2xl">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-200">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-200">
               <Ic d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" cls="w-5 h-5 text-white" />
             </div>
             <div>

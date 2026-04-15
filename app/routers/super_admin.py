@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException  # type: ignore
 from pydantic import BaseModel  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
-from sqlalchemy import func  # type: ignore
+from sqlalchemy import func, or_  # type: ignore
 
 from app.database import get_db  # type: ignore
 from app.core.dependencies import get_current_user  # type: ignore
@@ -71,9 +71,12 @@ def get_overview(db: Session = Depends(get_db), _: User = Depends(require_super_
 # ── Companies ─────────────────────────────────────────────
 
 @router.get("/companies")
-def list_companies(db: Session = Depends(get_db), _: User = Depends(require_super_admin)):
+def list_companies(
+    search: Optional[str] = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_super_admin),
+):
     """Barcha korxonalar — har birida filiallar va xodimlar soni"""
-    # Subquerylar bilan bitta so'rovda olish (N+1 muammosini hal qiladi)
     branch_counts = (
         db.query(Branch.company_id, func.count(Branch.id).label("cnt"))
         .group_by(Branch.company_id)
@@ -85,7 +88,7 @@ def list_companies(db: Session = Depends(get_db), _: User = Depends(require_supe
         .group_by(Branch.company_id)
         .subquery()
     )
-    rows = (
+    q = (
         db.query(
             Company,
             func.coalesce(branch_counts.c.cnt, 0).label("branches_count"),
@@ -93,9 +96,13 @@ def list_companies(db: Session = Depends(get_db), _: User = Depends(require_supe
         )
         .outerjoin(branch_counts, Company.id == branch_counts.c.company_id)
         .outerjoin(user_counts, Company.id == user_counts.c.company_id)
-        .order_by(Company.id)
-        .all()
     )
+    if search:
+        like = f"%{search.strip()}%"
+        q = q.filter(
+            or_(Company.name.ilike(like), Company.org_code.ilike(like))
+        )
+    rows = q.order_by(Company.id).all()
     result = []
     for c, branches_count, users_count in rows:
         result.append({
@@ -198,11 +205,30 @@ def get_company_detail(company_id: int, db: Session = Depends(get_db), _: User =
 @router.get("/branches")
 def list_all_branches(db: Session = Depends(get_db), _: User = Depends(require_super_admin)):
     """Barcha filiallar (company bilan birgalikda)"""
-    branches = db.query(Branch).order_by(Branch.id).all()
+    user_sub = (
+        db.query(User.branch_id, func.count(User.id).label("cnt"))
+        .group_by(User.branch_id)
+        .subquery()
+    )
+    wh_sub = (
+        db.query(Warehouse.branch_id, func.count(Warehouse.id).label("cnt"))
+        .filter(Warehouse.is_active == True)
+        .group_by(Warehouse.branch_id)
+        .subquery()
+    )
+    rows = (
+        db.query(
+            Branch,
+            func.coalesce(user_sub.c.cnt, 0).label("users_count"),
+            func.coalesce(wh_sub.c.cnt, 0).label("warehouses_count"),
+        )
+        .outerjoin(user_sub, Branch.id == user_sub.c.branch_id)
+        .outerjoin(wh_sub, Branch.id == wh_sub.c.branch_id)
+        .order_by(Branch.id)
+        .all()
+    )
     result = []
-    for b in branches:
-        users_count = db.query(func.count(User.id)).filter(User.branch_id == b.id).scalar() or 0
-        warehouses_count = db.query(func.count(Warehouse.id)).filter(Warehouse.branch_id == b.id).scalar() or 0
+    for b, users_count, warehouses_count in rows:
         result.append({
             "id": b.id,
             "name": b.name,
