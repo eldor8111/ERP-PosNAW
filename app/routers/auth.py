@@ -545,6 +545,7 @@ def _process_login_success(user: User, db: Session, request: Request, is_otp: bo
                 "is_active": c.is_active
             } for c in companies
         ]
+        user_out = UserOut.model_validate(user)
         action = "LOGIN_OTP_MULTI" if is_otp else "LOGIN_MULTI"
         log_action(db=db, action=action, entity_type="user", entity_id=user.id,
                    user_id=user.id, ip_address=request.client.host if request.client else None)
@@ -558,7 +559,7 @@ def _process_login_success(user: User, db: Session, request: Request, is_otp: bo
         return TokenResponse(
             needs_company_selection=True,
             companies=comps,
-            user=UserOut.model_validate(user),
+            user=user_out,
             temp_token=temp_token
         )
 
