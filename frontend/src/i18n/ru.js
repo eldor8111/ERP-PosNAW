@@ -418,7 +418,7 @@ export default {
   'warehouse.title': 'Склад',
   'warehouse.transfer': 'Перемещение',
   'warehouse.inventory': 'Инвентаризация',
-  'warehouse.stockLevel': 'Остаток',
+  'warehouse.stockLevel': 'Остатки',
   'warehouse.minStock': 'Мин остаток',
   'warehouse.newTransfer': 'Новое перемещение',
   'warehouse.from': 'Откуда',

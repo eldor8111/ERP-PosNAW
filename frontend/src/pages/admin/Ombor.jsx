@@ -29,7 +29,7 @@ const StatusBadge = ({ status }) => {
   );
 };
 
-// ─── TABS ──────────────────────────────────────────────────────────────────
+// ─── TABS (will be rendered inside component with t()) ────────────────────────────
 const TABS = [
   { id: 'qoldiq',    label: 'Qoldiqlar',   icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
   { id: 'kirim',     label: 'Kirim',        icon: 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12' },
@@ -635,7 +635,13 @@ export default function Ombor() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-2xl">
-        {TABS.map(tab => (
+        {[
+          { id: 'qoldiq',    label: t('warehouse.stockLevel') || 'Остатки',   icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
+          { id: 'kirim',     label: t('ops.incoming') || 'Приход',        icon: 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12' },
+          { id: 'chiqim',    label: t('ops.outgoing') || 'Расход',       icon: 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4' },
+          { id: 'kochirish', label: t('warehouse.transfer') || 'Перемещение',   icon: 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4' },
+          { id: 'omborlar',  label: t('nav.warehouse') || 'Склады',     icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
+        ].map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
