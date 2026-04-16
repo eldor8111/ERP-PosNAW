@@ -574,6 +574,8 @@ def _process_login_success(user: User, db: Session, request: Request, is_otp: bo
     access_token = create_access_token({"sub": str(user.id), "role": role_val, "company_id": company_id})
     refresh_token = create_refresh_token({"sub": str(user.id)})
 
+    user_out = UserOut.model_validate(user)
+
     action = "LOGIN_OTP" if is_otp else "LOGIN"
     log_action(db=db, action=action, entity_type="user", entity_id=user.id,
                user_id=user.id, ip_address=request.client.host if request.client else None)
@@ -582,7 +584,7 @@ def _process_login_success(user: User, db: Session, request: Request, is_otp: bo
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
-        user=UserOut.model_validate(user)
+        user=user_out
     )
 
 
@@ -712,6 +714,8 @@ def select_company(request: Request, data: SelectCompanyRequest, db: Session = D
     access_token = create_access_token({"sub": str(user.id), "role": role_val, "company_id": uc.company_id})
     refresh_token = create_refresh_token({"sub": str(user.id)})
 
+    user_out = UserOut.model_validate(user)
+
     log_action(db=db, action="LOGIN_SELECT_COMPANY", entity_type="user", entity_id=user.id,
                user_id=user.id, ip_address=request.client.host if request.client else None)
     db.commit()
@@ -722,7 +726,7 @@ def select_company(request: Request, data: SelectCompanyRequest, db: Session = D
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
-        user=UserOut.model_validate(user)
+        user=user_out
     )
 
 
