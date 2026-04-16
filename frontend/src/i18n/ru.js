@@ -14,7 +14,7 @@ export default {
   'nav.shifts': 'Смены',
   'nav.products': 'Товары',
   'nav.purchases': 'Закупки и Поставщики',
-  'nav.warehouse': 'Склад и Перемещение',
+  'nav.warehouse': 'Склад',
   'nav.operations': 'Операции',
   'nav.finance': 'Финансы и Касса',
   'nav.reports': 'Отчёты',
