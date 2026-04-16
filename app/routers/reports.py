@@ -52,55 +52,60 @@ def get_dashboard(
 ):
     """Direktor uchun asosiy ko'rsatkichlar"""
     today_start, today_end = _today_range()
+    cid = current_user.company_id
 
-    # Resolve branch → warehouse IDs
+    # Resolve branch → warehouse IDs (cached)
     branch_wh_ids = None
     if branch_id:
-        branch_wh_ids = [wh.id for wh in db.query(Warehouse.id).filter(Warehouse.branch_id == branch_id).all()]
+        branch_wh_ids = db.query(Warehouse.id).filter(Warehouse.branch_id == branch_id).with_entities(Warehouse.id).all()
+        branch_wh_ids = [wh[0] for wh in branch_wh_ids]
 
-    def sale_filter(q, wh_id):
-        """Sale querysiga ombor filtri qo'shish"""
-        if current_user.company_id is not None:
-            q = q.filter(Sale.company_id == current_user.company_id)
-        if wh_id:
-            q = q.filter(Sale.warehouse_id == wh_id)
-        elif branch_wh_ids is not None:
-            q = q.filter(Sale.warehouse_id.in_(branch_wh_ids))
-        return q
+    # Warehouse filter helper - avoids repeated warehouse lookup
+    def get_warehouse_filter(w_id):
+        if w_id:
+            return [Sale.warehouse_id == w_id]
+        if branch_wh_ids:
+            return [Sale.warehouse_id.in_(branch_wh_ids)]
+        return []
 
     # Bugungi sotuv
-    today_q = sale_filter(
-        db.query(func.count(Sale.id), func.coalesce(func.sum(Sale.total_amount), 0))
-        .filter(Sale.created_at >= today_start, Sale.created_at < today_end, Sale.status == SaleStatus.completed),
-        warehouse_id,
+    wh_filter = get_warehouse_filter(warehouse_id)
+    today_q = db.query(func.count(Sale.id), func.coalesce(func.sum(Sale.total_amount), 0)).filter(
+        Sale.company_id == cid,
+        Sale.created_at >= today_start,
+        Sale.created_at < today_end,
+        Sale.status == SaleStatus.completed,
+        *wh_filter
     )
     today_count, today_total = today_q.first()
 
     # Kecha sotuv (o'zgarish % uchun)
     yesterday_start = today_start - timedelta(days=1)
-    yesterday_total = sale_filter(
-        db.query(func.coalesce(func.sum(Sale.total_amount), 0))
-        .filter(Sale.created_at >= yesterday_start, Sale.created_at < today_start, Sale.status == SaleStatus.completed),
-        warehouse_id,
+    yesterday_total = db.query(func.coalesce(func.sum(Sale.total_amount), 0)).filter(
+        Sale.company_id == cid,
+        Sale.created_at >= yesterday_start,
+        Sale.created_at < today_start,
+        Sale.status == SaleStatus.completed,
+        *wh_filter
     ).scalar()
     today_f = float(today_total)
     yesterday_f = float(yesterday_total)
-    today_change = round(float((today_f - yesterday_f) / yesterday_f * 100), 1) if yesterday_f > 0 else None  # type: ignore[call-overload]
+    today_change = round(float((today_f - yesterday_f) / yesterday_f * 100), 1) if yesterday_f > 0 else None
 
-    # Haftalik trend (7 kun) — bitta GROUP BY query (oldin 14 ta query edi)
+    # Haftalik trend (7 kun)
     week_start = datetime.combine(
         datetime.now(timezone.utc).date() - timedelta(days=6), datetime.min.time()
     )
-    week_rows = sale_filter(
-        db.query(
-            cast(Sale.created_at, DateType).label("day"),
-            func.coalesce(func.sum(Sale.total_amount), 0).label("total"),
-            func.count(Sale.id).label("count"),
-        )
-        .filter(Sale.created_at >= week_start, Sale.status == SaleStatus.completed)
-        .group_by(cast(Sale.created_at, DateType)),
-        warehouse_id,
-    ).all()
+    week_rows = db.query(
+        cast(Sale.created_at, DateType).label("day"),
+        func.coalesce(func.sum(Sale.total_amount), 0).label("total"),
+        func.count(Sale.id).label("count"),
+    ).filter(
+        Sale.company_id == cid,
+        Sale.created_at >= week_start,
+        Sale.status == SaleStatus.completed,
+        *wh_filter
+    ).group_by(cast(Sale.created_at, DateType)).all()
     week_map = {str(r.day): (float(r.total), r.count) for r in week_rows}
     weekly_data = []
     for i in range(7):
@@ -110,30 +115,28 @@ def get_dashboard(
 
     # Oylik sotuv
     _now = datetime.now(timezone.utc)
-    month_start = datetime(_now.year, _now.month, 1, 0, 0, 0)  # naive datetime, TZ muammosi yo'q
-    month_count, month_total = sale_filter(
-        db.query(func.count(Sale.id), func.coalesce(func.sum(Sale.total_amount), 0))
-        .filter(Sale.created_at >= month_start, Sale.status == SaleStatus.completed),
-        warehouse_id,
+    month_start = datetime(_now.year, _now.month, 1, 0, 0, 0)
+    month_count, month_total = db.query(func.count(Sale.id), func.coalesce(func.sum(Sale.total_amount), 0)).filter(
+        Sale.company_id == cid,
+        Sale.created_at >= month_start,
+        Sale.status == SaleStatus.completed,
+        *wh_filter
     ).first()
-    month_profit = sale_filter(
-        db.query(func.coalesce(
-            func.sum(
-                case(
-                    (Sale.status == SaleStatus.completed,
-                     (SaleItem.unit_price - SaleItem.cost_price) * SaleItem.quantity - SaleItem.discount),
-                    (Sale.status == SaleStatus.refunded,
-                     -((SaleItem.unit_price - SaleItem.cost_price) * SaleItem.quantity - SaleItem.discount)),
-                    else_=0,
-                )
-            ), 0
-        ))
-        .join(Sale)
-        .filter(
-            Sale.created_at >= month_start,
-            Sale.status.in_([SaleStatus.completed, SaleStatus.refunded]),
-        ),
-        warehouse_id,
+    month_profit = db.query(func.coalesce(
+        func.sum(
+            case(
+                (Sale.status == SaleStatus.completed,
+                 (SaleItem.unit_price - SaleItem.cost_price) * SaleItem.quantity - SaleItem.discount),
+                (Sale.status == SaleStatus.refunded,
+                 -((SaleItem.unit_price - SaleItem.cost_price) * SaleItem.quantity - SaleItem.discount)),
+                else_=0,
+            )
+        ), 0
+    )).join(Sale, Sale.id == SaleItem.sale_id).filter(
+        Sale.company_id == cid,
+        Sale.created_at >= month_start,
+        Sale.status.in_([SaleStatus.completed, SaleStatus.refunded]),
+        *wh_filter
     ).scalar()
 
     # Top 10 mahsulotlar (bu oy)
@@ -141,24 +144,17 @@ def get_dashboard(
         db.query(Product.name, func.sum(SaleItem.subtotal).label("revenue"), func.sum(SaleItem.quantity).label("qty"))
         .join(SaleItem, SaleItem.product_id == Product.id)
         .join(Sale, Sale.id == SaleItem.sale_id)
-        .filter(Sale.created_at >= month_start, Sale.status == SaleStatus.completed)
+        .filter(Sale.company_id == cid, Sale.created_at >= month_start, Sale.status == SaleStatus.completed, *wh_filter)
     )
-    top_q = top_q.filter(Sale.company_id == current_user.company_id)
-    if warehouse_id:
-        top_q = top_q.filter(Sale.warehouse_id == warehouse_id)
     top_rows = top_q.group_by(Product.id, Product.name).order_by(func.sum(SaleItem.subtotal).desc()).limit(10).all()
 
-    # Kam qoldiqli mahsulotlar: faqat min_stock > 0 bo'lgan va qoldig'i minimum dan PAST bo'lganlar
+    # Kam qoldiqli mahsulotlar
     low_q = (
         db.query(StockLevel, Product)
         .join(Product, Product.id == StockLevel.product_id)
-        .filter(
-            Product.is_deleted == False,
-            Product.min_stock > 0,
-            StockLevel.quantity < Product.min_stock,
-        )
+        .filter(Product.is_deleted == False, Product.min_stock > 0, StockLevel.quantity < Product.min_stock)
     )
-    low_q = low_q.filter(Product.company_id == current_user.company_id)
+    low_q = low_q.filter(Product.company_id == cid)
     if warehouse_id:
         low_q = low_q.filter(StockLevel.warehouse_id == warehouse_id)
     low_stock_rows = low_q.order_by(StockLevel.quantity).limit(20).all()
@@ -168,7 +164,7 @@ def get_dashboard(
     sold_ids = (
         db.query(SaleItem.product_id)
         .join(Sale)
-        .filter(Sale.created_at >= six_months_ago, Sale.status == SaleStatus.completed)
+        .filter(Sale.company_id == cid, Sale.created_at >= six_months_ago, Sale.status == SaleStatus.completed)
         .distinct()
         .scalar_subquery()
     )
@@ -177,7 +173,7 @@ def get_dashboard(
         .join(Product)
         .filter(Product.is_deleted == False, StockLevel.quantity > 0, Product.id.notin_(sold_ids))
     )
-    dead_q = dead_q.filter(Product.company_id == current_user.company_id)
+    dead_q = dead_q.filter(Product.company_id == cid)
     if warehouse_id:
         dead_q = dead_q.filter(StockLevel.warehouse_id == warehouse_id)
     dead_stock_count = dead_q.scalar()
@@ -186,49 +182,38 @@ def get_dashboard(
     cashier_q = (
         db.query(User.name, func.count(Sale.id).label("cnt"), func.coalesce(func.sum(Sale.total_amount), 0).label("total"))
         .join(Sale, Sale.cashier_id == User.id)
-        .filter(Sale.created_at >= month_start, Sale.status == SaleStatus.completed)
+        .filter(Sale.company_id == cid, Sale.created_at >= month_start, Sale.status == SaleStatus.completed, *wh_filter)
     )
-    cashier_q = cashier_q.filter(Sale.company_id == current_user.company_id)
-    if warehouse_id:
-        cashier_q = cashier_q.filter(Sale.warehouse_id == warehouse_id)
     cashier_rows = cashier_q.group_by(User.id, User.name).order_by(func.sum(Sale.total_amount).desc()).limit(10).all()
 
-    product_q = db.query(func.count(Product.id)).filter(Product.is_deleted == False)
-    product_q = product_q.filter(Product.company_id == current_user.company_id)
-    product_count = product_q.scalar()
+    product_count = db.query(func.count(Product.id)).filter(Product.is_deleted == False, Product.company_id == cid).scalar()
 
-    # Debitorlar (qarzdor mijozlar)
+    # Debitorlar
     debt_q = (
         db.query(func.count(Customer.id), func.coalesce(func.sum(Customer.debt_balance), 0))
-        .filter(Customer.debt_balance > 0, Customer.company_id == current_user.company_id)
+        .filter(Customer.debt_balance > 0, Customer.company_id == cid)
     )
     debtor_count, total_debt = debt_q.first()
     today_date = datetime.now(timezone.utc).date()
     overdue_debtor_count = (
         db.query(func.count(func.distinct(Sale.customer_id)))
-        .filter(
-            Sale.company_id == current_user.company_id,
-            Sale.customer_id.isnot(None),
-            Sale.paid_amount < Sale.total_amount,
-            Sale.debt_due_date.isnot(None),
-            Sale.debt_due_date < today_date,
-        )
+        .filter(Sale.company_id == cid, Sale.customer_id.isnot(None), Sale.paid_amount < Sale.total_amount, Sale.debt_due_date.isnot(None), Sale.debt_due_date < today_date)
         .scalar()
     ) or 0
 
-    # 30-kunlik sotuv trendi — bitta GROUP BY query (oldin 30 ta query edi)
+    # 30-kunlik sotuv trendi
     month30_start = datetime.combine(
         datetime.now(timezone.utc).date() - timedelta(days=29), datetime.min.time()
     )
-    month30_rows = sale_filter(
-        db.query(
-            cast(Sale.created_at, DateType).label("day"),
-            func.coalesce(func.sum(Sale.total_amount), 0).label("total"),
-        )
-        .filter(Sale.created_at >= month30_start, Sale.status == SaleStatus.completed)
-        .group_by(cast(Sale.created_at, DateType)),
-        warehouse_id,
-    ).all()
+    month30_rows = db.query(
+        cast(Sale.created_at, DateType).label("day"),
+        func.coalesce(func.sum(Sale.total_amount), 0).label("total"),
+    ).filter(
+        Sale.company_id == cid,
+        Sale.created_at >= month30_start,
+        Sale.status == SaleStatus.completed,
+        *wh_filter
+    ).group_by(cast(Sale.created_at, DateType)).all()
     month30_map = {str(r.day): float(r.total) for r in month30_rows}
     monthly_trend = []
     for i in range(30):
