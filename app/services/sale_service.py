@@ -78,7 +78,7 @@ from app.models.branch import Branch  # type: ignore
 
 from app.models.user import User  # type: ignore
 
-def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[str] = None) -> Sale:
+def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[str] = None, background_tasks=None) -> Sale:
     if data.warehouse_id is None:
         from app.models.warehouse import Warehouse
         from app.models.inventory import StockLevel as _StockLevel
@@ -472,9 +472,7 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
                 _cust = customer
 
                 def _bg_send(token, chat_id, text, sale_id, comp, cust):
-                    """Runs in background thread: build PDF then send to Telegram"""
-                    import time
-                    time.sleep(1.5) # Allow FastAPI to return response to user quickly before CPU-heavy PDF generation
+                    """Runs safely after response is sent"""
                     try:
                         from app.utils.pdf_generator import build_sale_pdf
                         from app.database import SessionLocal
@@ -492,11 +490,14 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
                     except Exception as e:
                         print("Telegram BG error:", e)
 
-                threading.Thread(
-                    target=_bg_send,
-                    args=(_token, _chat_id, _msg, _sale_id, _comp, _cust),
-                    daemon=True
-                ).start()
+                if background_tasks:
+                    background_tasks.add_task(_bg_send, _token, _chat_id, _msg, _sale_id, _comp, _cust)
+                else:
+                    threading.Thread(
+                        target=_bg_send,
+                        args=(_token, _chat_id, _msg, _sale_id, _comp, _cust),
+                        daemon=True
+                    ).start()
 
     return sale
 

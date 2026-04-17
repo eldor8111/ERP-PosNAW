@@ -2,7 +2,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, BackgroundTasks
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, select
 
@@ -68,12 +68,13 @@ def _build_sale_out(sale: Sale) -> SaleOut:
 def make_sale(
     data: SaleCreate,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*POS_ROLES)),
 ):
     """POS — yangi sotuv amalga oshirish"""
     ip = request.client.host if request.client else None
-    sale = create_sale(db=db, data=data, current_user=current_user, ip=ip)
+    sale = create_sale(db=db, data=data, current_user=current_user, ip=ip, background_tasks=background_tasks)
     # _load_sale chaqirilmaydi — ortiqcha query yo'q, tezroq ishlaydi
     return SaleListOut(
         id=sale.id,

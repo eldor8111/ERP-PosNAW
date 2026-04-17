@@ -32,9 +32,9 @@ export function getReceiptSettings() {
  * @param {string} tpl - Template size: '58', '80', or 'nak'
  * @param {Object} cfg - The specific configuration template object (e.g. settings.r58) loaded from settings
  */
-export function buildReceiptHtml(sale, tpl, cfg) {
+export function buildReceiptHtml(sale, tpl, cfg = {}) {
   const narrow = tpl === '58';
-  const isNak = tpl === 'nak';
+  const isNak = tpl === 'nak' || tpl === 'A4';
   const width = isNak ? '100%' : (narrow ? '320px' : '420px');
 
   const debt = Number(sale.total_amount) - Number(sale.paid_amount);
