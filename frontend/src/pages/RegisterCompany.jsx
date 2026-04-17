@@ -211,6 +211,7 @@ export default function RegisterCompany() {
   const [devMode, setDevMode] = useState(false)
   const [resendTimer, setResendTimer] = useState(0)
   const [verifiedToken, setVerifiedToken] = useState('')
+  const [otpSession, setOtpSession] = useState('')  // JWT da saqlangan OTP sessiyasi
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const clearErr = k => setErrors(e => { const n = { ...e }; delete n[k]; return n })
@@ -271,6 +272,7 @@ export default function RegisterCompany() {
         return
       }
       setDevMode(res.data.dev_mode || false)
+      setOtpSession(res.data.otp_session || '')
       setOtpSent(true)
       setStep(3)
       startResendTimer()
@@ -295,6 +297,7 @@ export default function RegisterCompany() {
         return
       }
       setDevMode(res.data.dev_mode || false)
+      setOtpSession(res.data.otp_session || '')
       startResendTimer()
     } catch (err) {
       setOtpError(err.response?.data?.detail || t('auth.errGeneral') || 'Xatolik')
@@ -310,7 +313,7 @@ export default function RegisterCompany() {
     setOtpError('')
     try {
       const normalized = form.phone.replace(/[^0-9]/g, '')
-      const res = await api.post('/auth/verify-otp', { phone: normalized, otp })
+      const res = await api.post('/auth/verify-otp', { phone: normalized, otp, otp_session: otpSession })
       setVerifiedToken(res.data.verified_token)
       // OTP tasdiqlandi — ro'yxatni yakunlash
       await submitRegister(res.data.verified_token)

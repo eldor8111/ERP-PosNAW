@@ -86,6 +86,7 @@ export default function Users() {
   const [otpCode, setOtpCode] = useState('');
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpVerifiedToken, setOtpVerifiedToken] = useState('');
+  const [otpSession, setOtpSession] = useState('');  // JWT da saqlangan OTP sessiyasi
   const [devOtp, setDevOtp] = useState(''); // dev modeda konsoldan ko'rsatiladi
   const [isDevMode, setIsDevMode] = useState(false);
 
@@ -106,6 +107,7 @@ export default function Users() {
     setOtpStep('form');
     setOtpCode('');
     setOtpVerifiedToken('');
+    setOtpSession('');
     setDevOtp('');
     setModal('create');
   };
@@ -126,6 +128,7 @@ export default function Users() {
       setOtpStep('form');
       setOtpCode('');
       setOtpVerifiedToken('');
+      setOtpSession('');
       setDevOtp('');
     }
   }, []);
@@ -140,6 +143,7 @@ export default function Users() {
       if (res.data.sent) {
         setOtpStep('otp_sent');
         setIsDevMode(!!res.data.dev_mode);
+        setOtpSession(res.data.otp_session || '');
         if (res.data.dev_mode) {
           // Dev modeda konsolga chiqarilgan OTP ni ko'rsatish uchun xabar
           setDevOtp('(Dev rejim: OTP serverning konsolini ko\'ring)');
@@ -160,7 +164,7 @@ export default function Users() {
     if (!otpCode.trim()) { setError('OTP kodni kiriting'); return; }
     setOtpLoading(true); setError('');
     try {
-      const res = await api.post('/auth/verify-otp', { phone: form.phone, otp: otpCode.trim() });
+      const res = await api.post('/auth/verify-otp', { phone: form.phone, otp: otpCode.trim(), otp_session: otpSession });
       if (res.data.verified) {
         setOtpVerifiedToken(res.data.verified_token);
         setOtpStep('verified');

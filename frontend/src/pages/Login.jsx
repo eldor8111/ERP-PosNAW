@@ -95,6 +95,7 @@ function ForgotPasswordModal({ onClose, t }) {
   const [success, setSuccess] = useState(false)
   const [devMode, setDevMode] = useState(false)
   const [botLink, setBotLink] = useState('')
+  const [otpSession, setOtpSession] = useState('')  // JWT da saqlangan OTP sessiyasi
 
   // Qayta yuborish taymer
   const startResendTimer = () => {
@@ -122,6 +123,7 @@ function ForgotPasswordModal({ onClose, t }) {
       }
       setUserName(res.data.name)
       setDevMode(res.data.dev_mode || false)
+      setOtpSession(res.data.otp_session || '')
       setStep(2)
       startResendTimer()
     } catch (err) {
@@ -139,6 +141,7 @@ function ForgotPasswordModal({ onClose, t }) {
     try {
       const res = await api.post('/auth/check-phone', { phone })
       setDevMode(res.data.dev_mode || false)
+      setOtpSession(res.data.otp_session || '')
       startResendTimer()
     } catch (err) {
       setError(err.response?.data?.detail || 'Xatolik')
@@ -154,7 +157,7 @@ function ForgotPasswordModal({ onClose, t }) {
     setError('')
     setLoading(true)
     try {
-      const res = await api.post('/auth/verify-otp', { phone, otp })
+      const res = await api.post('/auth/verify-otp', { phone, otp, otp_session: otpSession })
       setVerifiedToken(res.data.verified_token)
       setStep(3)
     } catch (err) {

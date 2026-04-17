@@ -262,6 +262,7 @@ class SendOtpRequest(BaseModel):
 class VerifyOtpRequest(BaseModel):
     phone: str
     otp: str
+    otp_session: Optional[str] = None  # JWT da saqlangan OTP sessiyasi
 
 
 @router.post("/send-otp")
@@ -278,106 +279,93 @@ async def send_otp(request: Request, data: SendOtpRequest, db: Session = Depends
 
     user = db.query(User).filter(User.phone == normalized, User.status == UserStatus.active).first()
 
+    # ─── purpose='reset' ──────────────────────────────────────────
     if data.purpose == "reset":
         if not user:
             raise HTTPException(status_code=404, detail="Bu telefon raqam tizimda topilmadi")
 
-        if is_dev_mode:
-            otp = _generate_otp()
-            _otp_store[normalized] = {
-                "otp": otp,
-                "expires": datetime.now(timezone.utc) + timedelta(minutes=5),
-                "purpose": "reset",
-            }
-            print(f"[DEV] Reset OTP for {normalized} ({user.name}): {otp}")
-            return {"sent": True, "dev_mode": True, "has_telegram": True}
-
-        # Avval _phone_to_chat_id dan qidirish (bot orqali ulangan)
-        chat_id = _find_chat_id_by_phone(normalized)
-        # Keyin user.tg_chat_id dan qidirish
-        if not chat_id and user.tg_chat_id:
-            chat_id = user.tg_chat_id
-
-        if not chat_id:
-            bot_username = _get_bot_username(bot_token)
-            return {
-                "sent": False,
-                "has_telegram": False,
-                "bot_link": f"https://t.me/{bot_username}",
-                "message": "Telegram bot ulanmagan. Quyidagi botni oching va telefon raqamingizni ulang.",
-            }
-
         otp = _generate_otp()
-        _otp_store[normalized] = {
-            "otp": otp,
-            "expires": datetime.now(timezone.utc) + timedelta(minutes=5),
-            "purpose": "reset",
-        }
-        sent = await _send_telegram_otp(chat_id, otp, user.name)
-        if not sent:
-            raise HTTPException(status_code=500, detail="Telegram xabar yuborishda xato")
-        return {"sent": True, "dev_mode": False, "has_telegram": True}
 
+        if is_dev_mode:
+            print(f"[DEV] Reset OTP for {normalized} ({user.name}): {otp}")
+        else:
+            chat_id = _find_chat_id_by_phone(normalized)
+            if not chat_id and user.tg_chat_id:
+                chat_id = user.tg_chat_id
+            if not chat_id:
+                bot_username = _get_bot_username(bot_token)
+                return {
+                    "sent": False,
+                    "has_telegram": False,
+                    "bot_link": f"https://t.me/{bot_username}",
+                    "message": "Telegram bot ulanmagan. Quyidagi botni oching va telefon raqamingizni ulang.",
+                }
+            sent = await _send_telegram_otp(chat_id, otp, user.name)
+            if not sent:
+                raise HTTPException(status_code=500, detail="Telegram xabar yuborishda xato")
+
+        from app.core.security import create_access_token
+        otp_session = create_access_token(
+            {"phone": normalized, "otp": otp, "purpose": "reset", "type": "otp_session"},
+            expires_delta=timedelta(minutes=5)
+        )
+        return {"sent": True, "dev_mode": is_dev_mode, "has_telegram": True, "otp_session": otp_session}
+
+    # ─── purpose='register' ──────────────────────────────────────
     elif data.purpose == "register":
         if user:
             raise HTTPException(status_code=400, detail="Bu telefon raqam allaqachon ro'yxatdan o'tgan")
 
-        if is_dev_mode:
-            otp = _generate_otp()
-            _otp_store[normalized] = {
-                "otp": otp,
-                "expires": datetime.now(timezone.utc) + timedelta(minutes=5),
-                "purpose": "register",
-            }
-            print(f"[DEV] Register OTP for {normalized}: {otp}")
-            return {"sent": True, "dev_mode": True, "has_telegram": True}
-
-        # Bot orqali phone→chat_id topish
-        chat_id = _find_chat_id_by_phone(normalized)
-        if not chat_id:
-            bot_username = _get_bot_username(bot_token)
-            return {
-                "sent": False,
-                "has_telegram": False,
-                "bot_link": f"https://t.me/{bot_username}",
-                "message": "Ro'yxatdan o'tish uchun avval Telegram botni oching va raqamingizni ulang.",
-            }
-
         otp = _generate_otp()
-        _otp_store[normalized] = {
-            "otp": otp,
-            "expires": datetime.now(timezone.utc) + timedelta(minutes=5),
-            "purpose": "register",
-        }
-        sent = await _send_telegram_otp(chat_id, otp, "")
-        if not sent:
-            raise HTTPException(status_code=500, detail="Telegram xabar yuborishda xato")
-        return {"sent": True, "dev_mode": False, "has_telegram": True}
+
+        if is_dev_mode:
+            print(f"[DEV] Register OTP for {normalized}: {otp}")
+        else:
+            chat_id = _find_chat_id_by_phone(normalized)
+            if not chat_id:
+                bot_username = _get_bot_username(bot_token)
+                return {
+                    "sent": False,
+                    "has_telegram": False,
+                    "bot_link": f"https://t.me/{bot_username}",
+                    "message": "Ro'yxatdan o'tish uchun avval Telegram botni oching va raqamingizni ulang.",
+                }
+            sent = await _send_telegram_otp(chat_id, otp, "")
+            if not sent:
+                raise HTTPException(status_code=500, detail="Telegram xabar yuborishda xato")
+
+        from app.core.security import create_access_token
+        otp_session = create_access_token(
+            {"phone": normalized, "otp": otp, "purpose": "register", "type": "otp_session"},
+            expires_delta=timedelta(minutes=5)
+        )
+        return {"sent": True, "dev_mode": is_dev_mode, "has_telegram": True, "otp_session": otp_session}
     else:
         raise HTTPException(status_code=400, detail="Noto'g'ri purpose: 'register' yoki 'reset' bo'lishi kerak")
 
 
 @router.post("/verify-otp")
 def verify_otp(data: VerifyOtpRequest):
-    """OTP kodni tekshiradi va verified_token qaytaradi"""
+    """OTP kodni tekshiradi va verified_token qaytaradi (JWT otp_session orqali)"""
     normalized = data.phone.strip().replace("+", "").replace(" ", "").replace("-", "")
-    record = _otp_store.get(normalized)
 
-    if not record:
-        raise HTTPException(status_code=400, detail="OTP topilmadi. Qaytadan yuborish tugmasini bosing.")
+    if not data.otp_session:
+        raise HTTPException(status_code=400, detail="otp_session talab qilinadi. Qaytadan yuborish tugmasini bosing.")
 
-    if datetime.now(timezone.utc) > record["expires"]:
-        del _otp_store[normalized]
-        raise HTTPException(status_code=400, detail="OTP muddati tugagan. Qaytadan yuborish tugmasini bosing.")
+    from app.core.security import decode_token, create_access_token
+    session_data = decode_token(data.otp_session)
 
-    if record["otp"] != data.otp.strip():
+    if not session_data or session_data.get("type") != "otp_session":
+        raise HTTPException(status_code=400, detail="OTP sessiyasi noto'g'ri yoki muddati o'tgan. Qaytadan yuborish tugmasini bosing.")
+
+    if session_data.get("phone") != normalized:
+        raise HTTPException(status_code=400, detail="OTP sessiyasi bu telefon uchun emas.")
+
+    if session_data.get("otp") != data.otp.strip():
         raise HTTPException(status_code=400, detail="OTP noto'g'ri. Qayta urinib ko'ring.")
 
     # OTP to'g'ri — verified_token yaratish
-    del _otp_store[normalized]
-    from app.core.security import create_access_token
     verified_token = create_access_token({"phone": normalized, "type": "otp_verified"}, expires_delta=timedelta(minutes=10))
-
     return {"verified": True, "verified_token": verified_token}
 
 
@@ -775,30 +763,29 @@ async def check_phone(request: Request, data: CheckPhoneRequest, db: Session = D
     bot_token = _get_otp_bot_token()
     is_dev_mode = not bot_token or bot_token == "YOUR_TELEGRAM_BOT_TOKEN_HERE"
 
+    otp = _generate_otp()
+
     if is_dev_mode:
-        otp = _generate_otp()
-        _otp_store[normalized] = {
-            "otp": otp,
-            "expires": datetime.now(timezone.utc) + timedelta(minutes=5),
-            "purpose": "reset",
-        }
         print(f"[DEV] Reset OTP for {normalized} ({user.name}): {otp}")
+        from app.core.security import create_access_token
+        otp_session = create_access_token(
+            {"phone": normalized, "otp": otp, "purpose": "reset", "type": "otp_session"},
+            expires_delta=timedelta(minutes=5)
+        )
         return {
             "exists": True,
             "name": user.name,
             "otp_sent": True,
             "has_telegram": True,
             "dev_mode": True,
+            "otp_session": otp_session,
         }
 
     # Avval DB dagi tg_chat_id ni tekshiramiz
     chat_id = user.tg_chat_id
 
-    # Agar DB da yo'q bo'lsa, in-memory _phone_to_chat_id dan qidiramiz
-    # (server restart bo'lmagan bo'lsa, ro'yxatdan o'tgan foydalanuvchilar uchun)
     if not chat_id:
         chat_id = _find_chat_id_by_phone(normalized)
-        # Topilsa — DB ga saqlap qo'yamiz (keyingi restart uchun)
         if chat_id:
             user.tg_chat_id = chat_id
             db.commit()
@@ -813,22 +800,22 @@ async def check_phone(request: Request, data: CheckPhoneRequest, db: Session = D
             "message": "Telegram bot ulanmagan. Quyidagi botni oching, /start bosing va raqamingizni ulang.",
         }
 
-    otp = _generate_otp()
-    _otp_store[normalized] = {
-        "otp": otp,
-        "expires": datetime.now(timezone.utc) + timedelta(minutes=5),
-        "purpose": "reset",
-    }
     sent = await _send_telegram_otp(chat_id, otp, user.name)
     if not sent:
         raise HTTPException(status_code=500, detail="Telegram xabar yuborishda xato. Qayta urinib ko'ring.")
 
+    from app.core.security import create_access_token
+    otp_session = create_access_token(
+        {"phone": normalized, "otp": otp, "purpose": "reset", "type": "otp_session"},
+        expires_delta=timedelta(minutes=5)
+    )
     return {
         "exists": True,
         "name": user.name,
         "otp_sent": True,
         "has_telegram": True,
         "dev_mode": False,
+        "otp_session": otp_session,
     }
 
 
