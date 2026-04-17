@@ -531,13 +531,20 @@ def _process_login_success(user: User, db: Session, request: Request, is_otp: bo
 
     if len(companies) > 1:
         # Multi-company
+        from sqlalchemy.orm import joinedload
+        companies_with_co = (
+            db.query(UserCompany)
+            .options(joinedload(UserCompany.company))
+            .filter(UserCompany.user_id == user.id, UserCompany.is_active == True)
+            .all()
+        )
         comps = [
             {
                 "company_id": c.company_id,
                 "company_name": c.company.name if c.company else "Noma'lum",
                 "role": c.role,
                 "is_active": c.is_active
-            } for c in companies
+            } for c in companies_with_co
         ]
         user_out = UserOut.model_validate(user)
         action = "LOGIN_OTP_MULTI" if is_otp else "LOGIN_MULTI"
