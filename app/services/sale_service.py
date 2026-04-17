@@ -473,6 +473,8 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
 
                 def _bg_send(token, chat_id, text, sale_id, comp, cust):
                     """Runs in background thread: build PDF then send to Telegram"""
+                    import time
+                    time.sleep(1.5) # Allow FastAPI to return response to user quickly before CPU-heavy PDF generation
                     try:
                         from app.utils.pdf_generator import build_sale_pdf
                         from app.database import SessionLocal

@@ -243,13 +243,29 @@ export default function UlgurjiSotuv() {
   const navigate = useNavigate();
   const [customers, setCustomers] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
-  const [custId, setCustId] = useState('');
+
+  // Settings
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [autoPrint, setAutoPrint] = useState(localStorage.getItem('ulgurji_autoPrint') !== 'false');
+  const [receiptWidth, setReceiptWidth] = useState(localStorage.getItem('ulgurji_receiptWidth') || '80');
+  const [defaultCustomerId, setDefaultCustomerId] = useState(localStorage.getItem('ulgurji_defaultCustomer') || '');
+
+  const [custId, setCustId] = useState(localStorage.getItem('ulgurji_defaultCustomer') || '');
   const [warehouseId, setWarehouseId] = useState('');
   const [cart, setCart] = useState([]);          // [{id, name, unit, qty, price, discount_type, discount_val, wholesale_price, sale_price, stock_quantity}]
   const [note, setNote] = useState('');
   const [useWholesale, setUseWholesale] = useState(true);
   const [showPayment, setShowPayment] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const saveSettings = () => {
+    localStorage.setItem('ulgurji_autoPrint', autoPrint);
+    localStorage.setItem('ulgurji_receiptWidth', receiptWidth);
+    localStorage.setItem('ulgurji_defaultCustomer', defaultCustomerId);
+    setSettingsOpen(false);
+    if (!cart.length && defaultCustomerId) setCustId(defaultCustomerId);
+    toast.success('Sozlamalar saqlandi');
+  };
 
   // To'lov formasi
   const [payType, setPayType] = useState('cash');
@@ -364,11 +380,22 @@ export default function UlgurjiSotuv() {
         debt_due_date: debt > 0 ? (debtDate || undefined) : undefined,
       };
 
-      await api.post('/sales/', payload);
+      const res = await api.post('/sales/', payload);
       toast.success('Sotuv muvaffaqiyatli saqlandi!');
 
+      // Chek chiqarish
+      if (autoPrint) {
+        try {
+          const receiptRes = await api.get(`/sales/${res.data.id}/receipt`);
+          const html = buildReceiptHtml(receiptRes.data, receiptWidth);
+          printReceiptHtml(html, receiptWidth);
+        } catch (err) {
+          console.error("Chek chiqarishda xatolik", err);
+        }
+      }
+
       // Reset
-      setCart([]); setCustId(''); setNote(''); setDiscVal(''); setPaidAmt('');
+      setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDiscVal(''); setPaidAmt('');
       setPaidCash(''); setPaidCard(''); setPayNote(''); setDebtDate('');
       setShowPayment(false); setShowDebtDate(false); setPayType('cash');
     } catch (e) {
@@ -395,6 +422,10 @@ export default function UlgurjiSotuv() {
         </div>
 
         <div className="flex items-center gap-1.5">
+          <button onClick={() => setSettingsOpen(true)}
+            className={`flex items-center justify-center w-9 h-9 rounded-xl text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors tooltip`} title="Sotuv sozlamalari">
+            <Ic d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </button>
           {[
             { id: 'new',  label: '+ Yangi sotuv', icon: 'M12 4v16m8-8H4' },
             { id: 'list', label: 'Sotuvlar tarixi', icon: 'M4 6h16M4 10h16M4 14h16M4 18h16' },
@@ -587,8 +618,8 @@ export default function UlgurjiSotuv() {
           </div>
 
           {/* ── O'NG PANEL: Mijoz + To'lov ── */}
-          <div className="w-[360px] shrink-0 flex flex-col bg-white overflow-y-auto">
-            <div className="flex-1 px-4 py-4 space-y-4">
+          <div className="w-[360px] shrink-0 flex flex-col bg-white border-l border-slate-200">
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
 
               {/* Mijoz */}
               <div>
@@ -657,8 +688,8 @@ export default function UlgurjiSotuv() {
               </div>
             </div>
 
-            {/* To'lov tugmasi */}
-            <div className="shrink-0 px-4 pb-4 pt-2 border-t border-slate-100 bg-white">
+            {/* To'lov tugmasi doim pastda ko'rinib turadi */}
+            <div className="shrink-0 px-4 pb-4 pt-3 border-t border-slate-100 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
               <button
                 onClick={() => cart.length > 0 && setShowPayment(true)}
                 disabled={cart.length === 0}
@@ -967,6 +998,59 @@ export default function UlgurjiSotuv() {
 
             <div className="flex-1 overflow-y-auto px-6 py-5">
               <SaleDetailContent saleId={selectedSale.id} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ SOZLAMALAR MODALI ════════════════════════════════ */}
+      {settingsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col">
+            <div className="bg-gradient-to-r from-slate-800 to-slate-700 px-6 py-5 text-white flex items-center justify-between shrink-0">
+              <h2 className="text-lg font-black">Sotuv sozlamalari</h2>
+              <button onClick={() => setSettingsOpen(false)}
+                className="w-9 h-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors">
+                <Ic d="M6 18L18 6M6 6l12 12" cls="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-6 space-y-6">
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">Doimiy mijoz (Standart)</label>
+                <CustomerSearch customers={customers} value={defaultCustomerId} onChange={setDefaultCustomerId} />
+                <p className="text-[11px] text-slate-400 mt-1">Yangi sotuv sahifasi ochilganda shu mijoz avtomatik tanlanadi.</p>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800">Avtomatik chek chiqarish</h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">To'lov tugashi bilan avtomatik print</p>
+                </div>
+                <button onClick={() => setAutoPrint(!autoPrint)}
+                  className={`w-12 h-6 rounded-full p-1 transition-colors focus:outline-none ${autoPrint ? 'bg-indigo-500' : 'bg-slate-300'}`}>
+                  <div className={`w-4 h-4 bg-white rounded-full transition-transform ${autoPrint ? 'translate-x-6' : 'translate-x-0'}`} />
+                </button>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">Chek formati</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: '58', label: '58 mm' },
+                    { id: '80', label: '80 mm' },
+                    { id: 'A4', label: 'A4' },
+                  ].map(w => (
+                    <button key={w.id} onClick={() => setReceiptWidth(w.id)}
+                      className={`py-2 text-sm font-semibold rounded-xl border-2 transition-colors ${receiptWidth === w.id ? 'border-indigo-500 text-indigo-700 bg-indigo-50' : 'border-slate-100 text-slate-500 hover:border-slate-300'}`}>
+                      {w.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-slate-100 flex gap-3">
+              <button onClick={() => setSettingsOpen(false)}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl text-sm transition-all focus:outline-none">Bekor</button>
+              <button onClick={saveSettings}
+                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl text-sm transition-all shadow-md shadow-indigo-200 focus:outline-none">Saqlash</button>
             </div>
           </div>
         </div>
