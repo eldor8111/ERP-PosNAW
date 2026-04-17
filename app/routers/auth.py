@@ -508,6 +508,7 @@ class LoginRequest(BaseModel):
 class LoginOtpVerifyRequest(BaseModel):
     phone: str
     otp: str
+    otp_session: Optional[str] = None
 
 
 # Rollarni aniqlash: bu rollar login da OTP talab qiladi
@@ -595,11 +596,6 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
 
         # Kassir/boshqa rollar — OTP yuboramiz
         otp = _generate_otp()
-        _otp_store[normalized_phone] = {
-            "otp": otp,
-            "expires": datetime.now(timezone.utc) + timedelta(minutes=5),
-            "purpose": "login",
-        }
         bot_token = _get_otp_bot_token()
         is_dev_mode = not bot_token or bot_token == "YOUR_TELEGRAM_BOT_TOKEN_HERE"
 
@@ -625,6 +621,12 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
             print(f"[OTP Login DEV] {normalized_phone} → {otp}")
             otp_sent = True
 
+        from app.core.security import create_access_token
+        otp_session = create_access_token(
+            {"phone": normalized_phone, "otp": otp, "purpose": "login", "type": "otp_session"},
+            expires_delta=timedelta(minutes=5)
+        )
+
         # OTP talab qilinmoqda — to'liq token BERMAYMIZ
         raise HTTPException(
             status_code=202,
@@ -633,6 +635,7 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
                 "otp_sent": otp_sent,
                 "name": user.name,
                 "dev_mode": is_dev_mode,
+                "otp_session": otp_session,
                 "message": "OTP Telegram orqali yuborildi" if otp_sent else "Telegram bot ulanmagan",
             }
         )
@@ -650,16 +653,21 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
 def login_verify_otp(request: Request, data: LoginOtpVerifyRequest, db: Session = Depends(get_db)):
     """OTP ni tekshiradi va token beradi (kassir/sub-foydalanuvchilar uchun)"""
     normalized = data.phone.strip().replace("+", "").replace(" ", "").replace("-", "")
-    stored = _otp_store.get(normalized)
-    if not stored or stored["purpose"] != "login":
-        raise HTTPException(status_code=400, detail="OTP topilmadi. Qayta urinib ko'ring.")
-    if datetime.now(timezone.utc) > stored["expires"]:
-        _otp_store.pop(normalized, None)
-        raise HTTPException(status_code=400, detail="OTP muddati o'tgan. Qayta kirish tugmasini bosing.")
-    if stored["otp"] != data.otp.strip():
-        raise HTTPException(status_code=400, detail="OTP noto'g'ri")
 
-    _otp_store.pop(normalized, None)
+    if not data.otp_session:
+        raise HTTPException(status_code=400, detail="otp_session talab qilinadi. Qaytadan urinib ko'ring.")
+
+    from app.core.security import decode_token
+    session_data = decode_token(data.otp_session)
+
+    if not session_data or session_data.get("type") != "otp_session" or session_data.get("purpose") != "login":
+        raise HTTPException(status_code=400, detail="OTP sessiyasi noto'g'ri yoki muddati o'tgan. Qaytadan urinib ko'ring.")
+
+    if session_data.get("phone") != normalized:
+        raise HTTPException(status_code=400, detail="OTP sessiyasi bu telefon uchun emas.")
+
+    if session_data.get("otp") != data.otp.strip():
+        raise HTTPException(status_code=400, detail="OTP noto'g'ri")
 
     user = db.query(User).filter(User.phone == normalized, User.status == UserStatus.active).first()
     if not user:

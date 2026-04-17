@@ -363,6 +363,7 @@ export default function Login() {
   const [otpName, setOtpName] = useState('')
   const [otpDevMode, setOtpDevMode] = useState(false)
   const [otpLoading, setOtpLoading] = useState(false)
+  const [loginOtpSession, setLoginOtpSession] = useState('')
   
   // Multi-company bosqich
   const [companyStep, setCompanyStep] = useState(false)
@@ -395,6 +396,7 @@ export default function Login() {
       if (err.response?.status === 202 && detail?.otp_required) {
         setOtpName(detail.name || '')
         setOtpDevMode(detail.dev_mode || false)
+        setLoginOtpSession(detail.otp_session || '')
         setOtpStep(true)
         setError('')
       } else {
@@ -411,7 +413,7 @@ export default function Login() {
     setOtpLoading(true); setError('')
     try {
       const normalized = form.phone.replace(/[+ -]/g, '')
-      const res = await api.post('/auth/login-verify', { phone: normalized, otp })
+      const res = await api.post('/auth/login-verify', { phone: normalized, otp, otp_session: loginOtpSession })
       const { data } = res
       
       if (data.needs_company_selection) {
