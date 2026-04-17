@@ -348,12 +348,15 @@ export default function UlgurjiSotuv() {
           : parseN(it.discount_val),
       }));
 
+      let finalPayType = payType;
+      if (paid === 0) finalPayType = 'debt'; // agar to'lanmasa, 'debt'
+
       const payload = {
         items,
-        payment_type: payType,
+        payment_type: finalPayType,
         paid_amount: paid,
-        paid_cash: payType === 'mixed' ? parseN(paidCash) : (payType === 'cash' ? paid : 0),
-        paid_card: payType === 'mixed' ? parseN(paidCard) : (payType === 'card' ? paid : 0),
+        paid_cash: finalPayType === 'mixed' ? parseN(paidCash) : (finalPayType === 'cash' ? paid : 0),
+        paid_card: finalPayType === 'mixed' ? parseN(paidCard) : (finalPayType === 'card' ? paid : 0),
         discount_amount: saleDisc,
         note: note || payNote || undefined,
         customer_id: custId ? Number(custId) : undefined,
@@ -928,7 +931,7 @@ export default function UlgurjiSotuv() {
                 className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl text-sm transition-all">
                 Bekor
               </button>
-              <button onClick={handlePay} disabled={saving || (payType !== 'debt' && payType !== 'mixed' && !paidAmt && !showDebtDate)}
+              <button onClick={handlePay} disabled={saving}
                 className="flex-2 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-black rounded-2xl text-sm shadow-lg shadow-indigo-200 transition-all flex items-center gap-2">
                 {saving
                   ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Saqlanmoqda...</>

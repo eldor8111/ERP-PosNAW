@@ -123,6 +123,8 @@ def list_products(
 
 @router.get("/pos-list")
 def list_products_for_pos(
+    search: Optional[str] = Query(None),
+    limit: Optional[int] = Query(50),
     warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -152,7 +154,19 @@ def list_products_for_pos(
         Product.is_deleted == False,
         Product.company_id == current_user.company_id,
         Product.status == ProductStatus.active,
-    ).order_by(Product.name)
+    )
+
+    if search:
+        q = q.filter(
+            (Product.name.ilike(f"%{search}%"))
+            | (Product.sku.ilike(f"%{search}%"))
+            | (Product.barcode.ilike(f"%{search}%"))
+        )
+
+    q = q.order_by(Product.name)
+
+    if limit:
+        q = q.limit(limit)
 
     products_raw = q.all()
     if not products_raw:
