@@ -21,8 +21,15 @@ def list_users(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    q = db.query(User).filter(User.status == UserStatus.active)
-    q = q.filter(User.company_id == current_user.company_id)
+    from sqlalchemy import or_
+    from app.models.user_company import UserCompany
+    q = db.query(User).outerjoin(UserCompany).filter(User.status == UserStatus.active)
+    q = q.filter(
+        or_(
+            User.company_id == current_user.company_id,
+            (UserCompany.company_id == current_user.company_id) & (UserCompany.is_active == True)
+        )
+    ).distinct()
     return q.all()
 
 
@@ -32,8 +39,15 @@ def get_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.super_admin)),
 ):
-    q = db.query(User).filter(User.id == user_id)
-    q = q.filter(User.company_id == current_user.company_id)
+    from sqlalchemy import or_
+    from app.models.user_company import UserCompany
+    q = db.query(User).outerjoin(UserCompany).filter(User.id == user_id)
+    q = q.filter(
+        or_(
+            User.company_id == current_user.company_id,
+            (UserCompany.company_id == current_user.company_id) & (UserCompany.is_active == True)
+        )
+    ).distinct()
     user = q.first()
     if not user:
         raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
@@ -47,21 +61,18 @@ def create_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.super_admin)),
 ):
-    # Faol foydalanuvchini bloklash
+    company_id = current_user.company_id if current_user.role != UserRole.super_admin else getattr(data, 'company_id', None)
+
     active_existing = db.query(User).filter(
         User.phone == data.phone,
         User.status == UserStatus.active
     ).first()
-    if active_existing:
-        raise HTTPException(status_code=400, detail="Bu telefon raqam allaqachon ro'yxatdan o'tgan")
 
     # Nofaol (o'chirilgan) foydalanuvchi topilsa — uni qayta faollashtirish
     inactive_existing = db.query(User).filter(
         User.phone == data.phone,
         User.status == UserStatus.inactive
     ).first()
-
-    company_id = current_user.company_id if current_user.role != UserRole.super_admin else getattr(data, 'company_id', None)
 
     # ── Tarif limit tekshiruvi (inline) ──────────────────────
     if current_user.role != UserRole.super_admin:
@@ -99,6 +110,58 @@ def create_user(
             )
     # ─────────────────────────────────────────────────────────
 
+    from app.models.user_company import UserCompany
+    from sqlalchemy import or_
+
+    if active_existing:
+        # Tekshiramiz agar joriy korxonaga ulangan bo'lsa
+        already_in_company = db.query(User).outerjoin(UserCompany).filter(
+            User.id == active_existing.id,
+            or_(
+                User.company_id == company_id,
+                (UserCompany.company_id == company_id) & (UserCompany.is_active == True)
+            )
+        ).first()
+
+        if already_in_company:
+            raise HTTPException(status_code=400, detail="Foydalanuvchi ushbu korxonada allaqachon mavjud.")
+
+        # Eski asosiy kompaniyasini UserCompany'ga saqlash (qolib ketgan bo'lsa)
+        if active_existing.company_id:
+            old_uc = db.query(UserCompany).filter(
+                UserCompany.user_id == active_existing.id,
+                UserCompany.company_id == active_existing.company_id
+            ).first()
+            if not old_uc:
+                db.add(UserCompany(
+                    user_id=active_existing.id,
+                    company_id=active_existing.company_id,
+                    role=active_existing.role,
+                    is_active=True
+                ))
+
+        # Yangi korxonaga qo'shish
+        new_uc = UserCompany(
+            user_id=active_existing.id,
+            company_id=company_id,
+            role=data.role,
+            is_active=True
+        )
+        db.add(new_uc)
+        db.commit()
+        db.refresh(active_existing)
+
+        log_action(
+            db=db,
+            action="ADD_USER_COMPANY",
+            entity_type="user",
+            entity_id=active_existing.id,
+            user_id=current_user.id,
+            new_values={"company_id": company_id, "role": data.role.value},
+            ip_address=request.client.host if request.client else None,
+        )
+        return active_existing
+
     if inactive_existing:
         # Mavjud nofaol foydalanuvchini yangilash va qayta faollashtirish
         user = inactive_existing
@@ -109,6 +172,13 @@ def create_user(
         user.branch_id = data.branch_id
         user.company_id = company_id
         user.status = UserStatus.active
+
+        uc_inactive = db.query(UserCompany).filter(UserCompany.user_id == user.id, UserCompany.company_id == company_id).first()
+        if not uc_inactive:
+            db.add(UserCompany(user_id=user.id, company_id=company_id, role=data.role, is_active=True))
+        else:
+            uc_inactive.is_active = True
+            uc_inactive.role = data.role
     else:
         user = User(
             name=data.name,
@@ -120,6 +190,8 @@ def create_user(
             company_id=company_id,
         )
         db.add(user)
+        db.flush()
+        db.add(UserCompany(user_id=user.id, company_id=company_id, role=data.role, is_active=True))
 
     db.flush()
 
@@ -145,9 +217,23 @@ def update_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.super_admin)),
 ):
-    q = db.query(User).filter(User.id == user_id)
-    q = q.filter(User.company_id == current_user.company_id)
+    from sqlalchemy import or_
+    from app.models.user_company import UserCompany
+    q = db.query(User).outerjoin(UserCompany).filter(User.id == user_id)
+    q = q.filter(
+        or_(
+            User.company_id == current_user.company_id,
+            (UserCompany.company_id == current_user.company_id) & (UserCompany.is_active == True)
+        )
+    ).distinct()
     user = q.first()
+    
+    uc = None
+    if user:
+        uc = db.query(UserCompany).filter(
+            UserCompany.user_id == user.id,
+            UserCompany.company_id == current_user.company_id
+        ).first()
     if not user:
         raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
 
@@ -162,8 +248,12 @@ def update_user(
 
     if data.role is not None:
         user.role = data.role
+        if uc:
+            uc.role = data.role
     if data.status is not None:
         user.status = data.status
+        if uc:
+            uc.is_active = (data.status == UserStatus.active)
     if data.branch_id is not None:
         user.branch_id = data.branch_id
     elif 'branch_id' in data.model_fields_set:
@@ -192,8 +282,15 @@ def change_password(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.super_admin)),
 ):
-    q = db.query(User).filter(User.id == user_id)
-    q = q.filter(User.company_id == current_user.company_id)
+    from sqlalchemy import or_
+    from app.models.user_company import UserCompany
+    q = db.query(User).outerjoin(UserCompany).filter(User.id == user_id)
+    q = q.filter(
+        or_(
+            User.company_id == current_user.company_id,
+            (UserCompany.company_id == current_user.company_id) & (UserCompany.is_active == True)
+        )
+    ).distinct()
     user = q.first()
     if not user:
         raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
@@ -221,13 +318,39 @@ def delete_user(
     if user_id == current_user.id:
         raise HTTPException(status_code=400, detail="O'zingizni o'chira olmaysiz")
 
-    q = db.query(User).filter(User.id == user_id)
-    q = q.filter(User.company_id == current_user.company_id)
+    from sqlalchemy import or_
+    from app.models.user_company import UserCompany
+    q = db.query(User).outerjoin(UserCompany).filter(User.id == user_id)
+    q = q.filter(
+        or_(
+            User.company_id == current_user.company_id,
+            (UserCompany.company_id == current_user.company_id) & (UserCompany.is_active == True)
+        )
+    ).distinct()
     user = q.first()
+    
+    uc = None
+    if user:
+        uc = db.query(UserCompany).filter(
+            UserCompany.user_id == user.id,
+            UserCompany.company_id == current_user.company_id
+        ).first()
     if not user:
         raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
 
-    user.status = UserStatus.inactive
+    if uc:
+        uc.is_active = False
+
+    # Agar boshqa ochiq kompaniyalari qolmagan bo'lsa, butunlay o'chiramiz
+    from app.models.user_company import UserCompany
+    has_active_comp = db.query(UserCompany).filter(
+        UserCompany.user_id == user.id, 
+        UserCompany.is_active == True,
+        UserCompany.company_id != current_user.company_id
+    ).first()
+    
+    if not has_active_comp:
+        user.status = UserStatus.inactive
 
     log_action(
         db=db,
