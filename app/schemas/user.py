@@ -21,6 +21,7 @@ class UserCreate(BaseModel):
     password: str
     role: UserRole = UserRole.cashier
     branch_id: Optional[int] = None
+    otp_verified_token: Optional[str] = None
 
     @field_validator("phone")
     @classmethod
