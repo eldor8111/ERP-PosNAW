@@ -279,13 +279,46 @@ export default function UlgurjiSotuv() {
   const [showDebtDate, setShowDebtDate] = useState(false);
 
   // Sotuv ro'yxati
-  const [tab, setTab] = useState('new'); // 'new' | 'list'
+  const [tab, setTab] = useState('new'); // 'new' | 'list' | 'drafts'
   const [sales, setSales] = useState([]);
   const [loadingSales, setLoadingSales] = useState(false);
-  const [filters, setFilters] = useState({ date_from: today(), date_to: today(), status: '', search: '' });
+  const [filters, setFilters] = useState({ date_from: new Date().toISOString().split('T')[0], date_to: new Date().toISOString().split('T')[0], status: '', search: '' });
   const [selectedSale, setSelectedSale] = useState(null);
   const [page, setPage] = useState(0);
   const LIMIT = 25;
+
+  // Arxiv
+  const [draftsList, setDraftsList] = useState([]);
+  useEffect(() => {
+    if (tab === 'drafts') {
+      try { setDraftsList(JSON.parse(localStorage.getItem('ulgurji_drafts') || '[]')); } catch(e) { setDraftsList([]); }
+    }
+  }, [tab]);
+
+  const loadDraft = (idx) => {
+    const d = draftsList[idx];
+    if (d) {
+      if (cart.length > 0 && !window.confirm("Hozirgi savatdagi ma'lumotlar o'chib ketadi. Davom etasizmi?")) return;
+      setCart(d.cart || []);
+      setCustId(d.custId || '');
+      setNote(d.note || '');
+      if (d.discType) setDiscType(d.discType);
+      setDiscVal(d.discVal || '');
+      setTab('new');
+      const newDrafts = draftsList.filter((_, i) => i !== idx);
+      setDraftsList(newDrafts);
+      localStorage.setItem('ulgurji_drafts', JSON.stringify(newDrafts));
+      toast.success("Arxiv savatga yuklandi!");
+    }
+  };
+
+  const removeDraft = (idx) => {
+    if (!window.confirm("Rostdan ham arxivni o'chirib yuborasizmi?")) return;
+    const newDrafts = draftsList.filter((_, i) => i !== idx);
+    setDraftsList(newDrafts);
+    localStorage.setItem('ulgurji_drafts', JSON.stringify(newDrafts));
+  };
+
 
   useEffect(() => {
     api.get('/customers/?limit=200').then(r => setCustomers(Array.isArray(r.data) ? r.data : (r.data?.items || []))).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
@@ -345,13 +378,9 @@ export default function UlgurjiSotuv() {
 
   const selectedCustomer = customers.find(c => String(c.id) === String(custId));
 
-  /* ── To'lovni qabul qilish ── */
-  const handlePay = async () => {
+  const submitSale = async (overridePayType, pPaid = 0, pCash = 0, pCard = 0) => {
     if (!cart.length) return toast.error('Savat bo\'sh!');
-    if (debt > 0 && !custId) return toast.error('Qarzga sotish uchun mijoz tanlang!');
-    if (debt > 0 && !debtDate && showDebtDate) return toast.error('Qarz muddat sanasini kiriting!');
-
-    if (debt > 0 && !showDebtDate) { setShowDebtDate(true); return; }
+    if (overridePayType === 'debt' && !custId) return toast.error('Qarzga sotish uchun mijoz tanlang!');
 
     setSaving(true);
     try {
@@ -364,26 +393,22 @@ export default function UlgurjiSotuv() {
           : parseN(it.discount_val),
       }));
 
-      let finalPayType = payType;
-      if (paid === 0) finalPayType = 'debt'; // agar to'lanmasa, 'debt'
-
       const payload = {
         items,
-        payment_type: finalPayType,
-        paid_amount: paid,
-        paid_cash: finalPayType === 'mixed' ? parseN(paidCash) : (finalPayType === 'cash' ? paid : 0),
-        paid_card: finalPayType === 'mixed' ? parseN(paidCard) : (finalPayType === 'card' ? paid : 0),
+        payment_type: overridePayType,
+        paid_amount: pPaid,
+        paid_cash: pCash,
+        paid_card: pCard,
         discount_amount: saleDisc,
         note: note || payNote || undefined,
         customer_id: custId ? Number(custId) : undefined,
         warehouse_id: warehouseId ? Number(warehouseId) : undefined,
-        debt_due_date: debt > 0 ? (debtDate || undefined) : undefined,
+        debt_due_date: overridePayType === 'debt' && debtDate ? debtDate : undefined,
       };
 
       const res = await api.post('/sales/', payload);
       toast.success('Sotuv muvaffaqiyatli saqlandi!');
 
-      // Chek chiqarish
       if (autoPrint) {
         try {
           const receiptRes = await api.get(`/sales/${res.data.id}/receipt`);
@@ -394,7 +419,6 @@ export default function UlgurjiSotuv() {
         }
       }
 
-      // Reset
       setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDiscVal(''); setPaidAmt('');
       setPaidCash(''); setPaidCard(''); setPayNote(''); setDebtDate('');
       setShowPayment(false); setShowDebtDate(false); setPayType('cash');
@@ -403,11 +427,47 @@ export default function UlgurjiSotuv() {
     } finally { setSaving(false); }
   };
 
+  /* ── To'lovni qabul qilish ── */
+  const handlePay = async () => {
+    if (!cart.length) return toast.error('Savat bo\'sh!');
+    if (debt > 0 && !custId) return toast.error('Qarzga sotish uchun mijoz tanlang!');
+    if (debt > 0 && !debtDate && showDebtDate) return toast.error('Qarz muddat sanasini kiriting!');
+    if (debt > 0 && !showDebtDate) { setShowDebtDate(true); return; }
+
+    let finalPayType = payType;
+    if (paid === 0) finalPayType = 'debt';
+
+    let pCash = finalPayType === 'mixed' ? parseN(paidCash) : (finalPayType === 'cash' ? paid : 0);
+    let pCard = finalPayType === 'mixed' ? parseN(paidCard) : (finalPayType === 'card' ? paid : 0);
+
+    await submitSale(finalPayType, paid, pCash, pCard);
+  };
+
+  /* ── Tezkor amallar ── */
+  const handleDirectAction = async (actionType) => {
+    if (!cart.length) return toast.error("Savat bo'sh!");
+    
+    if (actionType === 'draft') {
+      const existing = JSON.parse(localStorage.getItem('ulgurji_drafts') || '[]');
+      const newDraft = { id: Date.now(), date: new Date().toISOString(), cart, custId, note, discType, discVal, total };
+      localStorage.setItem('ulgurji_drafts', JSON.stringify([newDraft, ...existing]));
+      toast.success("Sotuv arxivga olindi!");
+      
+      setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDiscVal('');
+      return;
+    }
+
+    if (actionType === 'debt') {
+      if (!custId) return toast.error("Qarzga sotish uchun mijoz tanlang!");
+      await submitSale('debt', 0, 0, 0);
+    }
+  };
+
   /* ══════════════════════════════════════════════════
      RENDER
   ══════════════════════════════════════════════════ */
   return (
-    <div className="h-screen flex flex-col bg-slate-50 overflow-hidden">
+    <div className="absolute inset-x-6 inset-y-6 flex flex-col bg-slate-50 overflow-hidden shadow-[0_0_12px_rgba(0,0,0,0.05)] border border-slate-200 rounded-[18px]">
 
       {/* ── TOP NAV ── */}
       <div className="shrink-0 bg-white border-b border-slate-200 px-5 py-3 flex items-center justify-between shadow-sm">
@@ -429,6 +489,7 @@ export default function UlgurjiSotuv() {
           {[
             { id: 'new',  label: '+ Yangi sotuv', icon: 'M12 4v16m8-8H4' },
             { id: 'list', label: 'Sotuvlar tarixi', icon: 'M4 6h16M4 10h16M4 14h16M4 18h16' },
+            { id: 'drafts', label: 'Arxivlar', icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${tab === t.id ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
@@ -688,15 +749,30 @@ export default function UlgurjiSotuv() {
               </div>
             </div>
 
-            {/* To'lov tugmasi doim pastda ko'rinib turadi */}
-            <div className="shrink-0 px-4 pb-4 pt-3 border-t border-slate-100 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+            {/* To'lov + Qo'shimcha tugmalar doim pastda ko'rinib turadi */}
+            <div className="shrink-0 px-4 pb-4 pt-3 border-t border-slate-100 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] space-y-2.5">
               <button
                 onClick={() => cart.length > 0 && setShowPayment(true)}
-                disabled={cart.length === 0}
-                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-black text-base rounded-2xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2">
+                disabled={cart.length === 0 || saving}
+                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-black text-base rounded-2xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2">
                 <Ic d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" cls="w-5 h-5" />
                 To'lovni qabul qilish · {fmt(total)} s
               </button>
+
+              <div className="flex gap-2">
+                <button
+                   onClick={() => handleDirectAction('debt')}
+                   disabled={cart.length === 0 || saving}
+                   className="flex-1 py-3 bg-rose-50 hover:bg-rose-100 text-rose-600 disabled:opacity-50 disabled:bg-slate-50 disabled:text-slate-400 font-bold text-sm rounded-xl transition-all border-none">
+                   Qarzga sotish
+                </button>
+                <button
+                   onClick={() => handleDirectAction('draft')}
+                   disabled={cart.length === 0 || saving}
+                   className="flex-1 py-3 bg-amber-50 hover:bg-amber-100 text-amber-600 disabled:opacity-50 disabled:bg-slate-50 disabled:text-slate-400 font-bold text-sm rounded-xl transition-all border-none">
+                   Arxivga olish
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -830,6 +906,50 @@ export default function UlgurjiSotuv() {
               className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-all">
               Keyingi →
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ══ ARXIVLAR ═════════════════════════════════════════ */}
+      {tab === 'drafts' && (
+        <div className="flex-1 overflow-auto p-4 md:p-6 bg-slate-50">
+          <div className="max-w-4xl mx-auto space-y-4">
+            {draftsList.length === 0 && (
+              <div className="text-center py-20 bg-white rounded-3xl border border-slate-200">
+                <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
+                  <Ic d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" cls="w-8 h-8" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-700">Arxivlangan sotuvlar yo'q</h3>
+                <p className="text-sm text-slate-400 mt-1">Sotuv oynasida "Arxivga olish" bosilganlari shu yerga tushadi.</p>
+              </div>
+            )}
+            
+            {draftsList.map((d, i) => (
+              <div key={d.id} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="bg-amber-100 text-amber-700 text-[10px] font-black uppercase px-2 py-0.5 rounded-full tracking-wide">
+                      {new Date(d.date).toLocaleString('uz-UZ', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <span className="text-sm font-bold text-slate-800">
+                      Topildi: {d.cart.length} xil mahsulot
+                    </span>
+                  </div>
+                  <h4 className="text-2xl font-black text-indigo-700">{fmt(d.total)} so'm</h4>
+                  {d.note && <p className="text-xs text-slate-500 mt-1">📝 {d.note}</p>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => removeDraft(i)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-sm transition-colors">
+                    O'chirish
+                  </button>
+                  <button onClick={() => loadDraft(i)}
+                    className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm transition-colors shadow-md shadow-indigo-200">
+                    Savatga yuklash
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
