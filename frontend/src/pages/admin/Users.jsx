@@ -24,11 +24,9 @@ const ROLE_COLORS = {
 
 const BLANK_FORM = { name: '', phone: '', email: '', password: '', role: 'cashier', branch_id: '' };
 
-// ✅ Fix: komponentlarni tashqarida e'lon qilish — kursor muammosini hal qiladi
 const inp = "w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500";
 
 function StatCard({ label, value, color = 'slate' }) {
-  const { t } = useLang();
   const txt = {
     indigo: 'text-indigo-600', emerald: 'text-emerald-600',
     violet: 'text-violet-600', slate: 'text-slate-700',
@@ -41,9 +39,7 @@ function StatCard({ label, value, color = 'slate' }) {
   );
 }
 
-// ✅ Fix: Field, RoleSelect, BranchSelect tashqarida — props orqali ishlaydi
 function Field({ label, children }) {
-  const { t } = useLang();
   return (
     <div>
       <label className="block text-xs font-semibold text-slate-600 mb-1.5">{label}</label>
@@ -53,7 +49,6 @@ function Field({ label, children }) {
 }
 
 function RoleSelect({ value, onChange, roles, roleLabels }) {
-  const { t } = useLang();
   return (
     <Field label="Rol">
       <select value={value} onChange={e => onChange(e.target.value)} className={inp}>
@@ -64,7 +59,6 @@ function RoleSelect({ value, onChange, roles, roleLabels }) {
 }
 
 function BranchSelect({ value, onChange, branches }) {
-  const { t } = useLang();
   return (
     <Field label="Filial">
       <select value={value} onChange={e => onChange(e.target.value)} className={inp}>
@@ -75,6 +69,7 @@ function BranchSelect({ value, onChange, branches }) {
   );
 }
 
+// OTP bosqichlari: 'form' → 'otp_sent' → 'otp_verified'
 export default function Users() {
   const { t } = useLang();
   const [users, setUsers] = useState([]);
@@ -85,6 +80,14 @@ export default function Users() {
   const [newPwd, setNewPwd] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // OTP state
+  const [otpStep, setOtpStep] = useState('form'); // 'form' | 'otp_sent' | 'verified'
+  const [otpCode, setOtpCode] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpVerifiedToken, setOtpVerifiedToken] = useState('');
+  const [devOtp, setDevOtp] = useState(''); // dev modeda konsoldan ko'rsatiladi
+  const [isDevMode, setIsDevMode] = useState(false);
 
   const ROLE_LABELS = getRoleLabels(t);
 
@@ -97,18 +100,81 @@ export default function Users() {
     api.get('/branches').then(r => setBranches(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, [load]);
 
-  const openCreate = () => { setForm(BLANK_FORM); setError(''); setModal('create'); };
+  const openCreate = () => {
+    setForm(BLANK_FORM);
+    setError('');
+    setOtpStep('form');
+    setOtpCode('');
+    setOtpVerifiedToken('');
+    setDevOtp('');
+    setModal('create');
+  };
   const openEdit = (u) => {
     setForm({ name: u.name, phone: u.phone, email: u.email || '', password: '', role: u.role, branch_id: u.branch_id ?? '' });
     setSelected(u); setError(''); setModal('edit');
   };
   const openPwd = (u) => { setSelected(u); setNewPwd(''); setError(''); setModal('password'); };
-  const close = () => { setModal(null); setSelected(null); setError(''); };
+  const close = () => {
+    setModal(null); setSelected(null); setError('');
+    setOtpStep('form'); setOtpCode(''); setOtpVerifiedToken(''); setDevOtp('');
+  };
 
   const setField = useCallback((key, val) => {
     setForm(prev => ({ ...prev, [key]: val }));
+    // telefon o'zgarganda OTP holatini reset qilamiz
+    if (key === 'phone') {
+      setOtpStep('form');
+      setOtpCode('');
+      setOtpVerifiedToken('');
+      setDevOtp('');
+    }
   }, []);
 
+  // 1-qadam: OTP yuborish
+  const handleSendOtp = async () => {
+    const phone = form.phone.trim();
+    if (!phone) { setError('Telefon raqamini kiriting'); return; }
+    setOtpLoading(true); setError('');
+    try {
+      const res = await api.post('/auth/send-otp', { phone, purpose: 'register' });
+      if (res.data.sent) {
+        setOtpStep('otp_sent');
+        setIsDevMode(!!res.data.dev_mode);
+        if (res.data.dev_mode) {
+          // Dev modeda konsolga chiqarilgan OTP ni ko'rsatish uchun xabar
+          setDevOtp('(Dev rejim: OTP serverning konsolini ko\'ring)');
+        }
+        toast.success('OTP Telegram orqali yuborildi');
+      } else {
+        setError(res.data.message || 'OTP yuborishda xato');
+      }
+    } catch (err) {
+      setError(err.response?.data?.detail || 'OTP yuborishda xato');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // 2-qadam: OTP tasdiqlash
+  const handleVerifyOtp = async () => {
+    if (!otpCode.trim()) { setError('OTP kodni kiriting'); return; }
+    setOtpLoading(true); setError('');
+    try {
+      const res = await api.post('/auth/verify-otp', { phone: form.phone, otp: otpCode.trim() });
+      if (res.data.verified) {
+        setOtpVerifiedToken(res.data.verified_token);
+        setOtpStep('verified');
+        setError('');
+        toast.success('Telefon tasdiqlandi ✓');
+      }
+    } catch (err) {
+      setError(err.response?.data?.detail || 'OTP noto\'g\'ri');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // 3-qadam: Foydalanuvchi yaratish
   const handleCreate = async (e) => {
     e.preventDefault(); setSaving(true); setError('');
     try {
@@ -119,11 +185,14 @@ export default function Users() {
         password: form.password,
         role: form.role,
         branch_id: form.branch_id ? Number(form.branch_id) : null,
+        otp_verified_token: otpVerifiedToken || null,
       };
       await api.post('/users/', payload);
       close(); load();
-    } catch (err) { setError(err.response?.data?.detail || t('common.error')); }
-    finally { setSaving(false); }
+      toast.success('Foydalanuvchi muvaffaqiyatli qo\'shildi');
+    } catch (err) {
+      setError(err.response?.data?.detail || t('common.error'));
+    } finally { setSaving(false); }
   };
 
   const handleEdit = async (e) => {
@@ -263,6 +332,8 @@ export default function Users() {
               </button>
             </div>
             <form onSubmit={handleCreate} className="p-6 space-y-4">
+
+              {/* Ism */}
               <Field label={`${t('common.name')} *`}>
                 <input
                   type="text" required value={form.name}
@@ -271,37 +342,111 @@ export default function Users() {
                   autoFocus
                 />
               </Field>
+
+              {/* Telefon + OTP yuborish tugmasi */}
               <Field label={`${t('common.phone')} *`}>
-                <input
-                  type="text" required value={form.phone}
-                  onChange={e => setField('phone', e.target.value)}
-                  placeholder="+998901234567" className={inp}
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text" required value={form.phone}
+                    onChange={e => setField('phone', e.target.value)}
+                    placeholder="+998901234567" className={inp}
+                    disabled={otpStep === 'verified'}
+                  />
+                  {otpStep === 'form' && (
+                    <button
+                      type="button"
+                      onClick={handleSendOtp}
+                      disabled={otpLoading || !form.phone}
+                      className="shrink-0 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors whitespace-nowrap"
+                    >
+                      {otpLoading ? '...' : 'OTP yuborish'}
+                    </button>
+                  )}
+                  {otpStep === 'verified' && (
+                    <div className="shrink-0 px-3 py-2 bg-emerald-100 text-emerald-700 text-sm font-semibold rounded-xl flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                      </svg>
+                      Tasdiqlandi
+                    </div>
+                  )}
+                  {otpStep === 'otp_sent' && (
+                    <button
+                      type="button"
+                      onClick={handleSendOtp}
+                      disabled={otpLoading}
+                      className="shrink-0 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm rounded-xl transition-colors"
+                    >
+                      Qayta yuborish
+                    </button>
+                  )}
+                </div>
               </Field>
-              <Field label="Email">
-                <input
-                  type="email" value={form.email}
-                  onChange={e => setField('email', e.target.value)}
-                  placeholder="email@example.com" className={inp}
-                />
-              </Field>
-              <Field label={`${t('user.password')} *`}>
-                <input
-                  type="password" required minLength={6} value={form.password}
-                  onChange={e => setField('password', e.target.value)}
-                  placeholder="Kamida 6 ta belgi" className={inp}
-                />
-              </Field>
-              <RoleSelect value={form.role} onChange={v => setField('role', v)} roles={ROLES} roleLabels={ROLE_LABELS} />
-              {branches.length > 0 && (
-                <BranchSelect value={form.branch_id} onChange={v => setField('branch_id', v)} branches={branches} />
+
+              {/* OTP kirish maydoni */}
+              {otpStep === 'otp_sent' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+                  <p className="text-sm text-blue-700 font-medium">
+                    📱 Telegram botingizga OTP kod yuborildi. Kodni kiriting:
+                  </p>
+                  {devOtp && (
+                    <p className="text-xs text-slate-500 italic">{devOtp}</p>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={otpCode}
+                      onChange={e => { setOtpCode(e.target.value); setError(''); }}
+                      placeholder="123456"
+                      maxLength={6}
+                      className="flex-1 px-3.5 py-2.5 border border-blue-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-center tracking-widest text-lg font-bold"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={handleVerifyOtp}
+                      disabled={otpLoading || otpCode.length < 6}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors"
+                    >
+                      {otpLoading ? '...' : 'Tasdiqlash'}
+                    </button>
+                  </div>
+                </div>
               )}
+
+              {/* Qolgan formalar — faqat OTP tasdiqlangandan keyin */}
+              {otpStep === 'verified' && (
+                <>
+                  <Field label="Email">
+                    <input
+                      type="email" value={form.email}
+                      onChange={e => setField('email', e.target.value)}
+                      placeholder="email@example.com" className={inp}
+                    />
+                  </Field>
+                  <Field label={`${t('user.password')} *`}>
+                    <input
+                      type="password" required minLength={6} value={form.password}
+                      onChange={e => setField('password', e.target.value)}
+                      placeholder="Kamida 6 ta belgi" className={inp}
+                    />
+                  </Field>
+                  <RoleSelect value={form.role} onChange={v => setField('role', v)} roles={ROLES} roleLabels={ROLE_LABELS} />
+                  {branches.length > 0 && (
+                    <BranchSelect value={form.branch_id} onChange={v => setField('branch_id', v)} branches={branches} />
+                  )}
+                </>
+              )}
+
               {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
+
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
-                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
-                  {saving ? t('common.saving') : t('common.add')}
-                </button>
+                {otpStep === 'verified' && (
+                  <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
+                    {saving ? t('common.saving') : t('common.add')}
+                  </button>
+                )}
               </div>
             </form>
           </div>
