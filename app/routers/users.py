@@ -89,9 +89,13 @@ def create_user(
     ).first()
 
     # ── Tarif limit tekshiruvi (inline) ──────────────────────
-    if current_user.role != UserRole.super_admin:
+    # Faqat yangi foydalanuvchi qo'shilayotganda tekshiramiz
+    # (mavjud faol foydalanuvchi boshqa korxonaga qo'shilayotganda tekshirmaymiz)
+    is_existing_user = active_existing or inactive_existing
+    if current_user.role != UserRole.super_admin and not (active_existing):
         from app.models.company import Company as Co
         from app.models.billing import Tariff as Tf
+        from app.models.user_company import UserCompany as UCt
         from datetime import datetime, timezone
 
         co = db.query(Co).filter(Co.id == company_id).first()
@@ -104,10 +108,13 @@ def create_user(
                 if sub_end > datetime.now(timezone.utc):
                     max_usr = co.tariff.max_users or 5
 
+        # UserCompany jadvalidan hisoblash — to'g'ri count
         current_count = (
-            db.query(User)
+            db.query(UCt)
+            .join(User, User.id == UCt.user_id)
             .filter(
-                User.company_id == company_id,
+                UCt.company_id == company_id,
+                UCt.is_active == True,
                 User.status != UserStatus.inactive,
                 User.role != UserRole.super_admin,
             )
