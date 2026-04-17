@@ -375,11 +375,8 @@ def verify_otp(data: VerifyOtpRequest):
 
     # OTP to'g'ri — verified_token yaratish
     del _otp_store[normalized]
-    verified_token = secrets.token_urlsafe(32)
-    _verified_tokens[verified_token] = {
-        "phone": normalized,
-        "expires": datetime.now(timezone.utc) + timedelta(minutes=10),
-    }
+    from app.core.security import create_access_token
+    verified_token = create_access_token({"phone": normalized, "type": "otp_verified"}, expires_delta=timedelta(minutes=10))
 
     return {"verified": True, "verified_token": verified_token}
 
@@ -410,15 +407,12 @@ def register_company(request: Request, data: CompanyRegisterRequest, db: Session
     if not is_dev_mode:
         if not data.otp_verified_token:
             raise HTTPException(status_code=400, detail="Telegram OTP tasdiqlash talab qilinadi")
-        token_data = _verified_tokens.get(data.otp_verified_token)
-        if not token_data:
+        from app.core.security import decode_token
+        token_data = decode_token(data.otp_verified_token)
+        if not token_data or token_data.get("type") != "otp_verified":
             raise HTTPException(status_code=400, detail="OTP token noto'g'ri yoki muddati o'tgan")
-        if token_data["phone"] != data.phone:
+        if token_data.get("phone") != data.phone:
             raise HTTPException(status_code=400, detail="OTP token bu telefon uchun emas")
-        if datetime.now(timezone.utc) > token_data["expires"]:
-            del _verified_tokens[data.otp_verified_token]
-            raise HTTPException(status_code=400, detail="OTP token muddati tugagan")
-        del _verified_tokens[data.otp_verified_token]
 
     # Telefon takrorlanishini tekshirish
     existing_user = db.query(User).filter(User.phone == data.phone).first()
@@ -551,11 +545,8 @@ def _process_login_success(user: User, db: Session, request: Request, is_otp: bo
                    user_id=user.id, ip_address=request.client.host if request.client else None)
         db.commit()
         # Vaqtinchalik token
-        temp_token = secrets.token_urlsafe(32)
-        _verified_tokens[temp_token] = {
-            "user_id": user.id,
-            "expires": datetime.now(timezone.utc) + timedelta(minutes=15)
-        }
+        from app.core.security import create_access_token
+        temp_token = create_access_token({"user_id": user.id, "type": "temp_login"}, expires_delta=timedelta(minutes=15))
         return TokenResponse(
             needs_company_selection=True,
             companies=comps,
@@ -689,14 +680,12 @@ class SelectCompanyRequest(BaseModel):
 @router.post("/select-company", response_model=TokenResponse)
 def select_company(request: Request, data: SelectCompanyRequest, db: Session = Depends(get_db)):
     """Ko'p korxonali foydalanuvchi korxonani tanlaganda token berish"""
-    token_data = _verified_tokens.get(data.temp_token)
-    if not token_data:
+    from app.core.security import decode_token
+    token_data = decode_token(data.temp_token)
+    if not token_data or token_data.get("type") != "temp_login":
         raise HTTPException(status_code=400, detail="Sessiya yaroqsiz yoki eskirgan. Iltimos qayta login qiling")
-    if datetime.now(timezone.utc) > token_data["expires"]:
-        del _verified_tokens[data.temp_token]
-        raise HTTPException(status_code=400, detail="Sessiya muddati tugagan. Qayta login qiling")
     
-    user_id = token_data["user_id"]
+    user_id = token_data.get("user_id")
     user = db.query(User).filter(User.id == user_id, User.status == UserStatus.active).first()
     if not user:
         raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
@@ -720,9 +709,6 @@ def select_company(request: Request, data: SelectCompanyRequest, db: Session = D
     log_action(db=db, action="LOGIN_SELECT_COMPANY", entity_type="user", entity_id=user.id,
                user_id=user.id, ip_address=request.client.host if request.client else None)
     db.commit()
-
-    # temp_token ni o'chirib yuboramiz - 1 martalik
-    del _verified_tokens[data.temp_token]
 
     return TokenResponse(
         access_token=access_token,
@@ -846,15 +832,13 @@ def reset_password(data: ResetPasswordRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Parol kamida 6 ta belgidan iborat bo'lishi kerak")
 
     normalized = data.phone.strip().replace("+", "").replace(" ", "").replace("-", "")
-    token_data = _verified_tokens.get(data.verified_token)
+    from app.core.security import decode_token
+    token_data = decode_token(data.verified_token)
 
-    if not token_data:
-        raise HTTPException(status_code=400, detail="OTP tasdiqlanmagan. Qaytadan boshlang.")
-    if token_data["phone"] != normalized:
+    if not token_data or token_data.get("type") != "otp_verified":
+        raise HTTPException(status_code=400, detail="OTP tasdiqlanmagan yoki muddati o'tgan. Qaytadan boshlang.")
+    if token_data.get("phone") != normalized:
         raise HTTPException(status_code=400, detail="Token bu telefon raqam uchun emas")
-    if datetime.now(timezone.utc) > token_data["expires"]:
-        del _verified_tokens[data.verified_token]
-        raise HTTPException(status_code=400, detail="Token muddati tugagan. Qaytadan OTP so'rang.")
 
     user = db.query(User).filter(User.phone == normalized, User.status == UserStatus.active).first()
     if not user:
@@ -862,7 +846,6 @@ def reset_password(data: ResetPasswordRequest, db: Session = Depends(get_db)):
 
     user.hashed_password = hash_password(data.new_password)
     db.commit()
-    del _verified_tokens[data.verified_token]
 
     return {"message": "Parol muvaffaqiyatli yangilandi"}
 
