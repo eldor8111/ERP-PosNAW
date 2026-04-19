@@ -1538,7 +1538,7 @@ const emptySupplier = {
 };
 function StarRating({ value }) {
   const { t } = useLang();
-  return <div className="flex gap-0.5">{[1,2,3,4,5].map(s=><span key={s} className={`text-base ${(value||0)>=s?'text-amber-400':'text-slate-200'}`}>\u2605</span>)}</div>;
+  return <div className="flex gap-0.5">{[1,2,3,4,5].map(s=><span key={s} className={`text-base ${(value||0)>=s?'text-amber-400':'text-slate-200'}`}>{'★'}</span>)}</div>;
 }
 function AvatarS({ name }) {
   const { t } = useLang();

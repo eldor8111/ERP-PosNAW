@@ -79,37 +79,39 @@ def list_counts(
     current_user: User = Depends(require_roles(*ALLOWED)),
 ):
     from sqlalchemy import func
-    
+
     q = (
         db.query(
-            InventoryCount,
-            func.count(InventoryCountItem.id).label("item_count")
+            InventoryCount.id,
+            InventoryCount.number,
+            InventoryCount.status,
+            InventoryCount.created_at,
+            Warehouse.name.label("warehouse_name"),
+            func.count(InventoryCountItem.id).label("item_count"),
         )
         .outerjoin(InventoryCountItem, InventoryCount.id == InventoryCountItem.count_id)
-        .options(joinedload(InventoryCount.warehouse))
-        .group_by(InventoryCount.id)
+        .outerjoin(Warehouse, Warehouse.id == InventoryCount.warehouse_id)
+        .group_by(InventoryCount.id, InventoryCount.number, InventoryCount.status,
+                  InventoryCount.created_at, Warehouse.name)
         .order_by(InventoryCount.created_at.desc())
     )
     if current_user.role != UserRole.super_admin:
-        company_wh_ids = [
-            wh.id for wh in db.query(Warehouse.id).filter(Warehouse.company_id == current_user.company_id).all()
-        ]
-        q = q.filter(InventoryCount.warehouse_id.in_(company_wh_ids))
+        q = q.filter(Warehouse.company_id == current_user.company_id)
     if status:
         q = q.filter(InventoryCount.status == status)
-    
-    counts_with_len = q.offset(skip).limit(limit).all()
-    
+
+    rows = q.offset(skip).limit(limit).all()
+
     return [
         InventoryCountListOut(
-            id=c.InventoryCount.id,
-            number=c.InventoryCount.number,
-            warehouse_name=c.InventoryCount.warehouse.name,
-            status=c.InventoryCount.status,
-            created_at=c.InventoryCount.created_at,
-            item_count=c.item_count,
+            id=r.id,
+            number=r.number,
+            warehouse_name=r.warehouse_name or "",
+            status=r.status,
+            created_at=r.created_at,
+            item_count=r.item_count,
         )
-        for c in counts_with_len
+        for r in rows
     ]
 
 
