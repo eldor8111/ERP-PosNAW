@@ -551,7 +551,6 @@ def _process_login_success(user: User, db: Session, request: Request, is_otp: bo
                    user_id=user.id, ip_address=request.client.host if request.client else None)
         db.commit()
         # Vaqtinchalik token
-        from app.core.security import create_access_token
         temp_token = create_access_token({"user_id": user.id, "type": "temp_login"}, expires_delta=timedelta(minutes=15))
         return TokenResponse(
             needs_company_selection=True,
