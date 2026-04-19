@@ -466,6 +466,16 @@ def register_company(request: Request, data: CompanyRegisterRequest, db: Session
         tg_chat_id=reg_chat_id,
     )
     db.add(user)
+    db.flush()
+
+    from app.models.user_company import UserCompany
+    user_company = UserCompany(
+        user_id=user.id,
+        company_id=company.id,
+        role=UserRole.admin,
+        is_active=True,
+    )
+    db.add(user_company)
     db.commit()
     db.refresh(user)
 
