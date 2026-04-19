@@ -22,17 +22,18 @@ const payMeta = {
 const ic = 'border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white transition-colors hover:border-slate-300';
 
 const poMeta = {
-  draft:     { l: 'Qoralama',   c: 'bg-slate-100 text-slate-600' },
-  sent:      { l: 'Tasdiqlangan', c: 'bg-blue-100 text-blue-700' },
-  partial:   { l: 'Qisman',     c: 'bg-amber-100 text-amber-700' },
-  received:  { l: 'Qabul',      c: 'bg-emerald-100 text-emerald-700' },
-  cancelled: { l: 'Bekor',      c: 'bg-red-100 text-red-500' },
+  draft:     { lKey: 'purchase.statusDraft',    c: 'bg-slate-100 text-slate-600' },
+  sent:      { lKey: 'purchase.statusOrdered',  c: 'bg-blue-100 text-blue-700' },
+  partial:   { lKey: 'purchase.statusPartial',  c: 'bg-amber-100 text-amber-700' },
+  received:  { lKey: 'purchase.statusReceived', c: 'bg-emerald-100 text-emerald-700' },
+  cancelled: { lKey: 'common.cancel',           c: 'bg-red-100 text-red-500' },
 };
 
 function Badge({ meta, val }) {
   const { t } = useLang();
-  const m = meta[val] || { l: val, c: 'bg-slate-100 text-slate-600' };
-  return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${m.c}`}>{m.l}</span>;
+  const m = meta[val] || { c: 'bg-slate-100 text-slate-600' };
+  const label = m.lKey ? t(m.lKey) || m.l || val : m.l || val;
+  return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${m.c}`}>{label}</span>;
 }
 function Btn({ v = 'primary', sm, children, ...p }) {
   const { t } = useLang();
@@ -1419,16 +1420,16 @@ function KirimlarTab({ products, warehouses, suppliers }) {
   if (mode === 'create') return <KirimCreateView onBack={() => setMode('list')} onSaved={load} />;
 
   const cols = [
-    { k:'number',         l:'Raqam' },
-    { k:'supplier_name',  l:"Ta'minotchi" },
-    { k:'warehouse_name', l:'Ombor' },
-    { k:'status',         l:'Holat', r: v => <Badge meta={poMeta} val={v} /> },
-    { k:'total_amount',   l:"Jami (so'm)", r: v => fmt(v) },
-    { k:'created_at',     l:'Sana', r: v => fmtDay(v) },
+    { k:'number',         l:t('purchase.colNumber') },
+    { k:'supplier_name',  l:t('purchase.supplier') },
+    { k:'warehouse_name', l:t('purchase.colWarehouse') },
+    { k:'status',         l:t('purchase.filterStatus'), r: v => <Badge meta={poMeta} val={v} /> },
+    { k:'total_amount',   l:t('purchase.colTotal'), r: v => fmt(v) },
+    { k:'created_at',     l:t('purchase.colDate'), r: v => fmtDay(v) },
     { k:'id', l:'', r: (v,row) => ['draft','ordered','partial'].includes(row.status) ? (
       <button onClick={e=>{e.stopPropagation(); openDetail(row);}}
         className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 font-medium whitespace-nowrap">
-        Qabul qilish
+        {t('purchase.receive')}
       </button>
     ) : null },
   ];
@@ -1437,16 +1438,16 @@ function KirimlarTab({ products, warehouses, suppliers }) {
     <div className="space-y-4">
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
         <div className="flex flex-wrap items-end gap-3">
-          <Lbl t="Holat">
+          <Lbl t={t('purchase.filterStatus')}>
             <select value={stFilter} onChange={e => setStFil(e.target.value)} className={ic}>
-              <option value="">{t('admin.dict.all2') || 'Barchasi'}</option>
-              {Object.entries(poMeta).map(([v,m]) => <option key={v} value={v}>{m.l}</option>)}
+              <option value="">{t('admin.dict.all2') || t('purchase.allBranches')}</option>
+              {Object.entries(poMeta).map(([v,m]) => <option key={v} value={v}>{m.lKey ? t(m.lKey) : m.l}</option>)}
             </select>
           </Lbl>
           {branches.length > 0 && (
-            <Lbl t="Filial">
+            <Lbl t={t('purchase.filterBranch')}>
               <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)} className={ic}>
-                <option value="">Barcha filiallar</option>
+                <option value="">{t('purchase.allBranches')}</option>
                 {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </Lbl>
@@ -1454,7 +1455,7 @@ function KirimlarTab({ products, warehouses, suppliers }) {
           <div className="ml-auto">
             <Btn onClick={() => setMode('create')}>
               <svg className="w-4 h-4 inline mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-              Yangi kirim
+              {t('purchase.newKirim')}
             </Btn>
           </div>
         </div>
@@ -1472,7 +1473,7 @@ function KirimlarTab({ products, warehouses, suppliers }) {
             </div>
             <div className="p-6 overflow-y-auto flex-1 space-y-4">
               <div className="grid grid-cols-4 gap-3 text-sm">
-                {[["Ta'minotchi",detail.supplier_name],["Ombor",detail.warehouse_name],["Holat",<Badge meta={poMeta} val={detail.status}/>],["Sana",fmtDay(detail.created_at)]].map(([k,v])=>(
+                {[[t('purchase.supplier'),detail.supplier_name],[t('purchase.colWarehouse'),detail.warehouse_name],[t('purchase.filterStatus'),<Badge meta={poMeta} val={detail.status}/>],[t('purchase.colDate'),fmtDay(detail.created_at)]].map(([k,v])=>(
                   <div key={k} className="bg-slate-50 rounded-xl p-3"><div className="text-xs text-slate-500 mb-1">{k}</div><div className="font-semibold">{v}</div></div>
                 ))}
               </div>
@@ -1687,7 +1688,7 @@ function SuppliersTab() {
     <div className="space-y-4">
       <div className="flex gap-3">
         <div className="relative flex-1"><svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-          <input className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Ta'minotchi qidirish..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
+          <input className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder={t('purchase.searchSupplier')} value={search} onChange={e=>setSearch(e.target.value)}/></div>
         
         <button
           onClick={() => {
@@ -1701,27 +1702,27 @@ function SuppliersTab() {
           className="px-4 py-2 text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl flex items-center gap-2 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-          Eksport (Excel)
+          {t('purchase.exportExcel')}
         </button>
         <button
           onClick={openImport}
           className="px-4 py-2 text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-2 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-          Exceldan yuklash
+          {t('purchase.importExcel')}
         </button>
 
         <button onClick={()=>{setForm(emptySupplier);setSel(null);setErr('');setModal('form');}} className="px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold rounded-xl flex items-center gap-2">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>Yangi
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>{t('common.new')}
         </button>
       </div>
       <div className="flex items-center justify-between px-4 py-3 bg-white border border-slate-100 rounded-xl shadow-sm">
-        <span className="text-sm font-medium text-slate-500">Jami ta'minotchilar qarzi:</span>
+        <span className="text-sm font-medium text-slate-500">{t('purchase.totalSupplierDebt')}</span>
         <span className="text-lg font-bold text-red-500">{fmt(list.reduce((sum, s) => sum + Number(s.debt_balance || 0), 0))} so'm</span>
       </div>
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <table className="min-w-full">
-          <thead><tr className="bg-slate-50 border-b border-slate-100">{["Ta'minotchi",'INN','Telefon','Reyting','Qarz',''].map(h=><th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>)}</tr></thead>
+          <thead><tr className="bg-slate-50 border-b border-slate-100">{[t('purchase.supplier'),'INN',t('common.phone'),t('purchase.colRating'),t('common.debt'),''].map(h=><th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>)}</tr></thead>
           <tbody className="divide-y divide-slate-50">
             {list.map(s=>(
               <tr key={s.id} className="hover:bg-slate-50">
@@ -1736,7 +1737,7 @@ function SuppliersTab() {
                 </div></td>
               </tr>
             ))}
-            {list.length===0&&<tr><td colSpan={5} className="px-5 py-12 text-center text-slate-400 text-sm">Ta'minotchilar topilmadi</td></tr>}
+            {list.length===0&&<tr><td colSpan={5} className="px-5 py-12 text-center text-slate-400 text-sm">{t('purchase.noSuppliers')}</td></tr>}
           </tbody>
         </table>
       </div>
@@ -1945,7 +1946,7 @@ function PurchaseOrdersTab() {
         <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"/></div>
       ) : (
         <table className="min-w-full">
-          <thead><tr className="bg-slate-50 border-b border-slate-100">{["Raqam","Ta'minotchi","Ombor","Summa","Holat"].map(h=><th key={h} className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
+          <thead><tr className="bg-slate-50 border-b border-slate-100">{[t('purchase.colNumber'),t('purchase.supplier'),t('purchase.colWarehouse'),t('purchase.colTotal'),t('purchase.filterStatus')].map(h=><th key={h} className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
           <tbody className="divide-y divide-slate-50">
             {pos.map(p=>(
               <tr key={p.id} className="hover:bg-slate-50">
@@ -1953,10 +1954,10 @@ function PurchaseOrdersTab() {
                 <td className="px-6 py-4 text-sm text-slate-700 font-medium">{p.supplier_name}</td>
                 <td className="px-6 py-4 text-sm text-slate-500">{p.warehouse_name}</td>
                 <td className="px-6 py-4 text-sm font-semibold text-slate-800">{Number(p.total_amount).toLocaleString()} <span className="text-slate-400 font-normal">so'm</span></td>
-                <td className="px-6 py-4 text-sm text-slate-500">{p.status}</td>
+                <td className="px-6 py-4"><Badge meta={poMeta} val={p.status} /></td>
               </tr>
             ))}
-            {pos.length===0&&<tr><td colSpan={5} className="px-6 py-16 text-center text-slate-400 text-sm">Buyurtmalar topilmadi</td></tr>}
+            {pos.length===0&&<tr><td colSpan={5} className="px-6 py-16 text-center text-slate-400 text-sm">{t('purchase.noOrders')}</td></tr>}
           </tbody>
         </table>
       )}
