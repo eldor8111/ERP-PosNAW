@@ -29,10 +29,13 @@ DEFAULT_SETTINGS = {
 
 
 def _get_settings_dict(db: Session) -> dict:
-    rows = db.query(PlatformSettings).all()
     result = dict(DEFAULT_SETTINGS)
-    for r in rows:
-        result[r.key] = r.value or result.get(r.key, "")
+    try:
+        rows = db.query(PlatformSettings).all()
+        for r in rows:
+            result[r.key] = r.value or result.get(r.key, "")
+    except Exception:
+        db.rollback()
     return result
 
 
