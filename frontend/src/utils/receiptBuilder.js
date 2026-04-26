@@ -41,22 +41,100 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   const change = Math.max(0, Number(sale.paid_amount) - Number(sale.total_amount));
 
   if (isNak) {
-    const itemRows = (sale.items || []).map((i, idx) =>
-      `<tr>
-         <td>${idx + 1}</td>
-         <td>${i.product_name || i.product?.name || `ID=${i.product_id}`}</td>
-         <td style="text-align:right">${Number(i.quantity || i.qty_ordered || 0)}</td>
-         <td style="text-align:right">${Number(i.unit_price).toLocaleString('uz-UZ')}</td>
-         <td style="text-align:right">${Number(i.subtotal || ((i.unit_price * (i.quantity||i.qty_ordered)) - (i.discount||i.discount_val||0))).toLocaleString('uz-UZ')}</td>
-       </tr>`
-    ).join('');
+    const c = cfg; // shorthand
+    const sh = (key, def=true) => c[key] !== undefined ? c[key] : def;
 
-    const nakLogoPos = cfg.logo_position || 'center';
+    const nakLogoPos = c.logo_position || 'center';
     const nakLogoAlign = nakLogoPos === 'left' ? 'left' : nakLogoPos === 'right' ? 'right' : 'center';
-    const nakLogoSz = cfg.logo_size || 50;
-    const nakLogoHtml = cfg.logo
-      ? `<div style="text-align:${nakLogoAlign};margin-bottom:6px"><img src="${cfg.logo}" style="height:${nakLogoSz}px;max-width:${Math.round(nakLogoSz*3)}px;object-fit:contain" alt="logo"/></div>`
+    const nakLogoSz = c.logo_size || 50;
+    const nakLogoHtml = c.logo
+      ? `<div style="text-align:${nakLogoAlign};margin-bottom:6px"><img src="${c.logo}" style="height:${nakLogoSz}px;max-width:${Math.round(nakLogoSz*3)}px;object-fit:contain" alt="logo"/></div>`
       : '';
+
+    // Table columns
+    const cols = [
+      { key: 'show_ordering_number', label: '№',            align: 'center' },
+      { key: 'show_item',            label: 'Mahsulot nomi',align: 'left',  always: true },
+      { key: 'show_measurement',     label: "O'lchov",      align: 'center' },
+      { key: 'show_warehouse',       label: 'Ombor',        align: 'left'   },
+      { key: 'show_sku',             label: 'SKU',          align: 'left'   },
+      { key: 'show_price',           label: 'Narxi',        align: 'right'  },
+      { key: 'show_discount',        label: 'Chegirma',     align: 'right'  },
+      { key: 'show_price_with_discount', label: 'Chegirmali narx', align: 'right' },
+      { key: 'show_net_price',       label: 'Sof narx',     align: 'right'  },
+      { key: 'show_currency',        label: 'Valyuta',      align: 'center' },
+      { key: 'item_qty',             label: 'Soni',         align: 'right', always: true },
+      { key: 'item_total',           label: 'Jami',         align: 'right', always: true },
+    ];
+    const visibleCols = cols.filter(col => col.always || sh(col.key, col.key === 'show_ordering_number' || col.key === 'show_price'));
+
+    const headerRow = visibleCols.map(col => `<th style="text-align:${col.align}">${col.label}</th>`).join('');
+
+    const itemRows = (sale.items || []).map((i, idx) => {
+      const qty = Number(i.quantity || i.qty_ordered || 0);
+      const up = Number(i.unit_price || 0);
+      const disc = Number(i.discount || i.discount_val || 0);
+      const sub = Number(i.subtotal || (up * qty - disc));
+      const cells = visibleCols.map(col => {
+        let val = '';
+        switch(col.key) {
+          case 'show_ordering_number': val = idx + 1; break;
+          case 'show_item':            val = i.product_name || i.product?.name || `ID=${i.product_id}`; break;
+          case 'show_measurement':     val = i.measurement_name || i.unit || ''; break;
+          case 'show_warehouse':       val = i.warehouse_name || ''; break;
+          case 'show_sku':             val = i.sku || ''; break;
+          case 'show_price':           val = up.toLocaleString('uz-UZ'); break;
+          case 'show_discount':        val = disc > 0 ? `-${disc.toLocaleString('uz-UZ')}` : ''; break;
+          case 'show_price_with_discount': val = (up - disc/qty).toLocaleString('uz-UZ'); break;
+          case 'show_net_price':       val = sub.toLocaleString('uz-UZ'); break;
+          case 'show_currency':        val = i.currency_name || "so'm"; break;
+          case 'item_qty':             val = qty; break;
+          case 'item_total':           val = sub.toLocaleString('uz-UZ'); break;
+        }
+        return `<td style="text-align:${col.align}">${val}</td>`;
+      }).join('');
+      return `<tr>${cells}</tr>`;
+    }).join('');
+
+    const totalColspan = visibleCols.length - 1;
+
+    // Info rows (contractor, employee, etc.)
+    const infoLines = [
+      sh('show_contractor_name') && sale.contractor_name ? `<div><b>Mijoz:</b> ${sale.contractor_name}</div>` : '',
+      sh('show_account_name') && sale.account_name ? `<div><b>Filial:</b> ${sale.account_name}</div>` : '',
+      sh('show_account_username') && sale.account_username ? `<div><b>Foydalanuvchi:</b> ${sale.account_username}</div>` : '',
+      sh('show_employee') && (sale.cashier_name || sale.employee_name) ? `<div><b>Xodim:</b> ${sale.employee_name || sale.cashier_name}</div>` : '',
+      sh('show_status') && sale.status ? `<div><b>Holat:</b> ${sale.status}</div>` : '',
+      sh('show_contractor_contacts') && sale.contractor_contacts?.length ? `<div><b>Kontakt:</b> ${sale.contractor_contacts.map(c=>c.value||c).join(', ')}</div>` : '',
+    ].filter(Boolean).join('');
+
+    // Totals section
+    const totalsHtml = sh('show_totals') ? `
+      <table class="totals">
+        <tr><td>JAMI:</td><td><b>${Number(sale.total_amount).toLocaleString('uz-UZ')} so'm</b></td></tr>
+        ${sh('show_total_national') && sale.total_national ? `<tr><td>Milliy valyutada:</td><td>${sale.total_national}</td></tr>` : ''}
+        ${sh('show_total_quantity') && sale.total_quantity ? `<tr><td>Jami miqdor:</td><td>${sale.total_quantity}</td></tr>` : ''}
+        ${sh('show_exact_discounts') && Number(sale.discount_amount) > 0 ? `<tr><td>Chegirma:</td><td>-${Number(sale.discount_amount).toLocaleString('uz-UZ')} so'm</td></tr>` : ''}
+        ${sh('show_percent_discount') && sale.percent_discount ? `<tr><td>% Chegirma:</td><td>${sale.percent_discount}%</td></tr>` : ''}
+        ${sh('show_payment_amounts') ? (
+          sale.payment_types_array
+            ? sale.payment_types_array.map(pt => `<tr><td>To'lov (${pt.type}):</td><td>${Number(pt.amount).toLocaleString('uz-UZ')} so'm</td></tr>`).join('')
+            : `<tr><td>To'langan:</td><td>${Number(sale.paid_amount || 0).toLocaleString('uz-UZ')} so'm</td></tr>`
+        ) : ''}
+        ${sh('show_contractor_debts') && debt > 0 ? `<tr><td style="color:red">Qarz:</td><td style="color:red">${Number(debt).toLocaleString('uz-UZ')} so'm</td></tr>` : ''}
+        ${sh('show_before_debts') && sale.before_debt ? `<tr><td>Oldingi qarz:</td><td>${Number(sale.before_debt).toLocaleString('uz-UZ')} so'm</td></tr>` : ''}
+        ${sh('show_last_payment') && sale.last_payment ? `<tr><td>Oxirgi to'lov:</td><td>${Number(sale.last_payment).toLocaleString('uz-UZ')} so'm</td></tr>` : ''}
+        ${change > 0 ? `<tr><td style="color:green">Qaytim:</td><td style="color:green">${Number(change).toLocaleString('uz-UZ')} so'm</td></tr>` : ''}
+      </table>` : '';
+
+    // Signatures
+    const sigsHtml = `<div class="sigs">
+      ${sh('show_director') ? `<div>Direktor: ${c.director || '___________'}</div>` : ''}
+      ${sh('show_accountant') ? `<div>Buxgalter: ${c.accountant || '___________'}</div>` : ''}
+      ${sh('show_storekeeper') ? `<div>Omborchi: ${c.storekeeper || '___________'}</div>` : ''}
+    </div>`;
+
+    const noteHtml = sh('show_note') && sale.note ? `<div style="margin-top:6px;font-size:9px;color:#555">Izoh: ${sale.note}</div>` : '';
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Nakladnoy ${sale.number || sale.id}</title>
 <style>
@@ -65,6 +143,7 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   .hdr { text-align:center; margin-bottom:10px; }
   .hdr h1 { font-size:13px; }
   .hdr p { font-size:9px; color:#555; }
+  .info { font-size:9px; margin-bottom:6px; display:flex; flex-wrap:wrap; gap:4px 20px; }
   .title { text-align:center; font-size:12px; font-weight:bold; margin:8px 0; }
   table { width:100%; border-collapse:collapse; margin-bottom:6px; }
   th, td { border:1px solid #666; padding:3px 5px; font-size:9px; }
@@ -72,33 +151,28 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   .totals { margin-top:4px; }
   .totals tr td { border:none; font-size:10px; padding:1px 3px; }
   .totals tr td:last-child { text-align:right; font-weight:bold; }
-  .sigs { display:flex; justify-content:space-between; margin-top:14px; font-size:9px; }
+  .sigs { display:flex; justify-content:space-between; margin-top:14px; font-size:9px; flex-wrap:wrap; gap:8px; }
   @media print { body { padding:5px; } }
 </style></head><body>
   ${nakLogoHtml}
   <div class="hdr">
-    <h1>${cfg.company || 'KORXONA NOMI'}</h1>
-    ${cfg.address ? `<p>${cfg.address}</p>` : ''}
-    ${cfg.phone ? `<p>Tel: ${cfg.phone}</p>` : ''}
-    ${cfg.inn ? `<p>STIR: ${cfg.inn}</p>` : ''}
+    <h1>${c.company || 'KORXONA NOMI'}</h1>
+    ${c.address ? `<p>${c.address}</p>` : ''}
+    ${c.phone ? `<p>Tel: ${c.phone}</p>` : ''}
+    ${c.inn ? `<p>STIR: ${c.inn}</p>` : ''}
+    ${c.bank ? `<p>Bank: ${c.bank}${c.account ? ` | H/r: ${c.account}` : ''}${c.mfo ? ` | MFO: ${c.mfo}` : ''}</p>` : ''}
   </div>
-  <div class="title">NAKLADNOY № ${sale.number || sale.id} / ${new Date(sale.created_at || Date.now()).toLocaleDateString('uz-UZ')}</div>
+  <div class="title">NAKLADNOY № ${sh('show_number') ? (sale.number || sale.id) : '___'} ${sh('show_date') ? `/ ${new Date(sale.created_at || Date.now()).toLocaleDateString('uz-UZ')}` : ''}</div>
+  ${infoLines ? `<div class="info">${infoLines}</div>` : ''}
   <table>
-    <thead><tr><th>№</th><th>Mahsulot nomi</th><th>Soni</th><th>Narxi (so'm)</th><th>Jami (so'm)</th></tr></thead>
+    <thead><tr>${headerRow}</tr></thead>
     <tbody>${itemRows}</tbody>
-    <tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold">JAMI:</td><td style="text-align:right;font-weight:bold">${Number(sale.total_amount).toLocaleString('uz-UZ')}</td></tr></tfoot>
+    <tfoot><tr><td colspan="${totalColspan}" style="text-align:right;font-weight:bold">JAMI:</td><td style="text-align:right;font-weight:bold">${Number(sale.total_amount).toLocaleString('uz-UZ')}</td></tr></tfoot>
   </table>
-  <table class="totals">
-    <tr><td>To'langan:</td><td>${Number(sale.paid_amount).toLocaleString('uz-UZ')} so'm</td></tr>
-    ${debt > 0 ? `<tr><td style="color:red">Qarz:</td><td style="color:red">${Number(debt).toLocaleString('uz-UZ')} so'm</td></tr>` : ''}
-    ${change > 0 ? `<tr><td style="color:green">Qaytim:</td><td style="color:green">${Number(change).toLocaleString('uz-UZ')} so'm</td></tr>` : ''}
-  </table>
-  <div class="sigs">
-    ${cfg.director ? `<div>Direktor: ${cfg.director} _______</div>` : '<div>Direktor: ___________</div>'}
-    <div>Kassir: ${sale.cashier_name || sale.cashier?.name || 'Kassir'}</div>
-    ${cfg.accountant ? `<div>Buxgalter: ${cfg.accountant} _______</div>` : ''}
-  </div>
-  ${cfg.footer_note ? `<div style="text-align:center;margin-top:8px;font-size:9px;color:#555;font-style:italic">${cfg.footer_note}</div>` : ''}
+  ${totalsHtml}
+  ${noteHtml}
+  ${sigsHtml}
+  ${c.footer_note ? `<div style="text-align:center;margin-top:8px;font-size:9px;color:#555;font-style:italic">${c.footer_note}</div>` : ''}
 </body></html>`;
   }
 

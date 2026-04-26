@@ -762,49 +762,102 @@ function ReceiptPreview({ cfg, mm }) {
 
 // ── Nakladnoy preview ─────────────────────────────────────────────────────────
 function NakladnoyPreview({ cfg }) {
-  const { t } = useLang();
+  const sh = (key, def=true) => cfg[key] !== undefined ? cfg[key] : def;
   const logoPos = cfg.logo_position || 'center';
+
+  const cols = [
+    { key: 'show_ordering_number', label: '№' },
+    { label: 'Mahsulot nomi', always: true },
+    { key: 'show_measurement',     label: "O'lchov" },
+    { key: 'show_warehouse',       label: 'Ombor' },
+    { key: 'show_sku',             label: 'SKU' },
+    { key: 'show_price',           label: 'Narxi' },
+    { key: 'show_discount',        label: 'Chegirma' },
+    { key: 'show_price_with_discount', label: "Cheg.narx" },
+    { key: 'show_net_price',       label: 'Sof narx' },
+    { key: 'show_currency',        label: 'Val.' },
+    { label: 'Soni', always: true },
+    { label: 'Jami', always: true },
+  ].filter(col => col.always || sh(col.key, col.key === 'show_ordering_number' || col.key === 'show_price'));
+
+  const sampleItems = [
+    { n:1, name:'Mahsulot A', unit:"dona", wh:'Asosiy', sku:'A001', price:'25,000', disc:'-', pw:'25,000', net:'50,000', cur:"so'm", qty:2, total:'50,000' },
+    { n:2, name:'Mahsulot B', unit:"kg",   wh:'Filial',  sku:'B002', price:'30,000', disc:'-', pw:'30,000', net:'30,000', cur:"so'm", qty:1, total:'30,000' },
+  ];
+  const colKeys = ['show_ordering_number','always_name','show_measurement','show_warehouse','show_sku','show_price','show_discount','show_price_with_discount','show_net_price','show_currency','always_qty','always_total'];
+  const sampleVals = { show_ordering_number:'n', always_name:'name', show_measurement:'unit', show_warehouse:'wh', show_sku:'sku', show_price:'price', show_discount:'disc', show_price_with_discount:'pw', show_net_price:'net', show_currency:'cur', always_qty:'qty', always_total:'total' };
+
   return (
-    <div className="bg-white border border-slate-300 shadow-lg rounded p-4 w-full max-w-sm mx-auto text-[8px] font-mono text-slate-700 leading-snug">
+    <div className="bg-white border border-slate-300 shadow-lg rounded p-3 w-full max-w-sm mx-auto text-[7px] font-mono text-slate-700 leading-snug">
       {cfg.logo && (
-        <div style={{ textAlign: logoPos, marginBottom: '6px' }}>
-          <img src={cfg.logo} alt="logo" style={{ height: `${Math.round((cfg.logo_size||50) * 0.45)}px`, maxWidth: '90px', objectFit: 'contain', display: 'inline-block' }} />
+        <div style={{ textAlign: logoPos, marginBottom: '4px' }}>
+          <img src={cfg.logo} alt="logo" style={{ height: `${Math.round((cfg.logo_size||50)*0.35)}px`, maxWidth: '70px', objectFit: 'contain', display: 'inline-block' }} />
         </div>
       )}
-      <div className="text-center border-b border-slate-300 pb-2 mb-2">
-        <div className="font-bold text-[10px]">{cfg.company || 'KORXONA NOMI'}</div>
+      <div className="text-center border-b border-slate-300 pb-1.5 mb-1.5">
+        <div className="font-bold text-[9px]">{cfg.company || 'KORXONA NOMI'}</div>
         {cfg.inn && <div>STIR: {cfg.inn}</div>}
         {cfg.address && <div>{cfg.address}</div>}
         {cfg.phone && <div>Tel: {cfg.phone}</div>}
-        {cfg.bank && <div>Bank: {cfg.bank}</div>}
-        {cfg.account && <div>H/r: {cfg.account}</div>}
-        {cfg.mfo && <div>MFO: {cfg.mfo}</div>}
+        {cfg.bank && <div>Bank: {cfg.bank}{cfg.mfo ? ` | MFO: ${cfg.mfo}` : ''}</div>}
       </div>
-      <div className="text-center font-bold text-[10px] mb-2">NAKLADNOY № _____ / 17.03.2025</div>
-      <table className="w-full border-collapse mb-2" style={{ borderSpacing: 0 }}>
+
+      <div className="text-center font-bold text-[8px] mb-1">
+        NAKLADNOY № {sh('show_number') ? '___' : ''} {sh('show_date') ? '/ 17.03.2025' : ''}
+      </div>
+
+      {/* Info satrlari */}
+      <div className="text-[7px] mb-1 space-y-0.5">
+        {sh('show_contractor_name') && <div><b>Mijoz:</b> Abdullayev Jasur</div>}
+        {sh('show_account_name') && <div><b>Filial:</b> Asosiy filial</div>}
+        {sh('show_employee') && <div><b>Xodim:</b> Sardor</div>}
+        {sh('show_status') && <div><b>Holat:</b> Tasdiqlangan</div>}
+      </div>
+
+      <table className="w-full border-collapse mb-1.5" style={{ borderSpacing: 0 }}>
         <thead>
-          <tr>
-            {['№','Nomi','Soni','Narxi','Jami'].map(h => (
-              <th key={h} className="border border-slate-400 px-1 py-0.5 text-center bg-slate-100">{h}</th>
-            ))}
-          </tr>
+          <tr>{cols.map((col,i) => <th key={i} className="border border-slate-400 px-0.5 py-0.5 text-center bg-slate-100 text-[6px]">{col.label}</th>)}</tr>
         </thead>
         <tbody>
-          {[['1','Mahsulot A','2','25,000','50,000'],['2','Mahsulot B','1','30,000','30,000']].map((row,i) => (
-            <tr key={i}>{row.map((c,j) => <td key={j} className="border border-slate-300 px-1 py-0.5 text-center">{c}</td>)}</tr>
+          {sampleItems.map((item, ri) => (
+            <tr key={ri}>
+              {cols.map((col, ci) => {
+                const ck = colKeys[['show_ordering_number','always_name','show_measurement','show_warehouse','show_sku','show_price','show_discount','show_price_with_discount','show_net_price','show_currency','always_qty','always_total'].indexOf(col.key || (col.always && (ci===0?'show_ordering_number':ci===cols.length-1?'always_total':'always_name')))];
+                const allCols = ['show_ordering_number','always_name','show_measurement','show_warehouse','show_sku','show_price','show_discount','show_price_with_discount','show_net_price','show_currency','always_qty','always_total'];
+                const origIdx = allCols.indexOf(col.key || (col.label==='Mahsulot nomi'?'always_name':col.label==='Soni'?'always_qty':'always_total'));
+                const vkey = sampleVals[allCols[origIdx]];
+                return <td key={ci} className="border border-slate-300 px-0.5 py-0.5 text-center">{item[vkey]}</td>;
+              })}
+            </tr>
           ))}
           <tr>
-            <td colSpan={4} className="border border-slate-300 px-1 py-0.5 text-right font-bold">JAMI:</td>
-            <td className="border border-slate-300 px-1 py-0.5 text-center font-bold">80,000</td>
+            <td colSpan={cols.length - 1} className="border border-slate-300 px-0.5 py-0.5 text-right font-bold">JAMI:</td>
+            <td className="border border-slate-300 px-0.5 py-0.5 text-center font-bold">80,000</td>
           </tr>
         </tbody>
       </table>
-      <div className="flex justify-between mt-3 pt-2 border-t border-slate-300">
-        <div>{cfg.director ? `Direktor: ${cfg.director}` : 'Direktor: __________'}</div>
-        <div>{cfg.accountant ? `Buxgalter: ${cfg.accountant}` : 'Buxgalter: __________'}</div>
+
+      {/* Jami bo'lim */}
+      {sh('show_totals') && (
+        <div className="text-[7px] space-y-0.5 border-t border-slate-200 pt-1 mb-1">
+          <div className="flex justify-between"><span>JAMI:</span><span className="font-bold">80,000 so'm</span></div>
+          {sh('show_payment_amounts') && <div className="flex justify-between"><span>To'langan:</span><span>100,000 so'm</span></div>}
+          {sh('show_contractor_debts') && <div className="flex justify-between text-red-600"><span>Qarz:</span><span>0 so'm</span></div>}
+          {sh('show_exact_discounts') && <div className="flex justify-between"><span>Chegirma:</span><span>-5,000 so'm</span></div>}
+          {sh('show_total_quantity') && <div className="flex justify-between"><span>Jami miqdor:</span><span>3</span></div>}
+        </div>
+      )}
+
+      {/* Izoh */}
+      {sh('show_note') && <div className="text-[7px] text-slate-500 italic mb-1">Izoh: Toshkentga yetkazish</div>}
+
+      {/* Imzolar */}
+      <div className="flex justify-between mt-2 pt-1.5 border-t border-slate-300 text-[7px] flex-wrap gap-1">
+        {sh('show_director') && <div>Direktor: {cfg.director || '__________'}</div>}
+        {sh('show_accountant') && <div>Buxgalter: {cfg.accountant || '__________'}</div>}
+        {sh('show_storekeeper') && <div>Omborchi: {cfg.storekeeper || '__________'}</div>}
       </div>
-      {cfg.storekeeper && <div className="mt-1">Omborchi: {cfg.storekeeper}</div>}
-      {cfg.footer_note && <div className="mt-2 italic text-slate-500 text-center">{cfg.footer_note}</div>}
+      {cfg.footer_note && <div className="mt-1 italic text-slate-500 text-center text-[7px]">{cfg.footer_note}</div>}
     </div>
   );
 }
