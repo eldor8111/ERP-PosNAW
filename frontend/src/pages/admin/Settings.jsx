@@ -648,8 +648,10 @@ const defaultReceiptCfg = {
   company: '', address: '', phone: '', inn: '',
   header: '', footer: "Xaridingiz uchun rahmat!",
   show_barcode: true, show_qr: false, show_cashier: true,
-  show_date: true, copies: '1',
-  logo: '', logo_size: 40, // base64 data URL, px height
+  show_date: true, show_discount: true, show_debt: true,
+  show_payment_type: true, show_note: true, show_unit: true,
+  copies: '1',
+  logo: '', logo_size: 40,
 };
 const defaultNakladnoyCfg = {
   company: '', address: '', phone: '', inn: '',
@@ -889,25 +891,33 @@ function ReceiptFields({ cfg, upd }) {
         <label className="block text-xs font-semibold text-slate-500 mb-1">Oxirgi satr (tagso'z)</label>
         <input value={cfg.footer} onChange={e => upd('footer', e.target.value)} placeholder="Xaridingiz uchun rahmat!" className={RIC} />
       </div>
-      <div className="flex flex-wrap gap-4">
-        {[
-          ['show_barcode', "Barkod ko'rsatish"],
-          ['show_qr', 'QR kod ko\'rsatish'],
-          ['show_cashier', "Kassir nomini ko'rsatish"],
-          ['show_date', 'Sana va vaqt'],
-        ].map(([key, label]) => (
-          <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
-            <div onClick={() => upd(key, !cfg[key])}
-              className={`relative w-9 h-5 rounded-full transition-colors ${cfg[key] ? 'bg-indigo-500' : 'bg-slate-200'}`}>
-              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${cfg[key] ? 'translate-x-4' : ''}`} />
-            </div>
-            <span className="text-sm text-slate-700">{label}</span>
-          </label>
-        ))}
-        <div className="flex items-center gap-2">
+      <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
+        <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Chekda ko'rsatiladigan maydonlar</p>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
+          {[
+            ['show_date',         'Sana va vaqt'],
+            ['show_cashier',      "Kassir ismi"],
+            ['show_unit',         "O'lchov birligi"],
+            ['show_discount',     'Chegirma'],
+            ['show_payment_type', "To'lov turi"],
+            ['show_debt',         'Qarzdorlik'],
+            ['show_note',         'Izoh'],
+            ['show_barcode',      'Barkod'],
+            ['show_qr',           'QR kod'],
+          ].map(([key, label]) => (
+            <label key={key} className="flex items-center gap-2.5 cursor-pointer select-none">
+              <div onClick={() => upd(key, !cfg[key])}
+                className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${cfg[key] ? 'bg-indigo-500' : 'bg-slate-300'}`}>
+                <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${cfg[key] ? 'translate-x-4' : ''}`} />
+              </div>
+              <span className="text-sm text-slate-700">{label}</span>
+            </label>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 pt-1 border-t border-slate-200">
           <span className="text-xs font-semibold text-slate-500">Nusxalar soni:</span>
           <select value={cfg.copies} onChange={e => upd('copies', e.target.value)}
-            className="px-2 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            className="px-2 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
             {['1','2','3'].map(n => <option key={n} value={n}>{n} ta</option>)}
           </select>
         </div>
