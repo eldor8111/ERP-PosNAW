@@ -5,7 +5,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
-import { buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
+import { buildReceiptHtml, printReceiptHtml, getReceiptSettings } from '../../utils/receiptBuilder';
 import { toast } from '../../utils/toast';
 
 /* ─── Yordamchi funksiyalar ─────────────────────────────── */
@@ -323,6 +323,16 @@ export default function UlgurjiSotuv() {
   useEffect(() => {
     api.get('/customers/?limit=200').then(r => setCustomers(Array.isArray(r.data) ? r.data : (r.data?.items || []))).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
     api.get('/warehouses/').then(r => setWarehouses(Array.isArray(r.data) ? r.data : [])).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/companies/me/receipt_templates').then(r => {
+      const d = r.data?.receipt_templates || {};
+      if (Object.keys(d).length) {
+        const stored = {};
+        if (d.r58) stored.r58 = d.r58;
+        if (d.r80) stored.r80 = d.r80;
+        if (d.nak) stored.nak = d.nak;
+        if (Object.keys(stored).length) localStorage.setItem('erp_receipt_settings', JSON.stringify(stored));
+      }
+    }).catch(() => {});
   }, []);
 
   const loadSales = useCallback(() => {
@@ -411,9 +421,29 @@ export default function UlgurjiSotuv() {
 
       if (autoPrint) {
         try {
-          const receiptRes = await api.get(`/sales/${res.data.id}/receipt`);
-          const html = buildReceiptHtml(receiptRes.data, receiptWidth);
-          printReceiptHtml(html, receiptWidth);
+          const rSettings = getReceiptSettings();
+          const tpl = receiptWidth === 'A4' ? 'nak' : receiptWidth;
+          const cfg = tpl === 'nak' ? (rSettings.nak || {}) : (rSettings['r' + tpl] || {});
+          const saleForReceipt = {
+            number: res.data.number,
+            id: res.data.id,
+            created_at: res.data.created_at,
+            cashier_name: res.data.cashier_name,
+            total_amount: res.data.total_amount,
+            paid_amount: res.data.paid_amount,
+            discount_amount: saleDisc,
+            items: cart.map(it => ({
+              product_name: it.name,
+              quantity: it.qty,
+              unit_price: it.price,
+              discount: it.discount_type === 'pct'
+                ? it.price * it.qty * (parseN(it.discount_val) / 100)
+                : parseN(it.discount_val),
+              subtotal: itemNet(it),
+            })),
+          };
+          const html = buildReceiptHtml(saleForReceipt, tpl, cfg);
+          printReceiptHtml(html);
         } catch (err) {
           console.error("Chek chiqarishda xatolik", err);
         }
