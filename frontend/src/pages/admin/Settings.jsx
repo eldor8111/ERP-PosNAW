@@ -670,6 +670,29 @@ const defaultNakladnoyCfg = {
   director: '', accountant: '', storekeeper: '',
   footer_note: '',
   logo: '', logo_size: 50, logo_position: 'center',
+  // Sarlavha
+  show_contractor_name: true, show_account_name: true,
+  show_account_username: false, show_employee: true,
+  show_status: false, show_number: true, show_date: true,
+  // Jadval ustunlari
+  show_ordering_number: true, show_measurement: true,
+  show_package: false, show_quantity_in_package: false,
+  show_price: true, show_discount: true,
+  show_price_with_discount: true, show_currency: false,
+  show_net_price: true, show_warehouse: false,
+  show_sku: false, show_image: false, show_category: false,
+  // Jami
+  show_totals: true, show_total_national: false,
+  show_total_quantity: true, show_total_quantity_package: false,
+  show_payment_amounts: true, show_exact_discounts: true,
+  show_percent_discount: false,
+  // Qarz
+  show_contractor_debts: true, show_before_debts: false,
+  show_last_payment: false, show_debts: false,
+  // Qo'shimcha
+  show_contractor_contacts: false, show_note: true,
+  // Imzo
+  show_director: true, show_accountant: true, show_storekeeper: false,
 };
 
 
@@ -986,76 +1009,148 @@ function ReceiptFields({ cfg, upd }) {
   );
 }
 
+function ToggleGroup({ title, fields, cfg, upd }) {
+  return (
+    <div>
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">{title}</p>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+        {fields.map(([key, label]) => (
+          <label key={key} className="flex items-center gap-2.5 cursor-pointer select-none">
+            <div onClick={() => upd(key, !cfg[key])}
+              className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${cfg[key] ? 'bg-indigo-500' : 'bg-slate-300'}`}>
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${cfg[key] ? 'translate-x-4' : ''}`} />
+            </div>
+            <span className="text-sm text-slate-700">{label}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function NakladnoyFields({ cfg, upd }) {
   const { t } = useLang();
   return (
     <div className="space-y-4">
-      {/* Logo upload with position picker + size */}
       <LogoUpload
-        logo={cfg.logo}
-        size={cfg.logo_size || 50}
-        onUpload={(v) => upd('logo', v)}
-        onRemove={() => upd('logo', '')}
+        logo={cfg.logo} size={cfg.logo_size || 50}
+        onUpload={(v) => upd('logo', v)} onRemove={() => upd('logo', '')}
         onSizeChange={(v) => upd('logo_size', v)}
-        positionPicker={true}
-        position={cfg.logo_position || 'center'}
+        positionPicker={true} position={cfg.logo_position || 'center'}
         onPositionChange={(v) => upd('logo_position', v)}
       />
+
+      {/* Korxona ma'lumotlari */}
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">Korxona nomi *</label>
-          <input value={cfg.company} onChange={e => upd('company', e.target.value)} placeholder="MCHJ / YaTT nomi" className={RIC} />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">STIR / INN</label>
-          <input value={cfg.inn} onChange={e => upd('inn', e.target.value)} placeholder="123456789" className={RIC} />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">{t('admin.dict.address') || 'Manzil'}</label>
-          <input value={cfg.address} onChange={e => upd('address', e.target.value)} className={RIC} />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">{t('admin.dict.phone') || 'Telefon'}</label>
-          <input value={cfg.phone} onChange={e => upd('phone', e.target.value)} className={RIC} />
-        </div>
+        <div><label className="block text-xs font-semibold text-slate-500 mb-1">Korxona nomi *</label>
+          <input value={cfg.company} onChange={e => upd('company', e.target.value)} placeholder="MCHJ / YaTT nomi" className={RIC} /></div>
+        <div><label className="block text-xs font-semibold text-slate-500 mb-1">STIR / INN</label>
+          <input value={cfg.inn} onChange={e => upd('inn', e.target.value)} placeholder="123456789" className={RIC} /></div>
+        <div><label className="block text-xs font-semibold text-slate-500 mb-1">Manzil</label>
+          <input value={cfg.address} onChange={e => upd('address', e.target.value)} className={RIC} /></div>
+        <div><label className="block text-xs font-semibold text-slate-500 mb-1">Telefon</label>
+          <input value={cfg.phone} onChange={e => upd('phone', e.target.value)} className={RIC} /></div>
       </div>
+
+      {/* Bank */}
       <div className="border-t border-slate-100 pt-4">
         <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Bank rekvizitlari</p>
         <div className="grid grid-cols-3 gap-3">
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Bank nomi</label>
-            <input value={cfg.bank} onChange={e => upd('bank', e.target.value)} placeholder="NBU, Kapitalbank..." className={RIC} />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Hisob raqam</label>
-            <input value={cfg.account} onChange={e => upd('account', e.target.value)} placeholder="2020..." className={RIC} />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">MFO</label>
-            <input value={cfg.mfo} onChange={e => upd('mfo', e.target.value)} placeholder="01001" className={RIC} />
-          </div>
+          <div><label className="block text-xs font-semibold text-slate-500 mb-1">Bank nomi</label>
+            <input value={cfg.bank} onChange={e => upd('bank', e.target.value)} placeholder="NBU, Kapitalbank..." className={RIC} /></div>
+          <div><label className="block text-xs font-semibold text-slate-500 mb-1">Hisob raqam</label>
+            <input value={cfg.account} onChange={e => upd('account', e.target.value)} placeholder="2020..." className={RIC} /></div>
+          <div><label className="block text-xs font-semibold text-slate-500 mb-1">MFO</label>
+            <input value={cfg.mfo} onChange={e => upd('mfo', e.target.value)} placeholder="01001" className={RIC} /></div>
         </div>
       </div>
+
+      {/* Imzo */}
       <div className="border-t border-slate-100 pt-4">
-        <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Imzo egallari</p>
+        <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Imzo egalari</p>
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Direktor</label>
+            <div className="flex items-center gap-2 mb-1">
+              <label className="block text-xs font-semibold text-slate-500">Direktor</label>
+              <div onClick={() => upd('show_director', !cfg.show_director)}
+                className={`relative w-7 h-4 rounded-full transition-colors cursor-pointer shrink-0 ${cfg.show_director ? 'bg-indigo-500' : 'bg-slate-300'}`}>
+                <span className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${cfg.show_director ? 'translate-x-3' : ''}`} />
+              </div>
+            </div>
             <input value={cfg.director} onChange={e => upd('director', e.target.value)} placeholder="F.I.Sh." className={RIC} />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Bosh buxgalter</label>
+            <div className="flex items-center gap-2 mb-1">
+              <label className="block text-xs font-semibold text-slate-500">Bosh buxgalter</label>
+              <div onClick={() => upd('show_accountant', !cfg.show_accountant)}
+                className={`relative w-7 h-4 rounded-full transition-colors cursor-pointer shrink-0 ${cfg.show_accountant ? 'bg-indigo-500' : 'bg-slate-300'}`}>
+                <span className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${cfg.show_accountant ? 'translate-x-3' : ''}`} />
+              </div>
+            </div>
             <input value={cfg.accountant} onChange={e => upd('accountant', e.target.value)} placeholder="F.I.Sh." className={RIC} />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Omborchi</label>
+            <div className="flex items-center gap-2 mb-1">
+              <label className="block text-xs font-semibold text-slate-500">Omborchi</label>
+              <div onClick={() => upd('show_storekeeper', !cfg.show_storekeeper)}
+                className={`relative w-7 h-4 rounded-full transition-colors cursor-pointer shrink-0 ${cfg.show_storekeeper ? 'bg-indigo-500' : 'bg-slate-300'}`}>
+                <span className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${cfg.show_storekeeper ? 'translate-x-3' : ''}`} />
+              </div>
+            </div>
             <input value={cfg.storekeeper} onChange={e => upd('storekeeper', e.target.value)} placeholder="F.I.Sh." className={RIC} />
           </div>
         </div>
       </div>
-      <div>
-        <label className="block text-xs font-semibold text-slate-500 mb-1">Izoh (ixtiyoriy)</label>
-        <input value={cfg.footer_note} onChange={e => upd('footer_note', e.target.value)} placeholder="Qo'shimcha eslatma..." className={RIC} />
+
+      <div><label className="block text-xs font-semibold text-slate-500 mb-1">Izoh (ixtiyoriy)</label>
+        <input value={cfg.footer_note} onChange={e => upd('footer_note', e.target.value)} placeholder="Qo'shimcha eslatma..." className={RIC} /></div>
+
+      {/* Togglelar */}
+      <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-4">
+        <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">A4 da ko'rsatiladigan maydonlar</p>
+        <ToggleGroup title="Sarlavha bo'limi" cfg={cfg} upd={upd} fields={[
+          ['show_contractor_name',   'Mijoz ismi'],
+          ['show_account_name',      'Filial nomi'],
+          ['show_account_username',  'Foydalanuvchi'],
+          ['show_employee',          'Xodim ismi'],
+          ['show_status',            'Holat'],
+          ['show_number',            'Hujjat raqami'],
+          ['show_date',              'Sana'],
+        ]} />
+        <ToggleGroup title="Jadval ustunlari" cfg={cfg} upd={upd} fields={[
+          ['show_ordering_number',     '№ tartib raqami'],
+          ['show_measurement',         "O'lchov birligi"],
+          ['show_package',             'Paket nomi'],
+          ['show_quantity_in_package', 'Paketdagi miqdor'],
+          ['show_price',               'Narx'],
+          ['show_discount',            'Chegirma'],
+          ['show_price_with_discount', 'Chegirmali narx'],
+          ['show_currency',            'Valyuta'],
+          ['show_net_price',           'Sof narx'],
+          ['show_warehouse',           'Ombor nomi'],
+          ['show_sku',                 'SKU (Artikul)'],
+          ['show_image',               'Mahsulot rasmi'],
+          ['show_category',            'Kategoriya'],
+        ]} />
+        <ToggleGroup title="Jami bo'lim" cfg={cfg} upd={upd} fields={[
+          ['show_totals',                 'Jami summa'],
+          ['show_total_national',         "Milliy valyutada jami"],
+          ['show_total_quantity',         'Jami miqdor'],
+          ['show_total_quantity_package', 'Jami paket miqdori'],
+          ['show_payment_amounts',        "To'lov summasi"],
+          ['show_exact_discounts',        'Chegirma summasi'],
+          ['show_percent_discount',       '% chegirma'],
+        ]} />
+        <ToggleGroup title="Qarz bo'limi" cfg={cfg} upd={upd} fields={[
+          ['show_contractor_debts', 'Joriy qarzdorlik'],
+          ['show_before_debts',     'Oldingi qarz'],
+          ['show_last_payment',     "Oxirgi to'lov"],
+          ['show_debts',            'Umumiy qarzlar'],
+        ]} />
+        <ToggleGroup title="Qo'shimcha" cfg={cfg} upd={upd} fields={[
+          ['show_contractor_contacts', 'Mijoz kontaktlari'],
+          ['show_note',                'Izoh'],
+        ]} />
       </div>
     </div>
   );
