@@ -298,7 +298,7 @@ export default function AdminLayout() {
       <aside
         className={`fixed inset-y-0 left-0 z-50 lg:static lg:z-auto bg-white border-r border-slate-200 flex flex-col shrink-0 transition-transform duration-300 ease-in-out lg:transition-all ${
           mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-        } ${collapsed ? 'w-[220px] lg:w-[60px]' : 'w-[220px]'}`}
+        } ${collapsed ? 'w-[260px] lg:w-[64px]' : 'w-[260px]'}`}
         style={{ boxShadow: '1px 0 12px rgba(0,0,0,0.06)' }}
       >
         {/* Logo */}
@@ -309,26 +309,14 @@ export default function AdminLayout() {
             </div>
           )}
           {collapsed && <ECodeIcon size={30} />}
-          {!collapsed && (
-            <button
-              onClick={() => setCollapsed(true)}
-              className="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center transition-all shrink-0"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-          )}
-          {collapsed && (
-            <button
-              onClick={() => setCollapsed(false)}
-              className="absolute left-[52px] top-[20px] w-6 h-6 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 flex items-center justify-center transition-all shadow-md z-50"
-            >
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          )}
+          <button
+            onClick={() => setCollapsed(c => !c)}
+            className="w-9 h-9 rounded-xl text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 flex items-center justify-center transition-all shrink-0"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
         </div>
 
         {/* Navigation */}
