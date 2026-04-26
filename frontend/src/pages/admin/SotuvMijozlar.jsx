@@ -1777,13 +1777,225 @@ function MijozlarTab() {
 }
 
 /* ══════════════════════════════════════════════════
+   TO'LOV QABUL QILISH TAB
+══════════════════════════════════════════════════ */
+const PAY_TYPES_LIST = [
+  { v: 'cash',   l: 'Naqd' },
+  { v: 'card',   l: 'Karta' },
+  { v: 'uzcard', l: 'Uzcard' },
+  { v: 'humo',   l: 'Humo' },
+  { v: 'bank',   l: "Bank o'tkazmasi" },
+  { v: 'click',  l: 'Click' },
+  { v: 'payme',  l: 'Payme' },
+];
+
+function TolovTab({ customers }) {
+  const [debtors, setDebtors] = useState([]);
+  const [search, setSearch] = useState('');
+  const [modal, setModal] = useState(false);
+  const [sel, setSel] = useState(null);
+  const [form, setForm] = useState({ amount: '', payType: 'cash', description: '' });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  const load = () => {
+    api.get('/customers', { params: { limit: 500 }, _silent: true })
+      .then(r => setDebtors((Array.isArray(r.data) ? r.data : []).filter(c => Number(c.debt_balance) > 0)))
+      .catch(e => toast.error(e.response?.data?.detail || e.message || 'Xatolik'));
+  };
+  useEffect(() => { load(); }, []);
+
+  const filtered = search.trim()
+    ? debtors.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.phone?.includes(search))
+    : [...debtors];
+  filtered.sort((a, b) => Number(b.debt_balance) - Number(a.debt_balance));
+  const totalDebt = debtors.reduce((s, c) => s + Number(c.debt_balance), 0);
+
+  const openModal = (c = null) => {
+    setSel(c);
+    setForm({ amount: '', payType: 'cash', description: '' });
+    setErr('');
+    setModal(true);
+  };
+  const close = () => { setModal(false); setSel(null); setErr(''); };
+
+  const handlePay = async (e) => {
+    e.preventDefault();
+    if (!sel) { setErr("Mijozni tanlang"); return; }
+    const amt = Number(form.amount);
+    if (!amt || amt <= 0) { setErr("Miqdor kiritilmagan"); return; }
+    if (amt > Number(sel.debt_balance)) { setErr("Miqdor qarzdan oshib ketadi"); return; }
+    setSaving(true); setErr('');
+    try {
+      await api.post(`/finance/customer-debts/${sel.id}/pay`, {
+        amount: amt,
+        description: form.description || `Mijoz to'lovi: ${sel.name}`,
+      });
+      toast.success("To'lov qabul qilindi!");
+      close();
+      load();
+    } catch (e) {
+      setErr(e.response?.data?.detail || 'Xatolik');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Qarzdorlar</div>
+          <div className="text-2xl font-bold text-amber-600 mt-0.5">{debtors.length} ta</div>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Jami qarz</div>
+          <div className="text-2xl font-bold text-red-500 mt-0.5">{fmt(totalDebt)} so'm</div>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-center justify-center">
+          <button onClick={() => openModal()}
+            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl flex items-center gap-2 shadow-sm transition-all">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
+            Yangi to'lov
+          </button>
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        <div className="relative flex-1">
+          <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <input className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder="Mijoz ismi yoki telefon..." value={search} onChange={e => setSearch(e.target.value)}/>
+        </div>
+        <button onClick={() => openModal()}
+          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl flex items-center gap-2 shadow-sm transition-all">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
+          Yangi to'lov
+        </button>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        <table className="min-w-full">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-100">
+              {['#', 'Mijoz', 'Telefon', 'Qarz miqdori', 'Qarz limiti', ''].map(h =>
+                <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
+              )}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {filtered.map((c, i) => (
+              <tr key={c.id} className="hover:bg-slate-50 transition-colors">
+                <td className="px-5 py-4 text-sm text-slate-400">{i + 1}</td>
+                <td className="px-5 py-4">
+                  <div className="flex items-center gap-2.5">
+                    <Avatar name={c.name}/>
+                    <span className="text-sm font-semibold text-slate-800">{c.name}</span>
+                  </div>
+                </td>
+                <td className="px-5 py-4 text-sm text-slate-500">{c.phone || '—'}</td>
+                <td className="px-5 py-4">
+                  <span className="text-sm font-bold text-red-600">{fmt(c.debt_balance)} so'm</span>
+                </td>
+                <td className="px-5 py-4 text-sm text-slate-400">{fmt(c.debt_limit)} so'm</td>
+                <td className="px-5 py-4">
+                  <button onClick={() => openModal(c)}
+                    className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-lg border border-emerald-200 flex items-center gap-1.5 transition-all">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+                    To'lov qabul qilish
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {filtered.length === 0 && (
+              <tr><td colSpan={6} className="px-5 py-14 text-center text-slate-400 text-sm">
+                {search ? 'Topilmadi' : "Barcha mijozlar qarzni to'lagan"}
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {modal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-800">To'lov qabul qilish</h3>
+              <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <form onSubmit={handlePay} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Mijoz *</label>
+                <CustSearch customers={customers} value={sel?.id || ''} onChange={id => {
+                  const c = customers.find(x => x.id === id);
+                  setSel(c || null);
+                }}/>
+              </div>
+              {sel && (
+                <div className="p-3 bg-red-50 border border-red-100 rounded-xl flex items-center justify-between">
+                  <div>
+                    <div className="font-semibold text-slate-800 text-sm">{sel.name}</div>
+                    {sel.phone && <div className="text-xs text-slate-400 mt-0.5">{sel.phone}</div>}
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-slate-400">Qarz</div>
+                    <div className="text-red-600 font-bold">{fmt(sel.debt_balance)} so'm</div>
+                  </div>
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">To'lov miqdori *</label>
+                <input type="number" min="1" required className={inputCls} value={form.amount}
+                  onChange={e => setForm(f => ({...f, amount: e.target.value}))} placeholder="Miqdor (so'm)..."/>
+                {sel && form.amount && Number(form.amount) > 0 && (
+                  <div className="text-xs text-slate-400 mt-1">
+                    To'lovdan keyin qarz: <span className="font-semibold text-amber-600">
+                      {fmt(Math.max(0, Number(sel.debt_balance) - Number(form.amount)))} so'm
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">To'lov turi</label>
+                <div className="flex flex-wrap gap-2">
+                  {PAY_TYPES_LIST.map(pt => (
+                    <button key={pt.v} type="button" onClick={() => setForm(f => ({...f, payType: pt.v}))}
+                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${form.payType === pt.v ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'}`}>
+                      {pt.l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Izoh</label>
+                <input className={inputCls} value={form.description}
+                  onChange={e => setForm(f => ({...f, description: e.target.value}))} placeholder="Ixtiyoriy..."/>
+              </div>
+              {err && <div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm font-medium rounded-xl hover:bg-slate-50">Bekor qilish</button>
+                <button type="submit" disabled={saving || !sel} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">
+                  {saving ? 'Saqlanmoqda...' : "To'lovni qabul qilish"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════
    MAIN PAGE
 ══════════════════════════════════════════════════ */
 export default function SotuvMijozlar() {
   const { t } = useLang();
-  const [tab, setTab] = useState('sotuvlar');
+  const [tab, setTab] = useState('mijozlar');
   const TABS = [
-    { id: 'sotuvlar', label: t('sale.title'),       icon: '🛒' },
+    { id: 'tolov',    label: "To'lov qabul qilish", icon: '💳' },
     { id: 'mijozlar', label: t('customer.customers'), icon: '👥' },
   ];
   const [customers, setCustomers] = useState(() => {
@@ -1801,7 +2013,6 @@ export default function SotuvMijozlar() {
 
   return (
     <div className="space-y-3">
-      {/* Sarlavha + tablar bir qatorda */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <h1 className="text-lg font-bold text-slate-800">{t('sale.salesAndCustomers')}</h1>
@@ -1816,7 +2027,7 @@ export default function SotuvMijozlar() {
         </div>
       </div>
 
-      {tab==='sotuvlar' && <SotuvlarTab customers={customers}/>}
+      {tab==='tolov'    && <TolovTab customers={customers}/>}
       {tab==='mijozlar' && <MijozlarTab/>}
     </div>
   );

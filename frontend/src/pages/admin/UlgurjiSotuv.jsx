@@ -286,6 +286,7 @@ export default function UlgurjiSotuv() {
   const [selectedSale, setSelectedSale] = useState(null);
   const [page, setPage] = useState(0);
   const LIMIT = 25;
+  const [openMenuId, setOpenMenuId] = useState(null);
 
   // Arxiv
   const [draftsList, setDraftsList] = useState([]);
@@ -347,6 +348,32 @@ export default function UlgurjiSotuv() {
   }, [filters, page]);
 
   useEffect(() => { if (tab === 'list') loadSales(); }, [tab, loadSales]);
+
+  const deleteSale = async (id) => {
+    if (!window.confirm("Sotuvni o'chirishni tasdiqlaysizmi?")) return;
+    try {
+      await api.delete(`/sales/${id}`);
+      toast.success("Sotuv o'chirildi");
+      loadSales();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "O'chirishda xatolik");
+    }
+  };
+
+  const printSale = async (s, size) => {
+    try {
+      let data = s;
+      if (!s.items) {
+        const r = await api.get(`/sales/${s.id}`);
+        data = r.data;
+      }
+      const cfg = getReceiptSettings();
+      const html = buildReceiptHtml(data, cfg, size);
+      printReceiptHtml(html);
+    } catch (e) {
+      toast.error("Chop etishda xatolik");
+    }
+  };
 
   /* ── Cart operations ── */
   const addToCart = useCallback((p) => {
@@ -855,7 +882,7 @@ export default function UlgurjiSotuv() {
                   {sales.map((s, i) => {
                     const dbt = Number(s.total_amount) - Number(s.paid_amount);
                     return (
-                      <tr key={s.id} onClick={() => setSelectedSale(s)}
+                      <tr key={s.id} onClick={() => { setSelectedSale(s); setOpenMenuId(null); }}
                         className="hover:bg-indigo-50/40 cursor-pointer transition-colors group">
                         <td className="px-4 py-3 text-xs text-slate-400">{i + 1 + page * LIMIT}</td>
                         <td className="px-4 py-3">
@@ -896,8 +923,39 @@ export default function UlgurjiSotuv() {
                         <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">
                           {s.created_at ? new Date(s.created_at).toLocaleDateString('uz-UZ', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—'}
                         </td>
-                        <td className="px-2 py-3">
-                          <Ic d="M9 5l7 7-7 7" cls="w-4 h-4 text-slate-300 group-hover:text-indigo-400 transition-colors" />
+                        <td className="px-2 py-3 relative" onClick={e => e.stopPropagation()}>
+                          <button
+                            onClick={e => { e.stopPropagation(); setOpenMenuId(openMenuId === s.id ? null : s.id); }}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all">
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                              <circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
+                            </svg>
+                          </button>
+                          {openMenuId === s.id && (
+                            <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-2xl py-1 min-w-[170px]"
+                              onMouseLeave={() => setOpenMenuId(null)}>
+                              <button onClick={() => { setSelectedSale(s); setOpenMenuId(null); }}
+                                className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-indigo-50 flex items-center gap-2.5">
+                                <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                Tahrirlash
+                              </button>
+                              <div className="border-t border-slate-100 my-1"/>
+                              <div className="px-4 py-1 text-xs font-semibold text-slate-400 uppercase tracking-wide">Chop etish</div>
+                              {[{size:'58mm',label:'58mm'},{size:'80mm',label:'80mm'},{size:'a4',label:'A4 Nakladnoy'}].map(opt => (
+                                <button key={opt.size} onClick={() => { printSale(s, opt.size); setOpenMenuId(null); }}
+                                  className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-indigo-50 flex items-center gap-2.5">
+                                  <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                                  {opt.label}
+                                </button>
+                              ))}
+                              <div className="border-t border-slate-100 my-1"/>
+                              <button onClick={() => { deleteSale(s.id); setOpenMenuId(null); }}
+                                className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2.5">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                O'chirish
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     );
