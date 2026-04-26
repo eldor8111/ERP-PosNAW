@@ -1789,6 +1789,14 @@ const PAY_TYPES_LIST = [
   { v: 'payme',  l: 'Payme' },
 ];
 
+const parseAmt = (s) => {
+  const clean = String(s || '').replace(/\s/g, '').replace(',', '.');
+  // If dot appears as thousands separator (e.g. "4.700" or "54.700")
+  // detect: dot followed by exactly 3 digits at end → thousands sep
+  const thousandsDot = /^[\d.]+$/.test(clean) && /\.\d{3}$/.test(clean) && (clean.match(/\./g) || []).length === 1;
+  return parseFloat(thousandsDot ? clean.replace('.', '') : clean) || 0;
+};
+
 function TolovTab({ customers }) {
   const [debtors, setDebtors] = useState([]);
   const [search, setSearch] = useState('');
@@ -1822,7 +1830,7 @@ function TolovTab({ customers }) {
   const handlePay = async (e) => {
     e.preventDefault();
     if (!sel) { setErr("Mijozni tanlang"); return; }
-    const amt = Number(form.amount);
+    const amt = parseAmt(form.amount);
     if (!amt || amt <= 0) { setErr("Miqdor kiritilmagan"); return; }
     if (amt > Number(sel.debt_balance)) { setErr("Miqdor qarzdan oshib ketadi"); return; }
     setSaving(true); setErr('');
@@ -1949,10 +1957,10 @@ function TolovTab({ customers }) {
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">To'lov miqdori *</label>
                 <input type="number" min="1" required className={inputCls} value={form.amount}
                   onChange={e => setForm(f => ({...f, amount: e.target.value}))} placeholder="Miqdor (so'm)..."/>
-                {sel && form.amount && Number(form.amount) > 0 && (
+                {sel && form.amount && parseAmt(form.amount) > 0 && (
                   <div className="text-xs text-slate-400 mt-1">
                     To'lovdan keyin qarz: <span className="font-semibold text-amber-600">
-                      {fmt(Math.max(0, Number(sel.debt_balance) - Number(form.amount)))} so'm
+                      {fmt(Math.max(0, Number(sel.debt_balance) - parseAmt(form.amount)))} so'm
                     </span>
                   </div>
                 )}
