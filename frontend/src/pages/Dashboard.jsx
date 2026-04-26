@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../api/axios'
 import toast from 'react-hot-toast';
+import ECodeLogo from '../components/ECodeLogo'
 
 const roleLabels = {
   admin: 'Admin',
@@ -38,10 +39,7 @@ export default function Dashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-black text-[10px] tracking-tight">UBT</span>
-              </div>
-              <span className="font-bold text-gray-800 text-lg tracking-wide">UBT</span>
+              <ECodeLogo size={32} showText={true} />
             </div>
 
             <div className="flex items-center gap-4">
