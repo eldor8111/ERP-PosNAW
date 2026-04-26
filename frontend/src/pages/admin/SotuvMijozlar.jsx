@@ -1955,7 +1955,7 @@ function TolovTab({ customers }) {
               )}
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">To'lov miqdori *</label>
-                <input type="number" min="1" required className={inputCls} value={form.amount}
+                <input type="text" inputMode="numeric" required className={inputCls} value={form.amount}
                   onChange={e => setForm(f => ({...f, amount: e.target.value}))} placeholder="Miqdor (so'm)..."/>
                 {sel && form.amount && parseAmt(form.amount) > 0 && (
                   <div className="text-xs text-slate-400 mt-1">
