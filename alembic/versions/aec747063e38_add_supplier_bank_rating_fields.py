@@ -24,28 +24,29 @@ def upgrade() -> None:
     )).scalar()
 
     if not has_table:
-        op.create_table(
-            'suppliers',
-            sa.Column('id', sa.Integer(), primary_key=True, index=True),
-            sa.Column('name', sa.String(length=200), nullable=False),
-            sa.Column('inn', sa.String(length=20), nullable=True),
-            sa.Column('phone', sa.String(length=20), nullable=True),
-            sa.Column('email', sa.String(length=100), nullable=True),
-            sa.Column('address', sa.Text(), nullable=True),
-            sa.Column('payment_terms', sa.Integer(), default=30),
-            sa.Column('debt_balance', sa.Numeric(14, 2), default=0),
-            sa.Column('is_active', sa.Boolean(), default=True),
-            sa.Column('company_id', sa.Integer(), sa.ForeignKey('companies.id'), nullable=True),
-            sa.Column('created_at', sa.DateTime(), nullable=True),
-            sa.Column('updated_at', sa.DateTime(), nullable=True),
-            sa.Column('bank_name', sa.String(length=200), nullable=True),
-            sa.Column('bank_account', sa.String(length=30), nullable=True),
-            sa.Column('bank_mfo', sa.String(length=10), nullable=True),
-            sa.Column('contract_number', sa.String(length=100), nullable=True),
-            sa.Column('contract_date', sa.DateTime(), nullable=True),
-            sa.Column('rating', sa.Float(), nullable=True),
-            sa.Column('notes', sa.Text(), nullable=True),
-        )
+        op.execute("""
+            CREATE TABLE suppliers (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(200) NOT NULL,
+                inn VARCHAR(20),
+                phone VARCHAR(20),
+                email VARCHAR(100),
+                address TEXT,
+                payment_terms INTEGER DEFAULT 30,
+                debt_balance NUMERIC(14, 2) DEFAULT 0,
+                is_active BOOLEAN DEFAULT TRUE,
+                company_id INTEGER,
+                created_at TIMESTAMP,
+                updated_at TIMESTAMP,
+                bank_name VARCHAR(200),
+                bank_account VARCHAR(30),
+                bank_mfo VARCHAR(10),
+                contract_number VARCHAR(100),
+                contract_date TIMESTAMP,
+                rating FLOAT,
+                notes TEXT
+            )
+        """)
     else:
         op.add_column('suppliers', sa.Column('bank_name', sa.String(length=200), nullable=True))
         op.add_column('suppliers', sa.Column('bank_account', sa.String(length=30), nullable=True))
