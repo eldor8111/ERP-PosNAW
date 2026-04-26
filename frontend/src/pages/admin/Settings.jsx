@@ -647,11 +647,22 @@ const RECEIPT_KEY = 'erp_receipt_settings';
 const defaultReceiptCfg = {
   company: '', address: '', phone: '', inn: '',
   header: '', footer: "Xaridingiz uchun rahmat!",
-  show_barcode: true, show_qr: false, show_cashier: true,
-  show_date: true, show_discount: true, show_debt: true,
-  show_payment_type: true, show_note: true, show_unit: true,
-  copies: '1',
-  logo: '', logo_size: 40,
+  copies: '1', logo: '', logo_size: 40,
+  // Sarlavha bo'limi
+  show_date: true, show_number: true, show_status: false,
+  show_account_name: false, show_employee: true,
+  // Mahsulot qatori
+  show_ordering_number: true, show_unit: true, show_warehouse: false,
+  show_package: false, show_price_per_unit: true,
+  show_discount: true, show_price_with_discount: true, show_currency: false,
+  // Jami bo'lim
+  show_total: true, show_net_price: true, show_total_quantity: false,
+  show_total_national: false, show_payment_type: true,
+  // Qarz bo'limi
+  show_debt: true, show_before_debt: false, show_last_payment: false,
+  // Qo'shimcha
+  show_note: true, show_contractor_contact: false,
+  show_cashier: true, show_barcode: true, show_qr: false,
 };
 const defaultNakladnoyCfg = {
   company: '', address: '', phone: '', inn: '',
@@ -891,30 +902,79 @@ function ReceiptFields({ cfg, upd }) {
         <label className="block text-xs font-semibold text-slate-500 mb-1">Oxirgi satr (tagso'z)</label>
         <input value={cfg.footer} onChange={e => upd('footer', e.target.value)} placeholder="Xaridingiz uchun rahmat!" className={RIC} />
       </div>
-      <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
+      <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-4">
         <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Chekda ko'rsatiladigan maydonlar</p>
-        <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
-          {[
-            ['show_date',         'Sana va vaqt'],
-            ['show_cashier',      "Kassir ismi"],
-            ['show_unit',         "O'lchov birligi"],
-            ['show_discount',     'Chegirma'],
-            ['show_payment_type', "To'lov turi"],
-            ['show_debt',         'Qarzdorlik'],
-            ['show_note',         'Izoh'],
-            ['show_barcode',      'Barkod'],
-            ['show_qr',           'QR kod'],
-          ].map(([key, label]) => (
-            <label key={key} className="flex items-center gap-2.5 cursor-pointer select-none">
-              <div onClick={() => upd(key, !cfg[key])}
-                className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${cfg[key] ? 'bg-indigo-500' : 'bg-slate-300'}`}>
-                <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${cfg[key] ? 'translate-x-4' : ''}`} />
-              </div>
-              <span className="text-sm text-slate-700">{label}</span>
-            </label>
-          ))}
-        </div>
-        <div className="flex items-center gap-2 pt-1 border-t border-slate-200">
+
+        {[
+          {
+            label: 'Sarlavha bo\'limi',
+            fields: [
+              ['show_number',       'Chek raqami'],
+              ['show_date',         'Sana va vaqt'],
+              ['show_status',       'Holat'],
+              ['show_account_name', 'Filial nomi'],
+              ['show_employee',     'Xodim / Kassir ismi'],
+            ],
+          },
+          {
+            label: 'Mahsulot qatori',
+            fields: [
+              ['show_ordering_number',    '№ tartib raqami'],
+              ['show_unit',               "O'lchov birligi"],
+              ['show_warehouse',          'Ombor nomi'],
+              ['show_package',            'Paket ma\'lumoti'],
+              ['show_price_per_unit',     'Birlik narxi'],
+              ['show_discount',           'Chegirma'],
+              ['show_price_with_discount','Chegirmali narx'],
+              ['show_currency',           'Valyuta nomi'],
+            ],
+          },
+          {
+            label: 'Jami bo\'lim',
+            fields: [
+              ['show_total',          'Jami summa'],
+              ['show_net_price',      'Sof narx'],
+              ['show_total_quantity', 'Jami miqdor'],
+              ['show_total_national', "Milliy valyutada jami"],
+              ['show_payment_type',   "To'lov turi va summasi"],
+            ],
+          },
+          {
+            label: 'Qarz bo\'limi',
+            fields: [
+              ['show_debt',         'Joriy qarzdorlik'],
+              ['show_before_debt',  'Oldingi qarz'],
+              ['show_last_payment', "Oxirgi to'lov"],
+            ],
+          },
+          {
+            label: 'Qo\'shimcha',
+            fields: [
+              ['show_note',               'Izoh'],
+              ['show_contractor_contact', 'Mijoz kontakti'],
+              ['show_cashier',            'Kassir imzosi satri'],
+              ['show_barcode',            'Barkod'],
+              ['show_qr',                 'QR kod'],
+            ],
+          },
+        ].map(group => (
+          <div key={group.label}>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">{group.label}</p>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+              {group.fields.map(([key, label]) => (
+                <label key={key} className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <div onClick={() => upd(key, !cfg[key])}
+                    className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${cfg[key] ? 'bg-indigo-500' : 'bg-slate-300'}`}>
+                    <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${cfg[key] ? 'translate-x-4' : ''}`} />
+                  </div>
+                  <span className="text-sm text-slate-700">{label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        <div className="flex items-center gap-2 pt-2 border-t border-slate-200">
           <span className="text-xs font-semibold text-slate-500">Nusxalar soni:</span>
           <select value={cfg.copies} onChange={e => upd('copies', e.target.value)}
             className="px-2 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
