@@ -236,16 +236,54 @@ export default function ChaqqonPro() {
         </div>
       </section>
 
-      <section className="sp-cta-section" id="sp-contact" style={{ background: '#fffbeb' }}>
-        <div className="ent-container">
-          <div className="sp-cta-box" style={{ background: '#ea580c' }}>
-            <h2 style={{ color: 'white' }}>{t('cp.cta.title') || 'Chaqqon Pro ga ulanish tayyormisiz?'}</h2>
-            <p style={{ color: 'rgba(255,255,255,0.9)' }}>
-              {t('cp.cta.desc') || 'Restoraningiz hajmidan qat\'iy nazar, yordam beramiz.'}
+      <section style={{ padding: '120px 0', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)', position: 'relative', overflow: 'hidden' }} id="sp-contact">
+        {/* background dots */}
+        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px)', backgroundSize: '28px 28px', pointerEvents: 'none' }} />
+        {/* glow blobs */}
+        <div style={{ position: 'absolute', top: '-100px', left: '10%', width: '400px', height: '400px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(234,88,12,0.2) 0%, transparent 70%)', filter: 'blur(60px)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', bottom: '-80px', right: '10%', width: '350px', height: '350px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(251,146,60,0.15) 0%, transparent 70%)', filter: 'blur(60px)', pointerEvents: 'none' }} />
+
+        <div className="ent-container" style={{ position: 'relative', zIndex: 2 }}>
+          <div style={{ textAlign: 'center', maxWidth: '700px', margin: '0 auto' }}>
+            {/* badge */}
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(234,88,12,0.15)', border: '1px solid rgba(234,88,12,0.3)', borderRadius: '100px', padding: '8px 20px', marginBottom: '32px' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ea580c', display: 'inline-block' }} />
+              <span style={{ color: '#fb923c', fontSize: '14px', fontWeight: '700' }}>Bepul sinab ko'ring</span>
+            </div>
+
+            <h2 style={{ fontSize: 'clamp(36px, 5vw, 56px)', fontWeight: '900', color: 'white', letterSpacing: '-0.03em', margin: '0 0 20px', lineHeight: '1.1' }}>
+              {t('cp.cta.title') || 'Chaqqon Pro ga ulanishga'}<br />
+              <span style={{ background: 'linear-gradient(135deg, #fb923c, #ea580c)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>tayyormisiz?</span>
+            </h2>
+
+            <p style={{ fontSize: '18px', color: 'rgba(255,255,255,0.65)', margin: '0 0 48px', lineHeight: '1.7' }}>
+              {t('cp.cta.desc') || "Restoraningiz hajmidan qat'iy nazar, yordam beramiz."}
             </p>
-            <div className="sp-cta-btns">
-              <a href="https://t.me/ecode_uz" target="_blank" rel="noreferrer" className="sp-btn-white" style={{ color: '#ea580c' }}>
-                {t('cp.cta.btn') || '💬 Biz bilan bog\'lanish'}
+
+            {/* stats row */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '40px', marginBottom: '48px', flexWrap: 'wrap' }}>
+              {[['5 daqiqa', "Sozlash vaqti"], ['24/7', 'Texnik yordam'], ['14 kun', 'Bepul sinov']].map(([val, lbl]) => (
+                <div key={lbl} style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '28px', fontWeight: '900', color: '#fb923c', letterSpacing: '-0.02em' }}>{val}</div>
+                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', fontWeight: '600', marginTop: '4px' }}>{lbl}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <a href="https://t.me/ecode_uz" target="_blank" rel="noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: 'linear-gradient(135deg, #ea580c, #fb923c)', color: 'white', border: 'none', fontWeight: '700', fontSize: '16px', padding: '16px 36px', borderRadius: '14px', cursor: 'pointer', textDecoration: 'none', boxShadow: '0 10px 30px rgba(234,88,12,0.4)', transition: 'all 0.3s' }}
+                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-3px)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+              >
+                💬 {t('cp.cta.btn') || "Biz bilan bog'lanish"}
+              </a>
+              <a href="https://chaqqonpro.e-code.uz" target="_blank" rel="noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,0.08)', color: 'white', border: '1px solid rgba(255,255,255,0.15)', fontWeight: '600', fontSize: '16px', padding: '16px 36px', borderRadius: '14px', cursor: 'pointer', textDecoration: 'none', backdropFilter: 'blur(10px)', transition: 'all 0.3s' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.13)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+              >
+                🚀 Tizimga kirish
               </a>
             </div>
           </div>
