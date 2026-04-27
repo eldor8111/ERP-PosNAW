@@ -65,6 +65,7 @@
 .sp-gradient-text {
   background: linear-gradient(135deg, #60a5fa, #34d399);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   display: inline-block;
 }
@@ -72,6 +73,7 @@
 .sp-gradient-text-purple {
   background: linear-gradient(135deg, #c4b5fd, #818cf8);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   display: inline-block;
 }
@@ -79,6 +81,7 @@
 .sp-gradient-text-green {
   background: linear-gradient(135deg, #6ee7b7, #34d399);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   display: inline-block;
 }
@@ -86,6 +89,7 @@
 .sp-gradient-text-violet {
   background: linear-gradient(135deg, #e9d5ff, #c084fc);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   display: inline-block;
 }
