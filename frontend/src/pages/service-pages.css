@@ -1520,46 +1520,6 @@
   margin: 0;
 }
 
-/* ── Mobile Menu (landing) ── */
-.ent-mobile-menu {
-  background: white;
-  border-top: 1px solid var(--ent-border);
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.ent-mobile-menu a {
-  display: block;
-  padding: 12px 16px;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--ent-text-main);
-  border-radius: 10px;
-  transition: 0.2s;
-  text-decoration: none;
-}
-
-.ent-mobile-menu a:hover { background: var(--ent-bg-alt); }
-
-.ent-mobile-menu button {
-  padding: 12px 16px;
-  font-size: 16px;
-  font-weight: 600;
-  border-radius: 10px;
-  border: none;
-  cursor: pointer;
-  font-family: inherit;
-  background: none;
-  color: var(--ent-text-main);
-  text-align: left;
-  transition: 0.2s;
-}
-
-.ent-mobile-menu button:hover { background: var(--ent-bg-alt); }
-.ent-mobile-menu button.ent-btn-primary { background: var(--ent-primary); color: white; text-align: center; }
-
 /* ── Responsive ── */
 @media (max-width: 1024px) {
   .sp-service-card { cursor: pointer; }
