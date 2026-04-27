@@ -13,7 +13,7 @@ from app.database import get_db
 from app.models.inventory import StockLevel
 from app.models.product import Product, ProductStatus
 from app.models.user import User, UserRole
-from app.schemas.product import ProductCreate, ProductListOut, ProductOut, ProductUpdate
+from app.schemas.product import ProductCreate, ProductListOut, ProductOut, ProductStatusUpdate, ProductUpdate
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
@@ -489,6 +489,24 @@ def update_product(
         new_values={k: str(v) for k, v in update_data.items()},
         ip_address=request.client.host if request.client else None,
     )
+    db.commit()
+    db.refresh(product)
+    return _attach_stock(product)
+
+
+@router.patch("/{product_id}/status", response_model=ProductOut)
+def toggle_product_status(
+    product_id: int,
+    data: ProductStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*WRITE_ROLES)),
+):
+    q = db.query(Product).filter(Product.id == product_id, Product.is_deleted == False)
+    q = q.filter(Product.company_id == current_user.company_id)
+    product = q.first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Mahsulot topilmadi")
+    product.status = data.status
     db.commit()
     db.refresh(product)
     return _attach_stock(product)

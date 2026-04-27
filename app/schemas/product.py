@@ -48,6 +48,9 @@ class ProductCreate(BaseModel):
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
     name_ru: Optional[str] = None
+    sku: Optional[str] = None
+    barcode: Optional[str] = None
+    brand: Optional[str] = None
     category_id: Optional[int] = None
     unit: Optional[str] = None
     cost_price: Optional[Decimal] = None
@@ -61,6 +64,10 @@ class ProductUpdate(BaseModel):
     weight: Optional[Decimal] = None
     dimensions: Optional[str] = None
     status: Optional[ProductStatus] = None
+
+
+class ProductStatusUpdate(BaseModel):
+    status: ProductStatus
 
 
 class ProductOut(BaseModel):
