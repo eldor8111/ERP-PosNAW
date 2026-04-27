@@ -144,7 +144,7 @@ export default function ChaqqonPro() {
             {/* Biznes Egasi */}
             <div 
               style={{ background: '#f8fafc', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', cursor: 'pointer', transition: 'all 0.3s ease' }}
-              onClick={() => window.location.href = 'https://chaqqonpro.e-code.uz/'}
+              onClick={() => window.location.href = 'https://chaqqonpro.e-code.uz/?mode=admin'}
             >
                <div style={{ fontSize: '36px', marginBottom: '16px' }}>📊</div>
                <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1e293b', marginBottom: '8px' }}>{t('cp.portals.p1.title') || 'Biznes Egasi (Admin)'}</h3>
