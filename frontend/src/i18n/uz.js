@@ -290,6 +290,7 @@ export default {
   'product.currentPage': 'Hozirgi sahifada:',
   'product.parentCategory': 'Ota kategoriya',
   'product.sortOrder': 'Tartib',
+  'product.productsCount': 'Mahsulotlar',
   'product.allCategoriesLabel': 'Barcha kategoriyalar',
   'product.parentCategoryOpt': 'Ota kategoriya (ixtiyoriy)',
   'product.sortNumber': 'Tartib raqami',

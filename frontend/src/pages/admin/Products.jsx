@@ -1294,7 +1294,7 @@ export default function Products() {
           <table className="min-w-full">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
-                {['#', t('common.name'), t('product.parentCategory'), t('product.sortOrder'), t('common.created'), ''].map(h => (
+                {['#', t('common.name'), t('product.parentCategory'), t('product.sortOrder'), t('common.created'), t('product.productsCount') || 'Mahsulotlar', ''].map(h => (
                   <th key={h} className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -1317,6 +1317,11 @@ export default function Products() {
                     {new Date(c.created_at).toLocaleDateString('uz-UZ')}
                   </td>
                   <td className="px-6 py-4">
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${(c.products_count || 0) > 0 ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
+                      {c.products_count || 0} ta
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => openEditCat(c)} className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1333,7 +1338,7 @@ export default function Products() {
                 </tr>
               ))}
               {categories.length === 0 && (
-                <tr><td colSpan={6} className="px-6 py-14 text-center text-sm text-slate-400">{t('product.noCategories')}</td></tr>
+                <tr><td colSpan={7} className="px-6 py-14 text-center text-sm text-slate-400">{t('product.noCategories')}</td></tr>
               )}
             </tbody>
           </table>

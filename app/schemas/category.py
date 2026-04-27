@@ -23,6 +23,7 @@ class CategoryOut(BaseModel):
     sort_order: int
     created_at: datetime
     children: List["CategoryOut"] = []
+    products_count: int = 0
 
     model_config = {"from_attributes": True}
 
