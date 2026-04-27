@@ -252,7 +252,7 @@ export default function ChaqqonPro() {
             </div>
 
             <h2 style={{ fontSize: 'clamp(36px, 5vw, 56px)', fontWeight: '900', color: 'white', letterSpacing: '-0.03em', margin: '0 0 20px', lineHeight: '1.1' }}>
-              {t('cp.cta.title') || 'Chaqqon Pro ga ulanishga'}<br />
+              Chaqqon Pro ga ulanishga{' '}
               <span style={{ background: 'linear-gradient(135deg, #fb923c, #ea580c)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>tayyormisiz?</span>
             </h2>
 
