@@ -21,12 +21,16 @@ from app.routers import billing  # type: ignore
 from app.models import company  # noqa: F401 — ensure Alembic detects Company model
 from app.models import agent  # noqa: F401 — ensure Alembic detects Agent model
 from app.models import billing as billing_models  # noqa: F401 — ensure Alembic detects Tariff, BalanceLog
+from app.models import bot_session  # noqa: F401 — ensure bot_sessions table exists
 
 from app.services.scheduler import start_scheduler
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from app.routers.auth import run_otp_bot_polling
+    from app.database import engine
+    from app.models.bot_session import BotSession
+    BotSession.__table__.create(bind=engine, checkfirst=True)
     scheduler_task = asyncio.create_task(start_scheduler())
     otp_bot_task = asyncio.create_task(run_otp_bot_polling())
     yield

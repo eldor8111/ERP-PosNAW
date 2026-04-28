@@ -517,11 +517,9 @@ function PasswordTab() {
 }
 
 // ── Telegram Bot Tab ───────────────────────────────────────────────────────────
-const TG_ICON = (
-  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-    <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a5.962 5.962 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.699 1.201-1.22 1.28-.106.016-.215.023-.324.023-.329 0-.655-.078-.962-.23-.09-.045-2.072-1.373-2.91-2.133-.255-.23-.55-.664-.047-1.12.13-.12 2.4-2.2 4.414-4.043.203-.186.417-.384.417-.61 0-.306-.275-.417-.463-.384l-.536.09-5.694 3.447c-.382.235-.905.39-1.424.39-.17 0-.339-.022-.505-.065L4.053 12.55c-.71-.225-.71-.708.15-1.047 2.768-1.196 9.2-3.953 11.233-4.279.172-.027.35-.042.508-.042z"/>
-  </svg>
-);
+const TG_PATH = "M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a5.962 5.962 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.699 1.201-1.22 1.28-.106.016-.215.023-.324.023-.329 0-.655-.078-.962-.23-.09-.045-2.072-1.373-2.91-2.133-.255-.23-.55-.664-.047-1.12.13-.12 2.4-2.2 4.414-4.043.203-.186.417-.384.417-.61 0-.306-.275-.417-.463-.384l-.536.09-5.694 3.447c-.382.235-.905.39-1.424.39-.17 0-.339-.022-.505-.065L4.053 12.55c-.71-.225-.71-.708.15-1.047 2.768-1.196 9.2-3.953 11.233-4.279.172-.027.35-.042.508-.042z";
+const TG_ICON = <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH}/></svg>;
+const TG_ICON_SM = <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH}/></svg>;
 
 function TelegramBotTab() {
   const { t } = useLang();
@@ -582,44 +580,55 @@ function TelegramBotTab() {
     }
   };
 
-  const webhookUrl = `${window.location.origin}/api/telegram/webhook/${savedToken || '<token>'}`;
+  const webhookUrl = `${window.location.origin}/api/telegram/webhook/${savedToken || ''}`;
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-2xl space-y-5">
 
-      {/* Ulangan holat */}
+      {/* Ulangan holat — kompakt bir qator */}
       {savedToken && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-emerald-500 text-white rounded-full flex items-center justify-center shadow">
-                {TG_ICON}
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-bold text-emerald-800 text-base">Bot ulangan va faol!</h3>
-                  <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse inline-block" />
-                </div>
-                {botUsername && (
-                  <p className="text-sm font-semibold text-emerald-700 mt-0.5">@{botUsername}</p>
-                )}
-                <p className="text-xs font-mono text-emerald-500 mt-0.5 bg-emerald-100 px-2 py-0.5 rounded w-fit">
-                  {savedToken.slice(0, 8)}...{savedToken.slice(-6)}
-                </p>
-              </div>
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 space-y-2">
+          {/* Status qatori */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse" />
+              <span className="font-bold text-emerald-800 text-sm">Bot faol</span>
+              {botUsername && (
+                <span className="text-sm font-semibold text-emerald-700">— @{botUsername}</span>
+              )}
             </div>
-            <button
-              onClick={handleDelete} disabled={saving}
-              className="px-4 py-2 bg-white border-2 border-red-200 text-red-600 hover:bg-red-50 font-bold text-sm rounded-xl transition-colors whitespace-nowrap"
-            >
-              {saving ? '...' : "Uzib qo'yish"}
-            </button>
+            <div className="ml-auto flex items-center gap-2">
+              {botUsername && (
+                <a
+                  href={`https://t.me/${botUsername}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1"
+                >
+                  {TG_ICON_SM} Botni ochish
+                </a>
+              )}
+              <button
+                onClick={handleDelete} disabled={saving}
+                className="px-3 py-1.5 bg-white border border-red-200 text-red-500 hover:bg-red-50 text-xs font-semibold rounded-lg transition-colors"
+              >
+                {saving ? '...' : "Uzib qo'yish"}
+              </button>
+            </div>
           </div>
-
-          {/* Webhook URL */}
-          <div className="mt-4 bg-white rounded-xl border border-emerald-100 px-4 py-3">
-            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Webhook URL</p>
-            <p className="text-xs font-mono text-slate-600 break-all">{webhookUrl}</p>
+          {/* Webhook URL — bir qatorda */}
+          <div className="flex items-center gap-2 bg-white rounded-lg border border-emerald-100 px-3 py-1.5 overflow-hidden">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide whitespace-nowrap">Webhook:</span>
+            <span className="text-xs font-mono text-slate-500 truncate flex-1">{webhookUrl}</span>
+            <button
+              onClick={() => { navigator.clipboard.writeText(webhookUrl); toast.success('Nusxalandi!'); }}
+              className="text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0"
+              title="Nusxalash"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            </button>
           </div>
         </div>
       )}
