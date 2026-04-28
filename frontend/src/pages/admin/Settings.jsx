@@ -517,10 +517,17 @@ function PasswordTab() {
 }
 
 // ── Telegram Bot Tab ───────────────────────────────────────────────────────────
+const TG_ICON = (
+  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+    <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a5.962 5.962 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.699 1.201-1.22 1.28-.106.016-.215.023-.324.023-.329 0-.655-.078-.962-.23-.09-.045-2.072-1.373-2.91-2.133-.255-.23-.55-.664-.047-1.12.13-.12 2.4-2.2 4.414-4.043.203-.186.417-.384.417-.61 0-.306-.275-.417-.463-.384l-.536.09-5.694 3.447c-.382.235-.905.39-1.424.39-.17 0-.339-.022-.505-.065L4.053 12.55c-.71-.225-.71-.708.15-1.047 2.768-1.196 9.2-3.953 11.233-4.279.172-.027.35-.042.508-.042z"/>
+  </svg>
+);
+
 function TelegramBotTab() {
   const { t } = useLang();
   const [token, setToken] = useState('');
   const [savedToken, setSavedToken] = useState(null);
+  const [botUsername, setBotUsername] = useState('');
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
@@ -529,26 +536,28 @@ function TelegramBotTab() {
   const load = () => {
     api.get('/companies').then(r => {
       if (r.data && r.data.length > 0) {
-        setSavedToken(r.data[0].tg_bot_token || null);
-        setCompanyId(r.data[0].id);
+        const co = r.data[0];
+        setSavedToken(co.tg_bot_token || null);
+        setBotUsername(co.tg_bot_username || '');
+        setCompanyId(co.id);
       }
-    }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi"); });
   };
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { load(); }, []);
 
   const handleSave = async (e) => {
     e.preventDefault();
     if (!companyId) return;
     setSaving(true); setErr(''); setMsg('');
     try {
-      await api.put(`/companies/${companyId}`, { tg_bot_token: token });
-      setMsg("Telegram bot tokeni muvaffaqiyatli saqlandi.");
+      const res = await api.put(`/companies/${companyId}`, { tg_bot_token: token });
+      const username = res.data?.tg_bot_username || '';
+      setMsg(`Bot muvaffaqiyatli ulandi${username ? ` (@${username})` : ''}. Webhook avtomatik o'rnatildi.`);
       setSavedToken(token);
+      setBotUsername(username);
       setToken('');
-      setTimeout(() => setMsg(''), 3000);
+      setTimeout(() => setMsg(''), 5000);
     } catch (error) {
       setErr(error.response?.data?.detail || "Xatolik yuz berdi");
     } finally {
@@ -557,11 +566,12 @@ function TelegramBotTab() {
   };
 
   const handleDelete = async () => {
-    if (!confirm("Tasdiqlaysizmi? Barcha xabarlar tohtatiladi.")) return;
+    if (!confirm("Tasdiqlaysizmi? Bot uzilib, barcha xabarlar to'xtatiladi.")) return;
     setSaving(true); setErr(''); setMsg('');
     try {
       await api.put(`/companies/${companyId}`, { tg_bot_token: null });
       setSavedToken(null);
+      setBotUsername('');
       setToken('');
       setMsg("Bot uzib qo'yildi.");
       setTimeout(() => setMsg(''), 3000);
@@ -572,45 +582,70 @@ function TelegramBotTab() {
     }
   };
 
+  const webhookUrl = `${window.location.origin}/api/telegram/webhook/${savedToken || '<token>'}`;
+
   return (
     <div className="max-w-2xl space-y-6">
+
+      {/* Ulangan holat */}
       {savedToken && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex justify-center items-center text-xl shadow-inner">
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a5.962 5.962 0 0 0-.056 0zm4.962 7.224c...l-5.694 3.447c...z"/></svg>
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-emerald-500 text-white rounded-full flex items-center justify-center shadow">
+                {TG_ICON}
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-bold text-emerald-800 text-base">Bot ulangan va faol!</h3>
+                  <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse inline-block" />
+                </div>
+                {botUsername && (
+                  <p className="text-sm font-semibold text-emerald-700 mt-0.5">@{botUsername}</p>
+                )}
+                <p className="text-xs font-mono text-emerald-500 mt-0.5 bg-emerald-100 px-2 py-0.5 rounded w-fit">
+                  {savedToken.slice(0, 8)}...{savedToken.slice(-6)}
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-bold text-emerald-800 text-lg">Bot ulangan va faol!</h3>
-              <p className="text-sm font-mono text-emerald-600 mt-1 bg-emerald-100 px-2 py-0.5 rounded w-fit">
-                {savedToken.slice(0, 8)}...{savedToken.slice(-6)}
-              </p>
-            </div>
+            <button
+              onClick={handleDelete} disabled={saving}
+              className="px-4 py-2 bg-white border-2 border-red-200 text-red-600 hover:bg-red-50 font-bold text-sm rounded-xl transition-colors whitespace-nowrap"
+            >
+              {saving ? '...' : "Uzib qo'yish"}
+            </button>
           </div>
-          <button 
-            onClick={handleDelete} disabled={saving}
-            className="px-4 py-2 bg-white border-2 border-red-200 text-red-600 hover:bg-red-50 font-bold text-sm rounded-xl transition-colors min-w-[120px]"
-          >
-            {saving ? '...' : "Uzib qo'yish"}
-          </button>
+
+          {/* Webhook URL */}
+          <div className="mt-4 bg-white rounded-xl border border-emerald-100 px-4 py-3">
+            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Webhook URL</p>
+            <p className="text-xs font-mono text-slate-600 break-all">{webhookUrl}</p>
+          </div>
         </div>
       )}
 
+      {/* Bot ulash formasi */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-5">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-            <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a5.962 5.962 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.699 1.201-1.22 1.28-.106.016-.215.023-.324.023-.329 0-.655-.078-.962-.23-.09-.045-2.072-1.373-2.91-2.133-.255-.23-.55-.664-.047-1.12.13-.12 2.4-2.2 4.414-4.043.203-.186.417-.384.417-.61 0-.306-.275-.417-.463-.384l-.536.09-5.694 3.447c-.382.235-.905.39-1.424.39-.17 0-.339-.022-.505-.065L4.053 12.55c-.71-.225-.71-.708.15-1.047 2.768-1.196 9.2-3.953 11.233-4.279.172-.027.35-.042.508-.042z"/></svg>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600">
+            {TG_ICON}
           </div>
           <div>
-            <h3 className="font-bold text-slate-800">{savedToken ? 'Boshqa bot ulash (Yangilash)' : 'Mijozlar uchun Telegram Bot'}</h3>
-            <p className="text-xs text-slate-400">Bot tokenini ulab qarz va keshbek bildirishnomalarini ishga tushiring</p>
+            <h3 className="font-bold text-slate-800">
+              {savedToken ? 'Boshqa bot ulash (Yangilash)' : 'Mijozlar uchun Telegram Bot'}
+            </h3>
+            <p className="text-xs text-slate-400">
+              Bot tokenini ulab qarz, muddat va keshbek bildirishnomalarini ishga tushiring
+            </p>
           </div>
         </div>
 
         <form onSubmit={handleSave} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Yangi Bot Token</label>
-            <input 
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+              {savedToken ? 'Yangi Bot Token' : 'Bot Token'}
+            </label>
+            <input
               value={token} required
               onChange={e => setToken(e.target.value)}
               placeholder="123456789:ABCDefghIJKlmnOPQRstUV... (BotFather-dan)"
@@ -621,21 +656,43 @@ function TelegramBotTab() {
           {err && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl">{err}</div>}
           {msg && <div className="px-4 py-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-xl">{msg}</div>}
 
-          <button type="submit" disabled={saving || !companyId || !token.trim()}
-            className="w-full py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
-            {saving ? "Saqlanmoqda..." : "Saqlash va Ulash"}
+          <button
+            type="submit" disabled={saving || !companyId || !token.trim()}
+            className="w-full py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors"
+          >
+            {saving ? "Tekshirilmoqda va saqlanmoqda..." : "Saqlash va Ulash"}
           </button>
         </form>
       </div>
 
-      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5">
-        <h4 className="text-sm font-bold text-slate-700 mb-2">Bu qanday ishlaydi?</h4>
-        <ul className="space-y-2 text-xs text-slate-500">
-          <li>1. Telegramda <b>@BotFather</b> orqali yangi bot yarating.</li>
-          <li>2. Olingan tokenni yuqoriga kiriting va Saqlang.</li>
-          <li>3. Qarzga savdo bo'lganda muddat oxirigacha Bot o'zi xabar berib turadi!</li>
-          <li><b>Muhim:</b> Mijoz xabar olishi uchun botingizga kirib <b>/start</b> bosishi va o'zining <b>Telefon raqamini</b> (Raqamni yuborish tugmasi orqali) jo'natishi kerak. Tizim raqam bo'yicha mijozni avtomat taniydi.</li>
-        </ul>
+      {/* Bot imkoniyatlari */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+        <h4 className="text-sm font-bold text-slate-700 mb-4">Bot imkoniyatlari (mijozlar uchun)</h4>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 mb-5">
+          {[
+            { icon: '💰', title: 'Qarz va to\'lovlar', desc: 'Joriy qarz, limit, bonus va chegirma' },
+            { icon: '📦', title: 'Oxirgi xaridlar', desc: 'So\'nggi 5 ta xarid tarixi' },
+            { icon: '📅', title: 'Qarz muddatlari', desc: 'Muddat holati (vaqt qolganmi yoki o\'tganmi)' },
+          ].map(f => (
+            <div key={f.title} className="bg-slate-50 rounded-xl p-3 flex gap-2 items-start">
+              <span className="text-xl">{f.icon}</span>
+              <div>
+                <p className="text-xs font-bold text-slate-700">{f.title}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">{f.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <h4 className="text-sm font-bold text-slate-700 mb-2">Sozlash yo'riqnomasi</h4>
+        <ol className="space-y-1.5 text-xs text-slate-500 list-none">
+          <li><span className="font-bold text-slate-600">1.</span> Telegramda <b>@BotFather</b> orqali yangi bot yarating va tokenni oling.</li>
+          <li><span className="font-bold text-slate-600">2.</span> Tokenni yuqoridagi maydonga kiriting va <b>Saqlash va Ulash</b> ni bosing.</li>
+          <li><span className="font-bold text-slate-600">3.</span> Tizim tokenni tekshirib, webhookni avtomatik ulaydi.</li>
+          <li><span className="font-bold text-slate-600">4.</span> Mijoz botga <b>/start</b> bosib, telefon raqamini yuboradi — tizim uni avtomat taniydi.</li>
+        </ol>
+        <div className="mt-3 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-700">
+          <b>Muhim:</b> Webhook to'g'ri ishlashi uchun server <b>HTTPS</b> da ishlashi va <b>SERVER_URL</b> sozlamasi .env faylda to'g'ri ko'rsatilgan bo'lishi kerak.
+        </div>
       </div>
     </div>
   );

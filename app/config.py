@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     # Telegram OTP bot
     OTP_BOT_TOKEN: str = ""
     OTP_BOT_USERNAME: str = "EcodeSmsuzbot"
+    # Server public URL (webhook uchun, masalan: https://savdo.e-code.uz)
+    SERVER_URL: str = ""
 
     class Config:
         env_file = ".env"
