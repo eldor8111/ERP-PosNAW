@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, Index
+from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, Index, text
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -17,8 +17,8 @@ class Product(Base):
     __tablename__ = "products"
 
     id = Column(Integer, primary_key=True, index=True)
-    sku = Column(String(50), unique=True, nullable=False, index=True)
-    barcode = Column(String(50), unique=True, nullable=False, index=True)
+    sku = Column(String(50), nullable=False, index=True)
+    barcode = Column(String(50), nullable=False, index=True)
     name = Column(String(200), nullable=False)
     name_ru = Column(String(200), nullable=True)
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
@@ -52,4 +52,9 @@ class Product(Base):
     __table_args__ = (
         Index('ix_product_company_status_deleted', 'company_id', 'status', 'is_deleted'),
         Index('ix_product_company_name', 'company_id', 'name'),
+        # Partial unique: faqat o'chirilmagan mahsulotlarda SKU va barcode unique
+        Index('uq_products_sku_active', 'sku', unique=True,
+              postgresql_where=text('is_deleted = false')),
+        Index('uq_products_barcode_active', 'barcode', unique=True,
+              postgresql_where=text('is_deleted = false')),
     )

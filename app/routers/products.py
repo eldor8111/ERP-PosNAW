@@ -557,14 +557,9 @@ def bulk_import_products(
     barcode_map = {p.barcode: p for p in all_products if p.barcode}
     sku_map = {p.sku: p for p in all_products if p.sku}
 
-    # Unique constraint barcha mahsulotlarga tegishli (o'chirilganlar ham),
-    # shu sababli DB dan barcha SKU va barkodlarni yuklaymiz
-    all_db_skus: set = {
-        row[0] for row in db.query(Product.sku).filter(Product.sku.isnot(None)).all()
-    }
-    all_db_barcodes: set = {
-        row[0] for row in db.query(Product.barcode).filter(Product.barcode.isnot(None)).all()
-    }
+    # Partial unique constraint faqat is_deleted=False mahsulotlarga tegishli
+    all_db_skus: set = set(sku_map.keys())
+    all_db_barcodes: set = set(barcode_map.keys())
 
     db_skus = set(sku_map.keys())
     db_barcodes = set(barcode_map.keys())
