@@ -525,6 +525,7 @@ function TelegramBotTab() {
   const [botUsername, setBotUsername] = useState('');
   const [companyId, setCompanyId] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const [token, setToken] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
@@ -537,6 +538,12 @@ function TelegramBotTab() {
         setSavedToken(co.tg_bot_token || null);
         setBotUsername(co.tg_bot_username || '');
         setCompanyId(co.id);
+        // username yo'q bo'lsa, tokenni qayta yuborib username ni olamiz
+        if (co.tg_bot_token && !co.tg_bot_username) {
+          api.put(`/companies/${co.id}`, { tg_bot_token: co.tg_bot_token })
+            .then(r2 => setBotUsername(r2.data?.tg_bot_username || ''))
+            .catch(() => {});
+        }
       }
     }).catch(e => toast.error(e.response?.data?.detail || e.message));
   };
@@ -663,15 +670,15 @@ function TelegramBotTab() {
                 {/* ACTIONS */}
                 <td className="px-4 py-3.5">
                   <div className="flex items-center gap-1.5 justify-end">
-                    {botUsername && (
-                      <a href={`https://t.me/${botUsername}`} target="_blank" rel="noreferrer"
-                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors" title="Botni ochish">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                        </svg>
-                      </a>
-                    )}
+                    {/* Ko'z — nastroyka */}
+                    <button onClick={() => setShowDetails(true)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors" title="Nastroyka">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                      </svg>
+                    </button>
+                    {/* 3 nuqta — menyu, tepaga ochiladi */}
                     <div className="relative">
                       <button onClick={() => setMenuOpen(p => !p)}
                         className="w-8 h-8 flex items-center justify-center rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
@@ -680,23 +687,26 @@ function TelegramBotTab() {
                         </svg>
                       </button>
                       {menuOpen && (
-                        <div className="absolute right-0 top-9 bg-white border border-slate-200 rounded-xl shadow-xl z-20 min-w-[170px] py-1 overflow-hidden">
-                          <button onClick={() => { setShowModal(true); setMenuOpen(false); setErr(''); setToken(''); }}
-                            className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2.5">
-                            <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                            </svg>
-                            Tokenni yangilash
-                          </button>
-                          <div className="border-t border-slate-100 my-0.5"/>
-                          <button onClick={handleDelete}
-                            className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2.5">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
-                            </svg>
-                            Uzib qo'yish
-                          </button>
-                        </div>
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)}/>
+                          <div className="absolute right-0 bottom-full mb-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 min-w-[180px] py-1 overflow-hidden">
+                            <button onClick={() => { setShowModal(true); setMenuOpen(false); setErr(''); setToken(''); }}
+                              className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2.5">
+                              <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                              </svg>
+                              Tokenni yangilash
+                            </button>
+                            <div className="border-t border-slate-100"/>
+                            <button onClick={handleDelete}
+                              className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2.5">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                              </svg>
+                              Uzib qo'yish
+                            </button>
+                          </div>
+                        </>
                       )}
                     </div>
                   </div>
@@ -718,6 +728,82 @@ function TelegramBotTab() {
           </tbody>
         </table>
       </div>
+
+      {/* Details / Nastroyka modal */}
+      {showDetails && savedToken && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={e => { if (e.target === e.currentTarget) setShowDetails(false); }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 text-lg font-bold">
+                  {botUsername ? botUsername[0].toUpperCase() : 'B'}
+                </div>
+                <div>
+                  <p className="font-bold text-slate-800">{botUsername ? `@${botUsername}` : 'Bot'}</p>
+                  <p className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse inline-block"/>Faol
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setShowDetails(false)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+
+            {/* Webhook URL */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Webhook URL</label>
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
+                <span className="text-xs font-mono text-slate-600 flex-1 truncate">{webhookUrl}</span>
+                <button onClick={() => { navigator.clipboard.writeText(webhookUrl); toast.success('Nusxalandi!'); }}
+                  className="flex-shrink-0 text-slate-400 hover:text-indigo-600 transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Token */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Token</label>
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
+                <span className="text-xs font-mono text-slate-600 flex-1 truncate">{savedToken}</span>
+                <button onClick={() => { navigator.clipboard.writeText(savedToken); toast.success('Token nusxalandi!'); }}
+                  className="flex-shrink-0 text-slate-400 hover:text-indigo-600 transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Bot imkoniyatlari */}
+            <div className="bg-slate-50 rounded-xl p-3.5 space-y-1.5">
+              <p className="text-xs font-bold text-slate-600">Bot imkoniyatlari (mijozlar uchun)</p>
+              <div className="grid grid-cols-2 gap-1 text-xs text-slate-500">
+                <span>💰 Qarz va to'lovlar</span>
+                <span>📦 Oxirgi xaridlar</span>
+                <span>🎫 Loyallik karta</span>
+                <span>❓ Yordam</span>
+              </div>
+            </div>
+
+            {/* Telegram da ochish */}
+            {botUsername && (
+              <a href={`https://t.me/${botUsername}`} target="_blank" rel="noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-semibold text-sm rounded-xl transition-colors">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH}/></svg>
+                Telegramda ochish → @{botUsername}
+              </a>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Modal — bot qo'shish */}
       {showModal && (
