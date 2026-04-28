@@ -552,10 +552,19 @@ def bulk_import_products(
         Product.is_deleted == False,
         Product.company_id == current_user.company_id,
     ).all()
-    
+
     name_map = {p.name: p for p in all_products if p.name}
     barcode_map = {p.barcode: p for p in all_products if p.barcode}
     sku_map = {p.sku: p for p in all_products if p.sku}
+
+    # Unique constraint barcha mahsulotlarga tegishli (o'chirilganlar ham),
+    # shu sababli DB dan barcha SKU va barkodlarni yuklaymiz
+    all_db_skus: set = {
+        row[0] for row in db.query(Product.sku).filter(Product.sku.isnot(None)).all()
+    }
+    all_db_barcodes: set = {
+        row[0] for row in db.query(Product.barcode).filter(Product.barcode.isnot(None)).all()
+    }
 
     db_skus = set(sku_map.keys())
     db_barcodes = set(barcode_map.keys())
@@ -565,6 +574,9 @@ def bulk_import_products(
         name = str(row.get("Nomi") or "").strip()
         barcode = str(row.get("Barkod") or "").strip()
         sku_val = str(row.get("SKU") or "").strip() or None
+        # "0" yoki faqat nollardan iborat SKU ni bo'sh deb hisoblaymiz
+        if sku_val and sku_val.lstrip("0") == "":
+            sku_val = None
 
         if not name and not barcode:
             errors.append({"row": row_num, "error": "Mahsulot nomi yoki barkod majburiy"})
@@ -649,17 +661,17 @@ def bulk_import_products(
             continue
 
         sku_final = sku_val
-        if not sku_final or sku_final in db_skus:
+        if not sku_final or sku_final in db_skus or sku_final in all_db_skus:
             while True:
                 s = f"{random.randint(10000, 99999)}"
-                if s not in db_skus:
+                if s not in db_skus and s not in all_db_skus:
                     sku_final = s
                     break
 
         if not barcode:
             while True:
                 b = str(random.randint(10000000, 99999999))
-                if b not in db_barcodes:
+                if b not in db_barcodes and b not in all_db_barcodes:
                     barcode = b
                     break
 
@@ -680,6 +692,8 @@ def bulk_import_products(
         # O(1) in-memory state tracking to avoid DB flush/queries inside loop
         db_barcodes.add(barcode)
         db_skus.add(sku_final)
+        all_db_barcodes.add(barcode)
+        all_db_skus.add(sku_final)
         name_map[name] = product
         barcode_map[barcode] = product
         sku_map[sku_final] = product
