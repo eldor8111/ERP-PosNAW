@@ -5,7 +5,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
-import { buildReceiptHtml, printReceiptHtml, getReceiptSettings } from '../../utils/receiptBuilder';
+import { buildReceiptHtml, printReceiptHtml, getReceiptSettings, saveReceiptSettings } from '../../utils/receiptBuilder';
 import { toast } from '../../utils/toast';
 
 /* ─── Yordamchi funksiyalar ─────────────────────────────── */
@@ -331,7 +331,8 @@ export default function UlgurjiSotuv() {
         if (d.r58) stored.r58 = d.r58;
         if (d.r80) stored.r80 = d.r80;
         if (d.nak) stored.nak = d.nak;
-        if (Object.keys(stored).length) localStorage.setItem('erp_receipt_settings', JSON.stringify(stored));
+        // ✅ company_id bilan saqlash — boshqa korxona keshi muammosini oldini oladi
+        if (Object.keys(stored).length) saveReceiptSettings(stored);
       }
     }).catch(() => {});
   }, []);
@@ -367,8 +368,13 @@ export default function UlgurjiSotuv() {
         const r = await api.get(`/sales/${s.id}`);
         data = r.data;
       }
-      const cfg = getReceiptSettings();
-      const html = buildReceiptHtml(data, cfg, size);
+      // ✅ To'g'ri argument tartib: buildReceiptHtml(sale, tpl, cfg)
+      const rSettings = getReceiptSettings();
+      const tpl = (size === 'A4' || size === 'nak') ? 'nak' : (size === '58' ? '58' : '80');
+      const tmplCfg = tpl === 'nak'
+        ? (rSettings.nak || {})
+        : (rSettings['r' + tpl] || rSettings[tpl] || {});
+      const html = buildReceiptHtml(data, tpl, tmplCfg);
       printReceiptHtml(html);
     } catch (e) {
       toast.error("Chop etishda xatolik");

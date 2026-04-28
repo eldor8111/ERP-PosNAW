@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { useLang } from '../../context/LangContext';
 import toast from 'react-hot-toast';
+import { saveReceiptSettings } from '../../utils/receiptBuilder';
 
 // ── Valyutalar tab ────────────────────────────────────────────────────────────
 function CurrenciesTab() {
@@ -1457,7 +1458,8 @@ function ReceiptTab() {
         if (r80) stored.r80 = r80;
         if (nak) stored.nak = nak;
         if (Object.keys(stored).length) {
-          localStorage.setItem(RECEIPT_KEY, JSON.stringify(stored));
+          // ✅ company_id bilan saqlash
+          saveReceiptSettings(stored);
         }
       })
       .catch(e => console.error('Receipt templates load error:', e))
@@ -1472,8 +1474,8 @@ function ReceiptTab() {
     api.put('/companies/me/receipt_templates', {
       receipt_templates: { r58: cfg58, r80: cfg80, nak: cfgNak }
     }).then(() => {
-      // localStorage ni yangilash (barcha print funksiyalar shu yerdan o'qiydi)
-      localStorage.setItem(RECEIPT_KEY, JSON.stringify({ r58: cfg58, r80: cfg80, nak: cfgNak }));
+      // ✅ company_id bilan saqlash (barcha print funksiyalar shu yerdan o'qiydi)
+      saveReceiptSettings({ r58: cfg58, r80: cfg80, nak: cfgNak });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     }).catch(e => alert(e.response?.data?.detail || "Saqlashda xatolik yuz berdi"));

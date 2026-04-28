@@ -20,10 +20,29 @@ export function printReceiptHtml(html) {
 
 export function getReceiptSettings() {
   try {
-    return JSON.parse(localStorage.getItem(RECEIPT_KEY) || '{}');
+    const raw = JSON.parse(localStorage.getItem(RECEIPT_KEY) || '{}');
+    // ✅ Ko'p korxonali tizim: boshqa korxona keshi bo'lsa ishlatma
+    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+    const currentCompanyId = currentUser?.company_id;
+    if (currentCompanyId && raw._company_id && raw._company_id !== currentCompanyId) {
+      return {};
+    }
+    return raw;
   } catch {
     return {};
   }
+}
+
+/**
+ * Chek sozlamalarini company_id bilan birga saqlaydi.
+ */
+export function saveReceiptSettings(settings) {
+  try {
+    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+    const company_id = currentUser?.company_id;
+    const toSave = company_id ? { ...settings, _company_id: company_id } : settings;
+    localStorage.setItem(RECEIPT_KEY, JSON.stringify(toSave));
+  } catch { /* ignore */ }
 }
 
 /**
