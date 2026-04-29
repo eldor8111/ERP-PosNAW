@@ -368,12 +368,22 @@ export default function UlgurjiSotuv() {
         const r = await api.get(`/sales/${s.id}`);
         data = r.data;
       }
-      // ✅ To'g'ri argument tartib: buildReceiptHtml(sale, tpl, cfg)
-      const rSettings = getReceiptSettings();
-      const tpl = (size === 'A4' || size === 'nak') ? 'nak' : (size === '58' ? '58' : '80');
+      const tpl = size === 'nak' ? 'nak' : size === '58' ? '58' : '80';
+      let rSettings = getReceiptSettings();
+      // localStorage bo'sh bo'lsa serverdan olib saqla
+      if (!rSettings.r58 && !rSettings.r80 && !rSettings.nak) {
+        try {
+          const res = await api.get('/companies/me/receipt_templates');
+          const d = res.data?.receipt_templates || {};
+          if (d.r58 || d.r80 || d.nak) {
+            saveReceiptSettings(d);
+            rSettings = d;
+          }
+        } catch { /* serverdan olib bo'lmasa bo'sh shablon ishlatiladi */ }
+      }
       const tmplCfg = tpl === 'nak'
         ? (rSettings.nak || {})
-        : (rSettings['r' + tpl] || rSettings[tpl] || {});
+        : (rSettings['r' + tpl] || {});
       const html = buildReceiptHtml(data, tpl, tmplCfg);
       printReceiptHtml(html);
     } catch (e) {
@@ -947,7 +957,7 @@ export default function UlgurjiSotuv() {
                               </button>
                               <div className="border-t border-slate-100 my-1"/>
                               <div className="px-4 py-1 text-xs font-semibold text-slate-400 uppercase tracking-wide">Chop etish</div>
-                              {[{size:'58mm',label:'58mm'},{size:'80mm',label:'80mm'},{size:'a4',label:'A4 Nakladnoy'}].map(opt => (
+                              {[{size:'58',label:'58mm'},{size:'80',label:'80mm'},{size:'nak',label:'A4 Nakladnoy'}].map(opt => (
                                 <button key={opt.size} onClick={() => { printSale(s, opt.size); setOpenMenuId(null); }}
                                   className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-indigo-50 flex items-center gap-2.5">
                                   <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
