@@ -131,10 +131,27 @@ export default function Tariflar() {
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
       {/* Header */}
-      <div className="mb-8 text-center">
+      <div className="mb-6 text-center">
         <h1 className="text-3xl font-black text-slate-800 mb-2">{t('nav.tariffs')}</h1>
         <p className="text-slate-500">{t('tariffs.subtitle')}</p>
       </div>
+
+      {/* BHM banner */}
+      {tariffs.some(t => t.bhm_percent != null && t.price_per_month > 0) && (
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 px-5 py-4 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
+            <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <p className="text-sm text-slate-600 leading-relaxed">
+            Barcha tariflar{' '}
+            <span className="font-bold text-indigo-700">O'zbekiston Respublikasi BHM</span>
+            {' '}(Bazaviy hisob-kitob miqdori) asosida belgilanган.
+            Har bir tarifning narxi BHMning ma'lum qismini tashkil qiladi.
+          </p>
+        </div>
+      )}
 
       {/* Joriy obuna holati */}
       {billing && (
@@ -215,10 +232,18 @@ export default function Tariflar() {
             {/* BHM ko'rsatkichi */}
             {tariff.bhm_percent != null && tariff.price_per_month > 0 && (
               <div className="mt-3 pt-3 border-t border-dashed border-slate-200">
-                <p className="text-[11px] text-slate-400 leading-relaxed">
-                  O'zbekiston Respublikasidagi BHM miqdorining{' '}
-                  <span className="font-semibold text-slate-500">{tariff.bhm_percent}%</span>
-                  {' '}({(tariff.bhm_percent / 100).toFixed(2)} qismini) tashkil qiladi
+                <div className="flex items-center gap-1.5 mb-1">
+                  <svg className="w-3 h-3 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wide">BHM ko'rsatkichi</span>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  BHMning{' '}
+                  <span className="font-bold text-indigo-600">{tariff.bhm_percent}%</span>
+                  {' '}(
+                  <span className="font-semibold">{(tariff.bhm_percent / 100).toFixed(2)}</span>
+                  {' '}qismini) tashkil qiladi
                 </p>
               </div>
             )}
