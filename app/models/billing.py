@@ -3,7 +3,7 @@ Billing modellari: Tariff, BalanceLog
 Company modeliga qo'shimcha ustunlar migration orqali qo'shiladi.
 """
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Numeric, Text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Numeric, Text, Float
 from sqlalchemy.orm import relationship
 from app.database import Base  # type: ignore
 
@@ -20,6 +20,7 @@ class Tariff(Base):
     max_branches  = Column(Integer, default=1)
     is_active     = Column(Boolean, default=True)
     sort_order    = Column(Integer, default=0)
+    bhm_percent   = Column(Float, nullable=True)                    # BHM ning necha foizini tashkil qiladi
     created_at    = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 

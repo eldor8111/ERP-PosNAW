@@ -60,6 +60,7 @@ def _tariff_out(t: Tariff) -> dict:
         "max_branches": t.max_branches,
         "is_active": t.is_active,
         "sort_order": t.sort_order,
+        "bhm_percent": float(t.bhm_percent) if t.bhm_percent is not None else None,
         "created_at": t.created_at.isoformat() if t.created_at else None,
     }
 
@@ -121,6 +122,7 @@ class TariffCreate(BaseModel):
     max_users: int = 5
     max_branches: int = 1
     sort_order: int = 0
+    bhm_percent: Optional[float] = None
 
 
 @router.post("/tariffs")
@@ -137,6 +139,7 @@ def create_tariff(
         max_users=data.max_users,
         max_branches=data.max_branches,
         sort_order=data.sort_order,
+        bhm_percent=data.bhm_percent,
         created_at=datetime.now(timezone.utc),
     )
     db.add(t)
@@ -154,6 +157,7 @@ class TariffUpdate(BaseModel):
     max_branches: Optional[int] = None
     is_active: Optional[bool] = None
     sort_order: Optional[int] = None
+    bhm_percent: Optional[float] = None
 
 
 @router.put("/tariffs/{tariff_id}")

@@ -212,6 +212,17 @@ export default function Tariflar() {
               </div>
             </div>
 
+            {/* BHM ko'rsatkichi */}
+            {tariff.bhm_percent != null && tariff.price_per_month > 0 && (
+              <div className="mt-3 pt-3 border-t border-dashed border-slate-200">
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  O'zbekiston Respublikasidagi BHM miqdorining{' '}
+                  <span className="font-semibold text-slate-500">{tariff.bhm_percent}%</span>
+                  {' '}({(tariff.bhm_percent / 100).toFixed(2)} qismini) tashkil qiladi
+                </p>
+              </div>
+            )}
+
             {/* Tugma */}
             <div className="mt-5">
               {!isCurrent(tariff) && (

@@ -1395,7 +1395,7 @@ const [tariffs, setTariffs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState(null);
-  const [form, setForm] = useState({ name:'', description:'', price_per_month:0, duration_days:30, max_users:10, max_branches:2, sort_order:0 });
+  const [form, setForm] = useState({ name:'', description:'', price_per_month:0, duration_days:30, max_users:10, max_branches:2, sort_order:0, bhm_percent:'' });
   const [saving, setSaving] = useState(false);
 
   const load = () => {
@@ -1406,13 +1406,13 @@ const [tariffs, setTariffs] = useState([]);
 
   const openNew = () => {
     setEditItem(null);
-    setForm({ name:'', description:'', price_per_month:0, duration_days:30, max_users:10, max_branches:2, sort_order:0 });
+    setForm({ name:'', description:'', price_per_month:0, duration_days:30, max_users:10, max_branches:2, sort_order:0, bhm_percent:'' });
     setShowForm(true);
   };
 
   const openEdit = (tariff) => {
     setEditItem(tariff);
-    setForm({ name:tariff.name, description:tariff.description||'', price_per_month:tariff.price_per_month, duration_days:tariff.duration_days, max_users:tariff.max_users, max_branches:tariff.max_branches, sort_order:tariff.sort_order });
+    setForm({ name:tariff.name, description:tariff.description||'', price_per_month:tariff.price_per_month, duration_days:tariff.duration_days, max_users:tariff.max_users, max_branches:tariff.max_branches, sort_order:tariff.sort_order, bhm_percent: tariff.bhm_percent ?? '' });
     setShowForm(true);
   };
 
@@ -1477,6 +1477,9 @@ const [tariffs, setTariffs] = useState([]);
                   <div>⏱ Muddat: <span className="font-bold text-slate-700">{tariff.duration_days} kun</span></div>
                   <div>👤 Max xodim: <span className="font-bold text-slate-700">{tariff.max_users >= 9999 ? 'Cheksiz' : tariff.max_users}</span></div>
                   <div>🏢 Max filial: <span className="font-bold text-slate-700">{tariff.max_branches >= 9999 ? 'Cheksiz' : tariff.max_branches}</span></div>
+                  {tariff.bhm_percent != null && (
+                    <div>📊 BHM: <span className="font-bold text-indigo-600">{tariff.bhm_percent}% ({(tariff.bhm_percent/100).toFixed(2)} BHM)</span></div>
+                  )}
                 </div>
                 <div className="flex gap-2 mt-auto pt-2 border-t border-slate-100">
                   <button onClick={() => openEdit(tariff)} className="flex-1 py-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-all">{t('common.edit')}</button>
@@ -1527,6 +1530,11 @@ const [tariffs, setTariffs] = useState([]);
                   <label className="block text-xs font-bold text-slate-500 mb-1">Max filial</label>
                   <input type="number" value={form.max_branches} onChange={e=>setForm(p=>({...p,max_branches:Number(e.target.value)}))} className={inp} min="1" />
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">BHM foizi (%)</label>
+                <input type="number" value={form.bhm_percent} onChange={e=>setForm(p=>({...p,bhm_percent:e.target.value===''?'':Number(e.target.value)}))} className={inp} min="0" step="0.1" placeholder="Masalan: 45 (BHMning 45%)" />
+                <p className="text-xs text-slate-400 mt-1">Tariflar sahifasida "BHMning X% ni tashkil qiladi" deb ko'rsatiladi</p>
               </div>
             </div>
             <div className="flex gap-2 mt-5">
