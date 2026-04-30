@@ -58,6 +58,8 @@ class POOut(BaseModel):
     warehouse_name: str
     status: POStatus
     total_amount: Decimal
+    paid_amount: Decimal = Decimal("0")
+    discount_amount: Decimal = Decimal("0")
     note: Optional[str]
     expected_date: Optional[datetime]
     created_by: int
@@ -75,6 +77,8 @@ class POListOut(BaseModel):
     warehouse_name: str
     status: POStatus
     total_amount: Decimal
+    paid_amount: Decimal = Decimal("0")
+    discount_amount: Decimal = Decimal("0")
     created_at: datetime
 
     model_config = {"from_attributes": True}

@@ -1422,6 +1422,8 @@ function KirimlarTab({ products, warehouses, suppliers, users }) {
     { k:'warehouse_name', l:'Ombor' },
     { k:'status',         l:'Holat', r: v => <Badge meta={poMeta} val={v} /> },
     { k:'total_amount',   l:"Jami (so'm)", r: v => fmt(v) },
+    { k:'paid_amount',    l:"To'langan", r: v => <span className="text-emerald-600 font-semibold">{fmt(v)}</span> },
+    { k:'debt',           l:"Qarzga", r: (_, row) => { const d = Number(row.total_amount) - Number(row.paid_amount || 0) - Number(row.discount_amount || 0); return d > 0 ? <span className="text-red-500 font-semibold">{fmt(d)}</span> : '—'; } },
     { k:'created_at',     l:'Sana', r: v => fmtDay(v) },
     { k:'id', l:'', r: (_,row) => ['draft','ordered','partial'].includes(row.status) ? (
       <button onClick={e=>{e.stopPropagation(); openDetail(row);}}
@@ -1521,6 +1523,16 @@ function KirimlarTab({ products, warehouses, suppliers, users }) {
               <div className="grid grid-cols-4 gap-3 text-sm">
                 {[["Ta'minotchi",detail.supplier_name],["Ombor",detail.warehouse_name],["Holat",<Badge meta={poMeta} val={detail.status}/>],["Sana",fmtDay(detail.created_at)]].map(([k,v])=>(
                   <div key={k} className="bg-slate-50 rounded-xl p-3"><div className="text-xs text-slate-500 mb-1">{k}</div><div className="font-semibold">{v}</div></div>
+                ))}
+              </div>
+              <div className="grid grid-cols-4 gap-3 text-sm">
+                {[
+                  ["Jami summa", fmt(detail.total_amount)],
+                  ["Chegirma", fmt(detail.discount_amount)],
+                  ["To'langan summa", <span className="text-emerald-600">{fmt(detail.paid_amount)}</span>],
+                  ["Qarz (Qoldiq)", <span className="text-red-500">{fmt(Number(detail.total_amount) - Number(detail.paid_amount || 0) - Number(detail.discount_amount || 0))}</span>]
+                ].map(([k,v])=>(
+                  <div key={k} className="bg-slate-50 rounded-xl p-3"><div className="text-xs text-slate-500 mb-1">{k}</div><div className="font-bold">{v}</div></div>
                 ))}
               </div>
               <table className="w-full text-sm border border-slate-200 rounded-xl overflow-hidden">
@@ -1797,6 +1809,18 @@ function QaytarishlarTab({ products, suppliers, warehouses }) {
   const { t } = useLang();
   const [mode, setMode] = useState('list');
   const [sub, setSub]   = useState('customer');
+  const [returns, setReturns] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (mode === 'list') {
+      setLoading(true);
+      api.get('/inventory/movements', { params: { reference_type: sub === 'supplier' ? 'return_to_supplier' : 'return_from_customer' } })
+        .then(r => setReturns(r.data))
+        .catch(console.error)
+        .finally(() => setLoading(false));
+    }
+  }, [mode, sub]);
 
   if (mode === 'create') return (
     <QaytarishCreateView products={products} type={sub} onBack={() => setMode('list')} suppliers={suppliers} warehouses={warehouses} />
@@ -1820,11 +1844,39 @@ function QaytarishlarTab({ products, suppliers, warehouses }) {
           </div>
         </div>
       </div>
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-16 text-center">
-        <svg className="w-12 h-12 mx-auto mb-3 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-        </svg>
-        <p className="text-slate-400 text-sm">{t('ops.returnHistoryHint') || "Qaytarish tarixini ko'rish uchun yuqoridagi tugmani bosing"}</p>
+      
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="py-16 text-center"><div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto" /></div>
+        ) : returns.length === 0 ? (
+          <div className="py-16 text-center">
+            <svg className="w-12 h-12 mx-auto mb-3 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+            </svg>
+            <p className="text-slate-400 text-sm">Qaytarilgan mahsulotlar topilmadi</p>
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100">
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Sana</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Mahsulot</th>
+                <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Soni</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Izoh</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {returns.map((r, i) => (
+                <tr key={r.id || i} className="hover:bg-slate-50">
+                  <td className="px-5 py-3.5 text-slate-500">{new Date(r.created_at).toLocaleString('uz-UZ')}</td>
+                  <td className="px-5 py-3.5 font-semibold">{r.product_name}</td>
+                  <td className="px-5 py-3.5 text-center text-red-500 font-bold">{fmt(r.quantity)}</td>
+                  <td className="px-5 py-3.5 text-slate-500 text-xs">{r.reason}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

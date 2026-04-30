@@ -100,7 +100,8 @@ def get_low_stock_count(
 @router.get("/movements", response_model=List[StockMovementOut])
 def get_movements(
     product_id: Optional[int] = Query(None),
-    type: Optional[str] = Query(None, description="Filter by movement type: in, out, adjust"),
+    type: Optional[MovementType] = Query(None),
+    reference_type: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
@@ -118,6 +119,8 @@ def get_movements(
         q = q.filter(StockMovement.product_id == product_id)
     if type:
         q = q.filter(StockMovement.type == type)
+    if reference_type:
+        q = q.filter(StockMovement.reference_type == reference_type)
 
     movements = q.offset(skip).limit(limit).all()
 

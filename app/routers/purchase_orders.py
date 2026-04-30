@@ -25,6 +25,8 @@ def _build_po_out(po: PurchaseOrder) -> POOut:
         warehouse_name=po.warehouse.name,
         status=po.status,
         total_amount=po.total_amount,
+        paid_amount=po.paid_amount,
+        discount_amount=po.discount_amount,
         note=po.note,
         expected_date=po.expected_date,
         created_by=po.created_by,
@@ -87,6 +89,8 @@ def list_purchase_orders(
             warehouse_name=po.warehouse.name,
             status=po.status,
             total_amount=po.total_amount,
+            paid_amount=po.paid_amount,
+            discount_amount=po.discount_amount,
             created_at=po.created_at,
         )
         for po in pos
