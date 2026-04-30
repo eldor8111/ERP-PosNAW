@@ -13,13 +13,13 @@ from app.models.user import User, UserRole
 from app.models.warehouse import Warehouse
 from app.schemas.inventory import (
     StockAdjustRequest,
-    StockAdjustRequest,
     StockLevelOut,
     StockMovementOut,
     StockReceiveRequest,
     ChiqimBatchRequest,
     ChiqimDocumentOut,
-    ChiqimDetailOut
+    ChiqimDetailOut,
+    SupplierReturnRequest
 )
 from app.services.inventory_service import (
     adjust_stock, 
