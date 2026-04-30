@@ -947,8 +947,13 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
   const { t } = useLang();
   const [sub, setSub]             = useState('po');
   // PO form
-  const [poForm, setPoForm]       = useState({ supplier_id:'', warehouse_id:'', note:'', expected_date:'' });
+  const [poForm, setPoForm]       = useState({ supplier_id:'', warehouse_id:'', note:'', expected_date:'', paid_amount:'', wallet_id:'' });
   const [poItems, setPoItems]     = useState([]);
+  const [wallets, setWallets]     = useState([]);
+
+  useEffect(() => {
+    api.get('/moliya/wallets').then(r => setWallets(r.data)).catch(console.error);
+  }, []);
   // Manual form
   const [manSupId, setManSupId]   = useState('');
   const [manWarehouseId, setManWh]= useState('');
@@ -1019,6 +1024,8 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
     api.post('/purchase-orders', {
       supplier_id: Number(poForm.supplier_id), warehouse_id: Number(poForm.warehouse_id),
       note: poForm.note || null, expected_date: poForm.expected_date || null,
+      paid_amount: poForm.paid_amount ? Number(poForm.paid_amount) : 0,
+      wallet_id: poForm.wallet_id ? Number(poForm.wallet_id) : null,
       update_retail: autoRetail, update_wholesale: autoWholesale,
       items: poItems.map(i => ({ product_id: i.product_id, qty_ordered: i.qty_ordered, unit_cost: i.net_cost })),
     }).then(() => { onSaved(); }).catch(e => console.error('PO:', e.response?.data?.detail || e));
@@ -1196,6 +1203,25 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
               <div className="text-xs font-semibold opacity-70 uppercase tracking-wide">Jami summa</div>
               <div className="text-2xl font-black mt-1">{fmt(Math.round(totalNet))} <span className="text-sm font-normal opacity-70">so'm</span></div>
               <div className="text-xs opacity-60 mt-1">{activeItems.length} ta mahsulot</div>
+            </div>
+          )}
+
+          {sub === 'po' && activeItems.length > 0 && (
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm mt-2">
+              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">To'lov (Ixtiyoriy)</div>
+              <div>
+                <input type="number" min="0" value={poForm.paid_amount} onChange={e => setPoForm(f=>({...f,paid_amount:e.target.value}))}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="To'langan summa..." />
+              </div>
+              {Number(poForm.paid_amount) > 0 && (
+                <div>
+                  <select value={poForm.wallet_id} onChange={e => setPoForm(f=>({...f,wallet_id:e.target.value}))}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                    <option value="">Kassani tanlang...</option>
+                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name} ({fmt(w.balance)})</option>)}
+                  </select>
+                </div>
+              )}
             </div>
           )}
         </div>
