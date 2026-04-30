@@ -67,6 +67,16 @@ def receive_stock(
     qty_before = stock.quantity
     stock.quantity += quantity
 
+    # Agar ombor tanlangan bo'lsa va mahsulotda NULL-warehouse StockLevel mavjud bo'lsa — uni ham yangilash
+    # (mahsulot avval warehouse_id=None bilan yaratilgan bo'lsa kerak)
+    if warehouse_id is not None:
+        null_stock = db.query(StockLevel).filter(
+            StockLevel.product_id == product_id,
+            StockLevel.warehouse_id == None
+        ).with_for_update().first()
+        if null_stock:
+            null_stock.quantity += quantity
+
     movement = StockMovement(
         product_id=product_id,
         type=MovementType.IN,

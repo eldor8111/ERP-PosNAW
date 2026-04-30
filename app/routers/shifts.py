@@ -24,6 +24,7 @@ class ShiftOpen(BaseModel):
 
 class ShiftClose(BaseModel):
     closing_cash: Optional[Decimal] = None
+    wallet_id: Optional[int] = None
     note: Optional[str] = None
 
 
@@ -112,6 +113,25 @@ def close_current_shift(data: ShiftClose = ShiftClose(), db: Session = Depends(g
     shift.closed_at = datetime.now(timezone.utc)
     shift.closing_cash = data.closing_cash or Decimal("0")
     shift.status = "closed"
+
+    # Inkassatsiya
+    if data.wallet_id and shift.closing_cash > 0:
+        from app.models.moliya import Wallet, Transaction
+        wallet = db.get(Wallet, data.wallet_id)
+        if wallet:
+            wallet.balance = float(wallet.balance) + float(shift.closing_cash)
+            tx = Transaction(
+                branch_id=shift.branch_id,
+                company_id=shift.company_id,
+                type="income",
+                amount=shift.closing_cash,
+                wallet_id=wallet.id,
+                reference_type="shift",
+                reference_id=shift.id,
+                description=f"Smena yopilishi - inkassatsiya ({user.name})"
+            )
+            db.add(tx)
+
     db.commit()
     db.refresh(shift)
     return {"id": shift.id, "status": shift.status, "closed_at": shift.closed_at}
@@ -131,6 +151,25 @@ def close_shift(shift_id: int, data: ShiftClose = ShiftClose(), db: Session = De
     shift.closed_at = datetime.now(timezone.utc)
     shift.closing_cash = data.closing_cash or Decimal("0")
     shift.status = "closed"
+
+    # Inkassatsiya
+    if data.wallet_id and shift.closing_cash > 0:
+        from app.models.moliya import Wallet, Transaction
+        wallet = db.get(Wallet, data.wallet_id)
+        if wallet:
+            wallet.balance = float(wallet.balance) + float(shift.closing_cash)
+            tx = Transaction(
+                branch_id=shift.branch_id,
+                company_id=shift.company_id,
+                type="income",
+                amount=shift.closing_cash,
+                wallet_id=wallet.id,
+                reference_type="shift",
+                reference_id=shift.id,
+                description=f"Smena yopilishi - inkassatsiya ({user.name})"
+            )
+            db.add(tx)
+
     db.commit()
     db.refresh(shift)
     return shift

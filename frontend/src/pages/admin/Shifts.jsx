@@ -22,6 +22,8 @@ export default function Shifts() {
   const [modal, setModal] = useState(null); // 'open' | 'close'
   const [openingCash, setOpeningCash] = useState('');
   const [closingCash, setClosingCash] = useState('');
+  const [wallets, setWallets] = useState([]);
+  const [selectedWallet, setSelectedWallet] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [branches, setBranches] = useState([]);
@@ -37,7 +39,11 @@ export default function Shifts() {
   };
 
   useEffect(() => {
-    api.get('/branches').then(r => setBranches(r.data.filter(b => b.is_active))).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/branches').then(r => setBranches(r.data.filter(b => b.is_active))).catch(() => {});
+    api.get('/finance/wallets').then(r => {
+      setWallets(r.data);
+      if (r.data.length > 0) setSelectedWallet(String(r.data[0].id));
+    }).catch(() => {});
   }, []);
 
   useEffect(() => { load(); }, [filterBranch]);
@@ -47,6 +53,7 @@ export default function Shifts() {
     try {
       await api.post('/shifts/open', { opening_cash: Number(openingCash) || 0 });
       setModal(null); setOpeningCash(''); load();
+      toast.success('Smena muvaffaqiyatli ochildi!');
     } catch (err) { setError(err.response?.data?.detail || 'Xatolik yuz berdi'); }
     finally { setSaving(false); }
   };
@@ -54,8 +61,12 @@ export default function Shifts() {
   const handleClose = async (e) => {
     e.preventDefault(); setSaving(true); setError('');
     try {
-      await api.post(`/shifts/${activeShift.id}/close`, { closing_cash: Number(closingCash) });
+      const payload = { closing_cash: Number(closingCash) };
+      if (selectedWallet) payload.wallet_id = Number(selectedWallet);
+      await api.post(`/shifts/${activeShift.id}/close`, payload);
       setModal(null); setClosingCash(''); load();
+      const walletName = wallets.find(w => String(w.id) === String(selectedWallet))?.name || '';
+      toast.success(`Smena yopildi${walletName ? `. ${fmt(closingCash)} so'm → ${walletName}` : ''}`);
     } catch (err) { setError(err.response?.data?.detail || 'Xatolik yuz berdi'); }
     finally { setSaving(false); }
   };
@@ -101,15 +112,15 @@ export default function Shifts() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{t('common.active')} {t('shift.title').toLowerCase()}</div>
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Faol smenalar</div>
           <div className={`text-2xl font-bold mt-1 ${openShifts > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>{openShifts}</div>
         </div>
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{t('common.today')}</div>
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Bugungi smenalar</div>
           <div className="text-2xl font-bold mt-1 text-indigo-600">{todayShifts}</div>
         </div>
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{t('shift.totalSales')}</div>
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Jami smenalar</div>
           <div className="text-2xl font-bold mt-1 text-slate-700">{shifts.length}</div>
         </div>
       </div>
@@ -123,23 +134,21 @@ export default function Shifts() {
             </svg>
           </div>
           <div className="flex-1">
-            <div className="text-sm font-bold text-emerald-800">{t('header.systemActive')}</div>
+            <div className="text-sm font-bold text-emerald-800">Faol smena mavjud</div>
             <div className="text-xs text-emerald-600 mt-0.5">
               Boshlangan: {fmtDt(activeShift.opened_at)}
               <span className="mx-2">·</span>
               Ochilish kassasi: {fmt(activeShift.opening_cash)} so'm
             </div>
           </div>
-          <div className="text-xs font-semibold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-full">
-            Faol
-          </div>
+          <div className="text-xs font-semibold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-full">Faol</div>
         </div>
       )}
 
       {/* Shifts Table */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-700">{t('shift.title')}</h3>
+          <h3 className="text-sm font-bold text-slate-700">Smenalar tarixi</h3>
           <div className="flex items-center gap-3">
             {branches.length > 0 && (
               <select
@@ -161,7 +170,7 @@ export default function Shifts() {
         <table className="min-w-full">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
-              {[t('shift.cashier'), 'Filial', t('shift.startTime'), t('shift.endTime'), t('common.balance'), t('common.balance'), t('common.status')].map(h => (
+              {['Kassir', 'Filial', 'Boshlanish', 'Tugash', 'Ochilish', 'Yopilish', 'Holat'].map(h => (
                 <th key={h} className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
               ))}
             </tr>
@@ -190,24 +199,24 @@ export default function Shifts() {
                   <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
                     s.status === 'open' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
                   }`}>
-                    {s.status === 'open' ? t('common.active') : t('common.inactive')}
+                    {s.status === 'open' ? 'Faol' : 'Yopilgan'}
                   </span>
                 </td>
               </tr>
             ))}
             {shifts.length === 0 && (
-              <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400 text-sm">{t('shift.noShifts')}</td></tr>
+              <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 text-sm">Smenalar mavjud emas</td></tr>
             )}
           </tbody>
         </table>
       </div>
 
-      {/* ── OPEN SHIFT MODAL ───────────────────────────────── */}
+      {/* ── OPEN SHIFT MODAL ─────────────────────────────── */}
       {modal === 'open' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setModal(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-800">{t('shift.open')}</h3>
+              <h3 className="text-lg font-bold text-slate-800">Smenani ochish</h3>
               <button onClick={() => setModal(null)} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -216,7 +225,7 @@ export default function Shifts() {
             </div>
             <form onSubmit={handleOpen} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('shift.cashier')} {t('common.balance').toLowerCase()} ({t('common.sum')})</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Ochilishdagi kassadagi pul (so'm)</label>
                 <input
                   type="number" min="0" autoFocus value={openingCash}
                   onChange={e => setOpeningCash(e.target.value)}
@@ -226,9 +235,9 @@ export default function Shifts() {
               </div>
               {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
               <div className="flex gap-3">
-                <button type="button" onClick={() => setModal(null)} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
+                <button type="button" onClick={() => setModal(null)} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">Bekor</button>
                 <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
-                  {saving ? '...' : t('shift.open')}
+                  {saving ? '...' : '✓ Smenani ochdish'}
                 </button>
               </div>
             </form>
@@ -236,12 +245,15 @@ export default function Shifts() {
         </div>
       )}
 
-      {/* ── CLOSE SHIFT MODAL ──────────────────────────────── */}
+      {/* ── CLOSE SHIFT MODAL ────────────────────────────── */}
       {modal === 'close' && activeShift && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setModal(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-800">{t('shift.close')}</h3>
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">Smenani yopish</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Kassani yopish va inkassatsiya</p>
+              </div>
               <button onClick={() => setModal(null)} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -249,32 +261,66 @@ export default function Shifts() {
               </button>
             </div>
             <form onSubmit={handleClose} className="p-6 space-y-4">
+              {/* Smena ma'lumoti */}
               <div className="p-4 bg-slate-50 rounded-xl text-sm space-y-1.5">
                 <div className="flex justify-between text-slate-600">
-                  <span>{t('shift.startTime')}:</span>
+                  <span>Boshlanish vaqti:</span>
                   <span className="font-medium text-slate-800">{fmtDt(activeShift.opened_at)}</span>
                 </div>
                 <div className="flex justify-between text-slate-600">
-                  <span>{t('shift.cashier')} {t('common.balance').toLowerCase()}:</span>
+                  <span>Ochilish kassasi:</span>
                   <span className="font-medium text-slate-800">{fmt(activeShift.opening_cash)} so'm</span>
                 </div>
               </div>
+
+              {/* Kassadagi pul */}
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                  Yopilishdagi kassadagi pul (so'm) <span className="text-red-500">*</span>
+                  Hozir kassadagi naqd pul (so'm) <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number" min="0" required autoFocus value={closingCash}
                   onChange={e => setClosingCash(e.target.value)}
-                  placeholder="Hozirgi kassadagi pul miqdori..."
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                  placeholder="Sanab chiqilgan pul miqdori..."
+                  className="w-full px-3.5 py-2.5 border-2 border-slate-200 focus:border-red-400 rounded-xl text-center text-xl font-bold focus:outline-none transition-colors"
                 />
               </div>
+
+              {/* Inkassatsiya - Qaysi hamyonga */}
+              {wallets.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    📦 Inkassatsiya — Qaysi kassaga/hisobga o'tkazilsin?
+                  </label>
+                  <select
+                    value={selectedWallet}
+                    onChange={e => setSelectedWallet(e.target.value)}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                  >
+                    <option value="">— Inkassatsiya qilmaslik —</option>
+                    {wallets.map(w => (
+                      <option key={w.id} value={w.id}>
+                        {w.name} (joriy: {fmt(w.balance)} so'm)
+                      </option>
+                    ))}
+                  </select>
+                  {selectedWallet && closingCash && (
+                    <div className="mt-2 flex items-center gap-2 bg-indigo-50 border border-indigo-100 rounded-xl px-3 py-2 text-xs text-indigo-700 font-semibold">
+                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      </svg>
+                      {fmt(closingCash)} so'm → {wallets.find(w => String(w.id) === String(selectedWallet))?.name} hisobiga o'tadi
+                    </div>
+                  )}
+                </div>
+              )}
+
               {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
-              <div className="flex gap-3">
-                <button type="button" onClick={() => setModal(null)} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
-                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
-                  {saving ? '...' : t('shift.close')}
+
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => setModal(null)} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">Bekor</button>
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 disabled:opacity-60 text-white font-bold text-sm rounded-xl transition-colors shadow-sm shadow-red-200">
+                  {saving ? '...' : '✓ Smenani yopish'}
                 </button>
               </div>
             </form>
