@@ -20,6 +20,7 @@ export default function Finance() {
   const [activeTab, setActiveTab] = useState('expenses');
   const [expenses, setExpenses] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [wallets, setWallets] = useState([]);
   const [balance, setBalance] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [customerDebts, setCustomerDebts] = useState(null);
@@ -29,8 +30,10 @@ export default function Finance() {
 
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showAddCat, setShowAddCat] = useState(false);
-  const [form, setForm] = useState({ category_id: '', amount: '', description: '', branch_id: 1 });
+  const [showAddWallet, setShowAddWallet] = useState(false);
+  const [form, setForm] = useState({ category_id: '', amount: '', description: '', branch_id: 1, wallet_id: '' });
   const [catForm, setCatForm] = useState({ name: '', description: '' });
+  const [walletForm, setWalletForm] = useState({ name: '', type: 'cash' });
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -44,12 +47,14 @@ export default function Finance() {
   const [paying, setPaying] = useState(false);
 
   const loadBase = useCallback(async () => {
-    const [cats, bal] = await Promise.all([
+    const [cats, bal, wals] = await Promise.all([
       api.get('/finance/expense-categories'),
       api.get('/finance/cash-balance'),
+      api.get('/finance/wallets').catch(() => ({ data: [] })),
     ]);
     setCategories(cats.data);
     setBalance(bal.data);
+    setWallets(wals.data || []);
   }, []);
 
   const loadTab = useCallback(async () => {
@@ -104,6 +109,17 @@ export default function Finance() {
     } finally { setSaving(false); }
   };
 
+  const addWallet = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.post('/finance/wallets', walletForm);
+      setShowAddWallet(false);
+      setWalletForm({ name: '', type: 'cash' });
+      loadBase();
+    } finally { setSaving(false); }
+  };
+
   const deleteExpense = async (id) => {
     if (!confirm(t('confirm.delete'))) return;
     await api.delete(`/finance/expenses/${id}`);
@@ -137,6 +153,7 @@ export default function Finance() {
   };
 
   const tabs = [
+    { key: 'wallets', label: t('finance.wallets') || 'Hamyonlar' },
     { key: 'expenses', label: t('finance.expense') },
     { key: 'categories', label: t('common.category') },
     { key: 'transactions', label: t('finance.transaction') },
@@ -210,6 +227,75 @@ export default function Finance() {
           ))}
         </div>
 
+        {/* ── Wallets Tab ── */}
+        {activeTab === 'wallets' && (
+          <div>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-50">
+              <span className="text-sm font-semibold text-slate-700">{t('finance.wallets') || 'Hamyonlar va Hisoblar'}</span>
+              <button onClick={() => setShowAddWallet(!showAddWallet)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                </svg>
+                {t('finance.addWallet') || 'Hamyon qo\'shish'}
+              </button>
+            </div>
+            {showAddWallet && (
+              <form onSubmit={addWallet} className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex flex-wrap gap-3 items-end">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('common.name') || 'Nomi (masalan: Asosiy Kassa, Terminal, Bank)'}</label>
+                  <input required placeholder="Hamyon nomi"
+                    className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-64"
+                    onChange={e => setWalletForm({ ...walletForm, name: e.target.value })} value={walletForm.name} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('common.type') || 'Turi'}</label>
+                  <select required className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    onChange={e => setWalletForm({ ...walletForm, type: e.target.value })} value={walletForm.type}>
+                    <option value="cash">Naqd pul (Kassa)</option>
+                    <option value="card">Karta (Terminal)</option>
+                    <option value="bank">Bank hisob raqami</option>
+                  </select>
+                </div>
+                <button type="submit" disabled={saving}
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors">{saving ? t('common.saving') : t('common.save')}</button>
+                <button type="button" onClick={() => setShowAddWallet(false)}
+                  className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium rounded-xl transition-colors">{t('common.cancel')}</button>
+              </form>
+            )}
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {wallets.map(w => (
+                <div key={w.id} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-16 h-16 bg-slate-50 rounded-bl-full -z-10 group-hover:bg-indigo-50 transition-colors" />
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${w.type === 'cash' ? 'bg-emerald-100 text-emerald-600' : w.type === 'card' ? 'bg-indigo-100 text-indigo-600' : 'bg-blue-100 text-blue-600'}`}>
+                        {w.type === 'cash' ? <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg> : 
+                         w.type === 'card' ? <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg> :
+                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>}
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-slate-800">{w.name}</h3>
+                        <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider">{w.type}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">{t('finance.balance') || 'Joriy balans'}</p>
+                    <p className={`text-2xl font-bold ${w.balance < 0 ? 'text-red-500' : 'text-slate-800'}`}>{fmt(w.balance, t)}</p>
+                  </div>
+                </div>
+              ))}
+              {wallets.length === 0 && (
+                <div className="col-span-3 text-center py-12 border-2 border-dashed border-slate-200 rounded-2xl">
+                  <p className="text-sm font-semibold text-slate-500 mb-1">{t('finance.noWallets') || "Hamyonlar mavjud emas"}</p>
+                  <p className="text-xs text-slate-400">{t('finance.addWalletPrompt') || "Kassa va bank hisoblarini shu yerga qo'shing."}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* ── Expenses Tab ── */}
         {activeTab === 'expenses' && (
           <div>
@@ -266,6 +352,14 @@ export default function Finance() {
                   <input type="number" required placeholder="100000"
                     className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     onChange={e => setForm({ ...form, amount: e.target.value })} value={form.amount} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('finance.wallet') || 'Hamyon'}</label>
+                  <select className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    onChange={e => setForm({ ...form, wallet_id: e.target.value })} value={form.wallet_id}>
+                    <option value="">(Asosiy kassa)</option>
+                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name} ({fmt(w.balance)})</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('admin.dict.comment') || 'Izoh'}</label>

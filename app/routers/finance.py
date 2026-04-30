@@ -12,7 +12,7 @@ from pydantic import BaseModel  # type: ignore
 from decimal import Decimal
 
 from app.database import get_db  # type: ignore
-from app.models.moliya import ExpenseCategory, Expense, Transaction  # type: ignore
+from app.models.moliya import ExpenseCategory, Expense, Transaction, Wallet  # type: ignore
 from app.models.customer import Customer  # type: ignore
 from app.models.sale import Sale  # type: ignore
 from app.models.supplier import Supplier  # type: ignore
@@ -48,10 +48,17 @@ class ExpenseCategoryIn(BaseModel):
     description: Optional[str] = None
 
 
+class WalletIn(BaseModel):
+    name: str
+    type: str = "cash"
+    branch_id: Optional[int] = None
+    is_active: bool = True
+
 class ExpenseIn(BaseModel):
     branch_id: int
     category_id: int
     amount: Decimal
+    wallet_id: Optional[int] = None
     description: Optional[str] = None
 
 
@@ -59,6 +66,7 @@ class TransactionIn(BaseModel):
     branch_id: int
     type: str  # 'income' or 'expense'
     amount: Decimal
+    wallet_id: Optional[int] = None
     reference_type: Optional[str] = None
     reference_id: Optional[int] = None
     description: Optional[str] = None
@@ -67,6 +75,58 @@ class TransactionIn(BaseModel):
 class DebtPaymentIn(BaseModel):
     amount: Decimal
     description: Optional[str] = None
+
+
+# ─── Wallets ──────────────────────────────────────────────────────────────────
+
+@router.get("/wallets")
+def list_wallets(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    q = db.query(Wallet)
+    if user.role.value != "super_admin":
+        q = q.filter(Wallet.company_id == user.company_id)
+    return [
+        {
+            "id": w.id,
+            "name": w.name,
+            "type": w.type,
+            "balance": float(w.balance),
+            "is_active": w.is_active,
+            "branch_id": w.branch_id
+        }
+        for w in q.all()
+    ]
+
+@router.post("/wallets", status_code=201)
+def create_wallet(
+    data: WalletIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    w = Wallet(**data.model_dump())
+    w.company_id = user.company_id
+    db.add(w)
+    db.commit()
+    db.refresh(w)
+    return w
+
+@router.delete("/wallets/{wallet_id}", status_code=204)
+def delete_wallet(
+    wallet_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    w = db.get(Wallet, wallet_id)
+    if not w:
+        raise HTTPException(status_code=404, detail="Not found")
+    # Mark as inactive instead of deleting if it has balance
+    if w.balance != 0:
+        w.is_active = False
+    else:
+        db.delete(w)
+    db.commit()
 
 
 # ─── Expense Categories ───────────────────────────────────────────────────────
@@ -159,10 +219,16 @@ def create_expense(
         branch_id=data.branch_id,
         type="expense",
         amount=data.amount,
+        wallet_id=data.wallet_id,
         reference_type="expense",
         description=data.description,
     )
     db.add(tx)
+    
+    if data.wallet_id:
+        wallet = db.get(Wallet, data.wallet_id)
+        if wallet:
+            wallet.balance = float(wallet.balance) - float(data.amount)
     db.commit()
     db.refresh(expense)
     return expense
@@ -265,6 +331,15 @@ def create_transaction(
     tx = Transaction(**data.model_dump())
     tx.company_id = user.company_id
     db.add(tx)
+    
+    if data.wallet_id:
+        wallet = db.get(Wallet, data.wallet_id)
+        if wallet:
+            if data.type == "income":
+                wallet.balance = float(wallet.balance) + float(data.amount)
+            elif data.type == "expense":
+                wallet.balance = float(wallet.balance) - float(data.amount)
+                
     db.commit()
     db.refresh(tx)
     return tx
