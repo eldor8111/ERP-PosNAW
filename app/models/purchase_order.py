@@ -25,6 +25,8 @@ class PurchaseOrder(Base):
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
     status = Column(Enum(POStatus), default=POStatus.draft)
     total_amount = Column(Numeric(14, 2), default=0)
+    paid_amount = Column(Numeric(14, 2), default=0)
+    discount_amount = Column(Numeric(14, 2), default=0)
     note = Column(Text, nullable=True)
     expected_date = Column(DateTime, nullable=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)

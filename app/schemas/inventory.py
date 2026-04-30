@@ -109,3 +109,25 @@ class ChiqimDetailOut(BaseModel):
     doc_num: Optional[str]
     reason: Optional[str]
 
+
+class SupplierReturnItem(BaseModel):
+    product_id: int
+    quantity: Decimal
+    unit_cost: Decimal  # The price at which the item is being returned
+
+    @field_validator("quantity", "unit_cost")
+    @classmethod
+    def must_be_positive_val(cls, v):
+        if v < 0:
+            raise ValueError("Qiymat manfiy bo'lishi mumkin emas")
+        return v
+
+
+class SupplierReturnRequest(BaseModel):
+    supplier_id: int
+    warehouse_id: Optional[int] = None
+    items: List[SupplierReturnItem]
+    received_amount: Decimal = Decimal("0")
+    wallet_id: Optional[int] = None
+    note: Optional[str] = None
+

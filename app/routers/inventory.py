@@ -163,6 +163,70 @@ def receive_goods(
     return {"message": f"{len(movements)} ta mahsulot qabul qilindi", "details": movements}
 
 
+@router.post("/return-to-supplier")
+def return_to_supplier(
+    data: SupplierReturnRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*WAREHOUSE_ROLES)),
+):
+    from app.models.supplier import Supplier
+    from app.services.inventory_service import deduct_stock
+
+    supplier = db.get(Supplier, data.supplier_id)
+    if not supplier:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
+
+    total_return_value = Decimal("0")
+    
+    for item in data.items:
+        if item.quantity <= 0:
+            continue
+            
+        deduct_stock(
+            db=db,
+            product_id=item.product_id,
+            quantity=item.quantity,
+            user_id=current_user.id,
+            reason=f"Ta'minotchiga qaytarish: {supplier.name}. {data.note or ''}".strip(),
+            reference_type="return_to_supplier",
+            reference_id=supplier.id,
+            warehouse_id=data.warehouse_id
+        )
+        total_return_value += (item.quantity * item.unit_cost)
+
+    # 1. Vazvrat summasi qarzdan chegiriladi (bizning qarzimiz kamayadi)
+    supplier.debt_balance = float(supplier.debt_balance or 0) - float(total_return_value)
+
+    # 2. Agar ta'minotchi pul qaytargan bo'lsa (kassaga kirim)
+    if data.received_amount > 0 and data.wallet_id:
+        from app.models.moliya import Transaction, Wallet
+        wallet = db.get(Wallet, data.wallet_id)
+        if wallet:
+            tx = Transaction(
+                branch_id=current_user.branch_id,
+                company_id=current_user.company_id,
+                type="income",
+                amount=data.received_amount,
+                wallet_id=wallet.id,
+                reference_type="return_to_supplier",
+                reference_id=supplier.id,
+                description=f"Ta'minotchidan vazvrat uchun pul qaytdi: {supplier.name}"
+            )
+            db.add(tx)
+            wallet.balance = float(wallet.balance) + float(data.received_amount)
+            
+            # Agar naqd pul qaytib olingan bo'lsa, qarzimiz yana ko'payadi, chunki pulni oldik
+            # Umuman olganda, Vazvrat (-) = Qarz kamayadi. Pul olsak (+) = Qarz yana oshadi, chunki tovar o'rniga pul berdi.
+            supplier.debt_balance = float(supplier.debt_balance) + float(data.received_amount)
+
+    db.commit()
+    return {
+        "message": "Vazvrat muvaffaqiyatli saqlandi",
+        "total_value": str(total_return_value)
+    }
+
+
 @router.post("/chiqims")
 def create_chiqim(
     data: ChiqimBatchRequest,

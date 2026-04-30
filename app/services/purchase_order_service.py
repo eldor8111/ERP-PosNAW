@@ -92,18 +92,23 @@ def create_purchase_order(db: Session, data, current_user: User) -> PurchaseOrde
             )
             db.add(batch)
 
-    # Apply the total to the PO
+    # Set amounts on the PO
     po.total_amount = total
+    paid_amount = getattr(data, 'paid_amount', Decimal("0"))
+    discount_amount = getattr(data, 'discount_amount', Decimal("0"))
+    
+    po.paid_amount = paid_amount
+    po.discount_amount = discount_amount
     
     # Financial Transaction generation
-    if hasattr(data, 'paid_amount') and data.paid_amount > 0:
+    if paid_amount > 0:
         from app.models.moliya import Transaction, Wallet
         wallet_id = getattr(data, 'wallet_id', None)
         tx = Transaction(
             branch_id=current_user.branch_id if current_user.branch_id else po.warehouse_id, # Fallback branch
             company_id=current_user.company_id,
             type="expense",
-            amount=data.paid_amount,
+            amount=paid_amount,
             wallet_id=wallet_id,
             reference_type="purchase_order",
             reference_id=po.id,
@@ -113,7 +118,16 @@ def create_purchase_order(db: Session, data, current_user: User) -> PurchaseOrde
         if wallet_id:
             wallet = db.get(Wallet, wallet_id)
             if wallet:
-                wallet.balance = float(wallet.balance) - float(data.paid_amount)
+                wallet.balance = float(wallet.balance) - float(paid_amount)
+
+    # Ta'minotchi qarzini hisoblash va yangilash
+    # Draft holatida ham qarz (yoki bo'nak) hisobga olinadi, bekor qilinganda orqaga qaytariladi.
+    from app.models.supplier import Supplier
+    supplier = db.get(Supplier, po.supplier_id)
+    if supplier:
+        # Qarz = Jami - Chegirma - To'langan pul
+        debt_added = total - discount_amount - paid_amount
+        supplier.debt_balance = float(supplier.debt_balance or 0) + float(debt_added)
 
     db.flush()
     return po
@@ -239,6 +253,14 @@ def delete_purchase_order(db: Session, po_id: int, current_user: User) -> None:
         # Eski tranzaksiyani o'chiramiz
         db.delete(old_transaction)
 
-    # 3. Buyurtmani o'chirish
+    # 3. Ta'minotchi qarzini orqaga qaytarish
+    from app.models.supplier import Supplier
+    supplier = db.get(Supplier, po.supplier_id)
+    if supplier:
+        # Xarid qo'shilganda qarz = total - discount - paid qo'shilgan edi. Shuni ayiramiz.
+        debt_added = float(po.total_amount or 0) - float(po.discount_amount or 0) - float(po.paid_amount or 0)
+        supplier.debt_balance = float(supplier.debt_balance or 0) - debt_added
+
+    # 4. Buyurtmani o'chirish
     db.delete(po)
     db.commit()

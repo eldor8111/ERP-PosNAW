@@ -1554,7 +1554,7 @@ function KirimlarTab({ products, warehouses, suppliers, users }) {
 /* ══════════════════════════════════════════════════════════
    QAYTARISHLAR — split panel create view
 ══════════════════════════════════════════════════════════ */
-function QaytarishCreateView({ products, type, onBack }) {
+function QaytarishCreateView({ products, type, onBack, suppliers, warehouses }) {
   const { t } = useLang();
   const isCustomer = type === 'customer';
   const [items, setItems]   = useState([]);
@@ -1563,39 +1563,65 @@ function QaytarishCreateView({ products, type, onBack }) {
   const [err, setErr]       = useState('');
   const [msg, setMsg]       = useState('');
 
+  const [form, setForm] = useState({ supplier_id: '', warehouse_id: '', received_amount: '', wallet_id: '' });
+  const [wallets, setWallets] = useState([]);
+
+  useEffect(() => {
+    if (!isCustomer) {
+      api.get('/moliya/wallets').then(r => setWallets(r.data)).catch(console.error);
+    }
+  }, [isCustomer]);
+
   const [sel, setSel] = useState(null);
   const [qty, setQty] = useState('1');
+  const [cost, setCost] = useState('');
+
+  // Update cost when product is selected
+  useEffect(() => {
+    if (sel && !isCustomer) {
+      setCost(sel.unit_cost || '');
+    }
+  }, [sel, isCustomer]);
 
   const addItem = () => {
     if (!sel || !qty) return;
+    if (!isCustomer && !cost) { setErr("Qaytarish narxini kiriting"); return; }
+    
     setItems(prev => {
-      const ex = prev.find(i => i.product_id === sel.id);
-      if (ex) return prev.map(i => i.product_id===sel.id ? {...i, qty: Number(i.qty)+Number(qty)} : i);
-      return [...prev, { product_id:sel.id, product_name:sel.name, unit:sel.unit||'dona', qty:Number(qty), current:Number(sel.stock_quantity||0) }];
+      const ex = prev.find(i => i.product_id === sel.id && (!isCustomer ? i.cost === Number(cost) : true));
+      if (ex) return prev.map(i => i.product_id===sel.id && (!isCustomer ? i.cost === Number(cost) : true) ? {...i, qty: Number(i.qty)+Number(qty)} : i);
+      return [...prev, { product_id:sel.id, product_name:sel.name, unit:sel.unit||'dona', qty:Number(qty), cost:Number(cost), current:Number(sel.stock_quantity||0) }];
     });
-    setSel(null); setQty('1');
+    setSel(null); setQty('1'); setCost(''); setErr('');
   };
 
   const save = async () => {
     if (!items.length) { setErr("Mahsulot qo'shing"); return; }
+    if (!isCustomer && !form.supplier_id) { setErr("Ta'minotchini tanlang"); return; }
+    if (!isCustomer && Number(form.received_amount) > 0 && !form.wallet_id) { setErr("Kassani tanlang"); return; }
+    
     setSaving(true); setErr(''); setMsg('');
     try {
       if (isCustomer) {
         await api.post('/inventory/receive', {
           items: items.map(i => ({ product_id:i.product_id, quantity:i.qty, reason:`Mijozdan qaytarish${note?': '+note:''}` })),
         });
+        setMsg(`${items.length} ta mahsulot qaytarildi`);
       } else {
-        for (const item of items) {
-          await api.post('/inventory/adjust', {
-            product_id: item.product_id,
-            new_quantity: Math.max(0, item.current - item.qty),
-            reason: `Ta'minotchiga qaytarish${note ? ': '+note : ''}`,
-          });
-        }
+        const payload = {
+          supplier_id: Number(form.supplier_id),
+          warehouse_id: form.warehouse_id ? Number(form.warehouse_id) : null,
+          items: items.map(i => ({ product_id: i.product_id, quantity: i.qty, unit_cost: i.cost })),
+          received_amount: form.received_amount ? Number(form.received_amount) : 0,
+          wallet_id: form.wallet_id ? Number(form.wallet_id) : null,
+          note: note
+        };
+        const res = await api.post('/inventory/return-to-supplier', payload);
+        setMsg(res.data?.message || `Muvaffaqiyatli qaytarildi`);
       }
-      setMsg(`${items.length} ta mahsulot qaytarildi`);
-      setItems([]); setNote('');
-    } catch (e) { setErr(e.response?.data?.detail||'Xatolik'); } finally { setSaving(false); }
+      
+      setItems([]); setNote(''); setForm({ supplier_id: '', warehouse_id: '', received_amount: '', wallet_id: '' });
+    } catch (e) { setErr(e.response?.data?.detail||'Xatolik yuz berdi'); } finally { setSaving(false); }
   };
 
   return (
@@ -1606,7 +1632,24 @@ function QaytarishCreateView({ products, type, onBack }) {
         <span className="text-xs text-slate-400 font-medium ml-auto">{new Date().toLocaleString('uz-UZ')}</span>
       </div>
       <div className="flex flex-1 overflow-hidden">
-        <div className="w-80 border-r border-slate-100 p-5 flex flex-col gap-4 overflow-y-auto shrink-0 bg-white shadow-sm">
+        <div className="w-[450px] border-r border-slate-100 p-5 flex flex-col gap-4 overflow-y-auto shrink-0 bg-white shadow-sm">
+          {!isCustomer && (
+            <>
+              <Lbl t="Ta'minotchi *">
+                <select value={form.supplier_id} onChange={e => setForm({...form, supplier_id: e.target.value})} className={ic}>
+                  <option value="">Tanlang...</option>
+                  {suppliers?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </Lbl>
+              <Lbl t="Ombor (Ixtiyoriy)">
+                <select value={form.warehouse_id} onChange={e => setForm({...form, warehouse_id: e.target.value})} className={ic}>
+                  <option value="">Barchasi (Global qoldiq)</option>
+                  {warehouses?.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                </select>
+              </Lbl>
+            </>
+          )}
+          
           <Lbl t={t('pos.searchProduct') || "Mahsulot qidirish"}>
             <ProdSearch products={products} onSelect={p => { setSel(p); setQty('1'); }} />
           </Lbl>
@@ -1621,12 +1664,18 @@ function QaytarishCreateView({ products, type, onBack }) {
                   <div className="text-xs text-slate-500 mt-0.5">{t('pos.stockLabel') || 'Joriy qoldiq:'} <strong>{fmt(sel.stock_quantity)}</strong> {sel.unit||'dona'}</div>
                 </div>
               </div>
-              <Lbl t={t('ops.returnQty') || "Qaytarish miqdori"}>
-                <div className="flex gap-2 items-center">
-                  <input type="number" min="0.001" step="any" value={qty} onChange={e => setQty(e.target.value)} className={`flex-1 ${ic} text-center font-bold`} />
-                  <span className="text-sm text-slate-500 font-medium shrink-0">{sel.unit||'dona'}</span>
-                </div>
-              </Lbl>
+              <div className="grid grid-cols-2 gap-3">
+                <Lbl t={t('ops.returnQty') || "Qaytarish miqdori"}>
+                  <div className="flex gap-2 items-center">
+                    <input type="number" min="0.001" step="any" value={qty} onChange={e => setQty(e.target.value)} className={`flex-1 ${ic} text-center font-bold`} />
+                  </div>
+                </Lbl>
+                {!isCustomer && (
+                  <Lbl t="Qaytarish narxi">
+                    <input type="number" min="0" step="any" value={cost} onChange={e => setCost(e.target.value)} className={`w-full ${ic}`} placeholder="Tan narxi..." />
+                  </Lbl>
+                )}
+              </div>
             </div>
           ) : (
             <div className="flex-1 flex items-center justify-center text-slate-300 flex-col gap-2 py-8">
@@ -1641,6 +1690,27 @@ function QaytarishCreateView({ products, type, onBack }) {
             <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             {t('ops.addToList') || "Ro'yxatga qo'shish"}
           </button>
+          
+          {!isCustomer && items.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-slate-200 space-y-3">
+              <div className="text-sm font-bold text-slate-700 flex justify-between">
+                <span>Jami qaytarilayotgan summa:</span>
+                <span className="text-indigo-700">{fmt(items.reduce((s,i)=>s+(i.qty*i.cost), 0))}</span>
+              </div>
+              
+              <Lbl t="Naqd qaytarilgan summa (agar bo'lsa)">
+                <input type="number" min="0" step="any" value={form.received_amount} onChange={e => setForm({...form, received_amount: e.target.value})} className={ic} placeholder="Pul bergan bo'lsa kiriting..." />
+              </Lbl>
+              {Number(form.received_amount) > 0 && (
+                <Lbl t="Qaysi kassaga kirim qilish">
+                  <select value={form.wallet_id} onChange={e => setForm({...form, wallet_id: e.target.value})} className={ic}>
+                    <option value="">Tanlang...</option>
+                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name} ({fmt(w.balance)})</option>)}
+                  </select>
+                </Lbl>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto">
           {items.length === 0 ? (
@@ -1650,13 +1720,13 @@ function QaytarishCreateView({ products, type, onBack }) {
             </div>
           ) : (
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-slate-50 border-b border-slate-200">
+              <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
                 <tr>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500">№</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t('common.name') || 'Nomi'}</th>
                   <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t('common.quantity') || 'Soni'}</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t('common.unit') || "O'lchov"}</th>
-                  {!isCustomer && <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t('pos.stockLabel') || 'Joriy qoldiq'}</th>}
+                  {!isCustomer && <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Narx</th>}
+                  {!isCustomer && <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Jami</th>}
                   <th className="w-10"></th>
                 </tr>
               </thead>
@@ -1665,9 +1735,14 @@ function QaytarishCreateView({ products, type, onBack }) {
                   <tr key={i} className="hover:bg-slate-50">
                     <td className="px-4 py-3 text-slate-400 text-xs">{i+1}</td>
                     <td className="px-4 py-3 font-medium">{it.product_name}</td>
-                    <td className="px-4 py-3 text-center">{it.qty}</td>
-                    <td className="px-4 py-3 text-center text-slate-500 text-xs">{it.unit}</td>
-                    {!isCustomer && <td className="px-4 py-3 text-center text-slate-500">{fmt(it.current)}</td>}
+                    <td className="px-4 py-3 text-center">
+                       <div className="flex items-center justify-center gap-1">
+                          <span className="font-bold">{it.qty}</span>
+                          <span className="text-slate-500 text-xs">{it.unit}</span>
+                       </div>
+                    </td>
+                    {!isCustomer && <td className="px-4 py-3 text-right text-slate-600">{fmt(it.cost)}</td>}
+                    {!isCustomer && <td className="px-4 py-3 text-right font-bold text-indigo-700">{fmt(it.qty * it.cost)}</td>}
                     <td className="pr-3">
                       <button onClick={() => setItems(p=>p.filter((_,idx)=>idx!==i))} className="p-1.5 text-slate-300 hover:text-red-500 rounded">✕</button>
                     </td>
@@ -1680,8 +1755,8 @@ function QaytarishCreateView({ products, type, onBack }) {
       </div>
       <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 bg-white shrink-0">
         <div>
-          {msg && <span className="text-emerald-600 text-sm">{msg}</span>}
-          {err && <span className="text-red-500 text-sm">{err}</span>}
+          {msg && <span className="text-emerald-600 text-sm font-bold">{msg}</span>}
+          {err && <span className="text-red-500 text-sm font-bold">{err}</span>}
         </div>
         <div className="flex gap-3">
           <Btn v="ghost" onClick={onBack}>{t('common.cancel')}</Btn>
@@ -1692,13 +1767,13 @@ function QaytarishCreateView({ products, type, onBack }) {
   );
 }
 
-function QaytarishlarTab({ products }) {
+function QaytarishlarTab({ products, suppliers, warehouses }) {
   const { t } = useLang();
   const [mode, setMode] = useState('list');
   const [sub, setSub]   = useState('customer');
 
   if (mode === 'create') return (
-    <QaytarishCreateView products={products} type={sub} onBack={() => setMode('list')} />
+    <QaytarishCreateView products={products} type={sub} onBack={() => setMode('list')} suppliers={suppliers} warehouses={warehouses} />
   );
 
   return (
@@ -1728,6 +1803,7 @@ function QaytarishlarTab({ products }) {
     </div>
   );
 }
+
 
 /* ══════════════════════════════════════════════════════════
    TRANSFERLAR
@@ -3025,7 +3101,7 @@ export default function Operations() {
 
       {tab==='sales'        && <SalesTab products={products} customers={customers} branches={branches} users={users} />}
       {tab==='kirimlar'     && <KirimlarTab products={products} warehouses={warehouses} suppliers={suppliers} users={users} branches={branches} />}
-      {tab==='qaytarishlar' && <QaytarishlarTab products={products} />}
+      {tab==='qaytarishlar' && <QaytarishlarTab products={products} suppliers={suppliers} warehouses={warehouses} />}
       {tab==='transferlar'  && <TransferlarTab products={products} warehouses={warehouses} users={users} />}
       {tab==='reviziyalar'  && <ReviziyalarTab warehouses={warehouses} />}
       {tab==='chiqimlar'    && <ChiqimlarTab products={products} users={users} />}
