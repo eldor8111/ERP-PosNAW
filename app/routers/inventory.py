@@ -7,7 +7,7 @@ from sqlalchemy import func
 
 from app.core.dependencies import get_current_user, require_roles
 from app.database import get_db
-from app.models.inventory import StockLevel, StockMovement
+from app.models.inventory import StockLevel, StockMovement, MovementType
 from app.models.product import Product
 from app.models.user import User, UserRole
 from app.models.warehouse import Warehouse
