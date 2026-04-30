@@ -706,14 +706,14 @@ def dead_stock_report(
     sold_ids = (
         db.query(SaleItem.product_id)
         .join(Sale)
-        .filter(Sale.created_at >= cutoff, Sale.status == SaleStatus.completed)
+        .filter(Sale.company_id == current_user.company_id, Sale.created_at >= cutoff, Sale.status == SaleStatus.completed)
         .distinct()
         .scalar_subquery()
     )
     rows = (
         db.query(StockLevel, Product)
         .join(Product, Product.id == StockLevel.product_id)
-        .filter(Product.is_deleted == False, StockLevel.quantity > 0, Product.id.notin_(sold_ids))
+        .filter(Product.company_id == current_user.company_id, Product.is_deleted == False, StockLevel.quantity > 0, Product.id.notin_(sold_ids))
         .order_by((StockLevel.quantity * Product.cost_price).desc())
         .all()
     )

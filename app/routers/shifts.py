@@ -120,7 +120,7 @@ def close_current_shift(data: ShiftClose = ShiftClose(), db: Session = Depends(g
 @router.post("/{shift_id}/close")
 def close_shift(shift_id: int, data: ShiftClose = ShiftClose(), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     shift = db.get(Shift, shift_id)
-    if not shift:
+    if not shift or (user.role.value != "super_admin" and shift.company_id != user.company_id):
         raise HTTPException(status_code=404, detail="Smena topilmadi")
     from app.models.user import UserRole
     if user.role not in (UserRole.super_admin, UserRole.admin, UserRole.director):
@@ -137,8 +137,8 @@ def close_shift(shift_id: int, data: ShiftClose = ShiftClose(), db: Session = De
 
 
 @router.get("/{shift_id}")
-def get_shift(shift_id: int, db: Session = Depends(get_db)):
+def get_shift(shift_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     shift = db.get(Shift, shift_id)
-    if not shift:
+    if not shift or (user.role.value != "super_admin" and shift.company_id != user.company_id):
         raise HTTPException(status_code=404, detail="Not found")
     return shift

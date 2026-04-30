@@ -163,7 +163,7 @@ def delete_expense_category(
     user: User = Depends(get_current_user),
 ):
     cat = db.get(ExpenseCategory, cat_id)  # SQLAlchemy 2.0 usuli
-    if not cat:
+    if not cat or (user.role.value != "super_admin" and cat.company_id != user.company_id):
         raise HTTPException(status_code=404, detail="Not found")
     db.delete(cat)
     db.commit()
@@ -241,7 +241,7 @@ def delete_expense(
     user: User = Depends(get_current_user),
 ):
     exp = db.get(Expense, exp_id)  # SQLAlchemy 2.0 usuli
-    if not exp:
+    if not exp or (user.role.value != "super_admin" and exp.company_id != user.company_id):
         raise HTTPException(status_code=404, detail="Not found")
 
     # Moliya tranzaksiyasini ham o'chirish
@@ -406,7 +406,7 @@ def record_customer_debt_payment(
 ):
     """Mijoz qarzini to'lash"""
     customer = db.get(Customer, customer_id)  # SQLAlchemy 2.0 usuli
-    if not customer:
+    if not customer or (user.role.value != "super_admin" and customer.company_id != user.company_id):
         raise HTTPException(status_code=404, detail="Mijoz topilmadi")
 
     pay = float(data.amount)
@@ -477,7 +477,7 @@ def record_supplier_debt_payment(
 ):
     """Supplier qarzini to'lash"""
     supplier = db.get(Supplier, supplier_id)  # SQLAlchemy 2.0 usuli
-    if not supplier:
+    if not supplier or (user.role.value != "super_admin" and supplier.company_id != user.company_id):
         raise HTTPException(status_code=404, detail="Supplier topilmadi")
 
     from app.models.branch import Branch as _Branch
