@@ -215,7 +215,8 @@ export default {
   'customer.loyaltyPoints': 'Bonus ballar',
   'customer.cashback': 'Keshbek',
   'customer.payDebt': "Qarz to'lash",
-  'customer.totalDebtors': 'Qarzdorlar',
+  'customer.totalDebtors': 'Debitorlar (Mijozlar)',
+  'customer.totalCreditors': 'Kreditorlar (Ta\'minotchilar)',
   'customer.totalDebt': 'Jami qarz',
   'customer.totalCustomers': 'Jami mijozlar',
   'customer.newCustomer': 'Yangi mijoz',
@@ -371,6 +372,12 @@ export default {
 
   // === FINANCE ===
   'finance.title': 'Moliya va Kassa',
+  'finance.wallets': 'Hamyonlar',
+  'finance.wallet': 'Hamyon',
+  'finance.addWallet': 'Hamyon qo\'shish',
+  'finance.noWallets': 'Hamyonlar mavjud emas',
+  'finance.addWalletPrompt': 'Kassa va bank hisoblarini shu yerga qo\'shing.',
+  'finance.balance': 'Joriy balans',
   'finance.income': 'Kirim',
   'finance.expense': 'Chiqim',
   'finance.cashBalance': 'Kassa balansi',
