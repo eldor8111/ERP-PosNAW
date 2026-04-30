@@ -97,17 +97,23 @@ def create_purchase_order(db: Session, data, current_user: User) -> PurchaseOrde
     
     # Financial Transaction generation
     if hasattr(data, 'paid_amount') and data.paid_amount > 0:
-        from app.models.moliya import Transaction
+        from app.models.moliya import Transaction, Wallet
+        wallet_id = getattr(data, 'wallet_id', None)
         tx = Transaction(
             branch_id=current_user.branch_id if current_user.branch_id else po.warehouse_id, # Fallback branch
             company_id=current_user.company_id,
             type="expense",
             amount=data.paid_amount,
+            wallet_id=wallet_id,
             reference_type="purchase_order",
             reference_id=po.id,
             description=f"Ta'minotchi to'lovi #{po.number}"
         )
         db.add(tx)
+        if wallet_id:
+            wallet = db.get(Wallet, wallet_id)
+            if wallet:
+                wallet.balance = float(wallet.balance) - float(data.paid_amount)
 
     db.flush()
     return po
@@ -225,6 +231,11 @@ def delete_purchase_order(db: Session, po_id: int, current_user: User) -> None:
     ).first()
 
     if old_transaction:
+        from app.models.moliya import Wallet
+        if old_transaction.wallet_id:
+            wallet = db.get(Wallet, old_transaction.wallet_id)
+            if wallet:
+                wallet.balance = float(wallet.balance) + float(old_transaction.amount)
         # Eski tranzaksiyani o'chiramiz
         db.delete(old_transaction)
 

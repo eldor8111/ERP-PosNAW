@@ -856,12 +856,14 @@ function KirimCreateView({ onBack, onSaved }) {
   const [products,   setProds]  = useState([]);
   const [warehouses, setWhs]    = useState([]);
   const [suppliers,  setSups]   = useState([]);
+  const [wallets,    setWallets]= useState([]);
 
   useEffect(() => {
     api.get('/products/',           { params:{ limit:200, status:'active' } })
        .then(r => setProds(Array.isArray(r.data) ? r.data : (r.data.items||[]))).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
     api.get('/inventory/warehouses').then(r => setWhs(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
     api.get('/suppliers',           { params:{ limit:100 } }).then(r => setSups(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/finance/wallets').then(r => { setWallets(r.data); if(r.data.length > 0) setPayForm(p=>({...p, wallet_id: r.data[0].id})); }).catch(console.error);
   }, []);
 
   // PO form
@@ -932,7 +934,7 @@ function KirimCreateView({ onBack, onSaved }) {
   const hasCurrency = activeItems.some(i => i.currency === 'USD');
 
   const [showPay, setShowPay] = useState(false);
-  const [payForm, setPayForm] = useState({ discType: 'amt', discVal: '', cash: '', info: '' });
+  const [payForm, setPayForm] = useState({ discType: 'amt', discVal: '', cash: '', info: '', wallet_id: '' });
 
   const calcFinalTotal = () => {
     const d = Number(payForm.discVal) || 0;
@@ -966,6 +968,7 @@ function KirimCreateView({ onBack, onSaved }) {
       payload.paid_amount = paymentInfo.paid;
       payload.discount_amount = totalNet - finalTotal;
       payload.payment_type = 'cash';
+      if (paymentInfo.wallet_id) payload.wallet_id = Number(paymentInfo.wallet_id);
       if (paymentInfo.info) payload.note = (payload.note ? payload.note + '\n' : '') + paymentInfo.info;
     }
 
@@ -1291,9 +1294,10 @@ function KirimCreateView({ onBack, onSaved }) {
 
                 {/* Kassa */}
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-600">{t('admin.dict.pos') || 'Kassa'}</label>
-                  <select className={`${ic} h-11 bg-white text-base`} defaultValue="1">
-                    <option value="1">KASSA</option>
+                  <label className="text-sm font-semibold text-slate-600">{t('finance.wallet') || 'Kassa/Hisob'}</label>
+                  <select value={payForm.wallet_id} onChange={e=>setPayForm(p=>({...p,wallet_id:e.target.value}))} className={`${ic} w-full h-11 bg-white text-base`}>
+                    <option value="">Tanlang...</option>
+                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name} ({fmt(w.balance)})</option>)}
                   </select>
                 </div>
               </div>
@@ -1346,11 +1350,11 @@ function KirimCreateView({ onBack, onSaved }) {
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50 mt-auto rounded-b-2xl flex-wrap">
               <div className="text-sm font-semibold text-slate-500 flex-1">{t('purchase.supplierDebt')} <span className="text-slate-800 ml-1">{fmt(debt)} UZS</span></div>
               <button onClick={() => setShowPay(false)} className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-600 font-semibold bg-white hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
-              <button disabled={saving} onClick={() => savePo('received', { paid: paid - change, info: payForm.info })} className="px-6 py-2.5 rounded-xl bg-orange-400 hover:bg-orange-500 text-white font-bold flex items-center gap-2 transition-colors disabled:opacity-50 shadow-sm">
+              <button disabled={saving} onClick={() => savePo('received', { paid: paid - change, info: payForm.info, wallet_id: payForm.wallet_id })} className="px-6 py-2.5 rounded-xl bg-orange-400 hover:bg-orange-500 text-white font-bold flex items-center gap-2 transition-colors disabled:opacity-50 shadow-sm">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                 {t('purchase.saveAndPrint')}
               </button>
-              <button disabled={saving} onClick={() => savePo('received', { paid: paid - change, info: payForm.info })} className="px-8 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-colors shadow-sm shadow-blue-200 disabled:opacity-50 flex items-center gap-2">
+              <button disabled={saving} onClick={() => savePo('received', { paid: paid - change, info: payForm.info, wallet_id: payForm.wallet_id })} className="px-8 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-colors shadow-sm shadow-blue-200 disabled:opacity-50 flex items-center gap-2">
                 {saving ? '...' : (
                   <>
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>

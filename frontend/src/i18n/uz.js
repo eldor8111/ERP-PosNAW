@@ -372,10 +372,10 @@ export default {
 
   // === FINANCE ===
   'finance.title': 'Moliya va Kassa',
-  'finance.wallets': 'Hamyonlar',
-  'finance.wallet': 'Hamyon',
-  'finance.addWallet': 'Hamyon qo\'shish',
-  'finance.noWallets': 'Hamyonlar mavjud emas',
+  'finance.wallets': 'Kassalar va Hisoblar',
+  'finance.wallet': 'Kassa/Hisob',
+  'finance.addWallet': 'Kassa yoki Hisob qo\'shish',
+  'finance.noWallets': 'Kassalar mavjud emas',
   'finance.addWalletPrompt': 'Kassa va bank hisoblarini shu yerga qo\'shing.',
   'finance.balance': 'Joriy balans',
   'finance.income': 'Kirim',

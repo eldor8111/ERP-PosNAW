@@ -1,0 +1,60 @@
+[Unit]
+Description=ERP-POS Backend (FastAPI + Gunicorn)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+# ==========================================
+# O'z serveringizga qarab o'zgartiring:
+# User=ubuntu  yoki  User=root
+# WorkingDirectory=/home/ubuntu/ERP-PosNAW
+# ==========================================
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/ERP-PosNAW
+
+# Virtual environment path
+Environment="PATH=/home/ubuntu/ERP-PosNAW/venv/bin"
+
+# .env faylini yuklab olish
+EnvironmentFile=/home/ubuntu/ERP-PosNAW/.env
+
+# Gunicorn bilan 4 worker — crash bo'lsa worker qayta tug'iladi
+ExecStart=/home/ubuntu/ERP-PosNAW/venv/bin/gunicorn \
+    app.main:app \
+    -w 4 \
+    -k uvicorn.workers.UvicornWorker \
+    --bind 127.0.0.1:8010 \
+    --timeout 120 \
+    --keepalive 5 \
+    --max-requests 1000 \
+    --max-requests-jitter 100 \
+    --log-level warning \
+    --error-logfile /var/log/erp-backend/error.log \
+    --access-logfile /var/log/erp-backend/access.log \
+    --capture-output \
+    --pid /run/erp-backend.pid
+
+# Restart politikasi — ASOSIY QISM
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# Process turlari
+Type=notify
+NotifyAccess=all
+
+# Xotira limit (agar memory leak bo'lsa ham qayta ishlansin)
+MemoryMax=2G
+MemorySwapMax=0
+
+# OOM killerdan himoya
+OOMScoreAdjust=-500
+
+# Log
+StandardOutput=append:/var/log/erp-backend/stdout.log
+StandardError=append:/var/log/erp-backend/stderr.log
+
+[Install]
+WantedBy=multi-user.target

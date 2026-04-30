@@ -33,6 +33,7 @@ class POCreate(BaseModel):
     paid_amount: Decimal = Decimal("0")
     discount_amount: Decimal = Decimal("0")
     payment_type: str = "cash"
+    wallet_id: Optional[int] = None
     items: List[POItemCreate]
 
 
