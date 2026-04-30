@@ -25,12 +25,29 @@ from app.models import bot_session  # noqa: F401 — ensure bot_sessions table e
 
 from app.services.scheduler import start_scheduler
 
+def _run_auto_migrations(engine):
+    """DB da mavjud bo'lmagan ustunlarni avtomatik qo'shadi."""
+    migrations = [
+        "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(14,2) DEFAULT 0;",
+        "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(14,2) DEFAULT 0;",
+    ]
+    try:
+        with engine.connect() as conn:
+            for sql in migrations:
+                conn.execute(__import__('sqlalchemy').text(sql))
+            conn.commit()
+    except Exception as e:
+        print(f"[AUTO-MIGRATION] Xatolik: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from app.routers.auth import run_otp_bot_polling
     from app.database import engine
     from app.models.bot_session import BotSession
     BotSession.__table__.create(bind=engine, checkfirst=True)
+    # DB ustunlari avtomatik yaratiladi (migration)
+    _run_auto_migrations(engine)
     scheduler_task = asyncio.create_task(start_scheduler())
     otp_bot_task = asyncio.create_task(run_otp_bot_polling())
     yield
