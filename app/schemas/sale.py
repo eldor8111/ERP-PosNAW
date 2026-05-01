@@ -27,6 +27,17 @@ class SaleItemCreate(BaseModel):
             raise ValueError("Chegirma manfiy bo'lishi mumkin emas")
         return v
 
+class PaymentItem(BaseModel):
+    type: PaymentType
+    amount: Decimal
+
+    @field_validator("amount")
+    @classmethod
+    def amount_positive(cls, v):
+        if v <= 0:
+            raise ValueError("To'lov miqdori musbat bo'lishi kerak")
+        return v
+
 
 class SaleCreate(BaseModel):
     items: List[SaleItemCreate]
@@ -34,6 +45,7 @@ class SaleCreate(BaseModel):
     paid_amount: Decimal
     paid_cash: Decimal = Decimal("0")
     paid_card: Decimal = Decimal("0")
+    payments: Optional[List[PaymentItem]] = []
     discount_amount: Decimal = Decimal("0")
 
     @field_validator("discount_amount")
@@ -69,6 +81,13 @@ class SaleItemOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
+class SalePaymentOut(BaseModel):
+    id: int
+    payment_type: PaymentType
+    amount: Decimal
+
+    model_config = {"from_attributes": True}
+
 
 class SaleOut(BaseModel):
     id: int
@@ -84,6 +103,7 @@ class SaleOut(BaseModel):
     status: SaleStatus
     note: Optional[str]
     items: List[SaleItemOut]
+    payments: List[SalePaymentOut] = []
     created_at: datetime
     debt_due_date: Optional[date] = None
 

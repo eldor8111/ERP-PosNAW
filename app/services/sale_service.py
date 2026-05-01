@@ -13,7 +13,7 @@ from app.models.user import UserRole  # type: ignore
 
 from app.core.audit import log_action  # type: ignore
 from app.models.product import Product, ProductStatus  # type: ignore
-from app.models.sale import Sale, SaleItem, SaleStatus, PaymentType, SaleItemBatch  # type: ignore
+from app.models.sale import Sale, SaleItem, SaleStatus, PaymentType, SaleItemBatch, SalePayment  # type: ignore
 from app.models.batch import Batch
 from app.schemas.sale import SaleCreate  # type: ignore
 from app.services.inventory_service import deduct_stock, receive_stock  # type: ignore
@@ -235,44 +235,65 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
     db.add(sale)
     db.flush()
     
-    # 3.1. Agar qisman yoki full to'lov qilingan bo'lsa, avto-Moliya Tranzaksiya qoshish
-    if data.paid_amount > 0:
-        tx_branch_id = current_user.branch_id
-        if not tx_branch_id and data.warehouse_id:
-            from app.models.warehouse import Warehouse as _Warehouse
-            wh_obj = db.query(_Warehouse).filter(_Warehouse.id == data.warehouse_id).first()
-            if wh_obj and wh_obj.branch_id:
-                tx_branch_id = wh_obj.branch_id
-        if not tx_branch_id:
-            from app.models.branch import Branch as _Branch
-            br = db.query(_Branch).filter(_Branch.company_id == current_user.company_id).first()
-            if br:
-                tx_branch_id = br.id
-        
-        if tx_branch_id:
-            if data.payment_type == PaymentType.mixed:
-                if data.paid_cash > 0:
+    # 3.1. To'lovlarni saqlash (SalePayment) va Moliya Tranzaksiya qo'shish
+    tx_branch_id = current_user.branch_id
+    if not tx_branch_id and data.warehouse_id:
+        from app.models.warehouse import Warehouse as _Warehouse
+        wh_obj = db.query(_Warehouse).filter(_Warehouse.id == data.warehouse_id).first()
+        if wh_obj and wh_obj.branch_id:
+            tx_branch_id = wh_obj.branch_id
+    if not tx_branch_id:
+        from app.models.branch import Branch as _Branch
+        br = db.query(_Branch).filter(_Branch.company_id == current_user.company_id).first()
+        if br:
+            tx_branch_id = br.id
+            
+    if data.payments and len(data.payments) > 0:
+        for p in data.payments:
+            if p.amount > 0:
+                sp = SalePayment(sale_id=sale.id, payment_type=p.type.value, amount=p.amount)
+                db.add(sp)
+                if tx_branch_id:
+                    tx = Transaction(
+                        branch_id=tx_branch_id, company_id=current_user.company_id,
+                        type="income", amount=p.amount, payment_type=p.type.value,
+                        reference_type="sale", reference_id=sale.id,
+                        description=f"Sotuv to'lovi #{sale.number} ({p.type.value})"
+                    )
+                    db.add(tx)
+    elif data.paid_amount > 0:
+        if data.payment_type == PaymentType.mixed:
+            if data.paid_cash > 0:
+                sp_cash = SalePayment(sale_id=sale.id, payment_type="cash", amount=data.paid_cash)
+                db.add(sp_cash)
+                if tx_branch_id:
                     tx_cash = Transaction(
                         branch_id=tx_branch_id, company_id=current_user.company_id,
-                        type="income", amount=data.paid_cash, reference_type="sale",
-                        reference_id=sale.id, description=f"Sotuv to'lovi #{sale.number} (Aralash/Naqd)"
+                        type="income", amount=data.paid_cash, payment_type="cash",
+                        reference_type="sale", reference_id=sale.id,
+                        description=f"Sotuv to'lovi #{sale.number} (Aralash/Naqd)"
                     )
                     db.add(tx_cash)
-                if data.paid_card > 0:
+            if data.paid_card > 0:
+                sp_card = SalePayment(sale_id=sale.id, payment_type="card", amount=data.paid_card)
+                db.add(sp_card)
+                if tx_branch_id:
                     tx_card = Transaction(
                         branch_id=tx_branch_id, company_id=current_user.company_id,
-                        type="income", amount=data.paid_card, reference_type="sale",
-                        reference_id=sale.id, description=f"Sotuv to'lovi #{sale.number} (Aralash/Karta)"
+                        type="income", amount=data.paid_card, payment_type="card",
+                        reference_type="sale", reference_id=sale.id,
+                        description=f"Sotuv to'lovi #{sale.number} (Aralash/Karta)"
                     )
                     db.add(tx_card)
-            else:
+        else:
+            sp = SalePayment(sale_id=sale.id, payment_type=data.payment_type.value, amount=data.paid_amount)
+            db.add(sp)
+            if tx_branch_id:
                 tx = Transaction(
                     branch_id=tx_branch_id,
                     company_id=current_user.company_id,
-                    type="income",
-                    amount=data.paid_amount,
-                    reference_type="sale",
-                    reference_id=sale.id,
+                    type="income", amount=data.paid_amount, payment_type=data.payment_type.value,
+                    reference_type="sale", reference_id=sale.id,
                     description=f"Sotuv to'lovi #{sale.number}"
                 )
                 db.add(tx)

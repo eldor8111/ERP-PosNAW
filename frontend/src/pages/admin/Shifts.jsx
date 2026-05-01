@@ -22,7 +22,6 @@ export default function Shifts() {
   const [modal, setModal] = useState(null); // 'open' | 'close'
   const [openingCash, setOpeningCash] = useState('');
   const [closingCash, setClosingCash] = useState('');
-  const [closingCard, setClosingCard] = useState('');
   const [wallets, setWallets] = useState([]);
   const [selectedWallet, setSelectedWallet] = useState('');
   const [selectedCardWallet, setSelectedCardWallet] = useState('');
@@ -74,15 +73,13 @@ export default function Shifts() {
   const handleClose = async (e) => {
     e.preventDefault(); setSaving(true); setError('');
     try {
-      const payload = { 
-        closing_cash: Number(closingCash),
-        closing_card: Number(closingCard) || 0
-      };
+      const payload = {};
+      if (closingCash !== '') payload.closing_cash = Number(closingCash);
       if (selectedWallet) payload.wallet_id = Number(selectedWallet);
       if (selectedCardWallet) payload.wallet_card_id = Number(selectedCardWallet);
-      
+
       await api.post(`/shifts/${activeShift.id}/close`, payload);
-      setModal(null); setClosingCash(''); setClosingCard(''); load();
+      setModal(null); setClosingCash(''); load();
       toast.success(`Smena muvaffaqiyatli yopildi`);
     } catch (err) { setError(err.response?.data?.detail || 'Xatolik yuz berdi'); }
     finally { setSaving(false); }
@@ -290,11 +287,11 @@ export default function Shifts() {
                 </div>
                 <div className="flex justify-between text-emerald-600">
                   <span>Naqd savdo (+):</span>
-                  <span className="font-bold">{fmt(activeShift.total_cash)} so'm</span>
+                  <span className="font-bold">{fmt(activeShift.balances?.cash)} so'm</span>
                 </div>
                 <div className="flex justify-between text-blue-600">
                   <span>Terminal savdo (+):</span>
-                  <span className="font-bold">{fmt(activeShift.total_card)} so'm</span>
+                  <span className="font-bold">{fmt(activeShift.balances?.card)} so'm</span>
                 </div>
                 <div className="border-t border-slate-200 pt-2 mt-2 flex justify-between font-bold text-slate-800">
                   <span>Kutilayotgan Naqd Qoldiq:</span>
@@ -320,10 +317,9 @@ export default function Shifts() {
                     Terminal / Karta puli
                   </label>
                   <input
-                    type="number" min="0" value={closingCard}
-                    onChange={e => setClosingCard(e.target.value)}
-                    placeholder={activeShift.total_card || '0'}
-                    className="w-full px-3.5 py-2.5 border-2 border-slate-200 focus:border-blue-500 rounded-xl text-sm font-bold focus:outline-none transition-colors"
+                    readOnly
+                    value={fmt(activeShift.balances?.card)}
+                    className="w-full px-3.5 py-2.5 border-2 border-slate-100 bg-slate-50 rounded-xl text-sm font-bold text-slate-500 cursor-not-allowed"
                   />
                 </div>
               </div>

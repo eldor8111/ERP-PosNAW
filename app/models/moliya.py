@@ -55,8 +55,19 @@ class Transaction(Base):
     reference_id = Column(Integer, nullable=True) # ID of the sale, expense, etc
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
     wallet_id = Column(Integer, ForeignKey("wallets.id"), nullable=True)
+    payment_type = Column(String(50), nullable=True) # 'cash', 'card', 'click', 'humo'
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+class WalletBalance(Base):
+    __tablename__ = "wallet_balances"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    wallet_id = Column(Integer, ForeignKey("wallets.id"), nullable=False)
+    payment_type = Column(String(50), nullable=False) # 'cash', 'card', 'click', etc.
+    balance = Column(Numeric(14, 2), default=0)
+    
+    wallet = relationship("Wallet", backref="detailed_balances")
     
     branch = relationship("Branch")
     wallet = relationship("Wallet")

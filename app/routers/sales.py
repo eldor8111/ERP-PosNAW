@@ -23,6 +23,7 @@ def _load_sale(db: Session, sale_id: int, user: Optional[User] = None) -> Sale:
         db.query(Sale)
         .options(
             joinedload(Sale.items).joinedload(SaleItem.product),
+            joinedload(Sale.payments),
             joinedload(Sale.cashier),
         )
         .filter(Sale.id == sale_id)
@@ -46,6 +47,16 @@ def _build_sale_out(sale: Sale) -> SaleOut:
         )
         for i in sale.items
     ]
+    from app.schemas.sale import SalePaymentOut
+    payments = [
+        SalePaymentOut(
+            id=p.id,
+            payment_type=p.payment_type,
+            amount=p.amount
+        )
+        for p in sale.payments
+    ] if hasattr(sale, 'payments') else []
+
     return SaleOut(
         id=sale.id,
         number=sale.number,
@@ -60,6 +71,7 @@ def _build_sale_out(sale: Sale) -> SaleOut:
         status=sale.status,
         note=sale.note,
         items=items,
+        payments=payments,
         created_at=sale.created_at,
     )
 

@@ -58,6 +58,7 @@ class Sale(Base):
     customer = relationship("Customer")
     cashier = relationship("User")
     items = relationship("SaleItem", back_populates="sale", cascade="all, delete-orphan")
+    payments = relationship("SalePayment", back_populates="sale", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index('ix_sale_company_created', 'company_id', 'created_at'),
@@ -98,3 +99,13 @@ class SaleItemBatch(Base):
 
     sale_item = relationship("SaleItem", back_populates="batches")
     batch = relationship("Batch")
+
+class SalePayment(Base):
+    __tablename__ = "sale_payments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    sale_id = Column(Integer, ForeignKey("sales.id"), nullable=False)
+    payment_type = Column(String(50), nullable=False)
+    amount = Column(Numeric(14, 2), nullable=False)
+
+    sale = relationship("Sale", back_populates="payments")
