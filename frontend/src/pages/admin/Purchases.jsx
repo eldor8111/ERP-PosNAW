@@ -1429,6 +1429,8 @@ function KirimlarTab({ products, warehouses, suppliers }) {
     { k:'warehouse_name', l:t('purchase.colWarehouse') },
     { k:'status',         l:t('purchase.filterStatus'), r: v => <Badge meta={poMeta} val={v} /> },
     { k:'total_amount',   l:t('purchase.colTotal'), r: v => fmt(v) },
+    { k:'paid_amount',    l:"To'langan", r: v => <span className="text-emerald-600 font-semibold">{fmt(v)}</span> },
+    { k:'debt',           l:"Qarzga", r: (_, row) => { const d = Number(row.total_amount) - Number(row.paid_amount || 0) - Number(row.discount_amount || 0); return d > 0 ? <span className="text-red-500 font-semibold">{fmt(d)}</span> : '—'; } },
     { k:'created_at',     l:t('purchase.colDate'), r: v => fmtDay(v) },
     { k:'id', l:'', r: (v,row) => ['draft','ordered','partial'].includes(row.status) ? (
       <button onClick={e=>{e.stopPropagation(); openDetail(row);}}
