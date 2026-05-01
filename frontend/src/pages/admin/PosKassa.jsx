@@ -1,10 +1,12 @@
-﻿import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useLang } from '../../context/LangContext';
 import { useNavigate } from 'react-router-dom';
 import usePosSync from '../../hooks/usePosSync';
 import { toast } from '../../utils/toast';
 import api from '../../api/axios';
 import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
+import { useActiveShift } from '../../hooks/useActiveShift';
+import ShiftOpenModal from '../../components/ShiftOpenModal';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const cleanNum = (str) => Number(String(str).replace(/\D/g, ''));
@@ -102,6 +104,8 @@ const navigate = useNavigate();
   const [showNewProduct, setShowNewProduct] = useState(false);
   const [newProd, setNewProd] = useState({ name:'', barcode:'', sale_price:'', cost_price:'', unit:'dona', category_id:'', stock_quantity:'0' });
   const [savingProd, setSavingProd] = useState(false);
+  const { hasShift, reload: reloadShift } = useActiveShift();
+  const [showShiftModal, setShowShiftModal] = useState(false);
 
   // Sync hooks
   const { isOnline, submitSaleOrQueue, fetchProducts, fetchCustomers, fetchCategories } = usePosSync({
@@ -323,6 +327,7 @@ const navigate = useNavigate();
 
   const checkout = async (isDebtConfirm = false) => {
     if (!cart.length) return toast.warn("Savat bo'sh!");
+    if (!hasShift) { setShowShiftModal(true); return; }
     
     // Pul yetarli emas va mijoz tanlanmagan → xato
     if (!isEnough && !custId) {
@@ -411,6 +416,12 @@ const navigate = useNavigate();
 
   return (
     <div className={`font-sans select-none bg-slate-200 flex overflow-hidden ${expanded ? 'fixed inset-0 z-[200]' : 'w-full h-[calc(100vh-65px)]'}`}>
+      {showShiftModal && (
+        <ShiftOpenModal
+          onOpened={() => { reloadShift(); setShowShiftModal(false); }}
+          onCancel={() => setShowShiftModal(false)}
+        />
+      )}
       
       {/* ── LEFT PANE: CHECKOUT & CART ── */}
       <div className="w-[450px] bg-white flex flex-col shadow-2xl z-20 shrink-0">

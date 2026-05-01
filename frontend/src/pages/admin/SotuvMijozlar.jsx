@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom';
 import api from '../../api/axios';
 import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
 import toast from 'react-hot-toast';
+import { useActiveShift } from '../../hooks/useActiveShift';
+import ShiftOpenModal from '../../components/ShiftOpenModal';
 const fmt   = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -148,6 +150,8 @@ function Lbl({ className = '', t, children }) {
 /* ── Sale Create View ── */
 function SaleCreateView({ customers, onBack, onSaved }) {
   const { t } = useLang();
+  const { hasShift, reload: reloadShift } = useActiveShift();
+  const [showShiftModal, setShowShiftModal] = useState(false);
   const [products, setProds] = useState(() => {
     try { return JSON.parse(localStorage.getItem('pos_cache_products'))?.data || []; } catch { return []; }
   });
@@ -194,6 +198,7 @@ function SaleCreateView({ customers, onBack, onSaved }) {
 
   const doSave = async (paymentInfo = null, shouldPrint = false) => {
     if (!cart.length) { setErr("Kamida bitta mahsulot qo'shing"); return; }
+    if (!hasShift) { setShowShiftModal(true); return; }
     setSaving(true); setErr(''); setPayErr('');
 
     // ── Modalni DARHOL yopamiz — foydalanuvchi qotib qolgan ko'rinishni ko'rmaydi
@@ -351,6 +356,12 @@ function SaleCreateView({ customers, onBack, onSaved }) {
 
   return (
     <div className="fixed inset-0 z-40 bg-slate-50 flex flex-col">
+      {showShiftModal && (
+        <ShiftOpenModal
+          onOpened={() => { reloadShift(); setShowShiftModal(false); }}
+          onCancel={() => setShowShiftModal(false)}
+        />
+      )}
       <div className="flex items-center gap-4 px-6 py-4 bg-white border-b border-slate-100 shrink-0">
         <button onClick={onBack} className="inline-flex items-center gap-2 text-slate-500 hover:text-indigo-600 px-3 py-2 rounded-xl hover:bg-indigo-50 font-semibold">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>Orqaga

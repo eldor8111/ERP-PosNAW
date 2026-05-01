@@ -7,6 +7,8 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import { buildReceiptHtml, printReceiptHtml, getReceiptSettings, saveReceiptSettings } from '../../utils/receiptBuilder';
 import { toast } from '../../utils/toast';
+import { useActiveShift } from '../../hooks/useActiveShift';
+import ShiftOpenModal from '../../components/ShiftOpenModal';
 
 /* ─── Yordamchi funksiyalar ─────────────────────────────── */
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
@@ -257,6 +259,8 @@ export default function UlgurjiSotuv() {
   const [useWholesale, setUseWholesale] = useState(true);
   const [showPayment, setShowPayment] = useState(false);
   const [saving, setSaving] = useState(false);
+  const { hasShift, reload: reloadShift } = useActiveShift();
+  const [showShiftModal, setShowShiftModal] = useState(false);
 
   const saveSettings = () => {
     localStorage.setItem('ulgurji_autoPrint', autoPrint);
@@ -503,6 +507,7 @@ export default function UlgurjiSotuv() {
   /* ── To'lovni qabul qilish ── */
   const handlePay = async () => {
     if (!cart.length) return toast.error('Savat bo\'sh!');
+    if (!hasShift) { setShowShiftModal(true); return; }
     if (debt > 0 && !custId) return toast.error('Qarzga sotish uchun mijoz tanlang!');
     if (debt > 0 && !debtDate && showDebtDate) return toast.error('Qarz muddat sanasini kiriting!');
     if (debt > 0 && !showDebtDate) { setShowDebtDate(true); return; }
@@ -541,6 +546,12 @@ export default function UlgurjiSotuv() {
   ══════════════════════════════════════════════════ */
   return (
     <div className="absolute inset-x-6 inset-y-6 flex flex-col bg-slate-50 overflow-hidden shadow-[0_0_12px_rgba(0,0,0,0.05)] border border-slate-200 rounded-[18px]">
+      {showShiftModal && (
+        <ShiftOpenModal
+          onOpened={() => { reloadShift(); setShowShiftModal(false); }}
+          onCancel={() => setShowShiftModal(false)}
+        />
+      )}
 
       {/* ── TOP NAV ── */}
       <div className="shrink-0 bg-white border-b border-slate-200 px-5 py-3 flex items-center justify-between shadow-sm">
