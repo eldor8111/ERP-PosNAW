@@ -22,8 +22,10 @@ export default function Shifts() {
   const [modal, setModal] = useState(null); // 'open' | 'close'
   const [openingCash, setOpeningCash] = useState('');
   const [closingCash, setClosingCash] = useState('');
+  const [closingCard, setClosingCard] = useState('');
   const [wallets, setWallets] = useState([]);
   const [selectedWallet, setSelectedWallet] = useState('');
+  const [selectedCardWallet, setSelectedCardWallet] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [branches, setBranches] = useState([]);
@@ -34,7 +36,18 @@ export default function Shifts() {
       const params = filterBranch ? `?branch_id=${filterBranch}` : '';
       const { data } = await api.get(`/shifts${params}`);
       setShifts(data);
-      setActiveShift(data.find(s => s.cashier_id === user?.id && s.status === 'open') || null);
+      const openShift = data.find(s => s.cashier_id === user?.id && s.status === 'open');
+      if (openShift) {
+        try {
+            const curr = await api.get('/shifts/current');
+            if (curr.data) setActiveShift(curr.data);
+            else setActiveShift(openShift);
+        } catch(e) {
+            setActiveShift(openShift);
+        }
+      } else {
+        setActiveShift(null);
+      }
     } catch (err) { console.error(err); }
   };
 
@@ -61,12 +74,16 @@ export default function Shifts() {
   const handleClose = async (e) => {
     e.preventDefault(); setSaving(true); setError('');
     try {
-      const payload = { closing_cash: Number(closingCash) };
+      const payload = { 
+        closing_cash: Number(closingCash),
+        closing_card: Number(closingCard) || 0
+      };
       if (selectedWallet) payload.wallet_id = Number(selectedWallet);
+      if (selectedCardWallet) payload.wallet_card_id = Number(selectedCardWallet);
+      
       await api.post(`/shifts/${activeShift.id}/close`, payload);
-      setModal(null); setClosingCash(''); load();
-      const walletName = wallets.find(w => String(w.id) === String(selectedWallet))?.name || '';
-      toast.success(`Smena yopildi${walletName ? `. ${fmt(closingCash)} so'm → ${walletName}` : ''}`);
+      setModal(null); setClosingCash(''); setClosingCard(''); load();
+      toast.success(`Smena muvaffaqiyatli yopildi`);
     } catch (err) { setError(err.response?.data?.detail || 'Xatolik yuz berdi'); }
     finally { setSaving(false); }
   };
@@ -262,7 +279,7 @@ export default function Shifts() {
             </div>
             <form onSubmit={handleClose} className="p-6 space-y-4">
               {/* Smena ma'lumoti */}
-              <div className="p-4 bg-slate-50 rounded-xl text-sm space-y-1.5">
+              <div className="p-4 bg-slate-50 rounded-xl text-sm space-y-2">
                 <div className="flex justify-between text-slate-600">
                   <span>Boshlanish vaqti:</span>
                   <span className="font-medium text-slate-800">{fmtDt(activeShift.opened_at)}</span>
@@ -271,47 +288,83 @@ export default function Shifts() {
                   <span>Ochilish kassasi:</span>
                   <span className="font-medium text-slate-800">{fmt(activeShift.opening_cash)} so'm</span>
                 </div>
+                <div className="flex justify-between text-emerald-600">
+                  <span>Naqd savdo (+):</span>
+                  <span className="font-bold">{fmt(activeShift.total_cash)} so'm</span>
+                </div>
+                <div className="flex justify-between text-blue-600">
+                  <span>Terminal savdo (+):</span>
+                  <span className="font-bold">{fmt(activeShift.total_card)} so'm</span>
+                </div>
+                <div className="border-t border-slate-200 pt-2 mt-2 flex justify-between font-bold text-slate-800">
+                  <span>Kutilayotgan Naqd Qoldiq:</span>
+                  <span>{fmt(activeShift.expected_cash)} so'm</span>
+                </div>
               </div>
 
               {/* Kassadagi pul */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                  Hozir kassadagi naqd pul (so'm) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number" min="0" required autoFocus value={closingCash}
-                  onChange={e => setClosingCash(e.target.value)}
-                  placeholder="Sanab chiqilgan pul miqdori..."
-                  className="w-full px-3.5 py-2.5 border-2 border-slate-200 focus:border-red-400 rounded-xl text-center text-xl font-bold focus:outline-none transition-colors"
-                />
-              </div>
-
-              {/* Inkassatsiya - Qaysi hamyonga */}
-              {wallets.length > 0 && (
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                    📦 Inkassatsiya — Qaysi kassaga/hisobga o'tkazilsin?
+                    Haqiqiy naqd pul <span className="text-red-500">*</span>
                   </label>
-                  <select
-                    value={selectedWallet}
-                    onChange={e => setSelectedWallet(e.target.value)}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                  >
-                    <option value="">— Inkassatsiya qilmaslik —</option>
-                    {wallets.map(w => (
-                      <option key={w.id} value={w.id}>
-                        {w.name} (joriy: {fmt(w.balance)} so'm)
-                      </option>
-                    ))}
-                  </select>
-                  {selectedWallet && closingCash && (
-                    <div className="mt-2 flex items-center gap-2 bg-indigo-50 border border-indigo-100 rounded-xl px-3 py-2 text-xs text-indigo-700 font-semibold">
-                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                      </svg>
-                      {fmt(closingCash)} so'm → {wallets.find(w => String(w.id) === String(selectedWallet))?.name} hisobiga o'tadi
-                    </div>
-                  )}
+                  <input
+                    type="number" min="0" required autoFocus value={closingCash}
+                    onChange={e => setClosingCash(e.target.value)}
+                    placeholder="Sanab chiqilgan..."
+                    className="w-full px-3.5 py-2.5 border-2 border-slate-200 focus:border-emerald-500 rounded-xl text-sm font-bold focus:outline-none transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    Terminal / Karta puli
+                  </label>
+                  <input
+                    type="number" min="0" value={closingCard}
+                    onChange={e => setClosingCard(e.target.value)}
+                    placeholder={activeShift.total_card || '0'}
+                    className="w-full px-3.5 py-2.5 border-2 border-slate-200 focus:border-blue-500 rounded-xl text-sm font-bold focus:outline-none transition-colors"
+                  />
+                </div>
+              </div>
+
+              {/* Inkassatsiya */}
+              {wallets.length > 0 && (
+                <div className="space-y-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">
+                      📦 Naqd pulni topshirish (Kassa)
+                    </label>
+                    <select
+                      value={selectedWallet}
+                      onChange={e => setSelectedWallet(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                    >
+                      <option value="">— Topshirmaslik —</option>
+                      {wallets.map(w => (
+                        <option key={w.id} value={w.id}>
+                          {w.name} (joriy: {fmt(w.balance)} so'm)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">
+                      💳 Terminal pulini topshirish (Bank)
+                    </label>
+                    <select
+                      value={selectedCardWallet}
+                      onChange={e => setSelectedCardWallet(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    >
+                      <option value="">— Topshirmaslik —</option>
+                      {wallets.map(w => (
+                        <option key={w.id} value={w.id}>
+                          {w.name} (joriy: {fmt(w.balance)} so'm)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               )}
 

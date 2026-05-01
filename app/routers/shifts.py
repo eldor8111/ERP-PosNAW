@@ -24,7 +24,9 @@ class ShiftOpen(BaseModel):
 
 class ShiftClose(BaseModel):
     closing_cash: Optional[Decimal] = None
-    wallet_id: Optional[int] = None
+    wallet_id: Optional[int] = None       # Naqd tushadigan hamyon
+    closing_card: Optional[Decimal] = None
+    wallet_card_id: Optional[int] = None  # Plastik/Terminal tushadigan hamyon
     note: Optional[str] = None
 
 
@@ -67,10 +69,27 @@ def list_shifts(
 
 @router.get("/current")
 def get_current_shift(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """Get the currently active (open) shift for the authenticated user."""
+    """Get the currently active (open) shift for the authenticated user, including totals."""
     shift = db.query(Shift).filter(Shift.cashier_id == user.id, Shift.status == "open").first()
     if not shift:
         return None
+    
+    from sqlalchemy import func
+    from app.models.sale import Sale
+    
+    # Calculate totals from sales during this shift
+    sales_totals = db.query(
+        func.sum(Sale.paid_cash).label("total_cash"),
+        func.sum(Sale.paid_card).label("total_card")
+    ).filter(
+        Sale.cashier_id == user.id,
+        Sale.created_at >= shift.opened_at,
+        Sale.status != "cancelled"
+    ).first()
+
+    total_cash = sales_totals.total_cash or Decimal("0")
+    total_card = sales_totals.total_card or Decimal("0")
+    
     return {
         "id": shift.id,
         "cashier_id": shift.cashier_id,
@@ -79,6 +98,9 @@ def get_current_shift(db: Session = Depends(get_db), user: User = Depends(get_cu
         "opened_at": shift.opened_at,
         "closed_at": shift.closed_at,
         "opening_cash": str(shift.opening_cash),
+        "total_cash": str(total_cash),
+        "total_card": str(total_card),
+        "expected_cash": str(shift.opening_cash + total_cash),
         "status": shift.status,
     }
 
@@ -115,8 +137,10 @@ def close_current_shift(data: ShiftClose = ShiftClose(), db: Session = Depends(g
     shift.status = "closed"
 
     # Inkassatsiya
+    from app.models.moliya import Wallet, Transaction
+    
+    # 1. Naqd pul inkassatsiyasi
     if data.wallet_id and shift.closing_cash > 0:
-        from app.models.moliya import Wallet, Transaction
         wallet = db.get(Wallet, data.wallet_id)
         if wallet:
             wallet.balance = float(wallet.balance) + float(shift.closing_cash)
@@ -128,9 +152,26 @@ def close_current_shift(data: ShiftClose = ShiftClose(), db: Session = Depends(g
                 wallet_id=wallet.id,
                 reference_type="shift",
                 reference_id=shift.id,
-                description=f"Smena yopilishi - inkassatsiya ({user.name})"
+                description=f"Smena yopilishi - inkassatsiya (Naqd, {user.name})"
             )
             db.add(tx)
+            
+    # 2. Plastik/Terminal inkassatsiyasi
+    if data.wallet_card_id and data.closing_card and data.closing_card > 0:
+        wallet_card = db.get(Wallet, data.wallet_card_id)
+        if wallet_card:
+            wallet_card.balance = float(wallet_card.balance) + float(data.closing_card)
+            tx_card = Transaction(
+                branch_id=shift.branch_id,
+                company_id=shift.company_id,
+                type="income",
+                amount=data.closing_card,
+                wallet_id=wallet_card.id,
+                reference_type="shift",
+                reference_id=shift.id,
+                description=f"Smena yopilishi - inkassatsiya (Plastik/Terminal, {user.name})"
+            )
+            db.add(tx_card)
 
     db.commit()
     db.refresh(shift)
@@ -153,8 +194,10 @@ def close_shift(shift_id: int, data: ShiftClose = ShiftClose(), db: Session = De
     shift.status = "closed"
 
     # Inkassatsiya
+    from app.models.moliya import Wallet, Transaction
+    
+    # 1. Naqd pul inkassatsiyasi
     if data.wallet_id and shift.closing_cash > 0:
-        from app.models.moliya import Wallet, Transaction
         wallet = db.get(Wallet, data.wallet_id)
         if wallet:
             wallet.balance = float(wallet.balance) + float(shift.closing_cash)
@@ -166,9 +209,26 @@ def close_shift(shift_id: int, data: ShiftClose = ShiftClose(), db: Session = De
                 wallet_id=wallet.id,
                 reference_type="shift",
                 reference_id=shift.id,
-                description=f"Smena yopilishi - inkassatsiya ({user.name})"
+                description=f"Smena yopilishi - inkassatsiya (Naqd, {user.name})"
             )
             db.add(tx)
+            
+    # 2. Plastik/Terminal inkassatsiyasi
+    if data.wallet_card_id and data.closing_card and data.closing_card > 0:
+        wallet_card = db.get(Wallet, data.wallet_card_id)
+        if wallet_card:
+            wallet_card.balance = float(wallet_card.balance) + float(data.closing_card)
+            tx_card = Transaction(
+                branch_id=shift.branch_id,
+                company_id=shift.company_id,
+                type="income",
+                amount=data.closing_card,
+                wallet_id=wallet_card.id,
+                reference_type="shift",
+                reference_id=shift.id,
+                description=f"Smena yopilishi - inkassatsiya (Plastik/Terminal, {user.name})"
+            )
+            db.add(tx_card)
 
     db.commit()
     db.refresh(shift)
