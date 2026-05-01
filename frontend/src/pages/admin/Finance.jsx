@@ -283,6 +283,16 @@ export default function Finance() {
                   <div>
                     <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">{t('finance.balance') || 'Joriy balans'}</p>
                     <p className={`text-2xl font-bold ${w.balance < 0 ? 'text-red-500' : 'text-slate-800'}`}>{fmt(w.balance, t)}</p>
+                    {w.detailed_balances && Object.keys(w.detailed_balances).length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-slate-100 space-y-1">
+                        {Object.entries(w.detailed_balances).map(([k, v]) => (
+                          <div key={k} className="flex justify-between text-xs">
+                            <span className="text-slate-500 capitalize">{k}</span>
+                            <span className="font-semibold text-slate-700">{fmt(v, t)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

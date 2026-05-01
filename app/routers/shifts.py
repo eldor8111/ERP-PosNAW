@@ -146,9 +146,8 @@ def _calc_shift_payment_balances(db: Session, shift: Shift):
         Sale.status != "cancelled"
     ).group_by(SalePayment.payment_type).all()
     balances = {p.payment_type: Decimal(str(p.total)) for p in payments}
-    cash_total = balances.pop("cash", Decimal("0"))
-    card_total = sum(balances.values(), Decimal("0"))
-    return cash_total, card_total
+    cash_total = balances.get("cash", Decimal("0"))
+    return cash_total, balances
 
 
 @router.post("/close")
@@ -158,18 +157,25 @@ def close_current_shift(data: ShiftClose = ShiftClose(), db: Session = Depends(g
     if not shift:
         raise HTTPException(status_code=404, detail="Faol smena topilmadi")
 
-    cash_total, card_total = _calc_shift_payment_balances(db, shift)
+    cash_total, balances = _calc_shift_payment_balances(db, shift)
 
     shift.closed_at = datetime.now(timezone.utc)
     shift.closing_cash = data.closing_cash if data.closing_cash is not None else cash_total
     shift.status = "closed"
 
-    from app.models.moliya import Wallet, Transaction
+    from app.models.moliya import Wallet, Transaction, WalletBalance
 
     if data.wallet_id and cash_total > 0:
         wallet = db.get(Wallet, data.wallet_id)
         if wallet:
             wallet.balance = float(wallet.balance) + float(cash_total)
+            wb = db.query(WalletBalance).filter(WalletBalance.wallet_id == wallet.id, WalletBalance.payment_type == "cash").first()
+            if not wb:
+                wb = WalletBalance(wallet_id=wallet.id, payment_type="cash", balance=cash_total)
+                db.add(wb)
+            else:
+                wb.balance = float(wb.balance) + float(cash_total)
+            
             db.add(Transaction(
                 branch_id=shift.branch_id, company_id=shift.company_id,
                 type="income", amount=cash_total, payment_type="cash",
@@ -177,16 +183,26 @@ def close_current_shift(data: ShiftClose = ShiftClose(), db: Session = Depends(g
                 description=f"Smena yopilishi - inkassatsiya (Naqd, {user.name})"
             ))
 
-    if data.wallet_card_id and card_total > 0:
+    if data.wallet_card_id:
         wallet_card = db.get(Wallet, data.wallet_card_id)
         if wallet_card:
-            wallet_card.balance = float(wallet_card.balance) + float(card_total)
-            db.add(Transaction(
-                branch_id=shift.branch_id, company_id=shift.company_id,
-                type="income", amount=card_total, payment_type="card",
-                wallet_id=wallet_card.id, reference_type="shift", reference_id=shift.id,
-                description=f"Smena yopilishi - inkassatsiya (Terminal, {user.name})"
-            ))
+            for p_type, amount in balances.items():
+                if p_type == "cash" or amount <= 0:
+                    continue
+                wallet_card.balance = float(wallet_card.balance) + float(amount)
+                wb = db.query(WalletBalance).filter(WalletBalance.wallet_id == wallet_card.id, WalletBalance.payment_type == p_type).first()
+                if not wb:
+                    wb = WalletBalance(wallet_id=wallet_card.id, payment_type=p_type, balance=amount)
+                    db.add(wb)
+                else:
+                    wb.balance = float(wb.balance) + float(amount)
+
+                db.add(Transaction(
+                    branch_id=shift.branch_id, company_id=shift.company_id,
+                    type="income", amount=amount, payment_type=p_type,
+                    wallet_id=wallet_card.id, reference_type="shift", reference_id=shift.id,
+                    description=f"Smena yopilishi - inkassatsiya ({p_type}, {user.name})"
+                ))
 
     db.commit()
     db.refresh(shift)
@@ -205,18 +221,25 @@ def close_shift(shift_id: int, data: ShiftClose = ShiftClose(), db: Session = De
     if shift.status == "closed":
         raise HTTPException(status_code=400, detail="Smena allaqachon yopilgan")
 
-    cash_total, card_total = _calc_shift_payment_balances(db, shift)
+    cash_total, balances = _calc_shift_payment_balances(db, shift)
 
     shift.closed_at = datetime.now(timezone.utc)
     shift.closing_cash = data.closing_cash if data.closing_cash is not None else cash_total
     shift.status = "closed"
 
-    from app.models.moliya import Wallet, Transaction
+    from app.models.moliya import Wallet, Transaction, WalletBalance
 
     if data.wallet_id and cash_total > 0:
         wallet = db.get(Wallet, data.wallet_id)
         if wallet:
             wallet.balance = float(wallet.balance) + float(cash_total)
+            wb = db.query(WalletBalance).filter(WalletBalance.wallet_id == wallet.id, WalletBalance.payment_type == "cash").first()
+            if not wb:
+                wb = WalletBalance(wallet_id=wallet.id, payment_type="cash", balance=cash_total)
+                db.add(wb)
+            else:
+                wb.balance = float(wb.balance) + float(cash_total)
+
             db.add(Transaction(
                 branch_id=shift.branch_id, company_id=shift.company_id,
                 type="income", amount=cash_total, payment_type="cash",
@@ -224,16 +247,26 @@ def close_shift(shift_id: int, data: ShiftClose = ShiftClose(), db: Session = De
                 description=f"Smena yopilishi - inkassatsiya (Naqd, {user.name})"
             ))
 
-    if data.wallet_card_id and card_total > 0:
+    if data.wallet_card_id:
         wallet_card = db.get(Wallet, data.wallet_card_id)
         if wallet_card:
-            wallet_card.balance = float(wallet_card.balance) + float(card_total)
-            db.add(Transaction(
-                branch_id=shift.branch_id, company_id=shift.company_id,
-                type="income", amount=card_total, payment_type="card",
-                wallet_id=wallet_card.id, reference_type="shift", reference_id=shift.id,
-                description=f"Smena yopilishi - inkassatsiya (Terminal, {user.name})"
-            ))
+            for p_type, amount in balances.items():
+                if p_type == "cash" or amount <= 0:
+                    continue
+                wallet_card.balance = float(wallet_card.balance) + float(amount)
+                wb = db.query(WalletBalance).filter(WalletBalance.wallet_id == wallet_card.id, WalletBalance.payment_type == p_type).first()
+                if not wb:
+                    wb = WalletBalance(wallet_id=wallet_card.id, payment_type=p_type, balance=amount)
+                    db.add(wb)
+                else:
+                    wb.balance = float(wb.balance) + float(amount)
+
+                db.add(Transaction(
+                    branch_id=shift.branch_id, company_id=shift.company_id,
+                    type="income", amount=amount, payment_type=p_type,
+                    wallet_id=wallet_card.id, reference_type="shift", reference_id=shift.id,
+                    description=f"Smena yopilishi - inkassatsiya ({p_type}, {user.name})"
+                ))
 
     db.commit()
     db.refresh(shift)

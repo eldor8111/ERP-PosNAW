@@ -94,7 +94,8 @@ def list_wallets(
             "type": w.type,
             "balance": float(w.balance),
             "is_active": w.is_active,
-            "branch_id": w.branch_id
+            "branch_id": w.branch_id,
+            "detailed_balances": {wb.payment_type: float(wb.balance) for wb in w.detailed_balances} if hasattr(w, "detailed_balances") else {}
         }
         for w in q.all()
     ]

@@ -287,12 +287,17 @@ export default function Shifts() {
                 </div>
                 <div className="flex justify-between text-emerald-600">
                   <span>Naqd savdo (+):</span>
-                  <span className="font-bold">{fmt(activeShift.balances?.cash)} so'm</span>
+                  <span className="font-bold">{fmt(activeShift.balances?.cash || 0)} so'm</span>
                 </div>
-                <div className="flex justify-between text-blue-600">
-                  <span>Terminal savdo (+):</span>
-                  <span className="font-bold">{fmt(activeShift.balances?.card)} so'm</span>
-                </div>
+                {Object.entries(activeShift.balances || {}).map(([pType, val]) => {
+                  if (pType === 'cash') return null;
+                  return (
+                    <div key={pType} className="flex justify-between text-blue-600">
+                      <span className="capitalize">{pType} savdo (+):</span>
+                      <span className="font-bold">{fmt(val)} so'm</span>
+                    </div>
+                  );
+                })}
                 <div className="border-t border-slate-200 pt-2 mt-2 flex justify-between font-bold text-slate-800">
                   <span>Kutilayotgan Naqd Qoldiq:</span>
                   <span>{fmt(activeShift.expected_cash)} so'm</span>
@@ -314,11 +319,11 @@ export default function Shifts() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                    Terminal / Karta puli
+                    Terminal / Boshqa elektron to'lovlar
                   </label>
                   <input
                     readOnly
-                    value={fmt(activeShift.balances?.card)}
+                    value={fmt(Object.entries(activeShift.balances || {}).reduce((acc, [k,v]) => k === 'cash' ? acc : acc + Number(v), 0))}
                     className="w-full px-3.5 py-2.5 border-2 border-slate-100 bg-slate-50 rounded-xl text-sm font-bold text-slate-500 cursor-not-allowed"
                   />
                 </div>
