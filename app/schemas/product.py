@@ -20,6 +20,7 @@ class ProductCreate(BaseModel):
     name: str
     sku: Optional[str] = None
     barcode: str
+    extra_barcodes: Optional[List[str]] = None
     name_ru: Optional[str] = None
     category_id: Optional[int] = None
     unit: str = "dona"
@@ -50,6 +51,7 @@ class ProductUpdate(BaseModel):
     name_ru: Optional[str] = None
     sku: Optional[str] = None
     barcode: Optional[str] = None
+    extra_barcodes: Optional[List[str]] = None
     brand: Optional[str] = None
     category_id: Optional[int] = None
     unit: Optional[str] = None
@@ -74,6 +76,7 @@ class ProductOut(BaseModel):
     id: int
     sku: str
     barcode: str
+    extra_barcodes: Optional[List[str]] = None
     name: str
     name_ru: Optional[str]
     category_id: Optional[int]
@@ -105,11 +108,22 @@ class ProductOut(BaseModel):
                 return []
         return v
 
+    @field_validator("extra_barcodes", mode="before")
+    @classmethod
+    def parse_extra_barcodes(cls, v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except Exception:
+                return []
+        return v
+
 
 class ProductListOut(BaseModel):
     id: int
     sku: str
     barcode: str
+    extra_barcodes: Optional[List[str]] = None
     name: str
     unit: str
     cost_price: Decimal
@@ -128,6 +142,16 @@ class ProductListOut(BaseModel):
     @field_validator("images", mode="before")
     @classmethod
     def parse_images(cls, v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except Exception:
+                return []
+        return v
+
+    @field_validator("extra_barcodes", mode="before")
+    @classmethod
+    def parse_extra_barcodes(cls, v):
         if isinstance(v, str):
             try:
                 return json.loads(v)

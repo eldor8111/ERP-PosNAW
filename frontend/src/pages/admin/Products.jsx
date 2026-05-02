@@ -49,6 +49,7 @@ const movTypeMeta = {
 const emptyProduct = {
   name: '', sku: '', barcode: '',
   barcode_format: 'ean8',
+  extra_barcodes: [],
   brand: '',
   category_id: '', unit: 'dona',
   cost_price: '', wholesale_price: '', sale_price: '',
@@ -62,6 +63,20 @@ const emptyProduct = {
   dimensions: '',
   status: 'active',
 };
+
+/* ─── Bulk add empty row factory ──────────────────── */
+const emptyBulkRow = () => ({
+  _key: Math.random().toString(36).slice(2),
+  name: '',
+  cost_price: '',
+  wholesale_price: '',
+  sale_price: '',
+  barcodes: [genBarcodeByFormat('ean8')],
+  unit: 'dona',
+  category_id: '',
+  initial_stock: '',
+  status: 'active',
+});
 
 /* ─── RowMenu (3 dots) ─────────────────────────────────── */
 function RowMenu({ onEdit, onDelete, onPrint }) {
@@ -408,6 +423,7 @@ export default function Products() {
     setForm({
       name: p.name, sku: p.sku, barcode: p.barcode,
       barcode_format: 'ean8',
+      extra_barcodes: Array.isArray(p.extra_barcodes) ? p.extra_barcodes : [],
       brand: p.brand || '',
       category_id: p.category_id || '', unit: p.unit,
       cost_price: p.cost_price, wholesale_price: p.wholesale_price ?? '',
@@ -493,6 +509,7 @@ export default function Products() {
         name:             form.name.trim(),
         sku:              form.sku?.trim() || genSku(),
         barcode:          form.barcode.trim(),
+        extra_barcodes:   (form.extra_barcodes || []).filter(b => b.trim()),
         brand:            form.brand?.trim() || null,
         category_id:      form.category_id ? Number(form.category_id) : null,
         unit:             form.unit,
@@ -812,6 +829,72 @@ export default function Products() {
   };
   const openImport = () => { resetImport(); setImportOpen(true); };
 
+  /* ════ BULK ADD (donalab qo'shish) ════ */
+  const [bulkAddOpen, setBulkAddOpen] = useState(false);
+  const [bulkRows, setBulkRows] = useState([emptyBulkRow()]);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkResult, setBulkResult] = useState(null);
+  const [bulkError, setBulkError] = useState('');
+
+  const openBulkAdd = () => {
+    setBulkRows([emptyBulkRow()]);
+    setBulkResult(null);
+    setBulkError('');
+    setBulkAddOpen(true);
+  };
+
+  const updateBulkRow = (key, field, value) =>
+    setBulkRows(rows => rows.map(r => r._key === key ? { ...r, [field]: value } : r));
+
+  const addBulkBarcode = (key) =>
+    setBulkRows(rows => rows.map(r =>
+      r._key === key ? { ...r, barcodes: [...r.barcodes, genBarcodeByFormat('ean8')] } : r
+    ));
+
+  const removeBulkBarcode = (key, idx) =>
+    setBulkRows(rows => rows.map(r =>
+      r._key === key ? { ...r, barcodes: r.barcodes.filter((_, i) => i !== idx) } : r
+    ));
+
+  const updateBulkBarcode = (key, idx, val) =>
+    setBulkRows(rows => rows.map(r =>
+      r._key === key ? { ...r, barcodes: r.barcodes.map((b, i) => i === idx ? val : b) } : r
+    ));
+
+  const removeBulkRow = (key) =>
+    setBulkRows(rows => rows.length > 1 ? rows.filter(r => r._key !== key) : rows);
+
+  const handleBulkAddSave = async () => {
+    const validRows = bulkRows.filter(r => r.name.trim() && String(r.sale_price).trim());
+    if (!validRows.length) { setBulkError("Kamida bitta mahsulot nomi va chakana narxi kiritilishi kerak"); return; }
+    setBulkSaving(true); setBulkError(''); setBulkResult(null);
+    let created = 0, errors = [];
+    for (const row of validRows) {
+      try {
+        const [primary, ...extras] = row.barcodes.filter(b => b.trim());
+        await api.post('/products', {
+          name:            row.name.trim(),
+          barcode:         primary || genBarcodeByFormat('ean8'),
+          extra_barcodes:  extras,
+          cost_price:      Number(row.cost_price) || 0,
+          wholesale_price: row.wholesale_price !== '' ? Number(row.wholesale_price) : null,
+          sale_price:      Number(row.sale_price) || 0,
+          unit:            row.unit || 'dona',
+          category_id:     row.category_id ? Number(row.category_id) : null,
+          initial_stock:   Number(row.initial_stock) || 0,
+          status:          row.status || 'active',
+        });
+        created++;
+      } catch (err) {
+        const detail = err.response?.data?.detail;
+        errors.push({ name: row.name, error: typeof detail === 'string' ? detail : JSON.stringify(detail) });
+      }
+    }
+    setBulkResult({ created, errors });
+    setBulkSaving(false);
+    if (created > 0) loadProducts();
+  };
+
 
   /* ════════════════════════════════════════════════ */
   return (
@@ -885,6 +968,15 @@ export default function Products() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 {t('common.download')}
+              </button>
+              <button
+                onClick={openBulkAdd}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                Ko'p mahsulot qo'shish
               </button>
               <button
                 onClick={openImport}
@@ -1155,6 +1247,16 @@ export default function Products() {
                           </td>
                           <td className="px-2 py-3">
                             <div className="text-xs font-mono font-bold text-slate-800 truncate">{p.barcode}</div>
+                            {Array.isArray(p.extra_barcodes) && p.extra_barcodes.length > 0 && (
+                              <div className="flex flex-col gap-0.5 mt-0.5">
+                                {p.extra_barcodes.slice(0, 2).map((b, i) => (
+                                  <div key={i} className="text-[10px] font-mono text-slate-500 truncate">+ {b}</div>
+                                ))}
+                                {p.extra_barcodes.length > 2 && (
+                                  <div className="text-[10px] text-indigo-400">+{p.extra_barcodes.length - 2} ta</div>
+                                )}
+                              </div>
+                            )}
                             <div className="text-xs text-indigo-500 mt-0.5 truncate">{p.sku}</div>
                           </td>
                           <td className="px-1 py-3">
@@ -1441,7 +1543,11 @@ export default function Products() {
 
                 {/* Barcode + SKU */}
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label={t('product.barcodeLabel')} required>
+                  <Field label={t('product.skuLabel')} hint={t('product.skuHint')}>
+                    <input className={inputCls} value={form.sku}
+                      onChange={e => setForm({ ...form, sku: e.target.value })} placeholder={t('product.skuPlaceholder')} />
+                  </Field>
+                  <Field label="Birlamchi shtrix kod" required>
                     <div className="flex gap-2">
                       <select
                         className="px-2 py-3 border border-slate-200 rounded-xl text-xs font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-700 shrink-0"
@@ -1457,7 +1563,7 @@ export default function Products() {
                         placeholder="12345678"
                       />
                       <button type="button" onClick={() => setForm({ ...form, barcode: genBarcodeByFormat(form.barcode_format) })}
-                        title={t('product.newBarcodeTitle')}
+                        title="Yangi barcode"
                         className="px-3 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors shrink-0">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -1465,10 +1571,65 @@ export default function Products() {
                       </button>
                     </div>
                   </Field>
-                  <Field label={t('product.skuLabel')} hint={t('product.skuHint')}>
-                    <input className={inputCls} value={form.sku}
-                      onChange={e => setForm({ ...form, sku: e.target.value })} placeholder={t('product.skuPlaceholder')} />
-                  </Field>
+                </div>
+
+                {/* Extra barcodes */}
+                <div className="border border-slate-200 rounded-xl p-4 space-y-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-semibold text-slate-600">Qo'shimcha shtrix kodlar</span>
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, extra_barcodes: [...(f.extra_barcodes || []), genBarcodeByFormat(f.barcode_format)] }))}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-semibold rounded-lg transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      Barcode qo'shish
+                    </button>
+                  </div>
+                  {(form.extra_barcodes || []).length === 0 ? (
+                    <p className="text-xs text-slate-400 py-1">Hozircha qo'shimcha shtrix kod yo'q</p>
+                  ) : (
+                    (form.extra_barcodes || []).map((bc, idx) => (
+                      <div key={idx} className="flex gap-2 items-center">
+                        <span className="text-xs text-slate-400 font-mono w-5 shrink-0">{idx + 2}.</span>
+                        <input
+                          className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          value={bc}
+                          onChange={e => {
+                            const updated = [...(form.extra_barcodes || [])];
+                            updated[idx] = e.target.value;
+                            setForm(f => ({ ...f, extra_barcodes: updated }));
+                          }}
+                          placeholder="Shtrix kod..."
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setForm(f => ({ ...f, extra_barcodes: f.extra_barcodes.filter((_, i) => i !== idx) }))}
+                          className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = [...(form.extra_barcodes || [])];
+                            updated[idx] = genBarcodeByFormat(form.barcode_format);
+                            setForm(f => ({ ...f, extra_barcodes: updated }));
+                          }}
+                          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors shrink-0"
+                          title="Yangi barcode"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))
+                  )}
                 </div>
 
                 {/* Category + Unit */}
@@ -1860,6 +2021,221 @@ export default function Products() {
       {/* BARCODE PRINT MODAL */}
       {printProduct && (
         <BarcodePrintModal product={printProduct} onClose={() => setPrintProduct(null)} />
+      )}
+
+      {/* ════ BULK ADD MODAL ════ */}
+      {bulkAddOpen && (
+        <div className="fixed inset-0 z-[60] bg-white flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-white shadow-sm shrink-0">
+            <div className="flex items-center gap-3">
+              <button onClick={() => setBulkAddOpen(false)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">Ko'p mahsulot qo'shish</h2>
+                <p className="text-xs text-slate-400">Bir vaqtda bir nechta mahsulot qo'shish — har bir qatorda birnechta shtrix kod kiritish mumkin</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-slate-500 font-medium">{bulkRows.length} ta qator</span>
+              <button
+                onClick={handleBulkAddSave}
+                disabled={bulkSaving}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-colors"
+              >
+                {bulkSaving ? (
+                  <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Saqlanmoqda...</>
+                ) : (
+                  <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>Saqlash</>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Error / Result */}
+          {bulkError && (
+            <div className="mx-6 mt-3 px-4 py-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl shrink-0">{bulkError}</div>
+          )}
+          {bulkResult && (
+            <div className="mx-6 mt-3 px-4 py-3 bg-emerald-50 border border-emerald-200 text-sm rounded-xl shrink-0 flex items-center gap-6">
+              <span className="font-bold text-emerald-700">{bulkResult.created} ta mahsulot saqlandi</span>
+              {bulkResult.errors.length > 0 && (
+                <div className="text-red-600">
+                  {bulkResult.errors.slice(0, 3).map((e, i) => (
+                    <div key={i}><strong>{e.name}</strong>: {e.error}</div>
+                  ))}
+                  {bulkResult.errors.length > 3 && <div>+{bulkResult.errors.length - 3} ta xato...</div>}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Table */}
+          <div className="flex-1 overflow-auto p-6">
+            <div className="min-w-[900px]">
+              {/* Column headers */}
+              <div className="grid gap-2 mb-2 text-xs font-bold text-slate-500 uppercase tracking-wider px-2"
+                style={{ gridTemplateColumns: '32px 1fr 90px 90px 100px 1fr 70px 130px 70px 32px' }}>
+                <span>#</span>
+                <span>Mahsulot nomi *</span>
+                <span>Tan narxi</span>
+                <span>Ulgurji</span>
+                <span>Chakana *</span>
+                <span>Shtrix kodlar (birlamchi + qo'shimcha)</span>
+                <span>O'lchov</span>
+                <span>Kategoriya</span>
+                <span>Qoldiq</span>
+                <span></span>
+              </div>
+
+              {/* Rows */}
+              <div className="space-y-3">
+                {bulkRows.map((row, rowIdx) => (
+                  <div key={row._key} className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
+                    <div className="grid gap-2 items-start"
+                      style={{ gridTemplateColumns: '32px 1fr 90px 90px 100px 1fr 70px 130px 70px 32px' }}>
+                      {/* # */}
+                      <div className="flex items-center justify-center h-9 text-sm font-bold text-slate-400">{rowIdx + 1}</div>
+
+                      {/* Name */}
+                      <input
+                        className="h-9 px-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
+                        value={row.name}
+                        onChange={e => updateBulkRow(row._key, 'name', e.target.value)}
+                        placeholder="Mahsulot nomi..."
+                      />
+
+                      {/* Cost price */}
+                      <input type="number" min="0"
+                        className="h-9 px-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
+                        value={row.cost_price}
+                        onChange={e => updateBulkRow(row._key, 'cost_price', e.target.value)}
+                        placeholder="0"
+                      />
+
+                      {/* Wholesale */}
+                      <input type="number" min="0"
+                        className="h-9 px-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
+                        value={row.wholesale_price}
+                        onChange={e => updateBulkRow(row._key, 'wholesale_price', e.target.value)}
+                        placeholder="—"
+                      />
+
+                      {/* Sale price */}
+                      <input type="number" min="0"
+                        className="h-9 px-3 border border-emerald-300 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full bg-emerald-50"
+                        value={row.sale_price}
+                        onChange={e => updateBulkRow(row._key, 'sale_price', e.target.value)}
+                        placeholder="0"
+                      />
+
+                      {/* Barcodes */}
+                      <div className="space-y-1.5">
+                        {row.barcodes.map((bc, bcIdx) => (
+                          <div key={bcIdx} className="flex gap-1 items-center">
+                            {bcIdx === 0 && (
+                              <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded shrink-0">1</span>
+                            )}
+                            {bcIdx > 0 && (
+                              <span className="text-[9px] font-bold text-slate-400 bg-slate-50 px-1 py-0.5 rounded shrink-0">{bcIdx + 1}</span>
+                            )}
+                            <input
+                              className={`flex-1 h-7 px-2 border rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
+                                bcIdx === 0 ? 'border-indigo-200 bg-indigo-50/50' : 'border-slate-200'
+                              }`}
+                              value={bc}
+                              onChange={e => updateBulkBarcode(row._key, bcIdx, e.target.value)}
+                              placeholder="Barcode..."
+                            />
+                            <button type="button"
+                              onClick={() => updateBulkBarcode(row._key, bcIdx, genBarcodeByFormat('ean8'))}
+                              className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors shrink-0"
+                              title="Yangi barcode">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                            </button>
+                            {bcIdx > 0 && (
+                              <button type="button"
+                                onClick={() => removeBulkBarcode(row._key, bcIdx)}
+                                className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors shrink-0">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                        <button type="button"
+                          onClick={() => addBulkBarcode(row._key)}
+                          className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-500 hover:text-indigo-700 transition-colors">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          Barcode qo'shish
+                        </button>
+                      </div>
+
+                      {/* Unit */}
+                      <select
+                        className="h-9 px-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
+                        value={row.unit}
+                        onChange={e => updateBulkRow(row._key, 'unit', e.target.value)}
+                      >
+                        {['dona', 'kg', 'g', 'litr', 'ml', 'metr', 'sm', 'quti', 'paket', 'juft'].map(u => (
+                          <option key={u} value={u}>{u}</option>
+                        ))}
+                      </select>
+
+                      {/* Category */}
+                      <select
+                        className="h-9 px-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
+                        value={row.category_id}
+                        onChange={e => updateBulkRow(row._key, 'category_id', e.target.value)}
+                      >
+                        <option value="">Kategoriya</option>
+                        {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+
+                      {/* Initial stock */}
+                      <input type="number" min="0"
+                        className="h-9 px-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
+                        value={row.initial_stock}
+                        onChange={e => updateBulkRow(row._key, 'initial_stock', e.target.value)}
+                        placeholder="0"
+                      />
+
+                      {/* Remove row */}
+                      <button type="button"
+                        onClick={() => removeBulkRow(row._key)}
+                        className="h-9 w-8 flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Qatorni o'chirish">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add row button */}
+              <button
+                type="button"
+                onClick={() => setBulkRows(rows => [...rows, emptyBulkRow()])}
+                className="mt-4 w-full py-3 border-2 border-dashed border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/30 text-slate-400 hover:text-emerald-600 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Yangi qator qo'shish
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ════ ADVANCED EXCEL IMPORT FULLSCREEN ════ */}

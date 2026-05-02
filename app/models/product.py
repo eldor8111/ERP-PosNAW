@@ -36,6 +36,8 @@ class Product(Base):
     # TZ: Rasmlar — multiple images (JSON array of URLs)
     images = Column(Text, nullable=True)
     brand = Column(String(200), nullable=True)
+    # Qo'shimcha shtrix kodlar — JSON array of barcode strings
+    extra_barcodes = Column(Text, nullable=True)
     # TZ: Vazn va o'lchamlar
     weight = Column(Numeric(10, 3), nullable=True)       # kg
     dimensions = Column(String(100), nullable=True)      # MxBxH sm

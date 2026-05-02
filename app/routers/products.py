@@ -52,6 +52,7 @@ def list_products(
             (Product.name.ilike(f"%{search}%"))
             | (Product.sku.ilike(f"%{search}%"))
             | (Product.barcode.ilike(f"%{search}%"))
+            | (Product.extra_barcodes.ilike(f"%{search}%"))
         )
     if category_id:
         q = q.filter(Product.category_id == category_id)
@@ -161,6 +162,7 @@ def list_products_for_pos(
             (Product.name.ilike(f"%{search}%"))
             | (Product.sku.ilike(f"%{search}%"))
             | (Product.barcode.ilike(f"%{search}%"))
+            | (Product.extra_barcodes.ilike(f"%{search}%"))
         )
 
     q = q.order_by(Product.name)
@@ -229,6 +231,7 @@ def list_products_paginated(
             (Product.name.ilike(f"%{search}%"))
             | (Product.sku.ilike(f"%{search}%"))
             | (Product.barcode.ilike(f"%{search}%"))
+            | (Product.extra_barcodes.ilike(f"%{search}%"))
         )
     if category_id:
         q = q.filter(Product.category_id == category_id)
@@ -329,6 +332,7 @@ def list_product_ids(
             (Product.name.ilike(f"%{search}%"))
             | (Product.sku.ilike(f"%{search}%"))
             | (Product.barcode.ilike(f"%{search}%"))
+            | (Product.extra_barcodes.ilike(f"%{search}%"))
         )
     if category_id:
         q = q.filter(Product.category_id == category_id)
@@ -345,13 +349,20 @@ def get_by_barcode(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    q = db.query(Product).filter(
-        Product.barcode == barcode,
+    base_filter = [
         Product.is_deleted == False,
         Product.status == ProductStatus.active,
-    )
-    q = q.filter(Product.company_id == current_user.company_id)
-    product = q.first()
+        Product.company_id == current_user.company_id,
+    ]
+    # Asosiy barcode bo'yicha qidirish
+    product = db.query(Product).filter(*base_filter, Product.barcode == barcode).first()
+    # Topilmasa extra_barcodes JSON ichida qidirish (LIKE tekshiruvi)
+    if not product:
+        product = (
+            db.query(Product)
+            .filter(*base_filter, Product.extra_barcodes.ilike(f'%"{barcode}"%'))
+            .first()
+        )
 
     if not product:
         raise HTTPException(status_code=404, detail=f"Barcode '{barcode}' bo'yicha mahsulot topilmadi")
@@ -401,6 +412,13 @@ def create_product(
         # Auto-set primary image_url from first image if not provided
         if not product_data.get("image_url") and imgs:
             product_data["image_url"] = imgs[0]
+
+    # Serialize extra_barcodes list → JSON string
+    extra_bc = product_data.get("extra_barcodes")
+    if extra_bc is not None:
+        product_data["extra_barcodes"] = json.dumps([b.strip() for b in extra_bc if b.strip()])
+    else:
+        product_data["extra_barcodes"] = None
 
     # Auto-generate SKU if not provided
     if not product_data.get("sku"):
@@ -475,6 +493,11 @@ def update_product(
         update_data["images"] = json.dumps(imgs) if imgs is not None else None
         if imgs and not update_data.get("image_url"):
             update_data["image_url"] = imgs[0]
+
+    # Serialize extra_barcodes list → JSON string
+    if "extra_barcodes" in update_data:
+        ebc = update_data["extra_barcodes"]
+        update_data["extra_barcodes"] = json.dumps([b.strip() for b in ebc if b.strip()]) if ebc else None
 
     for field, value in update_data.items():
         setattr(product, field, value)
@@ -737,10 +760,6 @@ def delete_product(
     )
     db.commit()
 
-
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status, Body
-
-# ... (rest of imports remain intact, but we'll just fix the endpoint signature below) ...
 
 from pydantic import BaseModel
 
