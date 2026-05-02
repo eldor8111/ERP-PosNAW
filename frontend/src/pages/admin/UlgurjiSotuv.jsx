@@ -1100,137 +1100,166 @@ export default function UlgurjiSotuv() {
 
       {/* ══ TO'LOV MODALI ════════════════════════════════════════ */}
       {showPayment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
+          <div className="bg-white w-full sm:max-w-md sm:rounded-3xl shadow-2xl flex flex-col max-h-screen sm:max-h-[92vh] rounded-t-3xl overflow-hidden">
 
-            {/* Header */}
-            <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-5 text-white">
-              <div className="flex items-center justify-between">
+            {/* ── Header: gradient + summa ── */}
+            <div className="relative bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-600 px-6 pt-6 pb-8 text-white shrink-0 overflow-hidden">
+              {/* decorative circles */}
+              <div className="absolute -top-6 -right-6 w-36 h-36 bg-white/10 rounded-full" />
+              <div className="absolute -bottom-10 -left-4 w-28 h-28 bg-white/5 rounded-full" />
+              <div className="flex items-start justify-between relative z-10">
                 <div>
-                  <h2 className="text-lg font-black">To'lovni qabul qilish</h2>
-                  <p className="text-sm text-white/70 mt-0.5">Umumiy summa: {fmt(total)} so'm</p>
+                  <p className="text-white/60 text-xs font-semibold uppercase tracking-widest mb-1">To'lovni qabul qilish</p>
+                  <p className="text-4xl font-black tracking-tight">{fmt(total)} <span className="text-2xl font-bold text-white/70">s</span></p>
+                  {saleDisc > 0 && (
+                    <p className="text-white/60 text-xs mt-1">Chegirma: −{fmt(saleDisc)} s qo'llanildi</p>
+                  )}
+                  {cart.length > 0 && (
+                    <p className="text-white/50 text-xs mt-0.5">{cart.length} ta mahsulot · {cart.reduce((s,i)=>s+i.qty,0).toFixed(1)} birlik</p>
+                  )}
                 </div>
                 <button onClick={() => { setShowPayment(false); setShowDebtDate(false); }}
-                  className="w-9 h-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors">
+                  className="w-9 h-9 rounded-2xl bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors mt-1">
                   <Ic d="M6 18L18 6M6 6l12 12" cls="w-4 h-4" />
                 </button>
               </div>
+
+              {/* progress bar: to'landi / qoldi */}
+              {payType !== 'debt' && paid > 0 && (
+                <div className="relative z-10 mt-4">
+                  <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-400 rounded-full transition-all duration-300"
+                      style={{ width: `${Math.min(100, (paid / total) * 100)}%` }} />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-white/50 mt-1">
+                    <span>To'landi: {fmt(paid)} s</span>
+                    {change > 0
+                      ? <span className="text-emerald-300 font-bold">Qaytim: {fmt(change)} s</span>
+                      : <span>Qoldi: {fmt(Math.max(0, total - paid))} s</span>
+                    }
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="px-6 py-5 space-y-5 max-h-[70vh] overflow-y-auto">
+            {/* ── Scrollable body ── */}
+            <div className="flex-1 overflow-y-auto">
 
               {/* To'lov turi */}
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3 block">To'lov turi</label>
+              <div className="px-5 pt-5 pb-3">
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">To'lov turi</p>
                 <div className="grid grid-cols-5 gap-2">
-                  {PAY_TYPES.map(pt => (
-                    <button key={pt.id} onClick={() => setPayType(pt.id)}
-                      className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border-2 text-xs font-bold transition-all ${payType === pt.id ? pt.color + ' shadow-md scale-105' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'}`}>
-                      <span className="text-lg">{pt.icon}</span>
-                      <span className="leading-tight text-center">{pt.label}</span>
-                    </button>
+                  {PAY_TYPES.map(pt => {
+                    const active = payType === pt.id;
+                    return (
+                      <button key={pt.id} onClick={() => setPayType(pt.id)}
+                        className={`relative flex flex-col items-center gap-1 py-3 px-1 rounded-2xl border-2 text-[11px] font-bold transition-all select-none
+                          ${active
+                            ? 'border-indigo-500 bg-indigo-50 text-indigo-700 shadow-md shadow-indigo-100 scale-105'
+                            : 'border-slate-100 bg-slate-50 text-slate-500 hover:border-slate-200 hover:bg-white'}`}>
+                        {active && <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-indigo-500 rounded-full" />}
+                        <span className="text-xl leading-none">{pt.icon}</span>
+                        <span className="leading-tight text-center">{pt.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="px-5 pb-5 space-y-4">
+                {/* Miqdor */}
+                {payType === 'mixed' ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: 'Naqd', val: paidCash, set: setPaidCash, cls: 'border-emerald-300 focus:ring-emerald-400 text-emerald-700' },
+                      { label: 'Karta', val: paidCard, set: setPaidCard, cls: 'border-blue-300 focus:ring-blue-400 text-blue-700' },
+                    ].map(f => (
+                      <div key={f.label} className="bg-slate-50 rounded-2xl p-3 border-2 border-slate-100">
+                        <p className="text-[11px] font-bold text-slate-400 mb-2">{f.label} (so'm)</p>
+                        <input type="number" value={f.val} onChange={e => f.set(e.target.value)} placeholder="0"
+                          className={`w-full bg-white border-2 ${f.cls} rounded-xl px-3 py-2.5 text-lg font-black focus:outline-none focus:ring-2`} />
+                      </div>
+                    ))}
+                  </div>
+                ) : payType === 'debt' ? (
+                  <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center shrink-0">
+                      <span className="text-2xl">📋</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-amber-800">Butun summa qarzga yoziladi</p>
+                      <p className="text-2xl font-black text-amber-700 mt-0.5">{fmt(total)} s</p>
+                      {!custId && <p className="text-xs text-red-500 font-semibold mt-1">⚠ Avval mijoz tanlang!</p>}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 rounded-2xl p-4 border-2 border-slate-100">
+                    <p className="text-[11px] font-bold text-slate-400 mb-2">To'lov miqdori (so'm)</p>
+                    <div className="flex items-center gap-2">
+                      <input type="number" value={paidAmt} onChange={e => setPaidAmt(e.target.value)} placeholder="0"
+                        autoFocus
+                        className="flex-1 bg-white border-2 border-indigo-200 rounded-xl px-4 py-3 text-2xl font-black text-indigo-700 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
+                      <button onClick={() => setPaidAmt(String(total))}
+                        className="shrink-0 h-full px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-black rounded-xl transition-colors shadow-md shadow-indigo-200">
+                        To'liq
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Qarz sanasi */}
+                {showDebtDate && debt > 0 && (
+                  <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center gap-2 text-amber-700">
+                      <Ic d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" cls="w-4 h-4" />
+                      <span className="text-sm font-bold">Qarz summasi: {fmt(payType === 'debt' ? total : debt)} s</span>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold text-amber-700 mb-1.5">To'lov muddati (ixtiyoriy)</p>
+                      <input type="date" min={today()} value={debtDate} onChange={e => setDebtDate(e.target.value)}
+                        className="w-full border-2 border-amber-300 bg-white rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                    </div>
+                  </div>
+                )}
+
+                {/* Hisob-kitob summary */}
+                <div className="rounded-2xl overflow-hidden border border-slate-100">
+                  {[
+                    { label: 'Jami summa', val: fmt(total) + ' s', cls: 'text-slate-700' },
+                    saleDisc > 0 && { label: 'Chegirma', val: '−' + fmt(saleDisc) + ' s', cls: 'text-amber-600' },
+                    { label: "To'landi", val: fmt(payType === 'debt' ? 0 : paid) + ' s', cls: 'text-emerald-600 font-black' },
+                    debt > 0 && { label: 'Qarz', val: fmt(payType === 'debt' ? total : debt) + ' s', cls: 'text-red-600 font-black', highlight: true },
+                    change > 0 && { label: 'Qaytim', val: fmt(change) + ' s', cls: 'text-blue-600 font-black', highlight: true },
+                  ].filter(Boolean).map((row, i) => (
+                    <div key={i} className={`flex justify-between items-center px-4 py-3 text-sm ${row.highlight ? 'bg-slate-50 border-t-2 border-slate-100' : 'bg-white border-b border-slate-50'}`}>
+                      <span className="text-slate-500 font-medium">{row.label}</span>
+                      <span className={`font-bold ${row.cls}`}>{row.val}</span>
+                    </div>
                   ))}
                 </div>
-              </div>
 
-              {/* Miqdor */}
-              {payType === 'mixed' ? (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 mb-1.5 block">Naqd (so'm)</label>
-                    <input type="number" value={paidCash} onChange={e => setPaidCash(e.target.value)} placeholder="0"
-                      className="w-full border-2 border-emerald-300 rounded-xl px-4 py-3 text-lg font-black text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 mb-1.5 block">Karta (so'm)</label>
-                    <input type="number" value={paidCard} onChange={e => setPaidCard(e.target.value)} placeholder="0"
-                      className="w-full border-2 border-blue-300 rounded-xl px-4 py-3 text-lg font-black text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                  </div>
-                </div>
-              ) : payType !== 'debt' ? (
+                {/* Izoh */}
                 <div>
-                  <label className="text-xs font-bold text-slate-500 mb-1.5 block">To'lov miqdori (so'm)</label>
-                  <div className="relative">
-                    <input type="number" value={paidAmt} onChange={e => setPaidAmt(e.target.value)} placeholder="0"
-                      className="w-full border-2 border-indigo-300 rounded-xl px-4 py-3 text-xl font-black text-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 pr-28" />
-                    <button onClick={() => setPaidAmt(String(total))}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-xs font-bold rounded-lg transition-colors">
-                      To'liq
-                    </button>
-                  </div>
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Izoh (ixtiyoriy)</p>
+                  <input value={payNote} onChange={e => setPayNote(e.target.value)}
+                    placeholder="Qo'shimcha ma'lumot..."
+                    className="w-full border-2 border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:bg-white transition-colors" />
                 </div>
-              ) : (
-                <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4 text-center">
-                  <p className="text-sm font-bold text-amber-700">Butun summa qarzga yoziladi</p>
-                  <p className="text-2xl font-black text-amber-800 mt-1">{fmt(total)} s</p>
-                  {!custId && <p className="text-xs text-red-500 font-semibold mt-2">⚠ Mijoz tanlanmagan!</p>}
-                </div>
-              )}
-
-              {/* Qarz sanasi */}
-              {showDebtDate && debt > 0 && (
-                <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4 space-y-3">
-                  <div className="flex items-center gap-2 text-amber-700">
-                    <Ic d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" cls="w-5 h-5" />
-                    <span className="font-bold">Qarz: {fmt(debt)} s</span>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-amber-700 mb-1.5 block">To'lov muddati (ixtiyoriy)</label>
-                    <input type="date" min={today()} value={debtDate} onChange={e => setDebtDate(e.target.value)}
-                      className="w-full border-2 border-amber-300 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400" />
-                  </div>
-                </div>
-              )}
-
-              {/* Hisob-kitob */}
-              <div className="bg-slate-50 rounded-2xl p-4 space-y-2.5">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Jami summa</span>
-                  <span className="font-bold">{fmt(total)} s</span>
-                </div>
-                {saleDisc > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-amber-600">Chegirma</span>
-                    <span className="font-bold text-amber-600">− {fmt(saleDisc)} s</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">To'landi</span>
-                  <span className="font-bold text-emerald-600">{fmt(payType === 'debt' ? 0 : paid)} s</span>
-                </div>
-                {debt > 0 && (
-                  <div className="flex justify-between text-sm border-t border-slate-200 pt-2.5">
-                    <span className="font-bold text-red-600">Qarz</span>
-                    <span className="font-black text-red-600">{fmt(payType === 'debt' ? total : debt)} s</span>
-                  </div>
-                )}
-                {change > 0 && (
-                  <div className="flex justify-between text-sm border-t border-slate-200 pt-2.5">
-                    <span className="font-bold text-blue-600">Qaytim</span>
-                    <span className="font-black text-blue-600">{fmt(change)} s</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Izoh */}
-              <div>
-                <label className="text-xs font-bold text-slate-500 mb-1.5 block">To'lov izohi (ixtiyoriy)</label>
-                <input value={payNote} onChange={e => setPayNote(e.target.value)} placeholder="Qo'shimcha ma'lumot..."
-                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
               </div>
             </div>
 
-            {/* Footer */}
-            <div className="px-6 py-4 border-t border-slate-100 flex gap-3">
+            {/* ── Footer ── */}
+            <div className="shrink-0 px-5 py-4 border-t border-slate-100 bg-white flex gap-3">
               <button onClick={() => { setShowPayment(false); setShowDebtDate(false); }}
-                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl text-sm transition-all">
+                className="w-24 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-2xl text-sm transition-all">
                 Bekor
               </button>
               <button onClick={handlePay} disabled={saving}
-                className="flex-2 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-black rounded-2xl text-sm shadow-lg shadow-indigo-200 transition-all flex items-center gap-2">
+                className="flex-1 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 disabled:opacity-50 text-white font-black rounded-2xl text-base shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2">
                 {saving
-                  ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Saqlanmoqda...</>
-                  : <><Ic d="M5 13l4 4L19 7" cls="w-4 h-4" /> Sotuvni tasdiqlash</>
+                  ? <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />Saqlanmoqda...</>
+                  : <><Ic d="M5 13l4 4L19 7" cls="w-5 h-5" />Sotuvni tasdiqlash</>
                 }
               </button>
             </div>
