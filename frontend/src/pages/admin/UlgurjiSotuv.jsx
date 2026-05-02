@@ -356,14 +356,17 @@ export default function UlgurjiSotuv() {
 
   // To'lov formasi
   const [payType, setPayType] = useState('cash');
-  const [paidAmt, setPaidAmt] = useState('');
-  const [paidCash, setPaidCash] = useState('');
-  const [paidCard, setPaidCard] = useState('');
+  const [curPayAmt, setCurPayAmt] = useState('');     // joriy kiritilayotgan miqdor
+  const [payments, setPayments] = useState([]);        // [{id, type, label, amount}]
   const [discType, setDiscType] = useState('pct');
   const [discVal, setDiscVal] = useState('');
   const [payNote, setPayNote] = useState('');
   const [debtDate, setDebtDate] = useState('');
   const [showDebtDate, setShowDebtDate] = useState(false);
+  // eski qiymatlar (submitSale uchun backward compat)
+  const [paidAmt, setPaidAmt] = useState('');
+  const [paidCash, setPaidCash] = useState('');
+  const [paidCard, setPaidCard] = useState('');
 
   // Sotuv ro'yxati
   const [tab, setTab] = useState('new'); // 'new' | 'list' | 'drafts'
@@ -513,7 +516,7 @@ export default function UlgurjiSotuv() {
   const subtotal = cart.reduce((s, it) => s + itemNet(it), 0);
   const saleDisc = discType === 'pct' ? subtotal * (parseN(discVal) / 100) : parseN(discVal);
   const total = Math.max(0, subtotal - saleDisc);
-  const paid = payType === 'mixed' ? (parseN(paidCash) + parseN(paidCard)) : parseN(paidAmt);
+  const paid = payments.reduce((s, p) => s + p.amount, 0);
   const debt = Math.max(0, total - paid);
   const change = Math.max(0, paid - total);
 
@@ -583,13 +586,14 @@ export default function UlgurjiSotuv() {
       setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDiscVal(''); setPaidAmt('');
       setPaidCash(''); setPaidCard(''); setPayNote(''); setDebtDate('');
       setShowPayment(false); setShowDebtDate(false); setPayType('cash');
+      setPayments([]); setCurPayAmt('');
       setShowMobileRight(false);
     } catch (e) {
       toast.error(e?.response?.data?.detail || 'Saqlashda xatolik');
     } finally { setSaving(false); }
   };
 
-  /* ── To'lovni qabul qilish ── */
+  /* ── To'lovni qabul qilish (multi-payment) ── */
   const handlePay = async () => {
     if (!cart.length) return toast.error('Savat bo\'sh!');
     if (!hasShift) { setShowShiftModal(true); return; }
@@ -597,13 +601,18 @@ export default function UlgurjiSotuv() {
     if (debt > 0 && !debtDate && showDebtDate) return toast.error('Qarz muddat sanasini kiriting!');
     if (debt > 0 && !showDebtDate) { setShowDebtDate(true); return; }
 
-    let finalPayType = payType;
-    if (paid === 0) finalPayType = 'debt';
+    const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
+    const types = [...new Set(payments.map(p => p.type))];
 
-    let pCash = finalPayType === 'mixed' ? parseN(paidCash) : (finalPayType === 'cash' ? paid : 0);
-    let pCard = finalPayType === 'mixed' ? parseN(paidCard) : (finalPayType === 'card' ? paid : 0);
+    let finalPayType;
+    if (totalPaid === 0) finalPayType = 'debt';
+    else if (types.length === 1 && debt === 0) finalPayType = types[0];
+    else finalPayType = 'mixed';
 
-    await submitSale(finalPayType, paid, pCash, pCard);
+    const pCash = payments.filter(p => p.type === 'cash').reduce((s, p) => s + p.amount, 0);
+    const pCard = payments.filter(p => p.type !== 'cash').reduce((s, p) => s + p.amount, 0);
+
+    await submitSale(finalPayType, totalPaid, pCash, pCard);
   };
 
   /* ── Tezkor amallar ── */
@@ -1182,160 +1191,193 @@ export default function UlgurjiSotuv() {
       )}
 
       {/* ══ TO'LOV MODALI ════════════════════════════════════════ */}
-      {showPayment && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
-          <div className="bg-white w-full sm:max-w-md sm:rounded-3xl shadow-2xl flex flex-col max-h-screen sm:max-h-[92vh] rounded-t-3xl overflow-hidden">
+      {showPayment && (() => {
+        const addPayment = () => {
+          const amt = parseN(curPayAmt);
+          if (!amt || amt <= 0) return;
+          const pt = PAY_TYPES.find(p => p.id === payType);
+          setPayments(prev => [...prev, { id: Date.now(), type: payType, label: pt?.label || payType, amount: amt }]);
+          setCurPayAmt('');
+        };
+        const remaining = Math.max(0, total - paid);
+        return (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-0 md:p-6">
+          <div className="bg-slate-50 w-full md:max-w-2xl md:rounded-3xl shadow-2xl flex flex-col max-h-screen md:max-h-[90vh] rounded-t-3xl overflow-hidden">
 
-            {/* ── Header: gradient + summa ── */}
-            <div className="relative bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-600 px-6 pt-6 pb-8 text-white shrink-0 overflow-hidden">
-              {/* decorative circles */}
-              <div className="absolute -top-6 -right-6 w-36 h-36 bg-white/10 rounded-full" />
-              <div className="absolute -bottom-10 -left-4 w-28 h-28 bg-white/5 rounded-full" />
-              <div className="flex items-start justify-between relative z-10">
-                <div>
-                  <p className="text-white/60 text-xs font-semibold uppercase tracking-widest mb-1">To'lovni qabul qilish</p>
-                  <p className="text-4xl font-black tracking-tight">{fmt(total)} <span className="text-2xl font-bold text-white/70">s</span></p>
-                  {saleDisc > 0 && (
-                    <p className="text-white/60 text-xs mt-1">Chegirma: −{fmt(saleDisc)} s qo'llanildi</p>
-                  )}
-                  {cart.length > 0 && (
-                    <p className="text-white/50 text-xs mt-0.5">{cart.length} ta mahsulot · {cart.reduce((s,i)=>s+i.qty,0).toFixed(1)} birlik</p>
+            {/* ── Header ── */}
+            <div className="relative bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-600 px-6 pt-5 pb-6 text-white shrink-0 overflow-hidden">
+              <div className="absolute -top-8 -right-8 w-40 h-40 bg-white/10 rounded-full pointer-events-none" />
+              <div className="absolute -bottom-12 -left-6 w-32 h-32 bg-white/5 rounded-full pointer-events-none" />
+              <div className="relative z-10 flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="text-white/60 text-[11px] font-bold uppercase tracking-widest">To'lovni qabul qilish</p>
+                  <div className="flex items-baseline gap-3 mt-1 flex-wrap">
+                    <span className="text-4xl font-black tracking-tight">{fmt(total)}<span className="text-xl text-white/60 ml-1">s</span></span>
+                    {paid > 0 && remaining > 0 && (
+                      <span className="text-sm font-bold text-amber-300">Qoldi: {fmt(remaining)} s</span>
+                    )}
+                    {paid >= total && paid > 0 && change > 0 && (
+                      <span className="text-sm font-bold text-emerald-300">Qaytim: {fmt(change)} s</span>
+                    )}
+                  </div>
+                  <p className="text-white/40 text-xs mt-1">{cart.length} ta · {cart.reduce((s,i)=>s+i.qty,0).toFixed(1)} birlik{saleDisc>0 ? ` · chegirma −${fmt(saleDisc)} s` : ''}</p>
+                  {paid > 0 && (
+                    <div className="mt-3">
+                      <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
+                        <div className="h-full bg-emerald-400 rounded-full transition-all duration-500"
+                          style={{ width: `${Math.min(100, (paid/total)*100)}%` }} />
+                      </div>
+                    </div>
                   )}
                 </div>
-                <button onClick={() => { setShowPayment(false); setShowDebtDate(false); }}
-                  className="w-9 h-9 rounded-2xl bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors mt-1">
+                <button onClick={() => { setShowPayment(false); setShowDebtDate(false); setPayments([]); setCurPayAmt(''); }}
+                  className="shrink-0 w-9 h-9 rounded-2xl bg-white/15 hover:bg-white/30 flex items-center justify-center transition-colors">
                   <Ic d="M6 18L18 6M6 6l12 12" cls="w-4 h-4" />
                 </button>
               </div>
-
-              {/* progress bar: to'landi / qoldi */}
-              {payType !== 'debt' && paid > 0 && (
-                <div className="relative z-10 mt-4">
-                  <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-400 rounded-full transition-all duration-300"
-                      style={{ width: `${Math.min(100, (paid / total) * 100)}%` }} />
-                  </div>
-                  <div className="flex justify-between text-[10px] text-white/50 mt-1">
-                    <span>To'landi: {fmt(paid)} s</span>
-                    {change > 0
-                      ? <span className="text-emerald-300 font-bold">Qaytim: {fmt(change)} s</span>
-                      : <span>Qoldi: {fmt(Math.max(0, total - paid))} s</span>
-                    }
-                  </div>
-                </div>
-              )}
             </div>
 
-            {/* ── Scrollable body ── */}
+            {/* ── Body: two-col on md ── */}
             <div className="flex-1 overflow-y-auto">
+              <div className="flex flex-col md:flex-row md:divide-x md:divide-slate-200">
 
-              {/* To'lov turi */}
-              <div className="px-5 pt-5 pb-3">
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">To'lov turi</p>
-                <div className="grid grid-cols-5 gap-2">
-                  {PAY_TYPES.map(pt => {
-                    const active = payType === pt.id;
-                    const cls = ACCENT_CLS[pt.accent] || ACCENT_CLS.indigo;
-                    return (
-                      <button key={pt.id} onClick={() => setPayType(pt.id)}
-                        className={`relative flex flex-col items-center justify-center gap-2 py-3.5 px-1 rounded-2xl border-2 text-[11px] font-bold transition-all select-none shadow-sm
-                          ${active ? cls.active + ' shadow-lg scale-[1.07]' : 'bg-white ' + cls.idle}`}>
-                        {active && (
-                          <div className="absolute top-2 right-2 w-2 h-2 bg-white/80 rounded-full" />
-                        )}
-                        <span className="w-7 h-7">{PAY_ICONS[pt.id]}</span>
-                        <span className="leading-tight text-center text-[10px] font-extrabold tracking-tight">{pt.label}</span>
-                      </button>
-                    );
-                  })}
+                {/* ─ LEFT: To'lov turi + miqdor ─ */}
+                <div className="flex-1 p-5 space-y-4">
+
+                  {/* To'lov turi 5x2 grid */}
+                  <div>
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">To'lov turi</p>
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {PAY_TYPES.map(pt => {
+                        const active = payType === pt.id;
+                        const cls = ACCENT_CLS[pt.accent] || ACCENT_CLS.indigo;
+                        return (
+                          <button key={pt.id} onClick={() => setPayType(pt.id)}
+                            className={`flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl border-2 text-[10px] font-extrabold transition-all select-none
+                              ${active ? cls.active + ' shadow-md' : 'bg-white ' + cls.idle}`}>
+                            {active && <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-white/80 rounded-full" />}
+                            <span className="w-6 h-6">{PAY_ICONS[pt.id]}</span>
+                            <span className="leading-none tracking-tight">{pt.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Miqdor input */}
+                  {payType === 'debt' ? (
+                    <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-200 flex items-center justify-center shrink-0">
+                        <span className="w-5 h-5 text-amber-700">{PAY_ICONS.debt}</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-black text-amber-800">Qarzga yozish</p>
+                        <p className="text-xl font-black text-amber-700">{fmt(total)} s</p>
+                        {!custId && <p className="text-xs text-red-500 font-semibold mt-0.5">⚠ Avval mijoz tanlang!</p>}
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Miqdor (so'm)</p>
+                      <div className="flex gap-2">
+                        <input
+                          type="number"
+                          value={curPayAmt}
+                          onChange={e => setCurPayAmt(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && addPayment()}
+                          placeholder="0"
+                          autoFocus
+                          className="flex-1 bg-white border-2 border-indigo-200 rounded-xl px-4 py-3 text-2xl font-black text-indigo-700 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                        />
+                        <div className="flex flex-col gap-1.5">
+                          <button onClick={() => setCurPayAmt(String(remaining > 0 ? remaining : total))}
+                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-lg transition-colors">
+                            Qoldi
+                          </button>
+                          <button onClick={() => setCurPayAmt(String(total))}
+                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-lg transition-colors">
+                            To'liq
+                          </button>
+                        </div>
+                        <button onClick={addPayment}
+                          className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl transition-colors shadow-md shadow-indigo-200 text-sm">
+                          + Qo'sh
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Qo'shilgan to'lovlar ro'yxati */}
+                  {payments.length > 0 && (
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Qo'shilgan to'lovlar</p>
+                      <div className="space-y-1.5">
+                        {payments.map(p => {
+                          const pt = PAY_TYPES.find(x => x.id === p.type);
+                          const cls = ACCENT_CLS[pt?.accent] || ACCENT_CLS.indigo;
+                          return (
+                            <div key={p.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 bg-white ${cls.idle.split(' ').find(c=>c.startsWith('border')) || 'border-slate-200'}`}>
+                              <span className={`w-5 h-5 shrink-0 ${cls.idle.split(' ').find(c=>c.startsWith('text')) || 'text-slate-500'}`}>{PAY_ICONS[p.type]}</span>
+                              <span className="flex-1 text-sm font-bold text-slate-700">{p.label}</span>
+                              <span className="text-sm font-black text-slate-800">{fmt(p.amount)} s</span>
+                              <button onClick={() => setPayments(prev => prev.filter(x => x.id !== p.id))}
+                                className="w-6 h-6 rounded-lg bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 flex items-center justify-center transition-colors">
+                                <Ic d="M6 18L18 6M6 6l12 12" cls="w-3 h-3" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
 
-              <div className="px-5 pb-5 space-y-4">
-                {/* Miqdor */}
-                {payType === 'mixed' ? (
-                  <div className="grid grid-cols-2 gap-3">
+                {/* ─ RIGHT: Hisob + izoh ─ */}
+                <div className="md:w-56 p-5 space-y-4 shrink-0">
+
+                  {/* Summary */}
+                  <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-slate-100">
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Hisob</p>
+                    </div>
                     {[
-                      { label: 'Naqd', val: paidCash, set: setPaidCash, cls: 'border-emerald-300 focus:ring-emerald-400 text-emerald-700' },
-                      { label: 'Karta', val: paidCard, set: setPaidCard, cls: 'border-blue-300 focus:ring-blue-400 text-blue-700' },
-                    ].map(f => (
-                      <div key={f.label} className="bg-slate-50 rounded-2xl p-3 border-2 border-slate-100">
-                        <p className="text-[11px] font-bold text-slate-400 mb-2">{f.label} (so'm)</p>
-                        <input type="number" value={f.val} onChange={e => f.set(e.target.value)} placeholder="0"
-                          className={`w-full bg-white border-2 ${f.cls} rounded-xl px-3 py-2.5 text-lg font-black focus:outline-none focus:ring-2`} />
+                      { label: 'Jami', val: fmt(total) + ' s', cls: 'text-slate-700 font-bold' },
+                      saleDisc > 0 && { label: 'Chegirma', val: '−'+fmt(saleDisc)+' s', cls: 'text-amber-600 font-bold' },
+                      { label: "To'landi", val: fmt(paid)+' s', cls: 'text-emerald-600 font-black' },
+                      remaining > 0 && { label: 'Qoldi', val: fmt(remaining)+' s', cls: 'text-red-500 font-black', hi: true },
+                      change > 0 && { label: 'Qaytim', val: fmt(change)+' s', cls: 'text-blue-600 font-black', hi: true },
+                    ].filter(Boolean).map((r, i) => (
+                      <div key={i} className={`flex justify-between px-4 py-2.5 text-sm ${r.hi ? 'bg-slate-50 border-t-2 border-slate-100' : 'border-b border-slate-50'}`}>
+                        <span className="text-slate-500">{r.label}</span>
+                        <span className={r.cls}>{r.val}</span>
                       </div>
                     ))}
                   </div>
-                ) : payType === 'debt' ? (
-                  <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center shrink-0">
-                      <span className="text-2xl">📋</span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-black text-amber-800">Butun summa qarzga yoziladi</p>
-                      <p className="text-2xl font-black text-amber-700 mt-0.5">{fmt(total)} s</p>
-                      {!custId && <p className="text-xs text-red-500 font-semibold mt-1">⚠ Avval mijoz tanlang!</p>}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-slate-50 rounded-2xl p-4 border-2 border-slate-100">
-                    <p className="text-[11px] font-bold text-slate-400 mb-2">To'lov miqdori (so'm)</p>
-                    <div className="flex items-center gap-2">
-                      <input type="number" value={paidAmt} onChange={e => setPaidAmt(e.target.value)} placeholder="0"
-                        autoFocus
-                        className="flex-1 bg-white border-2 border-indigo-200 rounded-xl px-4 py-3 text-2xl font-black text-indigo-700 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
-                      <button onClick={() => setPaidAmt(String(total))}
-                        className="shrink-0 h-full px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-black rounded-xl transition-colors shadow-md shadow-indigo-200">
-                        To'liq
-                      </button>
-                    </div>
-                  </div>
-                )}
 
-                {/* Qarz sanasi */}
-                {showDebtDate && debt > 0 && (
-                  <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 space-y-3">
-                    <div className="flex items-center gap-2 text-amber-700">
-                      <Ic d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" cls="w-4 h-4" />
-                      <span className="text-sm font-bold">Qarz summasi: {fmt(payType === 'debt' ? total : debt)} s</span>
-                    </div>
-                    <div>
-                      <p className="text-[11px] font-bold text-amber-700 mb-1.5">To'lov muddati (ixtiyoriy)</p>
+                  {/* Qarz sanasi */}
+                  {showDebtDate && remaining > 0 && (
+                    <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-3 space-y-2">
+                      <p className="text-xs font-bold text-amber-700">Qarz muddati (ixtiyoriy)</p>
                       <input type="date" min={today()} value={debtDate} onChange={e => setDebtDate(e.target.value)}
-                        className="w-full border-2 border-amber-300 bg-white rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                        className="w-full border-2 border-amber-300 bg-white rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400" />
                     </div>
+                  )}
+
+                  {/* Izoh */}
+                  <div>
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Izoh</p>
+                    <textarea value={payNote} onChange={e => setPayNote(e.target.value)}
+                      placeholder="Qo'shimcha ma'lumot..."
+                      rows={3}
+                      className="w-full border-2 border-slate-200 bg-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none" />
                   </div>
-                )}
-
-                {/* Hisob-kitob summary */}
-                <div className="rounded-2xl overflow-hidden border border-slate-100">
-                  {[
-                    { label: 'Jami summa', val: fmt(total) + ' s', cls: 'text-slate-700' },
-                    saleDisc > 0 && { label: 'Chegirma', val: '−' + fmt(saleDisc) + ' s', cls: 'text-amber-600' },
-                    { label: "To'landi", val: fmt(payType === 'debt' ? 0 : paid) + ' s', cls: 'text-emerald-600 font-black' },
-                    debt > 0 && { label: 'Qarz', val: fmt(payType === 'debt' ? total : debt) + ' s', cls: 'text-red-600 font-black', highlight: true },
-                    change > 0 && { label: 'Qaytim', val: fmt(change) + ' s', cls: 'text-blue-600 font-black', highlight: true },
-                  ].filter(Boolean).map((row, i) => (
-                    <div key={i} className={`flex justify-between items-center px-4 py-3 text-sm ${row.highlight ? 'bg-slate-50 border-t-2 border-slate-100' : 'bg-white border-b border-slate-50'}`}>
-                      <span className="text-slate-500 font-medium">{row.label}</span>
-                      <span className={`font-bold ${row.cls}`}>{row.val}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Izoh */}
-                <div>
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Izoh (ixtiyoriy)</p>
-                  <input value={payNote} onChange={e => setPayNote(e.target.value)}
-                    placeholder="Qo'shimcha ma'lumot..."
-                    className="w-full border-2 border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:bg-white transition-colors" />
                 </div>
               </div>
             </div>
 
             {/* ── Footer ── */}
-            <div className="shrink-0 px-5 py-4 border-t border-slate-100 bg-white flex gap-3">
-              <button onClick={() => { setShowPayment(false); setShowDebtDate(false); }}
+            <div className="shrink-0 px-5 py-4 border-t border-slate-200 bg-white flex gap-3">
+              <button onClick={() => { setShowPayment(false); setShowDebtDate(false); setPayments([]); setCurPayAmt(''); }}
                 className="w-24 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-2xl text-sm transition-all">
                 Bekor
               </button>
@@ -1349,7 +1391,8 @@ export default function UlgurjiSotuv() {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* ══ SOTUV TAFSILOTI MODALI ════════════════════════════════ */}
       {selectedSale && (
