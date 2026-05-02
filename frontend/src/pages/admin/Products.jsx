@@ -82,6 +82,8 @@ const emptyBulkRow = () => ({
   sale_price: '',
   barcodes: [genBarcodeByFormat('ean8')],
   unit: 'dona',
+  barcode_status: null,   // null | 'checking' | 'exists' | 'new'
+  barcode_product: null,
   category_id: '',
   initial_stock: '',
   status: 'active',
@@ -854,6 +856,21 @@ export default function Products() {
 
   const updateBulkRow = (key, field, value) =>
     setBulkRows(rows => rows.map(r => r._key === key ? { ...r, [field]: value } : r));
+
+  const checkBulkBarcode = async (key, barcode) => {
+    if (!barcode?.trim()) return;
+    setBulkRows(rows => rows.map(r => r._key === key ? { ...r, barcode_status: 'checking', barcode_product: null } : r));
+    try {
+      const res = await api.get(`/products/barcode/${barcode.trim()}`);
+      setBulkRows(rows => rows.map(r =>
+        r._key === key ? { ...r, barcode_status: 'exists', barcode_product: res.data } : r
+      ));
+    } catch {
+      setBulkRows(rows => rows.map(r =>
+        r._key === key ? { ...r, barcode_status: 'new', barcode_product: null } : r
+      ));
+    }
+  };
 
   const addBulkBarcode = (key) =>
     setBulkRows(rows => rows.map(r =>
@@ -2086,7 +2103,7 @@ export default function Products() {
           <div className="flex-1 overflow-auto p-5">
             <div className="min-w-[1100px]">
               {/* Column headers */}
-              <div className="grid gap-3 mb-3 text-sm font-bold text-slate-500 uppercase tracking-wide px-3"
+              <div className="grid gap-3 mb-3 text-sm font-extrabold text-slate-600 uppercase tracking-wide px-3"
                 style={{ gridTemplateColumns: '40px 1fr 120px 120px 130px 1fr 90px 170px 90px 40px' }}>
                 <span>#</span>
                 <span>Mahsulot nomi *</span>
@@ -2111,7 +2128,7 @@ export default function Products() {
 
                       {/* Name */}
                       <input
-                        className="h-11 px-3 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
+                        className="h-12 px-3 border border-slate-200 rounded-lg text-base font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
                         value={row.name}
                         onChange={e => updateBulkRow(row._key, 'name', e.target.value)}
                         placeholder="Mahsulot nomi..."
@@ -2148,20 +2165,40 @@ export default function Products() {
                       <div className="space-y-2">
                         {row.barcodes.map((bc, bcIdx) => (
                           <div key={bcIdx} className="flex gap-1.5 items-center">
-                            <span className={`text-xs font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                            <span className={`text-sm font-bold px-1.5 py-1 rounded shrink-0 ${
                               bcIdx === 0 ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 bg-slate-100'
                             }`}>{bcIdx + 1}</span>
                             <input
-                              className={`flex-1 h-9 px-2 border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                                bcIdx === 0 ? 'border-indigo-200 bg-indigo-50/50' : 'border-slate-200'
+                              className={`flex-1 h-10 px-3 border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 ${
+                                bcIdx === 0
+                                  ? row.barcode_status === 'exists'
+                                    ? 'border-red-300 bg-red-50/50 focus:ring-red-400'
+                                    : row.barcode_status === 'new'
+                                    ? 'border-emerald-300 bg-emerald-50/50 focus:ring-emerald-400'
+                                    : 'border-indigo-200 bg-indigo-50/50 focus:ring-indigo-500'
+                                  : 'border-slate-200 focus:ring-indigo-500'
                               }`}
                               value={bc}
-                              onChange={e => updateBulkBarcode(row._key, bcIdx, e.target.value)}
-                              placeholder="Barcode..."
+                              onChange={e => {
+                                updateBulkBarcode(row._key, bcIdx, e.target.value);
+                                if (bcIdx === 0) updateBulkRow(row._key, 'barcode_status', null);
+                              }}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' && bcIdx === 0) {
+                                  e.preventDefault();
+                                  checkBulkBarcode(row._key, bc);
+                                }
+                              }}
+                              onBlur={() => bcIdx === 0 && bc.trim() && checkBulkBarcode(row._key, bc)}
+                              placeholder={bcIdx === 0 ? "Skaner qiling yoki kiriting..." : "Barcode..."}
                             />
                             <button type="button"
-                              onClick={() => updateBulkBarcode(row._key, bcIdx, genBarcodeByFormat('ean8'))}
-                              className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors shrink-0"
+                              onClick={() => {
+                                const nb = genBarcodeByFormat('ean8');
+                                updateBulkBarcode(row._key, bcIdx, nb);
+                                if (bcIdx === 0) updateBulkRow(row._key, 'barcode_status', null);
+                              }}
+                              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors shrink-0"
                               title="Yangi barcode">
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -2170,7 +2207,7 @@ export default function Products() {
                             {bcIdx > 0 && (
                               <button type="button"
                                 onClick={() => removeBulkBarcode(row._key, bcIdx)}
-                                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0">
+                                className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                 </svg>
@@ -2178,6 +2215,32 @@ export default function Products() {
                             )}
                           </div>
                         ))}
+
+                        {/* Barcode check status */}
+                        {row.barcode_status === 'checking' && (
+                          <div className="flex items-center gap-1.5 text-sm text-slate-400">
+                            <div className="w-3.5 h-3.5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                            Tekshirilmoqda...
+                          </div>
+                        )}
+                        {row.barcode_status === 'exists' && row.barcode_product && (
+                          <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg">
+                            <svg className="w-4 h-4 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <span className="text-sm font-semibold text-red-600">Allaqachon mavjud:</span>
+                            <span className="text-sm text-red-700 font-bold truncate">{row.barcode_product.name}</span>
+                          </div>
+                        )}
+                        {row.barcode_status === 'new' && (
+                          <div className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            Yangi mahsulot — qo'shiladi
+                          </div>
+                        )}
+
                         <button type="button"
                           onClick={() => addBulkBarcode(row._key)}
                           className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-500 hover:text-indigo-700 transition-colors mt-1">
