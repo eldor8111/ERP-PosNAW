@@ -854,7 +854,13 @@ export default function Products() {
     setBulkAddOpen(true);
   };
 
-  // Bulk add modal ochiq bo'lganda bo'sh joyga skaner qilganda yangi qator qo'shadi
+  // bulkRows ning eng so'nggi holatini ref orqali saqlash (useEffect ichida stale closure muammosini oldini olish)
+  const bulkRowsRef = useRef(bulkRows);
+  useEffect(() => { bulkRowsRef.current = bulkRows; }, [bulkRows]);
+
+  // Bulk add modal ochiq bo'lganda bo'sh joyga skaner qilganda:
+  // – oxirgi qator nomi bo'sh bo'lsa → o'sha qatorning barkodini yangilaydi
+  // – aks holda → yangi qator qo'shib barkodni tushiradi
   const bulkScanBuffer = useRef('');
   const bulkScanTimer = useRef(null);
   useEffect(() => {
@@ -867,10 +873,21 @@ export default function Products() {
         bulkScanBuffer.current = '';
         if (bulkScanTimer.current) clearTimeout(bulkScanTimer.current);
         if (code.length >= 4) {
-          const newRow = emptyBulkRow();
-          newRow.barcodes = [code];
-          setBulkRows(rows => [...rows, newRow]);
-          checkBulkBarcode(newRow._key, code);
+          const rows = bulkRowsRef.current;
+          const last = rows[rows.length - 1];
+          if (last && !last.name.trim()) {
+            // Oxirgi qator bo'sh — uning barkodini yangilaymiz
+            setBulkRows(prev => prev.map((r, i) =>
+              i === prev.length - 1 ? { ...r, barcodes: [code], barcode_status: null, barcode_product: null } : r
+            ));
+            checkBulkBarcode(last._key, code);
+          } else {
+            // Barcha qatorlar to'lgan — yangi qator qo'shamiz
+            const newRow = emptyBulkRow();
+            newRow.barcodes = [code];
+            setBulkRows(prev => [...prev, newRow]);
+            checkBulkBarcode(newRow._key, code);
+          }
         }
       } else if (e.key.length === 1) {
         bulkScanBuffer.current += e.key;
