@@ -651,50 +651,107 @@ def delete_sale(db: Session, sale_id: int, current_user: User) -> None:
     db.commit()
 
 
+def _reverse_sale_effects(db: Session, sale: Sale) -> None:
+    """
+    Sotuvning barcha moliyaviy ta'sirlarini bekor qilish.
+    Stock, mijoz qarzi, loyallik ballari, cashback, finance tranzaksiyalar — hammasi qaytariladi.
+    """
+    from app.models.inventory import StockMovement, StockLevel  # type: ignore
+    from app.models.sale import SaleItemBatch, SalePayment  # type: ignore
+    from app.models.batch import Batch  # type: ignore
+    from app.models.customer import Customer  # type: ignore
+
+    # 1. Stock harakatlarini teskari bekor qilish (qty_before ga qaytarish)
+    old_movements = db.query(StockMovement).filter(
+        StockMovement.reference_type == "sale",
+        StockMovement.reference_id == sale.id
+    ).all()
+    for movement in old_movements:
+        stock = db.query(StockLevel).filter(
+            StockLevel.product_id == movement.product_id,
+            StockLevel.warehouse_id == sale.warehouse_id,
+        ).first()
+        if stock:
+            stock.quantity = movement.qty_before
+        db.delete(movement)
+
+    # FIFO Batch larni tiklash
+    for item in sale.items:
+        for sib in db.query(SaleItemBatch).filter(SaleItemBatch.sale_item_id == item.id).all():
+            batch = db.query(Batch).filter(Batch.id == sib.batch_id).first()
+            if batch:
+                batch.quantity += sib.quantity
+            db.delete(sib)
+
+    # 2. Mijoz: qarz, loyalty, cashback, total_spent qaytarish
+    if sale.customer_id:
+        customer = db.query(Customer).filter(
+            Customer.id == sale.customer_id,
+            Customer.company_id == sale.company_id,
+        ).first()
+        if customer:
+            debt_in_sale = sale.total_amount - sale.paid_amount
+            if debt_in_sale > 0:
+                customer.debt_balance = max(Decimal("0"), customer.debt_balance - debt_in_sale)
+            if sale.loyalty_points_used and sale.loyalty_points_used > 0:
+                customer.loyalty_points += sale.loyalty_points_used
+            if sale.loyalty_points_earned and sale.loyalty_points_earned > 0:
+                customer.loyalty_points = max(0, customer.loyalty_points - sale.loyalty_points_earned)
+            exr = getattr(sale, 'exchange_rate', Decimal('1')) or Decimal('1')
+            if getattr(customer, "cashback_percent", 0) > 0:
+                cashback_amount = (sale.total_amount * exr * customer.cashback_percent) / Decimal("100")
+                customer.bonus_balance = max(Decimal("0"), (customer.bonus_balance or Decimal("0")) - cashback_amount)
+            customer.total_spent = max(Decimal("0"), (customer.total_spent or Decimal("0")) - (sale.total_amount * exr))
+
+    # 3. Moliya income tranzaksiyalarini o'chirish
+    for otx in db.query(Transaction).filter(
+        Transaction.reference_type == "sale",
+        Transaction.reference_id == sale.id,
+        Transaction.type == "income"
+    ).all():
+        db.delete(otx)
+
+    # 4. SalePayment larni o'chirish
+    db.query(SalePayment).filter(SalePayment.sale_id == sale.id).delete()
+
+    # 5. SaleItem larni o'chirish
+    for item in list(sale.items):
+        db.delete(item)
+
+    db.flush()
+
+
 def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
     """Sotuvni yangilash: oddiy holat/izoh yoki to'liq tahrirlash (items bilan)."""
     from app.models.customer import Customer  # type: ignore
+    from sqlalchemy.orm import joinedload  # type: ignore
 
-    q = db.query(Sale).filter(Sale.id == sale_id)
+    q = (
+        db.query(Sale)
+        .options(joinedload(Sale.items), joinedload(Sale.payments))
+        .filter(Sale.id == sale_id)
+    )
     if current_user.role != UserRole.super_admin:
         q = q.filter(Sale.company_id == current_user.company_id)
     sale = q.first()
     if not sale:
         raise HTTPException(status_code=404, detail="Sotuv topilmadi")
 
-    # --- To'liq tahrirlash (items berilgan bo'lsa) ---
+    # ── To'liq tahrirlash (items berilgan bo'lsa) ──────────────────────────────
     if data.items is not None:
-        # 1. Eski qarzni qaytarish (eski tovarlar stockini tiklash)
-        old_items = db.query(SaleItem).filter(SaleItem.sale_id == sale_id).all()
-        for oi in old_items:
-            receive_stock(
-                db=db,
-                product_id=oi.product_id,
-                quantity=oi.quantity,
-                user_id=current_user.id,
-                reason=f"Sotuv tahrirlash — tovar qaytarildi (sale #{sale_id})",
-                reference_type="sale_edit",
-                reference_id=sale_id,
-                warehouse_id=sale.warehouse_id,
-            )
-        # 2. Eski SaleItem larni o'chirish
-        for oi in old_items:
-            db.delete(oi)
-        db.flush()
+        # A. Eski barcha moliyaviy ta'sirlarni bekor qilish
+        _reverse_sale_effects(db, sale)
 
-        # 3. Eski mijoz qarzini qaytarish
-        if sale.customer_id:
-            old_customer = db.query(Customer).filter(Customer.id == sale.customer_id).first()
-            if old_customer:
-                old_debt = max(Decimal("0"), sale.total_amount - sale.paid_amount)
-                old_customer.debt_balance = max(Decimal("0"), old_customer.debt_balance - old_debt)
-                old_customer.total_spent = max(Decimal("0"), (old_customer.total_spent or Decimal("0")) - sale.total_amount)
+        wh_id = data.warehouse_id if data.warehouse_id is not None else sale.warehouse_id
+        disc_amount = data.discount_amount if data.discount_amount is not None else Decimal("0")
+        payment_type = data.payment_type if data.payment_type is not None else sale.payment_type
+        new_customer_id = data.customer_id  # None bo'lsa mijoz o'chiriladi (intentional)
+        if new_customer_id is None and data.customer_id is None:
+            new_customer_id = sale.customer_id  # o'zgartirilmagan
 
-        # 4. Yangi items ni hisoblash va stock dan yechish
+        # B. Yangi items hisoblash
         sale_items_data = []
         total_amount = Decimal("0")
-        wh_id = data.warehouse_id if data.warehouse_id is not None else sale.warehouse_id
-
         for item_d in data.items:
             product = db.query(Product).filter(
                 Product.id == item_d.product_id,
@@ -703,7 +760,6 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
             ).first()
             if not product:
                 raise HTTPException(status_code=404, detail=f"Mahsulot ID={item_d.product_id} topilmadi")
-
             unit_price = item_d.unit_price if item_d.unit_price is not None else product.sale_price
             discount = item_d.discount
             subtotal = (unit_price * item_d.quantity) - discount
@@ -717,18 +773,14 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
             })
             total_amount += subtotal
 
-        disc_amount = data.discount_amount if data.discount_amount is not None else Decimal("0")
         total_amount = max(Decimal("0"), total_amount - disc_amount)
-
         paid_amount = data.paid_amount if data.paid_amount is not None else total_amount
         paid_cash = data.paid_cash if data.paid_cash is not None else Decimal("0")
         paid_card = data.paid_card if data.paid_card is not None else Decimal("0")
-        payment_type = data.payment_type if data.payment_type is not None else sale.payment_type
-        new_customer_id = data.customer_id if data.customer_id is not None else sale.customer_id
 
-        # 5. Yangi SaleItem larni yaratish va stockdan yechish
+        # C. Yangi SaleItem yaratish + stock yechish
         for sid in sale_items_data:
-            new_item = SaleItem(
+            db.add(SaleItem(
                 sale_id=sale.id,
                 product_id=sid["product"].id,
                 quantity=sid["quantity"],
@@ -736,8 +788,7 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 cost_price=sid["cost_price"],
                 discount=sid["discount"],
                 subtotal=sid["subtotal"],
-            )
-            db.add(new_item)
+            ))
             deduct_stock(
                 db=db,
                 product_id=sid["product"].id,
@@ -750,15 +801,62 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 allow_negative=True,
             )
 
-        # 6. Yangi mijoz qarzini yozish
+        # D. Yangi mijoz: qarz, cashback, total_spent, loyalty yozish
         if new_customer_id:
-            new_customer = db.query(Customer).filter(Customer.id == new_customer_id).first()
+            new_customer = db.query(Customer).filter(
+                Customer.id == new_customer_id,
+                Customer.company_id == current_user.company_id,
+            ).first()
             if new_customer:
                 new_debt = max(Decimal("0"), total_amount - paid_amount)
-                new_customer.debt_balance = (new_customer.debt_balance or Decimal("0")) + new_debt
-                new_customer.total_spent = (new_customer.total_spent or Decimal("0")) + total_amount
+                if new_debt > 0:
+                    new_customer.debt_balance = (new_customer.debt_balance or Decimal("0")) + new_debt
+                exr = Decimal('1')
+                if getattr(new_customer, "cashback_percent", 0) > 0:
+                    cashback = (total_amount * exr * new_customer.cashback_percent) / Decimal("100")
+                    new_customer.bonus_balance = (new_customer.bonus_balance or Decimal("0")) + cashback
+                new_customer.total_spent = (new_customer.total_spent or Decimal("0")) + (total_amount * exr)
+                loyalty_earned = int((total_amount * exr) * Decimal("0.01"))
+                new_customer.loyalty_points = (new_customer.loyalty_points or 0) + loyalty_earned
+                sale.loyalty_points_earned = loyalty_earned
+            sale.loyalty_points_used = 0
 
-        # 7. Sale ni yangilash
+        # E. Yangi moliya tranzaksiyalari yozish
+        tx_branch_id = current_user.branch_id
+        if not tx_branch_id and wh_id:
+            from app.models.warehouse import Warehouse as _WH  # type: ignore
+            wh_obj = db.query(_WH).filter(_WH.id == wh_id).first()
+            if wh_obj and wh_obj.branch_id:
+                tx_branch_id = wh_obj.branch_id
+        if not tx_branch_id:
+            from app.models.branch import Branch as _BR  # type: ignore
+            br = db.query(_BR).filter(_BR.company_id == current_user.company_id).first()
+            if br:
+                tx_branch_id = br.id
+
+        from app.models.sale import SalePayment as _SP  # type: ignore
+        if data.payments and len(data.payments) > 0:
+            for p in data.payments:
+                if p.amount > 0:
+                    db.add(_SP(sale_id=sale.id, payment_type=p.type.value, amount=p.amount))
+                    if tx_branch_id:
+                        db.add(Transaction(
+                            branch_id=tx_branch_id, company_id=current_user.company_id,
+                            type="income", amount=p.amount, payment_type=p.type.value,
+                            reference_type="sale", reference_id=sale.id,
+                            description=f"Sotuv tahrirlash #{sale.number} ({p.type.value})"
+                        ))
+        elif paid_amount > 0:
+            db.add(_SP(sale_id=sale.id, payment_type=payment_type.value, amount=paid_amount))
+            if tx_branch_id:
+                db.add(Transaction(
+                    branch_id=tx_branch_id, company_id=current_user.company_id,
+                    type="income", amount=paid_amount, payment_type=payment_type.value,
+                    reference_type="sale", reference_id=sale.id,
+                    description=f"Sotuv tahrirlash #{sale.number}"
+                ))
+
+        # F. Sale maydonlarini yangilash
         sale.total_amount = total_amount
         sale.discount_amount = disc_amount
         sale.paid_amount = paid_amount
@@ -772,15 +870,8 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
         if data.debt_due_date is not None:
             sale.debt_due_date = data.debt_due_date
 
-        # 8. Eski SalePayment larni o'chirib yangilarini yozish
-        from app.models.sale import SalePayment  # type: ignore
-        db.query(SalePayment).filter(SalePayment.sale_id == sale_id).delete()
-        if data.payments:
-            for pp in data.payments:
-                db.add(SalePayment(sale_id=sale_id, payment_type=pp.type.value, amount=pp.amount))
-
     else:
-        # Oddiy yangilash: faqat mavjud maydonlarni o'zgartirish
+        # ── Oddiy yangilash: faqat holat/izoh/to'lov ─────────────────────────
         if data.status is not None:
             sale.status = data.status
         if data.note is not None:
