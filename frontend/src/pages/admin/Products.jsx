@@ -84,6 +84,7 @@ const emptyBulkRow = () => ({
   unit: 'dona',
   barcode_status: null,   // null | 'checking' | 'exists' | 'new'
   barcode_product: null,
+  barcode_scanned: false, // skaner orqali barkod biriktirilganmi
   category_id: '',
   initial_stock: '',
   status: 'active',
@@ -875,16 +876,19 @@ export default function Products() {
         if (code.length >= 4) {
           const rows = bulkRowsRef.current;
           const last = rows[rows.length - 1];
-          if (last && !last.name.trim()) {
-            // Oxirgi qator bo'sh — uning barkodini yangilaymiz
+          if (last && !last.name.trim() && !last.barcode_scanned) {
+            // Oxirgi qator bo'sh va hali skaner biriktirilmagan — barkodini yangilaymiz
             setBulkRows(prev => prev.map((r, i) =>
-              i === prev.length - 1 ? { ...r, barcodes: [code], barcode_status: null, barcode_product: null } : r
+              i === prev.length - 1
+                ? { ...r, barcodes: [code], barcode_status: null, barcode_product: null, barcode_scanned: true }
+                : r
             ));
             checkBulkBarcode(last._key, code);
           } else {
-            // Barcha qatorlar to'lgan — yangi qator qo'shamiz
+            // Yangi qator qo'shamiz
             const newRow = emptyBulkRow();
             newRow.barcodes = [code];
+            newRow.barcode_scanned = true;
             setBulkRows(prev => [...prev, newRow]);
             checkBulkBarcode(newRow._key, code);
           }
