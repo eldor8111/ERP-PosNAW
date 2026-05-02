@@ -114,7 +114,7 @@ function RowMenu({ onEdit, onDelete, onPrint }) {
         </svg>
       </button>
       {open && (
-        <div className="absolute right-0 top-[calc(100%+4px)] bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1.5 min-w-[190px]">
+        <div className="absolute right-0 top-[calc(100%+4px)] bg-white border border-slate-200 rounded-xl shadow-xl z-[999] py-1.5 min-w-[190px]">
           <button onClick={() => { onEdit(); setOpen(false); }}
             className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
             <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2166,12 +2166,12 @@ export default function Products() {
             <div className="min-w-[1100px]">
               {/* Column headers */}
               <div className="grid gap-3 mb-3 text-sm font-extrabold text-slate-600 uppercase tracking-wide px-3"
-                style={{ gridTemplateColumns: '40px 1fr 120px 120px 130px 1fr 90px 170px 90px 40px' }}>
+                style={{ gridTemplateColumns: '40px 1fr 130px 120px 120px 1fr 90px 170px 90px 40px' }}>
                 <span>#</span>
                 <span>Mahsulot nomi *</span>
-                <span>Tan narxi</span>
-                <span>Ulgurji</span>
                 <span>Chakana *</span>
+                <span>Ulgurji</span>
+                <span>Tan narxi</span>
                 <span>Shtrix kodlar (birlamchi + qo'shimcha)</span>
                 <span>O'lchov</span>
                 <span>Kategoriya</span>
@@ -2184,7 +2184,7 @@ export default function Products() {
                 {bulkRows.map((row, rowIdx) => (
                   <div key={row._key} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
                     <div className="grid gap-3 items-start"
-                      style={{ gridTemplateColumns: '40px 1fr 120px 120px 130px 1fr 90px 170px 90px 40px' }}>
+                      style={{ gridTemplateColumns: '40px 1fr 130px 120px 120px 1fr 90px 170px 90px 40px' }}>
                       {/* # */}
                       <div className="flex items-center justify-center h-11 text-base font-bold text-slate-400">{rowIdx + 1}</div>
 
@@ -2196,16 +2196,16 @@ export default function Products() {
                         placeholder="Mahsulot nomi..."
                       />
 
-                      {/* Cost price */}
+                      {/* Sale price (Chakana) — birinchi */}
                       <input
-                        className="h-11 px-3 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
-                        value={fmtPrice(row.cost_price)}
-                        onChange={e => updateBulkRow(row._key, 'cost_price', parsePrice(e.target.value))}
+                        className="h-11 px-3 border border-emerald-300 rounded-lg text-base font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full bg-emerald-50"
+                        value={fmtPrice(row.sale_price)}
+                        onChange={e => updateBulkRow(row._key, 'sale_price', parsePrice(e.target.value))}
                         placeholder="0"
                         inputMode="numeric"
                       />
 
-                      {/* Wholesale */}
+                      {/* Wholesale (Ulgurji) — ikkinchi */}
                       <input
                         className="h-11 px-3 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
                         value={fmtPrice(row.wholesale_price)}
@@ -2214,11 +2214,11 @@ export default function Products() {
                         inputMode="numeric"
                       />
 
-                      {/* Sale price */}
+                      {/* Cost price (Tan narxi) — uchinchi */}
                       <input
-                        className="h-11 px-3 border border-emerald-300 rounded-lg text-base font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full bg-emerald-50"
-                        value={fmtPrice(row.sale_price)}
-                        onChange={e => updateBulkRow(row._key, 'sale_price', parsePrice(e.target.value))}
+                        className="h-11 px-3 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
+                        value={fmtPrice(row.cost_price)}
+                        onChange={e => updateBulkRow(row._key, 'cost_price', parsePrice(e.target.value))}
                         placeholder="0"
                         inputMode="numeric"
                       />
