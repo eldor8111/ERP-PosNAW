@@ -9,6 +9,15 @@ import toast from 'react-hot-toast';
 const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8010/api').replace('/api', '');
 
 /* ─── helpers ─────────────────────────────────────── */
+// Narx inputi uchun: "60000" → "60 000", foydalanuvchi kiritayotganda formatlash
+const fmtPrice = (v) => {
+  if (v === '' || v === null || v === undefined) return '';
+  const digits = String(v).replace(/\s/g, '');
+  if (!digits || isNaN(Number(digits))) return String(v).replace(/\s/g, '');
+  return Number(digits).toLocaleString('ru-RU');
+};
+const parsePrice = (v) => String(v).replace(/\s/g, '').replace(/[^0-9.]/g, '');
+
 const fmt = (v) => {
   if (v === null || v === undefined || v === '') return '0';
   const n = Number(v);
@@ -2109,27 +2118,30 @@ export default function Products() {
                       />
 
                       {/* Cost price */}
-                      <input type="number" min="0"
+                      <input
                         className="h-11 px-3 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
-                        value={row.cost_price}
-                        onChange={e => updateBulkRow(row._key, 'cost_price', e.target.value)}
+                        value={fmtPrice(row.cost_price)}
+                        onChange={e => updateBulkRow(row._key, 'cost_price', parsePrice(e.target.value))}
                         placeholder="0"
+                        inputMode="numeric"
                       />
 
                       {/* Wholesale */}
-                      <input type="number" min="0"
+                      <input
                         className="h-11 px-3 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
-                        value={row.wholesale_price}
-                        onChange={e => updateBulkRow(row._key, 'wholesale_price', e.target.value)}
+                        value={fmtPrice(row.wholesale_price)}
+                        onChange={e => updateBulkRow(row._key, 'wholesale_price', parsePrice(e.target.value))}
                         placeholder="—"
+                        inputMode="numeric"
                       />
 
                       {/* Sale price */}
-                      <input type="number" min="0"
+                      <input
                         className="h-11 px-3 border border-emerald-300 rounded-lg text-base font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full bg-emerald-50"
-                        value={row.sale_price}
-                        onChange={e => updateBulkRow(row._key, 'sale_price', e.target.value)}
+                        value={fmtPrice(row.sale_price)}
+                        onChange={e => updateBulkRow(row._key, 'sale_price', parsePrice(e.target.value))}
                         placeholder="0"
+                        inputMode="numeric"
                       />
 
                       {/* Barcodes */}
