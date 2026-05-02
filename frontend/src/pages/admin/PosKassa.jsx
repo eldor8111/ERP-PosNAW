@@ -166,7 +166,11 @@ const navigate = useNavigate();
            const code = buf;
            buf = '';
            if (isInput) e.target.blur();
-           const p = products.find(x => x.barcode === code || x.sku === code);
+           const p = products.find(x =>
+             x.barcode === code ||
+             x.sku === code ||
+             (Array.isArray(x.extra_barcodes) && x.extra_barcodes.includes(code))
+           );
            if (p) {
              addToCart(p);
            } else {
@@ -218,7 +222,8 @@ const navigate = useNavigate();
 
   // Barcha filter bo'yicha mahsulotlar (skaner uchun to'liq ro'yxat)
   const filteredProducts = useMemo(() => products.filter(p => {
-    const m1 = !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.sku?.includes(search) || p.barcode?.includes(search);
+    const m1 = !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.sku?.includes(search) || p.barcode?.includes(search) ||
+      (Array.isArray(p.extra_barcodes) && p.extra_barcodes.some(b => b.includes(search)));
     const m2 = activeCat ? p.category_id === activeCat : true;
     return m1 && m2;
   }), [products, search, activeCat]);
