@@ -15,18 +15,101 @@ const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const today = () => new Date().toISOString().slice(0, 10);
 const parseN = (s) => parseFloat(String(s || '').replace(/\s/g, '')) || 0;
 
+/* ── To'lov turi SVG ikonkalari ─────────────────────────── */
+const PAY_ICONS = {
+  cash: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="6" width="20" height="13" rx="2"/>
+      <circle cx="12" cy="12.5" r="2.5"/>
+      <path d="M6 9.5h.01M18 9.5h.01M6 15.5h.01M18 15.5h.01"/>
+    </svg>
+  ),
+  card: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="5" width="20" height="14" rx="2"/>
+      <path d="M2 10h20"/>
+      <path d="M6 15h4"/>
+    </svg>
+  ),
+  uzcard: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="5" width="20" height="14" rx="2"/>
+      <path d="M2 10h20"/>
+      <circle cx="17" cy="15" r="1.5"/>
+      <circle cx="14" cy="15" r="1.5"/>
+    </svg>
+  ),
+  humo: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="5" width="20" height="14" rx="2"/>
+      <path d="M2 10h20"/>
+      <path d="M6 15h3M15 15h3"/>
+    </svg>
+  ),
+  bank: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 21h18M3 10h18M5 10V21M19 10V21M10 10V21M14 10V21M12 3L2 10h20L12 3z"/>
+    </svg>
+  ),
+  click: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="7" y="2" width="10" height="20" rx="2"/>
+      <path d="M11 18h2"/>
+    </svg>
+  ),
+  payme: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="7" y="2" width="10" height="20" rx="2"/>
+      <path d="M10 7h4M10 11h4M10 15h2"/>
+    </svg>
+  ),
+  uzum: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+      <path d="M8 12h8M12 8v8"/>
+    </svg>
+  ),
+  debt: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+      <rect x="9" y="3" width="6" height="4" rx="1"/>
+      <path d="M9 12h6M9 16h4"/>
+    </svg>
+  ),
+  mixed: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 3h5v5M4 20L21 3"/>
+      <path d="M21 16v5h-5"/>
+      <path d="M15 15l6 6"/>
+      <path d="M4 4l5 5"/>
+    </svg>
+  ),
+};
+
 const PAY_TYPES = [
-  { id: 'cash',   label: 'Naqd',             icon: '💵', color: 'bg-emerald-50 border-emerald-300 text-emerald-700' },
-  { id: 'card',   label: 'Karta',             icon: '💳', color: 'bg-blue-50 border-blue-300 text-blue-700' },
-  { id: 'uzcard', label: 'Uzcard',            icon: '🏦', color: 'bg-blue-50 border-blue-300 text-blue-700' },
-  { id: 'humo',   label: 'Humo',              icon: '🏧', color: 'bg-violet-50 border-violet-300 text-violet-700' },
-  { id: 'bank',   label: "Bank o'tkazmasi",   icon: '🏛️', color: 'bg-cyan-50 border-cyan-300 text-cyan-700' },
-  { id: 'click',  label: 'Click',             icon: '📱', color: 'bg-indigo-50 border-indigo-300 text-indigo-700' },
-  { id: 'payme',  label: 'Payme',             icon: '📲', color: 'bg-sky-50 border-sky-300 text-sky-700' },
-  { id: 'uzum',   label: 'Uzum',              icon: '🍇', color: 'bg-orange-50 border-orange-300 text-orange-700' },
-  { id: 'debt',   label: 'Qarzga',            icon: '📋', color: 'bg-amber-50 border-amber-300 text-amber-700' },
-  { id: 'mixed',  label: 'Aralash',           icon: '🔀', color: 'bg-purple-50 border-purple-300 text-purple-700' },
+  { id: 'cash',   label: 'Naqd',           accent: 'emerald' },
+  { id: 'card',   label: 'Karta',          accent: 'blue'    },
+  { id: 'uzcard', label: 'Uzcard',         accent: 'blue'    },
+  { id: 'humo',   label: 'Humo',           accent: 'violet'  },
+  { id: 'bank',   label: "Bank",           accent: 'cyan'    },
+  { id: 'click',  label: 'Click',          accent: 'indigo'  },
+  { id: 'payme',  label: 'Payme',          accent: 'sky'     },
+  { id: 'uzum',   label: 'Uzum',           accent: 'orange'  },
+  { id: 'debt',   label: 'Qarzga',         accent: 'amber'   },
+  { id: 'mixed',  label: 'Aralash',        accent: 'purple'  },
 ];
+
+const ACCENT_CLS = {
+  emerald: { active: 'border-emerald-500 bg-emerald-500 text-white shadow-emerald-200',  idle: 'border-slate-200 text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50' },
+  blue:    { active: 'border-blue-500 bg-blue-500 text-white shadow-blue-200',            idle: 'border-slate-200 text-blue-600 hover:border-blue-300 hover:bg-blue-50' },
+  violet:  { active: 'border-violet-500 bg-violet-500 text-white shadow-violet-200',      idle: 'border-slate-200 text-violet-600 hover:border-violet-300 hover:bg-violet-50' },
+  cyan:    { active: 'border-cyan-500 bg-cyan-500 text-white shadow-cyan-200',            idle: 'border-slate-200 text-cyan-600 hover:border-cyan-300 hover:bg-cyan-50' },
+  indigo:  { active: 'border-indigo-500 bg-indigo-500 text-white shadow-indigo-200',      idle: 'border-slate-200 text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50' },
+  sky:     { active: 'border-sky-500 bg-sky-500 text-white shadow-sky-200',               idle: 'border-slate-200 text-sky-600 hover:border-sky-300 hover:bg-sky-50' },
+  orange:  { active: 'border-orange-500 bg-orange-500 text-white shadow-orange-200',      idle: 'border-slate-200 text-orange-600 hover:border-orange-300 hover:bg-orange-50' },
+  amber:   { active: 'border-amber-500 bg-amber-500 text-white shadow-amber-200',         idle: 'border-slate-200 text-amber-600 hover:border-amber-300 hover:bg-amber-50' },
+  purple:  { active: 'border-purple-500 bg-purple-500 text-white shadow-purple-200',      idle: 'border-slate-200 text-purple-600 hover:border-purple-300 hover:bg-purple-50' },
+};
 
 const STATUS_META = {
   completed: { l: 'Yakunlandi', c: 'bg-emerald-100 text-emerald-700' },
@@ -1152,15 +1235,16 @@ export default function UlgurjiSotuv() {
                 <div className="grid grid-cols-5 gap-2">
                   {PAY_TYPES.map(pt => {
                     const active = payType === pt.id;
+                    const cls = ACCENT_CLS[pt.accent] || ACCENT_CLS.indigo;
                     return (
                       <button key={pt.id} onClick={() => setPayType(pt.id)}
-                        className={`relative flex flex-col items-center gap-1 py-3 px-1 rounded-2xl border-2 text-[11px] font-bold transition-all select-none
-                          ${active
-                            ? 'border-indigo-500 bg-indigo-50 text-indigo-700 shadow-md shadow-indigo-100 scale-105'
-                            : 'border-slate-100 bg-slate-50 text-slate-500 hover:border-slate-200 hover:bg-white'}`}>
-                        {active && <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-indigo-500 rounded-full" />}
-                        <span className="text-xl leading-none">{pt.icon}</span>
-                        <span className="leading-tight text-center">{pt.label}</span>
+                        className={`relative flex flex-col items-center justify-center gap-2 py-3.5 px-1 rounded-2xl border-2 text-[11px] font-bold transition-all select-none shadow-sm
+                          ${active ? cls.active + ' shadow-lg scale-[1.07]' : 'bg-white ' + cls.idle}`}>
+                        {active && (
+                          <div className="absolute top-2 right-2 w-2 h-2 bg-white/80 rounded-full" />
+                        )}
+                        <span className="w-7 h-7">{PAY_ICONS[pt.id]}</span>
+                        <span className="leading-tight text-center text-[10px] font-extrabold tracking-tight">{pt.label}</span>
                       </button>
                     );
                   })}
