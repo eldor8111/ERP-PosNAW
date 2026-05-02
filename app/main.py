@@ -28,6 +28,7 @@ from app.services.scheduler import start_scheduler
 def _run_auto_migrations(engine):
     """DB da mavjud bo'lmagan ustunlarni avtomatik qo'shadi."""
     migrations = [
+        "ALTER TABLE products ADD COLUMN IF NOT EXISTS extra_barcodes TEXT;",
         "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(14,2) DEFAULT 0;",
         "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(14,2) DEFAULT 0;",
         "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS payment_type VARCHAR(50);",
