@@ -854,6 +854,37 @@ export default function Products() {
     setBulkAddOpen(true);
   };
 
+  // Bulk add modal ochiq bo'lganda bo'sh joyga skaner qilganda yangi qator qo'shadi
+  const bulkScanBuffer = useRef('');
+  const bulkScanTimer = useRef(null);
+  useEffect(() => {
+    if (!bulkAddOpen) return;
+    const onKey = (e) => {
+      const tag = document.activeElement?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+      if (e.key === 'Enter') {
+        const code = bulkScanBuffer.current.trim();
+        bulkScanBuffer.current = '';
+        if (bulkScanTimer.current) clearTimeout(bulkScanTimer.current);
+        if (code.length >= 4) {
+          const newRow = emptyBulkRow();
+          newRow.barcodes = [code];
+          setBulkRows(rows => [...rows, newRow]);
+          checkBulkBarcode(newRow._key, code);
+        }
+      } else if (e.key.length === 1) {
+        bulkScanBuffer.current += e.key;
+        if (bulkScanTimer.current) clearTimeout(bulkScanTimer.current);
+        bulkScanTimer.current = setTimeout(() => { bulkScanBuffer.current = ''; }, 300);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      if (bulkScanTimer.current) clearTimeout(bulkScanTimer.current);
+    };
+  }, [bulkAddOpen]);
+
   const updateBulkRow = (key, field, value) =>
     setBulkRows(rows => rows.map(r => r._key === key ? { ...r, [field]: value } : r));
 
