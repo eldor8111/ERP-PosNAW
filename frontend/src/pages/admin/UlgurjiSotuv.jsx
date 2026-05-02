@@ -291,6 +291,7 @@ export default function UlgurjiSotuv() {
   const [page, setPage] = useState(0);
   const LIMIT = 25;
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [showMobileRight, setShowMobileRight] = useState(false);
 
   // Arxiv
   const [draftsList, setDraftsList] = useState([]);
@@ -499,6 +500,7 @@ export default function UlgurjiSotuv() {
       setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDiscVal(''); setPaidAmt('');
       setPaidCash(''); setPaidCard(''); setPayNote(''); setDebtDate('');
       setShowPayment(false); setShowDebtDate(false); setPayType('cash');
+      setShowMobileRight(false);
     } catch (e) {
       toast.error(e?.response?.data?.detail || 'Saqlashda xatolik');
     } finally { setSaving(false); }
@@ -545,7 +547,7 @@ export default function UlgurjiSotuv() {
      RENDER
   ══════════════════════════════════════════════════ */
   return (
-    <div className="absolute inset-x-6 inset-y-6 flex flex-col bg-slate-50 overflow-hidden shadow-[0_0_12px_rgba(0,0,0,0.05)] border border-slate-200 rounded-[18px]">
+    <div className="absolute inset-0 md:inset-x-6 md:inset-y-6 flex flex-col bg-slate-50 overflow-hidden shadow-[0_0_12px_rgba(0,0,0,0.05)] md:border border-slate-200 md:rounded-[18px]">
       {showShiftModal && (
         <ShiftOpenModal
           onOpened={() => { reloadShift(); setShowShiftModal(false); }}
@@ -554,31 +556,31 @@ export default function UlgurjiSotuv() {
       )}
 
       {/* ── TOP NAV ── */}
-      <div className="shrink-0 bg-white border-b border-slate-200 px-5 py-3 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-200">
+      <div className="shrink-0 bg-white border-b border-slate-200 px-3 md:px-5 py-3 flex items-center justify-between shadow-sm gap-2">
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-200">
             <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" cls="w-4 h-4 text-white" />
           </div>
-          <div>
+          <div className="hidden sm:block">
             <h1 className="text-base font-black text-slate-800">Ulgurji Sotuv</h1>
             <p className="text-xs text-slate-400">B2B · Yirik savdo</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1">
           <button onClick={() => setSettingsOpen(true)}
-            className={`flex items-center justify-center w-9 h-9 rounded-xl text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors tooltip`} title="Sotuv sozlamalari">
+            className="flex items-center justify-center w-9 h-9 rounded-xl text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" title="Sotuv sozlamalari">
             <Ic d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </button>
           {[
-            { id: 'new',  label: '+ Yangi sotuv', icon: 'M12 4v16m8-8H4' },
-            { id: 'list', label: 'Sotuvlar tarixi', icon: 'M4 6h16M4 10h16M4 14h16M4 18h16' },
-            { id: 'drafts', label: 'Arxivlar', icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
+            { id: 'new',  label: 'Yangi', icon: 'M12 4v16m8-8H4' },
+            { id: 'list', label: 'Tarixi', icon: 'M4 6h16M4 10h16M4 14h16M4 18h16' },
+            { id: 'drafts', label: 'Arxiv', icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${tab === t.id ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+              className={`flex items-center gap-1 px-2.5 md:px-4 py-2 rounded-xl text-sm font-semibold transition-all ${tab === t.id ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
               <Ic d={t.icon} cls="w-3.5 h-3.5" />
-              {t.label}
+              <span className="hidden sm:inline">{t.label}</span>
             </button>
           ))}
         </div>
@@ -586,10 +588,10 @@ export default function UlgurjiSotuv() {
 
       {/* ══ YANGI SOTUV ══════════════════════════════════════════ */}
       {tab === 'new' && (
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
 
           {/* ── CHAP PANEL: Mahsulotlar ── */}
-          <div className="flex-1 flex flex-col overflow-hidden border-r border-slate-200">
+          <div className="flex-1 flex flex-col overflow-hidden md:border-r border-slate-200">
 
             {/* Search + toolbar */}
             <div className="shrink-0 bg-white px-4 pt-4 pb-3 border-b border-slate-100 space-y-3">
@@ -760,10 +762,36 @@ export default function UlgurjiSotuv() {
                 </table>
               )}
             </div>
+
+            {/* Mobile: pastki sticky panel */}
+            <div className="md:hidden shrink-0 px-3 pb-3 pt-2 bg-white border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+              <button
+                onClick={() => cart.length > 0 && setShowMobileRight(true)}
+                disabled={cart.length === 0}
+                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-black text-base rounded-2xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2">
+                <Ic d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" cls="w-5 h-5" />
+                To'lovni qabul qilish · {fmt(total)} s
+              </button>
+            </div>
           </div>
 
           {/* ── O'NG PANEL: Mijoz + To'lov ── */}
-          <div className="w-[360px] shrink-0 flex flex-col bg-white border-l border-slate-200">
+          {/* Mobile: fullscreen overlay; Desktop: fixed sidebar */}
+          {(showMobileRight || true) && (
+          <div className={`
+            md:w-[360px] md:shrink-0 md:flex md:flex-col md:bg-white md:border-l md:border-slate-200 md:static
+            ${showMobileRight
+              ? 'fixed inset-0 z-50 flex flex-col bg-white'
+              : 'hidden md:flex md:flex-col'}
+          `}>
+            {/* Mobile header */}
+            <div className="md:hidden shrink-0 flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-white">
+              <span className="font-black text-slate-800 text-base">To'lov · {fmt(total)} s</span>
+              <button onClick={() => setShowMobileRight(false)} className="p-2 rounded-xl hover:bg-slate-100 text-slate-500">
+                <Ic d="M6 18L18 6M6 6l12 12" cls="w-5 h-5" />
+              </button>
+            </div>
+
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
 
               {/* Mijoz */}
@@ -859,6 +887,7 @@ export default function UlgurjiSotuv() {
               </div>
             </div>
           </div>
+          )}
         </div>
       )}
 
