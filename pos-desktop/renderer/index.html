@@ -614,7 +614,12 @@
     <div style="padding:24px;display:flex;flex-direction:column;gap:14px">
       <div class="field">
         <label>Telefon raqami</label>
-        <input class="finp" id="loginUsername" placeholder="+998901234567" onkeydown="handleLoginKeydown(event)" autocomplete="username" type="tel">
+        <div style="display:flex;align-items:center;gap:0">
+          <span style="background:#f0f0f0;border:1.5px solid #d1d5db;border-right:none;border-radius:8px 0 0 8px;padding:10px 12px;font-size:14px;font-weight:600;color:#444;white-space:nowrap">+998</span>
+          <input class="finp" id="loginUsername" placeholder="901234567" onkeydown="handleLoginKeydown(event)" autocomplete="username" type="tel" inputmode="numeric" maxlength="9" style="border-radius:0 8px 8px 0;border-left:none"
+            oninput="this.value=this.value.replace(/[^0-9]/g,'')"
+          >
+        </div>
       </div>
       <div class="field">
         <label>Parol</label>

@@ -17,8 +17,7 @@
     "appId": "com.erppos.desktop",
     "productName": "ERPPos Kassir",
     "win": {
-      "target": "nsis",
-      "icon": "assets/icon.ico"
+      "target": "nsis"
     },
     "nsis": {
       "oneClick": false,

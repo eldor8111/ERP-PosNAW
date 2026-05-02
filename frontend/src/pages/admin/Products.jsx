@@ -876,8 +876,10 @@ export default function Products() {
         if (code.length >= 4) {
           const rows = bulkRowsRef.current;
           const last = rows[rows.length - 1];
-          if (last && !last.name.trim() && !last.barcode_scanned) {
-            // Oxirgi qator bo'sh va hali skaner biriktirilmagan — barkodini yangilaymiz
+          // Oxirgi qator haqiqatan ham bo'sh bo'lsa (nomi yo'q va barcodi ham yo'q) — uni yangilaymiz
+          const lastIsEmpty = last && !last.name.trim() && (!last.barcodes[0] || !last.barcodes[0].trim()) && !last.barcode_scanned;
+          if (lastIsEmpty) {
+            // Oxirgi qator bo'sh — barkodini yangilaymiz
             setBulkRows(prev => prev.map((r, i) =>
               i === prev.length - 1
                 ? { ...r, barcodes: [code], barcode_status: null, barcode_product: null, barcode_scanned: true }
@@ -885,7 +887,7 @@ export default function Products() {
             ));
             checkBulkBarcode(last._key, code);
           } else {
-            // Yangi qator qo'shamiz
+            // Oxirgi qator band (barcode yoki nom bor) — yangi qator qo'shamiz
             const newRow = emptyBulkRow();
             newRow.barcodes = [code];
             newRow.barcode_scanned = true;

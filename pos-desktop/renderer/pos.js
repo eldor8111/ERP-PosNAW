@@ -9,9 +9,16 @@ try {
   }
 } catch(e) { /* running in browser — that's fine */ }
 
+const PRODUCTION_API = 'https://savdo.e-code.uz';
+
 // ─── Config ───────────────────────────────────
+const savedApiUrl = localStorage.getItem('pos_apiUrl');
+// If saved URL is localhost, ignore it and use production
+const defaultApiUrl = (savedApiUrl && !savedApiUrl.includes('localhost') && !savedApiUrl.includes('127.0.0.1'))
+  ? savedApiUrl : PRODUCTION_API;
+
 let CFG = {
-  apiUrl: localStorage.getItem('pos_apiUrl') || 'http://localhost:8000',
+  apiUrl: defaultApiUrl,
   autoPrint: localStorage.getItem('pos_autoPrint') === '1',
   unknownProd: localStorage.getItem('pos_unknownProd') === '1',
   fiscal: false,
@@ -106,29 +113,47 @@ function closeLoginModal() {
 }
 
 async function doLogin() {
-  const phone = document.getElementById('loginUsername').value.trim();
+  const rawPhone = document.getElementById('loginUsername').value.trim();
   const password = document.getElementById('loginPassword').value;
   const errEl = document.getElementById('loginError');
   const btn = document.getElementById('loginBtn');
 
-  if (!phone || !password) { errEl.textContent = 'Telefon va parol kiriting'; return; }
+  if (!rawPhone || !password) { errEl.textContent = 'Telefon va parol kiriting'; return; }
+
+  // Auto-prepend +998 if not already present
+  let phone = rawPhone;
+  if (!phone.startsWith('+')) {
+    phone = '+998' + phone.replace(/^998/, '');
+  }
 
   btn.disabled = true;
   btn.textContent = 'Kirilmoqda...';
   errEl.textContent = '';
 
   try {
-    const base = (document.getElementById('settApiUrl')?.value || CFG.apiUrl).replace(/\/$/, '');
+    const base = CFG.apiUrl.replace(/\/$/, '');
 
-    const res = await fetch(base + '/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, password }),
-    });
+    let res;
+    try {
+      res = await fetch(base + '/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, password }),
+      });
+    } catch (networkErr) {
+      throw new Error(`❌ Serverga ulanib bo'lmadi!\nServer: ${base}\n(Backend ishlab turganmi?)`);
+    }
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Noto\'g\'ri telefon yoki parol' }));
-      throw new Error(err.detail || 'Noto\'g\'ri telefon yoki parol');
+      let detail = 'Telefon yoki parol noto\'g\'ri';
+      try {
+        const err = await res.json();
+        detail = err.detail || detail;
+      } catch (_) {}
+      if (res.status === 401) detail = 'Telefon yoki parol noto\'g\'ri';
+      if (res.status === 404) detail = 'Server topilmadi';
+      if (res.status >= 500) detail = 'Server ichki xatosi';
+      throw new Error(detail);
     }
 
     const data = await res.json();
@@ -140,6 +165,7 @@ async function doLogin() {
     toast('✅ Muvaffaqiyatli kirildi!', 'ok');
     loadAllData();
   } catch (e) {
+    errEl.style.whiteSpace = 'pre-line';
     errEl.textContent = e.message;
   } finally {
     btn.disabled = false;
