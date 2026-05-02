@@ -729,17 +729,13 @@ export default function UlgurjiSotuv() {
       {tab === 'new' && (
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
 
-          {/* ── Tahrirlash banneri ── */}
+          {/* ── Tahrirlash banneri (kichik chip) ── */}
           {editingSale && (
-            <div className="absolute top-[56px] left-0 right-0 z-30 bg-amber-500 text-white px-4 py-2 flex items-center justify-between gap-3 shadow-md md:top-auto md:relative md:rounded-none">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                <span>Tahrirlash rejimi: <strong>{editingSale.number}</strong></span>
-              </div>
+            <div className="absolute bottom-20 left-3 z-30 flex items-center gap-1.5 bg-amber-500 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg shadow-amber-200 md:bottom-4">
+              <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+              <span>{editingSale.number}</span>
               <button onClick={() => { setEditingSale(null); setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDiscVal(''); }}
-                className="text-white/80 hover:text-white text-xs underline shrink-0">
-                Bekor qilish
-              </button>
+                className="ml-1 text-white/80 hover:text-white leading-none">✕</button>
             </div>
           )}
 
