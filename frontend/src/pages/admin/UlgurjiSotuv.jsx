@@ -368,6 +368,8 @@ export default function UlgurjiSotuv() {
   const [paidCash, setPaidCash] = useState('');
   const [paidCard, setPaidCard] = useState('');
 
+  const [editingSale, setEditingSale] = useState(null); // tahrirlash rejimi — {id, number}
+
   // Sotuv ro'yxati
   const [tab, setTab] = useState('new'); // 'new' | 'list' | 'drafts'
   const [sales, setSales] = useState([]);
@@ -440,6 +442,39 @@ export default function UlgurjiSotuv() {
   }, [filters, page]);
 
   useEffect(() => { if (tab === 'list') loadSales(); }, [tab, loadSales]);
+
+  const loadEditSale = async (s) => {
+    try {
+      if (cart.length > 0 && !window.confirm("Hozirgi savat o'chib ketadi. Davom etasizmi?")) return;
+      const r = await api.get(`/sales/${s.id}`);
+      const sale = r.data;
+      // Items ni cart formatiga o'tkazish
+      const newCart = (sale.items || []).map(it => ({
+        id: `edit_${it.product_id}_${Date.now()}_${Math.random()}`,
+        product_id: it.product_id,
+        name: it.product_name,
+        unit: 'dona',
+        qty: Number(it.quantity),
+        price: Number(it.unit_price),
+        discount_type: 'sum',
+        discount_val: it.discount > 0 ? String(it.discount) : '',
+        wholesale_price: Number(it.unit_price),
+        sale_price: Number(it.unit_price),
+        stock_quantity: 9999,
+      }));
+      setCart(newCart);
+      setCustId(sale.customer_id ? String(sale.customer_id) : '');
+      setNote(sale.note || '');
+      setDiscType('sum');
+      setDiscVal(sale.discount_amount > 0 ? String(sale.discount_amount) : '');
+      setEditingSale({ id: sale.id, number: sale.number, warehouse_id: sale.warehouse_id });
+      setTab('new');
+      setOpenMenuId(null);
+      toast.success(`"${sale.number}" raqamli sotuv tahrirlash uchun yuklandi`);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || 'Sotuvni yuklashda xatolik');
+    }
+  };
 
   const deleteSale = async (id) => {
     if (!window.confirm("Sotuvni o'chirishni tasdiqlaysizmi?")) return;
@@ -537,6 +572,7 @@ export default function UlgurjiSotuv() {
           : parseN(it.discount_val),
       }));
 
+      const paymentsList = payments.filter(p => parseN(p.amt) > 0).map(p => ({ type: p.type, amount: parseN(p.amt) }));
       const payload = {
         items,
         payment_type: overridePayType,
@@ -548,10 +584,21 @@ export default function UlgurjiSotuv() {
         customer_id: custId ? Number(custId) : undefined,
         warehouse_id: warehouseId ? Number(warehouseId) : undefined,
         debt_due_date: overridePayType === 'debt' && debtDate ? debtDate : undefined,
+        payments: paymentsList.length > 0 ? paymentsList : undefined,
       };
 
-      const res = await api.post('/sales/', payload);
-      toast.success('Sotuv muvaffaqiyatli saqlandi!');
+      let res;
+      if (editingSale) {
+        res = await api.put(`/sales/${editingSale.id}`, {
+          ...payload,
+          warehouse_id: editingSale.warehouse_id || (warehouseId ? Number(warehouseId) : undefined),
+        });
+        toast.success(`"${editingSale.number}" sotuv yangilandi!`);
+        setEditingSale(null);
+      } else {
+        res = await api.post('/sales/', payload);
+        toast.success('Sotuv muvaffaqiyatli saqlandi!');
+      }
 
       if (autoPrint) {
         try {
@@ -681,6 +728,20 @@ export default function UlgurjiSotuv() {
       {/* ══ YANGI SOTUV ══════════════════════════════════════════ */}
       {tab === 'new' && (
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+
+          {/* ── Tahrirlash banneri ── */}
+          {editingSale && (
+            <div className="absolute top-[56px] left-0 right-0 z-30 bg-amber-500 text-white px-4 py-2 flex items-center justify-between gap-3 shadow-md md:top-auto md:relative md:rounded-none">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                <span>Tahrirlash rejimi: <strong>{editingSale.number}</strong></span>
+              </div>
+              <button onClick={() => { setEditingSale(null); setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDiscVal(''); }}
+                className="text-white/80 hover:text-white text-xs underline shrink-0">
+                Bekor qilish
+              </button>
+            </div>
+          )}
 
           {/* ── CHAP PANEL: Mahsulotlar ── */}
           <div className="flex-1 flex flex-col overflow-hidden md:border-r border-slate-200">
@@ -862,7 +923,7 @@ export default function UlgurjiSotuv() {
                 disabled={cart.length === 0}
                 className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-black text-base rounded-2xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2">
                 <Ic d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" cls="w-5 h-5" />
-                To'lovni qabul qilish · {fmt(total)} s
+                {editingSale ? `Yangilash · ${fmt(total)} s` : `To'lovni qabul qilish · ${fmt(total)} s`}
               </button>
             </div>
           </div>
@@ -960,7 +1021,7 @@ export default function UlgurjiSotuv() {
                 disabled={cart.length === 0 || saving}
                 className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-black text-base rounded-2xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2">
                 <Ic d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" cls="w-5 h-5" />
-                To'lovni qabul qilish · {fmt(total)} s
+                {editingSale ? `Yangilash · ${fmt(total)} s` : `To'lovni qabul qilish · ${fmt(total)} s`}
               </button>
 
               <div className="flex gap-2">
@@ -1082,7 +1143,7 @@ export default function UlgurjiSotuv() {
                           {openMenuId === s.id && (
                             <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-2xl py-1 min-w-[170px]"
                               onMouseLeave={() => setOpenMenuId(null)}>
-                              <button onClick={() => { setSelectedSale(s); setOpenMenuId(null); }}
+                              <button onClick={() => loadEditSale(s)}
                                 className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-indigo-50 flex items-center gap-2.5">
                                 <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                                 Tahrirlash

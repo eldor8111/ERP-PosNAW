@@ -652,7 +652,9 @@ def delete_sale(db: Session, sale_id: int, current_user: User) -> None:
 
 
 def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
-    """Sotuvni qisman yangilash: holat, izoh, to'lov miqdori."""
+    """Sotuvni yangilash: oddiy holat/izoh yoki to'liq tahrirlash (items bilan)."""
+    from app.models.customer import Customer  # type: ignore
+
     q = db.query(Sale).filter(Sale.id == sale_id)
     if current_user.role != UserRole.super_admin:
         q = q.filter(Sale.company_id == current_user.company_id)
@@ -660,21 +662,138 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
     if not sale:
         raise HTTPException(status_code=404, detail="Sotuv topilmadi")
 
-    if data.status is not None:
-        sale.status = data.status
-    if data.note is not None:
-        sale.note = data.note
-    if data.paid_amount is not None:
-        # Mijoz qarzini to'g'irlash
+    # --- To'liq tahrirlash (items berilgan bo'lsa) ---
+    if data.items is not None:
+        # 1. Eski qarzni qaytarish (eski tovarlar stockini tiklash)
+        old_items = db.query(SaleItem).filter(SaleItem.sale_id == sale_id).all()
+        for oi in old_items:
+            receive_stock(
+                db=db,
+                product_id=oi.product_id,
+                quantity=oi.quantity,
+                user_id=current_user.id,
+                reason=f"Sotuv tahrirlash — tovar qaytarildi (sale #{sale_id})",
+                reference_type="sale_edit",
+                reference_id=sale_id,
+                warehouse_id=sale.warehouse_id,
+            )
+        # 2. Eski SaleItem larni o'chirish
+        for oi in old_items:
+            db.delete(oi)
+        db.flush()
+
+        # 3. Eski mijoz qarzini qaytarish
         if sale.customer_id:
-            from app.models.customer import Customer  # type: ignore
-            customer = db.query(Customer).filter(Customer.id == sale.customer_id).first()
-            if customer:
-                old_debt = sale.total_amount - sale.paid_amount
-                new_debt = sale.total_amount - data.paid_amount
-                diff = new_debt - old_debt  # musbat = qarz oshdi, manfiy = qarz kamaydi
-                customer.debt_balance = max(Decimal("0"), customer.debt_balance + diff)
-        sale.paid_amount = data.paid_amount
+            old_customer = db.query(Customer).filter(Customer.id == sale.customer_id).first()
+            if old_customer:
+                old_debt = max(Decimal("0"), sale.total_amount - sale.paid_amount)
+                old_customer.debt_balance = max(Decimal("0"), old_customer.debt_balance - old_debt)
+                old_customer.total_spent = max(Decimal("0"), (old_customer.total_spent or Decimal("0")) - sale.total_amount)
+
+        # 4. Yangi items ni hisoblash va stock dan yechish
+        sale_items_data = []
+        total_amount = Decimal("0")
+        wh_id = data.warehouse_id if data.warehouse_id is not None else sale.warehouse_id
+
+        for item_d in data.items:
+            product = db.query(Product).filter(
+                Product.id == item_d.product_id,
+                Product.company_id == current_user.company_id,
+                Product.is_deleted == False,
+            ).first()
+            if not product:
+                raise HTTPException(status_code=404, detail=f"Mahsulot ID={item_d.product_id} topilmadi")
+
+            unit_price = item_d.unit_price if item_d.unit_price is not None else product.sale_price
+            discount = item_d.discount
+            subtotal = (unit_price * item_d.quantity) - discount
+            sale_items_data.append({
+                "product": product,
+                "quantity": item_d.quantity,
+                "unit_price": unit_price,
+                "cost_price": product.cost_price,
+                "discount": discount,
+                "subtotal": subtotal,
+            })
+            total_amount += subtotal
+
+        disc_amount = data.discount_amount if data.discount_amount is not None else Decimal("0")
+        total_amount = max(Decimal("0"), total_amount - disc_amount)
+
+        paid_amount = data.paid_amount if data.paid_amount is not None else total_amount
+        paid_cash = data.paid_cash if data.paid_cash is not None else Decimal("0")
+        paid_card = data.paid_card if data.paid_card is not None else Decimal("0")
+        payment_type = data.payment_type if data.payment_type is not None else sale.payment_type
+        new_customer_id = data.customer_id if data.customer_id is not None else sale.customer_id
+
+        # 5. Yangi SaleItem larni yaratish va stockdan yechish
+        for sid in sale_items_data:
+            new_item = SaleItem(
+                sale_id=sale.id,
+                product_id=sid["product"].id,
+                quantity=sid["quantity"],
+                unit_price=sid["unit_price"],
+                cost_price=sid["cost_price"],
+                discount=sid["discount"],
+                subtotal=sid["subtotal"],
+            )
+            db.add(new_item)
+            deduct_stock(
+                db=db,
+                product_id=sid["product"].id,
+                quantity=sid["quantity"],
+                user_id=current_user.id,
+                reason=f"Sotuv tahrirlash (sale #{sale_id})",
+                reference_type="sale",
+                reference_id=sale_id,
+                warehouse_id=wh_id,
+                allow_negative=True,
+            )
+
+        # 6. Yangi mijoz qarzini yozish
+        if new_customer_id:
+            new_customer = db.query(Customer).filter(Customer.id == new_customer_id).first()
+            if new_customer:
+                new_debt = max(Decimal("0"), total_amount - paid_amount)
+                new_customer.debt_balance = (new_customer.debt_balance or Decimal("0")) + new_debt
+                new_customer.total_spent = (new_customer.total_spent or Decimal("0")) + total_amount
+
+        # 7. Sale ni yangilash
+        sale.total_amount = total_amount
+        sale.discount_amount = disc_amount
+        sale.paid_amount = paid_amount
+        sale.paid_cash = paid_cash
+        sale.paid_card = paid_card
+        sale.payment_type = payment_type
+        sale.customer_id = new_customer_id
+        sale.warehouse_id = wh_id
+        if data.note is not None:
+            sale.note = data.note
+        if data.debt_due_date is not None:
+            sale.debt_due_date = data.debt_due_date
+
+        # 8. Eski SalePayment larni o'chirib yangilarini yozish
+        from app.models.sale import SalePayment  # type: ignore
+        db.query(SalePayment).filter(SalePayment.sale_id == sale_id).delete()
+        if data.payments:
+            for pp in data.payments:
+                db.add(SalePayment(sale_id=sale_id, payment_type=pp.type.value, amount=pp.amount))
+
+    else:
+        # Oddiy yangilash: faqat mavjud maydonlarni o'zgartirish
+        if data.status is not None:
+            sale.status = data.status
+        if data.note is not None:
+            sale.note = data.note
+        if data.paid_amount is not None:
+            if sale.customer_id:
+                customer = db.query(Customer).filter(Customer.id == sale.customer_id).first()
+                if customer:
+                    old_debt = sale.total_amount - sale.paid_amount
+                    new_debt = sale.total_amount - data.paid_amount
+                    diff = new_debt - old_debt
+                    customer.debt_balance = max(Decimal("0"), customer.debt_balance + diff)
+            sale.paid_amount = data.paid_amount
 
     log_action(
         db=db,

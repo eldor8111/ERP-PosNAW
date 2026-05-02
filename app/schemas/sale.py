@@ -94,6 +94,7 @@ class SaleOut(BaseModel):
     number: str
     cashier_id: int
     cashier_name: str
+    customer_id: Optional[int] = None
     total_amount: Decimal
     discount_amount: Decimal
     paid_amount: Decimal
@@ -106,6 +107,7 @@ class SaleOut(BaseModel):
     payments: List[SalePaymentOut] = []
     created_at: datetime
     debt_due_date: Optional[date] = None
+    warehouse_id: Optional[int] = None
 
     model_config = {"from_attributes": True}
 
@@ -134,3 +136,13 @@ class SaleUpdate(BaseModel):
     status: Optional[SaleStatus] = None
     note: Optional[str] = None
     paid_amount: Optional[Decimal] = None
+    # Full edit fields
+    items: Optional[List[SaleItemCreate]] = None
+    payment_type: Optional[PaymentType] = None
+    paid_cash: Optional[Decimal] = None
+    paid_card: Optional[Decimal] = None
+    discount_amount: Optional[Decimal] = None
+    customer_id: Optional[int] = None
+    payments: Optional[List[PaymentItem]] = None
+    debt_due_date: Optional[date] = None
+    warehouse_id: Optional[int] = None

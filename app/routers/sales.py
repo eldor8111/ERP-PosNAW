@@ -62,6 +62,8 @@ def _build_sale_out(sale: Sale) -> SaleOut:
         number=sale.number,
         cashier_id=sale.cashier_id,
         cashier_name=sale.cashier.name if sale.cashier else f"ID={sale.cashier_id}",
+        customer_id=sale.customer_id,
+        warehouse_id=sale.warehouse_id,
         total_amount=sale.total_amount,
         discount_amount=sale.discount_amount,
         paid_amount=sale.paid_amount,
@@ -73,6 +75,7 @@ def _build_sale_out(sale: Sale) -> SaleOut:
         items=items,
         payments=payments,
         created_at=sale.created_at,
+        debt_due_date=getattr(sale, 'debt_due_date', None),
     )
 
 
