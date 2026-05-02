@@ -516,7 +516,7 @@ export default function UlgurjiSotuv() {
   const subtotal = cart.reduce((s, it) => s + itemNet(it), 0);
   const saleDisc = discType === 'pct' ? subtotal * (parseN(discVal) / 100) : parseN(discVal);
   const total = Math.max(0, subtotal - saleDisc);
-  const paid = payments.reduce((s, p) => s + p.amount, 0);
+  const paid = payments.reduce((s, p) => s + (parseN(p.amt) || 0), 0);
   const debt = Math.max(0, total - paid);
   const change = Math.max(0, paid - total);
 
@@ -601,7 +601,7 @@ export default function UlgurjiSotuv() {
     if (debt > 0 && !debtDate && showDebtDate) return toast.error('Qarz muddat sanasini kiriting!');
     if (debt > 0 && !showDebtDate) { setShowDebtDate(true); return; }
 
-    const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
+    const totalPaid = payments.reduce((s, p) => s + (parseN(p.amt) || 0), 0);
     const types = [...new Set(payments.map(p => p.type))];
 
     let finalPayType;
@@ -609,8 +609,8 @@ export default function UlgurjiSotuv() {
     else if (types.length === 1 && debt === 0) finalPayType = types[0];
     else finalPayType = 'mixed';
 
-    const pCash = payments.filter(p => p.type === 'cash').reduce((s, p) => s + p.amount, 0);
-    const pCard = payments.filter(p => p.type !== 'cash').reduce((s, p) => s + p.amount, 0);
+    const pCash = payments.filter(p => p.type === 'cash').reduce((s, p) => s + (parseN(p.amt)||0), 0);
+    const pCard = payments.filter(p => p.type !== 'cash').reduce((s, p) => s + (parseN(p.amt)||0), 0);
 
     await submitSale(finalPayType, totalPaid, pCash, pCard);
   };
@@ -956,7 +956,7 @@ export default function UlgurjiSotuv() {
             {/* To'lov + Qo'shimcha tugmalar doim pastda ko'rinib turadi */}
             <div className="shrink-0 px-4 pb-4 pt-3 border-t border-slate-100 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] space-y-2.5">
               <button
-                onClick={() => cart.length > 0 && setShowPayment(true)}
+                onClick={() => { if (!cart.length) return; setPayments([{ id: Date.now(), type: 'cash', amt: '' }]); setCurPayAmt(''); setShowPayment(true); }}
                 disabled={cart.length === 0 || saving}
                 className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-black text-base rounded-2xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2">
                 <Ic d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" cls="w-5 h-5" />
@@ -1192,200 +1192,154 @@ export default function UlgurjiSotuv() {
 
       {/* ══ TO'LOV MODALI ════════════════════════════════════════ */}
       {showPayment && (() => {
-        const addPayment = () => {
-          const amt = parseN(curPayAmt);
-          if (!amt || amt <= 0) return;
-          const pt = PAY_TYPES.find(p => p.id === payType);
-          setPayments(prev => [...prev, { id: Date.now(), type: payType, label: pt?.label || payType, amount: amt }]);
-          setCurPayAmt('');
-        };
+        const closeModal = () => { setShowPayment(false); setShowDebtDate(false); setPayments([]); setCurPayAmt(''); };
         const remaining = Math.max(0, total - paid);
+        const updateLine = (id, field, val) => setPayments(prev => prev.map(p => p.id === id ? { ...p, [field]: val } : p));
+        const removeLine = (id) => { if (payments.length > 1) setPayments(prev => prev.filter(p => p.id !== id)); };
+        const addLine = () => setPayments(prev => [...prev, { id: Date.now(), type: 'cash', amt: '' }]);
+        const fillLine = (id) => {
+          const lineAmt = parseN(payments.find(p => p.id === id)?.amt) || 0;
+          const rem = Math.max(0, remaining + lineAmt);
+          updateLine(id, 'amt', rem > 0 ? String(rem) : String(total));
+        };
+        const now = new Date();
         return (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-0 md:p-6">
-          <div className="bg-slate-50 w-full md:max-w-2xl md:rounded-3xl shadow-2xl flex flex-col max-h-screen md:max-h-[90vh] rounded-t-3xl overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col" style={{maxHeight:'95vh'}}>
 
-            {/* ── Header ── */}
-            <div className="relative bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-600 px-6 pt-5 pb-6 text-white shrink-0 overflow-hidden">
-              <div className="absolute -top-8 -right-8 w-40 h-40 bg-white/10 rounded-full pointer-events-none" />
-              <div className="absolute -bottom-12 -left-6 w-32 h-32 bg-white/5 rounded-full pointer-events-none" />
-              <div className="relative z-10 flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <p className="text-white/60 text-[11px] font-bold uppercase tracking-widest">To'lovni qabul qilish</p>
-                  <div className="flex items-baseline gap-3 mt-1 flex-wrap">
-                    <span className="text-4xl font-black tracking-tight">{fmt(total)}<span className="text-xl text-white/60 ml-1">s</span></span>
-                    {paid > 0 && remaining > 0 && (
-                      <span className="text-sm font-bold text-amber-300">Qoldi: {fmt(remaining)} s</span>
-                    )}
-                    {paid >= total && paid > 0 && change > 0 && (
-                      <span className="text-sm font-bold text-emerald-300">Qaytim: {fmt(change)} s</span>
-                    )}
-                  </div>
-                  <p className="text-white/40 text-xs mt-1">{cart.length} ta · {cart.reduce((s,i)=>s+i.qty,0).toFixed(1)} birlik{saleDisc>0 ? ` · chegirma −${fmt(saleDisc)} s` : ''}</p>
-                  {paid > 0 && (
-                    <div className="mt-3">
-                      <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
-                        <div className="h-full bg-emerald-400 rounded-full transition-all duration-500"
-                          style={{ width: `${Math.min(100, (paid/total)*100)}%` }} />
-                      </div>
-                    </div>
-                  )}
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center">
+                  <Ic d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" cls="w-4 h-4 text-white" />
                 </div>
-                <button onClick={() => { setShowPayment(false); setShowDebtDate(false); setPayments([]); setCurPayAmt(''); }}
-                  className="shrink-0 w-9 h-9 rounded-2xl bg-white/15 hover:bg-white/30 flex items-center justify-center transition-colors">
-                  <Ic d="M6 18L18 6M6 6l12 12" cls="w-4 h-4" />
-                </button>
+                <div>
+                  <h2 className="text-base font-black text-slate-800">Kassaga to'lov</h2>
+                  <p className="text-xs text-indigo-500 font-mono">{now.toLocaleString('ru-RU').replace(',','')}</p>
+                </div>
               </div>
+              <button onClick={closeModal} className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors">
+                <Ic d="M6 18L18 6M6 6l12 12" cls="w-4 h-4" />
+              </button>
             </div>
 
-            {/* ── Body: two-col on md ── */}
-            <div className="flex-1 overflow-y-auto">
-              <div className="flex flex-col md:flex-row md:divide-x md:divide-slate-200">
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
 
-                {/* ─ LEFT: To'lov turi + miqdor ─ */}
-                <div className="flex-1 p-5 space-y-4">
+              {/* To'lov qatorlari */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">To'lov</span>
+                  <button onClick={addLine}
+                    className="w-7 h-7 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center transition-colors shadow-sm">
+                    <Ic d="M12 4v16m8-8H4" cls="w-3.5 h-3.5" />
+                  </button>
+                </div>
 
-                  {/* To'lov turi 5x2 grid */}
-                  <div>
-                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">To'lov turi</p>
-                    <div className="grid grid-cols-5 gap-1.5">
-                      {PAY_TYPES.map(pt => {
-                        const active = payType === pt.id;
-                        const cls = ACCENT_CLS[pt.accent] || ACCENT_CLS.indigo;
-                        return (
-                          <button key={pt.id} onClick={() => setPayType(pt.id)}
-                            className={`flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl border-2 text-[10px] font-extrabold transition-all select-none
-                              ${active ? cls.active + ' shadow-md' : 'bg-white ' + cls.idle}`}>
-                            {active && <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-white/80 rounded-full" />}
-                            <span className="w-6 h-6">{PAY_ICONS[pt.id]}</span>
-                            <span className="leading-none tracking-tight">{pt.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                <div className="space-y-2">
+                  {payments.map((line, idx) => {
+                    const pt = PAY_TYPES.find(p => p.id === line.type);
+                    const acls = ACCENT_CLS[pt?.accent] || ACCENT_CLS.indigo;
+                    const isDebt = line.type === 'debt';
+                    return (
+                      <div key={line.id} className="flex items-center gap-2">
+                        {/* To'lov turi — select */}
+                        <div className="relative w-36 shrink-0">
+                          <div className={`absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none ${acls.idle.split(' ').find(c=>c.startsWith('text'))||'text-slate-400'}`}>
+                            {PAY_ICONS[line.type]}
+                          </div>
+                          <select
+                            value={line.type}
+                            onChange={e => updateLine(line.id, 'type', e.target.value)}
+                            className="w-full h-10 pl-8 pr-2 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white appearance-none cursor-pointer">
+                            {PAY_TYPES.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+                          </select>
+                        </div>
 
-                  {/* Miqdor input */}
-                  {payType === 'debt' ? (
-                    <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-amber-200 flex items-center justify-center shrink-0">
-                        <span className="w-5 h-5 text-amber-700">{PAY_ICONS.debt}</span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-black text-amber-800">Qarzga yozish</p>
-                        <p className="text-xl font-black text-amber-700">{fmt(total)} s</p>
-                        {!custId && <p className="text-xs text-red-500 font-semibold mt-0.5">⚠ Avval mijoz tanlang!</p>}
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Miqdor (so'm)</p>
-                      <div className="flex gap-2">
-                        <input
-                          type="number"
-                          value={curPayAmt}
-                          onChange={e => setCurPayAmt(e.target.value)}
-                          onKeyDown={e => e.key === 'Enter' && addPayment()}
-                          placeholder="0"
-                          autoFocus
-                          className="flex-1 bg-white border-2 border-indigo-200 rounded-xl px-4 py-3 text-2xl font-black text-indigo-700 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-                        />
-                        <div className="flex flex-col gap-1.5">
-                          <button onClick={() => setCurPayAmt(String(remaining > 0 ? remaining : total))}
-                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-lg transition-colors">
+                        {/* Miqdor */}
+                        {isDebt ? (
+                          <div className="flex-1 h-10 px-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center">
+                            <span className="text-sm font-black text-amber-700">{fmt(remaining > 0 ? remaining : total)} s — qarzga</span>
+                          </div>
+                        ) : (
+                          <input
+                            type="number"
+                            value={line.amt}
+                            onChange={e => updateLine(line.id, 'amt', e.target.value)}
+                            placeholder="0"
+                            autoFocus={idx === payments.length - 1}
+                            className="flex-1 h-10 px-3 border border-slate-200 rounded-lg text-base font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 min-w-0"
+                          />
+                        )}
+
+                        {/* Umumiy summa / Qoldi */}
+                        {!isDebt && (
+                          <button onClick={() => fillLine(line.id)}
+                            className="shrink-0 h-10 px-3 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors whitespace-nowrap">
                             Qoldi
                           </button>
-                          <button onClick={() => setCurPayAmt(String(total))}
-                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-lg transition-colors">
-                            To'liq
-                          </button>
-                        </div>
-                        <button onClick={addPayment}
-                          className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl transition-colors shadow-md shadow-indigo-200 text-sm">
-                          + Qo'sh
+                        )}
+
+                        {/* O'chirish */}
+                        <button onClick={() => removeLine(line.id)}
+                          className={`shrink-0 w-8 h-10 rounded-lg flex items-center justify-center transition-colors ${payments.length > 1 ? 'text-slate-300 hover:text-red-500 hover:bg-red-50' : 'text-slate-200 cursor-not-allowed'}`}>
+                          <Ic d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" cls="w-3.5 h-3.5" />
                         </button>
                       </div>
-                    </div>
-                  )}
-
-                  {/* Qo'shilgan to'lovlar ro'yxati */}
-                  {payments.length > 0 && (
-                    <div>
-                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Qo'shilgan to'lovlar</p>
-                      <div className="space-y-1.5">
-                        {payments.map(p => {
-                          const pt = PAY_TYPES.find(x => x.id === p.type);
-                          const cls = ACCENT_CLS[pt?.accent] || ACCENT_CLS.indigo;
-                          return (
-                            <div key={p.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 bg-white ${cls.idle.split(' ').find(c=>c.startsWith('border')) || 'border-slate-200'}`}>
-                              <span className={`w-5 h-5 shrink-0 ${cls.idle.split(' ').find(c=>c.startsWith('text')) || 'text-slate-500'}`}>{PAY_ICONS[p.type]}</span>
-                              <span className="flex-1 text-sm font-bold text-slate-700">{p.label}</span>
-                              <span className="text-sm font-black text-slate-800">{fmt(p.amount)} s</span>
-                              <button onClick={() => setPayments(prev => prev.filter(x => x.id !== p.id))}
-                                className="w-6 h-6 rounded-lg bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 flex items-center justify-center transition-colors">
-                                <Ic d="M6 18L18 6M6 6l12 12" cls="w-3 h-3" />
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })}
                 </div>
+              </div>
 
-                {/* ─ RIGHT: Hisob + izoh ─ */}
-                <div className="md:w-56 p-5 space-y-4 shrink-0">
+              {/* Izoh */}
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 block">Izoh (ixtiyoriy)</label>
+                <textarea value={payNote} onChange={e => setPayNote(e.target.value)}
+                  placeholder="Shartnoma raqami, eslatma..."
+                  rows={2}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none" />
+              </div>
 
-                  {/* Summary */}
-                  <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-                    <div className="px-4 py-3 border-b border-slate-100">
-                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Hisob</p>
-                    </div>
-                    {[
-                      { label: 'Jami', val: fmt(total) + ' s', cls: 'text-slate-700 font-bold' },
-                      saleDisc > 0 && { label: 'Chegirma', val: '−'+fmt(saleDisc)+' s', cls: 'text-amber-600 font-bold' },
-                      { label: "To'landi", val: fmt(paid)+' s', cls: 'text-emerald-600 font-black' },
-                      remaining > 0 && { label: 'Qoldi', val: fmt(remaining)+' s', cls: 'text-red-500 font-black', hi: true },
-                      change > 0 && { label: 'Qaytim', val: fmt(change)+' s', cls: 'text-blue-600 font-black', hi: true },
-                    ].filter(Boolean).map((r, i) => (
-                      <div key={i} className={`flex justify-between px-4 py-2.5 text-sm ${r.hi ? 'bg-slate-50 border-t-2 border-slate-100' : 'border-b border-slate-50'}`}>
-                        <span className="text-slate-500">{r.label}</span>
-                        <span className={r.cls}>{r.val}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Qarz sanasi */}
-                  {showDebtDate && remaining > 0 && (
-                    <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-3 space-y-2">
-                      <p className="text-xs font-bold text-amber-700">Qarz muddati (ixtiyoriy)</p>
-                      <input type="date" min={today()} value={debtDate} onChange={e => setDebtDate(e.target.value)}
-                        className="w-full border-2 border-amber-300 bg-white rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400" />
-                    </div>
-                  )}
-
-                  {/* Izoh */}
-                  <div>
-                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Izoh</p>
-                    <textarea value={payNote} onChange={e => setPayNote(e.target.value)}
-                      placeholder="Qo'shimcha ma'lumot..."
-                      rows={3}
-                      className="w-full border-2 border-slate-200 bg-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none" />
+              {/* Qarz sanasi */}
+              {showDebtDate && remaining > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-3">
+                  <Ic d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" cls="w-4 h-4 text-amber-600 shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-amber-700 mb-1">Qarz muddati (ixtiyoriy)</p>
+                    <input type="date" min={today()} value={debtDate} onChange={e => setDebtDate(e.target.value)}
+                      className="w-full border border-amber-300 bg-white rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
                   </div>
                 </div>
+              )}
+
+              {/* Hisob jami */}
+              <div className="bg-slate-50 rounded-xl border border-slate-100 divide-y divide-slate-100">
+                {[
+                  { label: 'Umumiy summa', val: fmt(total), cls: 'text-slate-800 font-bold' },
+                  saleDisc > 0 && { label: 'Chegirma', val: '−'+fmt(saleDisc)+' s', cls: 'text-amber-600 font-semibold' },
+                  { label: "To'lov", val: fmt(paid)+' s', cls: 'text-emerald-600 font-black' },
+                  remaining > 0 && { label: 'Qarzga', val: fmt(remaining)+' s', cls: 'text-red-600 font-black' },
+                  change > 0 && { label: 'Qaytim', val: fmt(change)+' s', cls: 'text-blue-600 font-black' },
+                ].filter(Boolean).map((r, i) => (
+                  <div key={i} className="flex justify-between items-center px-4 py-2.5 text-sm">
+                    <span className="text-slate-500">{r.label}</span>
+                    <span className={r.cls}>{r.val}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* ── Footer ── */}
-            <div className="shrink-0 px-5 py-4 border-t border-slate-200 bg-white flex gap-3">
-              <button onClick={() => { setShowPayment(false); setShowDebtDate(false); setPayments([]); setCurPayAmt(''); }}
-                className="w-24 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-2xl text-sm transition-all">
-                Bekor
+            {/* Footer */}
+            <div className="shrink-0 px-5 py-3.5 border-t border-slate-100 flex gap-2.5">
+              <button onClick={closeModal}
+                className="px-5 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold rounded-xl text-sm transition-all">
+                Bekor qilish
               </button>
               <button onClick={handlePay} disabled={saving}
-                className="flex-1 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 disabled:opacity-50 text-white font-black rounded-2xl text-base shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2">
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-black rounded-xl text-sm shadow-md shadow-indigo-200 transition-all flex items-center justify-center gap-2">
                 {saving
-                  ? <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />Saqlanmoqda...</>
-                  : <><Ic d="M5 13l4 4L19 7" cls="w-5 h-5" />Sotuvni tasdiqlash</>
+                  ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Saqlanmoqda...</>
+                  : <><Ic d="M5 13l4 4L19 7" cls="w-4 h-4" />Saqlash</>
                 }
               </button>
             </div>
