@@ -858,62 +858,9 @@ export default function Products() {
   // Bulk add: global scanner — tezlik asosida aniqlash (< 60ms = scanner, >= 60ms = qo'l)
   const bulkScanBufferRef = useRef('');
   const bulkScanLastKeyRef = useRef(0);
-
-  const _bulkAddScan = useCallback((code) => {
-    let targetKey = null;
-    setBulkRows(prev => {
-      const last = prev[prev.length - 1];
-      if (last && !last.name.trim() && !last.barcode_scanned) {
-        targetKey = last._key;
-        return prev.map((r, i) =>
-          i === prev.length - 1
-            ? { ...r, barcodes: [code], barcode_status: null, barcode_product: null, barcode_scanned: true }
-            : r
-        );
-      } else {
-        const newRow = emptyBulkRow();
-        newRow.barcodes = [code];
-        newRow.barcode_scanned = true;
-        targetKey = newRow._key;
-        return [...prev, newRow];
-      }
-    });
-    setTimeout(() => { if (targetKey) checkBulkBarcode(targetKey, code); }, 0);
-  }, [checkBulkBarcode]);
-
-  useEffect(() => {
-    if (!bulkAddOpen) {
-      bulkScanBufferRef.current = '';
-      return;
-    }
-    const handleKey = (e) => {
-      const now = Date.now();
-      const gap = now - bulkScanLastKeyRef.current;
-      bulkScanLastKeyRef.current = now;
-
-      // Agar aktiv element bulk modalning barcode inputi bo'lsa — o'sha input o'zi hal qiladi
-      const ae = document.activeElement;
-      if (ae && ae.dataset && ae.dataset.bulkBarcodeInput === 'true') return;
-
-      if (e.key === 'Enter') {
-        const code = bulkScanBufferRef.current.trim();
-        bulkScanBufferRef.current = '';
-        if (code.length >= 4) {
-          e.preventDefault();
-          _bulkAddScan(code);
-        }
-      } else if (e.key.length === 1) {
-        // 60ms dan tez = scanner, sekin = qo'l (buffer siflanadi)
-        if (gap < 60) {
-          bulkScanBufferRef.current += e.key;
-        } else {
-          bulkScanBufferRef.current = e.key;
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKey, true);
-    return () => window.removeEventListener('keydown', handleKey, true);
-  }, [bulkAddOpen, _bulkAddScan]);
+  // checkBulkBarcode va setBulkRows ni ref orqali ushlash (closure muammosini hal qiladi)
+  const checkBulkBarcodeRef = useRef(null);
+  const setBulkRowsRef = useRef(null);
 
   const updateBulkRow = (key, field, value) =>
     setBulkRows(rows => rows.map(r => r._key === key ? { ...r, [field]: value } : r));
@@ -932,6 +879,56 @@ export default function Products() {
       ));
     }
   };
+
+  // Ref larni har render da yangilab turish (stale closure muammosidan qochish)
+  checkBulkBarcodeRef.current = checkBulkBarcode;
+  setBulkRowsRef.current = setBulkRows;
+
+  // Global scanner listener
+  useEffect(() => {
+    if (!bulkAddOpen) { bulkScanBufferRef.current = ''; return; }
+    const handleKey = (e) => {
+      const now = Date.now();
+      const gap = now - bulkScanLastKeyRef.current;
+      bulkScanLastKeyRef.current = now;
+      // Barcode inputi focused bo'lsa — o'sha input o'zi hal qiladi
+      const ae = document.activeElement;
+      if (ae && ae.dataset && ae.dataset.bulkBarcodeInput === 'true') return;
+      if (e.key === 'Enter') {
+        const code = bulkScanBufferRef.current.trim();
+        bulkScanBufferRef.current = '';
+        if (code.length >= 4) {
+          e.preventDefault();
+          let targetKey = null;
+          setBulkRowsRef.current(prev => {
+            const last = prev[prev.length - 1];
+            if (last && !last.name.trim() && !last.barcode_scanned) {
+              targetKey = last._key;
+              return prev.map((r, i) => i === prev.length - 1
+                ? { ...r, barcodes: [code], barcode_status: null, barcode_product: null, barcode_scanned: true }
+                : r
+              );
+            } else {
+              const newRow = emptyBulkRow();
+              newRow.barcodes = [code];
+              newRow.barcode_scanned = true;
+              targetKey = newRow._key;
+              return [...prev, newRow];
+            }
+          });
+          setTimeout(() => { if (targetKey) checkBulkBarcodeRef.current(targetKey, code); }, 0);
+        }
+      } else if (e.key.length === 1) {
+        if (gap < 60) {
+          bulkScanBufferRef.current += e.key;
+        } else {
+          bulkScanBufferRef.current = e.key;
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKey, true);
+    return () => window.removeEventListener('keydown', handleKey, true);
+  }, [bulkAddOpen]);
 
   const addBulkBarcode = (key) =>
     setBulkRows(rows => rows.map(r =>
