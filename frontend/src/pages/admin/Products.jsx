@@ -855,25 +855,15 @@ export default function Products() {
     setBulkAddOpen(true);
   };
 
-  // Bulk add: dedicated scan zone input (global keydown o'rniga — 100% ishonchli)
-  const [bulkScanZone, setBulkScanZone] = useState('');
-  const bulkScanZoneRef = useRef(null);
+  // Bulk add: global scanner — tezlik asosida aniqlash (< 60ms = scanner, >= 60ms = qo'l)
+  const bulkScanBufferRef = useRef('');
+  const bulkScanLastKeyRef = useRef(0);
 
-  // Modal ochilganda scan zonaga fokus
-  useEffect(() => {
-    if (bulkAddOpen) setTimeout(() => bulkScanZoneRef.current?.focus(), 100);
-  }, [bulkAddOpen]);
-
-  const handleBulkScanZone = (e) => {
-    if (e.key !== 'Enter') return;
-    const code = bulkScanZone.trim();
-    setBulkScanZone('');
-    if (code.length < 4) return;
+  const _bulkAddScan = useCallback((code) => {
     let targetKey = null;
     setBulkRows(prev => {
       const last = prev[prev.length - 1];
       if (last && !last.name.trim() && !last.barcode_scanned) {
-        // Oxirgi qator bo'sh — barkodini yangilaymiz
         targetKey = last._key;
         return prev.map((r, i) =>
           i === prev.length - 1
@@ -881,7 +871,6 @@ export default function Products() {
             : r
         );
       } else {
-        // Yangi qator qo'shamiz
         const newRow = emptyBulkRow();
         newRow.barcodes = [code];
         newRow.barcode_scanned = true;
@@ -890,8 +879,41 @@ export default function Products() {
       }
     });
     setTimeout(() => { if (targetKey) checkBulkBarcode(targetKey, code); }, 0);
-    bulkScanZoneRef.current?.focus();
-  };
+  }, [checkBulkBarcode]);
+
+  useEffect(() => {
+    if (!bulkAddOpen) {
+      bulkScanBufferRef.current = '';
+      return;
+    }
+    const handleKey = (e) => {
+      const now = Date.now();
+      const gap = now - bulkScanLastKeyRef.current;
+      bulkScanLastKeyRef.current = now;
+
+      // Agar aktiv element bulk modalning barcode inputi bo'lsa — o'sha input o'zi hal qiladi
+      const ae = document.activeElement;
+      if (ae && ae.dataset && ae.dataset.bulkBarcodeInput === 'true') return;
+
+      if (e.key === 'Enter') {
+        const code = bulkScanBufferRef.current.trim();
+        bulkScanBufferRef.current = '';
+        if (code.length >= 4) {
+          e.preventDefault();
+          _bulkAddScan(code);
+        }
+      } else if (e.key.length === 1) {
+        // 60ms dan tez = scanner, sekin = qo'l (buffer siflanadi)
+        if (gap < 60) {
+          bulkScanBufferRef.current += e.key;
+        } else {
+          bulkScanBufferRef.current = e.key;
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKey, true);
+    return () => window.removeEventListener('keydown', handleKey, true);
+  }, [bulkAddOpen, _bulkAddScan]);
 
   const updateBulkRow = (key, field, value) =>
     setBulkRows(rows => rows.map(r => r._key === key ? { ...r, [field]: value } : r));
@@ -2208,6 +2230,7 @@ export default function Products() {
                               bcIdx === 0 ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 bg-slate-100'
                             }`}>{bcIdx + 1}</span>
                             <input
+                              data-bulk-barcode-input="true"
                               className={`flex-1 h-10 px-3 border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 ${
                                 bcIdx === 0
                                   ? row.barcode_status === 'exists'
@@ -2333,27 +2356,22 @@ export default function Products() {
                 ))}
               </div>
 
-              {/* Scan zone + manual add */}
+              {/* Manual add */}
               <div className="mt-4 flex items-center gap-3">
-                <input
-                  ref={bulkScanZoneRef}
-                  type="text"
-                  value={bulkScanZone}
-                  onChange={e => setBulkScanZone(e.target.value)}
-                  onKeyDown={handleBulkScanZone}
-                  placeholder="📷 Bu yerga bosib skaner qiling → Enter"
-                  className="flex-1 h-14 px-5 border-2 border-dashed border-emerald-400 rounded-xl text-base text-slate-700 focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50 bg-emerald-50/40 transition-all placeholder:text-slate-400"
-                />
                 <button
                   type="button"
                   onClick={() => setBulkRows(rows => [...rows, emptyBulkRow()])}
-                  className="h-14 px-5 border-2 border-dashed border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/30 text-slate-400 hover:text-indigo-600 text-base font-semibold rounded-xl transition-all flex items-center gap-2 whitespace-nowrap"
+                  className="h-11 px-5 border-2 border-dashed border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/30 text-slate-400 hover:text-indigo-600 text-sm font-semibold rounded-xl transition-all flex items-center gap-2"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                   Qo'lda qo'shish
                 </button>
+                <span className="text-xs text-slate-400 flex items-center gap-1.5">
+                  <svg className="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m0 14v1m8-8h-1M5 12H4m13.657-6.343l-.707.707M7.05 16.95l-.707.707m9.9 0l-.707-.707M7.757 7.757l-.707-.707"/><circle cx="12" cy="12" r="3"/></svg>
+                  Bo'sh joyga bosib skaner qiling — avtomatik qo'shiladi
+                </span>
               </div>
             </div>
           </div>
