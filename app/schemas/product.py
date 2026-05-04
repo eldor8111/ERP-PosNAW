@@ -18,6 +18,7 @@ class WarehouseStockOut(BaseModel):
 
 class ProductCreate(BaseModel):
     name: str
+    product_code: Optional[str] = None
     sku: Optional[str] = None
     barcode: str
     extra_barcodes: Optional[List[str]] = None
@@ -49,6 +50,7 @@ class ProductCreate(BaseModel):
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
     name_ru: Optional[str] = None
+    product_code: Optional[str] = None
     sku: Optional[str] = None
     barcode: Optional[str] = None
     extra_barcodes: Optional[List[str]] = None
@@ -74,6 +76,7 @@ class ProductStatusUpdate(BaseModel):
 
 class ProductOut(BaseModel):
     id: int
+    product_code: Optional[str] = None
     sku: str
     barcode: str
     extra_barcodes: Optional[List[str]] = None
@@ -121,6 +124,7 @@ class ProductOut(BaseModel):
 
 class ProductListOut(BaseModel):
     id: int
+    product_code: Optional[str] = None
     sku: str
     barcode: str
     extra_barcodes: Optional[List[str]] = None

@@ -51,6 +51,7 @@ def list_products(
         q = q.filter(
             (Product.name.ilike(f"%{search}%"))
             | (Product.sku.ilike(f"%{search}%"))
+            | (Product.product_code.ilike(f"%{search}%"))
             | (Product.barcode.ilike(f"%{search}%"))
             | (Product.extra_barcodes.ilike(f"%{search}%"))
         )
@@ -144,6 +145,7 @@ def list_products_for_pos(
         Product.barcode,
         Product.extra_barcodes,
         Product.sku,
+        Product.product_code,
         Product.sale_price,
         Product.wholesale_price,
         Product.cost_price,
@@ -162,6 +164,7 @@ def list_products_for_pos(
         q = q.filter(
             (Product.name.ilike(f"%{search}%"))
             | (Product.sku.ilike(f"%{search}%"))
+            | (Product.product_code.ilike(f"%{search}%"))
             | (Product.barcode.ilike(f"%{search}%"))
             | (Product.extra_barcodes.ilike(f"%{search}%"))
         )
@@ -196,6 +199,7 @@ def list_products_for_pos(
             "barcode": p.barcode,
             "extra_barcodes": json.loads(p.extra_barcodes) if p.extra_barcodes else [],
             "sku": p.sku,
+            "product_code": p.product_code,
             "sale_price": float(p.sale_price),
             "wholesale_price": float(p.wholesale_price) if p.wholesale_price else None,
             "cost_price": float(p.cost_price),
@@ -232,6 +236,7 @@ def list_products_paginated(
         q = q.filter(
             (Product.name.ilike(f"%{search}%"))
             | (Product.sku.ilike(f"%{search}%"))
+            | (Product.product_code.ilike(f"%{search}%"))
             | (Product.barcode.ilike(f"%{search}%"))
             | (Product.extra_barcodes.ilike(f"%{search}%"))
         )
@@ -333,6 +338,7 @@ def list_product_ids(
         q = q.filter(
             (Product.name.ilike(f"%{search}%"))
             | (Product.sku.ilike(f"%{search}%"))
+            | (Product.product_code.ilike(f"%{search}%"))
             | (Product.barcode.ilike(f"%{search}%"))
             | (Product.extra_barcodes.ilike(f"%{search}%"))
         )
@@ -553,6 +559,7 @@ def bulk_import_products(
         "Nomi":          ("name",             str),
         "Barkod":        ("barcode",          str),
         "SKU":           ("sku",              str),
+        "Kod":           ("product_code",     str),
         "O'lchov":       ("unit",             str),
         "Tan narxi":     ("cost_price",       Decimal),
         "Chakana narxi": ("sale_price",       Decimal),
@@ -593,6 +600,7 @@ def bulk_import_products(
         row_num = row.get("__row_index", idx + 2)
         name = str(row.get("Nomi") or "").strip()
         barcode = str(row.get("Barkod") or "").strip()
+        product_code_val = str(row.get("Kod") or "").strip() or None
         sku_val = str(row.get("SKU") or "").strip() or None
         # "0" yoki faqat nollardan iborat SKU ni bo'sh deb hisoblaymiz
         if sku_val and sku_val.lstrip("0") == "":
@@ -700,7 +708,7 @@ def bulk_import_products(
         sku_final = sku_final[:50]
 
         product = Product(
-            name=name[:255], barcode=barcode, sku=sku_final, unit=unit[:20] if unit else "dona",
+            name=name[:255], barcode=barcode, sku=sku_final, product_code=product_code_val, unit=unit[:20] if unit else "dona",
             cost_price=cost_price, sale_price=sale_price,
             wholesale_price=wholesale_price, min_stock=min_stock_val,
             status=status_val, brand=brand[:100] if brand else None,

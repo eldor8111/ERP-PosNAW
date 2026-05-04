@@ -56,7 +56,7 @@ const movTypeMeta = {
 };
 
 const emptyProduct = {
-  name: '', sku: '', barcode: '',
+  name: '', sku: '', product_code: '', barcode: '',
   barcode_format: 'ean8',
   extra_barcodes: [],
   brand: '',
@@ -77,6 +77,8 @@ const emptyProduct = {
 const emptyBulkRow = () => ({
   _key: Math.random().toString(36).slice(2),
   name: '',
+  sku: '',
+  product_code: '',
   cost_price: '',
   wholesale_price: '',
   sale_price: '',
@@ -433,7 +435,7 @@ export default function Products() {
   const openEdit = (p) => {
     setSelected(p);
     setForm({
-      name: p.name, sku: p.sku, barcode: p.barcode,
+      name: p.name, sku: p.sku, product_code: p.product_code || '', barcode: p.barcode,
       barcode_format: 'ean8',
       extra_barcodes: Array.isArray(p.extra_barcodes) ? p.extra_barcodes : [],
       brand: p.brand || '',
@@ -520,6 +522,7 @@ export default function Products() {
       const payload = {
         name:             form.name.trim(),
         sku:              form.sku?.trim() || genSku(),
+        product_code:     form.product_code?.trim() || null,
         barcode:          form.barcode.trim(),
         extra_barcodes:   (form.extra_barcodes || []).filter(b => b.trim()),
         brand:            form.brand?.trim() || null,
@@ -703,6 +706,7 @@ export default function Products() {
     { key: 'Nomi',           label: 'Mahsulot nomi *' },
     { key: 'Barkod',         label: 'Barkod (Shtrix kod)' },
     { key: 'SKU',            label: 'Artikul (SKU)' },
+    { key: 'Kod',            label: 'Maxsus kod' },
     { key: "O'lchov",        label: "O'lchov birligi" },
     { key: 'Tan narxi',      label: 'Tan narxi' },
     { key: 'Chakana narxi',  label: 'Chakana narxi' },
@@ -796,7 +800,7 @@ export default function Products() {
 
   const downloadTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([{
-      'Nomi': 'Coca-Cola 0.5L', 'Barkod': '12345678', 'SKU': '',
+      'Nomi': 'Coca-Cola 0.5L', 'SKU': '', 'Kod': 'CL-001', 'Barkod': '12345678',
       "O'lchov": 'dona', 'Tan narxi': 5000, 'Chakana narxi': 8000,
       'Ulgurji narxi': 7000, 'Qoldiq': 100, 'Min. qoldiq': 10, 'Holat': 'Faol'
     }]);
@@ -958,6 +962,8 @@ export default function Products() {
         const [primary, ...extras] = row.barcodes.filter(b => b.trim());
         await api.post('/products', {
           name:            row.name.trim(),
+          sku:             row.sku?.trim() || undefined,
+          product_code:    row.product_code?.trim() || null,
           barcode:         primary || genBarcodeByFormat('ean8'),
           extra_barcodes:  extras,
           cost_price:      Number(row.cost_price) || 0,
@@ -1625,11 +1631,15 @@ export default function Products() {
                   />
                 </Field>
 
-                {/* Barcode + SKU */}
-                <div className="grid grid-cols-2 gap-4">
+                {/* Barcode + SKU + Kod */}
+                <div className="grid grid-cols-3 gap-4">
                   <Field label={t('product.skuLabel')} hint={t('product.skuHint')}>
                     <input className={inputCls} value={form.sku}
                       onChange={e => setForm({ ...form, sku: e.target.value })} placeholder={t('product.skuPlaceholder')} />
+                  </Field>
+                  <Field label="Maxsus kod" hint="O'zingizning maxsus kodingiz">
+                    <input className={inputCls} value={form.product_code}
+                      onChange={e => setForm({ ...form, product_code: e.target.value })} placeholder="Ixtiyoriy" />
                   </Field>
                   <Field label="Birlamchi shtrix kod" required>
                     <div className="flex gap-2">
@@ -2162,13 +2172,14 @@ export default function Products() {
             <div className="min-w-[1100px]">
               {/* Column headers */}
               <div className="grid gap-3 mb-3 text-sm font-extrabold text-slate-600 uppercase tracking-wide px-3"
-                style={{ gridTemplateColumns: '40px 1fr 130px 120px 120px 1fr 90px 170px 90px 40px' }}>
+                style={{ gridTemplateColumns: '40px 1fr 110px 110px 110px 110px 1fr 80px 160px 80px 40px' }}>
                 <span>#</span>
                 <span>Mahsulot nomi *</span>
+                <span className="text-indigo-600">Kod</span>
                 <span>Chakana *</span>
                 <span>Ulgurji</span>
                 <span>Tan narxi</span>
-                <span>Shtrix kodlar (birlamchi + qo'shimcha)</span>
+                <span>Shtrix kodlar</span>
                 <span>O'lchov</span>
                 <span>Kategoriya</span>
                 <span>Qoldiq</span>
@@ -2180,7 +2191,7 @@ export default function Products() {
                 {bulkRows.map((row, rowIdx) => (
                   <div key={row._key} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
                     <div className="grid gap-3 items-start"
-                      style={{ gridTemplateColumns: '40px 1fr 130px 120px 120px 1fr 90px 170px 90px 40px' }}>
+                      style={{ gridTemplateColumns: '40px 1fr 110px 110px 110px 110px 1fr 80px 160px 80px 40px' }}>
                       {/* # */}
                       <div className="flex items-center justify-center h-11 text-base font-bold text-slate-400">{rowIdx + 1}</div>
 
@@ -2190,6 +2201,15 @@ export default function Products() {
                         value={row.name}
                         onChange={e => updateBulkRow(row._key, 'name', e.target.value)}
                         placeholder="Mahsulot nomi..."
+                      />
+
+                      {/* Kod */}
+                      <input
+                        className="h-11 px-3 border border-indigo-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full bg-indigo-50/40 placeholder-slate-400"
+                        value={row.product_code}
+                        onChange={e => updateBulkRow(row._key, 'product_code', e.target.value)}
+                        placeholder="Ixtiyoriy kod"
+                        title="Maxsus kod — o'zingiz xohlagan kodni kiritishingiz mumkin"
                       />
 
                       {/* Sale price (Chakana) — birinchi */}

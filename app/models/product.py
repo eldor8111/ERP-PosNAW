@@ -19,6 +19,7 @@ class Product(Base):
     id = Column(Integer, primary_key=True, index=True)
     sku = Column(String(50), nullable=False, index=True)
     barcode = Column(String(50), nullable=False, index=True)
+    product_code = Column(String(100), nullable=True, index=True)
     name = Column(String(200), nullable=False)
     name_ru = Column(String(200), nullable=True)
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
