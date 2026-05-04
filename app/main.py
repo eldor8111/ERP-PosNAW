@@ -26,9 +26,11 @@ from app.models import bot_session  # noqa: F401 — ensure bot_sessions table e
 from app.services.scheduler import start_scheduler
 
 def _run_auto_migrations(engine):
-    """DB da mavjud bo'lmagan ustunlarni avtomatik qo'shadi."""
+    """DB da mavjud bo'lmagan ustunlarni avtomatik qo'shadi. Har biri alohida tranzaksiya."""
     migrations = [
         "ALTER TABLE products ADD COLUMN IF NOT EXISTS extra_barcodes TEXT;",
+        "ALTER TABLE products ADD COLUMN IF NOT EXISTS product_code VARCHAR(100);",
+        "CREATE INDEX IF NOT EXISTS ix_products_product_code ON products (product_code);",
         "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(14,2) DEFAULT 0;",
         "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(14,2) DEFAULT 0;",
         "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS payment_type VARCHAR(50);",
@@ -54,13 +56,14 @@ def _run_auto_migrations(engine):
             UNIQUE(wallet_id, payment_type)
         );""",
     ]
-    try:
-        with engine.connect() as conn:
-            for sql in migrations:
-                conn.execute(__import__('sqlalchemy').text(sql))
-            conn.commit()
-    except Exception as e:
-        print(f"[AUTO-MIGRATION] Xatolik: {e}")
+    _sa_text = __import__('sqlalchemy').text
+    for sql in migrations:
+        try:
+            with engine.connect() as conn:
+                conn.execute(_sa_text(sql))
+                conn.commit()
+        except Exception as e:
+            print(f"[AUTO-MIGRATION] skip: {e}")
 
 
 @asynccontextmanager
