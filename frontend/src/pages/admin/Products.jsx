@@ -1129,16 +1129,16 @@ export default function Products() {
                   const ctrCell = { alignment: { horizontal: 'center' } };
 
                   // Row 1 — group headers
-                  // Columns: A=№, B=Nomi, C=Qoldiq, D=Jami, E-G=Chakana, H-J=Ulgurji, K-M=Tan narxi, N=Birlik, O=Kategoriya, P=Barkod, Q=Qo'shimcha barkodlar, R=Artikul, S=Brand, T=Min.qoldiq, U=Holat, V=ID
+                  // Columns: A=№, B=Nomi, C=Qoldiq, D=Jami, E-G=Chakana, H-J=Ulgurji, K-M=Tan narxi, N=Birlik, O=Kategoriya, P=Barcha barkodlar, Q=Artikul, R=Brand, S=Min.qoldiq, T=Holat, U=ID
                   cell('A1', '№', hdr1); cell('B1', 'Mahsulot nomi', hdr1);
                   cell('C1', 'Qoldiq (sklad)', hdr1); cell('D1', 'Jami qoldiq', hdr1);
                   cell('E1', 'Chakana narxi', hdr1); cell('F1', '', hdr1); cell('G1', '', hdr1);
                   cell('H1', 'Ulgurji narxi', hdr1); cell('I1', '', hdr1); cell('J1', '', hdr1);
                   cell('K1', 'Tan narxi', hdr1); cell('L1', '', hdr1); cell('M1', '', hdr1);
                   cell('N1', 'Birligi', hdr1); cell('O1', 'Kategoriya', hdr1);
-                  cell('P1', 'Barkod', hdr1); cell('Q1', "Qo'shimcha barkodlar", hdr1);
-                  cell('R1', 'Artikul', hdr1); cell('S1', 'Brand', hdr1);
-                  cell('T1', 'Min. qoldiq', hdr1); cell('U1', 'Holat', hdr1); cell('V1', 'ID', hdr1);
+                  cell('P1', 'Barcha barkodlar', hdr1);
+                  cell('Q1', 'Artikul', hdr1); cell('R1', 'Brand', hdr1);
+                  cell('S1', 'Min. qoldiq', hdr1); cell('T1', 'Holat', hdr1); cell('U1', 'ID', hdr1);
 
                   // Row 2 — sub-headers
                   cell('A2', '№', hdr2); cell('B2', 'Nomi', hdr2);
@@ -1147,9 +1147,9 @@ export default function Products() {
                   cell('H2', 'Narx', hdr2); cell('I2', 'Valyuta', hdr2); cell('J2', 'Summa', hdr2);
                   cell('K2', 'Narx', hdr2); cell('L2', 'Valyuta', hdr2); cell('M2', 'Summa', hdr2);
                   cell('N2', 'Birlik', hdr2); cell('O2', 'Kategoriya', hdr2);
-                  cell('P2', 'Barkod', hdr2); cell('Q2', "Qo'shimcha", hdr2);
-                  cell('R2', 'SKU', hdr2); cell('S2', 'Brand', hdr2);
-                  cell('T2', 'Min.', hdr2); cell('U2', 'Holat', hdr2); cell('V2', 'ID', hdr2);
+                  cell('P2', 'Barkodlar', hdr2);
+                  cell('Q2', 'SKU', hdr2); cell('R2', 'Brand', hdr2);
+                  cell('S2', 'Min.', hdr2); cell('T2', 'Holat', hdr2); cell('U2', 'ID', hdr2);
 
                   // Merges for row 1 group headers
                   ws['!merges'] = [
@@ -1159,7 +1159,7 @@ export default function Products() {
                   ];
 
                   // Data rows starting at row 3
-                  const cols = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V'];
+                  const cols = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U'];
                   allProducts.forEach((p, i) => {
                     const r = i + 3;
                     const qty = Number(p.stock_quantity || 0);
@@ -1168,12 +1168,10 @@ export default function Products() {
                     const costP = Number(p.cost_price || 0);
                     const status = p.status === 'active' ? 'Faol' : p.status === 'inactive' ? 'Nofaol' : 'Arxiv';
                     const rowBg = i % 2 === 0 ? { fill: { fgColor: { rgb: 'FAFBFF' } } } : {};
-                    // extra_barcodes: may be array or JSON string
-                    let extraBarcodes = '';
-                    if (p.extra_barcodes) {
-                      const eb = Array.isArray(p.extra_barcodes) ? p.extra_barcodes : (typeof p.extra_barcodes === 'string' ? (() => { try { return JSON.parse(p.extra_barcodes); } catch { return p.extra_barcodes.split(','); } })() : []);
-                      extraBarcodes = eb.filter(Boolean).join(', ');
-                    }
+                    // Combine primary + extra barcodes into one cell
+                    const ebRaw = p.extra_barcodes;
+                    const ebArr = Array.isArray(ebRaw) ? ebRaw : (typeof ebRaw === 'string' && ebRaw ? (() => { try { return JSON.parse(ebRaw); } catch { return ebRaw.split(','); } })() : []);
+                    const allBarcodes = [p.barcode, ...ebArr].filter(Boolean).join(', ');
                     const vals = [
                       i + 1, p.name,
                       qty, qty,
@@ -1181,18 +1179,18 @@ export default function Products() {
                       whoP, "UZS", whoP * qty,
                       costP, "UZS", costP * qty,
                       p.unit, catName(p.category_id),
-                      p.barcode || '', extraBarcodes,
+                      allBarcodes,
                       p.sku || '', p.brand || '—',
                       Number(p.min_stock || 0), status, p.id,
                     ];
                     vals.forEach((v, j) => {
                       const isNum = typeof v === 'number';
-                      ws[`${cols[j]}${r}`] = { v, t: isNum ? 'n' : 's', s: { ...rowBg, ...(isNum ? numCell : j === 0 || j === 21 ? ctrCell : {}) } };
+                      ws[`${cols[j]}${r}`] = { v, t: isNum ? 'n' : 's', s: { ...rowBg, ...(isNum ? numCell : j === 0 || j === 20 ? ctrCell : {}) } };
                     });
                   });
 
                   // Set sheet range
-                  ws['!ref'] = `A1:V${allProducts.length + 2}`;
+                  ws['!ref'] = `A1:U${allProducts.length + 2}`;
 
                   // Column widths
                   ws['!cols'] = [
@@ -1200,7 +1198,7 @@ export default function Products() {
                     {wch:10},{wch:7},{wch:12},
                     {wch:10},{wch:7},{wch:12},
                     {wch:10},{wch:7},{wch:12},
-                    {wch:7},{wch:14},{wch:16},{wch:20},{wch:12},{wch:12},{wch:8},{wch:8},{wch:5}
+                    {wch:7},{wch:14},{wch:36},{wch:12},{wch:12},{wch:8},{wch:8},{wch:5}
                   ];
                   // Freeze top 2 rows
                   ws['!freeze'] = { xSplit: 2, ySplit: 2, topLeftCell: 'C3', activeCell: 'C3', sqref: 'C3' };
@@ -1715,7 +1713,7 @@ export default function Products() {
                     <span className="text-sm font-semibold text-slate-600">Qo'shimcha shtrix kodlar</span>
                     <button
                       type="button"
-                      onClick={() => setForm(f => ({ ...f, extra_barcodes: [...(f.extra_barcodes || []), genBarcodeByFormat(f.barcode_format)] }))}
+                      onClick={() => setForm(f => ({ ...f, extra_barcodes: [...(f.extra_barcodes || []), ''] }))}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-semibold rounded-lg transition-colors"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1731,14 +1729,33 @@ export default function Products() {
                       <div key={idx} className="flex gap-2 items-center">
                         <span className="text-xs text-slate-400 font-mono w-5 shrink-0">{idx + 2}.</span>
                         <input
+                          id={`extra-bc-${idx}`}
                           className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
                           value={bc}
+                          autoFocus={idx === (form.extra_barcodes || []).length - 1 && bc === ''}
                           onChange={e => {
                             const updated = [...(form.extra_barcodes || [])];
                             updated[idx] = e.target.value;
                             setForm(f => ({ ...f, extra_barcodes: updated }));
                           }}
-                          placeholder="Shtrix kod..."
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              // Scanner Enter — add new empty row and focus it
+                              if (bc.trim()) {
+                                setForm(f => {
+                                  const next = [...(f.extra_barcodes || [])];
+                                  if (idx === next.length - 1) next.push('');
+                                  return { ...f, extra_barcodes: next };
+                                });
+                                setTimeout(() => {
+                                  document.getElementById(`extra-bc-${idx + 1}`)?.focus();
+                                }, 30);
+                              }
+                            }
+                          }}
+                          placeholder="Shtrix kod skanerlang..."
                         />
                         <button
                           type="button"
@@ -1747,20 +1764,6 @@ export default function Products() {
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const updated = [...(form.extra_barcodes || [])];
-                            updated[idx] = genBarcodeByFormat(form.barcode_format);
-                            setForm(f => ({ ...f, extra_barcodes: updated }));
-                          }}
-                          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors shrink-0"
-                          title="Yangi barcode"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                           </svg>
                         </button>
                       </div>
