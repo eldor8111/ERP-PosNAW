@@ -94,21 +94,36 @@ const emptyBulkRow = () => ({
 
 /* ─── RowMenu (3 dots) ─────────────────────────────────── */
 function RowMenu({ onEdit, onDelete, onPrint }) {
-  const { t } = useLang();
   const [open, setOpen] = useState(false);
-  const ref = useRef(null);
+  const [pos, setPos] = useState({ top: 0, right: 0 });
+  const btnRef = useRef(null);
+  const menuRef = useRef(null);
+
+  const openMenu = () => {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      const menuH = 148; // approx height of 3 items
+      const top = r.bottom + 4 + menuH > window.innerHeight ? r.top - menuH - 4 : r.bottom + 4;
+      setPos({ top, right: window.innerWidth - r.right });
+    }
+    setOpen(o => !o);
+  };
 
   useEffect(() => {
     if (!open) return;
-    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const close = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target) && btnRef.current && !btnRef.current.contains(e.target))
+        setOpen(false);
+    };
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, [open]);
 
   return (
-    <div ref={ref} className="relative">
+    <div className="relative">
       <button
-        onClick={() => setOpen(o => !o)}
+        ref={btnRef}
+        onClick={openMenu}
         className="w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
         title="Ko'proq">
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -116,7 +131,11 @@ function RowMenu({ onEdit, onDelete, onPrint }) {
         </svg>
       </button>
       {open && (
-        <div className="absolute right-0 top-[calc(100%+4px)] bg-white border border-slate-200 rounded-xl shadow-xl z-[999] py-1.5 min-w-[190px]">
+        <div
+          ref={menuRef}
+          style={{ position: 'fixed', top: pos.top, right: pos.right, zIndex: 9999 }}
+          className="bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 min-w-[190px]"
+        >
           <button onClick={() => { onEdit(); setOpen(false); }}
             className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
             <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
