@@ -200,6 +200,7 @@ def list_products_for_pos(
             "extra_barcodes": json.loads(p.extra_barcodes) if p.extra_barcodes else [],
             "sku": p.sku,
             "product_code": p.product_code,
+            "extra_product_codes": json.loads(p.extra_product_codes) if p.extra_product_codes else [],
             "sale_price": float(p.sale_price),
             "wholesale_price": float(p.wholesale_price) if p.wholesale_price else None,
             "cost_price": float(p.cost_price),
@@ -428,6 +429,13 @@ def create_product(
     else:
         product_data["extra_barcodes"] = None
 
+    # Serialize extra_product_codes list → JSON string
+    extra_pc = product_data.get("extra_product_codes")
+    if extra_pc is not None:
+        product_data["extra_product_codes"] = json.dumps([c.strip() for c in extra_pc if c.strip()])
+    else:
+        product_data["extra_product_codes"] = None
+
     # Auto-generate SKU if not provided
     if not product_data.get("sku"):
         product_data["sku"] = _generate_sku(db)
@@ -506,6 +514,11 @@ def update_product(
     if "extra_barcodes" in update_data:
         ebc = update_data["extra_barcodes"]
         update_data["extra_barcodes"] = json.dumps([b.strip() for b in ebc if b.strip()]) if ebc else None
+
+    # Serialize extra_product_codes list → JSON string
+    if "extra_product_codes" in update_data:
+        epc = update_data["extra_product_codes"]
+        update_data["extra_product_codes"] = json.dumps([c.strip() for c in epc if c.strip()]) if epc else None
 
     for field, value in update_data.items():
         setattr(product, field, value)

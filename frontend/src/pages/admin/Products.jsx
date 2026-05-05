@@ -56,7 +56,7 @@ const movTypeMeta = {
 };
 
 const emptyProduct = {
-  name: '', sku: '', product_code: '', barcode: '',
+  name: '', sku: '', product_code: '', extra_product_codes: [], barcode: '',
   barcode_format: 'ean8',
   extra_barcodes: [],
   brand: '',
@@ -79,6 +79,7 @@ const emptyBulkRow = () => ({
   name: '',
   sku: '',
   product_code: '',
+  extra_product_codes: [],
   cost_price: '',
   wholesale_price: '',
   sale_price: '',
@@ -466,7 +467,9 @@ export default function Products() {
   const openEdit = (p) => {
     setSelected(p);
     setForm({
-      name: p.name, sku: p.sku, product_code: p.product_code || '', barcode: p.barcode,
+      name: p.name, sku: p.sku, product_code: p.product_code || '',
+      extra_product_codes: Array.isArray(p.extra_product_codes) ? p.extra_product_codes : [],
+      barcode: p.barcode,
       barcode_format: 'ean8',
       extra_barcodes: Array.isArray(p.extra_barcodes) ? p.extra_barcodes : [],
       brand: p.brand || '',
@@ -553,9 +556,10 @@ export default function Products() {
       const payload = {
         name:             form.name.trim(),
         sku:              form.sku?.trim() || genSku(),
-        product_code:     form.product_code?.trim() || null,
-        barcode:          form.barcode.trim(),
-        extra_barcodes:   (form.extra_barcodes || []).filter(b => b.trim()),
+        product_code:        form.product_code?.trim() || null,
+        extra_product_codes: (form.extra_product_codes || []).filter(c => c.trim()),
+        barcode:             form.barcode.trim(),
+        extra_barcodes:      (form.extra_barcodes || []).filter(b => b.trim()),
         brand:            form.brand?.trim() || null,
         category_id:      form.category_id ? Number(form.category_id) : null,
         unit:             form.unit,
@@ -992,11 +996,12 @@ export default function Products() {
       try {
         const [primary, ...extras] = row.barcodes.filter(b => b.trim());
         await api.post('/products', {
-          name:            row.name.trim(),
-          sku:             row.sku?.trim() || undefined,
-          product_code:    row.product_code?.trim() || null,
-          barcode:         primary || genBarcodeByFormat('ean8'),
-          extra_barcodes:  extras,
+          name:                row.name.trim(),
+          sku:                 row.sku?.trim() || undefined,
+          product_code:        (row.extra_product_codes || []).filter(c => c.trim())[0] || null,
+          extra_product_codes: (row.extra_product_codes || []).filter(c => c.trim()).slice(1),
+          barcode:             primary || genBarcodeByFormat('ean8'),
+          extra_barcodes:      extras,
           cost_price:      Number(row.cost_price) || 0,
           wholesale_price: row.wholesale_price !== '' ? Number(row.wholesale_price) : null,
           sale_price:      Number(row.sale_price) || 0,
@@ -1689,7 +1694,7 @@ export default function Products() {
                     <input className={inputCls} value={form.sku}
                       onChange={e => setForm({ ...form, sku: e.target.value })} placeholder={t('product.skuPlaceholder')} />
                   </Field>
-                  <Field label="Maxsus kod" hint="O'zingizning maxsus kodingiz">
+                  <Field label="Birlamchi maxsus kod" hint="O'zingizning maxsus kodingiz">
                     <input className={inputCls} value={form.product_code}
                       onChange={e => setForm({ ...form, product_code: e.target.value })} placeholder="Ixtiyoriy" />
                   </Field>
@@ -1772,6 +1777,67 @@ export default function Products() {
                         <button
                           type="button"
                           onClick={() => setForm(f => ({ ...f, extra_barcodes: f.extra_barcodes.filter((_, i) => i !== idx) }))}
+                          className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Extra product codes */}
+                <div className="border border-indigo-100 rounded-xl p-4 space-y-2 bg-indigo-50/30">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-semibold text-slate-600">Qo'shimcha maxsus kodlar</span>
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, extra_product_codes: [...(f.extra_product_codes || []), ''] }))}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-semibold rounded-lg transition-colors border border-indigo-200"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      Kod qo'shish
+                    </button>
+                  </div>
+                  {(form.extra_product_codes || []).length === 0 ? (
+                    <p className="text-xs text-slate-400 py-1">Hozircha qo'shimcha kod yo'q</p>
+                  ) : (
+                    (form.extra_product_codes || []).map((pc, idx) => (
+                      <div key={idx} className="flex gap-2 items-center">
+                        <span className="text-xs text-slate-400 font-mono w-5 shrink-0">{idx + 1}.</span>
+                        <input
+                          id={`extra-pc-${idx}`}
+                          className="flex-1 px-3 py-2 border border-indigo-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                          value={pc}
+                          autoFocus={idx === (form.extra_product_codes || []).length - 1 && pc === ''}
+                          onChange={e => {
+                            const updated = [...(form.extra_product_codes || [])];
+                            updated[idx] = e.target.value;
+                            setForm(f => ({ ...f, extra_product_codes: updated }));
+                          }}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (pc.trim()) {
+                                setForm(f => {
+                                  const next = [...(f.extra_product_codes || [])];
+                                  if (idx === next.length - 1) next.push('');
+                                  return { ...f, extra_product_codes: next };
+                                });
+                                setTimeout(() => document.getElementById(`extra-pc-${idx + 1}`)?.focus(), 30);
+                              }
+                            }
+                          }}
+                          placeholder="Maxsus kod kiriting..."
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setForm(f => ({ ...f, extra_product_codes: f.extra_product_codes.filter((_, i) => i !== idx) }))}
                           className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2260,14 +2326,59 @@ export default function Products() {
                         placeholder="Mahsulot nomi..."
                       />
 
-                      {/* Kod */}
-                      <input
-                        className="h-11 px-3 border border-indigo-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full bg-indigo-50/40 placeholder-slate-400"
-                        value={row.product_code}
-                        onChange={e => updateBulkRow(row._key, 'product_code', e.target.value)}
-                        placeholder="Ixtiyoriy kod"
-                        title="Maxsus kod — o'zingiz xohlagan kodni kiritishingiz mumkin"
-                      />
+                      {/* Kod (multiple) */}
+                      <div className="space-y-1.5">
+                        {(row.extra_product_codes || ['']).map((pc, pcIdx) => (
+                          <div key={pcIdx} className="flex gap-1 items-center">
+                            <input
+                              id={`bulk-pc-${row._key}-${pcIdx}`}
+                              className="flex-1 h-9 px-2 border border-indigo-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-indigo-50/40 placeholder-slate-400 min-w-0"
+                              value={pc}
+                              onChange={e => {
+                                const updated = [...(row.extra_product_codes || [''])];
+                                updated[pcIdx] = e.target.value;
+                                updateBulkRow(row._key, 'extra_product_codes', updated);
+                              }}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (pc.trim()) {
+                                    const updated = [...(row.extra_product_codes || [''])];
+                                    if (pcIdx === updated.length - 1) updated.push('');
+                                    updateBulkRow(row._key, 'extra_product_codes', updated);
+                                    setTimeout(() => document.getElementById(`bulk-pc-${row._key}-${pcIdx + 1}`)?.focus(), 30);
+                                  }
+                                }
+                              }}
+                              placeholder={pcIdx === 0 ? 'Kod...' : 'Qo\'shimcha...'}
+                            />
+                            {pcIdx > 0 && (
+                              <button type="button"
+                                onClick={() => {
+                                  const updated = (row.extra_product_codes || ['']).filter((_, i) => i !== pcIdx);
+                                  updateBulkRow(row._key, 'extra_product_codes', updated.length ? updated : ['']);
+                                }}
+                                className="p-1 text-slate-300 hover:text-red-400 shrink-0">
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                        <button type="button"
+                          onClick={() => {
+                            const updated = [...(row.extra_product_codes || ['']), ''];
+                            updateBulkRow(row._key, 'extra_product_codes', updated);
+                          }}
+                          className="text-[11px] text-indigo-400 hover:text-indigo-600 font-medium flex items-center gap-0.5 transition-colors">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          Kod qo'shish
+                        </button>
+                      </div>
 
                       {/* Sale price (Chakana) — birinchi */}
                       <input

@@ -39,6 +39,8 @@ class Product(Base):
     brand = Column(String(200), nullable=True)
     # Qo'shimcha shtrix kodlar — JSON array of barcode strings
     extra_barcodes = Column(Text, nullable=True)
+    # Qo'shimcha maxsus kodlar — JSON array of product_code strings
+    extra_product_codes = Column(Text, nullable=True)
     # TZ: Vazn va o'lchamlar
     weight = Column(Numeric(10, 3), nullable=True)       # kg
     dimensions = Column(String(100), nullable=True)      # MxBxH sm

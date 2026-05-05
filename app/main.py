@@ -30,6 +30,7 @@ def _run_auto_migrations(engine):
     migrations = [
         "ALTER TABLE products ADD COLUMN IF NOT EXISTS extra_barcodes TEXT;",
         "ALTER TABLE products ADD COLUMN IF NOT EXISTS product_code VARCHAR(100);",
+        "ALTER TABLE products ADD COLUMN IF NOT EXISTS extra_product_codes TEXT;",
         "CREATE INDEX IF NOT EXISTS ix_products_product_code ON products (product_code);",
         "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(14,2) DEFAULT 0;",
         "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(14,2) DEFAULT 0;",

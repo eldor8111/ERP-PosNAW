@@ -19,6 +19,7 @@ class WarehouseStockOut(BaseModel):
 class ProductCreate(BaseModel):
     name: str
     product_code: Optional[str] = None
+    extra_product_codes: Optional[List[str]] = None
     sku: Optional[str] = None
     barcode: str
     extra_barcodes: Optional[List[str]] = None
@@ -51,6 +52,7 @@ class ProductUpdate(BaseModel):
     name: Optional[str] = None
     name_ru: Optional[str] = None
     product_code: Optional[str] = None
+    extra_product_codes: Optional[List[str]] = None
     sku: Optional[str] = None
     barcode: Optional[str] = None
     extra_barcodes: Optional[List[str]] = None
@@ -77,6 +79,7 @@ class ProductStatusUpdate(BaseModel):
 class ProductOut(BaseModel):
     id: int
     product_code: Optional[str] = None
+    extra_product_codes: Optional[List[str]] = None
     sku: str
     barcode: str
     extra_barcodes: Optional[List[str]] = None
@@ -121,10 +124,21 @@ class ProductOut(BaseModel):
                 return []
         return v
 
+    @field_validator("extra_product_codes", mode="before")
+    @classmethod
+    def parse_extra_product_codes(cls, v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except Exception:
+                return []
+        return v
+
 
 class ProductListOut(BaseModel):
     id: int
     product_code: Optional[str] = None
+    extra_product_codes: Optional[List[str]] = None
     sku: str
     barcode: str
     extra_barcodes: Optional[List[str]] = None
@@ -156,6 +170,16 @@ class ProductListOut(BaseModel):
     @field_validator("extra_barcodes", mode="before")
     @classmethod
     def parse_extra_barcodes(cls, v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except Exception:
+                return []
+        return v
+
+    @field_validator("extra_product_codes", mode="before")
+    @classmethod
+    def parse_extra_product_codes(cls, v):
         if isinstance(v, str):
             try:
                 return json.loads(v)
