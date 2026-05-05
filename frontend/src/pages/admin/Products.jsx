@@ -1078,7 +1078,24 @@ export default function Products() {
                 {t('product.import')}
               </button>
               <button
-                onClick={() => {
+                onClick={async () => {
+                  // Fetch ALL products (ignore pagination) with current filters
+                  let allProducts = [];
+                  try {
+                    const params = new URLSearchParams();
+                    if (search)          params.append('search', search);
+                    if (filterCat)       params.append('category_id', filterCat);
+                    if (filterStatus)    params.append('status', filterStatus);
+                    if (filterWarehouse) params.append('warehouse_id', filterWarehouse);
+                    params.append('limit', '9999');
+                    params.append('skip', '0');
+                    const res = await api.get('/products/paginated?' + params.toString());
+                    allProducts = res.data.items || [];
+                  } catch (e) {
+                    toast.error('Mahsulotlarni yuklashda xatolik');
+                    return;
+                  }
+
                   // ── Professional multi‑header Excel export ──────────────
                   const wb = XLSX.utils.book_new();
                   const ws = {};
@@ -1092,17 +1109,17 @@ export default function Products() {
                   const numCell = { alignment: { horizontal: 'right' } };
                   const ctrCell = { alignment: { horizontal: 'center' } };
 
-                  // Row 1 — group headers (some span 3 cols, some span 1)
-                  // Columns: A=№, B=Товар нomi, C=Qoldiq склад, D=Jami, E-G=Chakana(Narx/Val/Sum), H-J=Ulgurji(Narx/Val/Sum), K-M=Tan narxi(Narx/Val/Sum), N=Birligi, O=Kategoriya, P=Barkod, Q=Artikul, R=Brand, S=Min. qoldiq, T=Holat, U=ID
+                  // Row 1 — group headers
+                  // Columns: A=№, B=Nomi, C=Qoldiq, D=Jami, E-G=Chakana, H-J=Ulgurji, K-M=Tan narxi, N=Birlik, O=Kategoriya, P=Barkod, Q=Qo'shimcha barkodlar, R=Artikul, S=Brand, T=Min.qoldiq, U=Holat, V=ID
                   cell('A1', '№', hdr1); cell('B1', 'Mahsulot nomi', hdr1);
                   cell('C1', 'Qoldiq (sklad)', hdr1); cell('D1', 'Jami qoldiq', hdr1);
                   cell('E1', 'Chakana narxi', hdr1); cell('F1', '', hdr1); cell('G1', '', hdr1);
                   cell('H1', 'Ulgurji narxi', hdr1); cell('I1', '', hdr1); cell('J1', '', hdr1);
                   cell('K1', 'Tan narxi', hdr1); cell('L1', '', hdr1); cell('M1', '', hdr1);
                   cell('N1', 'Birligi', hdr1); cell('O1', 'Kategoriya', hdr1);
-                  cell('P1', 'Barkod', hdr1); cell('Q1', 'Artikul', hdr1);
-                  cell('R1', 'Brand', hdr1); cell('S1', 'Min. qoldiq', hdr1);
-                  cell('T1', 'Holat', hdr1); cell('U1', 'ID', hdr1);
+                  cell('P1', 'Barkod', hdr1); cell('Q1', "Qo'shimcha barkodlar", hdr1);
+                  cell('R1', 'Artikul', hdr1); cell('S1', 'Brand', hdr1);
+                  cell('T1', 'Min. qoldiq', hdr1); cell('U1', 'Holat', hdr1); cell('V1', 'ID', hdr1);
 
                   // Row 2 — sub-headers
                   cell('A2', '№', hdr2); cell('B2', 'Nomi', hdr2);
@@ -1111,11 +1128,11 @@ export default function Products() {
                   cell('H2', 'Narx', hdr2); cell('I2', 'Valyuta', hdr2); cell('J2', 'Summa', hdr2);
                   cell('K2', 'Narx', hdr2); cell('L2', 'Valyuta', hdr2); cell('M2', 'Summa', hdr2);
                   cell('N2', 'Birlik', hdr2); cell('O2', 'Kategoriya', hdr2);
-                  cell('P2', 'Barkod', hdr2); cell('Q2', 'SKU', hdr2);
-                  cell('R2', 'Brand', hdr2); cell('S2', 'Min.', hdr2);
-                  cell('T2', 'Holat', hdr2); cell('U2', 'ID', hdr2);
+                  cell('P2', 'Barkod', hdr2); cell('Q2', "Qo'shimcha", hdr2);
+                  cell('R2', 'SKU', hdr2); cell('S2', 'Brand', hdr2);
+                  cell('T2', 'Min.', hdr2); cell('U2', 'Holat', hdr2); cell('V2', 'ID', hdr2);
 
-                  // Merges for row 1 group headers (E-G, H-J, K-M span 3 columns)
+                  // Merges for row 1 group headers
                   ws['!merges'] = [
                     { s: { r: 0, c: 4 }, e: { r: 0, c: 6 } },   // E1:G1 Chakana
                     { s: { r: 0, c: 7 }, e: { r: 0, c: 9 } },   // H1:J1 Ulgurji
@@ -1123,8 +1140,8 @@ export default function Products() {
                   ];
 
                   // Data rows starting at row 3
-                  const cols = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U'];
-                  products.forEach((p, i) => {
+                  const cols = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V'];
+                  allProducts.forEach((p, i) => {
                     const r = i + 3;
                     const qty = Number(p.stock_quantity || 0);
                     const saleP = Number(p.sale_price || 0);
@@ -1132,6 +1149,12 @@ export default function Products() {
                     const costP = Number(p.cost_price || 0);
                     const status = p.status === 'active' ? 'Faol' : p.status === 'inactive' ? 'Nofaol' : 'Arxiv';
                     const rowBg = i % 2 === 0 ? { fill: { fgColor: { rgb: 'FAFBFF' } } } : {};
+                    // extra_barcodes: may be array or JSON string
+                    let extraBarcodes = '';
+                    if (p.extra_barcodes) {
+                      const eb = Array.isArray(p.extra_barcodes) ? p.extra_barcodes : (typeof p.extra_barcodes === 'string' ? (() => { try { return JSON.parse(p.extra_barcodes); } catch { return p.extra_barcodes.split(','); } })() : []);
+                      extraBarcodes = eb.filter(Boolean).join(', ');
+                    }
                     const vals = [
                       i + 1, p.name,
                       qty, qty,
@@ -1139,18 +1162,18 @@ export default function Products() {
                       whoP, "UZS", whoP * qty,
                       costP, "UZS", costP * qty,
                       p.unit, catName(p.category_id),
-                      p.barcode, p.sku,
-                      p.brand || '—', Number(p.min_stock || 0),
-                      status, p.id,
+                      p.barcode || '', extraBarcodes,
+                      p.sku || '', p.brand || '—',
+                      Number(p.min_stock || 0), status, p.id,
                     ];
                     vals.forEach((v, j) => {
                       const isNum = typeof v === 'number';
-                      ws[`${cols[j]}${r}`] = { v, t: isNum ? 'n' : 's', s: { ...rowBg, ...(isNum ? numCell : j === 0 || j === 20 ? ctrCell : {}) } };
+                      ws[`${cols[j]}${r}`] = { v, t: isNum ? 'n' : 's', s: { ...rowBg, ...(isNum ? numCell : j === 0 || j === 21 ? ctrCell : {}) } };
                     });
                   });
 
                   // Set sheet range
-                  ws['!ref'] = `A1:U${products.length + 2}`;
+                  ws['!ref'] = `A1:V${allProducts.length + 2}`;
 
                   // Column widths
                   ws['!cols'] = [
@@ -1158,7 +1181,7 @@ export default function Products() {
                     {wch:10},{wch:7},{wch:12},
                     {wch:10},{wch:7},{wch:12},
                     {wch:10},{wch:7},{wch:12},
-                    {wch:7},{wch:14},{wch:14},{wch:12},{wch:12},{wch:8},{wch:8},{wch:5}
+                    {wch:7},{wch:14},{wch:16},{wch:20},{wch:12},{wch:12},{wch:8},{wch:8},{wch:5}
                   ];
                   // Freeze top 2 rows
                   ws['!freeze'] = { xSplit: 2, ySplit: 2, topLeftCell: 'C3', activeCell: 'C3', sqref: 'C3' };
