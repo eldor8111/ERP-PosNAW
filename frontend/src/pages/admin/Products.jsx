@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useLayoutEffect, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import api from '../../api/axios';
@@ -95,19 +95,31 @@ const emptyBulkRow = () => ({
 /* ─── RowMenu (3 dots) ─────────────────────────────────── */
 function RowMenu({ onEdit, onDelete, onPrint }) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState({ top: 0, right: 0 });
+  const [pos, setPos] = useState({ top: 0, right: 0, visible: false });
   const btnRef = useRef(null);
   const menuRef = useRef(null);
 
   const openMenu = () => {
     if (!open && btnRef.current) {
       const r = btnRef.current.getBoundingClientRect();
-      const menuH = 148; // approx height of 3 items
-      const top = r.bottom + 4 + menuH > window.innerHeight ? r.top - menuH - 4 : r.bottom + 4;
-      setPos({ top, right: window.innerWidth - r.right });
+      // Start below button, invisible — useLayoutEffect will flip if needed
+      setPos({ top: r.bottom + 4, right: window.innerWidth - r.right, visible: false });
     }
     setOpen(o => !o);
   };
+
+  // After menu renders, check if it overflows viewport and flip upward
+  useLayoutEffect(() => {
+    if (open && menuRef.current && btnRef.current) {
+      const menuRect = menuRef.current.getBoundingClientRect();
+      const btnRect = btnRef.current.getBoundingClientRect();
+      if (menuRect.bottom > window.innerHeight - 8) {
+        setPos({ top: btnRect.top - menuRect.height - 4, right: window.innerWidth - btnRect.right, visible: true });
+      } else {
+        setPos(p => ({ ...p, visible: true }));
+      }
+    }
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -133,7 +145,7 @@ function RowMenu({ onEdit, onDelete, onPrint }) {
       {open && (
         <div
           ref={menuRef}
-          style={{ position: 'fixed', top: pos.top, right: pos.right, zIndex: 9999 }}
+          style={{ position: 'fixed', top: pos.top, right: pos.right, zIndex: 9999, opacity: pos.visible ? 1 : 0, pointerEvents: pos.visible ? 'auto' : 'none' }}
           className="bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 min-w-[190px]"
         >
           <button onClick={() => { onEdit(); setOpen(false); }}
