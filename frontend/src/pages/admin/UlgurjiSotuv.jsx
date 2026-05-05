@@ -242,6 +242,8 @@ export default function UlgurjiSotuv() {
   const [formDiscType, setFormDiscType] = useState('pct');
   const [formDiscVal, setFormDiscVal] = useState('');
   const formQtyRef = useRef(null);
+  const formPriceRef = useRef(null);
+  const formDiscRef = useRef(null);
 
   // Mobile tab: 'form' | 'cart'
   const [mobileTab, setMobileTab] = useState('form');
@@ -711,67 +713,71 @@ export default function UlgurjiSotuv() {
                         </button>
                       </div>
 
-                      {/* Narx */}
-                      <div className="mb-2">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 block">Narx (so'm)</label>
-                        <div className="flex gap-1.5">
-                          <div className="flex-1 relative">
-                            <input type="number" value={formPrice}
-                              onChange={e => setFormPrice(e.target.value)}
-                              className="w-full border-2 border-white rounded-xl px-3 py-2.5 text-base font-black text-slate-800 focus:outline-none focus:border-indigo-500 pr-7 bg-white" />
-                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400">s</span>
+                      {/* Grid for Inputs */}
+                      <div className="grid grid-cols-2 gap-3 mb-1">
+                        
+                        {/* Miqdor */}
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 block">Miqdor ({formProduct.unit || 'dona'})</label>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => setFormQty(q => String(Math.max(0.1, (parseFloat(q) || 1) - 1)))}
+                              className="w-10 h-10 rounded-xl bg-white flex items-center justify-center font-black text-slate-600 text-xl active:bg-slate-100 border border-slate-200">−</button>
+                            <input ref={formQtyRef} type="number" value={formQty}
+                              onChange={e => setFormQty(e.target.value)}
+                              onFocus={e => e.target.select()}
+                              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); formPriceRef.current?.focus(); } }}
+                              className="flex-1 w-full border border-white rounded-xl py-2 text-center text-base font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
+                            <button onClick={() => setFormQty(q => String((parseFloat(q) || 1) + 1))}
+                              className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-black text-white text-xl active:bg-indigo-700">+</button>
                           </div>
-                          {formProduct.wholesale_price > 0 && (
-                            <button onClick={() => setFormPrice(String(formProduct.wholesale_price))}
-                              className="shrink-0 px-2.5 py-2 rounded-xl bg-white border-2 border-indigo-200 text-indigo-600 text-xs font-bold hover:bg-indigo-50 transition-colors">
-                              U:{fmt(formProduct.wholesale_price)}
+                        </div>
+
+                        {/* Narx */}
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block">Narx</label>
+                            <div className="flex gap-1">
+                               {formProduct.wholesale_price > 0 && <button onClick={()=>setFormPrice(String(formProduct.wholesale_price))} className="text-[9px] font-bold px-1.5 py-0.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded transition-colors" title="Ulgurji narx">U</button>}
+                               {formProduct.sale_price > 0 && <button onClick={()=>setFormPrice(String(formProduct.sale_price))} className="text-[9px] font-bold px-1.5 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded transition-colors" title="Chakana narx">C</button>}
+                            </div>
+                          </div>
+                          <div className="relative">
+                            <input ref={formPriceRef} type="number" value={formPrice}
+                              onChange={e => setFormPrice(e.target.value)}
+                              onFocus={e => e.target.select()}
+                              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); formDiscRef.current?.focus(); } }}
+                              className="w-full border border-white rounded-xl px-3 py-2 text-base font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 pr-6 bg-white" />
+                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 uppercase">So'm</span>
+                          </div>
+                        </div>
+
+                        {/* Chegirma va Qo'shish */}
+                        <div className="col-span-2 flex gap-3 mt-1">
+                          <div className="flex-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 block">Chegirma</label>
+                            <div className="flex gap-1.5">
+                              <button onClick={() => setFormDiscType(t => t === 'pct' ? 'amt' : 'pct')}
+                                className="w-10 h-10 shrink-0 rounded-xl bg-white border border-amber-200 text-amber-600 font-black text-xs hover:bg-amber-50 active:bg-amber-100 transition-colors">
+                                {formDiscType === 'pct' ? '%' : "S"}
+                              </button>
+                              <input ref={formDiscRef} type="number" value={formDiscVal}
+                                onChange={e => setFormDiscVal(e.target.value)}
+                                onFocus={e => e.target.select()}
+                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addFormToCart(); } }}
+                                placeholder="0"
+                                className="w-full border border-white rounded-xl px-3 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white" />
+                            </div>
+                          </div>
+                          
+                          <div className="flex-[1.2] flex items-end">
+                            <button onClick={addFormToCart}
+                              className="w-full h-10 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black text-[13px] rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-indigo-200 transition-all">
+                              <Ic d="M12 4v16m8-8H4" cls="w-4 h-4" />
+                              <span className="hidden sm:inline">Savatga</span> qo'shish
                             </button>
-                          )}
-                          {formProduct.sale_price > 0 && (
-                            <button onClick={() => setFormPrice(String(formProduct.sale_price))}
-                              className="shrink-0 px-2.5 py-2 rounded-xl bg-white border-2 border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50 transition-colors">
-                              C:{fmt(formProduct.sale_price)}
-                            </button>
-                          )}
+                          </div>
                         </div>
                       </div>
-
-                      {/* Miqdor */}
-                      <div className="mb-2">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 block">Miqdor ({formProduct.unit || 'dona'})</label>
-                        <div className="flex items-center gap-1.5">
-                          <button onClick={() => setFormQty(q => String(Math.max(0.1, (parseFloat(q) || 1) - 1)))}
-                            className="w-11 h-11 rounded-xl bg-white flex items-center justify-center font-black text-slate-600 text-xl active:bg-slate-100 border-2 border-slate-200">−</button>
-                          <input ref={formQtyRef} type="number" value={formQty}
-                            onChange={e => setFormQty(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addFormToCart(); } }}
-                            className="flex-1 border-2 border-white rounded-xl py-2.5 text-center text-base font-black text-slate-800 focus:outline-none focus:border-indigo-500 bg-white" />
-                          <button onClick={() => setFormQty(q => String((parseFloat(q) || 1) + 1))}
-                            className="w-11 h-11 rounded-xl bg-indigo-600 flex items-center justify-center font-black text-white text-xl active:bg-indigo-700">+</button>
-                        </div>
-                      </div>
-
-                      {/* Chegirma */}
-                      <div className="mb-3">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 block">Chegirma</label>
-                        <div className="flex gap-1.5">
-                          <button onClick={() => setFormDiscType(t => t === 'pct' ? 'amt' : 'pct')}
-                            className="w-12 h-10 rounded-xl bg-white border-2 border-amber-200 text-amber-600 font-black text-xs active:bg-amber-50">
-                            {formDiscType === 'pct' ? '%' : "So'm"}
-                          </button>
-                          <input type="number" value={formDiscVal}
-                            onChange={e => setFormDiscVal(e.target.value)}
-                            placeholder="0"
-                            className="flex-1 border-2 border-white rounded-xl px-3 py-2 text-sm font-bold focus:outline-none focus:border-amber-400 bg-white" />
-                        </div>
-                      </div>
-
-                      {/* Add button */}
-                      <button onClick={addFormToCart}
-                        className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black text-base rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 transition-colors">
-                        <Ic d="M12 4v16m8-8H4" cls="w-5 h-5" />
-                        Savatga qo'shish
-                      </button>
                     </div>
                   ) : (
                     <div className="mt-3 flex flex-col items-center justify-center py-8 text-slate-300 gap-2">
