@@ -161,13 +161,19 @@ def list_products_for_pos(
     )
 
     if search:
-        q = q.filter(
-            (Product.name.ilike(f"%{search}%"))
-            | (Product.sku.ilike(f"%{search}%"))
-            | (Product.product_code.ilike(f"%{search}%"))
-            | (Product.barcode.ilike(f"%{search}%"))
-            | (Product.extra_barcodes.ilike(f"%{search}%"))
-        )
+        try:
+            q = q.filter(
+                (Product.name.ilike(f"%{search}%"))
+                | (Product.sku.ilike(f"%{search}%"))
+                | (Product.product_code.ilike(f"%{search}%"))
+                | (Product.barcode.ilike(f"%{search}%"))
+                | (Product.extra_barcodes.ilike(f"%{search}%"))
+            )
+        except Exception:
+            q = q.filter(
+                (Product.name.ilike(f"%{search}%"))
+                | (Product.barcode.ilike(f"%{search}%"))
+            )
 
     q = q.order_by(Product.name)
 
@@ -200,7 +206,7 @@ def list_products_for_pos(
             "extra_barcodes": json.loads(p.extra_barcodes) if p.extra_barcodes else [],
             "sku": p.sku,
             "product_code": p.product_code,
-            "extra_product_codes": json.loads(p.extra_product_codes) if p.extra_product_codes else [],
+            "extra_product_codes": [],
             "sale_price": float(p.sale_price),
             "wholesale_price": float(p.wholesale_price) if p.wholesale_price else None,
             "cost_price": float(p.cost_price),
