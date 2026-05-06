@@ -52,9 +52,9 @@ const ACCENT_CLS = {
 };
 
 const STATUS_META = {
-  completed: { l: 'Yakunlandi', c: 'bg-emerald-100 text-emerald-700' },
-  cancelled:  { l: 'Bekor',     c: 'bg-red-100 text-red-600' },
-  pending:    { l: 'Kutilmoqda',c: 'bg-amber-100 text-amber-700' },
+  completed: { l: 'Yakunlandi',              c: 'bg-emerald-100 text-emerald-700' },
+  cancelled:  { l: 'Bekor',                  c: 'bg-red-100 text-red-600' },
+  pending:    { l: 'Tasdiqlash kutulmoqda',  c: 'bg-amber-100 text-amber-700 ring-1 ring-amber-300' },
 };
 const PAY_META = {
   cash:'Naqd', card:'Karta', uzcard:'Uzcard', humo:'Humo', bank:"Bank o'tkazmasi",
@@ -276,6 +276,7 @@ export default function UlgurjiSotuv() {
   const [paidCash, setPaidCash] = useState('');
   const [paidCard, setPaidCard] = useState('');
   const [editingSale, setEditingSale] = useState(null);
+  const [pendingSaving, setPendingSaving] = useState(false);
 
   const [tab, setTab] = useState('new');
   const [sales, setSales] = useState([]);
@@ -386,6 +387,10 @@ export default function UlgurjiSotuv() {
   };
 
   const addToCart = useCallback((p) => {
+    if (!custId) {
+      toast.error('Avval mijozni tanlang!');
+      return;
+    }
     const price = useWholesale && p.wholesale_price ? Number(p.wholesale_price) : Number(p.sale_price || 0);
     setCart(prev => {
       const ex = prev.find(i => i.product_id === p.id);
@@ -421,6 +426,7 @@ export default function UlgurjiSotuv() {
   }, [useWholesale]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addFormToCart = () => {
+    if (!custId) return toast.error('Avval mijozni tanlang!');
     if (!formProduct) return toast.error('Mahsulot tanlanmagan!');
     const price = parseFloat(formPrice) || 0;
     const qty   = parseFloat(formQty)  || 1;
@@ -577,6 +583,62 @@ export default function UlgurjiSotuv() {
     setCurPayAmt(''); setShowPayment(true);
   };
 
+  // ── Pending (to'lovsiz) saqlash ──────────────────────────────────────────
+  const savePendingSale = async (silently = false) => {
+    if (!cart.length || !custId) return;
+    setPendingSaving(true);
+    try {
+      const items = cart.map(it => ({
+        product_id: it.product_id, quantity: it.qty, unit_price: it.price,
+        discount: it.discount_type === 'pct'
+          ? it.price * it.qty * (parseN(it.discount_val) / 100)
+          : parseN(it.discount_val),
+      }));
+      await api.post('/sales/pending', {
+        items,
+        payment_type: 'cash',
+        paid_amount: 0,
+        discount_amount: saleDisc,
+        note: note || undefined,
+        customer_id: custId ? Number(custId) : undefined,
+        warehouse_id: warehouseId ? Number(warehouseId) : undefined,
+      });
+      setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDiscVal('');
+      setFormProduct(null); setFormPrice(''); setFormQty('1'); setFormDiscVal('');
+      if (!silently) toast.success('Sotuv "Tasdiqlash kutulmoqda" holatda saqlandi!');
+    } catch (e) {
+      if (!silently) toast.error(e?.response?.data?.detail || 'Saqlashda xatolik');
+    } finally {
+      setPendingSaving(false);
+    }
+  };
+
+  // Auto-save: boshqa bo'limga o'tganda yoki sahifa yopilganda pending saqlash
+  const cartRef = useRef(cart);
+  const custIdRef = useRef(custId);
+  cartRef.current = cart;
+  custIdRef.current = custId;
+
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (cartRef.current.length > 0 && custIdRef.current) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
+  // Tab o'zgarganda (Tarixi yoki Arxiv ga o'tganda) auto-pending saqlash
+  const handleTabChange = async (newTab) => {
+    if (newTab !== 'new' && tab === 'new' && cartRef.current.length > 0 && custIdRef.current) {
+      await savePendingSale(true);
+      toast.info('Savat "Tasdiqlash kutulmoqda" holatida saqlandi');
+    }
+    setTab(newTab);
+  };
+
   /* ══════════════════════════════════════════════════
      RENDER
   ══════════════════════════════════════════════════ */
@@ -618,7 +680,7 @@ export default function UlgurjiSotuv() {
             { id: 'list',   label: 'Tarixi', icon: 'M4 6h16M4 10h16M4 14h16M4 18h16' },
             { id: 'drafts', label: 'Arxiv',  icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
           ].map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
+            <button key={t.id} onClick={() => handleTabChange(t.id)}
               className={`flex items-center gap-1 px-2.5 md:px-3.5 py-2 rounded-xl text-sm font-semibold transition-all ${tab === t.id ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
               <Ic d={t.icon} cls="w-3.5 h-3.5" />
               <span className="hidden sm:inline">{t.label}</span>
@@ -688,6 +750,14 @@ export default function UlgurjiSotuv() {
                   </div>
 
                   <ProductSearch onSelect={selectFormProduct} placeholder="Mahsulot nomi, SKU, barkod..." />
+
+                  {/* Mijoz tanlanmagan ogohlantirish */}
+                  {!custId && (
+                    <div className="mt-2 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                      <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                      <span className="text-xs font-semibold text-amber-700">Mahsulot qo'shish uchun avval mijoz tanlang</span>
+                    </div>
+                  )}
 
                   {/* Selected product card */}
                   {formProduct ? (
@@ -974,12 +1044,14 @@ export default function UlgurjiSotuv() {
               <span className="hidden sm:inline">O'chirish</span>
             </button>
 
-            <button onClick={() => handleDirectAction('draft')}
-              disabled={cart.length === 0}
-              title="Arxivga saqlash"
-              className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-amber-50 text-amber-600 hover:bg-amber-100 active:bg-amber-200 disabled:opacity-30 text-sm font-bold transition-colors border border-amber-100">
-              <Ic d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" cls="w-4 h-4" />
-              <span className="hidden sm:inline">Arxiv</span>
+            <button onClick={() => savePendingSale(false)}
+              disabled={cart.length === 0 || !custId || pendingSaving}
+              title="To'lovsiz saqlash — Tasdiqlash kutulmoqda"
+              className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-amber-50 text-amber-700 hover:bg-amber-100 active:bg-amber-200 disabled:opacity-30 text-sm font-bold transition-colors border border-amber-200">
+              <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M12 12v4m0 0l-2-2m2 2l2-2" cls="w-4 h-4" />
+              {pendingSaving
+                ? <span className="hidden sm:inline">Saqlanmoqda...</span>
+                : <span className="hidden sm:inline">To'lovsiz saqlash</span>}
             </button>
 
             <button onClick={() => handleDirectAction('debt')}
@@ -1024,7 +1096,7 @@ export default function UlgurjiSotuv() {
               className="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white">
               <option value="">Barcha holatlar</option>
               <option value="completed">Yakunlandi</option>
-              <option value="pending">Kutilmoqda</option>
+              <option value="pending">Tasdiqlash kutulmoqda</option>
               <option value="cancelled">Bekor</option>
             </select>
             <input value={filters.search} onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}

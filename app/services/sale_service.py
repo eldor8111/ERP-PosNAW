@@ -523,6 +523,107 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
     return sale
 
 
+def create_pending_sale(db: Session, data: SaleCreate, current_user: User, ip: str = None) -> Sale:
+    """
+    Ulgurji sotuv — to'lovsiz (pending) saqlash.
+    Stock kamaytirmaydi, moliya tranzaksiya qo'shmaydi.
+    Faqat Sale + SaleItem yozuvlarini saqlaydi.
+    """
+    # Warehouse aniqlash
+    if data.warehouse_id is None:
+        from app.models.warehouse import Warehouse
+        wh_q = db.query(Warehouse).filter(
+            Warehouse.company_id == current_user.company_id,
+            Warehouse.is_active == True
+        )
+        if current_user.branch_id:
+            wh = wh_q.filter(Warehouse.branch_id == current_user.branch_id).first()
+            if wh:
+                data.warehouse_id = wh.id
+        if not data.warehouse_id:
+            wh = wh_q.first()
+            if wh:
+                data.warehouse_id = wh.id
+
+    # Mahsulotlar va summa hisoblash
+    sale_items_data = []
+    total_amount = Decimal("0")
+    for item_data in data.items:
+        product = db.query(Product).filter(
+            Product.id == item_data.product_id,
+            Product.company_id == current_user.company_id,
+            Product.is_deleted == False,
+        ).first()
+        if not product:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Mahsulot ID={item_data.product_id} topilmadi"
+            )
+        unit_price = item_data.unit_price if item_data.unit_price is not None else product.sale_price
+        discount = item_data.discount
+        subtotal = max(Decimal("0"), (unit_price * item_data.quantity) - discount)
+        sale_items_data.append({
+            "product": product,
+            "quantity": item_data.quantity,
+            "unit_price": unit_price,
+            "cost_price": product.cost_price,
+            "discount": discount,
+            "subtotal": subtotal,
+        })
+        total_amount += subtotal
+
+    total_amount = max(Decimal("0"), total_amount - data.discount_amount)
+
+    # Sale yozuvi (pending, paid=0)
+    sale = Sale(
+        number=generate_sale_number(db),
+        cashier_id=current_user.id,
+        company_id=current_user.company_id,
+        warehouse_id=data.warehouse_id,
+        customer_id=data.customer_id,
+        total_amount=total_amount,
+        discount_amount=data.discount_amount,
+        paid_amount=Decimal("0"),
+        paid_cash=Decimal("0"),
+        paid_card=Decimal("0"),
+        payment_type=PaymentType.cash,
+        status=SaleStatus.pending,
+        note=data.note,
+        currency_id=data.currency_id,
+        exchange_rate=Decimal("1"),
+        loyalty_points_earned=0,
+        loyalty_points_used=0,
+        debt_due_date=None,
+    )
+    db.add(sale)
+    db.flush()
+
+    # SaleItem larni saqlash (stock tegilmaydi)
+    for item_d in sale_items_data:
+        db.add(SaleItem(
+            sale_id=sale.id,
+            product_id=item_d["product"].id,
+            quantity=item_d["quantity"],
+            unit_price=item_d["unit_price"],
+            cost_price=item_d["cost_price"],
+            discount=item_d["discount"],
+            subtotal=item_d["subtotal"],
+        ))
+
+    log_action(
+        db=db,
+        action="SALE_PENDING",
+        entity_type="sale",
+        entity_id=sale.id,
+        user_id=current_user.id,
+        new_values={"number": sale.number, "total": str(total_amount), "status": "pending"},
+        ip_address=ip,
+    )
+
+    db.commit()
+    return sale
+
+
 def delete_sale(db: Session, sale_id: int, current_user: User) -> None:
     """Sotuvni o'chirish: har bir mahsulot qoldig'ini qaytarish + StockMovement log."""
     from app.models.inventory import StockMovement  # type: ignore
