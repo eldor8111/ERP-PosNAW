@@ -31,6 +31,7 @@ const Shifts          = lazy(() => import('./pages/admin/Shifts'))
 const SuperAdmin      = lazy(() => import('./pages/admin/SuperAdmin'))
 const AgentsPage      = lazy(() => import('./pages/admin/SuperAdmin').then(m => ({ default: m.AgentsPage })))
 const Ombor           = lazy(() => import('./pages/admin/Ombor'))
+const Filiallar       = lazy(() => import('./pages/admin/Filiallar'))
 const Tariflar        = lazy(() => import('./pages/admin/Tariflar'))
 const Register        = lazy(() => import('./pages/Register'))
 const Landing         = lazy(() => import('./pages/Landing'))
@@ -94,6 +95,7 @@ export default function App() {
             <Route path="super-admin" element={<Suspense fallback={<PageLoader />}><SuperAdmin /></Suspense>} />
             <Route path="agents" element={<Suspense fallback={<PageLoader />}><AgentsPage /></Suspense>} />
             <Route path="ombor" element={<Suspense fallback={<PageLoader />}><Ombor /></Suspense>} />
+            <Route path="filiallar" element={<Suspense fallback={<PageLoader />}><Filiallar /></Suspense>} />
             <Route path="tariflar" element={<Suspense fallback={<PageLoader />}><Tariflar /></Suspense>} />
             <Route path="users/create" element={
               <PrivateRoute roles={ROLE_GROUPS.MANAGEMENT}>
