@@ -697,13 +697,13 @@ export default function UlgurjiSotuv() {
           </button>
           {[
             { id: 'new',    label: 'Yangi',  icon: 'M12 4v16m8-8H4' },
-            { id: 'list',   label: 'Tarixi', icon: 'M4 6h16M4 10h16M4 14h16M4 18h16' },
+            { id: 'list',   label: 'Tarixi', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
             { id: 'drafts', label: 'Arxiv',  icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
           ].map(t => (
             <button key={t.id} onClick={() => handleTabChange(t.id)}
-              className={`flex items-center gap-1 px-2.5 md:px-3.5 py-2 rounded-xl text-sm font-semibold transition-all ${tab === t.id ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+              className={`flex items-center gap-0.5 md:gap-1 px-2 md:px-3.5 py-2 rounded-xl font-semibold transition-all ${tab === t.id ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
               <Ic d={t.icon} cls="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">{t.label}</span>
+              <span className="text-[10px] md:text-sm">{t.label}</span>
             </button>
           ))}
         </div>
@@ -1055,51 +1055,95 @@ export default function UlgurjiSotuv() {
           </div>
 
           {/* ── BOTTOM ACTION BAR ── */}
-          <div className="shrink-0 bg-white border-t border-slate-200 px-3 py-2.5 flex items-center gap-2 shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
-            <button onClick={() => { if (!cart.length) return; if (window.confirm("Savatni tozalash?")) { setCart([]); setFormProduct(null); } }}
-              disabled={cart.length === 0}
-              title="Sotuvni o'chirish"
-              className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 active:bg-red-200 disabled:opacity-30 text-sm font-bold transition-colors border border-red-100">
-              <Ic d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" cls="w-4 h-4" />
-              <span className="hidden sm:inline">O'chirish</span>
-            </button>
+          <div className="shrink-0 bg-white border-t border-slate-200 shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
 
-            <button onClick={() => savePendingSale(false)}
-              disabled={cart.length === 0 || !custId || pendingSaving}
-              title="To'lovsiz saqlash — Tasdiqlash kutulmoqda"
-              className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-amber-50 text-amber-700 hover:bg-amber-100 active:bg-amber-200 disabled:opacity-30 text-sm font-bold transition-colors border border-amber-200">
-              <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M12 12v4m0 0l-2-2m2 2l2-2" cls="w-4 h-4" />
-              {pendingSaving
-                ? <span className="hidden sm:inline">Saqlanmoqda...</span>
-                : <span className="hidden sm:inline">To'lovsiz saqlash</span>}
-            </button>
+            {/* Mobile: 2-row layout */}
+            <div className="md:hidden">
+              {/* Row 1: 4 secondary action buttons */}
+              <div className="flex gap-1.5 px-2 pt-2 pb-1">
+                <button onClick={() => { if (!cart.length) return; if (window.confirm("Savatni tozalash?")) { setCart([]); setFormProduct(null); } }}
+                  disabled={cart.length === 0}
+                  className="flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl bg-red-50 text-red-600 active:bg-red-200 disabled:opacity-30 font-bold transition-colors border border-red-100">
+                  <Ic d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" cls="w-4 h-4" />
+                  <span className="text-[10px]">O'chirish</span>
+                </button>
 
-            <button onClick={() => handleDirectAction('debt')}
-              disabled={cart.length === 0 || saving}
-              title="Qarzga sotish"
-              className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 active:bg-rose-200 disabled:opacity-30 text-sm font-bold transition-colors border border-rose-100">
-              <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" cls="w-4 h-4" />
-              <span className="hidden sm:inline">Qarzga</span>
-            </button>
+                <button onClick={() => savePendingSale(false)}
+                  disabled={cart.length === 0 || !custId || pendingSaving}
+                  className="flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl bg-amber-50 text-amber-700 active:bg-amber-200 disabled:opacity-30 font-bold transition-colors border border-amber-200">
+                  <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M12 12v4m0 0l-2-2m2 2l2-2" cls="w-4 h-4" />
+                  <span className="text-[10px]">{pendingSaving ? 'Saqlanmoqda' : "To'lovsiz"}</span>
+                </button>
 
-            <button
-              disabled={cart.length === 0}
-              onClick={() => { if (!cart.length) return; openPayModal(); }}
-              title="Chek chiqarish"
-              className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-50 text-slate-600 hover:bg-slate-100 active:bg-slate-200 disabled:opacity-30 text-sm font-bold transition-colors border border-slate-200">
-              <Ic d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" cls="w-4 h-4" />
-            </button>
+                <button onClick={() => handleDirectAction('debt')}
+                  disabled={cart.length === 0 || saving}
+                  className="flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl bg-rose-50 text-rose-600 active:bg-rose-200 disabled:opacity-30 font-bold transition-colors border border-rose-100">
+                  <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" cls="w-4 h-4" />
+                  <span className="text-[10px]">Qarzga</span>
+                </button>
 
-            <div className="flex-1" />
+                <button disabled={cart.length === 0}
+                  onClick={() => { if (!cart.length) return; openPayModal(); }}
+                  className="flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl bg-slate-50 text-slate-600 active:bg-slate-200 disabled:opacity-30 font-bold transition-colors border border-slate-200">
+                  <Ic d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" cls="w-4 h-4" />
+                  <span className="text-[10px]">Chek</span>
+                </button>
+              </div>
 
-            <button onClick={openPayModal}
-              disabled={cart.length === 0 || saving}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-sm shadow-md transition-all disabled:opacity-40
-                ${!custId && cart.length > 0 ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-200' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200'}`}>
-              <Ic d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" cls="w-4 h-4" />
-              <span>{!custId && cart.length > 0 ? 'Mijoz tanlang' : editingSale ? 'Yangilash' : "To'lov"}</span>
-              {cart.length > 0 && <span className="font-black">{fmt(total)} s</span>}
-            </button>
+              {/* Row 2: full-width Pay button */}
+              <div className="px-2 pb-2">
+                <button onClick={openPayModal}
+                  disabled={cart.length === 0 || saving}
+                  className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-black text-sm shadow-md transition-all disabled:opacity-40
+                    ${!custId && cart.length > 0 ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-200' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200'}`}>
+                  <Ic d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" cls="w-4 h-4" />
+                  <span>{!custId && cart.length > 0 ? 'Mijoz tanlang' : editingSale ? 'Yangilash' : "To'lov"}</span>
+                  {cart.length > 0 && <span className="font-black">{fmt(total)} s</span>}
+                </button>
+              </div>
+            </div>
+
+            {/* Desktop: single row */}
+            <div className="hidden md:flex items-center gap-2 px-3 py-2.5">
+              <button onClick={() => { if (!cart.length) return; if (window.confirm("Savatni tozalash?")) { setCart([]); setFormProduct(null); } }}
+                disabled={cart.length === 0}
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 active:bg-red-200 disabled:opacity-30 text-sm font-bold transition-colors border border-red-100">
+                <Ic d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" cls="w-4 h-4" />
+                O'chirish
+              </button>
+
+              <button onClick={() => savePendingSale(false)}
+                disabled={cart.length === 0 || !custId || pendingSaving}
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-amber-50 text-amber-700 hover:bg-amber-100 active:bg-amber-200 disabled:opacity-30 text-sm font-bold transition-colors border border-amber-200">
+                <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M12 12v4m0 0l-2-2m2 2l2-2" cls="w-4 h-4" />
+                {pendingSaving ? 'Saqlanmoqda...' : "To'lovsiz saqlash"}
+              </button>
+
+              <button onClick={() => handleDirectAction('debt')}
+                disabled={cart.length === 0 || saving}
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 active:bg-rose-200 disabled:opacity-30 text-sm font-bold transition-colors border border-rose-100">
+                <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" cls="w-4 h-4" />
+                Qarzga
+              </button>
+
+              <button disabled={cart.length === 0}
+                onClick={() => { if (!cart.length) return; openPayModal(); }}
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-50 text-slate-600 hover:bg-slate-100 active:bg-slate-200 disabled:opacity-30 text-sm font-bold transition-colors border border-slate-200">
+                <Ic d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" cls="w-4 h-4" />
+                Chek
+              </button>
+
+              <div className="flex-1" />
+
+              <button onClick={openPayModal}
+                disabled={cart.length === 0 || saving}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-sm shadow-md transition-all disabled:opacity-40
+                  ${!custId && cart.length > 0 ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-200' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200'}`}>
+                <Ic d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" cls="w-4 h-4" />
+                <span>{!custId && cart.length > 0 ? 'Mijoz tanlang' : editingSale ? 'Yangilash' : "To'lov"}</span>
+                {cart.length > 0 && <span className="font-black">{fmt(total)} s</span>}
+              </button>
+            </div>
           </div>
         </>
       )}
