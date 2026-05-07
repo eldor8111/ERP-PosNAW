@@ -298,7 +298,7 @@ export default function AdminLayout() {
       <aside
         className={`fixed inset-y-0 left-0 z-50 lg:static lg:z-auto bg-white border-r border-slate-200 flex flex-col shrink-0 transition-transform duration-300 ease-in-out lg:transition-all ${
           mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-        } ${collapsed ? 'w-[260px] lg:w-[64px]' : 'w-[260px]'}`}
+        } ${collapsed ? 'w-[280px] lg:w-[64px]' : 'w-[280px]'}`}
         style={{ boxShadow: '1px 0 12px rgba(0,0,0,0.06)' }}
       >
         {/* Logo */}
