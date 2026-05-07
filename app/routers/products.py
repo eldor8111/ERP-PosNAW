@@ -54,10 +54,10 @@ def _translit_variants(text: str) -> list:
     # Takrorlanmasin
     return list(dict.fromkeys(variants))
 
-def _name_filter(search: str):
-    """Product.name uchun translit-aware OR filter."""
+def _word_condition(word: str):
+    """Bitta so'z uchun translit-aware OR filter (name, sku, barcode, ...)."""
     from sqlalchemy import or_
-    variants = _translit_variants(search)
+    variants = _translit_variants(word)
     return or_(
         *[Product.name.ilike(f"%{v}%") for v in variants],
         *[Product.sku.ilike(f"%{v}%") for v in variants],
@@ -65,6 +65,19 @@ def _name_filter(search: str):
         *[Product.product_code.ilike(f"%{v}%") for v in variants],
         *[Product.extra_barcodes.ilike(f"%{v}%") for v in variants],
     )
+
+def _name_filter(search: str):
+    """
+    Ko'p so'zli, translit-aware qidiruv filtri.
+    Har bir so'z alohida AND bilan qidiriladi:
+    'un turon' → name has 'un' AND name has 'turon' → TURON UN 10KG topiladi.
+    """
+    from sqlalchemy import and_
+    words = [w for w in search.strip().split() if w]
+    if not words:
+        from sqlalchemy import true
+        return true()
+    return and_(*[_word_condition(w) for w in words])
 
 
 def _attach_stock(product: Product) -> ProductOut:
@@ -217,25 +230,32 @@ def list_products_for_pos(
     if not products_raw:
         return []
 
-    # Relevance sort: so'z boshida yoki alohida so'z sifatida kelsa → oldinroq
+    # Relevance sort: har bir so'z uchun ball hisoblanadi, yig'indisi bo'yicha saralanadi
     if search:
         import re as _re
-        variants = _translit_variants(search)
+        query_words = [w for w in search.strip().split() if w]
 
-        def _score(name: str) -> int:
+        def _word_score(name: str, word: str) -> int:
+            """Bitta so'z uchun ball: 4=to'liq, 3=boshida, 2=alohida so'z, 1=substring."""
             n = (name or '').lower()
-            for v in variants:
+            for v in _translit_variants(word):
                 if not v:
                     continue
                 if n == v:
-                    return 4                              # to'liq mos
+                    return 4
                 if n.startswith(v + ' ') or n.startswith(v):
-                    return 3                              # nom boshida
-                if _re.search(r'(?<![^\s])' + _re.escape(v), n):
-                    return 2                              # alohida so'z sifatida
-            return 1                                      # substring ichida
+                    return 3
+                try:
+                    if _re.search(r'(?<![^\s])' + _re.escape(v), n):
+                        return 2
+                except Exception:
+                    pass
+            return 1
 
-        products_raw = sorted(products_raw, key=lambda p: (-_score(p.name), p.name or ''))
+        def _total_score(name: str) -> int:
+            return sum(_word_score(name, w) for w in query_words)
+
+        products_raw = sorted(products_raw, key=lambda p: (-_total_score(p.name), p.name or ''))
         products_raw = products_raw[:(limit or 12)]
 
     product_ids = [p.id for p in products_raw]
