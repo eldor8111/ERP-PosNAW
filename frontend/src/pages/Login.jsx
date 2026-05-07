@@ -352,7 +352,7 @@ export default function Login() {
   const { login } = useAuth()
   const { t, lang, setLang } = useLang()
   const navigate = useNavigate()
-  const [form, setForm] = useState({ phone: '', password: '' })
+  const [form, setForm] = useState({ phone: '+998', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPass, setShowPass] = useState(false)
@@ -376,7 +376,7 @@ export default function Login() {
     setError('')
     setLoading(true)
     try {
-      const userRes = await login(form.phone, form.password)
+      const userRes = await login(form.phone.replace(/[+ -]/g, ''), form.password)
       
       if (userRes?.needs_company_selection) {
         setCompaniesList(userRes.companies || [])
@@ -617,8 +617,17 @@ export default function Login() {
                 <div className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
                   <Icon d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                 </div>
-                <input type="text" placeholder="998901234567" value={form.phone}
-                  onChange={e => setForm({ ...form, phone: e.target.value })} required
+                <input type="tel" placeholder="+998 XX XXX XX XX" value={form.phone}
+                  onChange={e => {
+                    let val = e.target.value;
+                    if (!val.startsWith('+998')) val = '+998' + val.replace(/^\+?9{0,1}9{0,1}8{0,1}/, '');
+                    if (val.length > 13) val = val.slice(0, 13);
+                    setForm({ ...form, phone: val });
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Backspace' && form.phone.length <= 4) e.preventDefault();
+                  }}
+                  required
                   className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl bg-white text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition-all" />
               </div>
             </div>
