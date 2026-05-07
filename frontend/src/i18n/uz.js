@@ -8,7 +8,7 @@ export default {
   'nav.management_group': 'Boshqaruv',
   'nav.admin_group': 'Admin',
   'nav.dashboard': 'Dashboard',
-  'nav.sales': 'Sotuv va Mijozlar',
+  'nav.sales': 'Mijozlar',
   'nav.wholesale': 'Ulgurji sotuv',
   'nav.pos': 'POS (Chakana)',
   'nav.shifts': 'Smenalar',

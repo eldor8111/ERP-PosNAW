@@ -160,7 +160,7 @@ export default function Shifts() {
       )}
 
       {/* Shifts Table */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-700">Smenalar tarixi</h3>
           <div className="flex items-center gap-3">

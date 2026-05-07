@@ -260,7 +260,7 @@ export default function Users() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto">
         <table className="min-w-full">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">

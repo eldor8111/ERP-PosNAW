@@ -98,7 +98,7 @@ function QoldiqlarTab() {
       </div>
 
       {/* table */}
-      <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm">
+      <div className="bg-white rounded-xl border border-slate-100 overflow-x-auto shadow-sm">
         {loading ? (
           <div className="flex justify-center py-16">
             <div className="w-7 h-7 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
@@ -172,7 +172,7 @@ function MovementsTab({ type }) {
         </button>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm">
+      <div className="bg-white rounded-xl border border-slate-100 overflow-x-auto shadow-sm">
         {loading ? (
           <div className="flex justify-center py-16">
             <div className="w-7 h-7 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
@@ -298,7 +298,7 @@ function KochirTab() {
         </button>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm">
+      <div className="bg-white rounded-xl border border-slate-100 overflow-x-auto shadow-sm">
         {loading ? (
           <div className="flex justify-center py-16">
             <div className="w-7 h-7 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
@@ -490,7 +490,7 @@ function OmborlarTab() {
         </button>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm">
+      <div className="bg-white rounded-xl border border-slate-100 overflow-x-auto shadow-sm">
         {loading ? (
           <div className="flex justify-center py-16">
             <div className="w-7 h-7 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />

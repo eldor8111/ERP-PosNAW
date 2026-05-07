@@ -117,7 +117,7 @@ function MijozlarTab() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
         <table className="min-w-full">
           <thead><tr className="bg-slate-50 border-b border-slate-100">
             {[t('common.name'), t('common.phone'), t('customer.debtBalance'), t('customer.creditLimit'), t('customer.bonusBalance'), ''].map(h => <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>)}
@@ -328,7 +328,7 @@ function SuppliersTab() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
         <table className="min-w-full">
           <thead><tr className="bg-slate-50 border-b border-slate-100">
             {['Ta\'minotchi','INN','Telefon','Qarz','To\'lov muddati','Reyting',''].map(h => <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>)}
