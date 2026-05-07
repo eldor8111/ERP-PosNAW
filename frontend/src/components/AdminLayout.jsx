@@ -28,6 +28,12 @@ function buildNavGroups(t) {
       label: t('nav.sales_group'),
       links: [
         {
+          name: t('nav.products'),
+          path: '/admin/products',
+          roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
+          icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>,
+        },
+        {
           name: t('nav.sales'),
           path: '/admin/sotuv-mijozlar',
           roles: ROLE_GROUPS.SALES,
@@ -56,12 +62,6 @@ function buildNavGroups(t) {
           path: '/admin/filiallar',
           roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
           icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>,
-        },
-        {
-          name: t('nav.products'),
-          path: '/admin/products',
-          roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
-          icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>,
         },
         {
           name: t('nav.purchases'),
