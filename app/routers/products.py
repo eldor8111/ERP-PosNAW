@@ -209,12 +209,35 @@ def list_products_for_pos(
 
     q = q.order_by(Product.name)
 
-    if limit:
-        q = q.limit(limit)
+    # So'z chegarasida moslik yuqori bo'lishi uchun ko'proq olamiz, keyin Python-da sort
+    fetch_limit = min((limit or 12) * 8, 300) if search else (limit or 12)
+    q = q.limit(fetch_limit)
 
     products_raw = q.all()
     if not products_raw:
         return []
+
+    # Relevance sort: so'z boshida yoki alohida so'z sifatida kelsa → oldinroq
+    if search:
+        import re as _re
+        variants = _translit_variants(search)
+
+        def _score(name: str) -> int:
+            n = (name or '').lower()
+            for v in variants:
+                if not v:
+                    continue
+                if n == v:
+                    return 4                              # to'liq mos
+                if n.startswith(v + ' ') or n.startswith(v):
+                    return 3                              # nom boshida
+                if _re.search(r'(?<![^\s])' + _re.escape(v), n):
+                    return 2                              # alohida so'z sifatida
+            return 1                                      # substring ichida
+
+        products_raw = sorted(products_raw, key=lambda p: (-_score(p.name), p.name or ''))
+        products_raw = products_raw[:(limit or 12)]
+
     product_ids = [p.id for p in products_raw]
 
     # Stock levels — bitta so'rovda
