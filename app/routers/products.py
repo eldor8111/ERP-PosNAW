@@ -64,6 +64,7 @@ def _word_condition(word: str):
         *[Product.barcode.ilike(f"%{v}%") for v in variants],
         *[Product.product_code.ilike(f"%{v}%") for v in variants],
         *[Product.extra_barcodes.ilike(f"%{v}%") for v in variants],
+        *[Product.extra_product_codes.ilike(f"%{v}%") for v in variants],
     )
 
 def _name_filter(search: str):

@@ -810,7 +810,7 @@ export default function UlgurjiSotuv() {
                         <div>
                           <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 block">Miqdor ({formProduct.unit || 'dona'})</label>
                           <div className="flex items-center gap-1">
-                            <button onClick={() => setFormQty(q => String(Math.max(0.1, (parseFloat(q) || 1) - 1)))}
+                            <button onClick={() => setFormQty(q => String(Math.max(0, (parseFloat(q) || 1) - 1)))}
                               className="w-10 h-10 rounded-xl bg-white flex items-center justify-center font-black text-slate-600 text-xl active:bg-slate-100 border border-slate-200">−</button>
                             <input ref={formQtyRef} type="number" value={formQty}
                               onChange={e => setFormQty(e.target.value)}
@@ -966,10 +966,10 @@ export default function UlgurjiSotuv() {
                             </td>
                             <td className="px-2 py-2.5">
                               <div className="flex items-center gap-1 justify-center">
-                                <button onClick={() => updateItem(idx, 'qty', Math.max(0.1, it.qty - 1))}
+                                <button onClick={() => updateItem(idx, 'qty', Math.max(0, it.qty - 1))}
                                   className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center font-bold text-slate-600 text-sm">−</button>
                                 <input type="number" value={it.qty}
-                                  onChange={e => updateItem(idx, 'qty', Math.max(0.01, parseFloat(e.target.value) || 1))}
+                                  onChange={e => updateItem(idx, 'qty', Math.max(0, parseFloat(e.target.value) ?? 0))}
                                   className="w-14 text-center font-black text-slate-800 border border-slate-200 rounded-lg py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
                                 <button onClick={() => updateItem(idx, 'qty', it.qty + 1)}
                                   className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center font-bold text-slate-600 text-sm">+</button>
