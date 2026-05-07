@@ -19,6 +19,53 @@ router = APIRouter(prefix="/products", tags=["Products"])
 
 WRITE_ROLES = (UserRole.admin, UserRole.director, UserRole.warehouse, UserRole.manager)
 
+# ── Uzbek Kirill ↔ Lotin transliteratsiya ──────────────────
+_CYR_TO_LAT = {
+    'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'yo','ж':'j','з':'z',
+    'и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r',
+    'с':'s','т':'t','у':'u','ф':'f','х':'x','ц':'ts','ч':'ch','ш':'sh',
+    'щ':'sh','ъ':"'",'ы':'i','ь':'','э':'e','ю':'yu','я':'ya',
+    'қ':'q','ғ':"g'",'ҳ':'h','ў':"o'",
+}
+_LAT_TO_CYR = [
+    ("o'", 'ў'), ("g'", 'ғ'), ('ch','ч'), ('sh','ш'),
+    ('yo','ё'), ('yu','ю'), ('ya','я'), ('ts','ц'),
+    ('a','а'),('b','б'),('d','д'),('e','е'),('f','ф'),('g','г'),
+    ('h','х'),('i','и'),('j','ж'),('k','к'),('l','л'),('m','м'),
+    ('n','н'),('o','о'),('p','п'),('q','қ'),('r','р'),('s','с'),
+    ('t','т'),('u','у'),('v','в'),('x','х'),('y','й'),('z','з'),
+]
+
+def _translit_variants(text: str) -> list:
+    """Kirill yoki Lotin so'zni ikki yo'nalishda o'girib barcha variantlarni qaytaradi."""
+    tl = text.lower().strip()
+    variants = [tl]
+    # Kirill bor → Lotinga o'gir
+    if any(c in _CYR_TO_LAT for c in tl):
+        lat = ''.join(_CYR_TO_LAT.get(c, c) for c in tl)
+        variants.append(lat)
+    # Lotin bor → Kirillga o'gir
+    if any(c.isascii() and c.isalpha() for c in tl):
+        cyr = tl
+        for fr, to in _LAT_TO_CYR:
+            cyr = cyr.replace(fr, to)
+        if cyr != tl:
+            variants.append(cyr)
+    # Takrorlanmasin
+    return list(dict.fromkeys(variants))
+
+def _name_filter(search: str):
+    """Product.name uchun translit-aware OR filter."""
+    from sqlalchemy import or_
+    variants = _translit_variants(search)
+    return or_(
+        *[Product.name.ilike(f"%{v}%") for v in variants],
+        *[Product.sku.ilike(f"%{v}%") for v in variants],
+        *[Product.barcode.ilike(f"%{v}%") for v in variants],
+        *[Product.product_code.ilike(f"%{v}%") for v in variants],
+        *[Product.extra_barcodes.ilike(f"%{v}%") for v in variants],
+    )
+
 
 def _attach_stock(product: Product) -> ProductOut:
     out = ProductOut.model_validate(product)
@@ -48,13 +95,7 @@ def list_products(
     q = q.filter(Product.company_id == current_user.company_id)
 
     if search:
-        q = q.filter(
-            (Product.name.ilike(f"%{search}%"))
-            | (Product.sku.ilike(f"%{search}%"))
-            | (Product.product_code.ilike(f"%{search}%"))
-            | (Product.barcode.ilike(f"%{search}%"))
-            | (Product.extra_barcodes.ilike(f"%{search}%"))
-        )
+        q = q.filter(_name_filter(search))
     if category_id:
         q = q.filter(Product.category_id == category_id)
     if status:
@@ -162,18 +203,9 @@ def list_products_for_pos(
 
     if search:
         try:
-            q = q.filter(
-                (Product.name.ilike(f"%{search}%"))
-                | (Product.sku.ilike(f"%{search}%"))
-                | (Product.product_code.ilike(f"%{search}%"))
-                | (Product.barcode.ilike(f"%{search}%"))
-                | (Product.extra_barcodes.ilike(f"%{search}%"))
-            )
+            q = q.filter(_name_filter(search))
         except Exception:
-            q = q.filter(
-                (Product.name.ilike(f"%{search}%"))
-                | (Product.barcode.ilike(f"%{search}%"))
-            )
+            q = q.filter(Product.name.ilike(f"%{search}%"))
 
     q = q.order_by(Product.name)
 
@@ -240,13 +272,7 @@ def list_products_paginated(
     q = q.filter(Product.company_id == current_user.company_id)
 
     if search:
-        q = q.filter(
-            (Product.name.ilike(f"%{search}%"))
-            | (Product.sku.ilike(f"%{search}%"))
-            | (Product.product_code.ilike(f"%{search}%"))
-            | (Product.barcode.ilike(f"%{search}%"))
-            | (Product.extra_barcodes.ilike(f"%{search}%"))
-        )
+        q = q.filter(_name_filter(search))
     if category_id:
         q = q.filter(Product.category_id == category_id)
     if status:
@@ -342,13 +368,7 @@ def list_product_ids(
     q = q.filter(Product.company_id == current_user.company_id)
 
     if search:
-        q = q.filter(
-            (Product.name.ilike(f"%{search}%"))
-            | (Product.sku.ilike(f"%{search}%"))
-            | (Product.product_code.ilike(f"%{search}%"))
-            | (Product.barcode.ilike(f"%{search}%"))
-            | (Product.extra_barcodes.ilike(f"%{search}%"))
-        )
+        q = q.filter(_name_filter(search))
     if category_id:
         q = q.filter(Product.category_id == category_id)
     if status:

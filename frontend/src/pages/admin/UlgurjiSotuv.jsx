@@ -8,6 +8,7 @@ import { buildReceiptHtml, printReceiptHtml, getReceiptSettings, saveReceiptSett
 import { toast } from '../../utils/toast';
 import { useActiveShift } from '../../hooks/useActiveShift';
 import ShiftOpenModal from '../../components/ShiftOpenModal';
+import { matchesSearch, searchVariants } from '../../utils/translit';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const today = () => new Date().toISOString().slice(0, 10);
@@ -74,7 +75,10 @@ function CustomerSearch({ customers, value, onChange }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const selected = customers.find(c => String(c.id) === String(value));
-  const filtered = (q.trim() ? customers.filter(c => c.name?.toLowerCase().includes(q.toLowerCase()) || c.phone?.includes(q)) : customers).slice(0, 10);
+  const filtered = (q.trim()
+    ? customers.filter(c => matchesSearch(c.name, q) || (c.phone || '').includes(q))
+    : customers
+  ).slice(0, 10);
 
   useEffect(() => {
     const h = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
@@ -150,12 +154,28 @@ function ProductSearch({ onSelect, placeholder }) {
   useEffect(() => {
     if (!q.trim()) { setResults([]); return; }
     clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
+    timerRef.current = setTimeout(async () => {
       setLoading(true);
-      api.get('/products/pos-list', { params: { search: q, limit: 12 } })
-        .then(r => setResults(Array.isArray(r.data) ? r.data : (r.data?.items || [])))
-        .catch(() => {})
-        .finally(() => setLoading(false));
+      try {
+        const variants = searchVariants(q);
+        // Barcha variantlar uchun parallel so'rovlar (asl + transliteratsiya)
+        const requests = variants.map(v => api.get('/products/pos-list', { params: { search: v, limit: 12 } }).catch(() => ({ data: [] })));
+        const responses = await Promise.all(requests);
+        // Natijalarni birlashtir, takrorlanmasin
+        const seen = new Set();
+        const merged = [];
+        for (const r of responses) {
+          const items = Array.isArray(r.data) ? r.data : (r.data?.items || []);
+          for (const item of items) {
+            if (!seen.has(item.id)) { seen.add(item.id); merged.push(item); }
+          }
+        }
+        setResults(merged.slice(0, 12));
+      } catch {
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
     }, 200);
     return () => clearTimeout(timerRef.current);
   }, [q]);
