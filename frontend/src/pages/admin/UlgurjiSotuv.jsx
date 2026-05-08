@@ -9,6 +9,7 @@ import { toast } from '../../utils/toast';
 import { useActiveShift } from '../../hooks/useActiveShift';
 import ShiftOpenModal from '../../components/ShiftOpenModal';
 import { matchesSearch, searchVariants } from '../../utils/translit';
+import ProductAddModal from '../../components/ProductAddModal';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const today = () => new Date().toISOString().slice(0, 10);
@@ -215,18 +216,15 @@ const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, on
   );
 });
 
-const ProductSearch = forwardRef(function ProductSearch({ onSelect, placeholder }, fwdRef) {
+const ProductSearch = forwardRef(function ProductSearch({ onSelect, placeholder, onOpenAdd }, fwdRef) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [prod, setProd] = useState({ name: '', barcode: '', sale_price: '', wholesale_price: '', unit: 'dona' });
-  const [saving, setSaving] = useState(false);
   const inputRef = useRef(null);
   const timerRef = useRef(null);
 
-  useImperativeHandle(fwdRef, () => ({ openForm: () => setShowForm(true) }));
+  useImperativeHandle(fwdRef, () => ({ openForm: () => onOpenAdd?.() }));
 
   useEffect(() => {
     if (!q.trim()) { setResults([]); return; }
@@ -263,30 +261,6 @@ const ProductSearch = forwardRef(function ProductSearch({ onSelect, placeholder 
     if (e.key === 'ArrowUp')   { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, 0)); }
     if (e.key === 'Enter' && results[activeIdx]) { e.preventDefault(); select(results[activeIdx]); }
     if (e.key === 'Escape') { setResults([]); setQ(''); }
-  };
-
-  const saveProd = async (e) => {
-    e.preventDefault();
-    if (!prod.name.trim()) return toast.error("Mahsulot nomi kiritilsin");
-    if (!prod.sale_price) return toast.error("Narx kiritilsin");
-    setSaving(true);
-    try {
-      const res = await api.post('/products', {
-        name: prod.name.trim(),
-        barcode: prod.barcode.trim() || undefined,
-        sale_price: Number(prod.sale_price),
-        wholesale_price: prod.wholesale_price ? Number(prod.wholesale_price) : Number(prod.sale_price),
-        cost_price: 0,
-        unit: prod.unit || 'dona',
-        stock_quantity: 0,
-      });
-      toast.success("Mahsulot qo'shildi");
-      select(res.data);
-      setShowForm(false);
-      setProd({ name: '', barcode: '', sale_price: '', wholesale_price: '', unit: 'dona' });
-    } catch (err) {
-      toast.error(err?.response?.data?.detail || "Xatolik");
-    } finally { setSaving(false); }
   };
 
   const showDropdown = results.length > 0 || (q.trim().length > 0 && !loading);
@@ -333,66 +307,11 @@ const ProductSearch = forwardRef(function ProductSearch({ onSelect, placeholder 
             ))
           }
           {/* + Yangi mahsulot */}
-          <button onMouseDown={() => { setShowForm(true); setResults([]); if (q.trim()) setProd(p => ({ ...p, name: q.trim() })); setQ(''); }}
+          <button onMouseDown={() => { setResults([]); setQ(''); onOpenAdd?.(); }}
             className="w-full flex items-center gap-2 px-4 py-3 text-emerald-600 hover:bg-emerald-50 font-bold text-sm border-t border-slate-100 transition-colors">
             <span className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-base leading-none">+</span>
             Yangi mahsulot qo'shish
           </button>
-        </div>
-      )}
-
-      {/* Yangi mahsulot modal */}
-      {showForm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-              <span className="font-black text-slate-800">Yangi mahsulot</span>
-              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-red-400"><Ic d="M6 18L18 6M6 6l12 12" cls="w-5 h-5" /></button>
-            </div>
-            <form onSubmit={saveProd} className="p-5 space-y-3">
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Nomi *</label>
-                <input autoFocus value={prod.name} onChange={e => setProd({ ...prod, name: e.target.value })}
-                  placeholder="Mahsulot nomi..."
-                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Barkod</label>
-                <input value={prod.barcode} onChange={e => setProd({ ...prod, barcode: e.target.value })}
-                  placeholder="Bo'sh qoldirsa avtomatik..."
-                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Narx (so'm) *</label>
-                  <input type="number" value={prod.sale_price} onChange={e => setProd({ ...prod, sale_price: e.target.value })}
-                    placeholder="0"
-                    className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Ulgurji narx</label>
-                  <input type="number" value={prod.wholesale_price} onChange={e => setProd({ ...prod, wholesale_price: e.target.value })}
-                    placeholder="Narx bilan bir xil"
-                    className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">O'lchov birligi</label>
-                <select value={prod.unit} onChange={e => setProd({ ...prod, unit: e.target.value })}
-                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400">
-                  {['dona', 'kg', 'g', 'l', 'ml', 'm', 'sm', 'quti', 'juft', 'to\'plam'].map(u => <option key={u} value={u}>{u}</option>)}
-                </select>
-              </div>
-              <div className="flex gap-2 pt-1">
-                <button type="button" onClick={() => setShowForm(false)}
-                  className="flex-1 py-2.5 rounded-xl border-2 border-slate-200 text-slate-600 font-semibold text-sm">Bekor</button>
-                <button type="submit" disabled={saving}
-                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm disabled:opacity-50">
-                  {saving ? 'Saqlanmoqda...' : "Qo'shish"}
-                </button>
-              </div>
-            </form>
-          </div>
         </div>
       )}
     </div>
@@ -429,6 +348,7 @@ export default function UlgurjiSotuv() {
   const formQtyRef = useRef(null);
   const custSearchRef = useRef(null);
   const prodSearchRef = useRef(null);
+  const [showProdAddModal, setShowProdAddModal] = useState(false);
   const formPriceRef = useRef(null);
   const formDiscRef = useRef(null);
 
@@ -832,6 +752,7 @@ export default function UlgurjiSotuv() {
   return (
     <div className="absolute inset-0 flex flex-col bg-slate-100 overflow-hidden">
       {showShiftModal && <ShiftOpenModal onOpened={() => { reloadShift(); setShowShiftModal(false); }} onCancel={() => setShowShiftModal(false)} />}
+      {showProdAddModal && <ProductAddModal onClose={() => setShowProdAddModal(false)} onSaved={p => { selectFormProduct(p); setShowProdAddModal(false); }} />}
 
       {/* ── HEADER ── */}
       <div className="shrink-0 bg-white border-b border-slate-200 px-3 md:px-5 py-2.5 flex items-center justify-between shadow-sm gap-2">
@@ -921,7 +842,7 @@ export default function UlgurjiSotuv() {
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Mahsulot</label>
                     <div className="flex items-center gap-2">
                       {/* Yangi mahsulot */}
-                      <button onClick={() => prodSearchRef.current?.openForm()}
+                      <button onClick={() => setShowProdAddModal(true)}
                         className="flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-xs font-bold border border-emerald-200 transition-colors">
                         <span className="text-base leading-none">+</span> Yangi
                       </button>
@@ -947,7 +868,7 @@ export default function UlgurjiSotuv() {
                     </div>
                   </div>
 
-                  <ProductSearch ref={prodSearchRef} onSelect={selectFormProduct} placeholder="Mahsulot nomi, SKU, barkod..." />
+                  <ProductSearch ref={prodSearchRef} onSelect={selectFormProduct} placeholder="Mahsulot nomi, SKU, barkod..." onOpenAdd={() => setShowProdAddModal(true)} />
 
                   {/* Mijoz tanlanmagan ogohlantirish */}
                   {!custId && (
