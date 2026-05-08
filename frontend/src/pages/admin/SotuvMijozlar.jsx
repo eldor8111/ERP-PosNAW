@@ -1472,7 +1472,7 @@ function SotuvlarTab({ customers }) {
             />
             {f._custOpen && f.customerQ && (
               <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-48 overflow-y-auto">
-                {customers.filter(c => c.name.toLowerCase().includes((f.customerQ||'').toLowerCase()) || (c.phone && c.phone.includes(f.customerQ||''))).slice(0,10).map(c => (
+                {customers.filter(c => matchesSearch(c.name, f.customerQ||'') || (c.phone && c.phone.includes(f.customerQ||''))).slice(0,10).map(c => (
                   <button key={c.id} onMouseDown={() => setF({...f, customer_id: String(c.id), customerQ: c.name, _custOpen: false})}
                     className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0">
                     {c.name} {c.phone && <span className="text-slate-400 ml-1">{c.phone}</span>}
@@ -1496,7 +1496,7 @@ function SotuvlarTab({ customers }) {
             />
             {f._brOpen && f.branchQ && (
               <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-48 overflow-y-auto">
-                {branches.filter(b => b.name.toLowerCase().includes((f.branchQ||'').toLowerCase())).slice(0,10).map(b => (
+                {branches.filter(b => matchesSearch(b.name, f.branchQ||'')).slice(0,10).map(b => (
                   <button key={b.id} onMouseDown={() => setF({...f, branch_id: String(b.id), branchQ: b.name, _brOpen: false})}
                     className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0">{b.name}</button>
                 ))}
@@ -1515,7 +1515,7 @@ function SotuvlarTab({ customers }) {
             />
             {f._usOpen && f.userQ && (
               <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-48 overflow-y-auto">
-                {users.filter(u => u.name.toLowerCase().includes((f.userQ||'').toLowerCase())).slice(0,10).map(u => (
+                {users.filter(u => matchesSearch(u.name, f.userQ||'')).slice(0,10).map(u => (
                   <button key={u.id} onMouseDown={() => setF({...f, cashier_id: String(u.id), userQ: u.name, _usOpen: false})}
                     className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0">{u.name}</button>
                 ))}
@@ -1826,7 +1826,7 @@ function TolovTab({ customers }) {
   useEffect(() => { load(); }, []);
 
   const filtered = search.trim()
-    ? debtors.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.phone?.includes(search))
+    ? debtors.filter(c => matchesSearch(c.name, search) || c.phone?.includes(search))
     : [...debtors];
   filtered.sort((a, b) => Number(b.debt_balance) - Number(a.debt_balance));
   const totalDebt = debtors.reduce((s, c) => s + Number(c.debt_balance), 0);

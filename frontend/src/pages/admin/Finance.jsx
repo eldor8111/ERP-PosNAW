@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import api from '../../api/axios';
 import { useLang } from '../../context/LangContext';
+import { matchesSearch } from '../../utils/translit';
 
 const fmt = (v, t) => Number(v || 0).toLocaleString('uz-UZ') + " " + (t ? (t('common.sum') || "so'm") : "so'm");
 const today = () => new Date().toISOString().slice(0, 10);
@@ -557,7 +558,7 @@ export default function Finance() {
                   onClick={() => {
                     if (!customerDebts?.items) return;
                     const filtered = customerDebts.items.filter(c =>
-                      !debtSearch || c.name.toLowerCase().includes(debtSearch.toLowerCase()) || (c.phone||'').includes(debtSearch)
+                      !debtSearch || matchesSearch(c.name, debtSearch) || (c.phone||'').includes(debtSearch)
                     );
                     const ws = XLSX.utils.json_to_sheet(filtered.map(c => ({
                       'Mijoz': c.name,
@@ -600,7 +601,7 @@ export default function Finance() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {customerDebts.items
-                      .filter(c => !debtSearch || c.name.toLowerCase().includes(debtSearch.toLowerCase()) || (c.phone||'').includes(debtSearch))
+                      .filter(c => !debtSearch || matchesSearch(c.name, debtSearch) || (c.phone||'').includes(debtSearch))
                       .map(c => (
                         <tr key={c.id} className={`transition-colors ${c.overdue ? 'bg-red-50/50 hover:bg-red-50' : 'hover:bg-slate-50'}`}>
                           <td className="px-6 py-4 text-sm font-semibold text-slate-800">{c.name}</td>
@@ -624,7 +625,7 @@ export default function Finance() {
                           </td>
                         </tr>
                     ))}
-                    {customerDebts.items.filter(c => !debtSearch || c.name.toLowerCase().includes(debtSearch.toLowerCase()) || (c.phone||'').includes(debtSearch)).length === 0 && (
+                    {customerDebts.items.filter(c => !debtSearch || matchesSearch(c.name, debtSearch) || (c.phone||'').includes(debtSearch)).length === 0 && (
                       <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-400">
                         {debtSearch ? (t('common.noResult') || 'Natija topilmadi') : (t('finance.noDebtors') || "Debitorlar yo'q!")}
                       </td></tr>

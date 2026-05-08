@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLang } from '../../context/LangContext';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
+import { matchesSearch } from '../../utils/translit';
 
 /* ─────────── helpers ─────────── */
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
@@ -426,8 +427,7 @@ const [count,        setCount]        = useState(null);
       items = items.filter(i => (localQtys[i.product_id] === undefined || localQtys[i.product_id] === '') && i.counted_qty === null);
     }
     if (search.trim()) {
-      const q = search.toLowerCase();
-      items = items.filter(i => i.product_name.toLowerCase().includes(q) || (i.product_sku && i.product_sku.toLowerCase().includes(q)));
+      items = items.filter(i => matchesSearch(i.product_name, search) || (i.product_sku && matchesSearch(i.product_sku, search)));
     }
     setPage(1);
     return items;

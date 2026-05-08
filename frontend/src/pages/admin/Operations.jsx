@@ -1468,7 +1468,7 @@ function KirimlarTab({ products, warehouses, suppliers, users }) {
               className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white" />
             {f._supOpen && f.supplierQ && (
               <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-48 overflow-y-auto">
-                {suppliers.filter(s => s.name.toLowerCase().includes(f.supplierQ.toLowerCase())).slice(0,10).map(s => (
+                {suppliers.filter(s => matchesSearch(s.name, f.supplierQ||'')).slice(0,10).map(s => (
                   <button key={s.id} onMouseDown={() => setF({...f, supplier_id: String(s.id), supplierQ: s.name, _supOpen: false})}
                     className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0">{s.name}</button>
                 ))}
@@ -1485,7 +1485,7 @@ function KirimlarTab({ products, warehouses, suppliers, users }) {
               className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white" />
             {f._whOpen && f.warehouseQ && (
               <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-48 overflow-y-auto">
-                {warehouses.filter(w => w.name.toLowerCase().includes(f.warehouseQ.toLowerCase())).slice(0,10).map(w => (
+                {warehouses.filter(w => matchesSearch(w.name, f.warehouseQ||'')).slice(0,10).map(w => (
                   <button key={w.id} onMouseDown={() => setF({...f, warehouse_id: String(w.id), warehouseQ: w.name, _whOpen: false})}
                     className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0">{w.name}</button>
                 ))}
@@ -1501,7 +1501,7 @@ function KirimlarTab({ products, warehouses, suppliers, users }) {
               className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white" />
             {f._usOpen && f.userQ && (
               <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-48 overflow-y-auto">
-                {users.filter(u => u.name.toLowerCase().includes(f.userQ.toLowerCase())).slice(0,10).map(u => (
+                {users.filter(u => matchesSearch(u.name, f.userQ||'')).slice(0,10).map(u => (
                   <button key={u.id} onMouseDown={() => setF({...f, user_id: String(u.id), userQ: u.name, _usOpen: false})}
                     className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0">{u.name}</button>
                 ))}
