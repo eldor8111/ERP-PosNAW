@@ -4,8 +4,8 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import api from '../../api/axios';
 import { matchesSearch } from '../../utils/translit';
-const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 import toast from 'react-hot-toast';
+const fmt    = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const fmtDay = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
 const fmtDt  = (d) => d ? new Date(d).toLocaleString('uz-UZ') : '—';
 const saleMeta = {
