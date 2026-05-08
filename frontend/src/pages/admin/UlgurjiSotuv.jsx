@@ -70,9 +70,12 @@ function Ic({ d, cls = 'w-4 h-4' }) {
   );
 }
 
-function CustomerSearch({ customers, value, onChange }) {
+function CustomerSearch({ customers, value, onChange, onNew }) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ name: '', phone: '', debt_limit: '' });
+  const [saving, setSaving] = useState(false);
   const ref = useRef(null);
   const selected = customers.find(c => String(c.id) === String(value));
   const filtered = (q.trim()
@@ -85,6 +88,27 @@ function CustomerSearch({ customers, value, onChange }) {
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, []);
+
+  const saveNew = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim()) return toast.error("Ism kiritilsin");
+    setSaving(true);
+    try {
+      const res = await api.post('/customers', {
+        name: form.name.trim(),
+        phone: form.phone.trim() || undefined,
+        debt_limit: form.debt_limit ? Number(form.debt_limit) : 0,
+      });
+      toast.success("Mijoz qo'shildi");
+      onNew?.(res.data);
+      onChange(String(res.data.id));
+      setShowForm(false);
+      setForm({ name: '', phone: '', debt_limit: '' });
+      setOpen(false);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Xatolik");
+    } finally { setSaving(false); }
+  };
 
   return (
     <div ref={ref} className="relative">
@@ -119,7 +143,7 @@ function CustomerSearch({ customers, value, onChange }) {
       {open && (
         <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-72 overflow-y-auto">
           {filtered.length === 0
-            ? <div className="px-4 py-5 text-center text-sm text-slate-400">Mijoz topilmadi</div>
+            ? <div className="px-4 py-4 text-center text-sm text-slate-400">"{q}" — topilmadi</div>
             : filtered.map(c => (
               <button key={c.id} onMouseDown={() => { onChange(c.id); setQ(''); setOpen(false); }}
                 className="w-full flex items-center justify-between px-4 py-3 hover:bg-indigo-50 border-b border-slate-50 last:border-0 transition-colors">
@@ -137,6 +161,52 @@ function CustomerSearch({ customers, value, onChange }) {
               </button>
             ))
           }
+          {/* + Yangi mijoz */}
+          <button onMouseDown={() => { setShowForm(true); setOpen(false); }}
+            className="w-full flex items-center gap-2 px-4 py-3 text-indigo-600 hover:bg-indigo-50 font-bold text-sm border-t border-slate-100 transition-colors">
+            <span className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-base leading-none">+</span>
+            Yangi mijoz qo'shish
+          </button>
+        </div>
+      )}
+
+      {/* Yangi mijoz modal */}
+      {showForm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <span className="font-black text-slate-800">Yangi mijoz</span>
+              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-red-400"><Ic d="M6 18L18 6M6 6l12 12" cls="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={saveNew} className="p-5 space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Ism *</label>
+                <input autoFocus value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
+                  placeholder="To'liq ismi..."
+                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Telefon</label>
+                <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
+                  placeholder="+998 90 123 45 67"
+                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Qarz limiti (so'm)</label>
+                <input type="number" value={form.debt_limit} onChange={e => setForm({ ...form, debt_limit: e.target.value })}
+                  placeholder="0"
+                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button type="button" onClick={() => setShowForm(false)}
+                  className="flex-1 py-2.5 rounded-xl border-2 border-slate-200 text-slate-600 font-semibold text-sm">Bekor</button>
+                <button type="submit" disabled={saving}
+                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm disabled:opacity-50">
+                  {saving ? 'Saqlanmoqda...' : "Qo'shish"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
@@ -148,6 +218,9 @@ function ProductSearch({ onSelect, placeholder }) {
   const [results, setResults] = useState([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [prod, setProd] = useState({ name: '', barcode: '', sale_price: '', wholesale_price: '', unit: 'dona' });
+  const [saving, setSaving] = useState(false);
   const inputRef = useRef(null);
   const timerRef = useRef(null);
 
@@ -158,10 +231,8 @@ function ProductSearch({ onSelect, placeholder }) {
       setLoading(true);
       try {
         const variants = searchVariants(q);
-        // Barcha variantlar uchun parallel so'rovlar (asl + transliteratsiya)
         const requests = variants.map(v => api.get('/products/pos-list', { params: { search: v, limit: 50 } }).catch(() => ({ data: [] })));
         const responses = await Promise.all(requests);
-        // Natijalarni birlashtir, takrorlanmasin
         const seen = new Set();
         const merged = [];
         for (const r of responses) {
@@ -190,6 +261,32 @@ function ProductSearch({ onSelect, placeholder }) {
     if (e.key === 'Escape') { setResults([]); setQ(''); }
   };
 
+  const saveProd = async (e) => {
+    e.preventDefault();
+    if (!prod.name.trim()) return toast.error("Mahsulot nomi kiritilsin");
+    if (!prod.sale_price) return toast.error("Narx kiritilsin");
+    setSaving(true);
+    try {
+      const res = await api.post('/products', {
+        name: prod.name.trim(),
+        barcode: prod.barcode.trim() || undefined,
+        sale_price: Number(prod.sale_price),
+        wholesale_price: prod.wholesale_price ? Number(prod.wholesale_price) : Number(prod.sale_price),
+        cost_price: 0,
+        unit: prod.unit || 'dona',
+        stock_quantity: 0,
+      });
+      toast.success("Mahsulot qo'shildi");
+      select(res.data);
+      setShowForm(false);
+      setProd({ name: '', barcode: '', sale_price: '', wholesale_price: '', unit: 'dona' });
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Xatolik");
+    } finally { setSaving(false); }
+  };
+
+  const showDropdown = results.length > 0 || (q.trim().length > 0 && !loading);
+
   return (
     <div className="relative">
       <div className={`flex items-center gap-2 border-2 rounded-xl px-3 py-2.5 bg-white transition-all ${q ? 'border-indigo-500 ring-4 ring-indigo-100' : 'border-slate-200 hover:border-slate-300'}`}>
@@ -206,28 +303,92 @@ function ProductSearch({ onSelect, placeholder }) {
         {q && <button onClick={() => { setQ(''); setResults([]); inputRef.current?.focus(); }} className="text-slate-300 hover:text-red-400"><Ic d="M6 18L18 6M6 6l12 12" cls="w-3.5 h-3.5" /></button>}
       </div>
 
-      {results.length > 0 && (
+      {showDropdown && (
         <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-[420px] overflow-y-auto">
-          {results.map((p, i) => (
-            <button key={p.id} onMouseDown={() => select(p)}
-              className={`w-full flex items-center gap-3 px-4 py-3 border-b border-slate-50 last:border-0 transition-colors text-left ${i === activeIdx ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}>
-              <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
-                {p.image_url ? <img src={p.image_url} alt="" className="w-full h-full object-cover" /> : <Ic d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" cls="w-4 h-4 text-slate-400" />}
+          {results.length === 0
+            ? <div className="px-4 py-4 text-center text-sm text-slate-400">"{q}" — topilmadi</div>
+            : results.map((p, i) => (
+              <button key={p.id} onMouseDown={() => select(p)}
+                className={`w-full flex items-center gap-3 px-4 py-3 border-b border-slate-50 last:border-0 transition-colors text-left ${i === activeIdx ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}>
+                <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
+                  {p.image_url ? <img src={p.image_url} alt="" className="w-full h-full object-cover" /> : <Ic d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" cls="w-4 h-4 text-slate-400" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-bold text-slate-800 truncate">{p.name}</div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {p.sku && <span className="text-xs text-slate-400 font-mono">{p.sku}</span>}
+                    {p.barcode && <><span className="text-xs text-slate-300">|</span><span className="text-xs text-slate-400 font-mono">{p.barcode}</span></>}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-sm font-black text-indigo-700">{fmt(p.wholesale_price || p.sale_price)} s</div>
+                  {p.wholesale_price && p.sale_price !== p.wholesale_price && <div className="text-xs text-slate-400 line-through">{fmt(p.sale_price)} s</div>}
+                  <div className={`text-xs font-semibold mt-0.5 ${Number(p.stock_quantity) <= 0 ? 'text-red-500' : 'text-emerald-600'}`}>{fmt(p.stock_quantity)} {p.unit || 'dona'}</div>
+                </div>
+              </button>
+            ))
+          }
+          {/* + Yangi mahsulot */}
+          <button onMouseDown={() => { setShowForm(true); setResults([]); if (q.trim()) setProd(p => ({ ...p, name: q.trim() })); setQ(''); }}
+            className="w-full flex items-center gap-2 px-4 py-3 text-emerald-600 hover:bg-emerald-50 font-bold text-sm border-t border-slate-100 transition-colors">
+            <span className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-base leading-none">+</span>
+            Yangi mahsulot qo'shish
+          </button>
+        </div>
+      )}
+
+      {/* Yangi mahsulot modal */}
+      {showForm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <span className="font-black text-slate-800">Yangi mahsulot</span>
+              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-red-400"><Ic d="M6 18L18 6M6 6l12 12" cls="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={saveProd} className="p-5 space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Nomi *</label>
+                <input autoFocus value={prod.name} onChange={e => setProd({ ...prod, name: e.target.value })}
+                  placeholder="Mahsulot nomi..."
+                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-bold text-slate-800 truncate">{p.name}</div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  {p.sku && <span className="text-xs text-slate-400 font-mono">{p.sku}</span>}
-                  {p.barcode && <><span className="text-xs text-slate-300">|</span><span className="text-xs text-slate-400 font-mono">{p.barcode}</span></>}
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Barkod</label>
+                <input value={prod.barcode} onChange={e => setProd({ ...prod, barcode: e.target.value })}
+                  placeholder="Bo'sh qoldirsa avtomatik..."
+                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Narx (so'm) *</label>
+                  <input type="number" value={prod.sale_price} onChange={e => setProd({ ...prod, sale_price: e.target.value })}
+                    placeholder="0"
+                    className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Ulgurji narx</label>
+                  <input type="number" value={prod.wholesale_price} onChange={e => setProd({ ...prod, wholesale_price: e.target.value })}
+                    placeholder="Narx bilan bir xil"
+                    className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
                 </div>
               </div>
-              <div className="text-right shrink-0">
-                <div className="text-sm font-black text-indigo-700">{fmt(p.wholesale_price || p.sale_price)} s</div>
-                {p.wholesale_price && p.sale_price !== p.wholesale_price && <div className="text-xs text-slate-400 line-through">{fmt(p.sale_price)} s</div>}
-                <div className={`text-xs font-semibold mt-0.5 ${Number(p.stock_quantity) <= 0 ? 'text-red-500' : 'text-emerald-600'}`}>{fmt(p.stock_quantity)} {p.unit || 'dona'}</div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">O'lchov birligi</label>
+                <select value={prod.unit} onChange={e => setProd({ ...prod, unit: e.target.value })}
+                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                  {['dona', 'kg', 'g', 'l', 'ml', 'm', 'sm', 'quti', 'juft', 'to\'plam'].map(u => <option key={u} value={u}>{u}</option>)}
+                </select>
               </div>
-            </button>
-          ))}
+              <div className="flex gap-2 pt-1">
+                <button type="button" onClick={() => setShowForm(false)}
+                  className="flex-1 py-2.5 rounded-xl border-2 border-slate-200 text-slate-600 font-semibold text-sm">Bekor</button>
+                <button type="submit" disabled={saving}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm disabled:opacity-50">
+                  {saving ? 'Saqlanmoqda...' : "Qo'shish"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
@@ -737,7 +898,7 @@ export default function UlgurjiSotuv() {
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Mijoz *</label>
                     {!custId && <span className="text-xs text-red-400 font-semibold">Tanlanmagan</span>}
                   </div>
-                  <CustomerSearch customers={customers} value={custId} onChange={setCustId} />
+                  <CustomerSearch customers={customers} value={custId} onChange={setCustId} onNew={c => setCustomers(prev => [...prev, c])} />
                 </div>
 
                 <div className="border-t border-slate-100" />
