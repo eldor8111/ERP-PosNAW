@@ -20,28 +20,35 @@ echo "============================================================"
 mkdir -p $LOG_DIR
 
 # 1. Kodni yangilash
-echo "📦 [1/5] Git pull..."
+echo "📦 [1/6] Git pull..."
 cd $APP_DIR
 git pull origin main
 
 # 2. Virtual environment va dependencies
-echo "📚 [2/5] Dependencies yangilanmoqda..."
+echo "📚 [2/6] Dependencies yangilanmoqda..."
 $VENV/pip install -r requirements.txt --quiet
 
-# 3. Migratsiya (--no-migrate argumenti bo'lmasa)
+# 3. Frontend build
+echo "🏗️  [3/6] Frontend build..."
+cd $APP_DIR/frontend
+npm install
+npm run build
+
+# 4. Migratsiya (--no-migrate argumenti bo'lmasa)
 if [[ "$1" != "--no-migrate" ]]; then
-    echo "🗄️  [3/5] Alembic migratsiya..."
+    echo "🗄️  [4/6] Alembic migratsiya..."
+    cd $APP_DIR
     $VENV/alembic upgrade head
 else
-    echo "⏭️  [3/5] Migratsiya o'tkazib yuborildi."
+    echo "⏭️  [4/6] Migratsiya o'tkazib yuborildi."
 fi
 
-# 4. Nginx konfiguratsiyani tekshirish
-echo "🔍 [4/5] Nginx konfiguratsiya tekshiruvi..."
+# 5. Nginx konfiguratsiyani tekshirish
+echo "🔍 [5/6] Nginx konfiguratsiya tekshiruvi..."
 nginx -t 2>&1 || echo "⚠️  Nginx config xato bor, lekin davom etamiz..."
 
-# 5. Serviceni qayta ishlatish
-echo "🔄 [5/5] Backend qayta ishlanmoqda..."
+# 6. Serviceni qayta ishlatish
+echo "🔄 [6/6] Backend qayta ishlanmoqda..."
 systemctl daemon-reload
 systemctl restart $SERVICE
 sleep 3
