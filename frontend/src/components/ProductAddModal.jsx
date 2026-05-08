@@ -225,8 +225,8 @@ export default function ProductAddModal({ onClose, onSaved }) {
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[94vh] flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between px-7 py-5 border-b border-slate-100 shrink-0">
-          <h3 className="text-xl font-bold text-slate-800">Yangi mahsulot qo'shish</h3>
+        <div className="flex items-center justify-between px-4 md:px-7 py-4 md:py-5 border-b border-slate-100 shrink-0">
+          <h3 className="text-lg md:text-xl font-bold text-slate-800">Yangi mahsulot qo'shish</h3>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -236,7 +236,7 @@ export default function ProductAddModal({ onClose, onSaved }) {
 
         {/* Body */}
         <div className="overflow-y-auto flex-1">
-          <form onSubmit={handleSave} className="p-7">
+          <form onSubmit={handleSave} className="p-4 md:p-7">
             {error && (
               <div className="flex items-start gap-2.5 px-4 py-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl mb-6">
                 <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -246,9 +246,9 @@ export default function ProductAddModal({ onClose, onSaved }) {
               </div>
             )}
 
-            <div className="grid grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-8">
               {/* LEFT */}
-              <div className="col-span-2 space-y-5">
+              <div className="md:col-span-2 space-y-5">
                 <Field label="Mahsulot nomi" required>
                   <input autoFocus className={`${inputCls} text-base ${!form.name?.trim() && error ? errCls : ''}`}
                     value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
@@ -260,7 +260,7 @@ export default function ProductAddModal({ onClose, onSaved }) {
                     onChange={e => setForm({ ...form, brand: e.target.value })} placeholder="Brend nomi (ixtiyoriy)" />
                 </Field>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <Field label="SKU (Artikul)" hint="Bo'sh qolsa avtomatik yaratiladi">
                     <input className={inputCls} value={form.sku}
                       onChange={e => setForm({ ...form, sku: e.target.value })} placeholder="avtomatik" />
@@ -349,7 +349,7 @@ export default function ProductAddModal({ onClose, onSaved }) {
                 </div>
 
                 {/* Category + Unit */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field label="Kategoriya">
                     <div className="flex gap-2">
                       <select className={`${inputCls} flex-1`} value={form.category_id}
@@ -372,7 +372,7 @@ export default function ProductAddModal({ onClose, onSaved }) {
 
                 {/* Prices */}
                 <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-semibold text-slate-600 mb-1.5">Tan narxi</label>
                       <div className="flex rounded-xl border border-slate-200 focus-within:ring-2 focus-within:ring-indigo-500 bg-white">
@@ -423,7 +423,7 @@ export default function ProductAddModal({ onClose, onSaved }) {
                 )}
 
                 {/* Stock */}
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   <Field label="Boshlang'ich qoldiq">
                     <input type="number" min="0" step="0.01" className={`${inputCls} text-base`}
                       value={form.initial_stock} onChange={e => setForm({ ...form, initial_stock: e.target.value })} placeholder="0" />
@@ -440,7 +440,7 @@ export default function ProductAddModal({ onClose, onSaved }) {
               </div>
 
               {/* RIGHT */}
-              <div className="col-span-1 space-y-5">
+              <div className="md:col-span-1 space-y-5">
                 <Field label="Mahsulot rasmlari (JPG/PNG)">
                   <ImageUploadZone images={form.images} onAdd={handleImageFile} onRemove={i => setForm(f=>({...f,images:f.images.filter((_,j)=>j!==i)}))} uploading={imgUploading} />
                 </Field>
@@ -455,7 +455,7 @@ export default function ProductAddModal({ onClose, onSaved }) {
                   </div>
                 </Field>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-2 gap-3">
                   <Field label="Vazn (kg)">
                     <input type="number" min="0" step="0.001" className={inputCls}
                       value={form.weight} onChange={e => setForm({ ...form, weight: e.target.value })} placeholder="0.000" />

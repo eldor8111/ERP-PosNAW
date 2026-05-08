@@ -202,8 +202,8 @@ function Modal({ title, onClose, children, size = 'md', z = 'z-50' }) {
         className={`bg-white rounded-2xl shadow-2xl w-full ${sizeMap[size]} max-h-[94vh] flex flex-col`}
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-7 py-5 border-b border-slate-100 shrink-0">
-          <h3 className="text-xl font-bold text-slate-800">{title}</h3>
+        <div className="flex items-center justify-between px-4 md:px-7 py-4 md:py-5 border-b border-slate-100 shrink-0">
+          <h3 className="text-lg md:text-xl font-bold text-slate-800">{title}</h3>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -1077,18 +1077,18 @@ export default function Products() {
 
       {/* Header */}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">{t('product.title')}</h1>
-          <p className="text-slate-500 text-sm mt-0.5">{t('product.title')} {t('common.list').toLowerCase()}</p>
+          <h1 className="text-xl md:text-2xl font-bold text-slate-800">{t('product.title')}</h1>
+          <p className="text-slate-500 text-sm mt-0.5 hidden sm:block">{t('product.title')} {t('common.list').toLowerCase()}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {activeTab === 'products' && (
             <>
               <button
                 onClick={downloadTemplate}
                 title="Shablonni yuklab oling va to'ldiring"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 text-sm font-semibold rounded-xl transition-colors border border-slate-200"
+                className="hidden md:inline-flex items-center gap-2 px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 text-sm font-semibold rounded-xl transition-colors border border-slate-200"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -1097,7 +1097,7 @@ export default function Products() {
               </button>
               <button
                 onClick={openBulkAdd}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
+                className="hidden sm:inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -1106,7 +1106,7 @@ export default function Products() {
               </button>
               <button
                 onClick={openImport}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-violet-50 hover:bg-violet-100 text-violet-700 text-sm font-semibold rounded-xl transition-colors border border-violet-200"
+                className="hidden md:inline-flex items-center gap-2 px-4 py-2 bg-violet-50 hover:bg-violet-100 text-violet-700 text-sm font-semibold rounded-xl transition-colors border border-violet-200"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -1223,7 +1223,7 @@ export default function Products() {
                   XLSX.utils.book_append_sheet(wb, ws, 'Mahsulotlar');
                   saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx', cellStyles: true })]), `mahsulotlar_${new Date().toISOString().slice(0,10)}.xlsx`);
                 }}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-semibold rounded-xl transition-colors border border-emerald-200"
+                className="hidden md:inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-semibold rounded-xl transition-colors border border-emerald-200"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -1244,7 +1244,7 @@ export default function Products() {
           <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
             {[['products', t('product.title')], ['categories', t('product.categories')], ['binloc', t('product.locations')]].map(([key, label]) => (
               <button key={key} onClick={() => setActiveTab(key)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === key ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                className={`px-2 md:px-4 py-2 rounded-lg text-xs md:text-sm font-medium transition-all ${activeTab === key ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                 {label}
               </button>
             ))}
@@ -1256,21 +1256,21 @@ export default function Products() {
       {activeTab === 'products' && (
         <>
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
             {[
               { label: t('product.totalProducts'), val: totalRecords,  icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', bg: 'bg-indigo-100',  ic: 'text-indigo-600',  vl: 'text-slate-800' },
               { label: t('product.active'),        val: totalActive,   icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',                        bg: 'bg-emerald-100', ic: 'text-emerald-600', vl: 'text-emerald-600' },
               { label: t('product.outOfStockStat'),val: outOfStock,    icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z', bg: 'bg-red-100', ic: 'text-red-500', vl: 'text-red-500' },
             ].map(s => (
-              <div key={s.label} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-xl ${s.bg} flex items-center justify-center shrink-0`}>
-                  <svg className={`w-6 h-6 ${s.ic}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div key={s.label} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-3 md:p-5 flex items-center gap-3 md:gap-4">
+                <div className={`w-9 h-9 md:w-12 md:h-12 rounded-xl ${s.bg} flex items-center justify-center shrink-0`}>
+                  <svg className={`w-4 h-4 md:w-6 md:h-6 ${s.ic}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={s.icon} />
                   </svg>
                 </div>
                 <div>
-                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{s.label}</div>
-                  <div className={`text-2xl font-bold mt-0.5 ${s.vl}`}>{s.val}</div>
+                  <div className="text-[10px] md:text-xs font-semibold text-slate-400 uppercase tracking-wider leading-tight">{s.label}</div>
+                  <div className={`text-xl md:text-2xl font-bold mt-0.5 ${s.vl}`}>{s.val}</div>
                 </div>
               </div>
             ))}
@@ -1341,7 +1341,7 @@ export default function Products() {
           </div>
 
           {/* Products Table */}
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto">
             {loading ? (
               <div className="flex justify-center py-20">
                 <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
@@ -1650,7 +1650,7 @@ export default function Products() {
           onClose={closeModal}
           size="xl"
         >
-          <form onSubmit={handleSave} className="p-7">
+          <form onSubmit={handleSave} className="p-4 md:p-7">
 
             {/* Error banner */}
             {error && (
@@ -1663,10 +1663,10 @@ export default function Products() {
             )}
 
             {/* 2-column grid */}
-            <div className="grid grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-8">
 
               {/* ── LEFT: main info (2/3) ── */}
-              <div className="col-span-2 space-y-5">
+              <div className="md:col-span-2 space-y-5">
 
                 {/* Name */}
                 <Field label={t('product.productName')} required>
@@ -1689,7 +1689,7 @@ export default function Products() {
                 </Field>
 
                 {/* Barcode + SKU + Kod */}
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <Field label={t('product.skuLabel')} hint={t('product.skuHint')}>
                     <input className={inputCls} value={form.sku}
                       onChange={e => setForm({ ...form, sku: e.target.value })} placeholder={t('product.skuPlaceholder')} />
@@ -1850,7 +1850,7 @@ export default function Products() {
                 </div>
 
                 {/* Category + Unit */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field label={t('admin.dict.category') || 'Kategoriya'}>
                     <div className="flex gap-2">
                       <select className={`${inputCls} flex-1`} value={form.category_id}
@@ -1879,7 +1879,7 @@ export default function Products() {
                 {/* Prices — each field has its own currency dropdown */}
                 <div className="space-y-3">
                   {/* Row 1: Tan + Ulgurji */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {/* Tan narxi */}
                     <div>
                       <label className="block text-sm font-semibold text-slate-600 mb-1.5">{t('product.costPriceLabel')}</label>
@@ -1969,7 +1969,7 @@ export default function Products() {
                 )}
 
                 {/* Stock */}
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   {modal === 'add' && (
                     <Field label={t('product.initialStock')}>
                       <input type="number" min="0" step="0.01" className={`${inputCls} text-base`}
@@ -1990,7 +1990,7 @@ export default function Products() {
               </div>
 
               {/* ── RIGHT: details (1/3) ── */}
-              <div className="col-span-1 space-y-5">
+              <div className="md:col-span-1 space-y-5">
 
                 {/* Images */}
                 <Field label={t('product.images')}>
