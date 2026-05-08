@@ -2459,7 +2459,7 @@ function TransferlarTab({ products, warehouses, users = [] }) {
               className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white" />
             {f._fromOpen && f.fromWhQ && (
               <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-48 overflow-y-auto">
-                {warehouses.filter(w => w.name.toLowerCase().includes(f.fromWhQ.toLowerCase())).slice(0,10).map(w => (
+                {warehouses.filter(w => matchesSearch(w.name, f.fromWhQ||'')).slice(0,10).map(w => (
                   <button key={w.id} onMouseDown={() => setF({...f, fromWh_id: String(w.id), fromWhQ: w.name, _fromOpen: false})}
                     className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0">{w.name}</button>
                 ))}
@@ -2476,7 +2476,7 @@ function TransferlarTab({ products, warehouses, users = [] }) {
               className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white" />
             {f._toOpen && f.toWhQ && (
               <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-48 overflow-y-auto">
-                {warehouses.filter(w => w.name.toLowerCase().includes(f.toWhQ.toLowerCase())).slice(0,10).map(w => (
+                {warehouses.filter(w => matchesSearch(w.name, f.toWhQ||'')).slice(0,10).map(w => (
                   <button key={w.id} onMouseDown={() => setF({...f, toWh_id: String(w.id), toWhQ: w.name, _toOpen: false})}
                     className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0">{w.name}</button>
                 ))}
@@ -2492,7 +2492,7 @@ function TransferlarTab({ products, warehouses, users = [] }) {
               className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white" />
             {f._usOpen && f.userQ && (
               <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-48 overflow-y-auto">
-                {users?.filter(u => u.name.toLowerCase().includes(f.userQ.toLowerCase())).slice(0,10).map(u => (
+                {users?.filter(u => matchesSearch(u.name, f.userQ||'')).slice(0,10).map(u => (
                   <button key={u.id} onMouseDown={() => setF({...f, user_id: String(u.id), userQ: u.name, _usOpen: false})}
                     className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0">{u.name}</button>
                 ))}
@@ -2822,7 +2822,7 @@ function ChiqimlarTab({ products, users = [] }) {
               className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white" />
             {f._usOpen && f.userQ && (
               <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-48 overflow-y-auto">
-                {users?.filter(u => u.name.toLowerCase().includes(f.userQ.toLowerCase())).slice(0,10).map(u => (
+                {users?.filter(u => matchesSearch(u.name, f.userQ||'')).slice(0,10).map(u => (
                   <button key={u.id} onMouseDown={() => setF({...f, user_id: String(u.id), userQ: u.name, _usOpen: false})}
                     className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0">{u.name}</button>
                 ))}
@@ -2954,8 +2954,8 @@ function QoldiqTab() {
 
   const filtered = allStocks.filter(s => {
     const nameOk = !search ||
-      (s.product_name || '').toLowerCase().includes(search.toLowerCase()) ||
-      (s.product_sku  || '').toLowerCase().includes(search.toLowerCase());
+      matchesSearch(s.product_name || '', search) ||
+      matchesSearch(s.product_sku  || '', search);
     if (!nameOk) return false;
     const qty = Number(s.quantity);
     const min = Number(s.min_stock ?? 0);
