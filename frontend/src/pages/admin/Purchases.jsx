@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLang } from '../../context/LangContext';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
-import api from '../../api/axios';const fmt    = (v) => Number(v || 0).toLocaleString('uz-UZ');
+import api from '../../api/axios';
+import { matchesSearch } from '../../utils/translit';
+const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 import toast from 'react-hot-toast';
 const fmtDay = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
 const fmtDt  = (d) => d ? new Date(d).toLocaleString('uz-UZ') : '—';
@@ -168,9 +170,9 @@ function ProdSearch({ products, onSelect, inputRef, placeholder = 'Mahsulot qidi
 
   const filtered = q.trim()
     ? products.filter(p =>
-        p.name.toLowerCase().includes(q.toLowerCase()) ||
-        p.sku?.toLowerCase().includes(q.toLowerCase()) ||
-        p.barcode?.includes(q)
+        matchesSearch(p.name, q) ||
+        matchesSearch(p.sku, q) ||
+        (p.barcode && p.barcode.includes(q))
       ).slice(0, 12)
     : products.slice(0, 12);
 
@@ -242,7 +244,10 @@ function SupSearch({ suppliers, value, onChange, placeholder = "Ta'minotchi tanl
   const selected        = suppliers.find(s => String(s.id) === String(value));
 
   const filtered = q.trim()
-    ? suppliers.filter(s => s.name.toLowerCase().includes(q.toLowerCase())).slice(0, 12)
+    ? suppliers.filter(s =>
+        matchesSearch(s.name, q) ||
+        (s.phone && s.phone.includes(q))
+      ).slice(0, 12)
     : suppliers.slice(0, 12);
 
   useEffect(() => {
@@ -297,7 +302,7 @@ function CustSearch({ customers, value, onChange, placeholder = 'Ism yoki telefo
 
   const filtered = q.trim()
     ? customers.filter(c =>
-        c.name.toLowerCase().includes(q.toLowerCase()) ||
+        matchesSearch(c.name, q) ||
         (c.phone && c.phone.includes(q))
       ).slice(0, 12)
     : customers.slice(0, 12);
@@ -447,8 +452,9 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
 
   const filteredProducts = products.filter(p => {
     if (!prodQ.trim()) return true;
-    const lq = prodQ.toLowerCase();
-    return p.name.toLowerCase().includes(lq) || p.sku?.toLowerCase().includes(lq) || p.barcode?.includes(lq);
+    return matchesSearch(p.name, prodQ) ||
+           matchesSearch(p.sku, prodQ) ||
+           (p.barcode && p.barcode.includes(prodQ.trim()));
   });
 
   const addToCart = (product, qty, price, discount = 0) => {

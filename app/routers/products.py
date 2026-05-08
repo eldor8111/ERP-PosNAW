@@ -19,40 +19,9 @@ router = APIRouter(prefix="/products", tags=["Products"])
 
 WRITE_ROLES = (UserRole.admin, UserRole.director, UserRole.warehouse, UserRole.manager)
 
-# ── Uzbek Kirill ↔ Lotin transliteratsiya ──────────────────
-_CYR_TO_LAT = {
-    'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'yo','ж':'j','з':'z',
-    'и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r',
-    'с':'s','т':'t','у':'u','ф':'f','х':'x','ц':'ts','ч':'ch','ш':'sh',
-    'щ':'sh','ъ':"'",'ы':'i','ь':'','э':'e','ю':'yu','я':'ya',
-    'қ':'q','ғ':"g'",'ҳ':'h','ў':"o'",
-}
-_LAT_TO_CYR = [
-    ("o'", 'ў'), ("g'", 'ғ'), ('ch','ч'), ('sh','ш'),
-    ('yo','ё'), ('yu','ю'), ('ya','я'), ('ts','ц'),
-    ('a','а'),('b','б'),('d','д'),('e','е'),('f','ф'),('g','г'),
-    ('h','х'),('i','и'),('j','ж'),('k','к'),('l','л'),('m','м'),
-    ('n','н'),('o','о'),('p','п'),('q','қ'),('r','р'),('s','с'),
-    ('t','т'),('u','у'),('v','в'),('x','х'),('y','й'),('z','з'),
-]
+# ── Uzbek Kirill ↔ Lotin transliteratsiya (shared utility) ──────────────
+from app.utils.translit import translit_variants as _translit_variants, name_search_filter as _name_filter_base  # noqa: E402
 
-def _translit_variants(text: str) -> list:
-    """Kirill yoki Lotin so'zni ikki yo'nalishda o'girib barcha variantlarni qaytaradi."""
-    tl = text.lower().strip()
-    variants = [tl]
-    # Kirill bor → Lotinga o'gir
-    if any(c in _CYR_TO_LAT for c in tl):
-        lat = ''.join(_CYR_TO_LAT.get(c, c) for c in tl)
-        variants.append(lat)
-    # Lotin bor → Kirillga o'gir
-    if any(c.isascii() and c.isalpha() for c in tl):
-        cyr = tl
-        for fr, to in _LAT_TO_CYR:
-            cyr = cyr.replace(fr, to)
-        if cyr != tl:
-            variants.append(cyr)
-    # Takrorlanmasin
-    return list(dict.fromkeys(variants))
 
 def _word_condition(word: str):
     """Bitta so'z uchun translit-aware OR filter (name, sku, barcode, ...)."""
@@ -66,6 +35,7 @@ def _word_condition(word: str):
         *[Product.extra_barcodes.ilike(f"%{v}%") for v in variants],
         *[Product.extra_product_codes.ilike(f"%{v}%") for v in variants],
     )
+
 
 def _name_filter(search: str):
     """

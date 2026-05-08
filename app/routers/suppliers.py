@@ -9,6 +9,7 @@ from app.database import get_db  # type: ignore
 from app.models.supplier import Supplier  # type: ignore
 from app.models.user import User, UserRole  # type: ignore
 from app.schemas.supplier import SupplierCreate, SupplierOut, SupplierUpdate  # type: ignore
+from app.utils.translit import name_search_filter  # type: ignore
 
 router = APIRouter(prefix="/suppliers", tags=["Suppliers"])
 
@@ -26,7 +27,7 @@ def list_suppliers(
     q = db.query(Supplier).filter(Supplier.is_active == True)
     q = q.filter(Supplier.company_id == current_user.company_id)
     if search:
-        q = q.filter(Supplier.name.ilike(f"%{search}%"))
+        q = q.filter(name_search_filter(Supplier.name, search))
     return q.offset(skip).limit(limit).all()
 
 

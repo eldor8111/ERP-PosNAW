@@ -1,7 +1,8 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLang } from '../../context/LangContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
+import { matchesSearch } from '../../utils/translit';
 import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
 import toast from 'react-hot-toast';
 
@@ -14,7 +15,7 @@ const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const selected = customers.find(c => String(c.id) === String(value));
-  const filtered = q.trim() ? customers.filter(c => c.name.toLowerCase().includes(q.toLowerCase()) || (c.phone && c.phone.includes(q))).slice(0, 12) : customers.slice(0, 12);
+  const filtered = q.trim() ? customers.filter(c => matchesSearch(c.name, q) || (c.phone && c.phone.includes(q))).slice(0, 12) : customers.slice(0, 12);
 
   useEffect(() => {
     const h = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
@@ -105,7 +106,7 @@ const navigate = useNavigate();
   }, []);
 
   const filteredProducts = products.filter(p => {
-    const ms = p.name.toLowerCase().includes(search.toLowerCase()) || p.sku?.includes(search) || p.barcode?.includes(search);
+    const ms = matchesSearch(p.name, search) || p.sku?.includes(search) || p.barcode?.includes(search);
     const mc = activeCat ? p.category_id === activeCat : true;
     return ms && mc;
   });

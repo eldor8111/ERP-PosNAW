@@ -6,6 +6,7 @@ import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../ut
 import toast from 'react-hot-toast';
 import { useActiveShift } from '../../hooks/useActiveShift';
 import ShiftOpenModal from '../../components/ShiftOpenModal';
+import { matchesSearch } from '../../utils/translit';
 const fmt   = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -54,7 +55,7 @@ function CustSearch({ customers, value, onChange, onAfterSelect }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const selected = customers.find(c => c.id === value);
-  const filtered = q.trim() ? customers.filter(c => c.name.toLowerCase().includes(q.toLowerCase()) || (c.phone&&c.phone.includes(q))).slice(0,12) : customers.slice(0,12);
+  const filtered = q.trim() ? customers.filter(c => matchesSearch(c.name, q) || (c.phone&&c.phone.includes(q))).slice(0,12) : customers.slice(0,12);
   useEffect(() => { const h = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); }; document.addEventListener('mousedown',h); return () => document.removeEventListener('mousedown',h); }, []);
   const select = (c) => { onChange(c?c.id:''); setQ(''); setOpen(false); if (c) onAfterSelect?.(); };
   return (
@@ -88,8 +89,8 @@ function ProdSearch({ products, onSelect, inputRef: externalRef }) {
 
   const list = q.trim()
     ? products.filter(p =>
-        p.name.toLowerCase().includes(q.toLowerCase()) ||
-        p.sku?.toLowerCase().includes(q.toLowerCase()) ||
+        matchesSearch(p.name, q) ||
+        matchesSearch(p.sku, q) ||
         p.barcode?.includes(q)
       ).slice(0, 12)
     : [];

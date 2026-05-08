@@ -5,6 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
 from pydantic import BaseModel, field_validator  # type: ignore
+from app.utils.translit import name_phone_search_filter  # type: ignore
 from decimal import Decimal
 
 from app.database import get_db  # type: ignore
@@ -66,7 +67,9 @@ def list_customers(
     q = db.query(Customer)
     q = q.filter(Customer.company_id == current_user.company_id)
     if search:
-        q = q.filter(Customer.name.ilike(f"%{search}%") | Customer.phone.ilike(f"%{search}%"))
+        q = q.filter(
+            name_phone_search_filter(Customer.name, Customer.phone, search)
+        )
     return q.order_by(Customer.name).offset(skip).limit(limit).all()
 
 
