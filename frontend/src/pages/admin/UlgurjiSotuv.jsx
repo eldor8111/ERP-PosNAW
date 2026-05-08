@@ -1,7 +1,7 @@
 /**
  * UlgurjiSotuv — Ulgurji (wholesale) sotuv sahifasi
  */
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import { buildReceiptHtml, printReceiptHtml, getReceiptSettings, saveReceiptSettings } from '../../utils/receiptBuilder';
@@ -70,13 +70,15 @@ function Ic({ d, cls = 'w-4 h-4' }) {
   );
 }
 
-function CustomerSearch({ customers, value, onChange, onNew }) {
+const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, onChange, onNew }, fwdRef) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', phone: '', debt_limit: '' });
   const [saving, setSaving] = useState(false);
   const ref = useRef(null);
+
+  useImperativeHandle(fwdRef, () => ({ openForm: () => { setShowForm(true); setOpen(false); } }));
   const selected = customers.find(c => String(c.id) === String(value));
   const filtered = (q.trim()
     ? customers.filter(c => matchesSearch(c.name, q) || (c.phone || '').includes(q))
@@ -211,9 +213,9 @@ function CustomerSearch({ customers, value, onChange, onNew }) {
       )}
     </div>
   );
-}
+});
 
-function ProductSearch({ onSelect, placeholder }) {
+const ProductSearch = forwardRef(function ProductSearch({ onSelect, placeholder }, fwdRef) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
   const [activeIdx, setActiveIdx] = useState(0);
@@ -223,6 +225,8 @@ function ProductSearch({ onSelect, placeholder }) {
   const [saving, setSaving] = useState(false);
   const inputRef = useRef(null);
   const timerRef = useRef(null);
+
+  useImperativeHandle(fwdRef, () => ({ openForm: () => setShowForm(true) }));
 
   useEffect(() => {
     if (!q.trim()) { setResults([]); return; }
@@ -393,7 +397,7 @@ function ProductSearch({ onSelect, placeholder }) {
       )}
     </div>
   );
-}
+});
 
 /* ─── Asosiy komponent ──────────────────────────────────── */
 export default function UlgurjiSotuv() {
@@ -423,6 +427,8 @@ export default function UlgurjiSotuv() {
   const [formDiscType, setFormDiscType] = useState('pct');
   const [formDiscVal, setFormDiscVal] = useState('');
   const formQtyRef = useRef(null);
+  const custSearchRef = useRef(null);
+  const prodSearchRef = useRef(null);
   const formPriceRef = useRef(null);
   const formDiscRef = useRef(null);
 
@@ -896,9 +902,15 @@ export default function UlgurjiSotuv() {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Mijoz *</label>
-                    {!custId && <span className="text-xs text-red-400 font-semibold">Tanlanmagan</span>}
+                    <div className="flex items-center gap-2">
+                      {!custId && <span className="text-xs text-red-400 font-semibold">Tanlanmagan</span>}
+                      <button onClick={() => custSearchRef.current?.openForm()}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-bold border border-indigo-200 transition-colors">
+                        <span className="text-base leading-none">+</span> Yangi
+                      </button>
+                    </div>
                   </div>
-                  <CustomerSearch customers={customers} value={custId} onChange={setCustId} onNew={c => setCustomers(prev => [...prev, c])} />
+                  <CustomerSearch ref={custSearchRef} customers={customers} value={custId} onChange={setCustId} onNew={c => setCustomers(prev => [...prev, c])} />
                 </div>
 
                 <div className="border-t border-slate-100" />
@@ -908,6 +920,11 @@ export default function UlgurjiSotuv() {
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Mahsulot</label>
                     <div className="flex items-center gap-2">
+                      {/* Yangi mahsulot */}
+                      <button onClick={() => prodSearchRef.current?.openForm()}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-xs font-bold border border-emerald-200 transition-colors">
+                        <span className="text-base leading-none">+</span> Yangi
+                      </button>
                       {/* Ulgurji toggle */}
                       <button
                         onClick={() => {
@@ -930,7 +947,7 @@ export default function UlgurjiSotuv() {
                     </div>
                   </div>
 
-                  <ProductSearch onSelect={selectFormProduct} placeholder="Mahsulot nomi, SKU, barkod..." />
+                  <ProductSearch ref={prodSearchRef} onSelect={selectFormProduct} placeholder="Mahsulot nomi, SKU, barkod..." />
 
                   {/* Mijoz tanlanmagan ogohlantirish */}
                   {!custId && (
