@@ -1393,6 +1393,11 @@ export default function Products() {
                             />
                           </td>
                           <td className="px-2 py-3">
+                            {/* Mobilda mahsulot nomi shu yerda ko'rinadi */}
+                            <button onClick={() => openHistory(p)}
+                              className="md:hidden text-sm font-bold text-indigo-600 hover:text-indigo-800 text-left w-full truncate block mb-1">
+                              {p.name}
+                            </button>
                             <div className="text-xs font-mono font-bold text-slate-800 truncate">{p.barcode}</div>
                             {Array.isArray(p.extra_barcodes) && p.extra_barcodes.length > 0 && (
                               <div className="flex flex-col gap-0.5 mt-0.5">
@@ -1418,7 +1423,7 @@ export default function Products() {
                               </div>
                             )}
                           </td>
-                          <td className="px-2 py-3 min-w-0">
+                          <td className="hidden md:table-cell px-2 py-3 min-w-0">
                             <button onClick={() => openHistory(p)}
                               className="text-sm font-bold text-indigo-600 hover:text-indigo-800 hover:underline text-left w-full truncate block">
                               {p.name}
