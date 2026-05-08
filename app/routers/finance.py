@@ -481,6 +481,10 @@ def record_supplier_debt_payment(
     if not supplier or (user.role.value != "super_admin" and supplier.company_id != user.company_id):
         raise HTTPException(status_code=404, detail="Supplier topilmadi")
 
+    paid = float(data.amount)
+    if paid > float(supplier.debt_balance):
+        raise HTTPException(status_code=400, detail="To'lov summasi qarz balansidan katta")
+
     from app.models.branch import Branch as _Branch
     tx_branch_id = user.branch_id
     if not tx_branch_id and supplier.company_id:

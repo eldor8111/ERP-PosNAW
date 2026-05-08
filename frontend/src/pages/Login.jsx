@@ -386,7 +386,7 @@ export default function Login() {
       }
       
       if (userRes?.role === 'cashier') {
-        navigate('/admin/pos-kassa')
+        navigate('/admin/ulgurji-sotuv')
       } else {
         navigate('/admin/dashboard')
       }
@@ -431,7 +431,7 @@ export default function Login() {
       localStorage.setItem('user', JSON.stringify(user))
       // Auth context ni reload qilish uchun sahifani yangilaymiz
       if (user?.role === 'cashier') {
-        window.location.href = '/admin/pos-kassa'
+        window.location.href = '/admin/ulgurji-sotuv'
       } else {
         window.location.href = '/admin/dashboard'
       }
@@ -457,7 +457,7 @@ export default function Login() {
       localStorage.setItem('user', JSON.stringify(user))
       
       if (user?.role === 'cashier') {
-        window.location.href = '/admin/pos-kassa'
+        window.location.href = '/admin/ulgurji-sotuv'
       } else {
         window.location.href = '/admin/dashboard'
       }
