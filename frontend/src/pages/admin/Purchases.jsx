@@ -865,7 +865,7 @@ function KirimCreateView({ onBack, onSaved }) {
   const [wallets,    setWallets]= useState([]);
 
   useEffect(() => {
-    api.get('/products/',           { params:{ limit:200, status:'active' } })
+    api.get('/products/',           { params:{ limit:1000, status:'active' } })
        .then(r => setProds(Array.isArray(r.data) ? r.data : (r.data.items||[]))).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
     api.get('/inventory/warehouses').then(r => setWhs(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
     api.get('/suppliers',           { params:{ limit:100 } }).then(r => setSups(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
