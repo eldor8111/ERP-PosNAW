@@ -159,7 +159,7 @@ function ProductSearch({ onSelect, placeholder }) {
       try {
         const variants = searchVariants(q);
         // Barcha variantlar uchun parallel so'rovlar (asl + transliteratsiya)
-        const requests = variants.map(v => api.get('/products/pos-list', { params: { search: v, limit: 12 } }).catch(() => ({ data: [] })));
+        const requests = variants.map(v => api.get('/products/pos-list', { params: { search: v, limit: 50 } }).catch(() => ({ data: [] })));
         const responses = await Promise.all(requests);
         // Natijalarni birlashtir, takrorlanmasin
         const seen = new Set();
@@ -170,7 +170,7 @@ function ProductSearch({ onSelect, placeholder }) {
             if (!seen.has(item.id)) { seen.add(item.id); merged.push(item); }
           }
         }
-        setResults(merged.slice(0, 12));
+        setResults(merged.slice(0, 50));
       } catch {
         setResults([]);
       } finally {
@@ -207,7 +207,7 @@ function ProductSearch({ onSelect, placeholder }) {
       </div>
 
       {results.length > 0 && (
-        <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-72 overflow-y-auto">
+        <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-[420px] overflow-y-auto">
           {results.map((p, i) => (
             <button key={p.id} onMouseDown={() => select(p)}
               className={`w-full flex items-center gap-3 px-4 py-3 border-b border-slate-50 last:border-0 transition-colors text-left ${i === activeIdx ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}>

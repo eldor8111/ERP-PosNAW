@@ -223,8 +223,13 @@ def list_products_for_pos(
 
     q = q.order_by(Product.name)
 
-    # So'z chegarasida moslik yuqori bo'lishi uchun ko'proq olamiz, keyin Python-da sort
-    fetch_limit = min((limit or 12) * 8, 300) if search else (limit or 12)
+    # Qisqa so'z (≤3 harf) uchun ko'proq olib, Python-da sort qilamiz
+    if search:
+        q_len = len(search.strip().replace(' ', ''))
+        multiplier = 20 if q_len <= 3 else (12 if q_len <= 6 else 8)
+        fetch_limit = min((limit or 50) * multiplier, 600)
+    else:
+        fetch_limit = limit or 50
     q = q.limit(fetch_limit)
 
     products_raw = q.all()
@@ -237,27 +242,43 @@ def list_products_for_pos(
         query_words = [w for w in search.strip().split() if w]
 
         def _word_score(name: str, word: str) -> int:
-            """Bitta so'z uchun ball: 4=to'liq, 3=boshida, 2=alohida so'z, 1=substring."""
+            """
+            5 = aynan shu so'z (name == word)
+            4 = nom shu so'z bilan boshlanadi + bo'shliq/oxir  (UN MARKA, UN 10KG)
+            3 = so'z ichida alohida tur (TURON UN 10KG — 'un' standalone)
+            2 = boshqa so'zning boshida  (UNIverse, UNI-...)
+            1 = so'z ichida ko'milgan    (fUN, bUNty, uzUN)
+            0 = umuman yo'q
+            """
             n = (name or '').lower()
             for v in _translit_variants(word):
                 if not v:
                     continue
+                # 5 — aynan
                 if n == v:
+                    return 5
+                # 4 — nom v bilan boshlanadi, keyin bo'shliq yoki tire yoki oxir
+                if n.startswith(v) and (len(n) == len(v) or n[len(v)] in (' ', '-')):
                     return 4
-                if n.startswith(v + ' ') or n.startswith(v):
-                    return 3
                 try:
-                    if _re.search(r'(?<![^\s])' + _re.escape(v), n):
+                    # 3 — alohida so'z: oldidan bo'shliq/bosh, keyinidan bo'shliq/oxir
+                    if _re.search(r'(?:^|[\s\-])' + _re.escape(v) + r'(?:$|[\s\-])', n):
+                        return 3
+                    # 2 — boshqa so'zning boshida (prefiks)
+                    if _re.search(r'(?:^|[\s\-])' + _re.escape(v), n):
                         return 2
                 except Exception:
                     pass
-            return 1
+                # 1 — so'z ichida
+                if v in n:
+                    return 1
+            return 0
 
         def _total_score(name: str) -> int:
             return sum(_word_score(name, w) for w in query_words)
 
         products_raw = sorted(products_raw, key=lambda p: (-_total_score(p.name), p.name or ''))
-        products_raw = products_raw[:(limit or 12)]
+        products_raw = products_raw[:(limit or 50)]
 
     product_ids = [p.id for p in products_raw]
 
