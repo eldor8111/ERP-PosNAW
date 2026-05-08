@@ -3,7 +3,7 @@ import { useLang } from '../../context/LangContext';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import api from '../../api/axios';
-import { matchesSearch } from '../../utils/translit';
+import { matchesSearch, searchVariants } from '../../utils/translit';
 import toast from 'react-hot-toast';
 const fmt    = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const fmtDay = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
@@ -166,31 +166,63 @@ function ProdSearch({ products, onSelect, inputRef, placeholder = 'Mahsulot qidi
   const [q, setQ]       = useState('');
   const [open, setOpen] = useState(false);
   const [navIdx, setNavIdx] = useState(-1);
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
   const ref             = useRef(null);
+  const timerRef        = useRef(null);
 
-  const filtered = q.trim()
-    ? products.filter(p =>
+  useEffect(() => {
+    if (!q.trim()) { setResults([]); return; }
+    
+    // 1. Tezkor lokal qidiruv
+    const localMatches = products.filter(p =>
         matchesSearch(p.name, q) ||
         matchesSearch(p.sku, q) ||
         (p.barcode && p.barcode.includes(q))
-      ).slice(0, 12)
-    : products.slice(0, 12);
+    ).slice(0, 15);
+    setResults(localMatches);
+
+    // 2. Orqa fonda serverdan qidirish (chunki limit 1000 sababli baza to'liq kelmagan bo'lishi mumkin)
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const variants = searchVariants(q);
+        const reqs = variants.map(v => api.get('/products/', { params: { search: v, limit: 15, status: 'active' } }).catch(() => ({ data: [] })));
+        const resps = await Promise.all(reqs);
+        const seen = new Set(localMatches.map(p => p.id));
+        const merged = [...localMatches];
+        for (const r of resps) {
+          const items = Array.isArray(r.data) ? r.data : (r.data?.items || []);
+          for (const item of items) {
+             if (!seen.has(item.id)) { seen.add(item.id); merged.push(item); }
+          }
+        }
+        setResults(merged.slice(0, 15));
+      } catch (err) {
+         // ignore
+      } finally { setLoading(false); }
+    }, 250);
+    return () => clearTimeout(timerRef.current);
+  }, [q, products]);
+
+  const displayList = q.trim() ? results : products.slice(0, 15);
 
   const handleKeyDown = (e) => {
     if (!open) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setNavIdx(prev => (prev < filtered.length - 1 ? prev + 1 : prev));
+      setNavIdx(prev => (prev < displayList.length - 1 ? prev + 1 : prev));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setNavIdx(prev => (prev > 0 ? prev - 1 : -1));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (navIdx >= 0 && navIdx < filtered.length) {
-        onSelect(filtered[navIdx]);
+      if (navIdx >= 0 && navIdx < displayList.length) {
+        onSelect(displayList[navIdx]);
         setQ(''); setOpen(false); setNavIdx(-1);
-      } else if (filtered.length > 0) {
-        onSelect(filtered[0]);
+      } else if (displayList.length > 0) {
+        onSelect(displayList[0]);
         setQ(''); setOpen(false); setNavIdx(-1);
       }
     }
@@ -207,15 +239,18 @@ function ProdSearch({ products, onSelect, inputRef, placeholder = 'Mahsulot qidi
 
   return (
     <div className="relative" ref={ref}>
-      <input value={q} onChange={e => { setQ(e.target.value); setOpen(true); }}
-        onFocus={() => setOpen(true)}
-        onKeyDown={handleKeyDown}
-        ref={inputRef}
-        placeholder={placeholder}
-        className={`w-full ${ic}`} />
-      {open && filtered.length > 0 && (
+      <div className={`flex items-center gap-2 border border-slate-200 rounded-xl px-3.5 py-2 bg-white transition-all ${open ? 'border-indigo-400 ring-2 ring-indigo-50' : 'hover:border-slate-300'}`}>
+        <input value={q} onChange={e => { setQ(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={handleKeyDown}
+          ref={inputRef}
+          placeholder={placeholder}
+          className="w-full text-sm outline-none bg-transparent" />
+        {loading && <div className="w-3.5 h-3.5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin shrink-0" />}
+      </div>
+      {open && displayList.length > 0 && (
         <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-60 overflow-hidden max-h-72 overflow-y-auto">
-          {filtered.map((p, i) => (
+          {displayList.map((p, i) => (
             <button key={p.id} onMouseDown={() => { onSelect(p); setQ(''); setOpen(false); }}
               className={`w-full text-left px-4 py-2.5 hover:bg-indigo-50 border-b border-slate-100 last:border-0 flex justify-between items-center gap-3 ${navIdx === i ? 'bg-indigo-50' : ''}`}>
               <div className="min-w-0">
