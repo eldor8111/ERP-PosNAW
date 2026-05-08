@@ -63,20 +63,6 @@ def create_user(
 ):
     company_id = current_user.company_id if current_user.role != UserRole.super_admin else getattr(data, 'company_id', None)
 
-    from app.routers.auth import _get_otp_bot_token, _find_chat_id_by_phone
-    bot_token = _get_otp_bot_token()
-    is_dev_mode = not bot_token or bot_token == "YOUR_TELEGRAM_BOT_TOKEN_HERE"
-
-    if not is_dev_mode:
-        if not data.otp_verified_token:
-            raise HTTPException(status_code=400, detail="Telegram OTP tasdiqlash talab qilinadi")
-        from app.core.security import decode_token
-        token_data = decode_token(data.otp_verified_token)
-        if not token_data or token_data.get("type") != "otp_verified":
-            raise HTTPException(status_code=400, detail="OTP token noto'g'ri yoki muddati o'tgan")
-        if token_data.get("phone") != data.phone:
-            raise HTTPException(status_code=400, detail="OTP token bu telefon uchun emas")
-
     active_existing = db.query(User).filter(
         User.phone == data.phone,
         User.status == UserStatus.active
@@ -174,10 +160,7 @@ def create_user(
             new_values={"company_id": company_id, "role": data.role.value},
             ip_address=request.client.host if request.client else None,
         )
-        if not active_existing.tg_chat_id:
-            reg_chat_id = _find_chat_id_by_phone(data.phone) if not is_dev_mode else None
-            if reg_chat_id:
-                active_existing.tg_chat_id = reg_chat_id
+        pass  # tg_chat_id set separately if needed
 
         return active_existing
 
@@ -191,11 +174,6 @@ def create_user(
         user.branch_id = data.branch_id
         user.company_id = company_id
         user.status = UserStatus.active
-
-        if not user.tg_chat_id:
-            reg_chat_id = _find_chat_id_by_phone(data.phone) if not is_dev_mode else None
-            if reg_chat_id:
-                user.tg_chat_id = reg_chat_id
 
         uc_inactive = db.query(UserCompany).filter(UserCompany.user_id == user.id, UserCompany.company_id == company_id).first()
         if not uc_inactive:
@@ -212,7 +190,7 @@ def create_user(
             role=data.role,
             branch_id=data.branch_id,
             company_id=company_id,
-            tg_chat_id=_find_chat_id_by_phone(data.phone) if not is_dev_mode else None,
+            tg_chat_id=None,
         )
         db.add(user)
         db.flush()
