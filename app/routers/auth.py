@@ -522,7 +522,7 @@ class LoginOtpVerifyRequest(BaseModel):
 
 
 # Rollarni aniqlash: bu rollar login da OTP talab qiladi
-_OTP_REQUIRED_ROLES = {"cashier", "manager", "accountant", "warehouse"}
+_OTP_REQUIRED_ROLES = set()  # OTP login o'chirilgan — parol bilan to'g'ridan kiradi
 
 def _process_login_success(user: User, db: Session, request: Request, is_otp: bool = False) -> TokenResponse:
     from app.models.user_company import UserCompany
