@@ -170,6 +170,7 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
 
     # CRM Va Loyallik ballari hisob-kitobi
     loyalty_earned = 0
+    prev_debt_balance = 0.0
     if data.customer_id:
         # Xavfsizlik: faqat shu korxona mijozi olinadi
         customer = db.query(Customer).filter(
@@ -178,7 +179,8 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
         ).first()
         if not customer:
             raise HTTPException(status_code=404, detail="Mijoz topilmadi")
-            
+        prev_debt_balance = float(customer.debt_balance or 0)
+
         if data.loyalty_points_used > 0:
             if data.loyalty_points_used > customer.loyalty_points:
                 raise HTTPException(status_code=400, detail="Mijozda yetarli loyallik ballari yo'q")
@@ -467,7 +469,6 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
     
     # 5. Telegram notification — fully async, does NOT block the HTTP response
     if getattr(data, 'customer_id', None):
-        # Xavfsizlik: faqat shu korxona mijozi (Telegram xabarnoma uchun)
         customer = db.query(Customer).filter(
             Customer.id == data.customer_id,
             Customer.company_id == current_user.company_id,
@@ -475,48 +476,106 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
         if customer and getattr(customer, 'tg_chat_id', None):
             company = db.query(from_models_company).filter(from_models_company.id == current_user.company_id).first()
             if company and getattr(company, 'tg_bot_token', None):
-                due_str = data.debt_due_date.strftime("%d.%m.%Y") if getattr(data, 'debt_due_date', None) else "belgilanmagan"
-                debt_val = total_amount - data.paid_amount
-
-                if debt_val > 0:
-                    msg = f"🔔 <b>Qarz qo'shildi</b>\n\nHurmatli <b>{customer.name}</b>!\nSiz bugun <b>{company.name}</b> do'konidan qarzingiz tushdi.\n\n📅 Qarzni to'lash muddati: <b>{due_str}</b>\n\n<i>Iltimos qarzni o'z vaqtida to'lashni unutmang! Chek ilova qilindi.</i>"
-                else:
-                    msg = f"✅ Xaridingiz uchun rahmat, <b>{customer.name}</b>!\nHaridingiz cheki fayl sifatida ilova qilindi."
-
-                # Snapshot all needed values before launching thread
-                _token = company.tg_bot_token
-                _chat_id = customer.tg_chat_id
+                _token = str(company.tg_bot_token)
+                _chat_id = str(customer.tg_chat_id)
                 _sale_id = sale.id
-                _sale_num = sale.number
-                _msg = msg
-                _comp = company
-                _cust = customer
+                _prev_debt = prev_debt_balance
+                _new_debt = float(customer.debt_balance or 0)
+                _seller = current_user.name
+                _comp_name = str(company.name)
+                _cust_name = str(customer.name)
 
-                def _bg_send(token, chat_id, text, sale_id, comp, cust):
-                    """Runs safely after response is sent"""
+                def _bg_send(token, chat_id, sale_id, prev_debt, new_debt, seller, comp_name, cust_name):
                     try:
-                        from app.utils.pdf_generator import build_sale_pdf
                         from app.database import SessionLocal
+                        from sqlalchemy.orm import joinedload as _jl
                         _db = SessionLocal()
                         try:
-                            from app.models.sale import Sale as _Sale
-                            _sale = _db.query(_Sale).filter(_Sale.id == sale_id).first()
-                            if _sale:
-                                filepath = build_sale_pdf(_sale, comp, cust)
-                                send_tg_sync(token, chat_id, text, filepath)
+                            from app.models.sale import Sale as _Sale, SaleItem as _SI
+                            _sale = (
+                                _db.query(_Sale)
+                                .options(_jl(_Sale.items).joinedload(_SI.product), _jl(_Sale.payments))
+                                .filter(_Sale.id == sale_id)
+                                .first()
+                            )
+                            if not _sale:
+                                return
+
+                            def FMT(v):
+                                val = float(v or 0)
+                                if val == int(val):
+                                    return f"{int(val):,}".replace(",", " ")
+                                return f"{val:,.1f}".replace(",", " ")
+
+                            pay_labels = {
+                                "cash": "💵Naqd", "card": "💳Karta",
+                                "uzcard": "💳UzCard", "humo": "💳Humo",
+                                "bank": "🏦Bank", "click": "📱Click",
+                                "payme": "📱Payme", "visa": "💳Visa",
+                                "uzum": "📱Uzum", "debt": "🔖Qarz", "mixed": "💰Aralash",
+                            }
+                            if _sale.payments:
+                                pay_lines = "\n".join(
+                                    f"{pay_labels.get(str(p.payment_type), str(p.payment_type))}: som {FMT(p.amount)}"
+                                    for p in _sale.payments if float(p.amount or 0) > 0
+                                )
                             else:
-                                send_tg_sync(token, chat_id, text)
+                                pt = str(_sale.payment_type.value if hasattr(_sale.payment_type, 'value') else _sale.payment_type)
+                                pay_lines = f"{pay_labels.get(pt, pt)}: som {FMT(_sale.total_amount)}"
+
+                            item_lines = []
+                            total_qty = 0
+                            for it in _sale.items:
+                                pname = it.product.name if it.product else f"ID={it.product_id}"
+                                qty = float(it.quantity)
+                                total_qty += qty
+                                qty_str = str(int(qty)) if qty == int(qty) else f"{qty:g}"
+                                item_lines.append(
+                                    f"{pname}\n{qty_str} dona x som {FMT(it.unit_price)} = som {FMT(it.subtotal)}"
+                                )
+
+                            status_map = {
+                                "completed": "Bajarildi", "pending": "Kutilmoqda",
+                                "refunded": "Qaytarildi", "cancelled": "Bekor qilindi",
+                                "partial_refund": "Qisman qaytarildi",
+                            }
+                            st = str(_sale.status.value if hasattr(_sale.status, 'value') else _sale.status)
+                            sale_date = _sale.created_at.strftime("%d.%m.%Y %H:%M") if _sale.created_at else "-"
+                            tqty_str = str(int(total_qty)) if total_qty == int(total_qty) else f"{total_qty:g}"
+
+                            receipt = (
+                                f"🧾 <b>Sotuv cheki</b>\n\n"
+                                f"Mijoz: {cust_name}\n"
+                                f"💴 Savdodan oldingi balans: som {FMT(prev_debt)}\n"
+                                f"💰 Hozirgi balans: som {FMT(new_debt)}\n"
+                                f"Savdo: #{_sale.number}\n"
+                                f"Mahsulotlar:\n"
+                                + "\n".join(item_lines)
+                                + f"\nTashkilot: {comp_name}\n"
+                                f"To'lov usuli:\n{pay_lines}\n\n"
+                                f"Sotuvchi: {seller}\n"
+                                f"📅 Sana: {sale_date}\n"
+                                f"Holati: {status_map.get(st, st)}\n"
+                                f"Jami: som {FMT(_sale.total_amount)}\n"
+                                f"Chegirma bilan: som {FMT(_sale.total_amount)}\n"
+                                f"Jami miqdor: {tqty_str}\n"
+                                f"🏷 Jami chegirma: som {FMT(_sale.discount_amount)}"
+                            )
+                            send_tg_sync(token, chat_id, receipt)
                         finally:
                             _db.close()
                     except Exception as e:
                         print("Telegram BG error:", e)
 
                 if background_tasks:
-                    background_tasks.add_task(_bg_send, _token, _chat_id, _msg, _sale_id, _comp, _cust)
+                    background_tasks.add_task(
+                        _bg_send, _token, _chat_id, _sale_id,
+                        _prev_debt, _new_debt, _seller, _comp_name, _cust_name
+                    )
                 else:
                     threading.Thread(
                         target=_bg_send,
-                        args=(_token, _chat_id, _msg, _sale_id, _comp, _cust),
+                        args=(_token, _chat_id, _sale_id, _prev_debt, _new_debt, _seller, _comp_name, _cust_name),
                         daemon=True
                     ).start()
 
