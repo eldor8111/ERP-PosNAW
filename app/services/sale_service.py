@@ -1020,6 +1020,7 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                     ))
 
         # F. Sale maydonlarini yangilash
+        sale.status = final_status
         sale.total_amount = total_amount
         sale.discount_amount = disc_amount
         sale.paid_amount = paid_amount
@@ -1056,6 +1057,15 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                         diff = new_debt - old_debt
                         customer.debt_balance = max(Decimal("0"), customer.debt_balance + diff)
             sale.paid_amount = data.paid_amount
+
+        # Pending → Completed holatida paid_amount berilmasa ham mijoz qarzini yozish
+        if data.paid_amount is None and old_status == SaleStatus.pending and sale.status != SaleStatus.pending:
+            if sale.customer_id:
+                customer = db.query(Customer).filter(Customer.id == sale.customer_id).first()
+                if customer:
+                    remaining_debt = sale.total_amount - sale.paid_amount
+                    if remaining_debt > 0:
+                        customer.debt_balance = (customer.debt_balance or Decimal("0")) + remaining_debt
 
         # 2. Stock updates for simple status transition
         if old_status == SaleStatus.pending and sale.status != SaleStatus.pending:
