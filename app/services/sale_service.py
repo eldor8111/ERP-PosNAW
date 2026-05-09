@@ -732,7 +732,7 @@ def delete_sale(db: Session, sale_id: int, current_user: User) -> None:
             db.delete(sib)
 
     # 2. Mijoz qarzini va loyallik ballarini to'g'irlash
-    if sale.customer_id:
+    if sale.customer_id and sale.status != SaleStatus.pending:
         # Xavfsizlik: faqat shu korxona mijozi (sale.company_id orqali)
         customer = db.query(Customer).filter(
             Customer.id == sale.customer_id,
@@ -844,7 +844,7 @@ def _reverse_sale_effects(db: Session, sale: Sale) -> None:
             db.delete(sib)
 
     # 2. Mijoz: qarz, loyalty, cashback, total_spent qaytarish
-    if sale.customer_id:
+    if sale.customer_id and sale.status != SaleStatus.pending:
         customer = db.query(Customer).filter(
             Customer.id == sale.customer_id,
             Customer.company_id == sale.company_id,
@@ -1032,6 +1032,7 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
 
     else:
         # ── Oddiy yangilash: faqat holat/izoh/to'lov ─────────────────────────
+        old_status = sale.status
         if data.status is not None:
             sale.status = data.status
         if data.note is not None:
@@ -1042,9 +1043,45 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 if customer:
                     old_debt = sale.total_amount - sale.paid_amount
                     new_debt = sale.total_amount - data.paid_amount
-                    diff = new_debt - old_debt
-                    customer.debt_balance = max(Decimal("0"), customer.debt_balance + diff)
+                    if old_status == SaleStatus.pending and sale.status != SaleStatus.pending:
+                        if new_debt > 0:
+                            customer.debt_balance = (customer.debt_balance or Decimal("0")) + new_debt
+                    elif old_status != SaleStatus.pending and sale.status == SaleStatus.pending:
+                        if old_debt > 0:
+                            customer.debt_balance = max(Decimal("0"), customer.debt_balance - old_debt)
+                    elif old_status != SaleStatus.pending and sale.status != SaleStatus.pending:
+                        diff = new_debt - old_debt
+                        customer.debt_balance = max(Decimal("0"), customer.debt_balance + diff)
             sale.paid_amount = data.paid_amount
+
+        # 2. Stock updates for simple status transition
+        if old_status == SaleStatus.pending and sale.status != SaleStatus.pending:
+            for item in sale.items:
+                deduct_stock(
+                    db=db,
+                    product_id=item.product_id,
+                    quantity=item.quantity,
+                    user_id=current_user.id,
+                    reason=f"Sotuv tasdiqlandi (sale #{sale.id})",
+                    reference_type="sale",
+                    reference_id=sale.id,
+                    warehouse_id=sale.warehouse_id,
+                    allow_negative=True,
+                )
+        elif old_status != SaleStatus.pending and sale.status == SaleStatus.pending:
+            from app.models.inventory import StockMovement, StockLevel  # type: ignore
+            old_movements = db.query(StockMovement).filter(
+                StockMovement.reference_type == "sale",
+                StockMovement.reference_id == sale.id
+            ).all()
+            for movement in old_movements:
+                stock = db.query(StockLevel).filter(
+                    StockLevel.product_id == movement.product_id,
+                    StockLevel.warehouse_id == sale.warehouse_id,
+                ).first()
+                if stock:
+                    stock.quantity = movement.qty_before
+                db.delete(movement)
 
     log_action(
         db=db,
