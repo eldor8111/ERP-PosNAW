@@ -701,7 +701,7 @@ export default function UlgurjiSotuv() {
           ? it.price * it.qty * (parseN(it.discount_val) / 100)
           : parseN(it.discount_val),
       }));
-      await api.post('/sales/pending', {
+      const payload = {
         items,
         payment_type: 'cash',
         paid_amount: 0,
@@ -709,10 +709,19 @@ export default function UlgurjiSotuv() {
         note: note || undefined,
         customer_id: custId ? Number(custId) : undefined,
         warehouse_id: warehouseId ? Number(warehouseId) : undefined,
-      });
+      };
+
+      if (editingSale) {
+        await api.put(`/sales/${editingSale.id}`, { ...payload, warehouse_id: editingSale.warehouse_id || payload.warehouse_id });
+        setEditingSale(null);
+        if (!silently) toast.success('Sotuv yangilandi!');
+      } else {
+        await api.post('/sales/pending', payload);
+        if (!silently) toast.success('Sotuv "Tasdiqlash kutulmoqda" holatda saqlandi!');
+      }
+
       setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDiscVal('');
       setFormProduct(null); setFormPrice(''); setFormQty('1'); setFormDiscVal('');
-      if (!silently) toast.success('Sotuv "Tasdiqlash kutulmoqda" holatda saqlandi!');
     } catch (e) {
       if (!silently) toast.error(e?.response?.data?.detail || 'Saqlashda xatolik');
     } finally {
