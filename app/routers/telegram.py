@@ -336,23 +336,31 @@ async def telegram_webhook(
                     "❌ Kompaniya topilmadi.", {"remove_keyboard": True})
                 return {"ok": True}
 
-            # Bazada telefon bo'yicha mijoz qidirish
+            # Global (barcha kompaniyalarda) telefon bo'yicha qidirish
             found_customer = None
-            for c in db.query(Customer).filter(Customer.company_id == company.id).all():
-                if c.phone:
-                    c_clean = "".join(filter(str.isdigit, str(c.phone)))
-                    if len(c_clean) >= 9 and len(p_clean) >= 9 and c_clean[-9:] == p_clean[-9:]:
-                        found_customer = c
-                        break
+            for c in db.query(Customer).filter(Customer.phone.isnot(None)).all():
+                c_clean = "".join(filter(str.isdigit, str(c.phone)))
+                if len(c_clean) >= 9 and len(p_clean) >= 9 and c_clean[-9:] == p_clean[-9:]:
+                    found_customer = c
+                    break
+
+            # tg_chat_id bo'yicha ham qidiramiz (duplicate bo'lmasin)
+            if not found_customer:
+                found_customer = db.query(Customer).filter(Customer.tg_chat_id == chat_id).first()
 
             session = _get_session(db, chat_id, token)
 
             if found_customer:
-                # Mavjud mijoz — ulab, kartasini yuboramiz
+                # Mavjud mijoz — yangilab, kartasini yuboramiz
                 found_customer.tg_chat_id = chat_id
+                found_customer.company_id = company.id
                 if not found_customer.card_number:
                     found_customer.card_number = _generate_card_number(db, company.id)
-                db.commit()
+                try:
+                    db.commit()
+                except Exception as ex:
+                    db.rollback()
+                    print("Commit xato (found_customer):", ex)
                 _delete_session(db, chat_id, token)
 
                 cashback = float(found_customer.cashback_percent or 0)
@@ -363,40 +371,50 @@ async def telegram_webhook(
                 )
                 background_tasks.add_task(send_telegram_message, token, chat_id, welcome, _build_main_keyboard())
                 background_tasks.add_task(send_loyalty_card, token, chat_id,
-                    found_customer.name, found_customer.card_number, cashback)
+                    str(found_customer.name), str(found_customer.card_number or ""), cashback)
             elif session and session.temp_name:
                 # Yangi mijoz — ro'yxatdan o'tkazamiz
                 temp_name = session.temp_name
                 card_number = _generate_card_number(db, company.id)
-                new_customer = Customer(
-                    name=temp_name,
-                    phone=phone,
-                    company_id=company.id,
-                    tg_chat_id=chat_id,
-                    card_number=card_number,
-                )
-                db.add(new_customer)
-                db.commit()
-                db.refresh(new_customer)
-                _delete_session(db, chat_id, token)
-
-                cashback = float(new_customer.cashback_percent or 0)
-                welcome = (
-                    f"✅ <b>Siz <u>{company.name}</u> do'konidan muvaffaqiyatli ro'yxatdan o'tdingiz!</b> 🎉\n\n"
-                    f"👤 Ism: <b>{temp_name}</b>\n"
-                    f"📞 Telefon: <b>{phone}</b>\n\n"
-                    f"🎫 Loyallik kartangiz tayyor! Har bir xaridingizda keshbek to'planadi."
-                )
-                background_tasks.add_task(send_telegram_message, token, chat_id, welcome, _build_main_keyboard())
-                background_tasks.add_task(send_loyalty_card, token, chat_id,
-                    temp_name, card_number, cashback)
+                try:
+                    new_customer = Customer(
+                        name=temp_name,
+                        phone=phone,
+                        company_id=company.id,
+                        tg_chat_id=chat_id,
+                        card_number=card_number,
+                    )
+                    db.add(new_customer)
+                    db.commit()
+                    db.refresh(new_customer)
+                    _delete_session(db, chat_id, token)
+                    cashback = float(new_customer.cashback_percent or 0)
+                    welcome = (
+                        f"✅ <b>Siz <u>{company.name}</u> do'konidan muvaffaqiyatli ro'yxatdan o'tdingiz!</b> 🎉\n\n"
+                        f"👤 Ism: <b>{temp_name}</b>\n"
+                        f"📞 Telefon: <b>{phone}</b>\n\n"
+                        f"🎫 Loyallik kartangiz tayyor! Har bir xaridingizda keshbek to'planadi."
+                    )
+                    background_tasks.add_task(send_telegram_message, token, chat_id, welcome, _build_main_keyboard())
+                    background_tasks.add_task(send_loyalty_card, token, chat_id,
+                        temp_name, card_number, cashback)
+                except Exception as ex:
+                    db.rollback()
+                    print("Yangi mijoz yaratish xato:", ex)
+                    _delete_session(db, chat_id, token)
+                    background_tasks.add_task(
+                        send_telegram_message, token, chat_id,
+                        f"✅ <b>Siz <u>{company.name}</u> do'konidan ro'yxatdan o'tdingiz!</b> 🎉\n\n"
+                        f"👤 Ism: <b>{temp_name}</b>\n"
+                        f"📞 Telefon: <b>{phone}</b>",
+                        _build_main_keyboard(),
+                    )
             else:
                 # Sessiya topilmadi — qayta boshlashni so'raymiz
                 _upsert_session(db, chat_id, token, step="awaiting_name")
                 background_tasks.add_task(
                     send_telegram_message, token, chat_id,
-                    f"⚠️ Ro'yxatdan o'tish jarayoni boshlanmagan.\n\n"
-                    f"Iltimos, avval <b>ismingizni</b> kiriting:",
+                    f"⚠️ Iltimos, avval <b>ismingizni</b> kiriting:",
                     {"remove_keyboard": True},
                 )
             return {"ok": True}
