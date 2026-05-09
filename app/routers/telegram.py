@@ -382,19 +382,21 @@ async def telegram_webhook(
 
                 cashback = float(new_customer.cashback_percent or 0)
                 welcome = (
-                    f"✅ <b>Ro'yxatdan o'tish muvaffaqiyatli!</b>\n\n"
+                    f"✅ <b>Siz <u>{company.name}</u> do'konidan muvaffaqiyatli ro'yxatdan o'tdingiz!</b> 🎉\n\n"
                     f"👤 Ism: <b>{temp_name}</b>\n"
                     f"📞 Telefon: <b>{phone}</b>\n\n"
-                    f"Loyallik kartangiz:"
+                    f"🎫 Loyallik kartangiz tayyor! Har bir xaridingizda keshbek to'planadi."
                 )
                 background_tasks.add_task(send_telegram_message, token, chat_id, welcome, _build_main_keyboard())
                 background_tasks.add_task(send_loyalty_card, token, chat_id,
                     temp_name, card_number, cashback)
             else:
+                # Sessiya topilmadi — qayta boshlashni so'raymiz
+                _upsert_session(db, chat_id, token, step="awaiting_name")
                 background_tasks.add_task(
                     send_telegram_message, token, chat_id,
-                    "❌ Bu raqam tizimda topilmadi.\n\n"
-                    "Ro'yxatdan o'tish uchun /start bosing.",
+                    f"⚠️ Ro'yxatdan o'tish jarayoni boshlanmagan.\n\n"
+                    f"Iltimos, avval <b>ismingizni</b> kiriting:",
                     {"remove_keyboard": True},
                 )
             return {"ok": True}
