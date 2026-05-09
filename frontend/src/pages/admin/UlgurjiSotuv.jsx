@@ -704,7 +704,8 @@ export default function UlgurjiSotuv() {
       const payload = {
         items,
         payment_type: 'cash',
-        paid_amount: 0,
+        // Tahrirlashda paid_amount yuborilmaydi — backend eski to'lovni saqlaydi
+        ...(editingSale ? {} : { paid_amount: 0 }),
         discount_amount: saleDisc,
         note: note || undefined,
         customer_id: custId ? Number(custId) : undefined,
