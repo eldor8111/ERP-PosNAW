@@ -939,6 +939,7 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
         paid_card = data.paid_card if data.paid_card is not None else Decimal("0")
 
         # C. Yangi SaleItem yaratish + stock yechish
+        final_status = data.status if data.status is not None else sale.status
         for sid in sale_items_data:
             db.add(SaleItem(
                 sale_id=sale.id,
@@ -949,20 +950,21 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 discount=sid["discount"],
                 subtotal=sid["subtotal"],
             ))
-            deduct_stock(
-                db=db,
-                product_id=sid["product"].id,
-                quantity=sid["quantity"],
-                user_id=current_user.id,
-                reason=f"Sotuv tahrirlash (sale #{sale_id})",
-                reference_type="sale",
-                reference_id=sale_id,
-                warehouse_id=wh_id,
-                allow_negative=True,
-            )
+            if final_status != SaleStatus.pending:
+                deduct_stock(
+                    db=db,
+                    product_id=sid["product"].id,
+                    quantity=sid["quantity"],
+                    user_id=current_user.id,
+                    reason=f"Sotuv tahrirlash (sale #{sale_id})",
+                    reference_type="sale",
+                    reference_id=sale_id,
+                    warehouse_id=wh_id,
+                    allow_negative=True,
+                )
 
         # D. Yangi mijoz: qarz, cashback, total_spent, loyalty yozish
-        if new_customer_id:
+        if new_customer_id and final_status != SaleStatus.pending:
             new_customer = db.query(Customer).filter(
                 Customer.id == new_customer_id,
                 Customer.company_id == current_user.company_id,
@@ -982,39 +984,40 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
             sale.loyalty_points_used = 0
 
         # E. Yangi moliya tranzaksiyalari yozish
-        tx_branch_id = current_user.branch_id
-        if not tx_branch_id and wh_id:
-            from app.models.warehouse import Warehouse as _WH  # type: ignore
-            wh_obj = db.query(_WH).filter(_WH.id == wh_id).first()
-            if wh_obj and wh_obj.branch_id:
-                tx_branch_id = wh_obj.branch_id
-        if not tx_branch_id:
-            from app.models.branch import Branch as _BR  # type: ignore
-            br = db.query(_BR).filter(_BR.company_id == current_user.company_id).first()
-            if br:
-                tx_branch_id = br.id
+        if final_status != SaleStatus.pending:
+            tx_branch_id = current_user.branch_id
+            if not tx_branch_id and wh_id:
+                from app.models.warehouse import Warehouse as _WH  # type: ignore
+                wh_obj = db.query(_WH).filter(_WH.id == wh_id).first()
+                if wh_obj and wh_obj.branch_id:
+                    tx_branch_id = wh_obj.branch_id
+            if not tx_branch_id:
+                from app.models.branch import Branch as _BR  # type: ignore
+                br = db.query(_BR).filter(_BR.company_id == current_user.company_id).first()
+                if br:
+                    tx_branch_id = br.id
 
-        from app.models.sale import SalePayment as _SP  # type: ignore
-        if data.payments and len(data.payments) > 0:
-            for p in data.payments:
-                if p.amount > 0:
-                    db.add(_SP(sale_id=sale.id, payment_type=p.type.value, amount=p.amount))
-                    if tx_branch_id:
-                        db.add(Transaction(
-                            branch_id=tx_branch_id, company_id=current_user.company_id,
-                            type="income", amount=p.amount, payment_type=p.type.value,
-                            reference_type="sale", reference_id=sale.id,
-                            description=f"Sotuv tahrirlash #{sale.number} ({p.type.value})"
-                        ))
-        elif paid_amount > 0:
-            db.add(_SP(sale_id=sale.id, payment_type=payment_type.value, amount=paid_amount))
-            if tx_branch_id:
-                db.add(Transaction(
-                    branch_id=tx_branch_id, company_id=current_user.company_id,
-                    type="income", amount=paid_amount, payment_type=payment_type.value,
-                    reference_type="sale", reference_id=sale.id,
-                    description=f"Sotuv tahrirlash #{sale.number}"
-                ))
+            from app.models.sale import SalePayment as _SP  # type: ignore
+            if data.payments and len(data.payments) > 0:
+                for p in data.payments:
+                    if p.amount > 0:
+                        db.add(_SP(sale_id=sale.id, payment_type=p.type.value, amount=p.amount))
+                        if tx_branch_id:
+                            db.add(Transaction(
+                                branch_id=tx_branch_id, company_id=current_user.company_id,
+                                type="income", amount=p.amount, payment_type=p.type.value,
+                                reference_type="sale", reference_id=sale.id,
+                                description=f"Sotuv tahrirlash #{sale.number} ({p.type.value})"
+                            ))
+            elif paid_amount > 0:
+                db.add(_SP(sale_id=sale.id, payment_type=payment_type.value, amount=paid_amount))
+                if tx_branch_id:
+                    db.add(Transaction(
+                        branch_id=tx_branch_id, company_id=current_user.company_id,
+                        type="income", amount=paid_amount, payment_type=payment_type.value,
+                        reference_type="sale", reference_id=sale.id,
+                        description=f"Sotuv tahrirlash #{sale.number}"
+                    ))
 
         # F. Sale maydonlarini yangilash
         sale.total_amount = total_amount
