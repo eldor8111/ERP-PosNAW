@@ -468,6 +468,7 @@ export default function UlgurjiSotuv() {
       setNote(sale.note || ''); setDiscType('sum');
       setDiscVal(sale.discount_amount > 0 ? String(sale.discount_amount) : '');
       setEditingSale({ id: sale.id, number: sale.number, warehouse_id: sale.warehouse_id });
+      sessionStorage.setItem('ulgurji_session_sale_id', String(sale.id));
       setTab('new'); setOpenMenuId(null);
       toast.success(`"${sale.number}" sotuv tahrirlash uchun yuklandi`);
     } catch (e) { toast.error(e?.response?.data?.detail || 'Sotuvni yuklashda xatolik'); }
@@ -507,6 +508,7 @@ export default function UlgurjiSotuv() {
         discount_type: 'pct', discount_val: 0,
         wholesale_price: Number(p.wholesale_price || 0), sale_price: Number(p.sale_price || 0),
         stock_quantity: Number(p.stock_quantity || 0), image_url: p.image_url,
+        addedAt: Date.now(),
       }];
     });
   }, [useWholesale]);
@@ -548,6 +550,7 @@ export default function UlgurjiSotuv() {
         qty, price, discount_type: formDiscType, discount_val: parseFloat(formDiscVal) || 0,
         wholesale_price: Number(formProduct.wholesale_price || 0), sale_price: Number(formProduct.sale_price || 0),
         stock_quantity: Number(formProduct.stock_quantity || 0), image_url: formProduct.image_url,
+        addedAt: Date.now(),
       }];
     });
     setFormProduct(null); setFormPrice(''); setFormQty('1'); setFormDiscVal('');
@@ -642,6 +645,7 @@ export default function UlgurjiSotuv() {
         } catch {}
       }
 
+      sessionStorage.removeItem('ulgurji_session_sale_id');
       setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDiscVal(''); setPaidAmt('');
       setPaidCash(''); setPaidCard(''); setPayNote(''); setDebtDate('');
       setShowPayment(false); setShowDebtDate(false); setPayType('cash'); setPayments([]); setCurPayAmt('');
@@ -712,12 +716,19 @@ export default function UlgurjiSotuv() {
         warehouse_id: warehouseId ? Number(warehouseId) : undefined,
       };
 
-      if (editingSale) {
-        await api.put(`/sales/${editingSale.id}`, { ...payload, warehouse_id: editingSale.warehouse_id || payload.warehouse_id });
-        setEditingSale(null);
+      // Har bir tab o'zining pending savosini alohida kuzatadi
+      const sessionSaleId = sessionStorage.getItem('ulgurji_session_sale_id');
+      const activeSaleId = editingSale?.id || (sessionSaleId ? Number(sessionSaleId) : null);
+
+      if (activeSaleId) {
+        const wid = editingSale?.warehouse_id || payload.warehouse_id;
+        await api.put(`/sales/${activeSaleId}`, { ...payload, warehouse_id: wid });
+        sessionStorage.setItem('ulgurji_session_sale_id', String(activeSaleId));
+        if (editingSale) setEditingSale(null);
         if (!silently) toast.success('Sotuv yangilandi!');
       } else {
-        await api.post('/sales/pending', payload);
+        const res = await api.post('/sales/pending', payload);
+        sessionStorage.setItem('ulgurji_session_sale_id', String(res.data.id));
         if (!silently) toast.success('Sotuv "Tasdiqlash kutulmoqda" holatda saqlandi!');
       }
 
@@ -751,6 +762,30 @@ export default function UlgurjiSotuv() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
+  // Tab ochilganda shu sessiyaga tegishli pending sotuvni tiklash
+  useEffect(() => {
+    const sessionSaleId = sessionStorage.getItem('ulgurji_session_sale_id');
+    if (!sessionSaleId) return;
+    api.get(`/sales/${sessionSaleId}`).then(r => {
+      const sale = r.data;
+      if (sale.status !== 'pending') { sessionStorage.removeItem('ulgurji_session_sale_id'); return; }
+      setCart((sale.items || []).map(it => ({
+        product_id: it.product_id, name: it.product_name, unit: 'dona',
+        qty: Number(it.quantity), price: Number(it.unit_price),
+        discount_type: 'sum', discount_val: it.discount > 0 ? String(it.discount) : '',
+        wholesale_price: Number(it.unit_price), sale_price: Number(it.unit_price), stock_quantity: 9999,
+        addedAt: Date.now(),
+      })));
+      setCustId(sale.customer_id ? String(sale.customer_id) : '');
+      setNote(sale.note || '');
+      setDiscType('sum');
+      setDiscVal(sale.discount_amount > 0 ? String(sale.discount_amount) : '');
+      setEditingSale({ id: sale.id, number: sale.number, warehouse_id: sale.warehouse_id });
+    }).catch(() => {
+      sessionStorage.removeItem('ulgurji_session_sale_id');
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Sahifadan chiqilganda (component unmount) savatni tarixga saqlash
   useEffect(() => {
     return () => {
@@ -772,8 +807,12 @@ export default function UlgurjiSotuv() {
         customer_id: Number(d.custId),
         warehouse_id: d.warehouseId ? Number(d.warehouseId) : undefined,
       };
-      if (d.editingSale) {
-        api.put(`/sales/${d.editingSale.id}`, { ...payload, warehouse_id: d.editingSale.warehouse_id || payload.warehouse_id });
+      // Shu tab uchun mavjud pending savoni yangilash (yangi yaratmaslik)
+      const sessionSaleId = sessionStorage.getItem('ulgurji_session_sale_id');
+      const activeSaleId = d.editingSale?.id || (sessionSaleId ? Number(sessionSaleId) : null);
+      if (activeSaleId) {
+        const wid = d.editingSale?.warehouse_id || payload.warehouse_id;
+        api.put(`/sales/${activeSaleId}`, { ...payload, warehouse_id: wid });
       } else {
         api.post('/sales/pending', payload);
       }
@@ -849,7 +888,7 @@ export default function UlgurjiSotuv() {
                 <Ic d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" cls="w-4 h-4" />
                 Tahrirlash rejimi: <span className="font-black font-mono">{editingSale.number}</span>
               </div>
-              <button onClick={() => { setEditingSale(null); setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDiscVal(''); }}
+              <button onClick={() => { setEditingSale(null); setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDiscVal(''); sessionStorage.removeItem('ulgurji_session_sale_id'); }}
                 className="text-amber-500 hover:text-amber-700 font-bold text-sm">Bekor qilish</button>
             </div>
           )}
