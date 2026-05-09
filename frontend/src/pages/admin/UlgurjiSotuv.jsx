@@ -736,6 +736,10 @@ export default function UlgurjiSotuv() {
   cartRef.current = cart;
   custIdRef.current = custId;
 
+  // Unmount vaqtida kerak bo'lgan barcha ma'lumotlarni ref da saqlaymiz
+  const pendingSaveDataRef = useRef(null);
+  pendingSaveDataRef.current = { cart, custId, saleDisc, warehouseId, editingSale };
+
   useEffect(() => {
     const handleBeforeUnload = (e) => {
       if (cartRef.current.length > 0 && custIdRef.current) {
@@ -745,6 +749,35 @@ export default function UlgurjiSotuv() {
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
+  // Sahifadan chiqilganda (component unmount) savatni tarixga saqlash
+  useEffect(() => {
+    return () => {
+      const d = pendingSaveDataRef.current;
+      if (!d || !d.cart.length || !d.custId) return;
+      const items = d.cart.map(it => ({
+        product_id: it.product_id,
+        quantity: it.qty,
+        unit_price: it.price,
+        discount: it.discount_type === 'pct'
+          ? it.price * it.qty * (parseN(it.discount_val) / 100)
+          : parseN(it.discount_val),
+      }));
+      const payload = {
+        items,
+        payment_type: 'cash',
+        ...(d.editingSale ? {} : { paid_amount: 0 }),
+        discount_amount: d.saleDisc,
+        customer_id: Number(d.custId),
+        warehouse_id: d.warehouseId ? Number(d.warehouseId) : undefined,
+      };
+      if (d.editingSale) {
+        api.put(`/sales/${d.editingSale.id}`, { ...payload, warehouse_id: d.editingSale.warehouse_id || payload.warehouse_id });
+      } else {
+        api.post('/sales/pending', payload);
+      }
+    };
   }, []);
 
   // Tab o'zgarganda (Tarixi yoki Arxiv ga o'tganda) auto-pending saqlash
