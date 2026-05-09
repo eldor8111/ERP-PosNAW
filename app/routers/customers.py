@@ -331,10 +331,12 @@ def bulk_import_customers(
 
 @router.delete("/{customer_id}", status_code=204)
 def delete_customer(customer_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from app.models.sale import Sale
     q = db.query(Customer).filter(Customer.id == customer_id)
     q = q.filter(Customer.company_id == current_user.company_id)
     cust = q.first()
     if not cust:
         raise HTTPException(status_code=404, detail="Not found")
+    db.query(Sale).filter(Sale.customer_id == customer_id).update({"customer_id": None})
     db.delete(cust)
     db.commit()
