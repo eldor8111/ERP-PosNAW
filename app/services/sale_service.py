@@ -899,15 +899,19 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
 
     # ── To'liq tahrirlash (items berilgan bo'lsa) ──────────────────────────────
     if data.items is not None:
-        # A. Eski barcha moliyaviy ta'sirlarni bekor qilish
+        # A. Eski qiymatlarni saqlab olish (reverse dan oldin)
+        old_paid_amount = Decimal(str(sale.paid_amount or 0))
+        old_payment_type = sale.payment_type
+        old_paid_cash = Decimal(str(sale.paid_cash or 0))
+        old_paid_card = Decimal(str(sale.paid_card or 0))
+
+        # A2. Eski barcha moliyaviy ta'sirlarni bekor qilish
         _reverse_sale_effects(db, sale)
 
         wh_id = data.warehouse_id if data.warehouse_id is not None else sale.warehouse_id
         disc_amount = data.discount_amount if data.discount_amount is not None else Decimal("0")
-        payment_type = data.payment_type if data.payment_type is not None else sale.payment_type
-        new_customer_id = data.customer_id  # None bo'lsa mijoz o'chiriladi (intentional)
-        if new_customer_id is None and data.customer_id is None:
-            new_customer_id = sale.customer_id  # o'zgartirilmagan
+        payment_type = data.payment_type if data.payment_type is not None else old_payment_type
+        new_customer_id = data.customer_id if data.customer_id is not None else sale.customer_id
 
         # B. Yangi items hisoblash
         sale_items_data = []
@@ -934,9 +938,10 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
             total_amount += subtotal
 
         total_amount = max(Decimal("0"), total_amount - disc_amount)
-        paid_amount = data.paid_amount if data.paid_amount is not None else total_amount
-        paid_cash = data.paid_cash if data.paid_cash is not None else Decimal("0")
-        paid_card = data.paid_card if data.paid_card is not None else Decimal("0")
+        # To'lov o'zgarmaydi — eski to'lov saqlanadi
+        paid_amount = data.paid_amount if data.paid_amount is not None else old_paid_amount
+        paid_cash = data.paid_cash if data.paid_cash is not None else old_paid_cash
+        paid_card = data.paid_card if data.paid_card is not None else old_paid_card
 
         # C. Yangi SaleItem yaratish + stock yechish
         final_status = data.status if data.status is not None else sale.status
