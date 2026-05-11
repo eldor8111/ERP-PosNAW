@@ -1,8 +1,7 @@
-from fastapi import FastAPI, Request  # type: ignore
+from fastapi import FastAPI  # type: ignore
 from fastapi.middleware.cors import CORSMiddleware  # type: ignore
 from fastapi.middleware.gzip import GZipMiddleware  # type: ignore
 from fastapi.staticfiles import StaticFiles  # type: ignore
-from fastapi.responses import JSONResponse  # type: ignore
 import asyncio
 import os
 from contextlib import asynccontextmanager
@@ -11,7 +10,8 @@ from slowapi.errors import RateLimitExceeded  # type: ignore
 from app.core.limiter import limiter  # type: ignore
 
 from app.routers import (
-    auth, categories, inventory, products, reports, sales, users,
+    auth, categories, inventory, products, product_search, product_import,
+    reports, sales_report, finance_report, sales, users,
     suppliers, purchase_orders, transfers, inventory_counts,
     finance, customers, shifts, dashboard_mobile, currencies, api_keys,
     warehouses, branches, super_admin, companies, dashboard
@@ -25,58 +25,18 @@ from app.models import bot_session  # noqa: F401 — ensure bot_sessions table e
 
 from app.services.scheduler import start_scheduler
 
-def _run_auto_migrations(engine):
-    """DB da mavjud bo'lmagan ustunlarni avtomatik qo'shadi. Har biri alohida tranzaksiya."""
-    migrations = [
-        "ALTER TABLE products ADD COLUMN IF NOT EXISTS extra_barcodes TEXT;",
-        "ALTER TABLE products ADD COLUMN IF NOT EXISTS product_code VARCHAR(100);",
-        "ALTER TABLE products ADD COLUMN IF NOT EXISTS extra_product_codes TEXT;",
-        "CREATE INDEX IF NOT EXISTS ix_products_product_code ON products (product_code);",
-        "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(14,2) DEFAULT 0;",
-        "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(14,2) DEFAULT 0;",
-        "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS payment_type VARCHAR(50);",
-        "ALTER TABLE sales ADD COLUMN IF NOT EXISTS debt_due_date DATE;",
-        "ALTER TABLE sales ADD COLUMN IF NOT EXISTS loyalty_points_earned INTEGER DEFAULT 0;",
-        "ALTER TABLE sales ADD COLUMN IF NOT EXISTS loyalty_points_used INTEGER DEFAULT 0;",
-        "ALTER TABLE sales ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(14,2) DEFAULT 1;",
-        "ALTER TABLE sales ADD COLUMN IF NOT EXISTS currency_id INTEGER;",
-        "ALTER TABLE sales ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(14,2) DEFAULT 0;",
-        "ALTER TABLE sales ADD COLUMN IF NOT EXISTS paid_cash NUMERIC(14,2) DEFAULT 0;",
-        "ALTER TABLE sales ADD COLUMN IF NOT EXISTS paid_card NUMERIC(14,2) DEFAULT 0;",
-        "ALTER TABLE sales ADD COLUMN IF NOT EXISTS paid_cashback NUMERIC(14,2) DEFAULT 0;",
-        # PaymentType enum ga 'cashback' qo'shish (PostgreSQL ENUM uchun)
-        """DO $$
-        BEGIN
-            IF NOT EXISTS (
-                SELECT 1 FROM pg_enum
-                WHERE enumlabel = 'cashback'
-                AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'paymenttype')
-            ) THEN
-                ALTER TYPE paymenttype ADD VALUE 'cashback';
-            END IF;
-        END$$;""",
-        """CREATE TABLE IF NOT EXISTS sale_payments (
-            id SERIAL PRIMARY KEY,
-            sale_id INTEGER NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
-            payment_type VARCHAR(50) NOT NULL,
-            amount NUMERIC(14, 2) NOT NULL
-        );""",
-        """CREATE TABLE IF NOT EXISTS wallet_balances (
-            id SERIAL PRIMARY KEY,
-            wallet_id INTEGER NOT NULL REFERENCES wallets(id) ON DELETE CASCADE,
-            payment_type VARCHAR(50) NOT NULL,
-            balance NUMERIC(14, 2) DEFAULT 0,
-            UNIQUE(wallet_id, payment_type)
-        );""",
-    ]
-    _sa_text = __import__('sqlalchemy').text
-    for sql in migrations:
-        try:
-            with engine.connect() as conn:
-                conn.execute(_sa_text(sql))
-                conn.commit()
-        except Exception as e:
-            print(f"[AUTO-MIGRATION] skip: {e}")
+def _run_alembic_upgrade():
+    """Alembic orqali barcha migratsiyalarni bajaradi (alembic upgrade head)."""
+    import logging
+    _log = logging.getLogger(__name__)
+    try:
+        from alembic.config import Config
+        from alembic import command
+        alembic_cfg = Config("alembic.ini")
+        command.upgrade(alembic_cfg, "head")
+        _log.info("[MIGRATION] Alembic upgrade head — muvaffaqiyatli")
+    except Exception as e:
+        _log.error("[MIGRATION] Alembic upgrade xatosi: %s", e)
 
 
 @asynccontextmanager
@@ -85,8 +45,8 @@ async def lifespan(app: FastAPI):
     from app.database import engine
     from app.models.bot_session import BotSession
     BotSession.__table__.create(bind=engine, checkfirst=True)
-    # DB ustunlari avtomatik yaratiladi (migration)
-    _run_auto_migrations(engine)
+    # Alembic orqali barcha migratsiyalar bajariladi
+    _run_alembic_upgrade()
     scheduler_task = asyncio.create_task(start_scheduler())
     otp_bot_task = asyncio.create_task(run_otp_bot_polling())
     yield
@@ -148,10 +108,14 @@ API_PREFIX = "/api"
 app.include_router(auth.router, prefix=API_PREFIX)
 app.include_router(users.router, prefix=API_PREFIX)
 app.include_router(categories.router, prefix=API_PREFIX)
+app.include_router(product_search.router, prefix=API_PREFIX)
+app.include_router(product_import.router, prefix=API_PREFIX)
 app.include_router(products.router, prefix=API_PREFIX)
 app.include_router(inventory.router, prefix=API_PREFIX)
 app.include_router(sales.router, prefix=API_PREFIX)
 app.include_router(reports.router, prefix=API_PREFIX)
+app.include_router(sales_report.router, prefix=API_PREFIX)
+app.include_router(finance_report.router, prefix=API_PREFIX)
 app.include_router(suppliers.router, prefix=API_PREFIX)
 app.include_router(purchase_orders.router, prefix=API_PREFIX)
 app.include_router(transfers.router, prefix=API_PREFIX)
