@@ -157,7 +157,7 @@ function buildLabelHTML(tpl, product, opts = {}) {
     display:inline-flex; flex-direction:column; align-items:center; justify-content:space-between;
     padding:1mm 1.5mm; box-sizing:border-box;
     border:0.3mm solid #ccc; page-break-inside:avoid; overflow:hidden;
-    font-family:Arial,sans-serif;
+    font-family:Arial,sans-serif; -webkit-print-color-adjust:exact; print-color-adjust:exact;
   `;
 
   let inner = '';
@@ -386,11 +386,13 @@ export default function BarcodePrintModal({ product, onClose }) {
 
   /* Print — uses a hidden iframe so no new tab is opened */
   const handlePrint = () => {
+    const { w, h } = selectedTpl;
     const singleLabel = buildLabelHTML(selectedTpl, product, { fontSize });
-    const labels = Array(qty).fill(`<div class="lbl-wrap">${singleLabel}</div>`).join('');
+    const labelItems = Array.from({ length: qty }, (_, i) =>
+      `<div class="lbl-wrap${i < qty - 1 ? ' page-break' : ''}">${singleLabel}</div>`
+    ).join('');
 
     const iframeId = '__barcode_print_frame__';
-    // Remove old frame if exists
     const old = document.getElementById(iframeId);
     if (old) old.remove();
 
@@ -405,14 +407,33 @@ export default function BarcodePrintModal({ product, onClose }) {
 <html><head><title>Chop: ${product.name}</title>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></scr` + `ipt>
 <style>
-  @page { margin: 5mm; size: auto; }
+  @page {
+    margin: 0;
+    size: ${w}mm ${h}mm;
+  }
   * { box-sizing: border-box; }
-  body { font-family: Arial, sans-serif; display:flex; flex-wrap:wrap; gap:2mm; padding:2mm; margin:0; background:#fff; }
-  .lbl-wrap { display:inline-block; }
+  body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    font-family: Arial, sans-serif;
+  }
+  .lbl-wrap {
+    display: block;
+    width: ${w}mm;
+    height: ${h}mm;
+    overflow: hidden;
+  }
+  .lbl-wrap > div {
+    border: none !important;
+  }
+  .page-break {
+    page-break-after: always;
+  }
 </style>
 </head>
 <body>
-${labels}
+${labelItems}
 <script>
   window.onload = function() {
     document.querySelectorAll('svg.bc').forEach(function(el) {
