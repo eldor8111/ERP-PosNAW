@@ -18,6 +18,9 @@ from app.models.batch import Batch
 from app.schemas.sale import SaleCreate  # type: ignore
 from app.services.inventory_service import deduct_stock, receive_stock  # type: ignore
 
+import logging
+_logger = logging.getLogger(__name__)
+
 def send_tg_sync(token, chat_id, text, filepath=None):
     try:
         if filepath and os.path.exists(filepath):
@@ -31,8 +34,8 @@ def send_tg_sync(token, chat_id, text, filepath=None):
         else:
             requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
                           json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"}, timeout=5)
-    except:
-        pass
+    except Exception as e:
+        _logger.error("[TG] Telegram xabarnomasi yuborishda xato: %s", e)
 def generate_sale_number(db: Session) -> str:
     """MAX ishlatadi — COUNT dan 2-3x tezroq."""
     today = datetime.now(timezone.utc).strftime("%Y%m%d")
@@ -74,8 +77,6 @@ from app.models.customer import Customer  # type: ignore
 from app.models.currency import Currency  # type: ignore
 from app.models.company import Company as from_models_company  # type: ignore
 from app.models.moliya import Transaction  # type: ignore
-from app.models.branch import Branch  # type: ignore
-
 from app.models.user import User  # type: ignore
 
 def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[str] = None, background_tasks=None) -> Sale:
@@ -161,6 +162,45 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
         )
 
 
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # A. Agar payments[] bo'sh bo'lsa — paid_* maydonlardan quramiz
+    # Bu POS eski formatini qo'llab-quvvatlaydi
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    if not data.payments:
+        _auto_payments: list = []
+        _field_type_map = [
+            ("paid_cash",    "cash"),
+            ("paid_card",    "card"),
+            ("paid_uzcard",  "uzcard"),
+            ("paid_humo",    "humo"),
+            ("paid_click",   "click"),
+            ("paid_payme",   "payme"),
+            ("paid_uzum",    "uzum"),
+            ("paid_cashback","cashback"),
+        ]
+        for _field, _ptype in _field_type_map:
+            _val = getattr(data, _field, Decimal("0")) or Decimal("0")
+            if _val > 0:
+                from app.schemas.sale import PaymentItem as _PI
+                _auto_payments.append(_PI(type=PaymentType(_ptype), amount=_val))
+        if _auto_payments:
+            data.payments = _auto_payments
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # B. Cashback (bonus_balance) to'lovini ayriqcha tekshiruv
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    paid_cashback_amount = getattr(data, 'paid_cashback', Decimal("0")) or Decimal("0")
+    # POS payments[] dan cashback yuborgan bo'lsa ham olamiz
+    if not paid_cashback_amount and data.payments:
+        for _p in data.payments:
+            if _p.type == PaymentType.cashback:
+                paid_cashback_amount += _p.amount
+    if paid_cashback_amount > 0 and not data.customer_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Keshbekdan foydalanish uchun mijozni tanlash majburiy"
+        )
+
     # Valyuta hisobi
     exchange_rate = Decimal(1.0)
     if data.currency_id:
@@ -188,8 +228,24 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
             discount_from_loyalty = Decimal(data.loyalty_points_used)
             total_amount -= discount_from_loyalty
             customer.loyalty_points -= data.loyalty_points_used
-            
-        # Keshbek va total_spent qo'shish
+
+        # ── Cashback (bonus_balance) dan to'lov ──────────────────────────────
+        if paid_cashback_amount > 0:
+            avail_bonus = customer.bonus_balance or Decimal("0")
+            if paid_cashback_amount > avail_bonus:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Mijozning bonus hisobida yetarli mablag' yo'q. "
+                           f"Mavjud: {avail_bonus:.0f} so'm, so'ralgan: {paid_cashback_amount:.0f} so'm"
+                )
+            # Bonus hisobidan yechib olamiz
+            customer.bonus_balance = avail_bonus - paid_cashback_amount
+            # paid_amount ga qo'shamiz (total_amount kamayadi)
+            total_amount -= paid_cashback_amount
+            if total_amount < Decimal("0"):
+                total_amount = Decimal("0")
+
+        # Keshbek va total_spent qo'shish (cashback to'lovidan keyin qolgan summadan hisoblanadi)
         if getattr(customer, "cashback_percent", 0) > 0:
             cashback_amount = (total_amount * exchange_rate * customer.cashback_percent) / Decimal("100")
             customer.bonus_balance = (customer.bonus_balance or Decimal("0")) + cashback_amount
@@ -225,6 +281,7 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
         paid_amount=data.paid_amount,
         paid_cash=data.paid_cash,
         paid_card=data.paid_card,
+        paid_cashback=paid_cashback_amount,
         payment_type=data.payment_type,
         status=SaleStatus.completed,
         note=data.note,
@@ -335,7 +392,6 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
         stocks_by_product[s.product_id].append(s)
 
     new_sale_items = []
-    new_sibs = []
     new_movements = []
 
     for item_d in sale_items_data:
@@ -582,7 +638,7 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
     return sale
 
 
-def create_pending_sale(db: Session, data: SaleCreate, current_user: User, ip: str = None) -> Sale:
+def create_pending_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[str] = None) -> Sale:
     """
     Ulgurji sotuv — to'lovsiz (pending) saqlash.
     Stock kamaytirmaydi, moliya tranzaksiya qo'shmaydi.
@@ -733,32 +789,13 @@ def delete_sale(db: Session, sale_id: int, current_user: User) -> None:
 
     # 2. Mijoz qarzini va loyallik ballarini to'g'irlash
     if sale.customer_id and sale.status != SaleStatus.pending:
-        # Xavfsizlik: faqat shu korxona mijozi (sale.company_id orqali)
         customer = db.query(Customer).filter(
             Customer.id == sale.customer_id,
             Customer.company_id == sale.company_id,
         ).first()
         if customer:
-            # 2.1. Qarzni qaytarish (agar qarzdorlik bo'lgan bo'lsa — istalgan to'lov turida)
-            debt_in_sale = sale.total_amount - sale.paid_amount
-            if debt_in_sale > 0:
-                customer.debt_balance = max(Decimal("0"), customer.debt_balance - debt_in_sale)
-
-            # 2.2. Loyallik ballarini qaytarish
-            # Avval ishlatilgan ballarni qaytaramiz
-            if sale.loyalty_points_used and sale.loyalty_points_used > 0:
-                customer.loyalty_points += sale.loyalty_points_used
-
-            # Keyin berilgan ballarni olib qo'yamiz
-            if sale.loyalty_points_earned and sale.loyalty_points_earned > 0:
-                customer.loyalty_points = max(0, customer.loyalty_points - sale.loyalty_points_earned)
-
-            # Qo'shilgan cashback va total_spent ni ayirish
-            if getattr(customer, "cashback_percent", 0) > 0:
-                cashback_amount = (sale.total_amount * getattr(sale, 'exchange_rate', Decimal('1')) * customer.cashback_percent) / Decimal("100")
-                customer.bonus_balance = max(Decimal("0"), (customer.bonus_balance or Decimal("0")) - cashback_amount)
-
-            customer.total_spent = max(Decimal("0"), (customer.total_spent or Decimal("0")) - (sale.total_amount * getattr(sale, 'exchange_rate', Decimal('1'))))
+            from app.services.loyalty_service import restore_customer_after_sale
+            restore_customer_after_sale(customer, sale)
 
     # 3. Moliya tranzaksiyasini qaytarish (agar to'lov qilingan bo'lsa)
     if sale.paid_amount > 0:
@@ -850,18 +887,8 @@ def _reverse_sale_effects(db: Session, sale: Sale) -> None:
             Customer.company_id == sale.company_id,
         ).first()
         if customer:
-            debt_in_sale = sale.total_amount - sale.paid_amount
-            if debt_in_sale > 0:
-                customer.debt_balance = max(Decimal("0"), customer.debt_balance - debt_in_sale)
-            if sale.loyalty_points_used and sale.loyalty_points_used > 0:
-                customer.loyalty_points += sale.loyalty_points_used
-            if sale.loyalty_points_earned and sale.loyalty_points_earned > 0:
-                customer.loyalty_points = max(0, customer.loyalty_points - sale.loyalty_points_earned)
-            exr = getattr(sale, 'exchange_rate', Decimal('1')) or Decimal('1')
-            if getattr(customer, "cashback_percent", 0) > 0:
-                cashback_amount = (sale.total_amount * exr * customer.cashback_percent) / Decimal("100")
-                customer.bonus_balance = max(Decimal("0"), (customer.bonus_balance or Decimal("0")) - cashback_amount)
-            customer.total_spent = max(Decimal("0"), (customer.total_spent or Decimal("0")) - (sale.total_amount * exr))
+            from app.services.loyalty_service import restore_customer_after_sale
+            restore_customer_after_sale(customer, sale)
 
     # 3. Moliya income tranzaksiyalarini o'chirish
     for otx in db.query(Transaction).filter(
@@ -1114,7 +1141,7 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
     return sale
 
 
-def create_return_sale(db: Session, data: SaleCreate, current_user, ip: str = None) -> Sale:
+def create_return_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[str] = None) -> Sale:
     """
     Sotuv interfeysidagi Vazvrat (Return) uchun maxsus funksiya.
     Qilingan ishlar:
@@ -1285,6 +1312,7 @@ def create_return_sale(db: Session, data: SaleCreate, current_user, ip: str = No
         entity_type="sale",
         entity_id=sale.id,
         user_id=current_user.id,
+        ip_address=ip,
     )
 
     db.commit()

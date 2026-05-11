@@ -42,11 +42,22 @@ class PaymentItem(BaseModel):
 class SaleCreate(BaseModel):
     items: List[SaleItemCreate]
     payment_type: PaymentType
+    # Umumiy to'langan summa
     paid_amount: Decimal
+    # To'lov turlari bo'yicha alohida maydonlar (POS dan keladi)
     paid_cash: Decimal = Decimal("0")
     paid_card: Decimal = Decimal("0")
+    paid_uzcard: Decimal = Decimal("0")
+    paid_humo: Decimal = Decimal("0")
+    paid_click: Decimal = Decimal("0")
+    paid_payme: Decimal = Decimal("0")
+    paid_uzum: Decimal = Decimal("0")
+    paid_cashback: Decimal = Decimal("0")   # Mijoz bonus_balance dan to'lov
+    # Ko'p to'lovli format (ixtiyoriy, yuqoridagi maydonlardan ustun turadi)
     payments: Optional[List[PaymentItem]] = []
     discount_amount: Decimal = Decimal("0")
+    # Sotuv holati: POS "completed" yubora oladi (ulgurji uchun "pending")
+    status: Optional[str] = None
 
     @field_validator("discount_amount")
     @classmethod
@@ -60,6 +71,8 @@ class SaleCreate(BaseModel):
     loyalty_points_used: int = 0
     warehouse_id: Optional[int] = None
     debt_due_date: Optional[date] = None
+    # Qarz miqdori (POS dan debt_amount ham kelishi mumkin)
+    debt_amount: Optional[Decimal] = None
 
     @field_validator("items")
     @classmethod
@@ -100,6 +113,7 @@ class SaleOut(BaseModel):
     paid_amount: Decimal
     paid_cash: Decimal
     paid_card: Decimal
+    paid_cashback: Decimal = Decimal("0")
     payment_type: PaymentType
     status: SaleStatus
     note: Optional[str]
@@ -121,6 +135,7 @@ class SaleListOut(BaseModel):
     paid_amount: Decimal
     paid_cash: Decimal
     paid_card: Decimal
+    paid_cashback: Decimal = Decimal("0")
     payment_type: PaymentType
     status: SaleStatus
     customer_id: Optional[int] = None

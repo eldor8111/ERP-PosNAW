@@ -32,9 +32,9 @@ psycopg-binary==3.3.3
 psycopg2-binary==2.9.11
 pyasn1==0.6.2
 pycparser==3.0
-pydantic==2.13.0b2
-pydantic-settings==2.13.1
-pydantic_core==2.42.0
+pydantic==2.11.3
+pydantic-settings==2.8.1
+pydantic_core==2.33.1
 python-docx==1.2.0
 python-dotenv==1.2.2
 python-jose==3.5.0

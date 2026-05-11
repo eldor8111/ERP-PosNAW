@@ -43,6 +43,18 @@ def _run_auto_migrations(engine):
         "ALTER TABLE sales ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(14,2) DEFAULT 0;",
         "ALTER TABLE sales ADD COLUMN IF NOT EXISTS paid_cash NUMERIC(14,2) DEFAULT 0;",
         "ALTER TABLE sales ADD COLUMN IF NOT EXISTS paid_card NUMERIC(14,2) DEFAULT 0;",
+        "ALTER TABLE sales ADD COLUMN IF NOT EXISTS paid_cashback NUMERIC(14,2) DEFAULT 0;",
+        # PaymentType enum ga 'cashback' qo'shish (PostgreSQL ENUM uchun)
+        """DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_enum
+                WHERE enumlabel = 'cashback'
+                AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'paymenttype')
+            ) THEN
+                ALTER TYPE paymenttype ADD VALUE 'cashback';
+            END IF;
+        END$$;""",
         """CREATE TABLE IF NOT EXISTS sale_payments (
             id SERIAL PRIMARY KEY,
             sale_id INTEGER NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
@@ -89,11 +101,15 @@ async def lifespan(app: FastAPI):
 _is_dev = os.environ.get("ENV", "production").lower() == "development"
 
 _cors_origins_env = os.environ.get("CORS_ORIGINS", "")
-_cors_origins = (
-    [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
-    if _cors_origins_env
-    else ["*"]  # .env da CORS_ORIGINS ko'rsatilmasa hamma domenga ochiq
-)
+if _cors_origins_env:
+    _cors_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
+else:
+    import logging as _logging
+    _logging.getLogger(__name__).warning(
+        "CORS_ORIGINS sozlanmagan — barcha domenga ochiq (*). "
+        "Production uchun .env faylida CORS_ORIGINS=https://sizning-domen.uz ni belgilang."
+    )
+    _cors_origins = ["*"]
 
 app = FastAPI(
     title="ERP/POS Tizimi",

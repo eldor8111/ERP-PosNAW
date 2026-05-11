@@ -8,17 +8,18 @@ from app.database import Base  # type: ignore
 
 
 class PaymentType(str, enum.Enum):
-    cash   = "cash"
-    card   = "card"
-    uzcard = "uzcard"
-    humo   = "humo"
-    bank   = "bank"
-    click  = "click"
-    payme  = "payme"
-    visa   = "visa"
-    uzum   = "uzum"
-    debt   = "debt"
-    mixed  = "mixed"
+    cash     = "cash"
+    card     = "card"
+    uzcard   = "uzcard"
+    humo     = "humo"
+    bank     = "bank"
+    click    = "click"
+    payme    = "payme"
+    visa     = "visa"
+    uzum     = "uzum"
+    debt     = "debt"
+    mixed    = "mixed"
+    cashback = "cashback"   # Mijoz bonus_balance hisobidan to'lov
 
 
 class SaleStatus(str, enum.Enum):
@@ -40,6 +41,7 @@ class Sale(Base):
     paid_amount = Column(Numeric(14, 2), nullable=False)
     paid_cash = Column(Numeric(14, 2), default=0)
     paid_card = Column(Numeric(14, 2), default=0)
+    paid_cashback = Column(Numeric(14, 2), default=0)  # Bonus/cashback hisobidan to'langan
     payment_type = Column(Enum(PaymentType), nullable=False)
     status = Column(Enum(SaleStatus), default=SaleStatus.completed)
     note = Column(Text, nullable=True)

@@ -198,6 +198,31 @@ def pay_debt(customer_id: int, data: DebtUpdate, db: Session = Depends(get_db), 
     return {"message": "Qarzdorlik to'landi", "remaining_debt": float(cust.debt_balance)}
 
 
+@router.get("/{customer_id}/cashback")
+def get_customer_cashback(
+    customer_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """POS uchun: mijozning keshbek va bonus balans ma'lumotlari (yengil endpoint)."""
+    cust = db.query(Customer).filter(
+        Customer.id == customer_id,
+        Customer.company_id == current_user.company_id,
+    ).first()
+    if not cust:
+        raise HTTPException(status_code=404, detail="Mijoz topilmadi")
+    return {
+        "customer_id": cust.id,
+        "name": cust.name,
+        "bonus_balance": float(cust.bonus_balance or 0),
+        "cashback_percent": float(cust.cashback_percent or 0),
+        "loyalty_points": cust.loyalty_points or 0,
+        "tier": cust.tier,
+        "debt_balance": float(cust.debt_balance or 0),
+        "debt_limit": float(cust.debt_limit or 0),
+    }
+
+
 @router.post("/{customer_id}/adjust-points")
 def adjust_loyalty_points(
     customer_id: int,
