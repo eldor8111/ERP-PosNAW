@@ -59,6 +59,44 @@ export default function Tariflar() {
     fetchData();
   }, [user]);
 
+  const handlePayme = async () => {
+    if (!buyModal) return;
+    setTrialLoading(true);
+    try {
+      const amount = Math.round(buyModal.tariff.price_per_month * months);
+      const res = await api.post('/payme/checkout-url', { amount });
+
+      // Popup oynani markazda ochish
+      const w = 600, h = 700;
+      const left = Math.round(window.innerWidth / 2 - w / 2);
+      const top = Math.round(window.innerHeight / 2 - h / 2);
+      const popup = window.open(
+        res.data.checkout_url,
+        'payme_checkout',
+        `width=${w},height=${h},top=${top},left=${left}`
+      );
+
+      setBuyModal(null);
+
+      // Popup yopilishini kutib balansni yangilaymiz
+      const timer = setInterval(async () => {
+        if (popup && popup.closed) {
+          clearInterval(timer);
+          try {
+            const b = await api.get('/billing/my-company');
+            setBilling(b.data);
+            setToast({ msg: "Balans yangilandi!", ok: true });
+          } catch { /* ignore */ }
+        }
+      }, 1000);
+    } catch (e) {
+      setToast({ msg: e.response?.data?.detail || "Xatolik yuz berdi", ok: false });
+    } finally {
+      setTrialLoading(false);
+      setTimeout(() => setToast(null), 4000);
+    }
+  };
+
   const copyCard = () => {
     navigator.clipboard.writeText((settings.card_number || '').replace(/\s/g, '')).then(() => {
       setCopied(true);
@@ -340,14 +378,26 @@ export default function Tariflar() {
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
                 <div className="text-xs font-bold text-amber-700 mb-2">{t('tariffs.paymentInstructions')}</div>
                 <ol className="space-y-1.5 text-xs text-amber-800">
-                  <li className="flex gap-2"><span className="font-black w-4">1.</span>Yuqoridagi kartaga <span className="font-bold">{fmtMoney(total)} so'm</span> o'tkazing</li>
-                  <li className="flex gap-2"><span className="font-black w-4">2.</span>To'lov cheki (screenshot) bilan Telegramga yozing</li>
+                  <li className="flex gap-2"><span className="font-black w-4">1.</span>Quyidagi Payme tugmasi orqali to'lovni tasdiqlang</li>
+                  <li className="flex gap-2"><span className="font-black w-4">2.</span>Yoki yuqoridagi kartaga <span className="font-bold">{fmtMoney(total)} so'm</span> o'tkazib Telegramga yozing</li>
                   <li className="flex gap-2"><span className="font-black w-4">3.</span>Balans to'ldirilgach, o'zingiz obuna faollashtirasiz</li>
                 </ol>
               </div>
 
               {/* Harakatlar */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3">
+                <button
+                  onClick={handlePayme}
+                  disabled={trialLoading}
+                  className="flex items-center justify-center gap-2 py-3.5 bg-[#4BDE95] hover:bg-[#3ccf87] text-white font-bold rounded-xl text-base transition-all shadow-md disabled:opacity-60"
+                >
+                  {trialLoading ? "Kuting..." : (
+                    <>💳 Payme orqali to'lash</>
+                  )}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
                 <a
                   href={`https://t.me/${settings.tg_username}?text=${tgMessage}`}
                   target="_blank" rel="noopener noreferrer"
@@ -357,7 +407,7 @@ export default function Tariflar() {
                 </a>
                 <a
                   href={`tel:${settings.phone_raw}`}
-                  className="flex items-center justify-center gap-2 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-emerald-200"
+                  className="flex items-center justify-center gap-2 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition-all"
                 >
                   {PHONE_ICON} {t('tariffs.call')}
                 </a>

@@ -21,3 +21,4 @@ from .inventory_count import InventoryCount, InventoryCountItem  # type: ignore
 from .agent import Agent  # type: ignore
 from .transfer import StockTransfer, StockTransferItem  # type: ignore
 from .bin_location import BinLocation  # type: ignore
+from .payme_transaction import PaymeTransaction  # type: ignore
