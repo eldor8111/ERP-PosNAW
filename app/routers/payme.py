@@ -25,6 +25,7 @@ from fastapi.responses import JSONResponse  # type: ignore
 from pydantic import BaseModel  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
 
+from app.config import settings  # type: ignore
 from app.core.dependencies import get_current_user_allow_expired  # type: ignore
 from app.database import get_db  # type: ignore
 from app.models.billing import BalanceLog  # type: ignore
@@ -36,10 +37,11 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/payme", tags=["Payme"])
 
-# ─── Sozlamalar (.env dan) ────────────────────────────────────────────────────
-PAYME_MERCHANT_ID = os.getenv("PAYME_MERCHANT_ID", "")
-PAYME_SECRET_KEY  = os.getenv("PAYME_SECRET_KEY", "")
-PAYME_IS_TEST     = os.getenv("PAYME_IS_TEST", "true").lower() == "true"
+# ─── Sozlamalar (settings dan — os.getenv EMAS!) ─────────────────────────────
+# pydantic-settings .env ni os.environ ga YOZMAYDI, shuning uchun settings ishlatamiz
+PAYME_MERCHANT_ID = settings.PAYME_MERCHANT_ID
+PAYME_SECRET_KEY  = settings.PAYME_SECRET_KEY
+PAYME_IS_TEST     = settings.PAYME_IS_TEST
 
 # ─── Payme standart xato kodlari ─────────────────────────────────────────────
 # https://developer.help.paycom.uz/protokol-merchant-api/#xato-kodlari
