@@ -496,7 +496,7 @@ def create_checkout_url(
     raw     = f"m={PAYME_MERCHANT_ID};ac.org_code={company.org_code};a={amount_tiyin}"
     encoded = base64.b64encode(raw.encode()).decode()
 
-    base_url     = "https://checkout.test.paycom.net" if PAYME_IS_TEST else "https://checkout.paycom.net"
+    base_url     = "https://checkout.test.paycom.uz" if PAYME_IS_TEST else "https://checkout.paycom.uz"
     checkout_url = f"{base_url}/{encoded}"
 
     logger.info("[Payme] checkout-url: org=%s amount=%.0f so'm test=%s",
