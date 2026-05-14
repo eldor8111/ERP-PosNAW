@@ -67,20 +67,28 @@ def _ok(request_id: Any, result: dict) -> JSONResponse:
     return JSONResponse(content={"jsonrpc": "2.0", "id": request_id, "result": result})
 
 
-def _err(request_id: Any, code: int, message: str, data: Optional[str] = None) -> JSONResponse:
+from typing import Any, Optional, Union
+
+def _err(request_id: Any, code: int, message: Union[str, dict], data: Optional[str] = None) -> JSONResponse:
     """
     Xato JSON-RPC javobi.
     Muhim: Payme talabi bo'yicha XATO BO'LSA HAM HTTP 200 qaytariladi!
+    message: dict bo'lsa {"ru": "", "uz": "", "en": ""} shaklida olinadi,
+             str bo'lsa barcha tillarga bir xil qo'yiladi.
     """
+    if isinstance(message, dict):
+        msg_dict = message
+    else:
+        msg_dict = {"ru": message, "uz": message, "en": message}
+
     err_body: dict = {
         "code": code,
-        "message": {"ru": message, "uz": message, "en": message},
+        "message": msg_dict,
     }
     if data:
         err_body["data"] = data
     logger.warning("[Payme] xato %s: %s", code, message)
     return JSONResponse(content={"jsonrpc": "2.0", "id": request_id, "error": err_body})
-
 
 def _verify_auth(request: Request) -> bool:
     """
@@ -232,7 +240,11 @@ def _check_perform(req_id: Any, params: dict, db: Session) -> JSONResponse:
 
     # 1. AVVAL org_code ni tekshir (bo'sh bo'lsa)
     if not org_code:
-        return _err(req_id, ERR_ORDER_NOT_FOUND, "account.org_code majburiy yoki noto'g'ri")
+        return _err(req_id, ERR_ORDER_NOT_FOUND, {
+            "uz": "Buyurtma topilmadi",
+            "ru": "Заказ не найден",
+            "en": "Order not found"
+        })
 
     # 2. AVVAL kompaniyani DB dan topishga urinin
     company = db.query(Company).filter(
@@ -242,7 +254,11 @@ def _check_perform(req_id: Any, params: dict, db: Session) -> JSONResponse:
 
     # 3. Kompaniya topilmasa → -31050 (summa qanday bo'lishidan qat'iy nazar!)
     if not company:
-        return _err(req_id, ERR_ORDER_NOT_FOUND, f"Korxona topilmadi: {org_code}")
+        return _err(req_id, ERR_ORDER_NOT_FOUND, {
+            "uz": "Buyurtma topilmadi",
+            "ru": "Заказ не найден",
+            "en": "Order not found"
+        })
 
     # 4. Faqat kompaniya topilgandan keyin summani tekshir
     if amount <= 0:
@@ -272,7 +288,11 @@ def _create_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
     if not payme_id:
         return _err(req_id, ERR_INVALID_PARAMS, "id majburiy")
     if not org_code:
-        return _err(req_id, ERR_ORDER_NOT_FOUND, "account.org_code majburiy yoki noto'g'ri")
+        return _err(req_id, ERR_ORDER_NOT_FOUND, {
+            "uz": "Buyurtma topilmadi",
+            "ru": "Заказ не найден",
+            "en": "Order not found"
+        })
 
     # Idempotent tekshirish
     existing = db.query(PaymeTransaction).filter(
@@ -298,7 +318,11 @@ def _create_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
         Company.is_active == True,
     ).first()
     if not company:
-        return _err(req_id, ERR_ORDER_NOT_FOUND, f"Korxona topilmadi: {org_code}")
+        return _err(req_id, ERR_ORDER_NOT_FOUND, {
+            "uz": "Buyurtma topilmadi",
+            "ru": "Заказ не найден",
+            "en": "Order not found"
+        })
 
     now_ms = _now_ms()
     txn = PaymeTransaction(
