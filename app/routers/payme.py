@@ -175,21 +175,25 @@ async def payme_webhook(request: Request, db: Session = Depends(get_db)):
     """
     Payme serveridan barcha JSON-RPC so'rovlarni qabul qiladi.
     Har doim HTTP 200 qaytariladi — Payme talabi!
-    """
-    # 1. Authorization
+    # 1. JSON parse (id ni olish uchun auth dan oldin qilinadi - Sandbox bug ni aylanib o'tish uchun)
+    try:
+        body = await request.json()
+        req_id = body.get("id")
+    except Exception:
+        body = {}
+        req_id = None
+
+    # 2. Authorization
     if not _verify_auth(request):
         logger.warning("[Payme] ❌ AUTH FAILED | IP=%s | Header=%s",
                        request.client.host if request.client else "?",
                        request.headers.get("Authorization", "yo'q")[:30])
-        return _err(None, ERR_UNAUTHORIZED, "Avtorizatsiya xatosi")
+        return _err(req_id, ERR_UNAUTHORIZED, {
+            "ru": "Неверная авторизация.",
+            "uz": "Avtorizatsiya xatosi.",
+            "en": "Authorization error."
+        })
 
-    # 2. JSON parse
-    try:
-        body = await request.json()
-    except Exception:
-        return _err(None, ERR_INVALID_REQUEST, "JSON parse xatosi")
-
-    req_id = body.get("id")
     method = body.get("method", "")
     params = body.get("params", {})
 
