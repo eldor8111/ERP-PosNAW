@@ -331,6 +331,19 @@ def _create_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
             "en": "Order not found"
         })
 
+    # Bitta aktiv (state=1) tranzaksiya allaqachon bor -> yangi yaratib bolmaydi
+    # Bu "Odnorazoviy schyot" qoidasi (Payme: -31099 = account busy)
+    active_txn = db.query(PaymeTransaction).filter(
+        PaymeTransaction.company_id == company.id,
+        PaymeTransaction.state == 1,
+    ).first()
+    if active_txn:
+        return _err(req_id, -31099, {
+            "uz": "Buyurtma tolovi hozirda amalga oshirilmoqda",
+            "ru": "Оплата заказа уже обрабатывается",
+            "en": "Order payment is already being processed"
+        })
+
     now_ms = _now_ms()
     txn = PaymeTransaction(
         payme_id         = payme_id,
