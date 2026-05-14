@@ -103,15 +103,29 @@ def _verify_auth(request: Request) -> bool:
         decoded = base64.b64decode(auth[6:]).decode("utf-8")
         parts = decoded.split(":", 1)
         if len(parts) != 2:
+            logger.error("[Payme Auth] Format noto'g'ri (colon yo'q): %s", decoded)
             return False
         username, password = parts[0], parts[1]
+        
         # "Paycom" (sandbox) yoki MERCHANT_ID (production) — ikkalasi ham ok
         valid_user = username in ("Paycom", PAYME_MERCHANT_ID)
         valid_pass = password == PAYME_SECRET_KEY
+        
         if not valid_user or not valid_pass:
-            logger.warning("[Payme] Auth failed: user=%s pass_ok=%s", username, valid_pass)
+            logger.error(
+                "[Payme Auth Debug] FAILED! "
+                "User=%s (Valid:%s), PassLen=%d, KeyLen=%d, "
+                "Pass matches:%s",
+                username, valid_user, len(password), len(PAYME_SECRET_KEY), valid_pass
+            )
+            # Faqat log uchun (haqiqiy parolni logga tushirmaslikka harakat qilamiz, lekin debug uchun oxirgi/bosh harflarini tekshirish mumkin)
+            if not valid_pass:
+                logger.error("[Payme Auth Debug] Received pass starts with: '%s', ends with: '%s'", password[:3], password[-3:])
+                logger.error("[Payme Auth Debug] Expected key starts with: '%s', ends with: '%s'", PAYME_SECRET_KEY[:3], PAYME_SECRET_KEY[-3:])
+
         return valid_user and valid_pass
-    except Exception:
+    except Exception as e:
+        logger.error("[Payme Auth] Decode xatosi: %s", str(e))
         return False
 
 
