@@ -86,16 +86,12 @@ def _verify_auth(request: Request) -> bool:
     """
     Authorization: Basic base64(username:password) tekshirish.
 
-    MUHIM FARQ:
-      - Payme Sandbox (test.paycom.uz):
-            username = "Paycom"  (doim shu!)
-            password = TEST_KEY
-      - Production (checkout.paycom.uz):
-            username = MERCHANT_ID
-            password = SECRET_KEY
+    Payme ikki xil username ishlatadi:
+      - "Paycom"      → Sandbox (test.paycom.uz) dan kelgan so'rovlar
+      - MERCHANT_ID   → Production (checkout.paycom.uz) dan kelgan so'rovlar
 
-    Shuning uchun test rejimida username "Paycom" yoki MERCHANT_ID bo'lishi mumkin,
-    faqat password to'g'ri bo'lsa kirishga ruxsat beramiz.
+    Ikkalasini ham qabul qilamiz, lekin password (SECRET_KEY/TEST_KEY)
+    har doim to'g'ri bo'lishi shart.
     """
     if not PAYME_SECRET_KEY:
         logger.error("[Payme] PAYME_SECRET_KEY .env da yo'q!")
@@ -109,15 +105,12 @@ def _verify_auth(request: Request) -> bool:
         if len(parts) != 2:
             return False
         username, password = parts[0], parts[1]
-
-        if PAYME_IS_TEST:
-            # Sandbox "Paycom" yoki bizning MERCHANT_ID — ikkalasini ham qabul qilamiz
-            # Faqat password (TEST_KEY) to'g'ri bo'lishi shart
-            valid_user = username in ("Paycom", PAYME_MERCHANT_ID)
-            return valid_user and password == PAYME_SECRET_KEY
-        else:
-            # Production: MERCHANT_ID va SECRET_KEY aniq mos kelishi kerak
-            return username == PAYME_MERCHANT_ID and password == PAYME_SECRET_KEY
+        # "Paycom" (sandbox) yoki MERCHANT_ID (production) — ikkalasi ham ok
+        valid_user = username in ("Paycom", PAYME_MERCHANT_ID)
+        valid_pass = password == PAYME_SECRET_KEY
+        if not valid_user or not valid_pass:
+            logger.warning("[Payme] Auth failed: user=%s pass_ok=%s", username, valid_pass)
+        return valid_user and valid_pass
     except Exception:
         return False
 
