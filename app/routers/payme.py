@@ -1,15 +1,16 @@
+# -*- coding: utf-8 -*-
 """
-Payme Merchant API — JSON-RPC 2.0 Webhook Handler
+Payme Merchant API - JSON-RPC 2.0 Webhook Handler
 ===================================================
 Rasmiy hujjat: https://developer.help.paycom.uz/protokol-merchant-api/
 
-TO'G'IRLANGAN XATOLAR:
-  1. Importlar yuqoriga ko'chirildi (fayl oxirida emas)
-  2. amount float ham qabul qilinadi (Payme ba'zan float yuboradi)
+TOG'IRLANGAN XATOLAR:
+  1. Importlar yuqoriga kochirildi (fayl oxirida emas)
+  2. amount float ham qabul qilinadi (Payme bazan float yuboradi)
   3. org_code None xatosi tuzatildi
-  4. ERR_TXN_CANCELLED to'g'ri kod: -31008
+  4. ERR_TXN_CANCELLED tog'ri kod: -31008
   5. _err data parameter Optional[str]
-  6. p_time o'zgaruvchi olib tashlandi (ishlatilmagan edi)
+  6. p_time ozgaruvchi olib tashlandi (ishlatilmagan edi)
   7. PerformTransaction da try/except + rollback
   8. CheckPerformTransaction da keraksiz detail.receipt_type olib tashlandi
 """
@@ -37,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/payme", tags=["Payme"])
 
-# ─── Sozlamalar (settings dan — os.getenv EMAS!) ─────────────────────────────
+# ─── Sozlamalar (settings dan - os.getenv EMAS!) ─────────────────────────────
 # pydantic-settings .env ni os.environ ga YOZMAYDI, shuning uchun settings ishlatamiz
 PAYME_MERCHANT_ID = settings.PAYME_MERCHANT_ID
 PAYME_SECRET_KEY  = settings.PAYME_SECRET_KEY
@@ -46,13 +47,13 @@ PAYME_IS_TEST     = settings.PAYME_IS_TEST
 # ─── Payme standart xato kodlari ─────────────────────────────────────────────
 # https://developer.help.paycom.uz/protokol-merchant-api/#xato-kodlari
 ERR_UNAUTHORIZED      = -32504   # Authorization xato
-ERR_INVALID_REQUEST   = -32600   # JSON noto'g'ri
+ERR_INVALID_REQUEST   = -32600   # JSON notogri
 ERR_METHOD_NOT_FOUND  = -32601   # Metod topilmadi
 ERR_INVALID_PARAMS    = -32602   # Parametrlar yetishmaydi
 ERR_ORDER_NOT_FOUND   = -31050   # account (org_code) topilmadi
-ERR_INVALID_AMOUNT    = -31001   # Summa noto'g'ri
+ERR_INVALID_AMOUNT    = -31001   # Summa notogri
 ERR_TXN_NOT_FOUND     = -31003   # Tranzaksiya topilmadi
-ERR_UNABLE_TO_PERFORM = -31008   # Bajarib bo'lmaydi (bekor qilingan txn ham)
+ERR_UNABLE_TO_PERFORM = -31008   # Bajarib bolmaydi (bekor qilingan txn ham)
 
 
 # ─── Yordamchi funksiyalar ────────────────────────────────────────────────────
@@ -72,9 +73,9 @@ from typing import Any, Optional, Union
 def _err(request_id: Any, code: int, message: Union[str, dict], data: Optional[str] = None) -> JSONResponse:
     """
     Xato JSON-RPC javobi.
-    Muhim: Payme talabi bo'yicha XATO BO'LSA HAM HTTP 200 qaytariladi!
-    message: dict bo'lsa {"ru": "", "uz": "", "en": ""} shaklida olinadi,
-             str bo'lsa barcha tillarga bir xil qo'yiladi.
+    Muhim: Payme talabi boyicha XATO BOLSA HAM HTTP 200 qaytariladi!
+    message: dict bolsa {"ru": "", "uz": "", "en": ""} shaklida olinadi,
+             str bolsa barcha tillarga bir xil qoyiladi.
     """
     if isinstance(message, dict):
         msg_dict = message
@@ -95,14 +96,14 @@ def _verify_auth(request: Request) -> bool:
     Authorization: Basic base64(username:password) tekshirish.
 
     Payme ikki xil username ishlatadi:
-      - "Paycom"      → Sandbox (test.paycom.uz) dan kelgan so'rovlar
-      - MERCHANT_ID   → Production (checkout.paycom.uz) dan kelgan so'rovlar
+      - "Paycom"      -> Sandbox (test.paycom.uz) dan kelgan sorovlar
+      - MERCHANT_ID   -> Production (checkout.paycom.uz) dan kelgan sorovlar
 
     Ikkalasini ham qabul qilamiz, lekin password (SECRET_KEY/TEST_KEY)
-    har doim to'g'ri bo'lishi shart.
+    har doim tog'ri bolishi shart.
     """
     if not PAYME_SECRET_KEY:
-        logger.error("[Payme] PAYME_SECRET_KEY .env da yo'q!")
+        logger.error("[Payme] PAYME_SECRET_KEY .env da yoq!")
         return False
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Basic "):
@@ -111,11 +112,11 @@ def _verify_auth(request: Request) -> bool:
         decoded = base64.b64decode(auth[6:]).decode("utf-8")
         parts = decoded.split(":", 1)
         if len(parts) != 2:
-            logger.error("[Payme Auth] Format noto'g'ri (colon yo'q): %s", decoded)
+            logger.error("[Payme Auth] Format notogri (colon yoq): %s", decoded)
             return False
         username, password = parts[0], parts[1]
         
-        # "Paycom" (sandbox) yoki MERCHANT_ID (production) — ikkalasi ham ok
+        # "Paycom" (sandbox) yoki MERCHANT_ID (production) - ikkalasi ham ok
         valid_user = username in ("Paycom", PAYME_MERCHANT_ID)
         valid_pass = password == PAYME_SECRET_KEY
         
@@ -140,7 +141,7 @@ def _verify_auth(request: Request) -> bool:
 def _to_amount_int(raw: Any) -> int:
     """
     FIX BUG #2: Payme amount ni int yoki float yuborishi mumkin.
-    Har ikki holatda ham to'g'ri int ga aylantiradi.
+    Har ikki holatda ham tog'ri int ga aylantiradi.
     """
     try:
         return int(raw)
@@ -173,9 +174,10 @@ def _txn_to_dict(txn: PaymeTransaction) -> dict:
 @router.post("/webhook")
 async def payme_webhook(request: Request, db: Session = Depends(get_db)):
     """
-    Payme serveridan barcha JSON-RPC so'rovlarni qabul qiladi.
-    Har doim HTTP 200 qaytariladi — Payme talabi!
-    # 1. JSON parse (id ni olish uchun auth dan oldin qilinadi - Sandbox bug ni aylanib o'tish uchun)
+    Payme serveridan barcha JSON-RPC sorovlarni qabul qiladi.
+    Har doim HTTP 200 qaytariladi - Payme talabi!
+    """
+    # 1. JSON parse (id ni olish uchun auth dan oldin qilinadi)
     try:
         body = await request.json()
         req_id = body.get("id")
@@ -185,9 +187,9 @@ async def payme_webhook(request: Request, db: Session = Depends(get_db)):
 
     # 2. Authorization
     if not _verify_auth(request):
-        logger.warning("[Payme] ❌ AUTH FAILED | IP=%s | Header=%s",
+        logger.warning("[Payme] AUTH FAILED | IP=%s | Header=%s",
                        request.client.host if request.client else "?",
-                       request.headers.get("Authorization", "yo'q")[:30])
+                       request.headers.get("Authorization", "yoq")[:30])
         return _err(req_id, ERR_UNAUTHORIZED, {
             "ru": "Неверная авторизация.",
             "uz": "Avtorizatsiya xatosi.",
@@ -197,10 +199,10 @@ async def payme_webhook(request: Request, db: Session = Depends(get_db)):
     method = body.get("method", "")
     params = body.get("params", {})
 
-    # ── TEST LOGGING: barcha so'rovlarni to'liq ko'rish ──
+    # ── TEST LOGGING: barcha sorovlarni toliq korish ──
     import json as _json
     logger.info(
-        "[Payme] ━━━ KELGAN SO'ROV ━━━\n"
+        "[Payme] --- KELGAN SOROV ---\n"
         "  Metod  : %s\n"
         "  ID     : %s\n"
         "  Params : %s",
@@ -221,7 +223,7 @@ async def payme_webhook(request: Request, db: Session = Depends(get_db)):
         return _err(req_id, ERR_METHOD_NOT_FOUND, f"Metod topilmadi: {method}")
 
     response = handler(req_id, params, db)
-    logger.info("[Payme] ━━━ YUBORILGAN JAVOB ━━━\n  %s",
+    logger.info("[Payme] --- YUBORILGAN JAVOB ---\n  %s",
                 _json.dumps(response.body.decode() if hasattr(response, 'body') else str(response), ensure_ascii=False))
     return response
 
@@ -230,19 +232,19 @@ async def payme_webhook(request: Request, db: Session = Depends(get_db)):
 
 def _check_perform(req_id: Any, params: dict, db: Session) -> JSONResponse:
     """
-    "Bu to'lov mumkinmi?" - faqat tekshiradi, hech narsa yozmaydi.
+    Bu tolov mumkinmi? - faqat tekshiradi, hech narsa yozmaydi.
     MUHIM TARTIB (Payme Sandbox talabi):
-      1. avval org_code mavjudligi (DB da) — agar yo'q → -31050
-      2. keyin summa tekshiruvi                → agar noto'g'ri → -31001
-    Buning sababi: Sandbox "Несуществующий счёт" testida
-    IKKALASINI HAM (noto'g'ri org_code + kichik summa) yuboradi
-    va -31050 kutadi. Agar avval summani tekshirsak -31001 qaytadi — XATO!
+      1. avval org_code mavjudligi (DB da) - agar yoq -> -31050
+      2. keyin summa tekshiruvi                -> agar notogri -> -31001
+    Buning sababi: Sandbox Nesushestvuyushiy schyot testida
+    IKKALASINI HAM (notogri org_code + kichik summa) yuboradi
+    va -31050 kutadi. Agar avval summani tekshirsak -31001 qaytadi - XATO!
     """
     account  = params.get("account") or {}
     org_code = _safe_str(account.get("org_code"))
     amount   = _to_amount_int(params.get("amount", 0))
 
-    # 1. AVVAL org_code ni tekshir (bo'sh bo'lsa)
+    # 1. AVVAL org_code ni tekshir (bosh bolsa)
     if not org_code:
         return _err(req_id, ERR_ORDER_NOT_FOUND, {
             "uz": "Buyurtma topilmadi",
@@ -256,7 +258,7 @@ def _check_perform(req_id: Any, params: dict, db: Session) -> JSONResponse:
         Company.is_active == True,
     ).first()
 
-    # 3. Kompaniya topilmasa → -31050 (summa qanday bo'lishidan qat'iy nazar!)
+    # 3. Kompaniya topilmasa -> -31050 (summa qanday bolishidan qatiy nazar!)
     if not company:
         return _err(req_id, ERR_ORDER_NOT_FOUND, {
             "uz": "Buyurtma topilmadi",
@@ -266,10 +268,10 @@ def _check_perform(req_id: Any, params: dict, db: Session) -> JSONResponse:
 
     # 4. Faqat kompaniya topilgandan keyin summani tekshir
     if amount <= 0:
-        return _err(req_id, ERR_INVALID_AMOUNT, "Summa musbat bo'lishi kerak")
+        return _err(req_id, ERR_INVALID_AMOUNT, "Summa musbat bolishi kerak")
 
     if amount < 100_000:
-        return _err(req_id, ERR_INVALID_AMOUNT, "Minimal to'lov summasi 1 000 so'm")
+        return _err(req_id, ERR_INVALID_AMOUNT, "Minimal tolov summasi 1 000 som")
 
     return _ok(req_id, {"allow": True})
 
@@ -278,9 +280,9 @@ def _check_perform(req_id: Any, params: dict, db: Session) -> JSONResponse:
 
 def _create_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
     """
-    Tranzaksiya yaratadi (pul hali o'tmagan, state=1).
+    Tranzaksiya yaratadi (pul hali otmagan, state=1).
     Idempotent: bir xil ID bilan qayta kelsa mavjudni qaytaradi.
-    FIX: p_time o'zgaruvchi olib tashlandi (ishlatilmasdi).
+    FIX: p_time ozgaruvchi olib tashlandi (ishlatilmasdi).
     FIX: amount float handling.
     """
     # FIX BUG #5: None xavfsiz str
@@ -304,7 +306,7 @@ def _create_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
     ).first()
 
     if existing:
-        # FIX BUG #6: bekor qilingan → -31008 (Payme standarti)
+        # FIX BUG #6: bekor qilingan -> -31008 (Payme standarti)
         if existing.state == -1:
             return _err(req_id, ERR_UNABLE_TO_PERFORM,
                         "Tranzaksiya allaqachon bekor qilingan")
@@ -355,8 +357,8 @@ def _create_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
 
 def _perform_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
     """
-    Pul o'tkazildi — korxona balansini to'ldiramiz.
-    FIX BUG #7: try/except + db.rollback() qo'shildi.
+    Pul otkazildi - korxona balansini toldiramiz.
+    FIX BUG #7: try/except + db.rollback() qoshildi.
     """
     payme_id = _safe_str(params.get("id"))
     if not payme_id:
@@ -378,13 +380,13 @@ def _perform_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse
 
     if txn.state != 1:
         return _err(req_id, ERR_UNABLE_TO_PERFORM,
-                    f"Bajarib bo'lmaydi, holat: state={txn.state}")
+                    f"Bajarib bolmaydi, holat: state={txn.state}")
 
     company = db.query(Company).filter(Company.id == txn.company_id).first()
     if not company:
         return _err(req_id, ERR_UNABLE_TO_PERFORM, "Korxona topilmadi")
 
-    amount_som = txn.amount / 100  # tiyindan so'mga
+    amount_som = txn.amount / 100  # tiyindan somga
 
     # FIX BUG #7: rollback bilan xavfsiz commit
     try:
@@ -395,7 +397,7 @@ def _perform_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse
             amount     = amount_som,
             log_type   = "payme_topup",
             note       = (
-                f"Payme orqali to'ldirildi: +{amount_som:,.0f} so'm "
+                f"Payme orqali toldirildi: +{amount_som:,.0f} som "
                 f"(txn: {payme_id})"
             ),
             created_at = datetime.now(timezone.utc),
@@ -415,7 +417,7 @@ def _perform_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse
         logger.error("[Payme] PerformTransaction DB xato: %s", exc)
         return _err(req_id, -32400, "Server xatosi, qaytadan urining")
 
-    logger.info("[Payme] PerformTransaction: id=%s org=%s +%.0f so'm",
+    logger.info("[Payme] PerformTransaction: id=%s org=%s +%.0f som",
                 payme_id, txn.account_org_code, amount_som)
 
     return _ok(req_id, {
@@ -429,9 +431,9 @@ def _perform_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse
 
 def _cancel_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
     """
-    To'lovni bekor qiladi.
-    state=1 → bekor qilish mumkin (pul o'tmagan).
-    state=2 → balansdaan qaytarish (pul o'tgan).
+    Tolovni bekor qiladi.
+    state=1 -> bekor qilish mumkin (pul otmagan).
+    state=2 -> balansdaan qaytarish (pul otgan).
     """
     payme_id = _safe_str(params.get("id"))
     reason   = params.get("reason", 0)
@@ -457,25 +459,25 @@ def _cancel_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
 
     try:
         if txn.state == 1:
-            # Pul o'tmagan — shunchaki bekor qilamiz
+            # Pul otmagan - shunchaki bekor qilamiz
             txn.state       = -1
             txn.reason      = reason
             txn.cancel_time = now_ms
 
         elif txn.state == 2:
-            # Pul o'tgan — balansdan qaytaramiz
+            # Pul otgan - balansdan qaytaramiz
             company = db.query(Company).filter(Company.id == txn.company_id).first()
             if company:
                 amount_som = txn.amount / 100
                 new_balance = float(company.balance or 0) - amount_som
-                company.balance = new_balance  # manfiy bo'lishi mumkin (to'liq hisob)
+                company.balance = new_balance  # manfiy bolishi mumkin (toliq hisob)
 
                 refund_log = BalanceLog(
                     company_id = company.id,
                     amount     = -amount_som,
                     log_type   = "payme_refund",
                     note       = (
-                        f"Payme qaytarildi: -{amount_som:,.0f} so'm "
+                        f"Payme qaytarildi: -{amount_som:,.0f} som "
                         f"(txn: {payme_id}, sabab: {reason})"
                     ),
                     created_at = datetime.now(timezone.utc),
@@ -522,7 +524,7 @@ def _check_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
 # ─── Checkout URL (Frontend uchun) ────────────────────────────────────────────
 
 class PaymeCheckoutRequest(BaseModel):
-    amount: float  # so'mda (masalan: 50000)
+    amount: float  # somda (masalan: 50000)
 
 
 @router.post("/checkout-url")
@@ -532,14 +534,14 @@ def create_checkout_url(
     user: User = Depends(get_current_user_allow_expired),
 ):
     """
-    Frontend uchun Payme to'lov sahifasi URL sini yaratadi.
-    Obuna muddati tugagan korxona ham to'lay olishi uchun
+    Frontend uchun Payme tolov sahifasi URL sini yaratadi.
+    Obuna muddati tugagan korxona ham tolay olishi uchun
     get_current_user_allow_expired ishlatiladi.
     """
     if not PAYME_MERCHANT_ID:
         raise HTTPException(
             status_code=500,
-            detail="Payme sozlanmagan. .env da PAYME_MERCHANT_ID yo'q."
+            detail="Payme sozlanmagan. .env da PAYME_MERCHANT_ID yoq."
         )
 
     if not user.company_id:
@@ -554,15 +556,15 @@ def create_checkout_url(
     if not company.org_code:
         raise HTTPException(
             status_code=400,
-            detail="Korxonada org_code belgilanmagan. Admin bilan bog'laning."
+            detail="Korxonada org_code belgilanmagan. Admin bilan boglaning."
         )
 
     if data.amount <= 0:
-        raise HTTPException(status_code=400, detail="Summa musbat bo'lishi kerak")
+        raise HTTPException(status_code=400, detail="Summa musbat bolishi kerak")
     if data.amount < 1000:
-        raise HTTPException(status_code=400, detail="Minimal summa 1 000 so'm")
+        raise HTTPException(status_code=400, detail="Minimal summa 1 000 som")
 
-    amount_tiyin = int(data.amount * 100)  # so'm → tiyin
+    amount_tiyin = int(data.amount * 100)  # som -> tiyin
 
     # Payme checkout URL parametrlari
     # Format: m=MERCHANT_ID;ac.org_code=ORG_CODE;a=AMOUNT_TIYIN
@@ -572,7 +574,7 @@ def create_checkout_url(
     base_url     = "https://checkout.test.paycom.uz" if PAYME_IS_TEST else "https://checkout.paycom.uz"
     checkout_url = f"{base_url}/{encoded}"
 
-    logger.info("[Payme] checkout-url: org=%s amount=%.0f so'm test=%s",
+    logger.info("[Payme] checkout-url: org=%s amount=%.0f som test=%s",
                 company.org_code, data.amount, PAYME_IS_TEST)
 
     return {
