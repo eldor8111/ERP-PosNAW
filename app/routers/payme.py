@@ -477,11 +477,11 @@ def _cancel_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
         return _err(req_id, ERR_TXN_NOT_FOUND, "Tranzaksiya topilmadi")
 
     # Idempotent
-    if txn.state == -1:
+    if txn.state in (-1, -2):
         return _ok(req_id, {
             "transaction": str(txn.id),
             "cancel_time": txn.cancel_time,
-            "state":       -1,
+            "state":       txn.state,
         })
 
     now_ms = _now_ms()
@@ -513,7 +513,7 @@ def _cancel_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
                 )
                 db.add(refund_log)
 
-            txn.state       = -1
+            txn.state       = -2
             txn.reason      = reason
             txn.cancel_time = now_ms
 
@@ -529,7 +529,7 @@ def _cancel_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
     return _ok(req_id, {
         "transaction": str(txn.id),
         "cancel_time": txn.cancel_time,
-        "state":       -1,
+        "state":       txn.state,
     })
 
 
