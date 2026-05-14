@@ -169,11 +169,24 @@ async def payme_webhook(request: Request, db: Session = Depends(get_db)):
     Har doim HTTP 200 qaytariladi — Payme talabi!
     """
     # 1. Authorization
+    # Maxsus debug logikasi (Auth xato bo'lsa JSON da qaytadi)
+    auth = request.headers.get("Authorization", "")
+    debug_msg = f"No header"
+    if auth.startswith("Basic "):
+        try:
+            decoded = base64.b64decode(auth[6:]).decode("utf-8")
+            parts = decoded.split(":", 1)
+            if len(parts) == 2:
+                username, password = parts[0], parts[1]
+                debug_msg = f"User: {username}, Pass matches: {password == PAYME_SECRET_KEY}"
+            else:
+                debug_msg = "Format xato"
+        except Exception as e:
+            debug_msg = f"Decode xato: {e}"
+
     if not _verify_auth(request):
-        logger.warning("[Payme] ❌ AUTH FAILED | IP=%s | Header=%s",
-                       request.client.host if request.client else "?",
-                       request.headers.get("Authorization", "yo'q")[:30])
-        return _err(None, ERR_UNAUTHORIZED, "Avtorizatsiya xatosi")
+        logger.warning("[Payme] ❌ AUTH FAILED | Header=%s", auth[:30])
+        return _err(None, ERR_UNAUTHORIZED, f"Avtorizatsiya xatosi | {debug_msg}")
 
     # 2. JSON parse
     try:
