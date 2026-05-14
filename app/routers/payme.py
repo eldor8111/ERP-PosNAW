@@ -266,12 +266,13 @@ def _check_perform(req_id: Any, params: dict, db: Session) -> JSONResponse:
             "en": "Order not found"
         })
 
-    # 4. Faqat kompaniya topilgandan keyin summani tekshir
+    # 4. Amount musbat bolishi kerak
     if amount <= 0:
-        return _err(req_id, ERR_INVALID_AMOUNT, "Summa musbat bolishi kerak")
-
-    if amount < 100_000:
-        return _err(req_id, ERR_INVALID_AMOUNT, "Minimal tolov summasi 1 000 som")
+        return _err(req_id, ERR_INVALID_AMOUNT, {
+            "ru": "Неверная сумма",
+            "uz": "Summa noto'g'ri",
+            "en": "Invalid amount"
+        })
 
     return _ok(req_id, {"allow": True})
 
