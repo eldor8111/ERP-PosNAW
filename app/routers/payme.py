@@ -144,6 +144,9 @@ async def payme_webhook(request: Request, db: Session = Depends(get_db)):
     """
     # 1. Authorization
     if not _verify_auth(request):
+        logger.warning("[Payme] ❌ AUTH FAILED | IP=%s | Header=%s",
+                       request.client.host if request.client else "?",
+                       request.headers.get("Authorization", "yo'q")[:30])
         return _err(None, ERR_UNAUTHORIZED, "Avtorizatsiya xatosi")
 
     # 2. JSON parse
@@ -156,7 +159,16 @@ async def payme_webhook(request: Request, db: Session = Depends(get_db)):
     method = body.get("method", "")
     params = body.get("params", {})
 
-    logger.info("[Payme] %s | id=%s", method, req_id)
+    # ── TEST LOGGING: barcha so'rovlarni to'liq ko'rish ──
+    import json as _json
+    logger.info(
+        "[Payme] ━━━ KELGAN SO'ROV ━━━\n"
+        "  Metod  : %s\n"
+        "  ID     : %s\n"
+        "  Params : %s",
+        method, req_id,
+        _json.dumps(params, ensure_ascii=False, indent=2)
+    )
 
     # 3. Method dispatch
     dispatch = {
@@ -170,7 +182,10 @@ async def payme_webhook(request: Request, db: Session = Depends(get_db)):
     if not handler:
         return _err(req_id, ERR_METHOD_NOT_FOUND, f"Metod topilmadi: {method}")
 
-    return handler(req_id, params, db)
+    response = handler(req_id, params, db)
+    logger.info("[Payme] ━━━ YUBORILGAN JAVOB ━━━\n  %s",
+                _json.dumps(response.body.decode() if hasattr(response, 'body') else str(response), ensure_ascii=False))
+    return response
 
 
 # ─── Metod 1: CheckPerformTransaction ────────────────────────────────────────
@@ -188,7 +203,7 @@ def _check_perform(req_id: Any, params: dict, db: Session) -> JSONResponse:
     amount   = _to_amount_int(params.get("amount", 0))
 
     if not org_code:
-        return _err(req_id, ERR_INVALID_PARAMS, "account.org_code majburiy")
+        return _err(req_id, ERR_ORDER_NOT_FOUND, "account.org_code majburiy yaki noto'g'ri")
 
     if amount <= 0:
         return _err(req_id, ERR_INVALID_AMOUNT, "Summa musbat bo'lishi kerak")
@@ -227,7 +242,7 @@ def _create_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
     if not payme_id:
         return _err(req_id, ERR_INVALID_PARAMS, "id majburiy")
     if not org_code:
-        return _err(req_id, ERR_INVALID_PARAMS, "account.org_code majburiy")
+        return _err(req_id, ERR_ORDER_NOT_FOUND, "account.org_code majburiy yoki noto'g'ri")
 
     # Idempotent tekshirish
     existing = db.query(PaymeTransaction).filter(
