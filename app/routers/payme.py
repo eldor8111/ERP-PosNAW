@@ -230,7 +230,7 @@ async def payme_webhook(request: Request, db: Session = Depends(get_db)):
 
 def _check_perform(req_id: Any, params: dict, db: Session) -> JSONResponse:
     """
-    "Bu to'lov mumkinmi?" — faqat tekshiradi, hech narsa yozmaydi.
+    "Bu to'lov mumkinmi?" - faqat tekshiradi, hech narsa yozmaydi.
     MUHIM TARTIB (Payme Sandbox talabi):
       1. avval org_code mavjudligi (DB da) — agar yo'q → -31050
       2. keyin summa tekshiruvi                → agar noto'g'ri → -31001
