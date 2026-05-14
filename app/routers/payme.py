@@ -331,8 +331,23 @@ def _create_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
             "en": "Order not found"
         })
 
+    # Payme qoidasi: 12 soatdan eski state=1 tranzaksiyalar avtomatik bekor qilinadi
+    TIMEOUT_MS = 43_200_000  # 12 soat millisoniyada
+    now_check = _now_ms()
+    timed_out_txns = db.query(PaymeTransaction).filter(
+        PaymeTransaction.company_id == company.id,
+        PaymeTransaction.state == 1,
+        PaymeTransaction.create_time < (now_check - TIMEOUT_MS),
+    ).all()
+    for old_txn in timed_out_txns:
+        old_txn.state = -1
+        old_txn.reason = 4  # 4 = timeout
+        old_txn.cancel_time = now_check
+        logger.info("[Payme] Timeout: txn %s avtomatik bekor qilindi", old_txn.payme_id)
+    if timed_out_txns:
+        db.commit()
+
     # Bitta aktiv (state=1) tranzaksiya allaqachon bor -> yangi yaratib bolmaydi
-    # Bu "Odnorazoviy schyot" qoidasi (Payme: -31099 = account busy)
     active_txn = db.query(PaymeTransaction).filter(
         PaymeTransaction.company_id == company.id,
         PaymeTransaction.state == 1,
