@@ -193,34 +193,38 @@ async def payme_webhook(request: Request, db: Session = Depends(get_db)):
 def _check_perform(req_id: Any, params: dict, db: Session) -> JSONResponse:
     """
     "Bu to'lov mumkinmi?" — faqat tekshiradi, hech narsa yozmaydi.
-    FIX: detail.receipt_type olib tashlandi (keraksiz edi).
-    FIX: amount float ham qabul qilinadi.
+    MUHIM TARTIB (Payme Sandbox talabi):
+      1. avval org_code mavjudligi (DB da) — agar yo'q → -31050
+      2. keyin summa tekshiruvi                → agar noto'g'ri → -31001
+    Buning sababi: Sandbox "Несуществующий счёт" testida
+    IKKALASINI HAM (noto'g'ri org_code + kichik summa) yuboradi
+    va -31050 kutadi. Agar avval summani tekshirsak -31001 qaytadi — XATO!
     """
     account  = params.get("account") or {}
-    # FIX BUG #3: None bo'lishi mumkin
     org_code = _safe_str(account.get("org_code"))
-    # FIX BUG #2: float ham bo'lishi mumkin
     amount   = _to_amount_int(params.get("amount", 0))
 
+    # 1. AVVAL org_code ni tekshir (bo'sh bo'lsa)
     if not org_code:
-        return _err(req_id, ERR_ORDER_NOT_FOUND, "account.org_code majburiy yaki noto'g'ri")
+        return _err(req_id, ERR_ORDER_NOT_FOUND, "account.org_code majburiy yoki noto'g'ri")
 
-    if amount <= 0:
-        return _err(req_id, ERR_INVALID_AMOUNT, "Summa musbat bo'lishi kerak")
-
-    # Minimal: 1 000 so'm = 100 000 tiyin
-    if amount < 100_000:
-        return _err(req_id, ERR_INVALID_AMOUNT, "Minimal to'lov summasi 1 000 so'm")
-
+    # 2. AVVAL kompaniyani DB dan topishga urinin
     company = db.query(Company).filter(
         Company.org_code == org_code,
         Company.is_active == True,
     ).first()
 
+    # 3. Kompaniya topilmasa → -31050 (summa qanday bo'lishidan qat'iy nazar!)
     if not company:
         return _err(req_id, ERR_ORDER_NOT_FOUND, f"Korxona topilmadi: {org_code}")
 
-    # FIX: faqat allow: true qaytaramiz (receipt_type kerak emas)
+    # 4. Faqat kompaniya topilgandan keyin summani tekshir
+    if amount <= 0:
+        return _err(req_id, ERR_INVALID_AMOUNT, "Summa musbat bo'lishi kerak")
+
+    if amount < 100_000:
+        return _err(req_id, ERR_INVALID_AMOUNT, "Minimal to'lov summasi 1 000 so'm")
+
     return _ok(req_id, {"allow": True})
 
 
