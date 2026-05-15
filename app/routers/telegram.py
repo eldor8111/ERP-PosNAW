@@ -336,24 +336,26 @@ async def telegram_webhook(
                     "❌ Kompaniya topilmadi.", {"remove_keyboard": True})
                 return {"ok": True}
 
-            # Global (barcha kompaniyalarda) telefon bo'yicha qidirish
+            # Qidirish FAQAT shu kompaniya uchun bo'lishi kerak!
             found_customer = None
-            for c in db.query(Customer).filter(Customer.phone.isnot(None)).all():
+            for c in db.query(Customer).filter(Customer.company_id == company.id, Customer.phone.isnot(None)).all():
                 c_clean = "".join(filter(str.isdigit, str(c.phone)))
                 if len(c_clean) >= 9 and len(p_clean) >= 9 and c_clean[-9:] == p_clean[-9:]:
                     found_customer = c
                     break
 
-            # tg_chat_id bo'yicha ham qidiramiz (duplicate bo'lmasin)
+            # tg_chat_id bo'yicha ham shu kompaniyadan qidiramiz
             if not found_customer:
-                found_customer = db.query(Customer).filter(Customer.tg_chat_id == chat_id).first()
+                found_customer = db.query(Customer).filter(
+                    Customer.company_id == company.id,
+                    Customer.tg_chat_id == chat_id
+                ).first()
 
             session = _get_session(db, chat_id, token)
 
             if found_customer:
                 # Mavjud mijoz — yangilab, kartasini yuboramiz
                 found_customer.tg_chat_id = chat_id
-                found_customer.company_id = company.id
                 if not found_customer.card_number:
                     found_customer.card_number = _generate_card_number(db, company.id)
                 try:
