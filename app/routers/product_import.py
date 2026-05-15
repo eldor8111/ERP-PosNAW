@@ -39,6 +39,50 @@ STATUS_MAP = {
     "nofaol": "inactive","inactive": "inactive",
     "arxiv": "archived", "archived": "archived",
 }
+@router.get("/fix-db")
+def fix_database_constraints(db: Session = Depends(get_db)):
+    from sqlalchemy import text
+    try:
+        # Drop old constraints if they exist
+        db.execute(text("DROP INDEX IF EXISTS uq_products_barcode_active;"))
+        db.execute(text("DROP INDEX IF EXISTS uq_products_sku_active;"))
+        
+        # Look for duplicates inside the same company before creating the index
+        dups = db.execute(text('''
+            SELECT company_id, barcode, COUNT(*) 
+            FROM products 
+            WHERE is_deleted = false AND barcode IS NOT NULL AND barcode != ''
+            GROUP BY company_id, barcode 
+            HAVING COUNT(*) > 1
+        ''')).fetchall()
+        
+        if dups:
+            # We must fix duplicates first! Keep the first one, delete others
+            for dup in dups:
+                cid, bcode, _ = dup
+                products_to_fix = db.execute(text('''
+                    SELECT id FROM products 
+                    WHERE company_id = :cid AND barcode = :bcode AND is_deleted = false
+                    ORDER BY id ASC
+                '''), {"cid": cid, "bcode": bcode}).fetchall()
+                
+                # Keep first, soft delete the rest
+                if len(products_to_fix) > 1:
+                    ids_to_delete = [p[0] for p in products_to_fix[1:]]
+                    db.execute(text("UPDATE products SET is_deleted = true, barcode = barcode || '-dup-' || id WHERE id = ANY(:ids)"), {"ids": ids_to_delete})
+        
+        db.commit()
+        
+        # Now create new constraints
+        db.execute(text("CREATE UNIQUE INDEX uq_products_barcode_active ON products (company_id, barcode) WHERE is_deleted = false;"))
+        db.execute(text("CREATE UNIQUE INDEX uq_products_sku_active ON products (company_id, sku) WHERE is_deleted = false;"))
+        db.commit()
+        
+        return {"status": "success", "message": "Bazadagi muammo to'liq hal qilindi! Endi bemalol mahsulot qo'shishingiz mumkin."}
+    except Exception as e:
+        db.rollback()
+        return {"status": "error", "message": str(e)}
+
 @router.post("/bulk-check")
 def bulk_check_products(
     rows: List[dict],
