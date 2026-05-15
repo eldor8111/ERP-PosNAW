@@ -144,6 +144,8 @@ def bulk_import_products(
                 updated += 1
             except Exception as exc:
                 sp.rollback()
+                # Session ni tozalash
+                db.expire(existing)
                 errors.append({
                     "row": row_num, "name": name or barcode,
                     "error": f"Yangilashda xato: {str(exc)[:200]}",
@@ -199,20 +201,19 @@ def bulk_import_products(
         barcode   = barcode[:50]
         sku_final = sku_final[:50]
 
-        product = Product(
-            name=name[:255], barcode=barcode, sku=sku_final,
-            product_code=product_code_val, unit=unit[:20] if unit else "dona",
-            cost_price=cost_price, sale_price=sale_price,
-            wholesale_price=wholesale_price, min_stock=min_stock_val,
-            status=status_val, brand=brand[:100] if brand else None,
-            company_id=current_user.company_id, images="[]",
-        )
-        product.stock_level = StockLevel(quantity=initial_stock)
-        db.add(product)
-
-        # ── Har bir yangi mahsulotni alohida savepoint bilan saqlash ───
+        # ── Savepoint AVVAL, keyin db.add — to'g'ri tartib ────────────
         sp = db.begin_nested()
         try:
+            product = Product(
+                name=name[:255], barcode=barcode, sku=sku_final,
+                product_code=product_code_val, unit=unit[:20] if unit else "dona",
+                cost_price=cost_price, sale_price=sale_price,
+                wholesale_price=wholesale_price, min_stock=min_stock_val,
+                status=status_val, brand=brand[:100] if brand else None,
+                company_id=current_user.company_id, images="[]",
+            )
+            product.stock_level = StockLevel(quantity=initial_stock)
+            db.add(product)
             db.flush()
             sp.commit()
 
@@ -225,9 +226,8 @@ def bulk_import_products(
             created += 1
 
         except Exception as exc:
-            sp.rollback()
+            sp.rollback()  # Product va StockLevel avtomatik session dan o'chiriladi
             err_msg = str(exc)
-            # Tushunarli xabar
             if "uq_products_barcode" in err_msg or "duplicate key" in err_msg.lower():
                 user_msg = f"Barkod '{barcode}' allaqachon bazada mavjud — o'tkazib yuborildi"
             elif "uq_products_sku" in err_msg:
