@@ -766,9 +766,42 @@ export default function Products() {
   const [searchBySku,    setSearchBySku]    = useState(false);
   const [allowUpdate,    setAllowUpdate]    = useState(false);
   const [importPage,     setImportPage]     = useState(1);
+  const [precheck,       setPrecheck]       = useState(null);
   const IMPORT_LIMIT = 10;
 
   const excelCols = importRows.length > 0 ? Object.keys(importRows[0]) : [];
+
+  // Build payload from colMap
+  const buildPayload = () => {
+    const actualRows = skipRows > 0 ? importRows.slice(skipRows - 1) : importRows;
+    return actualRows.map((row, idx) => {
+      const obj = {};
+      Object.entries(colMap).forEach(([excelCol, fieldKey]) => {
+        if (fieldKey && fieldKey !== '__SKIP__') {
+          obj[fieldKey] = row[excelCol];
+        }
+      });
+      obj.__row_index = (skipRows > 0 ? skipRows - 1 : 0) + idx + 2;
+      return obj;
+    }).filter(r => r['Nomi'] || r['Barkod'] || r['SKU']);
+  };
+
+  useEffect(() => {
+    const payload = buildPayload();
+    if (!payload.length || !importOpen) {
+      setPrecheck(null);
+      return;
+    }
+    const check = async () => {
+      try {
+        const { data } = await api.post(`/products/bulk-check?search_by_sku=${searchBySku}`, payload);
+        setPrecheck(data);
+      } catch (err) { }
+    };
+    const t = setTimeout(check, 400);
+    return () => clearTimeout(t);
+  }, [colMap, skipRows, importRows, searchBySku, importOpen]);
+
 
   // Auto-map columns by matching excel header to known field label/key
   const autoMap = (rows) => {
@@ -799,24 +832,6 @@ export default function Products() {
     };
     reader.readAsArrayBuffer(file);
   };
-
-  // Build payload from colMap
-  const buildPayload = () => {
-    const actualRows = skipRows > 0 ? importRows.slice(skipRows - 1) : importRows;
-    return actualRows.map((row, idx) => {
-      const obj = {};
-      Object.entries(colMap).forEach(([excelCol, fieldKey]) => {
-        if (fieldKey && fieldKey !== '__SKIP__') {
-          obj[fieldKey] = row[excelCol];
-        }
-      });
-      obj.__row_index = (skipRows > 0 ? skipRows - 1 : 0) + idx + 2;
-      return obj;
-    }).filter(r => r['Nomi'] || r['Barkod'] || r['SKU']);
-  };
-
-  // Jami yuklanayotgan qatorlar soni (aniq hisob)
-  const totalImportPayload = buildPayload().length;
 
   const downloadTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([{
@@ -2594,7 +2609,7 @@ export default function Products() {
                 <div className="flex items-center gap-3 flex-wrap">
                   <div className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm">
                     <span className="text-slate-500 text-sm">Jami yuklanayotgan qatorlar:</span>
-                    <span className="font-bold text-indigo-600 ml-2 text-base">{totalImportPayload} ta</span>
+                    <span className="font-bold text-indigo-600 ml-2 text-base">{buildPayload().length} ta</span>
                   </div>
                   {importResult ? (
                     <>
@@ -2611,6 +2626,17 @@ export default function Products() {
                       <div className="px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-sm">
                         <span className="text-slate-500 text-sm">⚠️ O'tkazib yuborildi:</span>
                         <span className="font-bold text-amber-600 ml-2 text-base">{importResult.skipped} ta</span>
+                      </div>
+                    </>
+                  ) : precheck ? (
+                    <>
+                      <div className="px-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-sm">
+                        <span className="text-slate-500 text-sm">Yangi qo'shiladiganlar:</span>
+                        <span className="font-bold text-emerald-600 ml-2 text-base">{precheck.new_count} ta</span>
+                      </div>
+                      <div className="px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-sm">
+                        <span className="text-slate-500 text-sm">Bazada bor (Yangilanadi/O'tkaziladi):</span>
+                        <span className="font-bold text-amber-600 ml-2 text-base">{precheck.found_count} ta</span>
                       </div>
                     </>
                   ) : (

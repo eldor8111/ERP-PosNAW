@@ -39,7 +39,49 @@ STATUS_MAP = {
     "nofaol": "inactive","inactive": "inactive",
     "arxiv": "archived", "archived": "archived",
 }
-
+@router.post("/bulk-check")
+def bulk_check_products(
+    rows: List[dict],
+    search_by_sku: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*WRITE_ROLES)),
+):
+    all_products = db.query(Product.name, Product.barcode, Product.sku).filter(
+        Product.is_deleted == False,
+        Product.company_id == current_user.company_id,
+    ).all()
+    
+    name_set = {p.name for p in all_products if p.name}
+    barcode_set = {p.barcode for p in all_products if p.barcode}
+    sku_set = {p.sku for p in all_products if p.sku}
+    
+    found_count = 0
+    new_count = 0
+    
+    for row in rows:
+        name = str(row.get("Nomi") or "").strip()
+        barcode = str(row.get("Barkod") or "").strip()
+        sku_val = str(row.get("SKU") or "").strip() or None
+        if sku_val and sku_val.lstrip("0") == "":
+            sku_val = None
+            
+        if not name and not barcode:
+            continue
+            
+        exists = False
+        if name and name in name_set:
+            exists = True
+        elif barcode and barcode in barcode_set:
+            exists = True
+        elif search_by_sku and sku_val and sku_val in sku_set:
+            exists = True
+            
+        if exists:
+            found_count += 1
+        else:
+            new_count += 1
+            
+    return {"found_count": found_count, "new_count": new_count}
 
 @router.post("/bulk-import")
 def bulk_import_products(
