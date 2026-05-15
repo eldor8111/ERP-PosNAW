@@ -1724,7 +1724,24 @@ function MijozlarTab() {
     catch (e) { setErr(e.response?.data?.detail||'Xatolik'); } finally { setSaving(false); }
   };
 
-  const del = async (id) => { if (!confirm("O'chirilsinmi?")) return; await api.delete(`/customers/${id}`); load(); };
+  const del = async (c) => { 
+    if (Number(c.debt_balance) > 0) {
+      const code = Math.floor(1000 + Math.random() * 9000).toString();
+      const input = window.prompt(`Diqqat! Ushbu mijozning qarzi bor (${c.debt_balance} so'm).\nO'chirish uchun tasdiqlash kodini kiriting: ${code}`);
+      if (input !== code) {
+        alert("Tasdiqlash kodi noto'g'ri. Mijoz o'chirilmaydi.");
+        return;
+      }
+    } else {
+      if (!window.confirm("O'chirishni tasdiqlaysizmi?")) return;
+    }
+    try {
+      await api.delete(`/customers/${c.id}`); 
+      load(); 
+    } catch (e) {
+      alert(e.response?.data?.detail || "Xatolik yuz berdi");
+    }
+  };
   const totalDebt = list.reduce((s,c) => s+Number(c.debt_balance||0), 0);
 
   return (
@@ -1756,7 +1773,7 @@ function MijozlarTab() {
                     {Number(c.debt_balance)>0&&<button onClick={() => { setSel(c); setPayAmt(''); setModal('pay'); }} className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors" title="Qarzni to'lash"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg></button>}
                     <button onClick={() => { setSel(c); setPayAmt(c.debt_balance || ''); setModal('debt_edit'); }} className="p-2 text-amber-500 hover:bg-amber-50 rounded-lg transition-colors" title="Qarzni tahrirlash"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></button>
                     <button onClick={() => { setForm({name:c.name,phone:c.phone||'',debt_balance:c.debt_balance||'',debt_limit:c.debt_limit||0,loyalty_points:c.loyalty_points||0,card_number:c.card_number||'',cashback_percent:c.cashback_percent||0}); setSel(c); setModal('form'); }} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors" title="Tahrirlash"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
-                    <button onClick={() => del(c.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="O'chirish"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+                    <button onClick={() => del(c)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="O'chirish"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
                   </div>
                 </td>
               </tr>
@@ -1773,10 +1790,12 @@ function MijozlarTab() {
             <form onSubmit={handleSave} className="p-6 space-y-4">
               <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('customer.fullName')} *</label><input required className={inputCls} value={form.name} onChange={e => setForm({...form,name:e.target.value})} placeholder="Javohir Toshmatov"/></div>
               <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('admin.dict.phone') || 'Telefon'}</label><input className={inputCls} value={form.phone} onChange={e => setForm({...form,phone:e.target.value})} placeholder="+998 90 123 45 67"/></div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Boshlang&apos;ich qarz / Joriy qarz (so&apos;m)</label>
-                <input type="number" min="0" className={inputCls} value={form.debt_balance} onChange={e => setForm({...form,debt_balance:e.target.value})} placeholder="Masalan: 50000"/>
-              </div>
+              {!sel && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Boshlang&apos;ich qarz (so&apos;m)</label>
+                  <input type="number" min="0" className={inputCls} value={form.debt_balance} onChange={e => setForm({...form,debt_balance:e.target.value})} placeholder="Masalan: 50000"/>
+                </div>
+              )}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-semibold text-slate-600">{t('customer.cardNumber')}</label>
