@@ -57,9 +57,9 @@ class Product(Base):
     __table_args__ = (
         Index('ix_product_company_status_deleted', 'company_id', 'status', 'is_deleted'),
         Index('ix_product_company_name', 'company_id', 'name'),
-        # Partial unique: faqat o'chirilmagan mahsulotlarda SKU va barcode unique
-        Index('uq_products_sku_active', 'sku', unique=True,
+        # Partial unique: faqat o'chirilmagan mahsulotlarda SKU va barcode har bir kompaniya uchun unique
+        Index('uq_products_sku_active', 'company_id', 'sku', unique=True,
               postgresql_where=text('is_deleted = false')),
-        Index('uq_products_barcode_active', 'barcode', unique=True,
+        Index('uq_products_barcode_active', 'company_id', 'barcode', unique=True,
               postgresql_where=text('is_deleted = false')),
     )
