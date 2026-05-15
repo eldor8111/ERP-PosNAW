@@ -49,11 +49,16 @@ def bulk_import_products(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*WRITE_ROLES)),
 ):
-    """Excel fayldan ko'plab mahsulotlarni yuklash yoki yangilash."""
+    """Excel fayldan ko'plab mahsulotlarni yuklash yoki yangilash.
+
+    Har bir satr alohida savepoint bilan saqlanadi — bitta xato
+    butun importni to'xtatmaydi.
+    """
     created = 0
     updated = 0
     errors: list = []
 
+    # ── Bazadagi BARCHA (o'chirilmagan) mahsulotlarni yuklash ──────────
     all_products = db.query(Product).filter(
         Product.is_deleted == False,
         Product.company_id == current_user.company_id,
@@ -63,17 +68,20 @@ def bulk_import_products(
     barcode_map = {p.barcode: p for p in all_products if p.barcode}
     sku_map     = {p.sku:     p for p in all_products if p.sku}
 
-    all_db_skus:     set = set(sku_map.keys())
-    all_db_barcodes: set = set(barcode_map.keys())
+    # Barcode uchun to'liq set (is_deleted=True bo'lganlar ham partial index ta'sir qilmaydi,
+    # lekin xavfsizlik uchun faqat aktiv barcodes yetarli — partial index shunga qaratilgan)
     db_skus     = set(sku_map.keys())
     db_barcodes = set(barcode_map.keys())
+    # Xuddi shu sessiyada qo'shilgan yangilar uchun to'plamlar
+    session_skus:     set = set()
+    session_barcodes: set = set()
 
     for idx, row in enumerate(rows):
         row_num = row.get("__row_index", idx + 2)
-        name            = str(row.get("Nomi") or "").strip()
-        barcode         = str(row.get("Barkod") or "").strip()
-        product_code_val= str(row.get("Kod") or "").strip() or None
-        sku_val         = str(row.get("SKU") or "").strip() or None
+        name             = str(row.get("Nomi") or "").strip()
+        barcode          = str(row.get("Barkod") or "").strip()
+        product_code_val = str(row.get("Kod") or "").strip() or None
+        sku_val          = str(row.get("SKU") or "").strip() or None
         if sku_val and sku_val.lstrip("0") == "":
             sku_val = None
 
@@ -81,7 +89,7 @@ def bulk_import_products(
             errors.append({"row": row_num, "error": "Mahsulot nomi yoki barkod majburiy"})
             continue
 
-        # ── Mavjud mahsulotni topish ───────────────────────────────
+        # ── Mavjud mahsulotni topish ───────────────────────────────────
         existing = None
         if name and name in name_map:
             existing = name_map[name]
@@ -90,12 +98,13 @@ def bulk_import_products(
         if not existing and search_by_sku and sku_val and sku_val in sku_map:
             existing = sku_map[sku_val]
 
-        # ── UPDATE ─────────────────────────────────────────────────
+        # ── UPDATE ─────────────────────────────────────────────────────
         if existing:
             if not allow_update:
                 errors.append({
                     "row": row_num, "name": name or barcode,
-                    "error": f"'{name or barcode}' allaqachon mavjud — o'tkazib yuborildi"
+                    "error": f"'{name or barcode}' allaqachon mavjud — o'tkazib yuborildi",
+                    "skipped": True,   # frontend uchun flag
                 })
                 continue
 
@@ -126,10 +135,22 @@ def bulk_import_products(
                     existing.stock_level.quantity = stock_val
                 else:
                     existing.stock_level = StockLevel(quantity=stock_val)
-            updated += 1
+
+            # Har bir update ni alohida savepoint bilan saqlash
+            sp = db.begin_nested()
+            try:
+                db.flush()
+                sp.commit()
+                updated += 1
+            except Exception as exc:
+                sp.rollback()
+                errors.append({
+                    "row": row_num, "name": name or barcode,
+                    "error": f"Yangilashda xato: {str(exc)[:200]}",
+                })
             continue
 
-        # ── CREATE ─────────────────────────────────────────────────
+        # ── CREATE ─────────────────────────────────────────────────────
         if not name:
             errors.append({"row": row_num, "error": "Yangi mahsulot uchun Nomi majburiy"})
             continue
@@ -145,26 +166,33 @@ def bulk_import_products(
             errors.append({"row": row_num, "name": name, "error": "Narx/qoldiq qiymatlari noto'g'ri"})
             continue
 
-        if barcode and barcode in db_barcodes:
-            errors.append({"row": row_num, "name": name, "error": f"Barkod '{barcode}' allaqachon mavjud"})
+        # ── Barkod tekshiruvi (DB + joriy sessiya) ─────────────────────
+        if barcode and (barcode in db_barcodes or barcode in session_barcodes):
+            errors.append({
+                "row": row_num, "name": name,
+                "error": f"Barkod '{barcode}' allaqachon mavjud — o'tkazib yuborildi",
+                "skipped": True,
+            })
             continue
 
         unit       = str(row.get("O'lchov") or "dona").strip()
         brand      = str(row.get("Brand") or "").strip() or None
         status_val = STATUS_MAP.get(str(row.get("Holat") or "active").strip().lower(), "active")
 
+        # ── SKU generatsiya ────────────────────────────────────────────
         sku_final = sku_val
-        if not sku_final or sku_final in db_skus or sku_final in all_db_skus:
+        if not sku_final or sku_final in db_skus or sku_final in session_skus:
             while True:
                 s = str(random.randint(10000, 99999))
-                if s not in db_skus and s not in all_db_skus:
+                if s not in db_skus and s not in session_skus:
                     sku_final = s
                     break
 
+        # ── Barkod generatsiya (bo'sh bo'lsa) ─────────────────────────
         if not barcode:
             while True:
                 b = str(random.randint(10000000, 99999999))
-                if b not in db_barcodes and b not in all_db_barcodes:
+                if b not in db_barcodes and b not in session_barcodes:
                     barcode = b
                     break
 
@@ -182,25 +210,50 @@ def bulk_import_products(
         product.stock_level = StockLevel(quantity=initial_stock)
         db.add(product)
 
-        db_barcodes.add(barcode);    all_db_barcodes.add(barcode)
-        db_skus.add(sku_final);      all_db_skus.add(sku_final)
-        name_map[name]       = product
-        barcode_map[barcode] = product
-        sku_map[sku_final]   = product
-        created += 1
+        # ── Har bir yangi mahsulotni alohida savepoint bilan saqlash ───
+        sp = db.begin_nested()
+        try:
+            db.flush()
+            sp.commit()
 
+            # Muvaffaqiyatli qo'shildi — in-memory map larni yangilash
+            session_barcodes.add(barcode)
+            session_skus.add(sku_final)
+            name_map[name]       = product
+            barcode_map[barcode] = product
+            sku_map[sku_final]   = product
+            created += 1
+
+        except Exception as exc:
+            sp.rollback()
+            err_msg = str(exc)
+            # Tushunarli xabar
+            if "uq_products_barcode" in err_msg or "duplicate key" in err_msg.lower():
+                user_msg = f"Barkod '{barcode}' allaqachon bazada mavjud — o'tkazib yuborildi"
+            elif "uq_products_sku" in err_msg:
+                user_msg = f"SKU '{sku_final}' allaqachon mavjud — o'tkazib yuborildi"
+            else:
+                user_msg = f"Saqlashda xato: {err_msg[:200]}"
+            errors.append({
+                "row": row_num, "name": name,
+                "error": user_msg,
+                "skipped": True,
+            })
+
+    # ── Oxirgi commit (barcha muvaffaqiyatli savepoint lar uchun) ──────
     try:
         db.commit()
     except Exception as exc:
         db.rollback()
-        errors.append({"row": 0, "error": f"Saqlashda xato: {str(exc)[:300]}"})
+        errors.append({"row": 0, "error": f"Yakuniy saqlashda xato: {str(exc)[:300]}"})
         created = updated = 0
 
     total_errors = len(errors)
+    skipped = sum(1 for e in errors if e.get("skipped"))
     return {
         "created":      created,
         "updated":      updated,
-        "skipped":      total_errors,
+        "skipped":      skipped,
         "errors":       errors[:200],
         "total_errors": total_errors,
     }

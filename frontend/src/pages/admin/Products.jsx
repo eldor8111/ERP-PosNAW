@@ -815,23 +815,8 @@ export default function Products() {
     }).filter(r => r['Nomi'] || r['Barkod'] || r['SKU']);
   };
 
-  // Pre-check stats: how many rows match existing products
-  const foundCount = (() => {
-    if (!importRows.length || !products.length) return 0;
-    const payload = buildPayload();
-    return payload.filter(r => {
-      const name = (r['Nomi'] || '').toLowerCase();
-      const barcode = String(r['Barkod'] || '');
-      const sku = String(r['SKU'] || '');
-      return products.some(p =>
-        (name && p.name?.toLowerCase() === name) ||
-        (barcode && p.barcode === barcode) ||
-        (searchBySku && sku && p.sku === sku)
-      );
-    }).length;
-  })();
-
-  const notFoundCount = buildPayload().length - foundCount;
+  // Jami yuklanayotgan qatorlar soni (aniq hisob)
+  const totalImportPayload = buildPayload().length;
 
   const downloadTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([{
@@ -2606,15 +2591,33 @@ export default function Products() {
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 shrink-0">
               <div className="flex flex-wrap items-center gap-4">
                 {/* Stats */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <div className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm">
-                    <span className="text-slate-500 text-sm">Bazadan topilgan mahsulotlar soni:</span>
-                    <span className="font-bold text-emerald-600 ml-2 text-base">{importRows.length > 0 ? foundCount : 0} шт</span>
+                    <span className="text-slate-500 text-sm">Jami yuklanayotgan qatorlar:</span>
+                    <span className="font-bold text-indigo-600 ml-2 text-base">{totalImportPayload} ta</span>
                   </div>
-                  <div className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm">
-                    <span className="text-slate-500 text-sm">Bazadan topilmagan mahsulotlar soni:</span>
-                    <span className="font-bold text-violet-600 ml-2 text-base">{importRows.length > 0 ? notFoundCount : 0} шт</span>
-                  </div>
+                  {importResult ? (
+                    <>
+                      <div className="px-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-sm">
+                        <span className="text-slate-500 text-sm">✅ Yangi qo'shildi:</span>
+                        <span className="font-bold text-emerald-600 ml-2 text-base">{importResult.created} ta</span>
+                      </div>
+                      {importResult.updated > 0 && (
+                        <div className="px-4 py-2.5 bg-indigo-50 border border-indigo-200 rounded-xl text-sm">
+                          <span className="text-slate-500 text-sm">🔄 Yangilandi:</span>
+                          <span className="font-bold text-indigo-600 ml-2 text-base">{importResult.updated} ta</span>
+                        </div>
+                      )}
+                      <div className="px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-sm">
+                        <span className="text-slate-500 text-sm">⚠️ O'tkazib yuborildi:</span>
+                        <span className="font-bold text-amber-600 ml-2 text-base">{importResult.skipped} ta</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-400">
+                      Saqlash tugmachasini bosing — natija shu yerda ko'rinadi
+                    </div>
+                  )}
                 </div>
 
                 {/* Skip rows counter */}
