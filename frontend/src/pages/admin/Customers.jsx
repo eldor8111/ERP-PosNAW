@@ -6,7 +6,7 @@ import api from '../../api/axios';
 import { useLang } from '../../context/LangContext';
 import toast from 'react-hot-toast';
 
-const emptyForm = { name: '', phone: '', debt_limit: '', loyalty_points: 0, card_number: '', cashback_percent: 0 };
+const emptyForm = { name: '', phone: '', debt_balance: '', debt_limit: '', loyalty_points: 0, card_number: '', cashback_percent: 0 };
 
 const TIERS = {
   Gold:     { label: 'Gold',     cls: 'bg-amber-100 text-amber-700' },
@@ -182,7 +182,7 @@ export default function Customers() {
 
   const openAdd = () => { setForm({ ...emptyForm, card_number: generateCard() }); setError(''); setModal('add'); };
   const openEdit = (c) => {
-    setForm({ name: c.name, phone: c.phone || '', debt_limit: c.debt_limit || 0, loyalty_points: c.loyalty_points || 0, card_number: c.card_number || '', cashback_percent: c.cashback_percent || 0 });
+    setForm({ name: c.name, phone: c.phone || '', debt_balance: c.debt_balance || 0, debt_limit: c.debt_limit || 0, loyalty_points: c.loyalty_points || 0, card_number: c.card_number || '', cashback_percent: c.cashback_percent || 0 });
     setSelected(c); setError(''); setModal('edit');
   };
   const openPay = (c) => { setSelected(c); setPayAmount(''); setError(''); setModal('pay'); };
@@ -207,6 +207,7 @@ export default function Customers() {
       const payload = { 
         name: form.name, 
         phone: form.phone || null, 
+        debt_balance: form.debt_balance ? Number(form.debt_balance) : 0,
         debt_limit: form.debt_limit ? Number(form.debt_limit) : 0, 
         loyalty_points: form.loyalty_points ? Number(form.loyalty_points) : 0,
         card_number: form.card_number || null,
@@ -511,6 +512,16 @@ export default function Customers() {
                     value={form.phone}
                     onChange={e => setForm({ ...form, phone: e.target.value })}
                     placeholder="+998 90 123 45 67"
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Boshlang'ich qarz / Joriy qarz (so'm)</label>
+                  <input
+                    type="number" min="0"
+                    value={form.debt_balance}
+                    onChange={e => setForm({ ...form, debt_balance: e.target.value })}
+                    placeholder="Masalan: 50000"
                     className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>

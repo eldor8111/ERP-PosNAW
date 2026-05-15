@@ -19,6 +19,7 @@ router = APIRouter(prefix="/customers", tags=["customers"])
 class CustomerIn(BaseModel):
     name: str
     phone: Optional[str] = None
+    debt_balance: Optional[Decimal] = Decimal("0")
     debt_limit: Optional[Decimal] = Decimal("0")
     loyalty_points: Optional[int] = 0
     card_number: Optional[str] = None
