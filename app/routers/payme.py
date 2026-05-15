@@ -223,8 +223,16 @@ async def payme_webhook(request: Request, db: Session = Depends(get_db)):
         return _err(req_id, ERR_METHOD_NOT_FOUND, f"Metod topilmadi: {method}")
 
     response = handler(req_id, params, db)
-    logger.info("[Payme] --- YUBORILGAN JAVOB ---\n  %s",
-                _json.dumps(response.body.decode() if hasattr(response, 'body') else str(response), ensure_ascii=False))
+    body_str = ""
+    if hasattr(response, 'body'):
+        try:
+            body_str = bytes(response.body).decode("utf-8") # type: ignore
+        except Exception:
+            body_str = str(response.body)
+    else:
+        body_str = str(response)
+        
+    logger.info("[Payme] --- YUBORILGAN JAVOB ---\n  %s", body_str)
     return response
 
 
@@ -340,9 +348,9 @@ def _create_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
         PaymeTransaction.create_time < (now_check - TIMEOUT_MS),
     ).all()
     for old_txn in timed_out_txns:
-        old_txn.state = -1
-        old_txn.reason = 4  # 4 = timeout
-        old_txn.cancel_time = now_check
+        old_txn.state = -1 # type: ignore
+        old_txn.reason = 4 # type: ignore
+        old_txn.cancel_time = now_check # type: ignore
         logger.info("[Payme] Timeout: txn %s avtomatik bekor qilindi", old_txn.payme_id)
     if timed_out_txns:
         db.commit()
@@ -419,7 +427,7 @@ def _perform_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse
 
     # FIX BUG #7: rollback bilan xavfsiz commit
     try:
-        company.balance = float(company.balance or 0) + amount_som
+        company.balance = (float(company.balance) if company.balance else 0.0) + amount_som # type: ignore
 
         log = BalanceLog(
             company_id = company.id,
@@ -435,9 +443,9 @@ def _perform_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse
         db.flush()  # log.id olish uchun
 
         now_ms = _now_ms()
-        txn.state        = 2
-        txn.perform_time = now_ms
-        txn.log_id       = log.id
+        txn.state        = 2 # type: ignore
+        txn.perform_time = now_ms # type: ignore
+        txn.log_id       = log.id # type: ignore
 
         db.commit()
 
@@ -489,16 +497,16 @@ def _cancel_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
     try:
         if txn.state == 1:
             # Pul otmagan - shunchaki bekor qilamiz
-            txn.state       = -1
-            txn.reason      = reason
-            txn.cancel_time = now_ms
+            txn.state       = -1 # type: ignore
+            txn.reason      = reason # type: ignore
+            txn.cancel_time = now_ms # type: ignore
 
         elif txn.state == 2:
             # Pul otgan - balansdan qaytaramiz
             company = db.query(Company).filter(Company.id == txn.company_id).first()
             if company:
-                amount_som = txn.amount / 100
-                new_balance = float(company.balance or 0) - amount_som
+                amount_som = txn.amount / 100 # type: ignore
+                new_balance = (float(company.balance) if company.balance else 0.0) - amount_som # type: ignore
                 company.balance = new_balance  # manfiy bolishi mumkin (toliq hisob)
 
                 refund_log = BalanceLog(
@@ -513,9 +521,9 @@ def _cancel_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
                 )
                 db.add(refund_log)
 
-            txn.state       = -2
-            txn.reason      = reason
-            txn.cancel_time = now_ms
+            txn.state       = -2 # type: ignore
+            txn.reason      = reason # type: ignore
+            txn.cancel_time = now_ms # type: ignore
 
         db.commit()
 
