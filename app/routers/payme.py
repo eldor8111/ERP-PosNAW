@@ -217,6 +217,7 @@ async def payme_webhook(request: Request, db: Session = Depends(get_db)):
         "PerformTransaction":      _perform_transaction,
         "CancelTransaction":       _cancel_transaction,
         "CheckTransaction":        _check_transaction,
+        "GetStatement":            _get_statement,
     }
     handler = dispatch.get(method)
     if not handler:
@@ -556,6 +557,84 @@ def _check_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
         return _err(req_id, ERR_TXN_NOT_FOUND, "Tranzaksiya topilmadi")
 
     return _ok(req_id, _txn_to_dict(txn))
+
+
+# ─── Metod 6: GetStatement ──────────────────────────────────────────────────
+
+def _get_statement(req_id: Any, params: dict, db: Session) -> JSONResponse:
+    """
+    Berilgan vaqt oralig'idagi barcha tranzaksiyalarni qaytaradi.
+    Payme audit/reconciliation uchun ishlatadi.
+
+    Rasmiy hujjat:
+    https://developer.help.paycom.uz/protokol-merchant-api/#getstatement
+
+    Parametrlar:
+      from  - boshlanish vaqti (millisoniya)
+      to    - tugash vaqti    (millisoniya)
+
+    Qaytaradi:
+      { "transactions": [ { id, time, amount, account, create_time,
+                             perform_time, cancel_time, transaction,
+                             state, reason, receivers }, ... ] }
+    """
+    from_ms = params.get("from")
+    to_ms   = params.get("to")
+
+    # Parametrlar mavjudligini tekshirish
+    if from_ms is None or to_ms is None:
+        return _err(req_id, ERR_INVALID_PARAMS, {
+            "uz": "'from' va 'to' parametrlari majburiy",
+            "ru": "Параметры 'from' и 'to' обязательны",
+            "en": "'from' and 'to' parameters are required",
+        })
+
+    # Turini tekshirish
+    try:
+        from_ms = int(from_ms)
+        to_ms   = int(to_ms)
+    except (TypeError, ValueError):
+        return _err(req_id, ERR_INVALID_PARAMS, {
+            "uz": "'from' va 'to' son (millisoniya) bo'lishi kerak",
+            "ru": "'from' и 'to' должны быть числами (миллисекунды)",
+            "en": "'from' and 'to' must be integers (milliseconds)",
+        })
+
+    # Mantiqiy tekshirish
+    if from_ms > to_ms:
+        return _err(req_id, ERR_INVALID_PARAMS, {
+            "uz": "'from' qiymati 'to' dan kichik bo'lishi kerak",
+            "ru": "'from' должен быть меньше 'to'",
+            "en": "'from' must be less than 'to'",
+        })
+
+    # DB dan tranzaksiyalarni olib kelamiz
+    txns = db.query(PaymeTransaction).filter(
+        PaymeTransaction.create_time >= from_ms,
+        PaymeTransaction.create_time <= to_ms,
+    ).order_by(PaymeTransaction.create_time.asc()).all()
+
+    result_list = []
+    for txn in txns:
+        result_list.append({
+            "id":           txn.payme_id,
+            "time":         txn.create_time or 0,
+            "amount":       txn.amount,
+            "account":      {"org_code": txn.account_org_code or ""},
+            "create_time":  txn.create_time or 0,
+            "perform_time": txn.perform_time or 0,
+            "cancel_time":  txn.cancel_time or 0,
+            "transaction":  str(txn.id),
+            "state":        txn.state,
+            "reason":       txn.reason,
+            "receivers":    None,
+        })
+
+    logger.info(
+        "[Payme] GetStatement: from=%s to=%s => %d ta tranzaksiya",
+        from_ms, to_ms, len(result_list)
+    )
+    return _ok(req_id, {"transactions": result_list})
 
 
 # ─── Checkout URL (Frontend uchun) ────────────────────────────────────────────
