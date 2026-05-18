@@ -229,12 +229,27 @@ const ProductSearch = forwardRef(function ProductSearch({ onSelect, placeholder,
   useEffect(() => {
     if (!q.trim()) { setResults([]); return; }
     clearTimeout(timerRef.current);
+    // Oldingi so'rovni bekor qilamiz (AbortController)
+    const abortCtrl = new AbortController();
     timerRef.current = setTimeout(async () => {
       setLoading(true);
       try {
         const variants = searchVariants(q);
-        const requests = variants.map(v => api.get('/products/pos-list', { params: { search: v, limit: 50 } }).catch(() => ({ data: [] })));
+        // Faqat birinchi 2 ta variant — server yukini kamaytirish uchun
+        const topVariants = variants.slice(0, 2);
+        // _silent: true — har bir so'rov uchun alohida toast chiqmasin
+        const requests = topVariants.map(v =>
+          api.get('/products/pos-list', {
+            params: { search: v, limit: 50 },
+            signal: abortCtrl.signal,
+            _silent: true,
+          }).catch(err => {
+            if (err?.code === 'ERR_CANCELED') return { data: [] };
+            return { data: [] };
+          })
+        );
         const responses = await Promise.all(requests);
+        if (abortCtrl.signal.aborted) return;
         const seen = new Set();
         const merged = [];
         for (const r of responses) {
@@ -244,13 +259,13 @@ const ProductSearch = forwardRef(function ProductSearch({ onSelect, placeholder,
           }
         }
         setResults(merged.slice(0, 50));
-      } catch {
-        setResults([]);
+      } catch (err) {
+        if (err?.code !== 'ERR_CANCELED') setResults([]);
       } finally {
-        setLoading(false);
+        if (!abortCtrl.signal.aborted) setLoading(false);
       }
-    }, 200);
-    return () => clearTimeout(timerRef.current);
+    }, 250);
+    return () => { clearTimeout(timerRef.current); abortCtrl.abort(); };
   }, [q]);
 
   const select = (p) => { onSelect(p); setQ(''); setResults([]); setActiveIdx(0); inputRef.current?.focus(); };
@@ -399,6 +414,8 @@ export default function UlgurjiSotuv() {
   const customersRef = useRef([]);
   const setCustIdRef = useRef(setCustId);
   const addToCartRef = useRef(null);
+  // custIdRef: addToCart closuresi uchun — har doim yangi qiymatni o'qiydi
+  const custIdRef = useRef(custId);
 
   const [draftsList, setDraftsList] = useState([]);
   useEffect(() => {
@@ -495,14 +512,21 @@ export default function UlgurjiSotuv() {
   };
 
   const addToCart = useCallback((p) => {
-    if (!custId) {
+    // custIdRef.current ishlatamiz — closure eskirgan custId ni o'qimaydi
+    const currentCustId = custIdRef.current;
+    if (!currentCustId) {
       toast.error('Avval mijozni tanlang!');
       return;
     }
     const price = useWholesale && p.wholesale_price ? Number(p.wholesale_price) : Number(p.sale_price || 0);
     setCart(prev => {
       const ex = prev.find(i => i.product_id === p.id);
-      if (ex) return prev.map(i => i.product_id === p.id ? { ...i, qty: i.qty + 1 } : i);
+      if (ex) {
+        // Narxni ham yangilaymiz (eski noto'g'ri narx qolmasin)
+        return prev.map(i => i.product_id === p.id
+          ? { ...i, qty: i.qty + 1, price: price || i.price }
+          : i);
+      }
       return [...prev, {
         product_id: p.id, name: p.name, unit: p.unit || 'dona', qty: 1, price,
         discount_type: 'pct', discount_val: 0,
@@ -511,7 +535,7 @@ export default function UlgurjiSotuv() {
         addedAt: Date.now(),
       }];
     });
-  }, [useWholesale]);
+  }, [useWholesale]); // custIdRef orqali o'qiladi — dep sifatida kerak emas
 
   const updateItem = (idx, field, val) => setCart(prev => prev.map((it, i) => i === idx ? { ...it, [field]: val } : it));
   const removeItem = (idx) => setCart(prev => prev.filter((_, i) => i !== idx));
@@ -743,9 +767,8 @@ export default function UlgurjiSotuv() {
 
   // Auto-save: boshqa bo'limga o'tganda yoki sahifa yopilganda pending saqlash
   const cartRef = useRef(cart);
-  const custIdRef = useRef(custId);
   cartRef.current = cart;
-  custIdRef.current = custId;
+  custIdRef.current = custId;  // har render da yangilanadi (addToCart uchun ham)
 
   // Unmount vaqtida kerak bo'lgan barcha ma'lumotlarni ref da saqlaymiz
   const pendingSaveDataRef = useRef(null);

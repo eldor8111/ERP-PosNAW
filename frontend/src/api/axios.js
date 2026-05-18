@@ -7,10 +7,6 @@ const getBaseUrl = () => {
 }
 
 // ── Stale-While-Revalidate cache ─────────────────────────────────────────
-// Barcha api.get() avtomatik keshlanadi — birorta sahifani o'zgartirish
-// shart emas. Sahifadan sahifaga o'tganda eski ma'lumot DARHOL ko'rinadi,
-// fon fonda yangi ma'lumot yuklanadi.
-
 const _cache = new Map()    // cacheKey → { data, ts }
 const _inflight = new Map() // cacheKey → Promise
 
@@ -19,29 +15,60 @@ const LONG_TTL = [
   '/bin-locations', '/users/', '/companies/me', '/agents', '/api-keys',
   '/warehouses', '/finance/cash-balance', '/inventory/low-stock-count',
 ]
-const SHORT_TTL_MS = 30_000   // 30 sek — tez o'zgaruvchan ma'lumotlar
-const LONG_TTL_MS  = 120_000  // 2 min — kam o'zgaruvchan ma'lumotlar
+const SHORT_TTL_MS = 30_000
+const LONG_TTL_MS  = 120_000
 
 const getTTL = (url) =>
   LONG_TTL.some(p => url.includes(p)) ? LONG_TTL_MS : SHORT_TTL_MS
 
 const cacheKey = (url, params) => url + (params ? JSON.stringify(params) : '')
 
-// Mutatsiyadan keyin tegishli keshni tozalash uchun
 export function invalidateCache(urlPattern) {
   for (const k of _cache.keys()) {
     if (k.includes(urlPattern)) _cache.delete(k)
   }
 }
-
-// Logout yoki serverdan barcha kesh tozalash
 export function clearCache() { _cache.clear(); _inflight.clear() }
+
+// ── Timeout toast deduplikatsiya ─────────────────────────────────────────
+// Ko'p parallel so'rovlar bir vaqtda timeout bo'lsa, faqat bitta toast ko'rsatamiz
+let _timeoutToastShown = false
+let _timeoutToastTimer = null
+function _showTimeoutToast() {
+  if (_timeoutToastShown) return
+  _timeoutToastShown = true
+  toast.error("So'rov vaqti tugadi. Server band, iltimos qayta urinib ko'ring.")
+  clearTimeout(_timeoutToastTimer)
+  _timeoutToastTimer = setTimeout(() => { _timeoutToastShown = false }, 3000)
+}
+
+// ── Token refresh ─────────────────────────────────────────────────────────
+// 401 bo'lganda avtomatik refresh qiladi, cart yo'qolmaydi
+let _isRefreshing = false
+let _refreshQueue = [] // { resolve, reject }[]
+
+async function _tryRefreshToken() {
+  const refreshToken = localStorage.getItem('refresh_token')
+  if (!refreshToken) return null
+  try {
+    const res = await axios.post(`${getBaseUrl()}/auth/refresh`, { refresh_token: refreshToken })
+    const { access_token, refresh_token: newRefresh } = res.data
+    if (access_token) {
+      localStorage.setItem('access_token', access_token)
+      if (newRefresh) localStorage.setItem('refresh_token', newRefresh)
+      return access_token
+    }
+  } catch {
+    // Refresh ham ishlamadi — login sahifasiga o'tamiz
+  }
+  return null
+}
 
 // ── axios instance ────────────────────────────────────────────────────────
 const api = axios.create({
   baseURL: getBaseUrl(),
   headers: { 'Content-Type': 'application/json' },
-  timeout: 15000,   // 15 soniya — POS uchun yetarli, keraksiz kutish oldini oladi
+  timeout: 30000,   // 30 soniya — og'ir mahsulot qidiruvlari uchun yetarli
 })
 
 // ── Request interceptor ───────────────────────────────────────────────────
@@ -51,7 +78,6 @@ api.interceptors.request.use((config) => {
   const token = localStorage.getItem('access_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
 
-  // Only cache GET requests that don't have no-cache flag
   if (config.method === 'get' && !config._noCache) {
     const key = cacheKey(config.url, config.params)
     const now = Date.now()
@@ -59,16 +85,21 @@ api.interceptors.request.use((config) => {
     const cached = _cache.get(key)
 
     if (cached && now - cached.ts < ttl) {
-      // Fresh cache: cancel real request, return cached immediately
       config._cached = cached.data
       config._cacheKey = key
     } else if (cached) {
-      // Stale cache: mark for SWR — will serve stale, then update
       config._stale = cached.data
       config._cacheKey = key
     } else if (_inflight.has(key)) {
-      // Duplicate in-flight: piggyback on existing request
       config._piggyback = _inflight.get(key)
+    } else {
+      // In-flight ni kuzatamiz
+      let resolveFn
+      const p = new Promise(r => { resolveFn = r })
+      p._resolve = resolveFn
+      _inflight.set(key, p)
+      config._cacheKey = key
+      config._inflightResolve = resolveFn
     }
   }
   return config
@@ -77,22 +108,22 @@ api.interceptors.request.use((config) => {
 // ── Response interceptor ──────────────────────────────────────────────────
 api.interceptors.response.use(
   (response) => {
-    // Store GET responses in cache
     if (response.config.method === 'get' && !response.config._noCache) {
       const key = cacheKey(response.config.url, response.config.params)
       _cache.set(key, { data: response.data, ts: Date.now() })
+      // In-flight ni resolve qilamiz
+      const infly = _inflight.get(key)
+      if (infly?._resolve) infly._resolve(response.data)
       _inflight.delete(key)
     }
-    // Clear related caches on mutating requests
     if (['post', 'put', 'patch', 'delete'].includes(response.config.method)) {
       const url = response.config.url || ''
-      // Invalidate parent resource (e.g. POST /sales/ → delete /sales/ cache)
       const parts = url.split('/')
       if (parts.length >= 2) invalidateCache('/' + parts[1])
     }
     return response
   },
-  (error) => {
+  async (error) => {
     const config = error.config || {}
     const key = config._cacheKey
     if (key) _inflight.delete(key)
@@ -100,13 +131,46 @@ api.interceptors.response.use(
     const status = error.response?.status
     const detail = error.response?.data?.detail
 
-    if (status === 401) {
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('user')
-      if (window.location.protocol === 'file:') window.location.hash = '#/login'
-      else window.location.href = '/login'
-      return Promise.reject(error)
+    // ── 401: Token yangilashga urinib ko'ramiz ────────────────────────────
+    if (status === 401 && !config._isRetry) {
+      if (_isRefreshing) {
+        // Boshqa so'rov allaqachon refresh qilayapti — navbatda kutatamiz
+        return new Promise((resolve, reject) => {
+          _refreshQueue.push({ resolve, reject })
+        }).then(newToken => {
+          config._isRetry = true
+          config.headers.Authorization = `Bearer ${newToken}`
+          return api(config)
+        })
+      }
+
+      _isRefreshing = true
+      const newToken = await _tryRefreshToken()
+      _isRefreshing = false
+
+      if (newToken) {
+        // Navbatdagi barcha so'rovlarga yangi token beramiz
+        _refreshQueue.forEach(q => q.resolve(newToken))
+        _refreshQueue = []
+        config._isRetry = true
+        config.headers.Authorization = `Bearer ${newToken}`
+        return api(config)
+      } else {
+        // Refresh ham ishlamadi
+        _refreshQueue.forEach(q => q.reject(error))
+        _refreshQueue = []
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+        localStorage.removeItem('user')
+        toast.warn("Sessiya tugadi. Iltimos qayta kiring.")
+        setTimeout(() => {
+          if (window.location.protocol === 'file:') window.location.hash = '#/login'
+          else window.location.href = '/login'
+        }, 1500)
+        return Promise.reject(error)
+      }
     }
+
     if (status === 402) {
       const path = window.location.pathname
       const onLoginPage = path === '/login' || window.location.hash.includes('/login')
@@ -125,25 +189,21 @@ api.interceptors.response.use(
     }
     if (status >= 500) { toast.error(detail || 'Server xatosi yuz berdi. Iltimos qayta urinib ko\'ring.'); return Promise.reject(error) }
     if (!error.response && !config._silent) {
-      if (error.code === 'ECONNABORTED') toast.error("So'rov vaqti tugadi.")
+      if (error.code === 'ECONNABORTED') _showTimeoutToast()
       else toast.error("Server bilan aloqa yo'q.")
     }
     return Promise.reject(error)
   }
 )
 
-// ── Cached GET wrapper — used by pages that want SWR pattern explicitly ──
-// api.get() still works as-is; this helper lets callers get stale data
-// synchronously on first call then update via onChange callback.
+// ── Cached GET wrapper ────────────────────────────────────────────────────
 export async function apiGetCached(url, params, onChange) {
   const key = cacheKey(url, params)
   const now = Date.now()
   const ttl = getTTL(url)
   const cached = _cache.get(key)
 
-  // Return stale immediately then refresh
   if (cached && now - cached.ts >= ttl) {
-    // Fire background refresh
     api.get(url, { params }).then(res => {
       if (onChange && JSON.stringify(res.data) !== JSON.stringify(cached.data)) {
         onChange(res.data)
@@ -152,7 +212,6 @@ export async function apiGetCached(url, params, onChange) {
     return cached.data
   }
 
-  // No cache: wait for fresh
   const res = await api.get(url, { params })
   return res.data
 }
