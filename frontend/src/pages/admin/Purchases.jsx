@@ -1665,6 +1665,8 @@ function SuppliersTab() {
   const [form, setForm] = useState(emptySupplier);
   const [saving, setSaving] = useState(false);
   const [payAmt, setPayAmt] = useState('');
+  const [payWallet, setPayWallet] = useState('');
+  const [wallets, setWallets] = useState([]);
   const [err, setErr] = useState('');
   const inp = 'w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white';
 
@@ -1781,7 +1783,10 @@ function SuppliersTab() {
 
   const load = (q=search) => api.get(`/suppliers${q?'?search='+encodeURIComponent(q):''}`).then(r=>setList(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(()=>{load();},[]);
+  useEffect(()=>{
+    load();
+    api.get('/finance/wallets').then(r => { setWallets(r.data); if(r.data.length>0) setPayWallet(String(r.data[0].id)); }).catch(()=>{});
+  },[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{const t=setTimeout(()=>load(search),400);return()=>clearTimeout(t);},[search]);
   const close=()=>{setModal(null);setSel(null);setErr('');};
@@ -1795,7 +1800,11 @@ function SuppliersTab() {
     }catch(ex){setErr(ex.response?.data?.detail||'Xatolik');}finally{setSaving(false);}};
   const handlePayDebt=async(e)=>{
     e.preventDefault();setSaving(true);setErr('');
-    try{await api.post(`/suppliers/${sel.id}/pay-debt`,{amount:Number(payAmt),reason:"Qarz to'lovi"});close();load();}
+    try{
+      const payload = {amount:Number(payAmt),reason:"Qarz to'lovi"};
+      if(payWallet) payload.wallet_id = Number(payWallet);
+      await api.post(`/suppliers/${sel.id}/pay-debt`,payload);close();load();
+    }
     catch(ex){setErr(ex.response?.data?.detail||'Xatolik');}finally{setSaving(false);};
   };
   const del=async(id)=>{if(!confirm("O'chirilsinmi?"))return;await api.delete(`/suppliers/${id}`);load();};
@@ -1898,24 +1907,56 @@ function SuppliersTab() {
       {/* Qarz to'lash Modal */}
       {modal==='pay'&&sel&&(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e=>e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e=>e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-100">
               <h3 className="text-lg font-bold text-slate-800">Qarz to'lash</h3>
               <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
             </div>
             <form onSubmit={handlePayDebt} className="p-6 space-y-4">
-              <div className="p-3 bg-red-50 rounded-xl text-sm">
-                <div className="font-semibold text-slate-800">{sel.name}</div>
-                <div className="text-red-500 font-bold mt-0.5">Joriy qarz: {fmt(sel.debt_balance)} so'm</div>
+              {/* Supplier info */}
+              <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-100 rounded-xl">
+                <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+                  <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1"/></svg>
+                </div>
+                <div>
+                  <div className="font-bold text-slate-800 text-sm">{sel.name}</div>
+                  <div className="text-red-500 font-bold text-lg mt-0.5">{fmt(sel.debt_balance)} so'm</div>
+                  <div className="text-xs text-slate-400">Joriy qarz</div>
+                </div>
               </div>
+
+              {/* Wallet */}
+              {wallets.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Kassa / Hamyon</label>
+                  <select className={inp} value={payWallet} onChange={e=>setPayWallet(e.target.value)}>
+                    <option value="">(Asosiy kassa)</option>
+                    {wallets.map(w=><option key={w.id} value={w.id}>{w.name} — {fmt(w.balance)} so'm</option>)}
+                  </select>
+                </div>
+              )}
+
+              {/* Amount */}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">To'lov miqdori *</label>
-                <input type="number" min="1" required autoFocus className={inp} value={payAmt} onChange={e=>setPayAmt(e.target.value)} placeholder="Miqdor..."/>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">To'lov miqdori (so'm) *</label>
+                <div className="flex gap-2">
+                  <input type="number" min="1" required autoFocus className={inp+' flex-1'} value={payAmt} onChange={e=>setPayAmt(e.target.value)} placeholder="Miqdor..."/>
+                  <button type="button" onClick={()=>setPayAmt(String(Math.round(sel.debt_balance)))}
+                    className="px-3 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl whitespace-nowrap">Barchasi</button>
+                </div>
+                {payAmt && Number(payAmt) > 0 && (
+                  <div className="mt-2 text-xs text-slate-500">
+                    To'lovdan keyin qarz: <strong className={Number(sel.debt_balance) - Number(payAmt) <= 0 ? 'text-emerald-600' : 'text-red-500'}>
+                      {fmt(Math.max(0, Number(sel.debt_balance) - Number(payAmt)))} so'm
+                    </strong>
+                  </div>
+                )}
               </div>
+
               {err&&<div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}
-              <div className="flex gap-3">
+              <div className="flex gap-3 pt-2">
                 <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm rounded-xl hover:bg-slate-50">Bekor</button>
-                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving?'...':'Tasdiqlash'}</button>
+                <button type="submit" disabled={saving||!payAmt} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving?'...':'✓ Tasdiqlash'}</button>
               </div>
             </form>
           </div>
