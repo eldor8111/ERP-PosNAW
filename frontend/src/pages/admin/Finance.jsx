@@ -513,24 +513,24 @@ export default function Finance() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {transactions.map(t => (
-                    <tr key={t.id} className="hover:bg-slate-50 transition-colors">
+                  {transactions.map(tx => (
+                    <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
-                          t.type === 'income' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'
+                          tx.type === 'income' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'
                         }`}>
-                          {t.type === 'income'
+                          {tx.type === 'income'
                             ? <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 11l5-5m0 0l5 5m-5-5v12" /></svg>
                             : <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 13l-5 5m0 0l-5-5m5 5V6" /></svg>}
-                          {t.type === 'income' ? (t('finance.income') || 'Kirim') : (t('finance.expense') || 'Chiqim')}
+                          {tx.type === 'income' ? (t('finance.income') || 'Kirim') : (t('finance.expense') || 'Chiqim')}
                         </span>
                       </td>
-                      <td className={`px-6 py-4 text-sm font-semibold ${t.type === 'income' ? 'text-emerald-600' : 'text-red-500'}`}>
-                        {fmt(t.amount, t)}
+                      <td className={`px-6 py-4 text-sm font-semibold ${tx.type === 'income' ? 'text-emerald-600' : 'text-red-500'}`}>
+                        {fmt(tx.amount, t)}
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-500">{t.description || '—'}</td>
-                      <td className="px-6 py-4 text-sm text-slate-400">{t.reference_type || '—'}</td>
-                      <td className="px-6 py-4 text-sm text-slate-400">{new Date(t.created_at).toLocaleDateString('uz-UZ')}</td>
+                      <td className="px-6 py-4 text-sm text-slate-500">{tx.description || '—'}</td>
+                      <td className="px-6 py-4 text-sm text-slate-400">{tx.reference_type || '—'}</td>
+                      <td className="px-6 py-4 text-sm text-slate-400">{new Date(tx.created_at).toLocaleDateString('uz-UZ')}</td>
                     </tr>
                   ))}
                   {transactions.length === 0 && (
