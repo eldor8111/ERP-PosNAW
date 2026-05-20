@@ -190,10 +190,16 @@ def list_products_paginated(
         f2.count(Product.id).label("total"),
         f2.sum(case((Product.status == ProductStatus.active, 1), else_=0)).label("active"),
         f2.sum(case((f2.coalesce(stock_subq.c.total_stock, 0) <= Product.min_stock, 1), else_=0)).label("low"),
+        f2.sum(f2.coalesce(stock_subq.c.total_stock, 0) * f2.coalesce(Product.sale_price, 0)).label("sale_value"),
+        f2.sum(f2.coalesce(stock_subq.c.total_stock, 0) * f2.coalesce(Product.wholesale_price, 0)).label("wholesale_value"),
+        f2.sum(f2.coalesce(stock_subq.c.total_stock, 0) * f2.coalesce(Product.cost_price, 0)).label("cost_value"),
     ).one()
     total_count  = int(stats.total or 0)
     total_active = int(stats.active or 0)
     out_of_stock = int(stats.low or 0)
+    sale_value = float(stats.sale_value or 0)
+    wholesale_value = float(stats.wholesale_value or 0)
+    cost_value = float(stats.cost_value or 0)
 
     products = q.order_by(Product.name).offset(skip).limit(limit).all()
 
@@ -235,7 +241,15 @@ def list_products_paginated(
             item.stock_quantity = sum((s.quantity for s in visible_stocks), Decimal("0"))
         items.append(item.model_dump())
 
-    return {"items": items, "total": total_count, "total_active": total_active, "out_of_stock": out_of_stock}
+    return {
+        "items": items,
+        "total": total_count,
+        "total_active": total_active,
+        "out_of_stock": out_of_stock,
+        "sale_value": sale_value,
+        "wholesale_value": wholesale_value,
+        "cost_value": cost_value
+    }
 
 
 @router.get("/ids", response_model=List[int])

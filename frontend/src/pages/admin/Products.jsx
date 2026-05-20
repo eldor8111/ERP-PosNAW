@@ -502,6 +502,9 @@ export default function Products() {
   const [totalRecords, setTotalRecords] = useState(0);
   const [totalActive, setTotalActive]   = useState(0);
   const [outOfStock, setOutOfStock]     = useState(0);
+  const [totalSaleValue, setTotalSaleValue] = useState(0);
+  const [totalWholesaleValue, setTotalWholesaleValue] = useState(0);
+  const [totalCostValue, setTotalCostValue] = useState(0);
   const [deleteProgress, setDeleteProgress] = useState(null);
   const [categories, setCategories]   = useState([]);
   const [loading, setLoading]       = useState(true);
@@ -566,6 +569,9 @@ export default function Products() {
         setTotalRecords(r.data.total);
         setTotalActive(r.data.total_active || 0);
         setOutOfStock(r.data.out_of_stock || 0);
+        setTotalSaleValue(r.data.sale_value || 0);
+        setTotalWholesaleValue(r.data.wholesale_value || 0);
+        setTotalCostValue(r.data.cost_value || 0);
         setSelectedIds([]);
       })
       .catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") })
@@ -1702,6 +1708,39 @@ export default function Products() {
                 )}
               </>
             )}
+          </div>
+
+          {/* Value Stats Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 flex flex-col gap-2">
+              <div className="flex items-center justify-between text-slate-500 text-sm font-semibold">
+                Chakana narxi bo'yicha umumiy qiymati
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+              </div>
+              <div className="text-2xl font-black text-slate-800">{fmt(totalSaleValue)} UZS</div>
+            </div>
+            
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 flex flex-col gap-2">
+              <div className="flex items-center justify-between text-slate-500 text-sm font-semibold">
+                Ulgurji narxi bo'yicha umumiy qiymati
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+              </div>
+              <div className="text-2xl font-black text-slate-800">{fmt(totalWholesaleValue)} UZS</div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 flex flex-col gap-2">
+              <div className="flex items-center justify-between text-slate-500 text-sm font-semibold">
+                Kirim narxi bo'yicha umumiy qiymati
+                <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+              </div>
+              <div className="text-2xl font-black text-slate-800">{fmt(totalCostValue)} UZS</div>
+            </div>
           </div>
         </>
       )}
