@@ -1858,7 +1858,10 @@ function SuppliersTab() {
                 <td className="px-5 py-4 text-sm font-semibold">{s.debt_balance > 0 ? <span className="text-red-500">{fmt(s.debt_balance)} so'm</span> : <span className="text-emerald-500">0 so'm</span>}</td>
                 <td className="px-5 py-4"><div className="flex items-center gap-1">
                   {Number(s.debt_balance)>0&&(
-                    <button onClick={()=>{setSel(s);setPayAmt('');setErr('');setModal('pay');}} title="Qarz to'lash" className="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg></button>
+                    <button onClick={()=>{setSel(s);setPayAmt(String(Math.round(s.debt_balance)));setPayWallet(wallets.length>0?String(wallets[0].id):'');setErr('');setModal('pay');}} title="Qarz to'lash" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+                      Qarz to'lash
+                    </button>
                   )}
                   <button onClick={()=>openEdit(s)} className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
                   <button onClick={()=>del(s.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
