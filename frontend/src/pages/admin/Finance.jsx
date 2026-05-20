@@ -47,6 +47,14 @@ export default function Finance() {
   const [payAmount, setPayAmount] = useState('');
   const [paying, setPaying] = useState(false);
 
+  // Payme to'lov (3 bosqich)
+  const [paymeStep, setPaymeStep] = useState('search'); // 'search' | 'confirm' | 'done'
+  const [paymeOrgCode, setPaymeOrgCode] = useState('');
+  const [paymeAmount, setPaymeAmount] = useState('');
+  const [paymeCompany, setPaymeCompany] = useState(null); // {id, name, org_code}
+  const [paymeLoading, setPaymeLoading] = useState(false);
+  const [paymeError, setPaymeError] = useState('');
+
   const loadBase = useCallback(async () => {
     const [cats, bal, wals] = await Promise.all([
       api.get('/finance/expense-categories'),
@@ -153,6 +161,48 @@ export default function Finance() {
     saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `xarajatlar_${today()}.xlsx`);
   };
 
+  // ── Payme: kompaniyani org_code bo'yicha tekshirish ──
+  const handlePaymeLookup = async () => {
+    const code = paymeOrgCode.trim();
+    const amt  = parseFloat(paymeAmount);
+    setPaymeError('');
+    if (!code) { setPaymeError("Tashkilot kodini kiriting"); return; }
+    if (!amt || amt < 1000) { setPaymeError("Minimal summa 1 000 so'm"); return; }
+    setPaymeLoading(true);
+    try {
+      const r = await api.get(`/payme/company-lookup?org_code=${encodeURIComponent(code)}`);
+      setPaymeCompany(r.data);
+      setPaymeStep('confirm');
+    } catch (e) {
+      setPaymeError(e?.response?.data?.detail || "Kompaniya topilmadi");
+    } finally { setPaymeLoading(false); }
+  };
+
+  // ── Payme: checkout URL olish va ochish ──
+  const handlePaymeCheckout = async () => {
+    setPaymeLoading(true);
+    setPaymeError('');
+    try {
+      const r = await api.post('/payme/checkout-url', {
+        amount:   parseFloat(paymeAmount),
+        org_code: paymeCompany.org_code,
+      });
+      window.open(r.data.checkout_url, '_blank', 'noopener,noreferrer');
+      setPaymeStep('done');
+    } catch (e) {
+      setPaymeError(e?.response?.data?.detail || "Xatolik yuz berdi");
+    } finally { setPaymeLoading(false); }
+  };
+
+  // ── Payme: qayta boshlash ──
+  const resetPayme = () => {
+    setPaymeStep('search');
+    setPaymeOrgCode('');
+    setPaymeAmount('');
+    setPaymeCompany(null);
+    setPaymeError('');
+  };
+
   const tabs = [
     { key: 'wallets', label: t('finance.wallets') || 'Hamyonlar' },
     { key: 'expenses', label: t('finance.expense') },
@@ -161,6 +211,7 @@ export default function Finance() {
     { key: 'customer-debts', label: t('customer.totalDebtors') || 'Debitorlar' },
     { key: 'supplier-debts', label: t('customer.totalCreditors') || 'Kreditorlar' },
     { key: 'pl', label: t('finance.pl') || 'Foyda/Zarar' },
+    { key: 'payme-payment', label: '💳 Payme To\'lov' },
   ];
 
   return (
@@ -745,6 +796,167 @@ export default function Finance() {
           </div>
         )}
       </div>
+
+      {/* ── Payme To'lov Tab ── */}
+      {activeTab === 'payme-payment' && (
+        <div className="p-6 flex justify-center">
+          <div className="w-full max-w-md">
+
+            {/* STEP 1: Qidirish */}
+            {paymeStep === 'search' && (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-6 py-5 bg-gradient-to-r from-indigo-600 to-violet-600">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-white">Payme orqali to'lov</h3>
+                      <p className="text-xs text-indigo-200 mt-0.5">Tashkilot kodini va summani kiriting</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tashkilot kodi (org_code)</label>
+                    <input
+                      type="text"
+                      placeholder="Masalan: 12345678"
+                      value={paymeOrgCode}
+                      onChange={e => { setPaymeOrgCode(e.target.value); setPaymeError(''); }}
+                      onKeyDown={e => e.key === 'Enter' && handlePaymeLookup()}
+                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">To'lov summasi (so'm)</label>
+                    <input
+                      type="number"
+                      placeholder="Masalan: 100000"
+                      value={paymeAmount}
+                      onChange={e => { setPaymeAmount(e.target.value); setPaymeError(''); }}
+                      onKeyDown={e => e.key === 'Enter' && handlePaymeLookup()}
+                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    {paymeAmount && parseFloat(paymeAmount) >= 1000 && (
+                      <p className="text-xs text-slate-400 mt-1 pl-1">
+                        = {Number(paymeAmount).toLocaleString('uz-UZ')} so'm
+                        &nbsp;/&nbsp;{(parseFloat(paymeAmount) * 100).toLocaleString()} tiyin
+                      </p>
+                    )}
+                  </div>
+                  {paymeError && (
+                    <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-xl">
+                      <svg className="w-4 h-4 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span className="text-xs font-medium text-red-600">{paymeError}</span>
+                    </div>
+                  )}
+                  <button
+                    onClick={handlePaymeLookup}
+                    disabled={paymeLoading}
+                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+                  >
+                    {paymeLoading ? (
+                      <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Tekshirilmoqda...</>
+                    ) : (
+                      <>Keyingi <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg></>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2: Tasdiqlash */}
+            {paymeStep === 'confirm' && paymeCompany && (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-6 py-5 bg-gradient-to-r from-emerald-500 to-teal-500">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-white">Tashkilot topildi</h3>
+                      <p className="text-xs text-emerald-100 mt-0.5">Ma'lumotlarni tasdiqlang</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between py-3 px-4 bg-slate-50 rounded-xl">
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tashkilot nomi</span>
+                      <span className="text-sm font-bold text-slate-800">{paymeCompany.name}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-3 px-4 bg-slate-50 rounded-xl">
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tashkilot kodi</span>
+                      <span className="text-sm font-bold text-slate-800 font-mono">{paymeCompany.org_code}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-3 px-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                      <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wider">To'lov summasi</span>
+                      <span className="text-lg font-bold text-indigo-700">{Number(paymeAmount).toLocaleString('uz-UZ')} so'm</span>
+                    </div>
+                  </div>
+                  {paymeError && (
+                    <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-xl">
+                      <svg className="w-4 h-4 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span className="text-xs font-medium text-red-600">{paymeError}</span>
+                    </div>
+                  )}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => { setPaymeStep('search'); setPaymeError(''); }}
+                      className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+                      Orqaga
+                    </button>
+                    <button
+                      onClick={handlePaymeCheckout}
+                      disabled={paymeLoading}
+                      className="flex-[2] py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+                    >
+                      {paymeLoading ? (
+                        <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Yuklanmoqda...</>
+                      ) : (
+                        <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg> To'lash (Payme)</>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3: To'lov boshlandi */}
+            {paymeStep === 'done' && (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 text-center">
+                <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-base font-bold text-slate-800 mb-2">Payme sahifasi ochildi!</h3>
+                <p className="text-sm text-slate-500 mb-6">
+                  <strong>{paymeCompany?.name}</strong> uchun to'lov sahifasi yangi tabda ochildi.
+                  To'lov tugagandan so'ng balans avtomatik yangilanadi.
+                </p>
+                <button
+                  onClick={resetPayme}
+                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors"
+                >
+                  Yangi to'lov
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Qarz to'lash modali ── */}
       {payModal && (

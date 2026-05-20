@@ -640,7 +640,38 @@ def _get_statement(req_id: Any, params: dict, db: Session) -> JSONResponse:
 # ─── Checkout URL (Frontend uchun) ────────────────────────────────────────────
 
 class PaymeCheckoutRequest(BaseModel):
-    amount: float  # somda (masalan: 50000)
+    amount: float           # somda (masalan: 50000)
+    org_code: Optional[str] = None  # ixtiyoriy: admin boshqa kompaniya uchun to'lasa
+
+
+@router.get("/company-lookup")
+def company_lookup(
+    org_code: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user_allow_expired),
+):
+    """
+    org_code bo'yicha kompaniyani topadi — frontend 'Keyingi' bosqichi uchun.
+    Foydalanuvchi org_code kiritganda tashkilot nomi va kodini ko'rsatish uchun ishlatiladi.
+    """
+    code = (org_code or "").strip()
+    if not code:
+        raise HTTPException(status_code=400, detail="org_code bo'sh bo'lmasligi kerak")
+
+    company = db.query(Company).filter(
+        Company.org_code == code,
+        Company.is_active == True,
+    ).first()
+
+    if not company:
+        raise HTTPException(status_code=404, detail="Kompaniya topilmadi")
+
+    logger.info("[Payme] company-lookup: org_code=%s => %s", code, company.name)
+    return {
+        "id":       company.id,
+        "name":     company.name,
+        "org_code": company.org_code,
+    }
 
 
 @router.post("/checkout-url")
@@ -651,6 +682,10 @@ def create_checkout_url(
 ):
     """
     Frontend uchun Payme tolov sahifasi URL sini yaratadi.
+
+    Agar data.org_code berilsa   → o'sha kompaniya uchun URL (admin flow).
+    Agar data.org_code berilmasa → login qilgan user kompaniyasi uchun URL (billing flow).
+
     Obuna muddati tugagan korxona ham tolay olishi uchun
     get_current_user_allow_expired ishlatiladi.
     """
@@ -660,15 +695,27 @@ def create_checkout_url(
             detail="Payme sozlanmagan. .env da PAYME_MERCHANT_ID yoq."
         )
 
-    if not user.company_id:
-        raise HTTPException(status_code=400, detail="Korxonaga biriktirilmagan foydalanuvchi")
+    # --- Kompaniyani aniqlash ---
+    if data.org_code:
+        # Admin boshqa kompaniya uchun to'lov yaratmoqda
+        target_code = data.org_code.strip()
+        company = db.query(Company).filter(
+            Company.org_code == target_code,
+            Company.is_active == True,
+        ).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Kompaniya topilmadi")
+    else:
+        # Oddiy foydalanuvchi o'z kompaniyasi uchun to'lamoqda
+        if not user.company_id:
+            raise HTTPException(status_code=400, detail="Korxonaga biriktirilmagan foydalanuvchi")
+        company = db.query(Company).filter(
+            Company.id == user.company_id,
+            Company.is_active == True,
+        ).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Korxona topilmadi")
 
-    company = db.query(Company).filter(
-        Company.id == user.company_id,
-        Company.is_active == True,
-    ).first()
-    if not company:
-        raise HTTPException(status_code=404, detail="Korxona topilmadi")
     if not company.org_code:
         raise HTTPException(
             status_code=400,
@@ -684,19 +731,19 @@ def create_checkout_url(
 
     # Payme checkout URL parametrlari
     # Format: m=MERCHANT_ID;ac.org_code=ORG_CODE;a=AMOUNT_TIYIN
-    raw     = f"m={PAYME_MERCHANT_ID};ac.org_code={company.org_code};a={amount_tiyin}"
-    encoded = base64.b64encode(raw.encode()).decode()
-
-    base_url     = "https://checkout.test.paycom.uz" if PAYME_IS_TEST else "https://checkout.paycom.uz"
+    raw      = f"m={PAYME_MERCHANT_ID};ac.org_code={company.org_code};a={amount_tiyin}"
+    encoded  = base64.b64encode(raw.encode()).decode()
+    base_url = "https://checkout.test.paycom.uz" if PAYME_IS_TEST else "https://checkout.paycom.uz"
     checkout_url = f"{base_url}/{encoded}"
 
     logger.info("[Payme] checkout-url: org=%s amount=%.0f som test=%s",
                 company.org_code, data.amount, PAYME_IS_TEST)
 
     return {
-        "checkout_url": checkout_url,
-        "amount":       data.amount,
-        "amount_tiyin": amount_tiyin,
-        "org_code":     company.org_code,
-        "is_test":      PAYME_IS_TEST,
+        "checkout_url":    checkout_url,
+        "amount":          data.amount,
+        "amount_tiyin":    amount_tiyin,
+        "org_code":        company.org_code,
+        "company_name":    company.name,
+        "is_test":         PAYME_IS_TEST,
     }
