@@ -2054,6 +2054,7 @@ function SuppliersTab() {
             </div>
           </div>
         );
+      })()}
       {/* ── IMPORT MODAL (Full screen) ────────────── */}
       {importOpen && (
         <div className="fixed inset-0 z-50 bg-slate-50 flex flex-col">
