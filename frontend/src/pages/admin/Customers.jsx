@@ -613,114 +613,148 @@ export default function Customers() {
       )}
 
       {/* ── PAY DEBT MODAL ──────────────────────────────────── */}
-      {modal === 'pay' && selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" onClick={closeModal}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col max-h-full" onClick={e => e.stopPropagation()}>
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <h3 className="text-xl font-bold text-slate-800 tracking-tight">Kassadan to'lov <span className="text-blue-500 font-medium text-lg ml-2">{new Date().toLocaleString('uz-UZ').replace(',', '')}</span></h3>
-              <button onClick={closeModal} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-            
-            {/* Modal Body */}
-            <div className="p-6 overflow-y-auto space-y-6">
-              <div className="grid grid-cols-2 gap-6">
-                {/* Kassa */}
-                <div className="space-y-2 col-span-2 sm:col-span-1">
-                  <label className="text-sm font-semibold text-slate-600">Kassa/Hisob</label>
-                  <select value={payWallet} onChange={e=>setPayWallet(e.target.value)} className="w-full h-11 px-4 border border-slate-200 rounded-xl bg-white text-base focus:ring-2 focus:ring-indigo-500 outline-none">
-                    <option value="">(Asosiy kassa)</option>
-                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name} ({fmt(w.balance)})</option>)}
-                  </select>
+      {modal === 'pay' && selected && (() => {
+        const debt = Number(selected.debt_balance) || 0;
+        const paid = Math.max(0, Number(payAmount) || 0);
+        const remaining = Math.max(0, debt - paid);
+        const change = Math.max(0, paid - debt);
+        const PAY_TYPES = [
+          { key: 'cash',     label: 'Naqd' },
+          { key: 'card',     label: 'Karta' },
+          { key: 'uzcard',   label: 'Uzcard' },
+          { key: 'humo',     label: 'Humo' },
+          { key: 'transfer', label: "Bank o'tkazmasi" },
+          { key: 'click',    label: 'Click' },
+          { key: 'payme',    label: 'Payme' },
+        ];
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm" onClick={closeModal}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col" onClick={e => e.stopPropagation()}>
+              {/* Header */}
+              <div className="flex items-center justify-between px-7 py-5 border-b border-slate-100">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-800 tracking-tight">Kassadan to'lov</h3>
+                  <p className="text-sm text-blue-500 font-medium mt-0.5">{new Date().toLocaleString('uz-UZ').replace(',', '')}</p>
+                </div>
+                <button onClick={closeModal} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 transition-colors">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-7 overflow-y-auto space-y-7">
+                {/* Mijoz Info */}
+                <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                  <Avatar name={selected.name} size="lg" />
+                  <div>
+                    <div className="font-bold text-slate-800 text-base">{selected.name}</div>
+                    {selected.phone && <div className="text-sm text-slate-500 mt-0.5">{selected.phone}</div>}
+                    <div className="text-base font-bold text-red-500 mt-1">Joriy qarz: {fmt(debt)} so'm</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  {/* Kassa tanlash */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-slate-700">Kassa / Hisob</label>
+                    <select value={payWallet} onChange={e => setPayWallet(e.target.value)}
+                      className="w-full h-12 px-4 border border-slate-200 rounded-xl bg-white text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none">
+                      <option value="">(Asosiy kassa)</option>
+                      {wallets.map(w => <option key={w.id} value={w.id}>{w.name} — {fmt(w.balance)} so'm</option>)}
+                    </select>
+                  </div>
+
+                  {/* To'lov miqdori */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-slate-700">To'lov miqdori *</label>
+                    <div className="flex h-12">
+                      <input type="number" min="1" autoFocus value={payAmount} onChange={e => setPayAmount(e.target.value)}
+                        className="flex-1 h-full border border-slate-200 border-r-0 rounded-l-xl px-4 text-base font-medium outline-none focus:ring-2 focus:ring-indigo-500"
+                        placeholder="0" />
+                      <div className="px-3 flex items-center border-y border-slate-200 text-indigo-600 text-sm font-bold bg-white">UZS</div>
+                      <button type="button" onClick={() => setPayAmount(String(Math.round(debt)))}
+                        className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-slate-200 border-l-0 font-semibold px-4 h-full rounded-r-xl transition-colors whitespace-nowrap text-sm">
+                        Barchasi
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* To'lov turi — button style */}
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">To'lov turi</label>
+                  <div className="flex flex-wrap gap-2">
+                    {PAY_TYPES.map(pt => (
+                      <button key={pt.key} type="button"
+                        onClick={() => setPayType(pt.key)}
+                        className={`px-5 py-2.5 rounded-xl text-sm font-semibold border transition-all ${
+                          payType === pt.key
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-200'
+                            : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                        }`}>
+                        {pt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Izoh */}
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">Izoh</label>
+                  <textarea rows={3} value={payInfo} onChange={e => setPayInfo(e.target.value)}
+                    className="w-full p-4 border border-slate-200 rounded-xl text-sm leading-relaxed focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                    placeholder="Ixtiyoriy..." />
+                </div>
+
+                {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
+
+                {/* Summary */}
+                <div className="flex justify-end">
+                  <div className="w-72 space-y-2 bg-slate-50 rounded-xl p-4 border border-slate-100">
+                    <div className="flex justify-between text-base">
+                      <span className="text-slate-500">Umumiy summa:</span>
+                      <span className="font-bold text-emerald-600">{fmt(debt)}</span>
+                    </div>
+                    <div className="flex justify-between text-base">
+                      <span className="text-slate-500">To'lov:</span>
+                      <span className="font-bold text-blue-600">{fmt(paid)} uzs</span>
+                    </div>
+                    <div className="border-t border-slate-200 my-1" />
+                    <div className="flex justify-between text-base">
+                      <span className="text-slate-500">Qarzga:</span>
+                      <span className={`font-bold ${remaining > 0 ? 'text-red-500' : 'text-emerald-600'}`}>{fmt(remaining)}</span>
+                    </div>
+                    <div className="flex justify-between text-base">
+                      <span className="text-slate-500">Qaytim:</span>
+                      <span className="font-bold text-slate-600">{fmt(change)}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* To'lov */}
-              <div className="space-y-3">
-                <label className="text-sm font-semibold text-slate-600">To'lov turi va miqdori *</label>
-                
-                {/* To'lov turi tugmalari */}
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {[
-                    { id: 'cash', label: 'Naqd' },
-                    { id: 'card', label: 'Karta' },
-                    { id: 'uzcard', label: 'Uzcard' },
-                    { id: 'humo', label: 'Humo' },
-                    { id: 'transfer', label: "Bank o'tkazmasi" },
-                    { id: 'click', label: 'Click' },
-                    { id: 'payme', label: 'Payme' },
-                  ].map(pt => (
-                    <button
-                      key={pt.id}
-                      type="button"
-                      onClick={() => setPayType(pt.id)}
-                      className={`px-4 py-2 text-sm font-semibold rounded-xl transition-colors border ${
-                        payType === pt.id 
-                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200' 
-                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                      }`}
-                    >
-                      {pt.label}
-                    </button>
-                  ))}
+              {/* Footer */}
+              <div className="flex items-center justify-between gap-3 px-7 py-5 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
+                <div className="text-sm text-slate-500">
+                  Mijoz qoldig'i qarz: <span className="font-bold text-slate-800">{fmt(remaining)} UZS</span>
                 </div>
-
-                <div className="flex h-12 items-center rounded-xl focus-within:ring-2 focus-within:ring-indigo-500 overflow-hidden shadow-sm border border-slate-200">
-                  <input type="number" min="1" max={selected.debt_balance} value={payAmount} onChange={e=>setPayAmount(e.target.value)} className="flex-1 w-full h-full border-none px-4 text-lg font-bold text-slate-800 outline-none" placeholder="Miqdor (so'm)..." />
-                  <div className="bg-white px-4 flex items-center border-l border-slate-200 text-indigo-600 text-sm font-bold h-full">UZS | 1</div>
-                  <button onClick={() => setPayAmount(String(Math.round(selected.debt_balance)))} className="bg-slate-100 hover:bg-slate-200 text-slate-700 border-l border-slate-200 font-semibold px-6 h-full transition-colors whitespace-nowrap">
-                    Umumiy qarz
+                <div className="flex gap-3">
+                  <button onClick={closeModal} className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-600 font-semibold bg-white hover:bg-slate-50 transition-colors">
+                    Bekor qilish
+                  </button>
+                  <button disabled={saving || !payAmount || Number(payAmount) <= 0} onClick={handlePay}
+                    className="px-8 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-colors shadow-md shadow-blue-200 disabled:opacity-50 flex items-center gap-2">
+                    {saving ? (
+                      <span className="flex items-center gap-2"><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Saqlanmoqda...</span>
+                    ) : (
+                      <><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>✓ Qabul va Saqlash</>
+                    )}
                   </button>
                 </div>
               </div>
-
-              {/* Malumot */}
-              <div className="space-y-2">
-                <textarea rows="3" value={payInfo} onChange={e=>setPayInfo(e.target.value)} className="w-full p-4 border border-slate-200 rounded-xl text-sm leading-relaxed focus:ring-2 focus:ring-indigo-500 outline-none resize-none" placeholder="Ma'lumot / Izoh..."></textarea>
-              </div>
-
-              {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
-
-              {/* Summary blocks aligned to right */}
-              <div className="flex flex-col items-end gap-3 pt-2">
-                <div className="flex items-center justify-between w-64 text-lg">
-                  <span className="text-slate-500">Mijoz qarzi:</span>
-                  <span className="font-bold text-red-500 bg-red-50 px-3 py-1 rounded-lg">{fmt(selected.debt_balance)}</span>
-                </div>
-                <div className="flex items-center justify-between w-64 text-lg">
-                  <span className="text-slate-500">To'lov:</span>
-                  <span className="font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-lg">{fmt(payAmount || 0)} <span className="text-xs uppercase">uzs</span></span>
-                </div>
-                {payAmount && Number(payAmount) > 0 && (
-                  <div className="flex items-center justify-between w-64 text-lg">
-                    <span className="text-slate-500">Qolgan qarz:</span>
-                    <span className="font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-lg">{fmt(Math.max(0, Number(selected.debt_balance) - Number(payAmount)))}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Modal Footer Buttons */}
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50 mt-auto rounded-b-2xl flex-wrap">
-              <div className="text-sm font-semibold text-slate-500 flex-1 flex items-center gap-2">
-                <Avatar name={selected.name} size="sm" />
-                <span>{selected.name}</span>
-              </div>
-              <button onClick={closeModal} className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-600 font-semibold bg-white hover:bg-slate-50 transition-colors">Bekor qilish</button>
-              <button disabled={saving || !payAmount} onClick={handlePay} className="px-8 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-colors shadow-sm shadow-blue-200 disabled:opacity-50 flex items-center gap-2">
-                {saving ? '...' : (
-                  <>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
-                    Qabul va Saqlash
-                  </>
-                )}
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── LOYALTY POINTS MODAL ─────────────────────────────── */}
       {modal === 'points' && selected && (
