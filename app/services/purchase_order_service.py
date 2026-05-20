@@ -202,9 +202,8 @@ def receive_purchase_order(db: Session, po_id: int, data, current_user: User) ->
 
 def delete_purchase_order(db: Session, po_id: int, current_user: User) -> None:
     """Xarid buyurtmasini o'chirish: qabul qilingan mahsulotlarni qaytarish"""
-    from app.models.moliya import Transaction
+    from app.models.moliya import Transaction, Wallet
     from app.models.inventory import StockMovement, StockLevel
-    from decimal import Decimal
 
     q = db.query(PurchaseOrder).filter(PurchaseOrder.id == po_id)
     if current_user.role != UserRole.super_admin:
@@ -215,55 +214,53 @@ def delete_purchase_order(db: Session, po_id: int, current_user: User) -> None:
     if po.status == POStatus.cancelled:
         raise HTTPException(status_code=400, detail="Buyurtma allaqachon bekor qilingan")
 
-    # 1. Tarixdagi StockMovement yozuvlarini o'chirish (oldingi holatga qaytarish)
+    # 1. StockMovement yozuvlarini o'chirish va stockni qaytarish
     old_movements = db.query(StockMovement).filter(
         StockMovement.reference_type == "purchase_order",
         StockMovement.reference_id == po.id
     ).all()
 
-    # Har bir harakatni teskari yo'nalishda bekor qilamiz
     for movement in old_movements:
-        # Qoldiqni oldingi holatga qaytaramiz
         stock = db.query(StockLevel).filter(
             StockLevel.product_id == movement.product_id,
             StockLevel.warehouse_id == po.warehouse_id
         ).first()
-
-        if stock:
-            # Xaridda IN harakati bo'lgan, shuning uchun qoldiqni kamaytamiz
+        if stock and movement.qty_before is not None:
             stock.quantity = movement.qty_before
-
-        # Eski harakatni o'chiramiz
         db.delete(movement)
 
-    # 2. Moliya tranzaksiyasini qaytarish (agar to'lov qilingan bo'lsa)
-    # Xarid buyurtmasi uchun to'lov tranzaksiyasini topish
-    old_transaction = db.query(Transaction).filter(
+    # 2. Moliya tranzaksiyalarini qaytarish (barcha expense tranzaksiyalar)
+    old_txs = db.query(Transaction).filter(
         Transaction.reference_type == "purchase_order",
         Transaction.reference_id == po.id,
         Transaction.type == "expense"
-    ).first()
-
-    if old_transaction:
-        from app.models.moliya import Wallet
-        if old_transaction.wallet_id:
-            wallet = db.get(Wallet, old_transaction.wallet_id)
+    ).all()
+    for tx in old_txs:
+        if tx.wallet_id:
+            wallet = db.get(Wallet, tx.wallet_id)
             if wallet:
-                wallet.balance = float(wallet.balance) + float(old_transaction.amount)
-        # Eski tranzaksiyani o'chiramiz
-        db.delete(old_transaction)
+                wallet.balance = float(wallet.balance) + float(tx.amount)
+        db.delete(tx)
 
     # 3. Ta'minotchi qarzini orqaga qaytarish
     from app.models.supplier import Supplier
     supplier = db.get(Supplier, po.supplier_id)
     if supplier:
-        # Xarid qo'shilganda qarz = total - discount - paid qo'shilgan edi. Shuni ayiramiz.
         debt_added = float(po.total_amount or 0) - float(po.discount_amount or 0) - float(po.paid_amount or 0)
         supplier.debt_balance = float(supplier.debt_balance or 0) - debt_added
 
-    # 4. Buyurtmani o'chirish
+    # 4. Batch (FIFO) yozuvlaridan PO linkini uzish — FK constraint xatosini oldini olish
+    batches = db.query(Batch).filter(Batch.po_id == po.id).all()
+    for batch in batches:
+        batch.quantity = 0       # Stock reversal bilan mos: batch ham tozalanadi
+        batch.po_id = None       # FK constraint: purchase_orders.id ga bog'liqlikni uzish
+
+    db.flush()
+
+    # 5. PO o'chirish (POItem lar cascade="all, delete-orphan" bilan avtomatik o'chadi)
     db.delete(po)
     db.commit()
+
 
 
 def update_purchase_order(db: Session, po_id: int, data, current_user: User) -> PurchaseOrder:
