@@ -1785,12 +1785,12 @@ function SuppliersTab() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{const t=setTimeout(()=>load(search),400);return()=>clearTimeout(t);},[search]);
   const close=()=>{setModal(null);setSel(null);setErr('');};
-  const openEdit=(s)=>{setForm({name:s.name,inn:s.inn||'',phone:s.phone||'',email:s.email||'',debt_balance:''});setSel(s);setErr('');setModal('form');};
+  const openEdit=(s)=>{setForm({name:s.name,inn:s.inn||'',phone:s.phone||'',email:s.email||'',debt_balance:String(s.debt_balance||'0')});setSel(s);setErr('');setModal('form');};
   const handleSave=async(e)=>{
     e.preventDefault();setSaving(true);setErr('');
     try{
       const p={name:form.name,inn:form.inn||null,phone:form.phone||null,email:form.email||null};
-      if(!sel && form.debt_balance) p.debt_balance=Number(form.debt_balance);
+      if(form.debt_balance !== '' && form.debt_balance !== null) p.debt_balance=Number(form.debt_balance);
       if(sel)await api.patch(`/suppliers/${sel.id}`,p);else await api.post('/suppliers',p);close();load();
     }catch(ex){setErr(ex.response?.data?.detail||'Xatolik');}finally{setSaving(false);}};
   const handlePayDebt=async(e)=>{
@@ -1873,13 +1873,17 @@ function SuppliersTab() {
                 <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">INN</label><input className={inp} value={form.inn} onChange={e=>setForm({...form,inn:e.target.value})}/></div>
                 <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('admin.dict.phone') || 'Telefon'}</label><input className={inp} value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/></div>
                 <div className="col-span-2"><label className="block text-xs font-semibold text-slate-600 mb-1.5">Email</label><input type="email" className={inp} value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></div>
-                {!sel && (
-                  <div className="col-span-2">
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Boshlang'ich qarz (so'm)</label>
-                    <input type="number" min="0" className={inp} value={form.debt_balance} onChange={e=>setForm({...form,debt_balance:e.target.value})} placeholder="Masalan: 500000"/>
-                    <p className="text-xs text-slate-400 mt-1">Ta'minotchi avval ham qarzda bo'lsa kiriting</p>
-                  </div>
-                )}
+                <div className="col-span-2">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    {sel ? 'Qarz miqdori (so\'m)' : 'Boshlang\'ich qarz (so\'m)'}
+                  </label>
+                  <input type="number" min="0" className={inp} value={form.debt_balance} onChange={e=>setForm({...form,debt_balance:e.target.value})} placeholder="Masalan: 500000"/>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {sel
+                      ? `Joriy qarz: ${Number(sel.debt_balance||0).toLocaleString('uz-UZ')} so'm — yangi qiymat kiriting`
+                      : "Ta'minotchi avval ham qarzda bo'lsa kiriting"}
+                  </p>
+                </div>
               </div>
               {err&&<div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}
             </form>
