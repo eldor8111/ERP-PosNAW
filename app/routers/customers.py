@@ -50,6 +50,8 @@ class CustomerIn(BaseModel):
 class DebtUpdate(BaseModel):
     amount: Decimal
     reason: str
+    wallet_id: Optional[int] = None
+    payment_type: Optional[str] = "cash"
 
 
 class PointsAdjust(BaseModel):
@@ -195,6 +197,27 @@ def pay_debt(customer_id: int, data: DebtUpdate, db: Session = Depends(get_db), 
     if data.amount > cust.debt_balance:
         raise HTTPException(status_code=400, detail="To'lov qarzdorlikdan ko'p bo'lolmaydi")
     cust.debt_balance -= data.amount
+    
+    if data.wallet_id:
+        from app.models.moliya import Transaction, Wallet
+        wallet = db.get(Wallet, data.wallet_id)
+        if wallet:
+            wallet.balance = float(wallet.balance) + float(data.amount)
+        tx = Transaction(
+            company_id=current_user.company_id,
+            branch_id=current_user.branch_id or 0,
+            wallet_id=data.wallet_id,
+            type="income",
+            amount=data.amount,
+            currency="UZS",
+            payment_type=data.payment_type,
+            reference_type="customer_payment",
+            reference_id=customer_id,
+            description=data.reason,
+            created_by=current_user.id
+        )
+        db.add(tx)
+        
     db.commit()
     return {"message": "Qarzdorlik to'landi", "remaining_debt": float(cust.debt_balance)}
 

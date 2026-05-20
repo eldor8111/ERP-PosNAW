@@ -1666,6 +1666,8 @@ function SuppliersTab() {
   const [saving, setSaving] = useState(false);
   const [payAmt, setPayAmt] = useState('');
   const [payWallet, setPayWallet] = useState('');
+  const [payType, setPayType] = useState('cash');
+  const [payInfo, setPayInfo] = useState('');
   const [wallets, setWallets] = useState([]);
   const [err, setErr] = useState('');
   const inp = 'w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white';
@@ -1801,7 +1803,11 @@ function SuppliersTab() {
   const handlePayDebt=async(e)=>{
     e.preventDefault();setSaving(true);setErr('');
     try{
-      const payload = {amount:Number(payAmt),reason:"Qarz to'lovi"};
+      const payload = {
+        amount:Number(payAmt),
+        reason:payInfo||"Qarz to'lovi",
+        payment_type:payType
+      };
       if(payWallet) payload.wallet_id = Number(payWallet);
       await api.post(`/suppliers/${sel.id}/pay-debt`,payload);close();load();
     }
@@ -1858,7 +1864,7 @@ function SuppliersTab() {
                 <td className="px-5 py-4 text-sm font-semibold">{s.debt_balance > 0 ? <span className="text-red-500">{fmt(s.debt_balance)} so'm</span> : <span className="text-emerald-500">0 so'm</span>}</td>
                 <td className="px-5 py-4"><div className="flex items-center gap-1">
                   {Number(s.debt_balance)>0&&(
-                    <button onClick={()=>{setSel(s);setPayAmt(String(Math.round(s.debt_balance)));setPayWallet(wallets.length>0?String(wallets[0].id):'');setErr('');setModal('pay');}} title="Qarz to'lash" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors">
+                    <button onClick={()=>{setSel(s);setPayAmt(String(Math.round(s.debt_balance)));if(wallets.length>0)setPayWallet(String(wallets[0].id));setPayType('cash');setPayInfo('');setErr('');setModal('pay');}} title="Qarz to'lash" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
                       Qarz to'lash
                     </button>
@@ -1909,59 +1915,92 @@ function SuppliersTab() {
 
       {/* Qarz to'lash Modal */}
       {modal==='pay'&&sel&&(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e=>e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-800">Qarz to'lash</h3>
-              <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" onClick={close}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col max-h-full" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h3 className="text-xl font-bold text-slate-800 tracking-tight">Kassadan to'lov <span className="text-blue-500 font-medium text-lg ml-2">{new Date().toLocaleString('uz-UZ').replace(',', '')}</span></h3>
+              <button onClick={close} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
             </div>
-            <form onSubmit={handlePayDebt} className="p-6 space-y-4">
-              {/* Supplier info */}
-              <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-100 rounded-xl">
-                <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
-                  <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1"/></svg>
-                </div>
-                <div>
-                  <div className="font-bold text-slate-800 text-sm">{sel.name}</div>
-                  <div className="text-red-500 font-bold text-lg mt-0.5">{fmt(sel.debt_balance)} so'm</div>
-                  <div className="text-xs text-slate-400">Joriy qarz</div>
+            
+            <div className="p-6 overflow-y-auto space-y-6">
+              <div className="grid grid-cols-2 gap-6">
+                {/* Kassa */}
+                <div className="space-y-2 col-span-2 sm:col-span-1">
+                  <label className="text-sm font-semibold text-slate-600">Kassa/Hisob</label>
+                  <select value={payWallet} onChange={e=>setPayWallet(e.target.value)} className="w-full h-11 px-4 border border-slate-200 rounded-xl bg-white text-base focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <option value="">(Asosiy kassa)</option>
+                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name} ({fmt(w.balance)})</option>)}
+                  </select>
                 </div>
               </div>
 
-              {/* Wallet */}
-              {wallets.length > 0 && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Kassa / Hamyon</label>
-                  <select className={inp} value={payWallet} onChange={e=>setPayWallet(e.target.value)}>
-                    <option value="">(Asosiy kassa)</option>
-                    {wallets.map(w=><option key={w.id} value={w.id}>{w.name} — {fmt(w.balance)} so'm</option>)}
+              {/* To'lov */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-600">To'lov miqdori va turi *</label>
+                <div className="flex gap-2 h-11 items-center">
+                  <select value={payType} onChange={e=>setPayType(e.target.value)} className="bg-slate-50 px-4 py-2 flex items-center border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 h-full shadow-sm outline-none focus:ring-2 focus:ring-indigo-500 w-40">
+                     <option value="cash">Naqd</option>
+                     <option value="card">Karta</option>
+                     <option value="uzcard">Uzcard</option>
+                     <option value="humo">Humo</option>
+                     <option value="transfer">Bank o'tkazmasi</option>
+                     <option value="click">Click</option>
+                     <option value="payme">Payme</option>
                   </select>
+                  <div className="flex flex-1 items-center h-full rounded-xl focus-within:ring-2 focus-within:ring-indigo-500 overflow-hidden shadow-sm">
+                    <input type="number" min="1" max={sel.debt_balance} value={payAmt} onChange={e=>setPayAmt(e.target.value)} className="flex-1 w-full h-full border border-slate-200 border-r-0 rounded-l-xl px-4 text-base font-medium outline-none" placeholder="0" />
+                    <div className="bg-white px-4 flex items-center border border-slate-200 border-x-0 text-indigo-600 text-sm font-bold h-full">UZS | 1</div>
+                    <button onClick={() => setPayAmt(String(Math.round(sel.debt_balance)))} className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 border-l-0 font-semibold px-6 h-full rounded-r-xl transition-colors whitespace-nowrap">
+                      Umumiy qarz
+                    </button>
+                  </div>
                 </div>
-              )}
+              </div>
 
-              {/* Amount */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">To'lov miqdori (so'm) *</label>
-                <div className="flex gap-2">
-                  <input type="number" min="1" required autoFocus className={inp+' flex-1'} value={payAmt} onChange={e=>setPayAmt(e.target.value)} placeholder="Miqdor..."/>
-                  <button type="button" onClick={()=>setPayAmt(String(Math.round(sel.debt_balance)))}
-                    className="px-3 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl whitespace-nowrap">Barchasi</button>
+              {/* Malumot */}
+              <div className="space-y-2">
+                <textarea rows="3" value={payInfo} onChange={e=>setPayInfo(e.target.value)} className="w-full p-4 border border-slate-200 rounded-xl text-sm leading-relaxed focus:ring-2 focus:ring-indigo-500 outline-none resize-none" placeholder="Ma'lumot / Izoh..."></textarea>
+              </div>
+
+              {err && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{err}</div>}
+
+              {/* Summary blocks aligned to right */}
+              <div className="flex flex-col items-end gap-3 pt-2">
+                <div className="flex items-center justify-between w-64 text-lg">
+                  <span className="text-slate-500">Ta'minotchi qarzi:</span>
+                  <span className="font-bold text-red-500 bg-red-50 px-3 py-1 rounded-lg">{fmt(sel.debt_balance)}</span>
+                </div>
+                <div className="flex items-center justify-between w-64 text-lg">
+                  <span className="text-slate-500">To'lov:</span>
+                  <span className="font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-lg">{fmt(payAmt || 0)} <span className="text-xs uppercase">uzs</span></span>
                 </div>
                 {payAmt && Number(payAmt) > 0 && (
-                  <div className="mt-2 text-xs text-slate-500">
-                    To'lovdan keyin qarz: <strong className={Number(sel.debt_balance) - Number(payAmt) <= 0 ? 'text-emerald-600' : 'text-red-500'}>
-                      {fmt(Math.max(0, Number(sel.debt_balance) - Number(payAmt)))} so'm
-                    </strong>
+                  <div className="flex items-center justify-between w-64 text-lg">
+                    <span className="text-slate-500">Qolgan qarz:</span>
+                    <span className="font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-lg">{fmt(Math.max(0, Number(sel.debt_balance) - Number(payAmt)))}</span>
                   </div>
                 )}
               </div>
+            </div>
 
-              {err&&<div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm rounded-xl hover:bg-slate-50">Bekor</button>
-                <button type="submit" disabled={saving||!payAmt} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving?'...':'✓ Tasdiqlash'}</button>
+            {/* Modal Footer Buttons */}
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50 mt-auto rounded-b-2xl flex-wrap">
+              <div className="text-sm font-semibold text-slate-500 flex-1 flex items-center gap-2">
+                <AvatarS name={sel.name} />
+                <span>{sel.name}</span>
               </div>
-            </form>
+              <button onClick={close} className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-600 font-semibold bg-white hover:bg-slate-50 transition-colors">Bekor qilish</button>
+              <button disabled={saving || !payAmt} onClick={handlePayDebt} className="px-8 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-colors shadow-sm shadow-blue-200 disabled:opacity-50 flex items-center gap-2">
+                {saving ? '...' : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                    Qabul va Saqlash
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

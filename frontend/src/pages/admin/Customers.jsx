@@ -44,6 +44,10 @@ export default function Customers() {
   const [selected, setSelected] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [payAmount, setPayAmount] = useState('');
+  const [payType, setPayType] = useState('cash');
+  const [payWallet, setPayWallet] = useState('');
+  const [payInfo, setPayInfo] = useState('');
+  const [wallets, setWallets] = useState([]);
   const [pointsDelta, setPointsDelta] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -170,7 +174,13 @@ export default function Customers() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { 
+    load();
+    api.get('/finance/wallets').then(r => {
+      setWallets(r.data);
+      if(r.data.length > 0) setPayWallet(String(r.data[0].id));
+    }).catch(()=>{});
+  }, [load]);
   useEffect(() => {
     const t = setTimeout(() => load(search), 400);
     return () => clearTimeout(t);
@@ -185,7 +195,15 @@ export default function Customers() {
     setForm({ name: c.name, phone: c.phone || '', debt_balance: c.debt_balance || 0, debt_limit: c.debt_limit || 0, loyalty_points: c.loyalty_points || 0, card_number: c.card_number || '', cashback_percent: c.cashback_percent || 0 });
     setSelected(c); setError(''); setModal('edit');
   };
-  const openPay = (c) => { setSelected(c); setPayAmount(''); setError(''); setModal('pay'); };
+  const openPay = (c) => { 
+    setSelected(c); 
+    setPayAmount(''); 
+    setPayType('cash');
+    setPayInfo('');
+    if(wallets.length > 0) setPayWallet(String(wallets[0].id));
+    setError(''); 
+    setModal('pay'); 
+  };
   const openPoints = (c) => { setSelected(c); setPointsDelta(''); setError(''); setModal('points'); };
   const openHistory = async (c) => {
     setSelected(c); setModal('history'); setError(''); setLoadingHistory(true); setHistory([]);
@@ -225,7 +243,13 @@ export default function Customers() {
     e.preventDefault();
     setSaving(true); setError('');
     try {
-      await api.post(`/customers/${selected.id}/pay-debt`, { amount: Number(payAmount), reason: "To'lov" });
+      const payload = { 
+        amount: Number(payAmount), 
+        reason: payInfo || "Mijoz qarz to'lovi",
+        payment_type: payType
+      };
+      if(payWallet) payload.wallet_id = Number(payWallet);
+      await api.post(`/customers/${selected.id}/pay-debt`, payload);
       closeModal(); load();
     } catch (err) {
       setError(err.response?.data?.detail || 'Xatolik yuzaga keldi');
@@ -590,46 +614,93 @@ export default function Customers() {
 
       {/* ── PAY DEBT MODAL ──────────────────────────────────── */}
       {modal === 'pay' && selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={closeModal}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-800">{t('customer.payDebt')}</h3>
-              <button onClick={closeModal} className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" onClick={closeModal}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col max-h-full" onClick={e => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h3 className="text-xl font-bold text-slate-800 tracking-tight">Kassadan to'lov <span className="text-blue-500 font-medium text-lg ml-2">{new Date().toLocaleString('uz-UZ').replace(',', '')}</span></h3>
+              <button onClick={closeModal} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <div className="p-6 space-y-5">
-              <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl">
-                <Avatar name={selected.name} size="lg" />
-                <div>
-                  <div className="font-bold text-slate-800">{selected.name}</div>
-                  <div className="text-sm text-slate-500">{selected.phone}</div>
-                  <div className="text-sm font-bold text-red-500 mt-0.5">Joriy qarz: {fmt(selected.debt_balance)} so'm</div>
+            
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-6">
+              <div className="grid grid-cols-2 gap-6">
+                {/* Kassa */}
+                <div className="space-y-2 col-span-2 sm:col-span-1">
+                  <label className="text-sm font-semibold text-slate-600">Kassa/Hisob</label>
+                  <select value={payWallet} onChange={e=>setPayWallet(e.target.value)} className="w-full h-11 px-4 border border-slate-200 rounded-xl bg-white text-base focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <option value="">(Asosiy kassa)</option>
+                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name} ({fmt(w.balance)})</option>)}
+                  </select>
                 </div>
               </div>
-              <form onSubmit={handlePay} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">To'lov miqdori (so'm) <span className="text-red-500">*</span></label>
-                  <input
-                    type="number" min="1" max={selected.debt_balance} required autoFocus
-                    value={payAmount}
-                    onChange={e => setPayAmount(e.target.value)}
-                    placeholder={`Max: ${fmt(selected.debt_balance)} so'm`}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
+
+              {/* To'lov */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-600">To'lov miqdori va turi *</label>
+                <div className="flex gap-2 h-11 items-center">
+                  <select value={payType} onChange={e=>setPayType(e.target.value)} className="bg-slate-50 px-4 py-2 flex items-center border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 h-full shadow-sm outline-none focus:ring-2 focus:ring-indigo-500 w-40">
+                     <option value="cash">Naqd</option>
+                     <option value="card">Karta</option>
+                     <option value="uzcard">Uzcard</option>
+                     <option value="humo">Humo</option>
+                     <option value="transfer">Bank o'tkazmasi</option>
+                     <option value="click">Click</option>
+                     <option value="payme">Payme</option>
+                  </select>
+                  <div className="flex flex-1 items-center h-full rounded-xl focus-within:ring-2 focus-within:ring-indigo-500 overflow-hidden shadow-sm">
+                    <input type="number" min="1" max={selected.debt_balance} value={payAmount} onChange={e=>setPayAmount(e.target.value)} className="flex-1 w-full h-full border border-slate-200 border-r-0 rounded-l-xl px-4 text-base font-medium outline-none" placeholder="0" />
+                    <div className="bg-white px-4 flex items-center border border-slate-200 border-x-0 text-indigo-600 text-sm font-bold h-full">UZS | 1</div>
+                    <button onClick={() => setPayAmount(String(Math.round(selected.debt_balance)))} className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 border-l-0 font-semibold px-6 h-full rounded-r-xl transition-colors whitespace-nowrap">
+                      Umumiy qarz
+                    </button>
+                  </div>
                 </div>
-                {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
-                <div className="flex gap-3">
-                  <button type="button" onClick={closeModal} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">
-                    {t('common.cancel')}
-                  </button>
-                  <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
-                    {saving ? '...' : t('common.confirm')}
-                  </button>
+              </div>
+
+              {/* Malumot */}
+              <div className="space-y-2">
+                <textarea rows="3" value={payInfo} onChange={e=>setPayInfo(e.target.value)} className="w-full p-4 border border-slate-200 rounded-xl text-sm leading-relaxed focus:ring-2 focus:ring-indigo-500 outline-none resize-none" placeholder="Ma'lumot / Izoh..."></textarea>
+              </div>
+
+              {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
+
+              {/* Summary blocks aligned to right */}
+              <div className="flex flex-col items-end gap-3 pt-2">
+                <div className="flex items-center justify-between w-64 text-lg">
+                  <span className="text-slate-500">Mijoz qarzi:</span>
+                  <span className="font-bold text-red-500 bg-red-50 px-3 py-1 rounded-lg">{fmt(selected.debt_balance)}</span>
                 </div>
-              </form>
+                <div className="flex items-center justify-between w-64 text-lg">
+                  <span className="text-slate-500">To'lov:</span>
+                  <span className="font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-lg">{fmt(payAmount || 0)} <span className="text-xs uppercase">uzs</span></span>
+                </div>
+                {payAmount && Number(payAmount) > 0 && (
+                  <div className="flex items-center justify-between w-64 text-lg">
+                    <span className="text-slate-500">Qolgan qarz:</span>
+                    <span className="font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-lg">{fmt(Math.max(0, Number(selected.debt_balance) - Number(payAmount)))}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer Buttons */}
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50 mt-auto rounded-b-2xl flex-wrap">
+              <div className="text-sm font-semibold text-slate-500 flex-1 flex items-center gap-2">
+                <Avatar name={selected.name} size="sm" />
+                <span>{selected.name}</span>
+              </div>
+              <button onClick={closeModal} className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-600 font-semibold bg-white hover:bg-slate-50 transition-colors">Bekor qilish</button>
+              <button disabled={saving || !payAmount} onClick={handlePay} className="px-8 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-colors shadow-sm shadow-blue-200 disabled:opacity-50 flex items-center gap-2">
+                {saving ? '...' : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                    Qabul va Saqlash
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
