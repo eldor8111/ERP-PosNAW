@@ -410,5 +410,7 @@ def list_warehouses(
 ):
     wq = db.query(Warehouse).filter(Warehouse.is_active == True)
     wq = wq.filter(Warehouse.company_id == current_user.company_id)
+    if current_user.branch_id:
+        wq = wq.filter(Warehouse.branch_id == current_user.branch_id)
     warehouses = wq.order_by(Warehouse.name).all()
     return [{"id": w.id, "name": w.name, "type": w.type} for w in warehouses]
