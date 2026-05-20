@@ -178,7 +178,7 @@ def list_products_paginated(
 
     stock_subq = db.query(
         StockLevel.product_id,
-        f2.sum(StockLevel.quantity).label("total_stock")
+        f2.greatest(f2.sum(StockLevel.quantity), 0).label("total_stock")
     )
     if warehouse_id:
         stock_subq = stock_subq.filter(StockLevel.warehouse_id == warehouse_id)
@@ -236,9 +236,15 @@ def list_products_paginated(
 
         if warehouse_id:
             wh_stock = next((s for s in all_stocks if s.warehouse_id == warehouse_id), None)
-            item.stock_quantity = wh_stock.quantity if wh_stock else Decimal("0")
+            raw_qty = wh_stock.quantity if wh_stock else Decimal("0")
         else:
-            item.stock_quantity = sum((s.quantity for s in visible_stocks), Decimal("0"))
+            raw_qty = sum((s.quantity for s in visible_stocks), Decimal("0"))
+        # Clamp negative stock to 0 in display
+        item.stock_quantity = max(raw_qty, Decimal("0"))
+        # Also clamp per-warehouse breakdown
+        for ws in item.warehouse_stocks:
+            if ws.quantity < Decimal("0"):
+                ws.quantity = Decimal("0")
         items.append(item.model_dump())
 
     return {
