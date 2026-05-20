@@ -37,6 +37,17 @@ class POCreate(BaseModel):
     items: List[POItemCreate]
 
 
+class POUpdate(BaseModel):
+    supplier_id: Optional[int] = None
+    warehouse_id: Optional[int] = None
+    note: Optional[str] = None
+    expected_date: Optional[datetime] = None
+    paid_amount: Optional[Decimal] = None
+    discount_amount: Optional[Decimal] = None
+    wallet_id: Optional[int] = None
+    items: Optional[List[POItemCreate]] = None
+
+
 class POReceiveItem(BaseModel):
     po_item_id: int
     qty_received: Decimal

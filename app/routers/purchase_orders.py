@@ -7,8 +7,8 @@ from app.core.dependencies import get_current_user, require_roles
 from app.database import get_db
 from app.models.purchase_order import POItem, POStatus, PurchaseOrder
 from app.models.user import User, UserRole
-from app.schemas.purchase_order import POCreate, POListOut, POOut, POItemOut, POReceiveRequest
-from app.services.purchase_order_service import create_purchase_order, receive_purchase_order, delete_purchase_order
+from app.schemas.purchase_order import POCreate, POListOut, POOut, POItemOut, POReceiveRequest, POUpdate  # type: ignore
+from app.services.purchase_order_service import create_purchase_order, receive_purchase_order, delete_purchase_order, update_purchase_order  # type: ignore
 
 router = APIRouter(prefix="/purchase-orders", tags=["Purchase Orders"])
 
@@ -185,3 +185,30 @@ def delete_po(
     """Xarid buyurtmasini o'chirish va mahsulot qoldiqlarini qaytarish"""
     delete_purchase_order(db=db, po_id=po_id, current_user=current_user)
     return {"message": "Buyurtma o'chirildi va qoldiqlar qaytarildi"}
+
+
+@router.patch("/{po_id}", response_model=POOut)
+def edit_po(
+    po_id: int,
+    data: POUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.accountant)),
+):
+    """Draft yoki sent statusdagi buyurtmani tahrirlash"""
+    po = update_purchase_order(db, po_id, data, current_user)
+    db.commit()
+    # Joins bilan qayta yuklash
+    from sqlalchemy.orm import joinedload as jl
+    po = (
+        db.query(PurchaseOrder)
+        .options(
+            jl(PurchaseOrder.supplier),
+            jl(PurchaseOrder.warehouse),
+            jl(PurchaseOrder.creator),
+            jl(PurchaseOrder.items).joinedload(POItem.product),
+        )
+        .filter(PurchaseOrder.id == po_id)
+        .filter(PurchaseOrder.company_id == current_user.company_id)
+        .first()
+    )
+    return _build_po_out(po)

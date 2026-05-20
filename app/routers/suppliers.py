@@ -1,6 +1,7 @@
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query  # type: ignore
+from pydantic import BaseModel
 from sqlalchemy.orm import Session  # type: ignore
 
 from app.core.audit import log_action  # type: ignore
@@ -14,6 +15,11 @@ from app.utils.translit import name_search_filter  # type: ignore
 router = APIRouter(prefix="/suppliers", tags=["Suppliers"])
 
 ALLOWED = (UserRole.admin, UserRole.director, UserRole.manager, UserRole.accountant)
+
+
+class SupplierDebtPayment(BaseModel):
+    amount: float
+    reason: str = "Qarz to'lovi"
 
 
 @router.get("", response_model=List[SupplierOut])
@@ -216,3 +222,35 @@ def delete_supplier(
         old_values={"name": supplier.name},
     )
     db.commit()
+
+
+@router.post("/{supplier_id}/pay-debt", response_model=SupplierOut)
+def pay_supplier_debt(
+    supplier_id: int,
+    data: SupplierDebtPayment,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*ALLOWED)),
+):
+    """Ta'minotchi qarzini to'lash — debt_balance ni kamaytiradi"""
+    q = db.query(Supplier).filter(
+        Supplier.id == supplier_id,
+        Supplier.company_id == current_user.company_id,
+        Supplier.is_active == True,
+    )
+    supplier = q.first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
+    if data.amount <= 0:
+        raise HTTPException(status_code=400, detail="To'lov miqdori musbat bo'lishi kerak")
+    supplier.debt_balance = float(supplier.debt_balance or 0) - data.amount
+    log_action(
+        db,
+        action="PAY_DEBT",
+        entity_type="supplier",
+        entity_id=supplier.id,
+        user_id=current_user.id,
+        new_values={"amount": data.amount, "reason": data.reason},
+    )
+    db.commit()
+    db.refresh(supplier)
+    return supplier

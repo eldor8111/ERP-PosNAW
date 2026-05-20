@@ -11,6 +11,7 @@ class SupplierCreate(BaseModel):
     email: Optional[str] = None
     address: Optional[str] = None
     payment_terms: int = 30
+    debt_balance: Optional[Decimal] = Decimal("0")  # Boshlang'ich qarz
     # Bank
     bank_name: Optional[str] = None
     bank_account: Optional[str] = None

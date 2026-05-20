@@ -244,7 +244,7 @@ function MijozlarTab() {
    TAB 2 — YETKAZIB BERUVCHILAR
 ══════════════════════════════════════════════════ */
 const emptySupplier = {
-  name: '', inn: '', phone: '', email: ''
+  name: '', inn: '', phone: '', email: '', debt_balance: ''
 };
 
 function SuppliersTab() {
@@ -254,6 +254,7 @@ function SuppliersTab() {
   const [modal, setModal] = useState(null);
   const [sel, setSel] = useState(null);
   const [form, setForm] = useState(emptySupplier);
+  const [payAmt, setPayAmt] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
 
@@ -268,7 +269,7 @@ function SuppliersTab() {
   const openAdd = () => { setForm(emptySupplier); setSel(null); setErr(''); setModal('form'); };
   const openEdit = (s) => {
     setForm({
-      name: s.name, inn: s.inn||'', phone: s.phone||'', email: s.email||''
+      name: s.name, inn: s.inn||'', phone: s.phone||'', email: s.email||'', debt_balance: ''
     });
     setSel(s); setErr(''); setModal('form');
   };
@@ -276,9 +277,18 @@ function SuppliersTab() {
   const handleSave = async (e) => {
     e.preventDefault(); setSaving(true); setErr('');
     try {
-      const payload = { ...form };
+      const payload = { name: form.name, inn: form.inn || null, phone: form.phone || null, email: form.email || null };
+      if (!sel && form.debt_balance) payload.debt_balance = Number(form.debt_balance);
       if (sel) await api.patch(`/suppliers/${sel.id}`, payload);
       else await api.post('/suppliers', payload);
+      close(); load();
+    } catch (ex) { setErr(ex.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
+  };
+
+  const handlePayDebt = async (e) => {
+    e.preventDefault(); setSaving(true); setErr('');
+    try {
+      await api.post(`/suppliers/${sel.id}/pay-debt`, { amount: Number(payAmt), reason: "Qarz to'lovi" });
       close(); load();
     } catch (ex) { setErr(ex.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
   };
@@ -356,8 +366,14 @@ function SuppliersTab() {
                 </td>
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-1">
-                    <button onClick={() => openEdit(s)} className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg" title="Tahrirlash"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
-                    <button onClick={() => handleDelete(s.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg" title="O'chirish"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+                    {Number(s.debt_balance) > 0 && (
+                      <button onClick={() => { setSel(s); setPayAmt(''); setErr(''); setModal('pay'); }}
+                        title="Qarz to'lash" className="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded-lg">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+                      </button>
+                    )}
+                    <button onClick={() => { setForm({ name: s.name, inn: s.inn||'', phone: s.phone||'', email: s.email||'', debt_balance: '' }); setSel(s); setErr(''); setModal('form'); }} className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
+                    <button onClick={() => del(s.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
                   </div>
                 </td>
               </tr>
@@ -396,6 +412,13 @@ function SuppliersTab() {
                     <label className="block text-xs font-semibold text-slate-600 mb-1.5">Email</label>
                     <input type="email" className={inputCls} value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="info@company.uz"/>
                   </div>
+                  {!sel && (
+                    <div className="col-span-2">
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Boshlang'ich qarz (so'm)</label>
+                      <input type="number" min="0" className={inputCls} value={form.debt_balance} onChange={e => setForm({...form, debt_balance: e.target.value})} placeholder="Masalan: 500000"/>
+                      <p className="text-xs text-slate-400 mt-1">Ta'minotchi avval ham qarzda bo'lsa kiriting</p>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -408,10 +431,36 @@ function SuppliersTab() {
           </div>
         </div>
       )}
+
+      {/* Pay Debt Modal */}
+      {modal === 'pay' && sel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-800">Qarz to'lash</h3>
+              <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+            </div>
+            <form onSubmit={handlePayDebt} className="p-6 space-y-4">
+              <div className="p-3 bg-red-50 rounded-xl text-sm">
+                <div className="font-semibold text-slate-800">{sel.name}</div>
+                <div className="text-red-500 font-bold mt-0.5">Joriy qarz: {fmt(sel.debt_balance)} so'm</div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">To'lov miqdori *</label>
+                <input type="number" min="1" required autoFocus className={inputCls} value={payAmt} onChange={e => setPayAmt(e.target.value)} placeholder="Miqdor..."/>
+              </div>
+              {err && <div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}
+              <div className="flex gap-3">
+                <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm rounded-xl hover:bg-slate-50">{t('common.cancel')}</button>
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving ? '...' : 'Tasdiqlash'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
 /* ══════════════════════════════════════════════════
    MAIN PAGE
 ══════════════════════════════════════════════════ */

@@ -891,7 +891,7 @@ function SaleDetailView({ saleId, onBack }) {
 /* ══════════════════════════════════════════════════════════
    KIRIM CREATE VIEW — split panel
 ══════════════════════════════════════════════════════════ */
-function KirimCreateView({ onBack, onSaved }) {
+function KirimCreateView({ onBack, onSaved, editPo = null }) {
   const { t } = useLang();
   // Fetch our own data — don't depend on parent props (avoids race condition)
   const [products,   setProds]  = useState([]);
@@ -906,6 +906,33 @@ function KirimCreateView({ onBack, onSaved }) {
     api.get('/suppliers',           { params:{ limit:100 } }).then(r => setSups(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
     api.get('/finance/wallets').then(r => { setWallets(r.data); if(r.data.length > 0) setPayForm(p=>({...p, wallet_id: r.data[0].id})); }).catch(console.error);
   }, []);
+
+  // Pre-populate from editPo when data is loaded
+  useEffect(() => {
+    if (!editPo || !warehouses.length || !suppliers.length) return;
+    setPoForm({
+      supplier_id: String(editPo.supplier_id || ''),
+      warehouse_id: String(editPo.warehouse_id || ''),
+      note: editPo.note || '',
+      expected_date: '',
+    });
+    if (editPo.items && editPo.items.length > 0) {
+      setPoItems(editPo.items.map(item => ({
+        product_id: item.product_id,
+        product_name: item.product_name,
+        unit: 'dona',
+        unit_cost: Number(item.unit_cost),
+        discount_type: 'pct',
+        discount_val: 0,
+        currency: 'UZS',
+        net_cost: Number(item.unit_cost),
+        new_sale_price: null,
+        new_wholesale_price: null,
+        qty_ordered: Number(item.qty_ordered),
+      })));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editPo, warehouses, suppliers]);
 
   // PO form
   const [poForm, setPoForm]       = useState({ supplier_id:'', warehouse_id:'', note:'', expected_date:'' });
@@ -993,7 +1020,7 @@ function KirimCreateView({ onBack, onSaved }) {
 
     const payload = {
       supplier_id: Number(poForm.supplier_id), warehouse_id: Number(poForm.warehouse_id),
-      status,
+      ...(editPo ? {} : { status }),
       note: poForm.note || null, expected_date: poForm.expected_date || null,
       update_retail: autoRetail, update_wholesale: autoWholesale,
       items: poItems.map(i => ({
@@ -1015,14 +1042,17 @@ function KirimCreateView({ onBack, onSaved }) {
 
     // Darrov navigatsiya — API background da ishlaydi
     onBack();
-    api.post('/purchase-orders', payload)
+    const apiCall = editPo
+      ? api.patch(`/purchase-orders/${editPo.id}`, payload)
+      : api.post('/purchase-orders', payload);
+    apiCall
       .then(() => { onSaved(); })
       .catch(e => console.error('PO error:', e.response?.data?.detail || e));
   };
 
   return (
     <div className="fixed inset-0 z-40 bg-slate-50 flex flex-col">
-      <CreateHeader title={t('purchase.newKirimTitle')} onBack={onBack} />
+      <CreateHeader title={editPo ? `Kirim tahrirlash · ${editPo.number}` : t('purchase.newKirimTitle')} onBack={onBack} />
 
       {/* ── Header fields ── */}
       <div className="flex items-center gap-3 px-6 py-3 border-b border-slate-100 bg-white shrink-0 flex-wrap shadow-sm">
@@ -1427,6 +1457,7 @@ function KirimlarTab({ products, warehouses, suppliers }) {
   const [detail, setDetail]   = useState(null);
   const [recModal, setRec]    = useState(null);
   const [recSaving, setRS]    = useState(false);
+  const [editPo, setEditPo]   = useState(null);
   const LIMIT = 20;
 
   useEffect(() => {
@@ -1462,6 +1493,23 @@ function KirimlarTab({ products, warehouses, suppliers }) {
     } catch { /* ignore */ } finally { setRS(false); }
   };
 
+  const handleEdit = async (row) => {
+    try {
+      const r = await api.get(`/purchase-orders/${row.id}`);
+      setEditPo(r.data);
+    } catch(e) { toast.error(e.response?.data?.detail || 'Xatolik'); }
+  };
+
+  const handleDeletePo = async (row) => {
+    if (!confirm(`"${row.number}" buyurtmani o'chirilsinmi? Mahsulot qoldiqlari va qarzlar qaytariladi.`)) return;
+    try {
+      await api.delete(`/purchase-orders/${row.id}`);
+      toast.success('Buyurtma o\'chirildi');
+      load();
+    } catch(e) { toast.error(e.response?.data?.detail || 'Xatolik'); }
+  };
+
+  if (editPo) return <KirimCreateView editPo={editPo} onBack={() => setEditPo(null)} onSaved={() => { setEditPo(null); load(); }} />;
   if (mode === 'create') return <KirimCreateView onBack={() => setMode('list')} onSaved={load} />;
 
   const cols = [
@@ -1473,12 +1521,26 @@ function KirimlarTab({ products, warehouses, suppliers }) {
     { k:'paid_amount',    l:"To'langan", r: v => <span className="text-emerald-600 font-semibold">{fmt(v)}</span> },
     { k:'debt',           l:"Qarzga", r: (_, row) => { const d = Number(row.total_amount) - Number(row.paid_amount || 0) - Number(row.discount_amount || 0); return d > 0 ? <span className="text-red-500 font-semibold">{fmt(d)}</span> : '—'; } },
     { k:'created_at',     l:t('purchase.colDate') || 'Sana', r: v => fmtDay(v) },
-    { k:'id', l:'', r: (v,row) => ['draft','ordered','partial'].includes(row.status) ? (
-      <button onClick={e=>{e.stopPropagation(); openDetail(row);}}
-        className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 font-medium whitespace-nowrap">
-        {t('purchase.receive')}
-      </button>
-    ) : null },
+    { k:'id', l:'', r: (v,row) => (
+      <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+        {['draft','sent'].includes(row.status) && (
+          <button onClick={() => handleEdit(row)}
+            className="text-xs px-2 py-1 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 font-medium whitespace-nowrap">
+            ✏️ Tahrirlash
+          </button>
+        )}
+        {['draft','sent','partial'].includes(row.status) && (
+          <button onClick={() => openDetail(row)}
+            className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 font-medium whitespace-nowrap">
+            {t('purchase.receive')}
+          </button>
+        )}
+        <button onClick={() => handleDeletePo(row)}
+          className="text-xs px-2 py-1 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 font-medium whitespace-nowrap">
+          🗑️
+        </button>
+      </div>
+    ) },
   ];
 
   return (
@@ -1582,7 +1644,7 @@ function KirimlarTab({ products, warehouses, suppliers }) {
 
 /* ===================== TA'MINOTCHILAR TAB ===================== */
 const emptySupplier = {
-  name: '', inn: '', phone: '', email: ''
+  name: '', inn: '', phone: '', email: '', debt_balance: ''
 };
 function StarRating({ value }) {
   const { t } = useLang();
@@ -1602,6 +1664,7 @@ function SuppliersTab() {
   const [sel, setSel] = useState(null);
   const [form, setForm] = useState(emptySupplier);
   const [saving, setSaving] = useState(false);
+  const [payAmt, setPayAmt] = useState('');
   const [err, setErr] = useState('');
   const inp = 'w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white';
 
@@ -1722,13 +1785,19 @@ function SuppliersTab() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{const t=setTimeout(()=>load(search),400);return()=>clearTimeout(t);},[search]);
   const close=()=>{setModal(null);setSel(null);setErr('');};
-  const openEdit=(s)=>{setForm({name:s.name,inn:s.inn||'',phone:s.phone||'',email:s.email||''});setSel(s);setErr('');setModal('form');};
+  const openEdit=(s)=>{setForm({name:s.name,inn:s.inn||'',phone:s.phone||'',email:s.email||'',debt_balance:''});setSel(s);setErr('');setModal('form');};
   const handleSave=async(e)=>{
     e.preventDefault();setSaving(true);setErr('');
     try{
-      const p={...form};
+      const p={name:form.name,inn:form.inn||null,phone:form.phone||null,email:form.email||null};
+      if(!sel && form.debt_balance) p.debt_balance=Number(form.debt_balance);
       if(sel)await api.patch(`/suppliers/${sel.id}`,p);else await api.post('/suppliers',p);close();load();
     }catch(ex){setErr(ex.response?.data?.detail||'Xatolik');}finally{setSaving(false);}};
+  const handlePayDebt=async(e)=>{
+    e.preventDefault();setSaving(true);setErr('');
+    try{await api.post(`/suppliers/${sel.id}/pay-debt`,{amount:Number(payAmt),reason:"Qarz to'lovi"});close();load();}
+    catch(ex){setErr(ex.response?.data?.detail||'Xatolik');}finally{setSaving(false);};
+  };
   const del=async(id)=>{if(!confirm("O'chirilsinmi?"))return;await api.delete(`/suppliers/${id}`);load();};
 
   return(
@@ -1779,6 +1848,9 @@ function SuppliersTab() {
                 <td className="px-5 py-4"><StarRating value={s.rating}/></td>
                 <td className="px-5 py-4 text-sm font-semibold">{s.debt_balance > 0 ? <span className="text-red-500">{fmt(s.debt_balance)} so'm</span> : <span className="text-emerald-500">0 so'm</span>}</td>
                 <td className="px-5 py-4"><div className="flex items-center gap-1">
+                  {Number(s.debt_balance)>0&&(
+                    <button onClick={()=>{setSel(s);setPayAmt('');setErr('');setModal('pay');}} title="Qarz to'lash" className="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg></button>
+                  )}
                   <button onClick={()=>openEdit(s)} className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
                   <button onClick={()=>del(s.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
                 </div></td>
@@ -1801,6 +1873,13 @@ function SuppliersTab() {
                 <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">INN</label><input className={inp} value={form.inn} onChange={e=>setForm({...form,inn:e.target.value})}/></div>
                 <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('admin.dict.phone') || 'Telefon'}</label><input className={inp} value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/></div>
                 <div className="col-span-2"><label className="block text-xs font-semibold text-slate-600 mb-1.5">Email</label><input type="email" className={inp} value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></div>
+                {!sel && (
+                  <div className="col-span-2">
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Boshlang'ich qarz (so'm)</label>
+                    <input type="number" min="0" className={inp} value={form.debt_balance} onChange={e=>setForm({...form,debt_balance:e.target.value})} placeholder="Masalan: 500000"/>
+                    <p className="text-xs text-slate-400 mt-1">Ta'minotchi avval ham qarzda bo'lsa kiriting</p>
+                  </div>
+                )}
               </div>
               {err&&<div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}
             </form>
@@ -1808,6 +1887,33 @@ function SuppliersTab() {
               <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm font-medium rounded-xl hover:bg-slate-50">{t('common.cancel')}</button>
               <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving?'Saqlanmoqda...':'Saqlash'}</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Qarz to'lash Modal */}
+      {modal==='pay'&&sel&&(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e=>e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-800">Qarz to'lash</h3>
+              <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+            </div>
+            <form onSubmit={handlePayDebt} className="p-6 space-y-4">
+              <div className="p-3 bg-red-50 rounded-xl text-sm">
+                <div className="font-semibold text-slate-800">{sel.name}</div>
+                <div className="text-red-500 font-bold mt-0.5">Joriy qarz: {fmt(sel.debt_balance)} so'm</div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">To'lov miqdori *</label>
+                <input type="number" min="1" required autoFocus className={inp} value={payAmt} onChange={e=>setPayAmt(e.target.value)} placeholder="Miqdor..."/>
+              </div>
+              {err&&<div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}
+              <div className="flex gap-3">
+                <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm rounded-xl hover:bg-slate-50">Bekor</button>
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving?'...':'Tasdiqlash'}</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

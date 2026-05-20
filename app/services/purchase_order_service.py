@@ -264,3 +264,83 @@ def delete_purchase_order(db: Session, po_id: int, current_user: User) -> None:
     # 4. Buyurtmani o'chirish
     db.delete(po)
     db.commit()
+
+
+def update_purchase_order(db: Session, po_id: int, data, current_user: User) -> PurchaseOrder:
+    """Draft yoki sent statusdagi PO ni yangilash. Mahsulot qoldiqlari o'zgartirilmaydi."""
+    q = db.query(PurchaseOrder).filter(PurchaseOrder.id == po_id)
+    if current_user.role != UserRole.super_admin:
+        q = q.filter(PurchaseOrder.company_id == current_user.company_id)
+    po = q.first()
+    if not po:
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    if po.status in (POStatus.received, POStatus.cancelled):
+        raise HTTPException(
+            status_code=400,
+            detail="Qabul qilingan yoki bekor qilingan buyurtmani tahrirlab bo'lmaydi"
+        )
+
+    from app.models.supplier import Supplier
+
+    # 1. Eski ta'minotchi qarzini orqaga qaytarish
+    old_debt = float(po.total_amount or 0) - float(po.discount_amount or 0) - float(po.paid_amount or 0)
+    old_supplier = db.get(Supplier, po.supplier_id)
+    if old_supplier:
+        old_supplier.debt_balance = float(old_supplier.debt_balance or 0) - old_debt
+
+    # 2. Asosiy maydonlarni yangilash
+    if data.supplier_id is not None:
+        po.supplier_id = data.supplier_id
+    if data.warehouse_id is not None:
+        po.warehouse_id = data.warehouse_id
+    if data.note is not None:
+        po.note = data.note
+    if data.expected_date is not None:
+        po.expected_date = data.expected_date
+    if data.paid_amount is not None:
+        po.paid_amount = data.paid_amount
+    if data.discount_amount is not None:
+        po.discount_amount = data.discount_amount
+
+    # 3. Mahsulotlarni yangilash (agar berilgan bo'lsa)
+    if data.items is not None:
+        # Eski itemlarni o'chirish
+        for old_item in list(po.items):
+            db.delete(old_item)
+        db.flush()
+
+        total = Decimal("0")
+        for item_data in data.items:
+            # Narxlarni yangilash
+            if item_data.new_sale_price is not None or item_data.new_wholesale_price is not None:
+                prod = db.query(Product).filter(
+                    Product.id == item_data.product_id,
+                    Product.company_id == current_user.company_id,
+                ).first()
+                if prod:
+                    if item_data.new_sale_price is not None:
+                        prod.sale_price = item_data.new_sale_price
+                    if item_data.new_wholesale_price is not None:
+                        prod.wholesale_price = item_data.new_wholesale_price
+
+            item = POItem(
+                po_id=po.id,
+                product_id=item_data.product_id,
+                qty_ordered=item_data.qty_ordered,
+                qty_received=Decimal("0"),
+                unit_cost=item_data.unit_cost,
+            )
+            db.add(item)
+            total += item_data.qty_ordered * item_data.unit_cost
+
+        po.total_amount = total
+    db.flush()
+
+    # 4. Yangi ta'minotchi qarzini hisoblash
+    new_supplier = db.get(Supplier, po.supplier_id)
+    if new_supplier:
+        new_debt = float(po.total_amount or 0) - float(po.discount_amount or 0) - float(po.paid_amount or 0)
+        new_supplier.debt_balance = float(new_supplier.debt_balance or 0) + new_debt
+
+    db.flush()
+    return po
