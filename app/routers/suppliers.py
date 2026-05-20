@@ -202,6 +202,45 @@ def bulk_import_suppliers(
     db.commit()
     return {"created": created, "updated": updated, "skipped": len(errors), "errors": errors}
 
+@router.get("/{supplier_id}/history")
+def get_supplier_history(supplier_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    q = db.query(Supplier).filter(Supplier.id == supplier_id)
+    q = q.filter(Supplier.company_id == current_user.company_id)
+    sup = q.first()
+    if not sup:
+        raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
+
+    from app.models.purchase import PurchaseOrder  # type: ignore
+    from app.models.moliya import Transaction  # type: ignore
+
+    purchases = db.query(PurchaseOrder).filter(
+        PurchaseOrder.supplier_id == supplier_id,
+        PurchaseOrder.company_id == current_user.company_id
+    ).order_by(PurchaseOrder.created_at.desc()).limit(10).all()
+    
+    payments = db.query(Transaction).filter(
+        Transaction.reference_type == 'supplier_payment',
+        Transaction.reference_id == supplier_id
+    ).order_by(Transaction.created_at.desc()).all()
+
+    history = []
+    for p in purchases:
+        history.append({
+            "type": "purchase",
+            "date": p.created_at.isoformat() if p.created_at else None,
+            "amount": float(p.total_amount) if p.total_amount else 0,
+            "paid": float(p.paid_amount) if p.paid_amount else 0,
+            "debt": float((p.total_amount or 0) - (p.paid_amount or 0)),
+        })
+    for p in payments:
+        history.append({
+            "type": "payment",
+            "date": p.created_at.isoformat() if p.created_at else None,
+            "amount": float(p.amount) if p.amount else 0,
+        })
+
+    return sorted(history, key=lambda x: x["date"] or "", reverse=True)
+
 @router.delete("/{supplier_id}", status_code=204)
 def delete_supplier(
     supplier_id: int,

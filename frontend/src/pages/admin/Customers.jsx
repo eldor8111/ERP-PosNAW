@@ -638,25 +638,41 @@ export default function Customers() {
               </div>
 
               {/* To'lov */}
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-600">To'lov miqdori va turi *</label>
-                <div className="flex gap-2 h-11 items-center">
-                  <select value={payType} onChange={e=>setPayType(e.target.value)} className="bg-slate-50 px-4 py-2 flex items-center border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 h-full shadow-sm outline-none focus:ring-2 focus:ring-indigo-500 w-40">
-                     <option value="cash">Naqd</option>
-                     <option value="card">Karta</option>
-                     <option value="uzcard">Uzcard</option>
-                     <option value="humo">Humo</option>
-                     <option value="transfer">Bank o'tkazmasi</option>
-                     <option value="click">Click</option>
-                     <option value="payme">Payme</option>
-                  </select>
-                  <div className="flex flex-1 items-center h-full rounded-xl focus-within:ring-2 focus-within:ring-indigo-500 overflow-hidden shadow-sm">
-                    <input type="number" min="1" max={selected.debt_balance} value={payAmount} onChange={e=>setPayAmount(e.target.value)} className="flex-1 w-full h-full border border-slate-200 border-r-0 rounded-l-xl px-4 text-base font-medium outline-none" placeholder="0" />
-                    <div className="bg-white px-4 flex items-center border border-slate-200 border-x-0 text-indigo-600 text-sm font-bold h-full">UZS | 1</div>
-                    <button onClick={() => setPayAmount(String(Math.round(selected.debt_balance)))} className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 border-l-0 font-semibold px-6 h-full rounded-r-xl transition-colors whitespace-nowrap">
-                      Umumiy qarz
+              <div className="space-y-3">
+                <label className="text-sm font-semibold text-slate-600">To'lov turi va miqdori *</label>
+                
+                {/* To'lov turi tugmalari */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {[
+                    { id: 'cash', label: 'Naqd' },
+                    { id: 'card', label: 'Karta' },
+                    { id: 'uzcard', label: 'Uzcard' },
+                    { id: 'humo', label: 'Humo' },
+                    { id: 'transfer', label: "Bank o'tkazmasi" },
+                    { id: 'click', label: 'Click' },
+                    { id: 'payme', label: 'Payme' },
+                  ].map(pt => (
+                    <button
+                      key={pt.id}
+                      type="button"
+                      onClick={() => setPayType(pt.id)}
+                      className={`px-4 py-2 text-sm font-semibold rounded-xl transition-colors border ${
+                        payType === pt.id 
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200' 
+                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      {pt.label}
                     </button>
-                  </div>
+                  ))}
+                </div>
+
+                <div className="flex h-12 items-center rounded-xl focus-within:ring-2 focus-within:ring-indigo-500 overflow-hidden shadow-sm border border-slate-200">
+                  <input type="number" min="1" max={selected.debt_balance} value={payAmount} onChange={e=>setPayAmount(e.target.value)} className="flex-1 w-full h-full border-none px-4 text-lg font-bold text-slate-800 outline-none" placeholder="Miqdor (so'm)..." />
+                  <div className="bg-white px-4 flex items-center border-l border-slate-200 text-indigo-600 text-sm font-bold h-full">UZS | 1</div>
+                  <button onClick={() => setPayAmount(String(Math.round(selected.debt_balance)))} className="bg-slate-100 hover:bg-slate-200 text-slate-700 border-l border-slate-200 font-semibold px-6 h-full transition-colors whitespace-nowrap">
+                    Umumiy qarz
+                  </button>
                 </div>
               </div>
 
