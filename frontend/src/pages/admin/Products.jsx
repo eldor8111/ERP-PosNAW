@@ -909,12 +909,13 @@ export default function Products() {
   const [importProgress, setImportProgress] = useState(0);
   const [importResult,   setImportResult]   = useState(null);
   const [importError,    setImportError]    = useState('');
-  const [colMap,         setColMap]         = useState({});   // { excelColName: fieldKey }
-  const [skipRows,       setSkipRows]       = useState(1);   // how many header rows to skip (already parsed, so 0 = no skip)
+  const [colMap,         setColMap]         = useState({});
+  const [skipRows,       setSkipRows]       = useState(1);
   const [searchBySku,    setSearchBySku]    = useState(false);
   const [allowUpdate,    setAllowUpdate]    = useState(false);
   const [importPage,     setImportPage]     = useState(1);
   const [precheck,       setPrecheck]       = useState(null);
+  const [importWarehouseId, setImportWarehouseId] = useState('');
   const IMPORT_LIMIT = 10;
 
   const excelCols = importRows.length > 0 ? Object.keys(importRows[0]) : [];
@@ -1000,14 +1001,14 @@ export default function Products() {
       let totC = 0, totU = 0, totS = 0;
       let errs = [];
       const CHUNK_SIZE = 500;
+      const whParam = importWarehouseId ? `&warehouse_id=${importWarehouseId}` : '';
 
       for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
         const chunk = payload.slice(i, i + CHUNK_SIZE);
-        const { data } = await api.post(`/products/bulk-import?allow_update=${allowUpdate}&search_by_sku=${searchBySku}`, chunk);
+        const { data } = await api.post(`/products/bulk-import?allow_update=${allowUpdate}&search_by_sku=${searchBySku}${whParam}`, chunk);
         totC += data.created || 0;
         totU += data.updated || 0;
         totS += data.skipped || 0;
-        // Xatolarni max 300 ta saqlash (xotira muammosini oldini olish)
         if (data.errors?.length && errs.length < 300) {
           errs = [...errs, ...data.errors].slice(0, 300);
         }
@@ -1025,8 +1026,13 @@ export default function Products() {
     setImportOpen(false); setImportRows([]); setImportFile(null);
     setImportResult(null); setImportError(''); setColMap({}); setImportPage(1);
     setSkipRows(1); setSearchBySku(false); setAllowUpdate(false); setImportProgress(0);
+    setImportWarehouseId('');
   };
-  const openImport = () => { resetImport(); setImportOpen(true); };
+  const openImport = () => {
+    resetImport();
+    setImportWarehouseId(warehouses.length === 1 ? String(warehouses[0].id) : '');
+    setImportOpen(true);
+  };
 
   /* ════ BULK ADD (donalab qo'shish) ════ */
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
@@ -2904,12 +2910,28 @@ export default function Products() {
                   )}
                 </div>
 
-                {/* Skip rows counter */}
-                <div className="ml-auto flex items-center gap-2 border border-slate-200 bg-white rounded-xl px-3 py-2">
-                  <span className="text-sm text-slate-500 font-medium">Belgilangan qatorlarni yuklamaslik</span>
-                  <button onClick={() => setSkipRows(s => Math.max(0, s-1))} className="w-7 h-7 flex items-center justify-center text-xl text-slate-500 hover:text-red-500 transition-colors">−</button>
-                  <span className="w-9 text-center text-base font-bold text-slate-700">{skipRows}</span>
-                  <button onClick={() => setSkipRows(s => s+1)} className="w-7 h-7 flex items-center justify-center text-xl text-slate-500 hover:text-indigo-500 transition-colors">+</button>
+                {/* Ombor tanlash + Skip rows counter */}
+                <div className="ml-auto flex items-center gap-3">
+                  {warehouses.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-indigo-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                      <label className="text-sm font-semibold text-slate-500 whitespace-nowrap">Qoldiqlar ombori:</label>
+                      <select
+                        value={importWarehouseId}
+                        onChange={e => setImportWarehouseId(e.target.value)}
+                        className="h-9 px-3 border border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white min-w-[150px] text-slate-700"
+                      >
+                        <option value="">— Birinchi ombor —</option>
+                        {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 border border-slate-200 bg-white rounded-xl px-3 py-2">
+                    <span className="text-sm text-slate-500 font-medium">Belgilangan qatorlarni yuklamaslik</span>
+                    <button onClick={() => setSkipRows(s => Math.max(0, s-1))} className="w-7 h-7 flex items-center justify-center text-xl text-slate-500 hover:text-red-500 transition-colors">−</button>
+                    <span className="w-9 text-center text-base font-bold text-slate-700">{skipRows}</span>
+                    <button onClick={() => setSkipRows(s => s+1)} className="w-7 h-7 flex items-center justify-center text-xl text-slate-500 hover:text-indigo-500 transition-colors">+</button>
+                  </div>
                 </div>
               </div>
 

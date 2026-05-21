@@ -147,6 +147,7 @@ def bulk_import_products(
     rows: List[dict],
     allow_update: bool = Query(False),
     search_by_sku: bool = Query(False),
+    warehouse_id: int = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*WRITE_ROLES)),
 ):
@@ -159,10 +160,17 @@ def bulk_import_products(
     updated = 0
     errors: list = []
     
-    # ── Birinchi omborni aniqlash ──────────
+    # ── Omborni aniqlash: foydalanuvchi tanlaganini birinchi, aks holda birinchi ombor ──
     from app.models.warehouse import Warehouse
-    first_wh = db.query(Warehouse).filter(Warehouse.company_id == current_user.company_id).order_by(Warehouse.id.asc()).first()
-    first_wh_id = first_wh.id if first_wh else None
+    if warehouse_id:
+        chosen_wh = db.query(Warehouse).filter(
+            Warehouse.id == warehouse_id,
+            Warehouse.company_id == current_user.company_id
+        ).first()
+        first_wh_id = chosen_wh.id if chosen_wh else None
+    else:
+        first_wh = db.query(Warehouse).filter(Warehouse.company_id == current_user.company_id).order_by(Warehouse.id.asc()).first()
+        first_wh_id = first_wh.id if first_wh else None
 
     # ── Bazadagi BARCHA (o'chirilmagan) mahsulotlarni yuklash ──────────
     all_products = db.query(Product).filter(
