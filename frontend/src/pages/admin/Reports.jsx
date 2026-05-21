@@ -492,6 +492,8 @@ const [tab, setTab] = useState('sales');
               </div>
             )}
           </>
+        )}
+
         {/* ── Foyda va Zarar (P&L) ── */}
         {tab === 'pl' && (
           <>
