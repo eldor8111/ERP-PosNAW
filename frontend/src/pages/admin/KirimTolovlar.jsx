@@ -76,6 +76,7 @@ export default function KirimTolovlar() {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">KASSA</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">MA'LUMOT</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">SANA</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">AMALLAR</th>
               </tr>
               <tr className="bg-slate-50 border-b border-slate-100">
                 <th colSpan="4"></th>
@@ -116,6 +117,23 @@ export default function KirimTolovlar() {
                     <td className="px-4 py-3 text-slate-600 text-xs">{i.wallet}</td>
                     <td className="px-4 py-3 text-slate-500 text-xs">{i.description || '—'}</td>
                     <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{new Date(i.created_at).toLocaleString('uz-UZ')}</td>
+                    <td className="px-4 py-3">
+                      <button 
+                        onClick={async () => {
+                          if(window.confirm("Rostdan ham ushbu to'lovni o'chirasizmi?")) {
+                            try {
+                              await api.delete(`/finance/transactions/${i.id}`);
+                              loadData();
+                            } catch(e) {
+                              alert("Xatolik: " + (e.response?.data?.detail || e.message));
+                            }
+                          }
+                        }}
+                        className="text-red-500 hover:text-red-700 text-xs font-medium"
+                      >
+                        O'chirish
+                      </button>
+                    </td>
                   </tr>
                 ))
               ) : (

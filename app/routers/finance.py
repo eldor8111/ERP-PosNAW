@@ -519,6 +519,117 @@ def create_transaction(
     return tx
 
 
+class TransactionUpdate(BaseModel):
+    amount: float
+    payment_type: Optional[str] = None
+    wallet_id: Optional[int] = None
+    description: Optional[str] = None
+
+
+@router.put("/transactions/{tx_id}")
+def update_transaction(
+    tx_id: int,
+    data: TransactionUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*FINANCE_ROLES)),
+):
+    from app.models.customer import Customer
+    from app.models.supplier import Supplier
+    from app.models.moliya import Expense
+
+    tx = db.get(Transaction, tx_id)
+    if not tx or (user.role.value != "super_admin" and tx.company_id != user.company_id):
+        raise HTTPException(status_code=404, detail="Tranzaksiya topilmadi")
+
+    old_amount = float(tx.amount)
+    new_amount = float(data.amount)
+    diff = new_amount - old_amount
+
+    # Wallet updates
+    if tx.wallet_id != data.wallet_id:
+        if tx.wallet_id:
+            old_w = db.get(Wallet, tx.wallet_id)
+            if old_w:
+                if tx.type == "income": old_w.balance = float(old_w.balance) - old_amount
+                else: old_w.balance = float(old_w.balance) + old_amount
+        if data.wallet_id:
+            new_w = db.get(Wallet, data.wallet_id)
+            if new_w:
+                if tx.type == "income": new_w.balance = float(new_w.balance) + new_amount
+                else: new_w.balance = float(new_w.balance) - new_amount
+    else:
+        if tx.wallet_id and diff != 0:
+            w = db.get(Wallet, tx.wallet_id)
+            if w:
+                if tx.type == "income": w.balance = float(w.balance) + diff
+                else: w.balance = float(w.balance) - diff
+
+    # References update
+    if diff != 0:
+        if tx.reference_type == "customer_payment" and tx.reference_id:
+            customer = db.get(Customer, tx.reference_id)
+            if customer:
+                customer.debt_balance = float(customer.debt_balance) - diff
+        elif tx.reference_type == "supplier_payment" and tx.reference_id:
+            supplier = db.get(Supplier, tx.reference_id)
+            if supplier:
+                supplier.debt_balance = float(supplier.debt_balance) - diff
+        elif tx.reference_type == "expense" and tx.reference_id:
+            expense = db.get(Expense, tx.reference_id)
+            if expense:
+                expense.amount = new_amount
+
+    tx.amount = new_amount
+    if data.payment_type:
+        tx.payment_type = data.payment_type
+    tx.wallet_id = data.wallet_id
+    if data.description is not None:
+        tx.description = data.description
+
+    db.commit()
+    db.refresh(tx)
+    return tx
+
+
+@router.delete("/transactions/{tx_id}", status_code=204)
+def delete_transaction(
+    tx_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*FINANCE_ROLES)),
+):
+    from app.models.customer import Customer
+    from app.models.supplier import Supplier
+    from app.models.moliya import Expense
+
+    tx = db.get(Transaction, tx_id)
+    if not tx or (user.role.value != "super_admin" and tx.company_id != user.company_id):
+        raise HTTPException(status_code=404, detail="Tranzaksiya topilmadi")
+
+    if tx.wallet_id:
+        wallet = db.get(Wallet, tx.wallet_id)
+        if wallet:
+            if tx.type == "income":
+                wallet.balance = float(wallet.balance) - float(tx.amount)
+            elif tx.type == "expense":
+                wallet.balance = float(wallet.balance) + float(tx.amount)
+                
+    if tx.reference_type == "customer_payment" and tx.reference_id:
+        customer = db.get(Customer, tx.reference_id)
+        if customer:
+            customer.debt_balance = float(customer.debt_balance) + float(tx.amount)
+    elif tx.reference_type == "supplier_payment" and tx.reference_id:
+        supplier = db.get(Supplier, tx.reference_id)
+        if supplier:
+            supplier.debt_balance = float(supplier.debt_balance) + float(tx.amount)
+    elif tx.reference_type == "expense" and tx.reference_id:
+        expense = db.get(Expense, tx.reference_id)
+        if expense:
+            db.delete(expense)
+
+    db.delete(tx)
+    db.commit()
+
+
 # ─── Debitor boshqaruvi (Mijozlar qarzi) ─────────────────────────────────────
 
 @router.get("/customer-debts")

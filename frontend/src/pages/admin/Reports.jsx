@@ -171,6 +171,7 @@ const [tab, setTab] = useState('sales');
   const [abcData, setAbcData] = useState([]);
   const [plData, setPlData] = useState(null);
   const [batchData, setBatchData] = useState([]);
+  const [productSalesData, setProductSalesData] = useState([]);
 
   // Load branches on mount
   useEffect(() => {
@@ -223,6 +224,9 @@ const [tab, setTab] = useState('sales');
       } else if (tab === 'batches') {
         const r = await api.get(`/reports/batches${qs()}`);
         setBatchData(r.data);
+      } else if (tab === 'product-sales') {
+        const r = await api.get(`/reports/product-sales${qs()}`);
+        setProductSalesData(r.data);
       }
     } catch {
       // silent
@@ -246,6 +250,7 @@ const [tab, setTab] = useState('sales');
     { key: 'supplier-debts', label: t('reports.tab.supplierDebts'), icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
     { key: 'abc', label: t('reports.tab.abc'), icon: 'M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z' },
     { key: 'batches', label: t('reports.tab.batches'), icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4' },
+    { key: 'product-sales', label: 'Mahsulotlar (Sotuv)', icon: 'M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z' },
   ];
 
   return (
@@ -432,6 +437,61 @@ const [tab, setTab] = useState('sales');
           </>
         )}
 
+        {/* ── Mahsulotlar (Sotuv) ── */}
+        {tab === 'product-sales' && (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
+              <span className="text-sm font-semibold text-slate-700">Mahsulotlar (Sotuv) hisoboti</span>
+              <ExportBtns
+                onExcel={() => {
+                  const ws = XLSX.utils.json_to_sheet(productSalesData.map(r => ({
+                    'Mahsulot': r.product_name, 'SKU': r.sku,
+                    'Sotilgan Miqdor': r.total_qty, 'Daromad': r.total_revenue, 'Foyda': r.total_profit,
+                  })));
+                  const wb = XLSX.utils.book_new();
+                  XLSX.utils.book_append_sheet(wb, ws, 'Mahsulotlar (Sotuv)');
+                  saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `mahsulot_sotuv_${today()}.xlsx`);
+                }}
+              />
+            </div>
+            <DateFilter dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} onSearch={load} loading={loading} />
+            {loading ? <Spinner /> : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100">
+                      {['Mahsulot', 'SKU', 'Sotilgan Miqdor', 'Daromad', 'Foyda'].map(h => (
+                        <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {productSalesData.map((r, i) => (
+                      <tr key={r.product_id} className={i % 2 ? 'bg-slate-50/50 hover:bg-slate-100 transition-colors' : 'bg-white hover:bg-slate-50 transition-colors'}>
+                        <td className="px-5 py-3.5 text-sm font-medium text-slate-800">{r.product_name}</td>
+                        <td className="px-5 py-3.5 text-sm font-mono text-indigo-600">{r.sku}</td>
+                        <td className="px-5 py-3.5 text-sm text-slate-600 font-bold">{fmt(r.total_qty)}</td>
+                        <td className="px-5 py-3.5 text-sm font-semibold text-emerald-600">{fmtS(r.total_revenue)}</td>
+                        <td className="px-5 py-3.5 text-sm font-semibold text-blue-600">{fmtS(r.total_profit)}</td>
+                      </tr>
+                    ))}
+                    {productSalesData.length === 0 && <tr><td colSpan={5} className="px-6 py-12 text-center text-sm text-slate-400">{t('common.noData')}</td></tr>}
+                  </tbody>
+                  {productSalesData.length > 0 && (
+                    <tfoot>
+                      <tr className="bg-indigo-50 font-bold">
+                        <td className="px-5 py-3 text-sm text-slate-700">{t('admin.dict.th_total') || 'JAMI'}</td>
+                        <td />
+                        <td className="px-5 py-3 text-sm">{fmt(productSalesData.reduce((a, r) => a + r.total_qty, 0))}</td>
+                        <td className="px-5 py-3 text-sm text-emerald-600">{fmtS(productSalesData.reduce((a, r) => a + r.total_revenue, 0))}</td>
+                        <td className="px-5 py-3 text-sm text-blue-600">{fmtS(productSalesData.reduce((a, r) => a + r.total_profit, 0))}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            )}
+          </>
         {/* ── Foyda va Zarar (P&L) ── */}
         {tab === 'pl' && (
           <>

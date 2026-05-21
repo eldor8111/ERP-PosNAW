@@ -430,3 +430,50 @@ def purchases_report(
         }
         for r in rows
     ]
+
+
+# ─── Mahsulotlar (Sotuv) hisoboti ──────────────────────────────────────────────
+
+@router.get("/product-sales")
+def product_sales_report(
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*REPORT_ROLES)),
+):
+    """Barcha mahsulotlarning aniq qancha sotilganini ko'rsatadigan hisobot"""
+    start, end = _date_range(date_from, date_to)
+    
+    q = (
+        db.query(
+            Product.id,
+            Product.name,
+            Product.sku,
+            func.sum(SaleItem.quantity).label("total_qty"),
+            func.sum(SaleItem.subtotal).label("total_revenue"),
+            func.sum((SaleItem.unit_price - SaleItem.cost_price) * SaleItem.quantity - SaleItem.discount).label("total_profit")
+        )
+        .join(SaleItem, SaleItem.product_id == Product.id)
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .filter(
+            Sale.company_id == current_user.company_id,
+            Sale.created_at >= start,
+            Sale.created_at < end,
+            Sale.status == SaleStatus.completed
+        )
+        .group_by(Product.id, Product.name, Product.sku)
+        .order_by(func.sum(SaleItem.quantity).desc())
+    )
+    
+    rows = q.all()
+    return [
+        {
+            "product_id": r.id,
+            "product_name": r.name,
+            "sku": r.sku,
+            "total_qty": float(r.total_qty or 0),
+            "total_revenue": float(r.total_revenue or 0),
+            "total_profit": float(r.total_profit or 0)
+        }
+        for r in rows
+    ]
