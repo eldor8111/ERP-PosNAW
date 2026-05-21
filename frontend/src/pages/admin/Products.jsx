@@ -1034,11 +1034,13 @@ export default function Products() {
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkResult, setBulkResult] = useState(null);
   const [bulkError, setBulkError] = useState('');
+  const [bulkWarehouseId, setBulkWarehouseId] = useState('');
 
   const openBulkAdd = () => {
     setBulkRows([emptyBulkRow()]);
     setBulkResult(null);
     setBulkError('');
+    setBulkWarehouseId(warehouses.length === 1 ? String(warehouses[0].id) : '');
     setBulkAddOpen(true);
   };
 
@@ -1138,6 +1140,8 @@ export default function Products() {
   const handleBulkAddSave = async () => {
     const validRows = bulkRows.filter(r => r.name.trim() && String(r.sale_price).trim());
     if (!validRows.length) { setBulkError("Kamida bitta mahsulot nomi va chakana narxi kiritilishi kerak"); return; }
+    const hasStock = validRows.some(r => Number(r.initial_stock) > 0);
+    if (hasStock && !bulkWarehouseId) { setBulkError("Qoldiq kiritilgan mahsulotlar uchun omborni tanlash majburiy!"); return; }
     setBulkSaving(true); setBulkError(''); setBulkResult(null);
     let created = 0, errors = [];
     for (const row of validRows) {
@@ -1156,6 +1160,7 @@ export default function Products() {
           unit:            row.unit || 'dona',
           category_id:     row.category_id ? Number(row.category_id) : null,
           initial_stock:   Number(row.initial_stock) || 0,
+          initial_warehouse_id: Number(row.initial_stock) > 0 && bulkWarehouseId ? Number(bulkWarehouseId) : undefined,
           status:          row.status || 'active',
         });
         created++;
@@ -2486,10 +2491,28 @@ export default function Products() {
             </div>
             <div className="flex items-center gap-3">
               <span className="text-base text-slate-500 font-semibold">{bulkRows.length} ta qator</span>
+              {/* Global warehouse selector for initial stock */}
+              {warehouses.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-semibold text-slate-500 whitespace-nowrap">Ombor:</label>
+                  <select
+                    value={bulkWarehouseId}
+                    onChange={e => setBulkWarehouseId(e.target.value)}
+                    className={`h-10 px-3 border rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white min-w-[160px] ${
+                      bulkRows.some(r => Number(r.initial_stock) > 0) && !bulkWarehouseId
+                        ? 'border-red-400 ring-1 ring-red-400 text-red-600'
+                        : 'border-slate-200 text-slate-700'
+                    }`}
+                  >
+                    <option value="">— Ombor tanlang —</option>
+                    {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                  </select>
+                </div>
+              )}
               <button
                 onClick={handleBulkAddSave}
                 disabled={bulkSaving}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-base font-bold rounded-xl transition-colors"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-base font-bold rounded-xl transition-colors shadow-md"
               >
                 {bulkSaving ? (
                   <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Saqlanmoqda...</>
@@ -2748,12 +2771,24 @@ export default function Products() {
                       </select>
 
                       {/* Initial stock */}
-                      <input type="number" min="0"
-                        className="h-11 px-3 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
-                        value={row.initial_stock}
-                        onChange={e => updateBulkRow(row._key, 'initial_stock', e.target.value)}
-                        placeholder="0"
-                      />
+                      <div className="space-y-1">
+                        <input type="number" min="0"
+                          className={`h-11 px-3 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full ${
+                            Number(row.initial_stock) > 0 && !bulkWarehouseId
+                              ? 'border-amber-400 bg-amber-50'
+                              : 'border-slate-200'
+                          }`}
+                          value={row.initial_stock}
+                          onChange={e => updateBulkRow(row._key, 'initial_stock', e.target.value)}
+                          placeholder="0"
+                        />
+                        {Number(row.initial_stock) > 0 && !bulkWarehouseId && (
+                          <p className="text-[10px] text-amber-600 font-semibold leading-tight">⚠ Ombor tanlanmagan</p>
+                        )}
+                        {Number(row.initial_stock) > 0 && bulkWarehouseId && (
+                          <p className="text-[10px] text-emerald-600 font-semibold leading-tight">✓ {warehouses.find(w=>String(w.id)===String(bulkWarehouseId))?.name}</p>
+                        )}
+                      </div>
 
                       {/* Remove row */}
                       <button type="button"
