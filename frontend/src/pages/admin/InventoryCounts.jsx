@@ -690,6 +690,18 @@ const [count,        setCount]        = useState(null);
     finally { setFinalizing(false); }
   };
 
+  const [reverting, setReverting] = useState(false);
+  const handleRevert = async () => {
+    if (!window.confirm("Yakunlangan reviziyani bekor qilib qoralamaga qaytarasizmi? Barcha ombor qoldiqlari orqaga qaytadi.")) return;
+    setReverting(true); setErr('');
+    try {
+      await api.post(`/inventory-counts/${countId}/revert`);
+      await loadCount();
+      toast.success("Reviziya qoralamaga qaytarildi");
+    } catch (e) { setErr(e.response?.data?.detail || 'Revert xatolik'); }
+    finally { setReverting(false); }
+  };
+
   const canEdit = count && (count.status === 'draft' || count.status === 'in_progress');
 
   const filteredItems = useMemo(() => {
@@ -786,6 +798,12 @@ const [count,        setCount]        = useState(null);
             <button onClick={() => setShowFinalize(true)}
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors">
               ✓ Yakunlash
+            </button>
+          )}
+          {count.status === 'completed' && (
+            <button onClick={handleRevert} disabled={reverting}
+              className="px-4 py-2 bg-rose-500 hover:bg-rose-600 disabled:opacity-60 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors">
+              {reverting ? '...' : 'Tahrirlashga qaytarish'}
             </button>
           )}
         </div>

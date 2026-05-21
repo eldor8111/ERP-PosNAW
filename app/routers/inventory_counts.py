@@ -209,6 +209,46 @@ def finalize_count(
     )
 
 
+@router.post("/{count_id}/revert", response_model=InventoryCountListOut)
+def revert_count(
+    count_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager)),
+):
+    cid = None if current_user.role == UserRole.super_admin else current_user.company_id
+    c = _load_count(db, count_id, cid)
+    if not c:
+        raise HTTPException(status_code=404, detail="Inventarizatsiya topilmadi")
+
+    if c.status == CountStatus.completed:
+        from app.models.inventory import StockMovement, StockLevel
+        movements = db.query(StockMovement).filter(
+            StockMovement.reference_type == "revision",
+            StockMovement.reference_id == count_id
+        ).all()
+        for mov in movements:
+            net_change = mov.qty_after - mov.qty_before
+            if net_change != 0:
+                stock = db.query(StockLevel).filter(
+                    StockLevel.product_id == mov.product_id,
+                    StockLevel.warehouse_id == c.warehouse_id
+                ).first()
+                if stock:
+                    stock.quantity -= net_change
+            db.delete(mov)
+        
+        c.status = CountStatus.in_progress
+        db.commit()
+    
+    return InventoryCountListOut(
+        id=c.id,
+        number=c.number,
+        warehouse_name=c.warehouse.name,
+        status=c.status,
+        created_at=c.created_at,
+        item_count=len(c.items),
+    )
+
 @router.delete("/{count_id}")
 def delete_count(
     count_id: int,
