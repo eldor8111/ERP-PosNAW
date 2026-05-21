@@ -39,6 +39,7 @@ class ProductCreate(BaseModel):
     brand: Optional[str] = None
     status: ProductStatus = ProductStatus.active
     initial_stock: Optional[Decimal] = None
+    initial_warehouse_id: Optional[int] = None
 
     @field_validator("cost_price", "sale_price")
     @classmethod

@@ -179,7 +179,8 @@ def create_product(
 ):
     # Extract non-model fields before dump
     initial_stock = data.initial_stock or Decimal("0")
-    product_data = data.model_dump(exclude={"initial_stock"})
+    initial_warehouse_id = data.initial_warehouse_id
+    product_data = data.model_dump(exclude={"initial_stock", "initial_warehouse_id"})
 
     # Serialize images list → JSON string for DB storage
     if product_data.get("images") is not None:
@@ -224,7 +225,13 @@ def create_product(
     db.flush()
 
     # Boshlang'ich qoldiq yozuvi yaratish
-    stock = StockLevel(product_id=product.id, quantity=initial_stock)
+    if not initial_warehouse_id:
+        from app.models.warehouse import Warehouse
+        first_wh = db.query(Warehouse).filter(Warehouse.company_id == current_user.company_id).order_by(Warehouse.id.asc()).first()
+        if first_wh:
+            initial_warehouse_id = first_wh.id
+            
+    stock = StockLevel(product_id=product.id, quantity=initial_stock, warehouse_id=initial_warehouse_id)
     db.add(stock)
 
     log_action(

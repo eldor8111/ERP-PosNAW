@@ -78,7 +78,22 @@ def fix_database_constraints(db: Session = Depends(get_db)):
         db.execute(text("CREATE UNIQUE INDEX uq_products_sku_active ON products (company_id, sku) WHERE is_deleted = false;"))
         db.commit()
         
-        return {"status": "success", "message": "Bazadagi muammo to'liq hal qilindi! Endi bemalol mahsulot qo'shishingiz mumkin."}
+        # FIX UNASSIGNED STOCK: Assign stock levels without a warehouse to the first warehouse of the company
+        db.execute(text('''
+            UPDATE stock_levels
+            SET warehouse_id = subquery.first_wh_id
+            FROM (
+                SELECT p.id as product_id,
+                       (SELECT w.id FROM warehouses w WHERE w.company_id = p.company_id ORDER BY w.id ASC LIMIT 1) as first_wh_id
+                FROM products p
+            ) AS subquery
+            WHERE stock_levels.product_id = subquery.product_id
+              AND stock_levels.warehouse_id IS NULL
+              AND subquery.first_wh_id IS NOT NULL;
+        '''))
+        db.commit()
+        
+        return {"status": "success", "message": "Bazadagi muammo (barkod va omborsiz qoldiqlar) to'liq hal qilindi!"}
     except Exception as e:
         db.rollback()
         return {"status": "error", "message": str(e)}
@@ -143,6 +158,11 @@ def bulk_import_products(
     created = 0
     updated = 0
     errors: list = []
+    
+    # ── Birinchi omborni aniqlash ──────────
+    from app.models.warehouse import Warehouse
+    first_wh = db.query(Warehouse).filter(Warehouse.company_id == current_user.company_id).order_by(Warehouse.id.asc()).first()
+    first_wh_id = first_wh.id if first_wh else None
 
     # ── Bazadagi BARCHA (o'chirilmagan) mahsulotlarni yuklash ──────────
     all_products = db.query(Product).filter(
@@ -219,8 +239,10 @@ def bulk_import_products(
             if stock_val is not None:
                 if existing.stock_level:
                     existing.stock_level.quantity = stock_val
+                    if not existing.stock_level.warehouse_id:
+                        existing.stock_level.warehouse_id = first_wh_id
                 else:
-                    existing.stock_level = StockLevel(quantity=stock_val)
+                    existing.stock_level = StockLevel(quantity=stock_val, warehouse_id=first_wh_id)
 
             # Har bir update ni alohida savepoint bilan saqlash
             sp = db.begin_nested()
@@ -298,7 +320,7 @@ def bulk_import_products(
                 status=status_val, brand=brand[:100] if brand else None,
                 company_id=current_user.company_id, images="[]",
             )
-            product.stock_level = StockLevel(quantity=initial_stock)
+            product.stock_level = StockLevel(quantity=initial_stock, warehouse_id=first_wh_id)
             db.add(product)
             db.flush()
             sp.commit()

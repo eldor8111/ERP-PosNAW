@@ -65,6 +65,7 @@ const emptyProduct = {
   cost_price_cur: '', wholesale_price_cur: '', sale_price_cur: '',
   price_currency_id: '',
   initial_stock: '',
+  initial_warehouse_id: '',
   min_stock: 0, max_stock: '',
   bin_location: '',
   images: [],
@@ -90,6 +91,7 @@ const emptyBulkRow = () => ({
   barcode_scanned: false, // skaner orqali barkod biriktirilganmi
   category_id: '',
   initial_stock: '',
+  initial_warehouse_id: '',
   status: 'active',
 });
 
@@ -720,6 +722,7 @@ export default function Products() {
       };
       if (modal === 'add') {
         payload.initial_stock = form.initial_stock !== '' ? Number(form.initial_stock) : 0;
+        payload.initial_warehouse_id = form.initial_warehouse_id ? Number(form.initial_warehouse_id) : undefined;
         await api.post('/products', payload);
       } else {
         await api.put(`/products/${selected.id}`, payload);
@@ -2186,10 +2189,20 @@ export default function Products() {
                 {/* Stock */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   {modal === 'add' && (
-                    <Field label={t('product.initialStock')}>
-                      <input type="number" min="0" step="0.01" className={`${inputCls} text-base`}
-                        value={form.initial_stock} onChange={e => setForm({ ...form, initial_stock: e.target.value })} placeholder="0" />
-                    </Field>
+                    <>
+                      <Field label={t('product.initialStock') || 'Boshlang\'ich qoldiq'}>
+                        <input type="number" min="0" step="0.01" className={`${inputCls} text-base`}
+                          value={form.initial_stock} onChange={e => setForm({ ...form, initial_stock: e.target.value })} placeholder="0" />
+                      </Field>
+                      {Number(form.initial_stock) > 0 && (
+                        <Field label="Qaysi omborga? *" required>
+                          <select className={inputCls} value={form.initial_warehouse_id} onChange={e => setForm({ ...form, initial_warehouse_id: e.target.value })}>
+                            <option value="">— Ombor tanlang —</option>
+                            {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                          </select>
+                        </Field>
+                      )}
+                    </>
                   )}
                   <Field label={t('product.minStockLabel')}>
                     <input type="number" min="0" className={`${inputCls} text-base`}
