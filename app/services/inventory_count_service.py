@@ -148,7 +148,9 @@ def finalize_inventory_count(db: Session, count_id: int, user_id: int) -> Invent
             qty_after=item.counted_qty,
             quantity=abs(diff),
             user_id=user_id,
-            reason=f"Inventarizatsiya #{count.number} tuzatish",
+            reference_type="revision",
+            reference_id=count.id,
+            reason=f"Revizya #{count.number}",
         )
         db.add(movement)
         db.flush()
