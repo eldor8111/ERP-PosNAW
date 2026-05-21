@@ -258,28 +258,22 @@ def create_chiqim_batch(
             reason_parts.append(item.reason)
         full_reason = " | ".join(reason_parts)
 
-        stock = get_or_create_stock(db, item.product_id, None)
-        qty_before = stock.quantity
-        new_quantity = max(Decimal("0"), qty_before - item.quantity)
-        diff = qty_before - new_quantity
-        stock.quantity = new_quantity
-
-        movement = StockMovement(
+        # 1. Ombordan qoldiqni yechish (None warehouse = mavjud barcha omborlardan qidirib yechadi)
+        deduct_stock(
+            db=db,
             product_id=item.product_id,
-            type=MovementType.ADJUST,
-            qty_before=qty_before,
-            qty_after=new_quantity,
-            quantity=diff,
-            reference_type="chiqim",
-            reference_id=ref_id,
+            quantity=item.quantity,
             user_id=user_id,
             reason=full_reason,
+            reference_type="chiqim",
+            reference_id=ref_id,
+            allow_negative=True,
+            warehouse_id=None
         )
-        db.add(movement)
 
-        # FIFO: chiqim bo'lganda Batch qoldiqlarini ham kamaytirish
-        if company_id is not None and diff > 0:
-            _deduct_batches_fifo(db, item.product_id, diff, None, company_id)
+        # 2. FIFO: chiqim bo'lganda Batch qoldiqlarini ham kamaytirish
+        if company_id is not None and item.quantity > 0:
+            _deduct_batches_fifo(db, item.product_id, item.quantity, None, company_id)
 
     db.flush()
     return ref_id
@@ -295,44 +289,50 @@ def delete_chiqim_batch(db: Session, reference_id: int, user_id: int, company_id
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Chiqim topilmadi")
 
+    # Omborni aniqlash (birinchi valid omborga qaytarib qo'yamiz)
+    wh = db.query(Warehouse).filter(Warehouse.company_id == company_id, Warehouse.is_active == True).first() if company_id else None
+    wh_id = wh.id if wh else None
+
+    # Guruhlash (chunki deduct_stock bitta mahsulot uchun bir nechta movement yaratgan bo'lishi mumkin)
+    product_totals = {}
     for mov in movements:
-        stock = get_or_create_stock(db, mov.product_id, None)
-        qty_before = stock.quantity
-        stock.quantity += mov.quantity
+        product_totals[mov.product_id] = product_totals.get(mov.product_id, Decimal("0")) + mov.quantity
 
-        db.add(StockMovement(
-            product_id=mov.product_id,
-            type=MovementType.ADJUST,
-            qty_before=qty_before,
-            qty_after=stock.quantity,
-            quantity=mov.quantity,
-            reference_type="chiqim_revert",
-            reference_id=reference_id,
-            user_id=user_id,
-            reason=f"Chiqim bekor qilindi (ID: {reference_id})",
-        ))
+    for product_id, total_qty in product_totals.items():
+        if total_qty > 0:
+            receive_stock(
+                db=db,
+                product_id=product_id,
+                quantity=total_qty,
+                user_id=user_id,
+                reason=f"Chiqim bekor qilindi (ID: {reference_id})",
+                reference_type="chiqim_revert",
+                reference_id=reference_id,
+                warehouse_id=wh_id
+            )
 
-        # FIFO: bekor qilingan chiqimni so'nggi Batch'ga qaytarish
-        if company_id is not None and mov.quantity > 0:
-            from app.models.batch import Batch
-            last_batch = db.query(Batch).filter(
-                Batch.product_id == mov.product_id,
-                Batch.company_id == company_id,
-            ).order_by(Batch.created_at.desc(), Batch.id.desc()).first()
-            if last_batch:
-                last_batch.quantity += mov.quantity
-            else:
-                product_obj = db.query(Product).filter(Product.id == mov.product_id).first()
-                db.add(Batch(
-                    product_id=mov.product_id,
-                    warehouse_id=None,
-                    lot_number="chiqim-revert",
-                    initial_quantity=mov.quantity,
-                    quantity=mov.quantity,
-                    purchase_price=product_obj.cost_price if product_obj else Decimal("0"),
-                    company_id=company_id,
-                ))
+            # FIFO: bekor qilingan chiqimni so'nggi Batch'ga qaytarish
+            if company_id is not None:
+                from app.models.batch import Batch
+                last_batch = db.query(Batch).filter(
+                    Batch.product_id == product_id,
+                    Batch.company_id == company_id,
+                ).order_by(Batch.created_at.desc(), Batch.id.desc()).first()
+                if last_batch:
+                    last_batch.quantity += total_qty
+                else:
+                    product_obj = db.query(Product).filter(Product.id == product_id).first()
+                    db.add(Batch(
+                        product_id=product_id,
+                        warehouse_id=wh_id,
+                        lot_number="chiqim-revert",
+                        initial_quantity=total_qty,
+                        quantity=total_qty,
+                        purchase_price=product_obj.cost_price if product_obj else Decimal("0"),
+                        company_id=company_id,
+                    ))
 
+    for mov in movements:
         db.delete(mov)
 
     db.flush()
