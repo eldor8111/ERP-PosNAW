@@ -2205,14 +2205,19 @@ export default function Products() {
                         <input type="number" min="0" step="0.01" className={`${inputCls} text-base`}
                           value={form.initial_stock} onChange={e => setForm({ ...form, initial_stock: e.target.value })} placeholder="0" />
                       </Field>
-                      {Number(form.initial_stock) > 0 && (
-                        <Field label="Qaysi omborga? *" required>
-                          <select className={inputCls} value={form.initial_warehouse_id} onChange={e => setForm({ ...form, initial_warehouse_id: e.target.value })}>
-                            <option value="">— Ombor tanlang —</option>
-                            {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                          </select>
-                        </Field>
-                      )}
+                      <Field label="Qaysi omborga?" required={Number(form.initial_stock) > 0}>
+                        <select
+                          className={`${inputCls} ${Number(form.initial_stock) > 0 && !form.initial_warehouse_id ? errCls : ''}`}
+                          value={form.initial_warehouse_id}
+                          onChange={e => setForm({ ...form, initial_warehouse_id: e.target.value })}
+                        >
+                          <option value="">— Ombor tanlang —</option>
+                          {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                        </select>
+                        {Number(form.initial_stock) > 0 && !form.initial_warehouse_id && (
+                          <p className="text-xs text-red-500 mt-1">⚠ Qoldiq kiritilganda ombor majburiy</p>
+                        )}
+                      </Field>
                     </>
                   )}
                   <Field label={t('product.minStockLabel')}>
