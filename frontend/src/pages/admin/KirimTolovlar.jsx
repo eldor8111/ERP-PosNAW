@@ -5,13 +5,27 @@ import { saveAs } from 'file-saver';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ') + " so'm";
 const today = () => new Date().toISOString().slice(0, 10);
-const firstOfMonth = () => { const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10); };
+
+const PAYMENT_TYPES = [
+  { value: 'cash', label: 'Naqd' },
+  { value: 'card', label: 'Plastik (UzCard/Humo)' },
+  { value: 'bank_transfer', label: "Bank o'tkazmasi" },
+  { value: 'click', label: 'Click' },
+  { value: 'payme', label: 'Payme' },
+  { value: 'uzum', label: 'Uzum' },
+];
 
 export default function KirimTolovlar() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [dateFrom, setDateFrom] = useState(today());
   const [dateTo, setDateTo] = useState(today());
+
+  // Edit modal state
+  const [editItem, setEditItem] = useState(null);
+  const [editForm, setEditForm] = useState({ amount: '', payment_type: '', description: '' });
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState('');
 
   const loadData = async () => {
     setLoading(true);
@@ -25,9 +39,50 @@ export default function KirimTolovlar() {
     }
   };
 
-  useEffect(() => {
-    loadData();
-  }, [dateFrom, dateTo]);
+  useEffect(() => { loadData(); }, [dateFrom, dateTo]);
+
+  const openEdit = (item) => {
+    setEditItem(item);
+    setEditForm({
+      amount: item.amount,
+      payment_type: item.payment_type || 'cash',
+      description: item.description || '',
+      wallet_id: item.wallet_id || null,
+    });
+    setEditError('');
+  };
+
+  const closeEdit = () => { setEditItem(null); setEditError(''); };
+
+  const handleEditSave = async () => {
+    if (!editItem) return;
+    setEditLoading(true);
+    setEditError('');
+    try {
+      await api.put(`/finance/transactions/${editItem.id}`, {
+        amount: parseFloat(editForm.amount),
+        payment_type: editForm.payment_type,
+        description: editForm.description,
+        wallet_id: editForm.wallet_id,
+      });
+      closeEdit();
+      loadData();
+    } catch (e) {
+      setEditError(e.response?.data?.detail || e.message || "Xatolik yuz berdi");
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleDelete = async (item) => {
+    if (!window.confirm("Rostdan ham ushbu to'lovni o'chirasizmi?")) return;
+    try {
+      await api.delete(`/finance/transactions/${item.id}`);
+      loadData();
+    } catch (e) {
+      alert("Xatolik: " + (e.response?.data?.detail || e.message));
+    }
+  };
 
   const exportExcel = () => {
     if (!data?.items) return;
@@ -35,20 +90,21 @@ export default function KirimTolovlar() {
       '#': index + 1,
       'CONTRAGENT': i.contragent,
       'TURI': i.turi,
-      'TO\'LOV': i.amount,
-      'TO\'LOV TURI': i.payment_type,
+      "TO'LOV": i.amount,
+      "TO'LOV TURI": i.payment_type,
       'MANBA': i.reference_type,
       'KASSA': i.wallet,
-      'MA\'LUMOT': i.description || '',
+      "MA'LUMOT": i.description || '',
       'SANA': new Date(i.created_at).toLocaleString('uz-UZ')
     })));
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Kirim to\'lovlar');
+    XLSX.utils.book_append_sheet(wb, ws, "Kirim to'lovlar");
     saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `kirim_tolovlar_${today()}.xlsx`);
   };
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-800">Kirim to'lovlar</h1>
         <div className="flex items-center gap-3">
@@ -62,6 +118,7 @@ export default function KirimTolovlar() {
         </div>
       </div>
 
+      {/* Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full">
@@ -86,12 +143,12 @@ export default function KirimTolovlar() {
                 <th className="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 border-x border-slate-200">CLICK</th>
                 <th className="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 border-x border-slate-200">PAYME</th>
                 <th className="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 border-x border-slate-200">UZUM</th>
-                <th colSpan="4"></th>
+                <th colSpan="5"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {loading ? (
-                <tr><td colSpan="14" className="text-center py-8">Yuklanmoqda...</td></tr>
+                <tr><td colSpan="15" className="text-center py-8">Yuklanmoqda...</td></tr>
               ) : data?.items?.length > 0 ? (
                 data.items.map((i, idx) => (
                   <tr key={i.id} className="hover:bg-slate-50 text-sm">
@@ -119,24 +176,15 @@ export default function KirimTolovlar() {
                     <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{new Date(i.created_at).toLocaleString('uz-UZ')}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
-                        <button 
-                          onClick={() => alert("Tahrirlash funksiyasi tez orada qo'shiladi")}
-                          className="text-blue-500 hover:text-blue-700 text-xs font-medium"
+                        <button
+                          onClick={() => openEdit(i)}
+                          className="px-2 py-1 text-xs font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
                         >
                           Tahrirlash
                         </button>
-                        <button 
-                          onClick={async () => {
-                            if(window.confirm("Rostdan ham ushbu to'lovni o'chirasizmi?")) {
-                              try {
-                                await api.delete(`/finance/transactions/${i.id}`);
-                                loadData();
-                              } catch(e) {
-                                alert("Xatolik: " + (e.response?.data?.detail || e.message));
-                              }
-                            }
-                          }}
-                          className="text-red-500 hover:text-red-700 text-xs font-medium"
+                        <button
+                          onClick={() => handleDelete(i)}
+                          className="px-2 py-1 text-xs font-semibold bg-red-50 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
                         >
                           O'chirish
                         </button>
@@ -145,13 +193,14 @@ export default function KirimTolovlar() {
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="14" className="text-center py-8 text-slate-500">Ma'lumot topilmadi</td></tr>
+                <tr><td colSpan="15" className="text-center py-8 text-slate-500">Ma'lumot topilmadi</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
 
+      {/* Summary cards */}
       {data?.summary && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
@@ -179,6 +228,86 @@ export default function KirimTolovlar() {
             <h3 className="text-slate-500 text-sm font-semibold mb-3">Ta'minotchidan qaytaruv summasi</h3>
             <div className="text-slate-600 text-sm mt-3 pt-3 border-t border-slate-100">
               Umumiy summa: <span className="font-bold text-lg text-amber-600">{fmt(data.summary.taminotchi_qaytaruv)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-slate-800">To'lovni tahrirlash</h2>
+              <button onClick={closeEdit} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Contragent info (read-only) */}
+              <div className="p-3 bg-slate-50 rounded-xl">
+                <div className="text-xs text-slate-500 mb-1">Kontragent</div>
+                <div className="font-semibold text-slate-800">{editItem.contragent}</div>
+              </div>
+
+              {/* Amount */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Summa (so'm)</label>
+                <input
+                  type="number"
+                  value={editForm.amount}
+                  onChange={e => setEditForm(f => ({ ...f, amount: e.target.value }))}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Summa"
+                />
+              </div>
+
+              {/* Payment type */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">To'lov turi</label>
+                <select
+                  value={editForm.payment_type}
+                  onChange={e => setEditForm(f => ({ ...f, payment_type: e.target.value }))}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  {PAYMENT_TYPES.map(pt => (
+                    <option key={pt.value} value={pt.value}>{pt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Ma'lumot / Izoh</label>
+                <textarea
+                  value={editForm.description}
+                  onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                  rows={3}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                  placeholder="Izoh..."
+                />
+              </div>
+
+              {editError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
+                  {editError}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={closeEdit}
+                className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors"
+              >
+                Bekor qilish
+              </button>
+              <button
+                onClick={handleEditSave}
+                disabled={editLoading}
+                className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors"
+              >
+                {editLoading ? 'Saqlanmoqda...' : 'Saqlash'}
+              </button>
             </div>
           </div>
         </div>
