@@ -695,6 +695,12 @@ const [count,        setCount]        = useState(null);
   const filteredItems = useMemo(() => {
     if (!count) return [];
     let items = count.items;
+
+    // Yakunlangan reviziyada faqat sanab o'tilgan mahsulotlarni ko'rsat
+    if (count.status === 'completed') {
+      items = items.filter(i => i.counted_qty !== null && i.counted_qty !== undefined);
+    }
+
     if (catFilter?.length > 0)
       items = items.filter(i => catFilter.includes(i.product_category_id));
     if (filter === 'variance') {
@@ -978,6 +984,7 @@ const [counts,       setCounts]       = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   const [showCreate,   setShowCreate]   = useState(false);
+  const [deleting,     setDeleting]     = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -988,6 +995,23 @@ const [counts,       setCounts]       = useState([]);
     } catch { /* ignore */ }
     finally { setLoading(false); }
   }, [statusFilter]);
+
+  const handleDelete = async (e, c) => {
+    e.stopPropagation();
+    if (c.status === 'completed') {
+      toast.error("Yakunlangan revizyani o'chirib bo'lmaydi!");
+      return;
+    }
+    if (!window.confirm(`"${c.number}" revizyasini o'chirishni tasdiqlaysizmi?\nBu amalni qaytarib bo'lmaydi!`)) return;
+    setDeleting(c.id);
+    try {
+      await api.delete(`/inventory-counts/${c.id}`);
+      toast.success("Revizya o'chirildi");
+      await load();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "O'chirishda xatolik");
+    } finally { setDeleting(null); }
+  };
 
   useEffect(() => { load(); }, [load]);
 
@@ -1052,10 +1076,21 @@ const [counts,       setCounts]       = useState([]);
                   </td>
                   <td className="px-6 py-4"><StatusBadge status={c.status} /></td>
                   <td className="px-6 py-4">
-                    <button
-                      onClick={e => { e.stopPropagation(); onView(c.id); }}
-                      className="px-3 py-1.5 text-xs font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
-                    >Ko'rish →</button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={e => { e.stopPropagation(); onView(c.id); }}
+                        className="px-3 py-1.5 text-xs font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
+                      >Ko'rish →</button>
+                      {c.status !== 'completed' && (
+                        <button
+                          onClick={e => handleDelete(e, c)}
+                          disabled={deleting === c.id}
+                          className="px-3 py-1.5 text-xs font-semibold bg-red-50 text-red-500 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          {deleting === c.id ? '...' : "O'chirish"}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
