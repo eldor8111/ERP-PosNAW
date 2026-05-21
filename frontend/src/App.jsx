@@ -25,6 +25,8 @@ const PosKassa        = lazy(() => import('./pages/admin/PosKassa'))
 const PosReturn       = lazy(() => import('./pages/admin/PosReturn'))
 const Operations      = lazy(() => import('./pages/admin/Operations'))
 const Settings        = lazy(() => import('./pages/admin/Settings'))
+const KirimTolovlar   = lazy(() => import('./pages/admin/KirimTolovlar'))
+const ChiqimTolovlar  = lazy(() => import('./pages/admin/ChiqimTolovlar'))
 const MobileDashboard = lazy(() => import('./pages/admin/MobileDashboard'))
 const Users           = lazy(() => import('./pages/admin/Users'))
 const Shifts          = lazy(() => import('./pages/admin/Shifts'))
@@ -80,6 +82,8 @@ export default function App() {
             <Route path="warehouse" element={<Suspense fallback={<PageLoader />}><Warehouse /></Suspense>} />
             <Route path="inventory-counts" element={<Suspense fallback={<PageLoader />}><InventoryCounts /></Suspense>} />
             <Route path="finance" element={<Suspense fallback={<PageLoader />}><Finance /></Suspense>} />
+            <Route path="kirim-tolovlar" element={<Suspense fallback={<PageLoader />}><KirimTolovlar /></Suspense>} />
+            <Route path="chiqim-tolovlar" element={<Suspense fallback={<PageLoader />}><ChiqimTolovlar /></Suspense>} />
             <Route path="reports" element={<Suspense fallback={<PageLoader />}><Reports /></Suspense>} />
             <Route path="customers" element={<Suspense fallback={<PageLoader />}><Customers /></Suspense>} />
             <Route path="customers/:customerId" element={<Suspense fallback={<PageLoader />}><CustomerDetail /></Suspense>} />

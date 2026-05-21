@@ -300,6 +300,179 @@ def get_cash_balance(
 
 # ─── Transactions ──────────────────────────────────────────────────────────────
 
+@router.get("/payments/income")
+def get_income_payments(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*FINANCE_ROLES)),
+):
+    q = db.query(Transaction).filter(Transaction.type == "income")
+    if user.role.value != "super_admin":
+        q = q.filter(Transaction.company_id == user.company_id)
+    if date_from:
+        q = q.filter(Transaction.created_at >= _parse_dt_start(date_from))
+    if date_to:
+        q = q.filter(Transaction.created_at < _parse_dt_end(date_to))
+    
+    txs = q.order_by(Transaction.created_at.desc()).limit(1000).all()
+    
+    items = []
+    summary = {
+        "naqd": 0.0,
+        "plastik": 0.0,
+        "bank": 0.0,
+        "payme": 0.0,
+        "click": 0.0,
+        "uzum": 0.0,
+        "umumiy": 0.0,
+        "sotuv_summasi": 0.0,
+        "mijoz_qarz_yopish": 0.0,
+        "taminotchi_qaytaruv": 0.0
+    }
+    
+    customer_ids = [tx.reference_id for tx in txs if tx.reference_type == "customer_payment" and tx.reference_id]
+    supplier_ids = [tx.reference_id for tx in txs if tx.reference_type == "return_to_supplier" and tx.reference_id]
+    sale_ids = [tx.reference_id for tx in txs if tx.reference_type == "sale" and tx.reference_id]
+    
+    customers = {c.id: c.name for c in db.query(Customer).filter(Customer.id.in_(customer_ids)).all()} if customer_ids else {}
+    suppliers = {s.id: s.name for s in db.query(Supplier).filter(Supplier.id.in_(supplier_ids)).all()} if supplier_ids else {}
+    sales = {s.id: s.customer_id for s in db.query(Sale).filter(Sale.id.in_(sale_ids)).all()} if sale_ids else {}
+    
+    sale_customer_ids = [cid for cid in sales.values() if cid]
+    if sale_customer_ids:
+        scustomers = {c.id: c.name for c in db.query(Customer).filter(Customer.id.in_(sale_customer_ids)).all()}
+        customers.update(scustomers)
+        
+    for tx in txs:
+        contragent = "Noma'lum"
+        turi = "Boshqa"
+        
+        if tx.reference_type == "customer_payment":
+            contragent = customers.get(tx.reference_id, "Noma'lum Mijoz")
+            turi = "Mijoz"
+            summary["mijoz_qarz_yopish"] += float(tx.amount)
+        elif tx.reference_type == "return_to_supplier":
+            contragent = suppliers.get(tx.reference_id, "Noma'lum Ta'minotchi")
+            turi = "Ta'minotchi"
+            summary["taminotchi_qaytaruv"] += float(tx.amount)
+        elif tx.reference_type == "sale":
+            cid = sales.get(tx.reference_id)
+            if cid:
+                contragent = customers.get(cid, "Noma'lum Mijoz")
+            turi = "Mijoz"
+            summary["sotuv_summasi"] += float(tx.amount)
+            
+        ptype = (tx.payment_type or "cash").lower()
+        if ptype == "cash": summary["naqd"] += float(tx.amount)
+        elif ptype == "card": summary["plastik"] += float(tx.amount)
+        elif ptype in ["bank", "bank_transfer"]: summary["bank"] += float(tx.amount)
+        elif ptype == "payme": summary["payme"] += float(tx.amount)
+        elif ptype == "click": summary["click"] += float(tx.amount)
+        elif ptype == "uzum": summary["uzum"] += float(tx.amount)
+        
+        summary["umumiy"] += float(tx.amount)
+        
+        wallet_name = tx.wallet.name if tx.wallet else "Noma'lum Kassa"
+        
+        items.append({
+            "id": tx.id,
+            "contragent": contragent,
+            "turi": turi,
+            "amount": float(tx.amount),
+            "payment_type": ptype,
+            "reference_type": tx.reference_type,
+            "description": tx.description,
+            "wallet": wallet_name,
+            "created_at": tx.created_at.isoformat() if tx.created_at else None
+        })
+        
+    return {"items": items, "summary": summary}
+
+
+@router.get("/payments/expense")
+def get_expense_payments(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*FINANCE_ROLES)),
+):
+    q = db.query(Transaction).filter(Transaction.type == "expense")
+    if user.role.value != "super_admin":
+        q = q.filter(Transaction.company_id == user.company_id)
+    if date_from:
+        q = q.filter(Transaction.created_at >= _parse_dt_start(date_from))
+    if date_to:
+        q = q.filter(Transaction.created_at < _parse_dt_end(date_to))
+        
+    txs = q.order_by(Transaction.created_at.desc()).limit(1000).all()
+    
+    items = []
+    summary = {
+        "naqd": 0.0,
+        "plastik": 0.0,
+        "bank": 0.0,
+        "payme": 0.0,
+        "click": 0.0,
+        "uzum": 0.0,
+        "umumiy": 0.0,
+        "taminotchi_qarz_yopish": 0.0,
+        "xarajat": 0.0,
+        "mijozga_qaytaruv": 0.0
+    }
+    
+    supplier_ids = [tx.reference_id for tx in txs if tx.reference_type in ["supplier_payment", "purchase_order", "kirim"] and tx.reference_id]
+    customer_ids = [tx.reference_id for tx in txs if tx.reference_type == "sale_refund" and tx.reference_id]
+    expense_ids = [tx.reference_id for tx in txs if tx.reference_type == "expense" and tx.reference_id]
+    
+    suppliers = {s.id: s.name for s in db.query(Supplier).filter(Supplier.id.in_(supplier_ids)).all()} if supplier_ids else {}
+    customers = {c.id: c.name for c in db.query(Customer).filter(Customer.id.in_(customer_ids)).all()} if customer_ids else {}
+    expenses_db = {e.id: e.category.name for e in db.query(Expense).filter(Expense.id.in_(expense_ids)).all() if e.category} if expense_ids else {}
+    
+    for tx in txs:
+        contragent = "Noma'lum"
+        turi = "Boshqa"
+        
+        if tx.reference_type in ["supplier_payment", "kirim", "purchase_order"]:
+            contragent = suppliers.get(tx.reference_id, "Noma'lum Ta'minotchi")
+            turi = "Ta'minotchi"
+            summary["taminotchi_qarz_yopish"] += float(tx.amount)
+        elif tx.reference_type == "sale_refund":
+            contragent = customers.get(tx.reference_id, "Noma'lum Mijoz")
+            turi = "Mijoz"
+            summary["mijozga_qaytaruv"] += float(tx.amount)
+        elif tx.reference_type == "expense":
+            contragent = expenses_db.get(tx.reference_id, "Xarajat")
+            turi = "Xarajat"
+            summary["xarajat"] += float(tx.amount)
+            
+        ptype = (tx.payment_type or "cash").lower()
+        if ptype == "cash": summary["naqd"] += float(tx.amount)
+        elif ptype == "card": summary["plastik"] += float(tx.amount)
+        elif ptype in ["bank", "bank_transfer"]: summary["bank"] += float(tx.amount)
+        elif ptype == "payme": summary["payme"] += float(tx.amount)
+        elif ptype == "click": summary["click"] += float(tx.amount)
+        elif ptype == "uzum": summary["uzum"] += float(tx.amount)
+        
+        summary["umumiy"] += float(tx.amount)
+        
+        wallet_name = tx.wallet.name if tx.wallet else "Noma'lum Kassa"
+        
+        items.append({
+            "id": tx.id,
+            "contragent": contragent,
+            "turi": turi,
+            "amount": float(tx.amount),
+            "payment_type": ptype,
+            "reference_type": tx.reference_type,
+            "description": tx.description,
+            "wallet": wallet_name,
+            "created_at": tx.created_at.isoformat() if tx.created_at else None
+        })
+        
+    return {"items": items, "summary": summary}
+
+
 @router.get("/transactions")
 def list_transactions(
     branch_id: Optional[int] = None,
