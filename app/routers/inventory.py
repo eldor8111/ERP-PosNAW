@@ -236,7 +236,7 @@ def create_chiqim(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager)),
 ):
-    ref_id = create_chiqim_batch(db, data.items, current_user.id, company_id=current_user.company_id)
+    ref_id = create_chiqim_batch(db, data.items, current_user.id, company_id=current_user.company_id, warehouse_id=data.warehouse_id)
     db.commit()
     return {"message": "Chiqim muvaffaqiyatli saqlandi", "reference_id": ref_id}
 
@@ -281,7 +281,7 @@ def get_chiqims(
                 "reasons": set(),
                 "total_qty": Decimal("0"),
                 "item_count": 0,
-                "user_name": m.user.full_name if m.user else None
+                "user_name": m.user.name if m.user else None
             }
         
         g = groups[rid]

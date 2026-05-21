@@ -225,11 +225,21 @@ def delete_count(
     db.query(InventoryCountItem).filter(InventoryCountItem.count_id == count_id).delete()
     
     if c.status == CountStatus.completed:
-        from app.models.inventory import StockMovement
-        db.query(StockMovement).filter(
+        from app.models.inventory import StockMovement, StockLevel
+        movements = db.query(StockMovement).filter(
             StockMovement.reference_type == "revision",
             StockMovement.reference_id == count_id
-        ).delete()
+        ).all()
+        for mov in movements:
+            net_change = mov.qty_after - mov.qty_before
+            if net_change != 0:
+                stock = db.query(StockLevel).filter(
+                    StockLevel.product_id == mov.product_id,
+                    StockLevel.warehouse_id == c.warehouse_id
+                ).first()
+                if stock:
+                    stock.quantity -= net_change
+            db.delete(mov)
         
     db.delete(c)
     db.commit()

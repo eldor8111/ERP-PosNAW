@@ -2556,8 +2556,9 @@ const CHIQIM_TYPES = [
 ];
 
 
-function ChiqimCreateView({ products, onBack, onSaved, editItems = [], editId = null }) {
+function ChiqimCreateView({ products, warehouses = [], onBack, onSaved, editItems = [], editId = null }) {
   const { t } = useLang();
+  const [warehouseId, setWarehouseId] = useState('');
   const [items, setItems]   = useState(() => {
     return editItems.map(i => ({
       product: { id: i.product_id, name: i.product_name, stock_quantity: 0, unit: i.product_unit },
@@ -2594,7 +2595,10 @@ function ChiqimCreateView({ products, onBack, onSaved, editItems = [], editId = 
       if (editId) {
         await api.delete(`/inventory/chiqims/${editId}`);
       }
-      await api.post('/inventory/chiqims', { items: payload });
+      await api.post('/inventory/chiqims', { 
+        items: payload, 
+        warehouse_id: warehouseId ? Number(warehouseId) : undefined 
+      });
       onSaved(); onBack();
     } catch (e) { setErr(e.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
   };
@@ -2645,6 +2649,15 @@ function ChiqimCreateView({ products, onBack, onSaved, editItems = [], editId = 
                     <input ref={qtyRef} type="number" min="0.001" step="any" value={qty} onChange={e => setQty(e.target.value)} onKeyDown={e => e.key === 'Enter' && addItem()} className={`flex-1 ${ic} text-center font-bold`} />
                     <button onClick={() => setQty(q => String(Number(q)+1))} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-100 font-bold shrink-0">+</button>
                   </div>
+                </Lbl>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3">
+                <Lbl t="Qaysi ombordan? (ixtiyoriy)">
+                  <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)} className={ic}>
+                    <option value="">Barcha omborlardan (avtomatik yechish)</option>
+                    {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                  </select>
                 </Lbl>
               </div>
 
@@ -2732,7 +2745,7 @@ function ChiqimCreateView({ products, onBack, onSaved, editItems = [], editId = 
   );
 }
 
-function ChiqimlarTab({ products, users = [] }) {
+function ChiqimlarTab({ products, users = [], warehouses = [] }) {
   const { t } = useLang();
   const [mode, setMode] = useState('list');
   const [movements, setMov] = useState([]);
@@ -2783,7 +2796,7 @@ function ChiqimlarTab({ products, users = [] }) {
 
   const [editingData, setEditingData] = useState(null);
 
-  if (mode === 'create') return <ChiqimCreateView products={products} onBack={() => { setMode('list'); setEditingData(null); }} onSaved={loadMov} editId={editingData?.id} editItems={editingData?.items} />;
+  if (mode === 'create') return <ChiqimCreateView products={products} warehouses={warehouses} onBack={() => { setMode('list'); setEditingData(null); }} onSaved={loadMov} editId={editingData?.id} editItems={editingData?.items} />;
 
   const startEdit = () => {
     setEditingData({ id: detailId, items: detailItems });
@@ -3143,7 +3156,7 @@ export default function Operations() {
   const [branches, setBranches]     = useState([]);
 
   useEffect(() => {
-    api.get('/products/', { params:{ limit:200 } }).then(r => {
+    api.get('/products/', { params:{ limit:15000 } }).then(r => {
       const data = r.data;
       setProducts(Array.isArray(data) ? data : (data.items || []));
     }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
@@ -3184,7 +3197,7 @@ export default function Operations() {
       {tab==='qaytarishlar' && <QaytarishlarTab products={products} suppliers={suppliers} warehouses={warehouses} />}
       {tab==='transferlar'  && <TransferlarTab products={products} warehouses={warehouses} users={users} />}
       {tab==='reviziyalar'  && <ReviziyalarTab warehouses={warehouses} />}
-      {tab==='chiqimlar'    && <ChiqimlarTab products={products} users={users} />}
+      {tab==='chiqimlar'    && <ChiqimlarTab products={products} users={users} warehouses={warehouses} />}
       {tab==='qoldiq'       && <QoldiqTab />}
     </div>
   );

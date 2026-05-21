@@ -85,6 +85,7 @@ class ChiqimBatchItem(BaseModel):
 
 class ChiqimBatchRequest(BaseModel):
     items: List[ChiqimBatchItem]
+    warehouse_id: Optional[int] = None
 
 
 class ChiqimDocumentOut(BaseModel):

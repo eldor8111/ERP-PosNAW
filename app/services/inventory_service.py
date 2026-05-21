@@ -245,6 +245,7 @@ def create_chiqim_batch(
     items,  # type: List[ChiqimBatchItem]
     user_id: int,
     company_id: Optional[int] = None,
+    warehouse_id: Optional[int] = None,
 ) -> int:
     from sqlalchemy import func
     max_ref = db.query(func.max(StockMovement.reference_id)).filter(StockMovement.reference_type == "chiqim").scalar()
@@ -268,7 +269,7 @@ def create_chiqim_batch(
             reference_type="chiqim",
             reference_id=ref_id,
             allow_negative=True,
-            warehouse_id=None
+            warehouse_id=warehouse_id
         )
 
         # 2. FIFO: chiqim bo'lganda Batch qoldiqlarini ham kamaytirish
