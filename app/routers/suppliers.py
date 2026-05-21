@@ -257,12 +257,10 @@ def pay_supplier_debt(
             wallet_id=data.wallet_id,
             type="expense",
             amount=data.amount,
-            currency="UZS",
             payment_type=data.payment_type,
             reference_type="supplier_payment",
             reference_id=supplier_id,
-            description=data.reason,
-            created_by=current_user.id
+            description=data.reason
         )
         db.add(tx)
         
