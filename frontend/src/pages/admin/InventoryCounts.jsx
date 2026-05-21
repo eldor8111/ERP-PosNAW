@@ -1071,21 +1071,21 @@ const [counts,       setCounts]       = useState([]);
                     </span>
                   </td>
                   <td className="px-6 py-4"><StatusBadge status={c.status} /></td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={e => { e.stopPropagation(); onView(c.id); }}
-                        className="px-3 py-1.5 text-xs font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
-                      >Ko'rish →</button>
-                      <button
-                        onClick={e => handleDelete(e, c)}
-                        disabled={deleting === c.id}
-                        className="px-3 py-1.5 text-xs font-semibold bg-red-50 text-red-500 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50"
-                      >
-                        {deleting === c.id ? '...' : "O'chirish"}
-                      </button>
-                    </div>
-                  </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={e => { e.stopPropagation(); onView(c.id); }}
+                          className="px-3 py-1.5 text-xs font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
+                        >{c.status === 'completed' ? "Ko'rish" : "Ko'rish / Tahrirlash"}</button>
+                        <button
+                          onClick={e => handleDelete(e, c)}
+                          disabled={deleting === c.id}
+                          className="px-3 py-1.5 text-xs font-semibold bg-red-50 text-red-500 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          {deleting === c.id ? '...' : "O'chirish"}
+                        </button>
+                      </div>
+                    </td>
                 </tr>
               ))}
               {counts.length === 0 && (
