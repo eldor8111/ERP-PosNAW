@@ -998,10 +998,6 @@ const [counts,       setCounts]       = useState([]);
 
   const handleDelete = async (e, c) => {
     e.stopPropagation();
-    if (c.status === 'completed') {
-      toast.error("Yakunlangan revizyani o'chirib bo'lmaydi!");
-      return;
-    }
     if (!window.confirm(`"${c.number}" revizyasini o'chirishni tasdiqlaysizmi?\nBu amalni qaytarib bo'lmaydi!`)) return;
     setDeleting(c.id);
     try {
@@ -1081,15 +1077,13 @@ const [counts,       setCounts]       = useState([]);
                         onClick={e => { e.stopPropagation(); onView(c.id); }}
                         className="px-3 py-1.5 text-xs font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
                       >Ko'rish →</button>
-                      {c.status !== 'completed' && (
-                        <button
-                          onClick={e => handleDelete(e, c)}
-                          disabled={deleting === c.id}
-                          className="px-3 py-1.5 text-xs font-semibold bg-red-50 text-red-500 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50"
-                        >
-                          {deleting === c.id ? '...' : "O'chirish"}
-                        </button>
-                      )}
+                      <button
+                        onClick={e => handleDelete(e, c)}
+                        disabled={deleting === c.id}
+                        className="px-3 py-1.5 text-xs font-semibold bg-red-50 text-red-500 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        {deleting === c.id ? '...' : "O'chirish"}
+                      </button>
                     </div>
                   </td>
                 </tr>

@@ -215,18 +215,22 @@ def delete_count(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager)),
 ):
-    """Revizyani o'chirish. Faqat draft va in_progress statusdagilarni o'chirish mumkin."""
+    """Revizyani o'chirish."""
     cid = None if current_user.role == UserRole.super_admin else current_user.company_id
     c = _load_count(db, count_id, cid)
     if not c:
         raise HTTPException(status_code=404, detail="Inventarizatsiya topilmadi")
-    if c.status == CountStatus.completed:
-        raise HTTPException(
-            status_code=400,
-            detail="Yakunlangan (tasdiqlangan) revizyani o'chirib bo'lmaydi. Avval bekor qiling."
-        )
+
     # Items ni o'chirish
     db.query(InventoryCountItem).filter(InventoryCountItem.count_id == count_id).delete()
+    
+    if c.status == CountStatus.completed:
+        from app.models.inventory import StockMovement
+        db.query(StockMovement).filter(
+            StockMovement.reference_type == "revision",
+            StockMovement.reference_id == count_id
+        ).delete()
+        
     db.delete(c)
     db.commit()
     return {"status": "deleted", "id": count_id}
