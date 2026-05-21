@@ -290,6 +290,7 @@ def delete_chiqim_batch(db: Session, reference_id: int, user_id: int, company_id
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Chiqim topilmadi")
 
+    from app.models.warehouse import Warehouse
     # Omborni aniqlash (birinchi valid omborga qaytarib qo'yamiz)
     wh = db.query(Warehouse).filter(Warehouse.company_id == company_id, Warehouse.is_active == True).first() if company_id else None
     wh_id = wh.id if wh else None
