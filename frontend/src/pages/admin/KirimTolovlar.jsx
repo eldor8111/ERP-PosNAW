@@ -10,7 +10,7 @@ const firstOfMonth = () => { const d = new Date(); d.setDate(1); return d.toISOS
 export default function KirimTolovlar() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [dateFrom, setDateFrom] = useState(firstOfMonth());
+  const [dateFrom, setDateFrom] = useState(today());
   const [dateTo, setDateTo] = useState(today());
 
   const loadData = async () => {
