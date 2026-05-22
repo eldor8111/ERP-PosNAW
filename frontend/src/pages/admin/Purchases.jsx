@@ -1094,7 +1094,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
         {/* Left panel */}
         <div className="w-[500px] border-r border-slate-100 p-6 flex flex-col gap-6 overflow-y-auto shrink-0 bg-white shadow-sm">
           <Lbl t={t('purchase.searchProduct')}>
-            <ProdSearch products={products} onSelect={selectProduct} inputRef={searchRef} />
+            <ProdSearch products={products.filter(p => p.product_type !== 'sell')} onSelect={selectProduct} inputRef={searchRef} />
           </Lbl>
 
           {sel ? (

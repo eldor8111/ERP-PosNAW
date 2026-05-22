@@ -12,7 +12,7 @@ import os
 from app.models.user import UserRole  # type: ignore
 
 from app.core.audit import log_action  # type: ignore
-from app.models.product import Product, ProductStatus  # type: ignore
+from app.models.product import Product, ProductConversion, ProductStatus  # type: ignore
 from app.models.sale import Sale, SaleItem, SaleStatus, PaymentType, SaleItemBatch, SalePayment  # type: ignore
 from app.models.batch import Batch
 from app.schemas.sale import SaleCreate  # type: ignore
@@ -139,6 +139,27 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
             )
         subtotal = (unit_price * item_data.quantity) - discount
 
+        # Virtual mahsulot: sell turida bo'lsa, asosiy mahsulot va nisbatni topamiz
+        conversion = None
+        source_product = None
+        if product.product_type == "sell":
+            conversion = db.query(ProductConversion).filter(
+                ProductConversion.sell_product_id == product.id
+            ).first()
+            if not conversion:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"'{product.name}' virtual mahsulot uchun konversiya topilmadi"
+                )
+            source_product = db.query(Product).filter(
+                Product.id == conversion.source_product_id
+            ).first()
+            if not source_product:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"'{product.name}' uchun asosiy mahsulot topilmadi"
+                )
+
         sale_items_data.append({
             "product": product,
             "quantity": item_data.quantity,
@@ -146,6 +167,9 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
             "cost_price": product.cost_price,
             "discount": discount,
             "subtotal": subtotal,
+            # Virtual mahsulot uchun
+            "conversion": conversion,
+            "source_product": source_product,
         })
         total_amount += subtotal
 
@@ -358,9 +382,19 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
                 db.add(tx)
 
     # 4. Optimized: barcha mahsulotlar uchun Batch larni BITTA query bilan olamiz (N+1 muammosi hal qilindi)
+    # Virtual mahsulotlar uchun source_product_id larni ham qo'shamiz
     product_ids = [item_d["product"].id for item_d in sale_items_data]
+    # Stock va batch uchun foydalanadigan real product id lar (virtual uchun source product)
+    stock_product_ids = []
+    for item_d in sale_items_data:
+        if item_d.get("source_product"):
+            stock_product_ids.append(item_d["source_product"].id)
+        else:
+            stock_product_ids.append(item_d["product"].id)
+    all_stock_product_ids = list(set(stock_product_ids))
+
     batches_q = db.query(Batch).filter(
-        Batch.product_id.in_(product_ids),
+        Batch.product_id.in_(all_stock_product_ids),
         Batch.quantity > 0,
         Batch.company_id == current_user.company_id
     )
@@ -378,12 +412,12 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
     from app.models.inventory import StockLevel as _SL
     if data.warehouse_id is not None:
         stock_rows = db.query(_SL).filter(
-            _SL.product_id.in_(product_ids),
+            _SL.product_id.in_(all_stock_product_ids),
             _SL.warehouse_id == data.warehouse_id
         ).with_for_update().all()
     else:
         stock_rows = db.query(_SL).filter(
-            _SL.product_id.in_(product_ids),
+            _SL.product_id.in_(all_stock_product_ids),
             _SL.quantity > 0
         ).order_by(_SL.quantity.desc()).with_for_update().all()
     
@@ -398,43 +432,54 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
         product = item_d["product"]
         qty_needed = Decimal(item_d["quantity"])
 
+        # --- Virtual mahsulot: stock asosiy mahsulotdan yechiladi ---
+        is_virtual = item_d.get("conversion") is not None
+        source_product = item_d.get("source_product")
+        stock_product = source_product if is_virtual else product
+        # Asosiy mahsulotdan yechilishi kerak bo'lgan miqdor
+        if is_virtual:
+            ratio = Decimal(str(item_d["conversion"].ratio))
+            qty_to_deduct = qty_needed * ratio
+        else:
+            qty_to_deduct = qty_needed
+
         # --- Stock kamaytirish (DB lock allaqachon olindi yuqorida) ---
         if data.warehouse_id is not None:
-            stocks = stocks_by_product.get(product.id, [])
+            stocks = stocks_by_product.get(stock_product.id, [])
             if not stocks:
                 # Yangi yaratamiz
                 from app.models.inventory import StockLevel as _SL2
-                new_sl = _SL2(product_id=product.id, warehouse_id=data.warehouse_id, quantity=Decimal("0"))
+                new_sl = _SL2(product_id=stock_product.id, warehouse_id=data.warehouse_id, quantity=Decimal("0"))
                 db.add(new_sl)
                 stocks = [new_sl]
-                stocks_by_product[product.id] = stocks
+                stocks_by_product[stock_product.id] = stocks
             stock = stocks[0]
             qty_before = stock.quantity
-            stock.quantity -= qty_needed
+            stock.quantity -= qty_to_deduct
             from app.models.inventory import StockMovement, MovementType
             new_movements.append(StockMovement(
-                product_id=product.id,
+                product_id=stock_product.id,
                 type=MovementType.OUT,
                 qty_before=qty_before,
                 qty_after=stock.quantity,
-                quantity=qty_needed,
+                quantity=qty_to_deduct,
                 reference_type="sale",
                 reference_id=sale.id,
                 user_id=current_user.id,
-                reason=f"Sotuv #{sale.number}",
+                reason=f"Sotuv #{sale.number}" + (f" ({product.name} → {stock_product.name} x{ratio}" + ")" if is_virtual else ""),
             ))
         else:
             # Barcha omborlardan yechamiz
-            stocks = stocks_by_product.get(product.id, [])
+            stocks = stocks_by_product.get(stock_product.id, [])
             total_avail = sum((s.quantity for s in stocks), Decimal("0"))
-            remaining_deduct = qty_needed
-            if total_avail < qty_needed:
+            remaining_deduct = qty_to_deduct
+            if total_avail < qty_to_deduct:
                 if not stocks:
                     from app.models.inventory import StockLevel as _SL3
-                    new_sl = _SL3(product_id=product.id, warehouse_id=None, quantity=Decimal("0"))
+                    new_sl = _SL3(product_id=stock_product.id, warehouse_id=None, quantity=Decimal("0"))
                     db.add(new_sl)
                     stocks = [new_sl]
-                stocks[0].quantity -= (qty_needed - total_avail)
+                stocks[0].quantity -= (qty_to_deduct - total_avail)
                 remaining_deduct = total_avail
             from app.models.inventory import StockMovement, MovementType
             for stock in stocks:
@@ -445,7 +490,7 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
                 stock.quantity -= take
                 remaining_deduct -= take
                 new_movements.append(StockMovement(
-                    product_id=product.id,
+                    product_id=stock_product.id,
                     type=MovementType.OUT,
                     qty_before=qty_before,
                     qty_after=stock.quantity,
@@ -453,12 +498,12 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
                     reference_type="sale",
                     reference_id=sale.id,
                     user_id=current_user.id,
-                    reason=f"Sotuv #{sale.number}",
+                    reason=f"Sotuv #{sale.number}" + (f" ({product.name} → {stock_product.name} x{ratio}" + ")" if is_virtual else ""),
                 ))
 
-        # --- FIFO Batch Allocation (keshdan) ---
-        batches = batches_by_product.get(product.id, [])
-        remaining_to_allocate = qty_needed
+        # --- FIFO Batch Allocation: virtual uchun source_product batchlaridan ---
+        batches = batches_by_product.get(stock_product.id, [])
+        remaining_to_allocate = qty_to_deduct
         total_allocated_cost = Decimal("0")
         allocated_batches = []
 
@@ -477,10 +522,17 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
             })
 
         if remaining_to_allocate > 0:
-            cost = remaining_to_allocate * (product.cost_price or Decimal("0"))
+            fallback_price = source_product.cost_price if is_virtual else product.cost_price
+            cost = remaining_to_allocate * (fallback_price or Decimal("0"))
             total_allocated_cost += cost
 
-        exact_unit_cost = (total_allocated_cost / qty_needed) if qty_needed > 0 else Decimal("0")
+        # Virtual: tannarx = asosiy mahsulot narxi * nisbat (1 dona sell product uchun)
+        if is_virtual and qty_needed > 0:
+            exact_unit_cost = total_allocated_cost / qty_needed
+        elif qty_needed > 0:
+            exact_unit_cost = total_allocated_cost / qty_needed
+        else:
+            exact_unit_cost = Decimal("0")
 
         sale_item = SaleItem(
             sale_id=sale.id,
@@ -1271,29 +1323,64 @@ def create_return_sale(db: Session, data: SaleCreate, current_user: User, ip: Op
         product = item_d["product"]
         qty_needed = Decimal(str(item_d["quantity"]))
 
-        # Qoldiqni oshirish
-        receive_stock(
-            db=db,
-            product_id=product.id,
-            quantity=qty_needed,
-            user_id=current_user.id,
-            reason=f"Vazvrat #{sale.number}",
-            reference_type="sale_refund",
-            reference_id=sale.id,
-            warehouse_id=data.warehouse_id,
-        )
+        is_virtual = getattr(product, 'product_type', 'stock') == 'sell'
 
-        # FIFO: qaytarilgan tovarni yangi Batch sifatida kiritish
-        return_batch = Batch(
-            product_id=product.id,
-            warehouse_id=data.warehouse_id,
-            lot_number=f"RETURN-{sale.number}",
-            initial_quantity=qty_needed,
-            quantity=qty_needed,
-            purchase_price=product.cost_price,
-            company_id=current_user.company_id,
-        )
-        db.add(return_batch)
+        if is_virtual:
+            from app.models.product import ProductConversion
+            conversions = db.query(ProductConversion).filter(ProductConversion.target_product_id == product.id).all()
+            if not conversions:
+                raise HTTPException(status_code=400, detail=f"'{product.name}' tarkibiy mahsulot uchun xom-ashyo (konversiya) topilmadi")
+            
+            for conv in conversions:
+                conv_qty = conv.source_quantity * qty_needed
+                receive_stock(
+                    db=db,
+                    product_id=conv.source_product_id,
+                    quantity=conv_qty,
+                    user_id=current_user.id,
+                    reason=f"Vazvrat #{sale.number} (Tarkibiy: {product.name})",
+                    reference_type="sale_refund",
+                    reference_id=sale.id,
+                    warehouse_id=data.warehouse_id,
+                )
+                
+                source_prod = db.query(Product).filter(Product.id == conv.source_product_id).first()
+                source_cost = source_prod.cost_price if source_prod else Decimal("0")
+                
+                return_batch = Batch(
+                    product_id=conv.source_product_id,
+                    warehouse_id=data.warehouse_id,
+                    lot_number=f"RETURN-{sale.number}",
+                    initial_quantity=conv_qty,
+                    quantity=conv_qty,
+                    purchase_price=source_cost,
+                    company_id=current_user.company_id,
+                )
+                db.add(return_batch)
+        else:
+            # Qoldiqni oshirish
+            receive_stock(
+                db=db,
+                product_id=product.id,
+                quantity=qty_needed,
+                user_id=current_user.id,
+                reason=f"Vazvrat #{sale.number}",
+                reference_type="sale_refund",
+                reference_id=sale.id,
+                warehouse_id=data.warehouse_id,
+            )
+
+            # FIFO: qaytarilgan tovarni yangi Batch sifatida kiritish
+            return_batch = Batch(
+                product_id=product.id,
+                warehouse_id=data.warehouse_id,
+                lot_number=f"RETURN-{sale.number}",
+                initial_quantity=qty_needed,
+                quantity=qty_needed,
+                purchase_price=product.cost_price,
+                company_id=current_user.company_id,
+            )
+            db.add(return_batch)
 
         sale_item = SaleItem(
             sale_id=sale.id,

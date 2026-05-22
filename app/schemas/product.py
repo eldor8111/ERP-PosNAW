@@ -8,6 +8,23 @@ from pydantic import BaseModel, field_validator
 from app.models.product import ProductStatus
 
 
+class ProductConversionIn(BaseModel):
+    """Virtual mahsulot yaratishda yoki yangilashda konversiya ma'lumoti"""
+    source_product_id: int
+    ratio: Decimal = Decimal("1.0")
+
+
+class ProductConversionOut(BaseModel):
+    """Virtual mahsulot konversiya ma'lumoti (response uchun)"""
+    id: int
+    sell_product_id: int
+    source_product_id: int
+    source_product_name: Optional[str] = None
+    ratio: Decimal
+
+    model_config = {"from_attributes": True}
+
+
 class WarehouseStockOut(BaseModel):
     warehouse_id: int
     warehouse_name: str
@@ -38,6 +55,9 @@ class ProductCreate(BaseModel):
     dimensions: Optional[str] = None
     brand: Optional[str] = None
     status: ProductStatus = ProductStatus.active
+    # Virtual Products
+    product_type: str = "stock"  # 'stock' yoki 'sell'
+    conversion: Optional[ProductConversionIn] = None  # faqat product_type='sell' uchun
     initial_stock: Optional[Decimal] = None
     initial_warehouse_id: Optional[int] = None
 
@@ -71,6 +91,9 @@ class ProductUpdate(BaseModel):
     weight: Optional[Decimal] = None
     dimensions: Optional[str] = None
     status: Optional[ProductStatus] = None
+    # Virtual Products
+    product_type: Optional[str] = None  # 'stock' yoki 'sell'
+    conversion: Optional[ProductConversionIn] = None
 
 
 class ProductStatusUpdate(BaseModel):
@@ -100,6 +123,8 @@ class ProductOut(BaseModel):
     dimensions: Optional[str] = None
     brand: Optional[str] = None
     status: ProductStatus
+    product_type: str = "stock"
+    conversion: Optional[ProductConversionOut] = None
     created_at: datetime
     stock_quantity: Optional[Decimal] = None
 
@@ -153,6 +178,8 @@ class ProductListOut(BaseModel):
     images: Optional[List[str]] = None
     brand: Optional[str] = None
     status: ProductStatus
+    product_type: str = "stock"
+    conversion: Optional[ProductConversionOut] = None
     stock_quantity: Optional[Decimal] = None
     warehouse_stocks: List[WarehouseStockOut] = []
 

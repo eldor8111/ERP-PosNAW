@@ -11,7 +11,7 @@ from app.core.audit import log_action
 from app.core.dependencies import get_current_user, require_roles
 from app.database import get_db
 from app.models.inventory import StockLevel
-from app.models.product import Product, ProductStatus
+from app.models.product import Product, ProductConversion, ProductStatus
 from app.models.user import User, UserRole
 from app.schemas.product import ProductCreate, ProductListOut, ProductOut, ProductStatusUpdate, ProductUpdate
 
@@ -28,6 +28,17 @@ def _attach_stock(product: Product) -> ProductOut:
         out.stock_quantity = product.stock_level.quantity
     else:
         out.stock_quantity = Decimal("0")
+    # Virtual product conversion ma'lumotini ulash
+    if product.conversion:
+        from app.schemas.product import ProductConversionOut
+        src = product.conversion.source_product
+        out.conversion = ProductConversionOut(
+            id=product.conversion.id,
+            sell_product_id=product.conversion.sell_product_id,
+            source_product_id=product.conversion.source_product_id,
+            source_product_name=src.name if src else None,
+            ratio=product.conversion.ratio,
+        )
     return out
 
 
@@ -180,7 +191,8 @@ def create_product(
     # Extract non-model fields before dump
     initial_stock = data.initial_stock or Decimal("0")
     initial_warehouse_id = data.initial_warehouse_id
-    product_data = data.model_dump(exclude={"initial_stock", "initial_warehouse_id"})
+    conversion_data = data.conversion
+    product_data = data.model_dump(exclude={"initial_stock", "initial_warehouse_id", "conversion"})
 
     # Serialize images list → JSON string for DB storage
     if product_data.get("images") is not None:
@@ -220,19 +232,43 @@ def create_product(
     if dup_q.filter(Product.name == product_data["name"]).first():
         raise HTTPException(status_code=400, detail=f"'{product_data['name']}' nomli mahsulot allaqachon mavjud")
 
+    # sell mahsulot uchun konversiya bo'lishi shart
+    product_type = product_data.get("product_type", "stock")
+    if product_type == "sell" and not conversion_data:
+        raise HTTPException(status_code=400, detail="Virtual (sell) mahsulot uchun asosiy mahsulot va nisbatni kiriting")
+
     product = Product(**product_data)
     db.add(product)
     db.flush()
 
-    # Boshlang'ich qoldiq yozuvi yaratish
-    if not initial_warehouse_id:
-        from app.models.warehouse import Warehouse
-        first_wh = db.query(Warehouse).filter(Warehouse.company_id == current_user.company_id).order_by(Warehouse.id.asc()).first()
-        if first_wh:
-            initial_warehouse_id = first_wh.id
-            
-    stock = StockLevel(product_id=product.id, quantity=initial_stock, warehouse_id=initial_warehouse_id)
-    db.add(stock)
+    # sell mahsulot uchun StockLevel YARATILMAYDI — faqat stock mahsulotlar uchun
+    if product_type == "stock":
+        if not initial_warehouse_id:
+            from app.models.warehouse import Warehouse
+            first_wh = db.query(Warehouse).filter(Warehouse.company_id == current_user.company_id).order_by(Warehouse.id.asc()).first()
+            if first_wh:
+                initial_warehouse_id = first_wh.id
+        stock = StockLevel(product_id=product.id, quantity=initial_stock, warehouse_id=initial_warehouse_id)
+        db.add(stock)
+
+    # Virtual mahsulot uchun ProductConversion yozuvi
+    if product_type == "sell" and conversion_data:
+        # Asosiy mahsulot shu korxonadami tekshirish
+        src_product = db.query(Product).filter(
+            Product.id == conversion_data.source_product_id,
+            Product.company_id == current_user.company_id,
+            Product.is_deleted == False,
+        ).first()
+        if not src_product:
+            raise HTTPException(status_code=404, detail="Asosiy mahsulot topilmadi")
+        if src_product.product_type == "sell":
+            raise HTTPException(status_code=400, detail="Asosiy mahsulot 'sell' turida bo'lishi mumkin emas")
+        conv = ProductConversion(
+            sell_product_id=product.id,
+            source_product_id=conversion_data.source_product_id,
+            ratio=conversion_data.ratio,
+        )
+        db.add(conv)
 
     log_action(
         db=db,
@@ -240,7 +276,7 @@ def create_product(
         entity_type="product",
         entity_id=product.id,
         user_id=current_user.id,
-        new_values={"name": product.name, "sku": product.sku, "barcode": product.barcode},
+        new_values={"name": product.name, "sku": product.sku, "barcode": product.barcode, "product_type": product_type},
         ip_address=request.client.host if request.client else None,
     )
     db.commit()
@@ -264,7 +300,8 @@ def update_product(
 
     old = {"name": product.name, "cost_price": str(product.cost_price), "sale_price": str(product.sale_price)}
 
-    update_data = data.model_dump(exclude_none=True)
+    conversion_data = data.conversion
+    update_data = data.model_dump(exclude_none=True, exclude={"conversion"})
 
     # Duplicate checks (exclude current product)
     dup_q = db.query(Product).filter(Product.is_deleted == False, Product.id != product_id)
@@ -296,6 +333,22 @@ def update_product(
 
     for field, value in update_data.items():
         setattr(product, field, value)
+
+    # Konversiyani yangilash (agar conversion berilgan bo'lsa)
+    if conversion_data is not None:
+        existing_conv = db.query(ProductConversion).filter(
+            ProductConversion.sell_product_id == product_id
+        ).first()
+        if existing_conv:
+            existing_conv.source_product_id = conversion_data.source_product_id
+            existing_conv.ratio = conversion_data.ratio
+        else:
+            new_conv = ProductConversion(
+                sell_product_id=product_id,
+                source_product_id=conversion_data.source_product_id,
+                ratio=conversion_data.ratio,
+            )
+            db.add(new_conv)
 
     log_action(
         db=db,

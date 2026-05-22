@@ -203,7 +203,7 @@ const tariffs = [
             <div className="sp-stat"><span className="sp-stat-val">{t('erp.hero.stat4.val') || '3 yil'}</span><span className="sp-stat-lbl">{t('erp.hero.stat4.lbl') || 'Bozorda tajriba'}</span></div>
           </div>
           <div className="sp-hero-ctas">
-            <button className="sp-btn-primary" onClick={() => window.location.href = 'https://savdo.e-code.uz/register'}>
+            <button className="sp-btn-primary" onClick={() => window.location.href = '/register'}>
               {t('erp.hero.btn1') || 'Bepul sinab ko\'ring'} <ArrowRight />
             </button>
             <button className="sp-btn-ghost" onClick={() => { const el = document.getElementById('sp-contact'); if(el) el.scrollIntoView({behavior:'smooth'}); }}>
@@ -277,7 +277,7 @@ const tariffs = [
               <button
                 className="sp-btn-primary"
                 style={{ background: `linear-gradient(135deg, ${modules[activeModule].color}, ${modules[activeModule].color}cc)` }}
-                onClick={() => window.location.href = 'https://savdo.e-code.uz/register'}
+                onClick={() => window.location.href = '/register'}
               >
                 {t('erp.mod.btn') || 'Bu modul bilan boshlash'} <ArrowRight />
               </button>
@@ -391,7 +391,7 @@ const tariffs = [
             <h2>{t('erp.cta.title') || 'Tizimni bepul 14 kun sinab ko\'ring'}</h2>
             <p>{t('erp.cta.desc') || 'Kartangizni bog\'lashingiz shart emas. Biznes ma\'lumotlaringizni kiriting va darhol boshlang.'}</p>
             <div className="sp-cta-btns">
-              <button className="sp-btn-white" onClick={() => window.location.href = 'https://savdo.e-code.uz/register'}>
+              <button className="sp-btn-white" onClick={() => window.location.href = '/register'}>
                 {t('erp.cta.btn1') || 'Bepul ro\'yxatdan o\'tish'} <ArrowRight />
               </button>
               <a href="https://t.me/ecode_uz" target="_blank" rel="noreferrer" className="sp-btn-tg">

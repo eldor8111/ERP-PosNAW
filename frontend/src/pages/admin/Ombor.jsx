@@ -397,7 +397,7 @@ function KochirTab() {
                     <select value={it.product_id} onChange={e => setItem(idx, 'product_id', e.target.value)}
                       className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                       <option value="">Mahsulot tanlang...</option>
-                      {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      {products.filter(p => p.product_type !== 'sell').map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                     <input type="number" min="1" value={it.quantity} onChange={e => setItem(idx, 'quantity', e.target.value)}
                       placeholder={t('admin.dict.qty') || 'Miqdor'}

@@ -11,7 +11,7 @@ engine = create_engine(
     pool_recycle=900,      # 15 daqiqada yangilash (Supabase idle timeout oldini olish)
     pool_timeout=20,       # 20 soniya kutadi
     connect_args={
-        "sslmode": "require",
+        "sslmode": "prefer",
         "connect_timeout": 10,          # Ulanish 10 soniyada bajarilsin
         "options": "-c statement_timeout=15000",  # 15 soniyadan uzun query xato qaytarsin
     },

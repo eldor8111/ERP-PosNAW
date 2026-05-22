@@ -455,7 +455,7 @@ function ReviziyaCreateView({ onBack, onSaved }) {
         <div className="w-[450px] border-r border-slate-100 p-6 flex flex-col gap-6 overflow-y-auto shrink-0 bg-white shadow-sm">
           <div>
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Mahsulot qidirish</label>
-            <ProdSearch products={products} onSelect={selectProduct} inputRef={searchRef} />
+            <ProdSearch products={products.filter(p => p.product_type !== 'sell')} onSelect={selectProduct} inputRef={searchRef} />
           </div>
 
           {sel ? (

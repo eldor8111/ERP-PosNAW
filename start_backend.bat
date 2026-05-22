@@ -7,14 +7,16 @@ echo =============================================
 echo.
 
 REM Virtual environment mavjudligini tekshirish
-if not exist "venv\Scripts\python.exe" (
-    echo [XATO] venv topilmadi! Yaratilmoqda...
-    python -m venv venv
-    echo [OK] venv yaratildi.
+if not exist ".venv\Scripts\python.exe" (
+    echo [XATO] .venv topilmadi! Yaratilmoqda...
+    python -m venv .venv
+    call .venv\Scripts\activate.bat
+    pip install -r requirements.txt
+    echo [OK] .venv yaratildi.
 )
 
 echo [OK] Virtual environment topildi.
-call venv\Scripts\activate.bat
+call .venv\Scripts\activate.bat
 
 echo [OK] Virtual environment faollashtirildi.
 echo [INFO] Backend server 8000-portda ishga tushmoqda...

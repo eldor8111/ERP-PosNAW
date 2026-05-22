@@ -37,7 +37,12 @@ def create_transfer(db: Session, data, user_id: int) -> StockTransfer:
     db.add(transfer)
     db.flush()
 
+    from app.models.product import Product
     for item_data in data.items:
+        prod = db.query(Product).filter(Product.id == item_data.product_id).first()
+        if prod and getattr(prod, 'product_type', 'stock') == 'sell':
+            raise HTTPException(status_code=400, detail=f"'{prod.name}' tarkibiy mahsulot bo'lgani uchun uni o'tkazma qilib bo'lmaydi")
+
         item = StockTransferItem(
             transfer_id=transfer.id,
             product_id=item_data.product_id,

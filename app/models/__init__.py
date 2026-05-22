@@ -3,7 +3,7 @@ from .billing import Tariff  # type: ignore
 from .category import Category  # type: ignore
 from .company import Company  # type: ignore
 from .inventory import StockLevel, StockMovement  # type: ignore
-from .product import Product  # type: ignore
+from .product import Product, ProductConversion  # type: ignore
 from .sale import Sale, SaleItem, SaleItemBatch  # type: ignore
 from .user import User  # type: ignore
 from .user_company import UserCompany  # type: ignore  # multi-korxona

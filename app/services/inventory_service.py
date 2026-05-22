@@ -62,6 +62,8 @@ def receive_stock(
     product = db.query(Product).filter(Product.id == product_id, Product.is_deleted == False).first()
     if not product:
         raise HTTPException(status_code=404, detail=f"Mahsulot ID={product_id} topilmadi")
+    if getattr(product, "product_type", "stock") == "sell":
+        raise HTTPException(status_code=400, detail=f"Virtual mahsulotga ({product.name}) to'g'ridan-to'g'ri kirim qilish mumkin emas. Asosiy mahsulotiga kirim qiling.")
 
     stock = get_or_create_stock(db, product_id, warehouse_id)
     qty_before = stock.quantity
@@ -221,6 +223,13 @@ def adjust_stock(
     reason: str,
     warehouse_id: Optional[int] = None,
 ) -> StockMovement:
+    from app.models.product import Product
+    from fastapi import HTTPException
+    
+    p = db.query(Product).filter(Product.id == product_id).first()
+    if p and p.product_type == 'sell':
+        raise HTTPException(status_code=400, detail="Tarkibiy (Kalkulyatsiya) mahsulot qoldig'ini o'zgartirib bo'lmaydi")
+
     stock = get_or_create_stock(db, product_id, warehouse_id)
     qty_before = stock.quantity
     diff = new_quantity - qty_before
@@ -248,6 +257,7 @@ def create_chiqim_batch(
     warehouse_id: Optional[int] = None,
 ) -> int:
     from sqlalchemy import func
+    from app.models.product import ProductConversion, Product
     max_ref = db.query(func.max(StockMovement.reference_id)).filter(StockMovement.reference_type == "chiqim").scalar()
     ref_id = (max_ref or 0) + 1
 
@@ -259,22 +269,44 @@ def create_chiqim_batch(
             reason_parts.append(item.reason)
         full_reason = " | ".join(reason_parts)
 
-        # 1. Ombordan qoldiqni yechish (None warehouse = mavjud barcha omborlardan qidirib yechadi)
-        deduct_stock(
-            db=db,
-            product_id=item.product_id,
-            quantity=item.quantity,
-            user_id=user_id,
-            reason=full_reason,
-            reference_type="chiqim",
-            reference_id=ref_id,
-            allow_negative=True,
-            warehouse_id=warehouse_id
-        )
-
-        # 2. FIFO: chiqim bo'lganda Batch qoldiqlarini ham kamaytirish
-        if company_id is not None and item.quantity > 0:
-            _deduct_batches_fifo(db, item.product_id, item.quantity, None, company_id)
+        # Mahsulotni tekshiramiz
+        product = db.query(Product).filter(Product.id == item.product_id).first()
+        if product and getattr(product, 'product_type', 'stock') == 'sell':
+            # Tarkibiy mahsulot: uning xom-ashyolarini chiqim qilamiz
+            conversions = db.query(ProductConversion).filter(ProductConversion.target_product_id == product.id).all()
+            if not conversions:
+                raise HTTPException(status_code=400, detail=f"'{product.name}' tarkibiy mahsulot uchun xom-ashyo (konversiya) topilmadi")
+            
+            for conv in conversions:
+                qty_needed = conv.source_quantity * item.quantity
+                deduct_stock(
+                    db=db,
+                    product_id=conv.source_product_id,
+                    quantity=qty_needed,
+                    user_id=user_id,
+                    reason=f"{full_reason} (Tarkibiy: {product.name})",
+                    reference_type="chiqim",
+                    reference_id=ref_id,
+                    allow_negative=True,
+                    warehouse_id=warehouse_id
+                )
+                if company_id is not None and qty_needed > 0:
+                    _deduct_batches_fifo(db, conv.source_product_id, qty_needed, None, company_id)
+        else:
+            # Oddiy mahsulot
+            deduct_stock(
+                db=db,
+                product_id=item.product_id,
+                quantity=item.quantity,
+                user_id=user_id,
+                reason=full_reason,
+                reference_type="chiqim",
+                reference_id=ref_id,
+                allow_negative=True,
+                warehouse_id=warehouse_id
+            )
+            if company_id is not None and item.quantity > 0:
+                _deduct_batches_fifo(db, item.product_id, item.quantity, None, company_id)
 
     db.flush()
     return ref_id

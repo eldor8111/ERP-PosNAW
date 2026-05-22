@@ -45,17 +45,22 @@ def create_purchase_order(db: Session, data, current_user: User) -> PurchaseOrde
 
     total = Decimal("0")
     for item_data in data.items:
-        # Update product prices if requested — faqat shu korxona mahsuloti
+        prod = db.query(Product).filter(
+            Product.id == item_data.product_id,
+            Product.company_id == current_user.company_id,
+        ).first()
+        if not prod:
+            raise HTTPException(status_code=404, detail=f"Mahsulot topilmadi: {item_data.product_id}")
+            
+        if getattr(prod, 'product_type', 'stock') == 'sell':
+            raise HTTPException(status_code=400, detail=f"'{prod.name}' tarkibiy mahsulot bo'lgani uchun uni xarid qilib bo'lmaydi")
+
+        # Update product prices if requested
         if item_data.new_sale_price is not None or item_data.new_wholesale_price is not None:
-            prod = db.query(Product).filter(
-                Product.id == item_data.product_id,
-                Product.company_id == current_user.company_id,
-            ).first()
-            if prod:
-                if item_data.new_sale_price is not None:
-                    prod.sale_price = item_data.new_sale_price
-                if item_data.new_wholesale_price is not None:
-                    prod.wholesale_price = item_data.new_wholesale_price
+            if item_data.new_sale_price is not None:
+                prod.sale_price = item_data.new_sale_price
+            if item_data.new_wholesale_price is not None:
+                prod.wholesale_price = item_data.new_wholesale_price
 
         item = POItem(
             po_id=po.id,
@@ -151,6 +156,9 @@ def receive_purchase_order(db: Session, po_id: int, data, current_user: User) ->
         po_item = po_items_map.get(receive_item.po_item_id)
         if not po_item:
             raise HTTPException(status_code=404, detail=f"PO item ID={receive_item.po_item_id} topilmadi")
+
+        if getattr(po_item.product, 'product_type', 'stock') == 'sell':
+            raise HTTPException(status_code=400, detail=f"'{po_item.product.name}' tarkibiy mahsulot bo'lgani uchun uni qabul qilib bo'lmaydi")
 
         remaining = po_item.qty_ordered - po_item.qty_received
         if receive_item.qty_received > remaining:

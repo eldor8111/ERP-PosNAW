@@ -45,6 +45,8 @@ class Product(Base):
     weight = Column(Numeric(10, 3), nullable=True)       # kg
     dimensions = Column(String(100), nullable=True)      # MxBxH sm
     status = Column(Enum(ProductStatus), default=ProductStatus.active)
+    # Virtual Products: 'stock' = asosiy (omborga kirim qilinadi), 'sell' = virtual (faqat sotiladi)
+    product_type = Column(String(10), nullable=False, default="stock")
     is_deleted = Column(Boolean, default=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -53,6 +55,9 @@ class Product(Base):
     stock_level = relationship("StockLevel", back_populates="product", uselist=False)
     stock_movements = relationship("StockMovement", back_populates="product")
     sale_items = relationship("SaleItem", back_populates="product")
+    # Virtual: bu mahsulot sell bo'lsa, uning konversiyasi (1 ta)
+    conversion = relationship("ProductConversion", foreign_keys="ProductConversion.sell_product_id",
+                              back_populates="sell_product", uselist=False)
 
     __table_args__ = (
         Index('ix_product_company_status_deleted', 'company_id', 'status', 'is_deleted'),
@@ -63,3 +68,20 @@ class Product(Base):
         Index('uq_products_barcode_active', 'company_id', 'barcode', unique=True,
               postgresql_where=text('is_deleted = false')),
     )
+
+
+class ProductConversion(Base):
+    """
+    Virtual Products: sell mahsulot (masalan Dumba) → stock mahsulot (masalan Butun qo'y) konversiyasi.
+    ratio = sotilgan 1 birlik uchun asosiy mahsulotdan qancha yechilishi kerak.
+    Masalan: 1 kg Dumba sotilsa → 1.0 kg Butun qo'ydan yechiladi (ratio=1.0)
+    """
+    __tablename__ = "product_conversions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    sell_product_id = Column(Integer, ForeignKey("products.id"), nullable=False, unique=True, index=True)
+    source_product_id = Column(Integer, ForeignKey("products.id"), nullable=False, index=True)
+    ratio = Column(Numeric(10, 4), nullable=False, default=1.0)
+
+    sell_product = relationship("Product", foreign_keys=[sell_product_id], back_populates="conversion")
+    source_product = relationship("Product", foreign_keys=[source_product_id])

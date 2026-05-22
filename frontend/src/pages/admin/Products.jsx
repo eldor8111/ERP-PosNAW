@@ -72,6 +72,9 @@ const emptyProduct = {
   weight: '',
   dimensions: '',
   status: 'active',
+  product_type: 'stock',
+  conversion_source_id: '',
+  conversion_ratio: 1,
 };
 
 /* ─── Bulk add empty row factory ──────────────────── */
@@ -630,6 +633,9 @@ export default function Products() {
       weight: p.weight ?? '',
       dimensions: p.dimensions || '',
       status: p.status,
+      product_type: p.product_type || 'stock',
+      conversion_source_id: p.conversion?.source_product_id || '',
+      conversion_ratio: p.conversion?.ratio || 1,
     });
     setError('');
     setModal('edit');
@@ -688,6 +694,10 @@ export default function Products() {
     if (form.sale_price === '' || form.sale_price === null || form.sale_price === undefined) {
       setError("Chakana (sotuv) narxini kiriting"); return;
     }
+    if (form.product_type === 'sell') {
+      if (!form.conversion_source_id) { setError("Virtual mahsulot uchun asosiy mahsulotni tanlang"); return; }
+      if (!form.conversion_ratio || Number(form.conversion_ratio) <= 0) { setError("Virtual mahsulot uchun nisbatni to'g'ri kiriting"); return; }
+    }
 
     setSaving(true); setError('');
     try {
@@ -719,6 +729,11 @@ export default function Products() {
         weight:           form.weight !== '' ? Number(form.weight) : null,
         dimensions:       form.dimensions?.trim() || null,
         status:           form.status,
+        product_type:     form.product_type,
+        conversion:       form.product_type === 'sell' ? {
+          source_product_id: Number(form.conversion_source_id),
+          ratio: Number(form.conversion_ratio)
+        } : null,
       };
       if (modal === 'add') {
         payload.initial_stock = form.initial_stock !== '' ? Number(form.initial_stock) : 0;
@@ -1504,7 +1519,14 @@ export default function Products() {
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setMassActionsOpen(false)} />
                     <div className="absolute top-full mt-2 left-0 w-56 bg-white rounded-xl shadow-xl border border-slate-100 z-20 py-1.5 overflow-hidden">
-                      <button onClick={() => { setMassActionsOpen(false); setBulkStockModal(true); }} className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors flex items-center gap-2">
+                      <button onClick={() => {
+                        const selProds = products.filter(p => selectedIds.includes(p.id));
+                        if (selProds.some(p => p.product_type === 'sell')) {
+                          toast.error("Tarkibiy (Kalkulyatsiya) mahsulot qoldig'ini ommaviy tahrirlab bo'lmaydi. Ularni tanlovdan olib tashlang!");
+                          return;
+                        }
+                        setMassActionsOpen(false); setBulkStockModal(true); 
+                      }} className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors flex items-center gap-2">
                         <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
                         Qoldiqni tahrirlash
                       </button>
@@ -1897,6 +1919,60 @@ export default function Products() {
               {/* ── LEFT: main info (2/3) ── */}
               <div className="md:col-span-2 space-y-5">
 
+                {/* Tarkibiy mahsulot (Virtual) UI */}
+                {form.product_type !== 'sell' ? (
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, product_type: 'sell' }))}
+                      className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-1.5"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+                      Tarkibiy (Kalkulyatsiya) mahsulot qo'shish
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4 animate-fadeIn">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-800">Tarkibiy mahsulot (Kalkulyatsiya)</h4>
+                        <p className="text-xs text-slate-500">Bu mahsulot omborga kirim qilinmaydi. Sotilganda o'rniga asosiy jismoniy mahsulotdan zaxira yechiladi.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, product_type: 'stock', conversion_source_id: '', conversion_ratio: 1 }))}
+                        className="px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                      >
+                        Bekor qilish
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-200">
+                      <Field label="Jismoniy mahsulot (Omborda saqlanadi)" required>
+                        <select
+                          className={inputCls}
+                          value={form.conversion_source_id}
+                          onChange={e => setForm(f => ({ ...f, conversion_source_id: e.target.value }))}
+                        >
+                          <option value="">— Mahsulot tanlang —</option>
+                          {products.filter(p => p.product_type === 'stock' && p.id !== selected?.id).map(p => (
+                            <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="Sotilganda yechiladigan nisbat" required hint="1 birlik tarkibiy mahsulot sotilganda asosiy mahsulotdan qancha yechiladi?">
+                        <input
+                          type="number" step="any" min="0.0001"
+                          className={inputCls}
+                          value={form.conversion_ratio}
+                          onChange={e => setForm(f => ({ ...f, conversion_ratio: e.target.value }))}
+                          placeholder="M-n: 1.0"
+                        />
+                      </Field>
+                    </div>
+                  </div>
+                )}
+
                 {/* Name */}
                 <Field label={t('product.productName')} required>
                   <input
@@ -1906,6 +1982,171 @@ export default function Products() {
                     placeholder={t('product.productNamePlaceholder')}
                   />
                 </Field>
+
+                {/* ── PRICES BLOCK (Moved from below) ── */}
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+                  <h4 className="text-sm font-bold text-slate-800 border-b border-slate-200 pb-3 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    Narxlar va Foyda
+                  </h4>
+                  {/* Prices — each field has its own currency dropdown */}
+                  <div className="space-y-4">
+                    {/* Row 1: Tan + Ulgurji */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Tan narxi */}
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-600 mb-1.5">{t('product.costPriceLabel')}</label>
+                        <div className="flex rounded-xl border border-slate-200 focus-within:ring-2 focus-within:ring-indigo-500 bg-white shadow-sm">
+                          <input type="number" min="0" step="0.01"
+                            className="flex-1 min-w-0 px-3 py-3 text-base font-medium focus:outline-none bg-transparent rounded-l-xl"
+                            value={form.cost_price} onChange={e => setForm({ ...form, cost_price: e.target.value })} placeholder="0" />
+                          <CurrencyDropdown
+                            value={form.cost_price_cur}
+                            onChange={v => setForm({ ...form, cost_price_cur: v })}
+                            currencies={currencies}
+                          />
+                        </div>
+                        {form.cost_price_cur && (() => {
+                          const cur = currencies.find(c => String(c.id) === form.cost_price_cur);
+                          return cur && form.cost_price ? (
+                            <p className="text-xs text-amber-600 mt-1.5 font-medium">≈ {fmt(Math.round(Number(form.cost_price) * Number(cur.rate)))} {t('common.sum')}</p>
+                          ) : null;
+                        })()}
+                      </div>
+
+                      {/* Ulgurji narxi */}
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-600 mb-1.5">{t('product.wholesalePriceLabel')}</label>
+                        <div className="flex rounded-xl border border-slate-200 focus-within:ring-2 focus-within:ring-indigo-500 bg-white shadow-sm">
+                          <input type="number" min="0" step="0.01"
+                            className="flex-1 min-w-0 px-3 py-3 text-base font-medium focus:outline-none bg-transparent rounded-l-xl"
+                            value={form.wholesale_price} onChange={e => setForm({ ...form, wholesale_price: e.target.value })} placeholder="—" />
+                          <CurrencyDropdown
+                            value={form.wholesale_price_cur}
+                            onChange={v => setForm({ ...form, wholesale_price_cur: v })}
+                            currencies={currencies}
+                          />
+                        </div>
+                        {form.wholesale_price_cur && (() => {
+                          const cur = currencies.find(c => String(c.id) === form.wholesale_price_cur);
+                          return cur && form.wholesale_price ? (
+                            <p className="text-xs text-amber-600 mt-1.5 font-medium">≈ {fmt(Math.round(Number(form.wholesale_price) * Number(cur.rate)))} {t('common.sum')}</p>
+                          ) : null;
+                        })()}
+                      </div>
+                    </div>
+
+                    {/* Row 2: Chakana (full width — most important price) */}
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-600 mb-1.5">
+                        {t('product.retailPriceLabel')} <span className="text-red-500">*</span>
+                        <span className="ml-2 text-xs font-normal text-slate-400">{t('product.mainSalePrice')}</span>
+                      </label>
+                      <div className={`flex rounded-xl border focus-within:ring-2 focus-within:ring-indigo-500 bg-white shadow-sm ${
+                        (form.sale_price === '' || form.sale_price === null) && error ? 'border-red-400 ring-1 ring-red-400' : 'border-slate-300'
+                      }`}>
+                        <input type="number" min="0" step="0.01"
+                          className="flex-1 min-w-0 px-4 py-3.5 text-xl font-bold text-slate-800 focus:outline-none bg-transparent rounded-l-xl"
+                          value={form.sale_price} onChange={e => setForm({ ...form, sale_price: e.target.value })} placeholder="0" />
+                        <CurrencyDropdown
+                          value={form.sale_price_cur}
+                          onChange={v => setForm({ ...form, sale_price_cur: v })}
+                          currencies={currencies}
+                        />
+                      </div>
+                      {form.sale_price_cur && (() => {
+                        const cur = currencies.find(c => String(c.id) === form.sale_price_cur);
+                        return cur && form.sale_price ? (
+                          <p className="text-sm text-indigo-600 mt-2 font-bold">≈ {fmt(Math.round(Number(form.sale_price) * Number(cur.rate)))} {t('common.sum')}</p>
+                        ) : null;
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* UZS preview & Margin hint combined */}
+                  {((priceCurSelected && (form.cost_price || form.sale_price)) || (form.cost_price && form.sale_price && Number(form.sale_price) > 0)) && (
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
+                      <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-indigo-900">
+                        <span className="font-bold flex items-center gap-1.5">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                          {t('product.uzsPreview')}
+                        </span>
+                        {form.cost_price && <span>{t('product.costShort')} <strong>{fmt(Math.round(Number(form.cost_price) * priceRate))}</strong></span>}
+                        {form.wholesale_price && <span>{t('product.wholesaleShort')} <strong>{fmt(Math.round(Number(form.wholesale_price) * priceRate))}</strong></span>}
+                        {form.sale_price && <span>{t('product.retailShort')} <strong>{fmt(Math.round(Number(form.sale_price) * priceRate))}</strong></span>}
+                      </div>
+                      {form.cost_price && form.sale_price && Number(form.sale_price) > 0 && (
+                        <div className="shrink-0 text-sm bg-white px-3 py-1.5 rounded-lg border border-indigo-100 shadow-sm text-indigo-700 font-medium">
+                          Margin: <strong>{(((Number(form.sale_price) - Number(form.cost_price)) / Number(form.sale_price)) * 100).toFixed(1)}%</strong>
+                          &nbsp;|&nbsp; Foyda: <strong>{fmt(Number(form.sale_price) - Number(form.cost_price))} {priceCurCode}</strong>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Category + Unit (Yuqoriga ko'chirildi) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Field label={t('admin.dict.category') || 'Kategoriya'}>
+                    <div className="flex gap-2">
+                      <select className={`${inputCls} flex-1`} value={form.category_id}
+                        onChange={e => setForm({ ...form, category_id: e.target.value })}>
+                        <option value="">{t('product.noCategory')}</option>
+                        {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                      <button
+                        type="button"
+                        title={t('product.addCategoryTitle')}
+                        onClick={() => { openAddCat(); }}
+                        className="shrink-0 w-11 h-11 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold text-xl rounded-xl border-2 border-indigo-100 hover:border-indigo-300 transition-all"
+                      >+</button>
+                    </div>
+                  </Field>
+                  <Field label={t('product.unit')}>
+                    <select className={inputCls} value={form.unit}
+                      onChange={e => setForm({ ...form, unit: e.target.value })}>
+                      {['dona', 'kg', 'g', 'litr', 'ml', 'metr', 'sm', 'quti', 'paket', 'juft'].map(u => (
+                        <option key={u} value={u}>{u}</option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+
+                {/* Stock (Yuqoriga ko'chirildi) */}
+                {form.product_type !== 'sell' && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {modal === 'add' && (
+                      <>
+                        <Field label={t('product.initialStock') || 'Boshlang\'ich qoldiq'}>
+                          <input type="number" min="0" step="0.01" className={`${inputCls} text-base`}
+                            value={form.initial_stock} onChange={e => setForm({ ...form, initial_stock: e.target.value })} placeholder="0" />
+                        </Field>
+                        <Field label="Qaysi omborga?" required={Number(form.initial_stock) > 0}>
+                          <select
+                            className={`${inputCls} ${Number(form.initial_stock) > 0 && !form.initial_warehouse_id ? errCls : ''}`}
+                            value={form.initial_warehouse_id}
+                            onChange={e => setForm({ ...form, initial_warehouse_id: e.target.value })}
+                          >
+                            <option value="">— Ombor tanlang —</option>
+                            {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                          </select>
+                          {Number(form.initial_stock) > 0 && !form.initial_warehouse_id && (
+                            <p className="text-xs text-red-500 mt-1">⚠ Qoldiq kiritilganda ombor majburiy</p>
+                          )}
+                        </Field>
+                      </>
+                    )}
+                    <Field label={t('product.minStockLabel')}>
+                      <input type="number" min="0" className={`${inputCls} text-base`}
+                        value={form.min_stock} onChange={e => setForm({ ...form, min_stock: e.target.value })} />
+                    </Field>
+                    <Field label={t('product.maxStock')}>
+                      <input type="number" min="0" className={`${inputCls} text-base`}
+                        value={form.max_stock} onChange={e => setForm({ ...form, max_stock: e.target.value })} placeholder={t('product.maxStockPlaceholder')} />
+                    </Field>
+                    {modal !== 'add' && <div />}
+                  </div>
+                )}
 
                 {/* Brand */}
                 <Field label={t('product.brandLabel')} hint={t('product.brandHint')}>
@@ -1918,39 +2159,45 @@ export default function Products() {
                 </Field>
 
                 {/* Barcode + SKU + Kod */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <Field label={t('product.skuLabel')} hint={t('product.skuHint')}>
-                    <input className={inputCls} value={form.sku}
-                      onChange={e => setForm({ ...form, sku: e.target.value })} placeholder={t('product.skuPlaceholder')} />
-                  </Field>
-                  <Field label="Birlamchi maxsus kod" hint="O'zingizning maxsus kodingiz">
-                    <input className={inputCls} value={form.product_code}
-                      onChange={e => setForm({ ...form, product_code: e.target.value })} placeholder="Ixtiyoriy" />
-                  </Field>
-                  <Field label="Birlamchi shtrix kod" required>
-                    <div className="flex gap-2">
-                      <select
-                        className="px-2 py-3 border border-slate-200 rounded-xl text-xs font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-700 shrink-0"
-                        value={form.barcode_format}
-                        onChange={e => setForm({ ...form, barcode_format: e.target.value, barcode: genBarcodeByFormat(e.target.value) })}
-                      >
-                        {BARCODE_FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                      </select>
-                      <input
-                        className={`${inputCls} flex-1 font-mono ${!form.barcode?.trim() && error ? errCls : ''}`}
-                        value={form.barcode}
-                        onChange={e => setForm({ ...form, barcode: e.target.value })}
-                        placeholder="12345678"
-                      />
-                      <button type="button" onClick={() => setForm({ ...form, barcode: genBarcodeByFormat(form.barcode_format) })}
-                        title="Yangi barcode"
-                        className="px-3 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors shrink-0">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                      </button>
-                    </div>
-                  </Field>
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+                  <div className="sm:col-span-3">
+                    <Field label={t('product.skuLabel')} hint={t('product.skuHint')}>
+                      <input className={inputCls} value={form.sku}
+                        onChange={e => setForm({ ...form, sku: e.target.value })} placeholder={t('product.skuPlaceholder')} />
+                    </Field>
+                  </div>
+                  <div className="sm:col-span-3">
+                    <Field label="Birlamchi maxsus kod" hint="Maxsus kodingiz">
+                      <input className={inputCls} value={form.product_code}
+                        onChange={e => setForm({ ...form, product_code: e.target.value })} placeholder="Ixtiyoriy" />
+                    </Field>
+                  </div>
+                  <div className="sm:col-span-6">
+                    <Field label="Birlamchi shtrix kod" required>
+                      <div className="flex gap-2">
+                        <select
+                          className="px-2 py-3 border border-slate-200 rounded-xl text-xs font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-700 shrink-0"
+                          value={form.barcode_format}
+                          onChange={e => setForm({ ...form, barcode_format: e.target.value, barcode: genBarcodeByFormat(e.target.value) })}
+                        >
+                          {BARCODE_FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                        </select>
+                        <input
+                          className={`${inputCls} flex-1 font-mono text-base ${!form.barcode?.trim() && error ? errCls : ''}`}
+                          value={form.barcode}
+                          onChange={e => setForm({ ...form, barcode: e.target.value })}
+                          placeholder="12345678"
+                        />
+                        <button type="button" onClick={() => setForm({ ...form, barcode: genBarcodeByFormat(form.barcode_format) })}
+                          title="Yangi barcode"
+                          className="px-4 py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl transition-colors shrink-0">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                        </button>
+                      </div>
+                    </Field>
+                  </div>
                 </div>
 
                 {/* Extra barcodes */}
@@ -2078,158 +2325,7 @@ export default function Products() {
                   )}
                 </div>
 
-                {/* Category + Unit */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field label={t('admin.dict.category') || 'Kategoriya'}>
-                    <div className="flex gap-2">
-                      <select className={`${inputCls} flex-1`} value={form.category_id}
-                        onChange={e => setForm({ ...form, category_id: e.target.value })}>
-                        <option value="">{t('product.noCategory')}</option>
-                        {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                      </select>
-                      <button
-                        type="button"
-                        title={t('product.addCategoryTitle')}
-                        onClick={() => { openAddCat(); }}
-                        className="shrink-0 w-11 h-11 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold text-xl rounded-xl border-2 border-indigo-100 hover:border-indigo-300 transition-all"
-                      >+</button>
-                    </div>
-                  </Field>
-                  <Field label={t('product.unit')}>
-                    <select className={inputCls} value={form.unit}
-                      onChange={e => setForm({ ...form, unit: e.target.value })}>
-                      {['dona', 'kg', 'g', 'litr', 'ml', 'metr', 'sm', 'quti', 'paket', 'juft'].map(u => (
-                        <option key={u} value={u}>{u}</option>
-                      ))}
-                    </select>
-                  </Field>
-                </div>
-
-                {/* Prices — each field has its own currency dropdown */}
-                <div className="space-y-3">
-                  {/* Row 1: Tan + Ulgurji */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Tan narxi */}
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-600 mb-1.5">{t('product.costPriceLabel')}</label>
-                      <div className="flex rounded-xl border border-slate-200 focus-within:ring-2 focus-within:ring-indigo-500 bg-white">
-                        <input type="number" min="0" step="0.01"
-                          className="flex-1 min-w-0 px-3 py-3 text-base focus:outline-none bg-transparent rounded-l-xl"
-                          value={form.cost_price} onChange={e => setForm({ ...form, cost_price: e.target.value })} placeholder="0" />
-                        <CurrencyDropdown
-                          value={form.cost_price_cur}
-                          onChange={v => setForm({ ...form, cost_price_cur: v })}
-                          currencies={currencies}
-                        />
-                      </div>
-                      {form.cost_price_cur && (() => {
-                        const cur = currencies.find(c => String(c.id) === form.cost_price_cur);
-                        return cur && form.cost_price ? (
-                          <p className="text-xs text-amber-600 mt-1">≈ {fmt(Math.round(Number(form.cost_price) * Number(cur.rate)))} {t('common.sum')}</p>
-                        ) : null;
-                      })()}
-                    </div>
-
-                    {/* Ulgurji narxi */}
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-600 mb-1.5">{t('product.wholesalePriceLabel')}</label>
-                      <div className="flex rounded-xl border border-slate-200 focus-within:ring-2 focus-within:ring-indigo-500 bg-white">
-                        <input type="number" min="0" step="0.01"
-                          className="flex-1 min-w-0 px-3 py-3 text-base focus:outline-none bg-transparent rounded-l-xl"
-                          value={form.wholesale_price} onChange={e => setForm({ ...form, wholesale_price: e.target.value })} placeholder="—" />
-                        <CurrencyDropdown
-                          value={form.wholesale_price_cur}
-                          onChange={v => setForm({ ...form, wholesale_price_cur: v })}
-                          currencies={currencies}
-                        />
-                      </div>
-                      {form.wholesale_price_cur && (() => {
-                        const cur = currencies.find(c => String(c.id) === form.wholesale_price_cur);
-                        return cur && form.wholesale_price ? (
-                          <p className="text-xs text-amber-600 mt-1">≈ {fmt(Math.round(Number(form.wholesale_price) * Number(cur.rate)))} {t('common.sum')}</p>
-                        ) : null;
-                      })()}
-                    </div>
-                  </div>
-
-                  {/* Row 2: Chakana (full width — most important price) */}
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-600 mb-1.5">
-                      {t('product.retailPriceLabel')} <span className="text-red-500">*</span>
-                      <span className="ml-2 text-xs font-normal text-slate-400">{t('product.mainSalePrice')}</span>
-                    </label>
-                    <div className={`flex rounded-xl border focus-within:ring-2 focus-within:ring-indigo-500 bg-white ${
-                      (form.sale_price === '' || form.sale_price === null) && error ? 'border-red-400 ring-1 ring-red-400' : 'border-slate-200'
-                    }`}>
-                      <input type="number" min="0" step="0.01"
-                        className="flex-1 min-w-0 px-3 py-3 text-lg font-semibold focus:outline-none bg-transparent rounded-l-xl"
-                        value={form.sale_price} onChange={e => setForm({ ...form, sale_price: e.target.value })} placeholder="0" />
-                      <CurrencyDropdown
-                        value={form.sale_price_cur}
-                        onChange={v => setForm({ ...form, sale_price_cur: v })}
-                        currencies={currencies}
-                      />
-                    </div>
-                    {form.sale_price_cur && (() => {
-                      const cur = currencies.find(c => String(c.id) === form.sale_price_cur);
-                      return cur && form.sale_price ? (
-                        <p className="text-xs text-amber-600 mt-1">≈ {fmt(Math.round(Number(form.sale_price) * Number(cur.rate)))} {t('common.sum')}</p>
-                      ) : null;
-                    })()}
-                  </div>
-                </div>
-
-                {/* UZS preview */}
-                {priceCurSelected && (form.cost_price || form.sale_price) && (
-                  <div className="px-4 py-3 bg-amber-50 border border-amber-100 rounded-xl text-sm text-amber-700 flex flex-wrap gap-x-5 gap-y-1">
-                    <span className="font-semibold">{t('product.uzsPreview')}</span>
-                    {form.cost_price && <span>{t('product.costShort')} <strong>{fmt(Math.round(Number(form.cost_price) * priceRate))}</strong></span>}
-                    {form.wholesale_price && <span>{t('product.wholesaleShort')} <strong>{fmt(Math.round(Number(form.wholesale_price) * priceRate))}</strong></span>}
-                    {form.sale_price && <span>{t('product.retailShort')} <strong>{fmt(Math.round(Number(form.sale_price) * priceRate))}</strong></span>}
-                  </div>
-                )}
-
-                {/* Margin hint */}
-                {form.cost_price && form.sale_price && Number(form.sale_price) > 0 && (
-                  <div className="px-4 py-3 bg-indigo-50 rounded-xl text-sm text-indigo-700">
-                    Margin: <strong>{(((Number(form.sale_price) - Number(form.cost_price)) / Number(form.sale_price)) * 100).toFixed(1)}%</strong>
-                    &nbsp;|&nbsp; {t('product.profit')} <strong>{fmt(Number(form.sale_price) - Number(form.cost_price))} {priceCurCode}</strong>
-                  </div>
-                )}
-
-                {/* Stock */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {modal === 'add' && (
-                    <>
-                      <Field label={t('product.initialStock') || 'Boshlang\'ich qoldiq'}>
-                        <input type="number" min="0" step="0.01" className={`${inputCls} text-base`}
-                          value={form.initial_stock} onChange={e => setForm({ ...form, initial_stock: e.target.value })} placeholder="0" />
-                      </Field>
-                      <Field label="Qaysi omborga?" required={Number(form.initial_stock) > 0}>
-                        <select
-                          className={`${inputCls} ${Number(form.initial_stock) > 0 && !form.initial_warehouse_id ? errCls : ''}`}
-                          value={form.initial_warehouse_id}
-                          onChange={e => setForm({ ...form, initial_warehouse_id: e.target.value })}
-                        >
-                          <option value="">— Ombor tanlang —</option>
-                          {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                        </select>
-                        {Number(form.initial_stock) > 0 && !form.initial_warehouse_id && (
-                          <p className="text-xs text-red-500 mt-1">⚠ Qoldiq kiritilganda ombor majburiy</p>
-                        )}
-                      </Field>
-                    </>
-                  )}
-                  <Field label={t('product.minStockLabel')}>
-                    <input type="number" min="0" className={`${inputCls} text-base`}
-                      value={form.min_stock} onChange={e => setForm({ ...form, min_stock: e.target.value })} />
-                  </Field>
-                  <Field label={t('product.maxStock')}>
-                    <input type="number" min="0" className={`${inputCls} text-base`}
-                      value={form.max_stock} onChange={e => setForm({ ...form, max_stock: e.target.value })} placeholder={t('product.maxStockPlaceholder')} />
-                  </Field>
-                  {modal !== 'add' && <div />}
-                </div>
+                {/* Kategoriya va Qoldiq yuqoriga ko'chirildi */}
 
               </div>
 

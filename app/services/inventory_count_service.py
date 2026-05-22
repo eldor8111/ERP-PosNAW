@@ -36,6 +36,7 @@ def create_inventory_count(db: Session, data, user_id: int) -> InventoryCount:
     products_q = db.query(Product).filter(
         Product.is_deleted == False,
         Product.status == "active",
+        Product.product_type != "sell",
         Product.company_id == wh.company_id,
     )
     if data.category_ids:
@@ -84,6 +85,18 @@ def update_count_items(db: Session, count_id: int, items_data: list, user_id: in
         raise HTTPException(status_code=400, detail="Bu holатdagi inventarizatsiyani o'zgartirib bo'lmaydi")
 
     items_map = {item.product_id: item for item in count.items}
+
+    # Block sell products
+    product_ids = [item.product_id for item in items_data]
+    if product_ids:
+        from app.models.product import Product
+        sell_product = db.query(Product).filter(
+            Product.id.in_(product_ids),
+            Product.product_type == 'sell'
+        ).first()
+        if sell_product:
+            raise HTTPException(status_code=400, detail="Tarkibiy (Kalkulyatsiya) mahsulotni revizya qilib bo'lmaydi")
+
     for item_data in items_data:
         count_item = items_map.get(item_data.product_id)
         if not count_item:
