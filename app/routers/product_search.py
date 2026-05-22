@@ -51,6 +51,7 @@ def list_products_for_pos(
         Product.status,
         Product.category_id,
         Product.image_url,
+        Product.product_type,
     ).filter(
         Product.is_deleted == False,
         Product.company_id == current_user.company_id,
@@ -135,6 +136,7 @@ def list_products_for_pos(
             "status": p.status,
             "category_id": p.category_id,
             "image_url": p.image_url,
+            "product_type": p.product_type or "stock",
             "stock_quantity": stock_map.get(p.id, 0.0),
         }
         for p in products_raw

@@ -100,6 +100,11 @@ const emptyBulkRow = () => ({
 });
 
 /* ─── ProdSearch for composite products ──────────────── */
+// O'zbek apostrof belgilarini normallashtirish
+const normalizeApos = (s) => s
+  .replace(/[’‘ʼ`´ʹ]/g, "'")
+  .replace(/‘/g, "'");
+
 function ProdSearch({ value, onChange, placeholder = 'Mahsulot qidiring...', excludeId }) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
@@ -126,9 +131,21 @@ function ProdSearch({ value, onChange, placeholder = 'Mahsulot qidiring...', exc
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
-        const { data } = await api.get('/products', { params: { search: q, limit: 30 } });
-        setResults(data.filter(i => i.id !== excludeId && i.product_type === 'stock'));
-      } catch (e) {} finally { setLoading(false); }
+        // apostrof normalizatsiyasi
+        const searchQ = normalizeApos(q);
+        // pos-list endpoint - tez va product_type qaytaradi
+        const { data } = await api.get('/products/pos-list', { params: { search: searchQ, limit: 50 } });
+        // pos-list product_type qaytarmaydi, shuning uchun alohida filter qilmaymiz
+        // stock tipidagi mahsulotlar uchun - konversiya bo'lmagan mahsulotlar
+        setResults((Array.isArray(data) ? data : []).filter(i => i.id !== excludeId));
+      } catch (e) {
+        // fallback: oddiy /products endpoint
+        try {
+          const searchQ = normalizeApos(q);
+          const { data } = await api.get('/products', { params: { search: searchQ, limit: 50 } });
+          setResults((Array.isArray(data) ? data : []).filter(i => i.id !== excludeId && i.product_type === 'stock'));
+        } catch (e2) {}
+      } finally { setLoading(false); }
     }, 400);
     return () => clearTimeout(timer);
   }, [q, excludeId]);
