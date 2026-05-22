@@ -126,8 +126,8 @@ function ProdSearch({ value, onChange, placeholder = 'Mahsulot qidiring...', exc
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
-        const { data } = await api.get('/products', { params: { search: q, limit: 30, product_type: 'stock' } });
-        setResults(data.items.filter(i => i.id !== excludeId));
+        const { data } = await api.get('/products', { params: { search: q, limit: 30 } });
+        setResults(data.filter(i => i.id !== excludeId && i.product_type === 'stock'));
       } catch (e) {} finally { setLoading(false); }
     }, 400);
     return () => clearTimeout(timer);
