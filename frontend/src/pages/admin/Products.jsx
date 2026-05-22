@@ -74,6 +74,7 @@ const emptyProduct = {
   status: 'active',
   product_type: 'stock',
   conversion_source_id: '',
+  conversion_source_name: '',
   conversion_ratio: 1,
 };
 
@@ -97,6 +98,78 @@ const emptyBulkRow = () => ({
   initial_warehouse_id: '',
   status: 'active',
 });
+
+/* ─── ProdSearch for composite products ──────────────── */
+function ProdSearch({ value, onChange, placeholder = 'Mahsulot qidiring...', excludeId }) {
+  const [q, setQ] = useState('');
+  const [results, setResults] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (value && value.name && !q) setQ(value.name);
+  }, [value]);
+
+  useEffect(() => {
+    if (q.length < 2) { setResults([]); return; }
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const { data } = await api.get('/products', { params: { search: q, limit: 30, product_type: 'stock' } });
+        setResults(data.items.filter(i => i.id !== excludeId));
+      } catch (e) {} finally { setLoading(false); }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [q, excludeId]);
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <div className="relative">
+        <input
+          className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+          placeholder={placeholder}
+          value={open ? q : (value?.name || '')}
+          onChange={e => { setQ(e.target.value); setOpen(true); }}
+          onFocus={(e) => { setOpen(true); e.target.select(); }}
+        />
+        {loading && <div className="absolute right-3 top-3"><span className="animate-pulse w-3 h-3 bg-indigo-400 rounded-full inline-block"></span></div>}
+      </div>
+      {open && q.length >= 2 && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-60 overflow-auto">
+          {results.length > 0 ? results.map(p => (
+            <div key={p.id} 
+              className="px-4 py-2.5 hover:bg-indigo-50 cursor-pointer border-b border-slate-50 last:border-0"
+              onClick={() => {
+                onChange({ id: p.id, name: p.name });
+                setQ(p.name);
+                setOpen(false);
+              }}
+            >
+              <div className="font-semibold text-slate-700 text-sm">{p.name}</div>
+              <div className="text-xs text-slate-400 flex justify-between mt-0.5">
+                <span>{p.barcode || p.sku}</span>
+                <span>{p.unit}</span>
+              </div>
+            </div>
+          )) : (
+            <div className="px-4 py-3 text-sm text-slate-500 text-center">Bunday mahsulot topilmadi</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /* ─── RowMenu (3 dots) ─────────────────────────────────── */
 function RowMenu({ onEdit, onDelete, onPrint }) {
@@ -635,6 +708,7 @@ export default function Products() {
       status: p.status,
       product_type: p.product_type || 'stock',
       conversion_source_id: p.conversion?.source_product_id || '',
+      conversion_source_name: p.conversion?.source_product_name || '',
       conversion_ratio: p.conversion?.ratio || 1,
     });
     setError('');
@@ -1940,7 +2014,7 @@ export default function Products() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => setForm(f => ({ ...f, product_type: 'stock', conversion_source_id: '', conversion_ratio: 1 }))}
+                        onClick={() => setForm(f => ({ ...f, product_type: 'stock', conversion_source_id: '', conversion_source_name: '', conversion_ratio: 1 }))}
                         className="px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
                       >
                         Bekor qilish
@@ -1949,16 +2023,11 @@ export default function Products() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-200">
                       <Field label="Jismoniy mahsulot (Omborda saqlanadi)" required>
-                        <select
-                          className={inputCls}
-                          value={form.conversion_source_id}
-                          onChange={e => setForm(f => ({ ...f, conversion_source_id: e.target.value }))}
-                        >
-                          <option value="">— Mahsulot tanlang —</option>
-                          {products.filter(p => p.product_type === 'stock' && p.id !== selected?.id).map(p => (
-                            <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>
-                          ))}
-                        </select>
+                        <ProdSearch 
+                          value={{ id: form.conversion_source_id, name: form.conversion_source_name }}
+                          onChange={v => setForm(f => ({ ...f, conversion_source_id: v.id, conversion_source_name: v.name }))}
+                          excludeId={selected?.id}
+                        />
                       </Field>
                       <Field label="Sotilganda yechiladigan nisbat" required hint="1 birlik tarkibiy mahsulot sotilganda asosiy mahsulotdan qancha yechiladi?">
                         <input
