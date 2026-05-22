@@ -152,7 +152,7 @@ export default function Reports() {
   const { t } = useLang();
 const [tab, setTab] = useState('sales');
   const [loading, setLoading] = useState(false);
-  const [dateFrom, setDateFrom] = useState(firstOfMonth());
+  const [dateFrom, setDateFrom] = useState(today());
   const [dateTo, setDateTo] = useState(today());
   const [branchId, setBranchId] = useState('');
   const [branches, setBranches] = useState([]);
