@@ -377,14 +377,19 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
     # 4. Optimized: barcha mahsulotlar uchun Batch larni BITTA query bilan olamiz (N+1 muammosi hal qilindi)
     # Virtual mahsulotlar uchun source_product_id larni ham qo'shamiz
     product_ids = [item_d["product"].id for item_d in sale_items_data]
-    # Stock va batch uchun foydalanadigan real product id lar (virtual uchun source product)
-    stock_product_ids = []
-    for item_d in sale_items_data:
-        if item_d.get("source_product"):
-            stock_product_ids.append(item_d["source_product"].id)
-        else:
-            stock_product_ids.append(item_d["product"].id)
-    all_stock_product_ids = list(set(stock_product_ids))
+
+    # Oddiy va virtual mahsulotlarni ajratamiz
+    virtual_source_ids = list(set(
+        item_d["source_product"].id
+        for item_d in sale_items_data
+        if item_d.get("source_product")
+    ))
+    regular_ids = list(set(
+        item_d["product"].id
+        for item_d in sale_items_data
+        if not item_d.get("source_product")
+    ))
+    all_stock_product_ids = list(set(virtual_source_ids + regular_ids))
 
     batches_q = db.query(Batch).filter(
         Batch.product_id.in_(all_stock_product_ids),
@@ -401,22 +406,35 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
     for b in all_batches:
         batches_by_product[b.product_id].append(b)
 
-    # StockLevel larni ham bitta query bilan olamiz
+    # StockLevel larni olamiz.
+    # MUHIM: Virtual mahsulot source'lari (masalan Butun qo'y) DOIM barcha omborlardan
+    # qidiriladi, chunki ular boshqa omborda bo'lishi mumkin.
     from app.models.inventory import StockLevel as _SL
-    if data.warehouse_id is not None:
-        stock_rows = db.query(_SL).filter(
-            _SL.product_id.in_(all_stock_product_ids),
-            _SL.warehouse_id == data.warehouse_id
-        ).with_for_update().all()
-    else:
-        stock_rows = db.query(_SL).filter(
-            _SL.product_id.in_(all_stock_product_ids),
+    stocks_by_product: dict = defaultdict(list)
+
+    # Regular mahsulotlar: faqat kerakli ombor
+    if regular_ids:
+        if data.warehouse_id is not None:
+            reg_rows = db.query(_SL).filter(
+                _SL.product_id.in_(regular_ids),
+                _SL.warehouse_id == data.warehouse_id
+            ).with_for_update().all()
+        else:
+            reg_rows = db.query(_SL).filter(
+                _SL.product_id.in_(regular_ids),
+                _SL.quantity > 0
+            ).order_by(_SL.quantity.desc()).with_for_update().all()
+        for s in reg_rows:
+            stocks_by_product[s.product_id].append(s)
+
+    # Virtual source mahsulotlar: BARCHA omborlardan (warehouse_id dan qat'iy nazar)
+    if virtual_source_ids:
+        virt_rows = db.query(_SL).filter(
+            _SL.product_id.in_(virtual_source_ids),
             _SL.quantity > 0
         ).order_by(_SL.quantity.desc()).with_for_update().all()
-    
-    stocks_by_product = defaultdict(list)
-    for s in stock_rows:
-        stocks_by_product[s.product_id].append(s)
+        for s in virt_rows:
+            stocks_by_product[s.product_id].append(s)
 
     new_sale_items = []
     new_movements = []
@@ -436,11 +454,15 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
         else:
             qty_to_deduct = qty_needed
 
-        # --- Stock kamaytirish (DB lock allaqachon olindi yuqorida) ---
-        if data.warehouse_id is not None:
+        # --- Stock kamaytirish ---
+        # Virtual mahsulot source'i uchun DOIM barcha omborlardan yechamiz
+        # Oddiy mahsulot uchun esa warehouse_id ga qarab
+        use_all_warehouses = is_virtual or (data.warehouse_id is None)
+
+        if not use_all_warehouses:
+            # Oddiy mahsulot, aniq ombor
             stocks = stocks_by_product.get(stock_product.id, [])
             if not stocks:
-                # Yangi yaratamiz
                 from app.models.inventory import StockLevel as _SL2
                 new_sl = _SL2(product_id=stock_product.id, warehouse_id=data.warehouse_id, quantity=Decimal("0"))
                 db.add(new_sl)
@@ -459,10 +481,10 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
                 reference_type="sale",
                 reference_id=sale.id,
                 user_id=current_user.id,
-                reason=f"Sotuv #{sale.number}" + (f" ({product.name} → {stock_product.name} x{ratio}" + ")" if is_virtual else ""),
+                reason=f"Sotuv #{sale.number}" + (f" ({product.name} \u2192 {stock_product.name} x{ratio}" + ")" if is_virtual else ""),
             ))
         else:
-            # Barcha omborlardan yechamiz
+            # Virtual source yoki warehouse_id=None: barcha omborlardan yechamiz
             stocks = stocks_by_product.get(stock_product.id, [])
             total_avail = sum((s.quantity for s in stocks), Decimal("0"))
             remaining_deduct = qty_to_deduct
@@ -485,7 +507,7 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
                     reference_type="sale",
                     reference_id=sale.id,
                     user_id=current_user.id,
-                    reason=f"Sotuv #{sale.number}" + (f" ({product.name} → {stock_product.name} x{ratio}" + ")" if is_virtual else ""),
+                    reason=f"Sotuv #{sale.number}" + (f" ({product.name} \u2192 {stock_product.name} x{ratio}" + ")" if is_virtual else ""),
                 ))
                 remaining_deduct = total_avail
             from app.models.inventory import StockMovement, MovementType
@@ -505,7 +527,7 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
                     reference_type="sale",
                     reference_id=sale.id,
                     user_id=current_user.id,
-                    reason=f"Sotuv #{sale.number}" + (f" ({product.name} → {stock_product.name} x{ratio}" + ")" if is_virtual else ""),
+                    reason=f"Sotuv #{sale.number}" + (f" ({product.name} \u2192 {stock_product.name} x{ratio}" + ")" if is_virtual else ""),
                 ))
 
         # --- FIFO Batch Allocation: virtual uchun source_product batchlaridan ---
