@@ -139,6 +139,28 @@ def list_products(
         else:
             item.stock_quantity = sum((s.quantity for s in visible_stocks), Decimal("0"))
 
+        # Manually attach conversion with source_product_name
+        if p.conversion:
+            item.conversion = ProductConversionOut(
+                id=p.conversion.id,
+                sell_product_id=p.conversion.sell_product_id,
+                source_product_id=p.conversion.source_product_id,
+                ratio=p.conversion.ratio,
+                source_product_name=p.conversion.source_product.name if p.conversion.source_product else None
+            )
+
+        # Manually attach sell_conversions
+        sell_convs = []
+        for conv in p.sell_conversions:
+            sell_convs.append(ProductConversionReverseOut(
+                id=conv.id,
+                sell_product_id=conv.sell_product_id,
+                source_product_id=conv.source_product_id,
+                ratio=conv.ratio,
+                sell_product_name=conv.sell_product.name if conv.sell_product else None
+            ))
+        item.sell_conversions = sell_convs
+
         result.append(item)
     return result
 
