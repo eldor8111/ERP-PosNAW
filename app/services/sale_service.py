@@ -139,26 +139,19 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
             )
         subtotal = (unit_price * item_data.quantity) - discount
 
-        # Virtual mahsulot: sell turida bo'lsa, asosiy mahsulot va nisbatni topamiz
-        conversion = None
+        # Virtual mahsulot: HAR DOIM ProductConversion jadvalini tekshiramiz
+        # product_type='sell' yoki 'stock' bo'lishidan qat'iy nazar
+        conversion = db.query(ProductConversion).filter(
+            ProductConversion.sell_product_id == product.id
+        ).first()
         source_product = None
-        if product.product_type == "sell":
-            conversion = db.query(ProductConversion).filter(
-                ProductConversion.sell_product_id == product.id
-            ).first()
-            if not conversion:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"'{product.name}' virtual mahsulot uchun konversiya topilmadi"
-                )
+        if conversion:
             source_product = db.query(Product).filter(
-                Product.id == conversion.source_product_id
+                Product.id == conversion.source_product_id,
+                Product.is_deleted == False,
             ).first()
             if not source_product:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"'{product.name}' uchun asosiy mahsulot topilmadi"
-                )
+                conversion = None  # broken link, ignore
 
         sale_items_data.append({
             "product": product,
