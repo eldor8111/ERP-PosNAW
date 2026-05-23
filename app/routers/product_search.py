@@ -110,19 +110,11 @@ def list_products_for_pos(
 
     product_ids = [p.id for p in products_raw]
 
-    stock_q = db.query(
-        StockLevel.product_id,
-        sqlfunc.coalesce(sqlfunc.sum(StockLevel.quantity), 0).label("total_qty"),
-    ).filter(StockLevel.product_id.in_(product_ids))
-    if warehouse_id:
-        stock_q = stock_q.filter(StockLevel.warehouse_id == warehouse_id)
-    stock_rows = stock_q.group_by(StockLevel.product_id).all()
-    stock_map = {r.product_id: float(r.total_qty) for r in stock_rows}
-
     # sell tipli mahsulotlar uchun konversiya ma'lumotini olish
     from app.models.product import ProductConversion
     sell_ids = [p.id for p in products_raw if (p.product_type or 'stock') == 'sell']
     conversion_map = {}
+    source_ids_to_fetch = set()
     if sell_ids:
         convs = db.query(ProductConversion).filter(
             ProductConversion.sell_product_id.in_(sell_ids)
@@ -132,6 +124,28 @@ def list_products_for_pos(
                 "source_product_id": c.source_product_id,
                 "ratio": float(c.ratio),
             }
+            if c.source_product_id not in product_ids:
+                source_ids_to_fetch.add(c.source_product_id)
+
+    # StockLevel ma'lumotlarini olish (products_raw + source_product_id lari)
+    all_needed_ids = set(product_ids) | source_ids_to_fetch
+    stock_q = db.query(
+        StockLevel.product_id,
+        sqlfunc.coalesce(sqlfunc.sum(StockLevel.quantity), 0).label("total_qty"),
+    ).filter(StockLevel.product_id.in_(all_needed_ids))
+    if warehouse_id:
+        stock_q = stock_q.filter(StockLevel.warehouse_id == warehouse_id)
+    stock_rows = stock_q.group_by(StockLevel.product_id).all()
+    stock_map = {r.product_id: float(r.total_qty) for r in stock_rows}
+
+    def get_stock(p):
+        if (p.product_type or 'stock') == 'sell':
+            conv = conversion_map.get(p.id)
+            if conv and conv["ratio"] > 0:
+                source_qty = stock_map.get(conv["source_product_id"], 0.0)
+                return source_qty / conv["ratio"]
+            return 0.0
+        return stock_map.get(p.id, 0.0)
 
     return [
         {
@@ -151,11 +165,12 @@ def list_products_for_pos(
             "category_id": p.category_id,
             "image_url": p.image_url,
             "product_type": p.product_type or "stock",
-            "stock_quantity": stock_map.get(p.id, 0.0),
+            "stock_quantity": get_stock(p),
             "conversion": conversion_map.get(p.id),
         }
         for p in products_raw
     ]
+
 
 
 @router.get("/paginated")
