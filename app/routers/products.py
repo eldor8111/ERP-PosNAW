@@ -139,30 +139,35 @@ def list_products(
         else:
             item.stock_quantity = sum((s.quantity for s in visible_stocks), Decimal("0"))
 
-        # Manually attach conversion with source_product_name
+        # conversion (sell mahsulot → asosiy mahsulot)
         if p.conversion:
+            from app.schemas.product import ProductConversionOut
+            src = p.conversion.source_product
             item.conversion = ProductConversionOut(
                 id=p.conversion.id,
                 sell_product_id=p.conversion.sell_product_id,
                 source_product_id=p.conversion.source_product_id,
+                source_product_name=src.name if src else None,
                 ratio=p.conversion.ratio,
-                source_product_name=p.conversion.source_product.name if p.conversion.source_product else None
             )
 
-        # Manually attach sell_conversions
-        sell_convs = []
-        for conv in p.sell_conversions:
-            sell_convs.append(ProductConversionReverseOut(
-                id=conv.id,
-                sell_product_id=conv.sell_product_id,
-                source_product_id=conv.source_product_id,
-                ratio=conv.ratio,
-                sell_product_name=conv.sell_product.name if conv.sell_product else None
-            ))
-        item.sell_conversions = sell_convs
+        # sell_conversions (asosiy mahsulot → uning tarkibiy qismlari)
+        if getattr(p, 'sell_conversions', None):
+            from app.schemas.product import ProductConversionReverseOut
+            item.sell_conversions = []
+            for conv in p.sell_conversions:
+                sell_p = conv.sell_product
+                if sell_p and not sell_p.is_deleted:
+                    item.sell_conversions.append(ProductConversionReverseOut(
+                        id=conv.id,
+                        sell_product_id=conv.sell_product_id,
+                        sell_product_name=sell_p.name,
+                        ratio=conv.ratio,
+                    ))
 
         result.append(item)
     return result
+
 
 
 @router.get("/barcode/{barcode}", response_model=ProductOut)
