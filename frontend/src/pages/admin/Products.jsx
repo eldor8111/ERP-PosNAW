@@ -1699,8 +1699,13 @@ export default function Products() {
                           <td className="px-2 py-3">
                             {/* Mobilda mahsulot nomi shu yerda ko'rinadi */}
                             <button onClick={() => openHistory(p)}
-                              className="md:hidden text-sm font-bold text-indigo-600 hover:text-indigo-800 text-left w-full truncate block mb-1">
-                              {p.name}
+                              className="md:hidden text-sm font-bold text-indigo-600 hover:text-indigo-800 text-left w-full block mb-1">
+                              <span className="truncate block">{p.name}</span>
+                              {p.product_type === 'sell' && p.conversions?.length > 0 && (
+                                <span className="text-xs text-indigo-400 font-medium block truncate">
+                                  (Tarkibiy: {p.conversions[0].source_product_name})
+                                </span>
+                              )}
                             </button>
                             <div className="text-xs font-mono font-bold text-slate-800 truncate">{p.barcode}</div>
                             {Array.isArray(p.extra_barcodes) && p.extra_barcodes.length > 0 && (
@@ -1729,8 +1734,13 @@ export default function Products() {
                           </td>
                           <td className="hidden md:table-cell px-2 py-3 min-w-0">
                             <button onClick={() => openHistory(p)}
-                              className="text-sm font-bold text-indigo-600 hover:text-indigo-800 hover:underline text-left w-full truncate block">
-                              {p.name}
+                              className="text-sm font-bold text-indigo-600 hover:text-indigo-800 hover:underline text-left w-full block">
+                              <span className="truncate block">{p.name}</span>
+                              {p.product_type === 'sell' && p.conversions?.length > 0 && (
+                                <span className="text-xs text-indigo-400 font-medium block truncate no-underline">
+                                  (Tarkibiy: {p.conversions[0].source_product_name})
+                                </span>
+                              )}
                             </button>
                             {p.brand && <div className="text-xs font-semibold text-amber-600 mt-0.5 uppercase tracking-wide truncate">{p.brand}</div>}
                             {p.bin_location && <div className="text-xs text-slate-400 mt-0.5 truncate">📍 {p.bin_location}</div>}
