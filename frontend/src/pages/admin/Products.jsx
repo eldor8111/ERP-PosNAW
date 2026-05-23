@@ -2047,85 +2047,59 @@ export default function Products() {
               {/* ── LEFT: main info (2/3) ── */}
               <div className="md:col-span-2 space-y-5">
 
+                {/* --- PRODUCT TYPE TOGGLE --- */}
+                <div className="bg-slate-50 p-2 rounded-2xl border border-slate-200 flex flex-col sm:flex-row gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (form.product_type === 'stock') return;
+                      if (modal === 'edit' && selected?.product_type === 'sell') {
+                        if (!confirm("Diqqat! Mahsulotni oddiy turga o'tkazsangiz uning barcha tarkibiy bog'lanishlari o'chadi. Davom etasizmi?")) return;
+                      }
+                      setForm(f => ({ ...f, product_type: 'stock', conversion_source_id: '', conversion_source_name: '', conversion_ratio: 1 }));
+                    }}
+                    className={`flex-1 px-4 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                      form.product_type === 'stock'
+                        ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/60 ring-1 ring-indigo-500/10'
+                        : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700 border border-transparent'
+                    }`}
+                  >
+                    <svg className="w-5 h-5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                    Oddiy (Jismoniy) Mahsulot
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, product_type: 'sell' }))}
+                    className={`flex-1 px-4 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                      form.product_type === 'sell'
+                        ? 'bg-white text-orange-600 shadow-sm border border-slate-200/60 ring-1 ring-orange-500/10'
+                        : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700 border border-transparent'
+                    }`}
+                  >
+                    <svg className="w-5 h-5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+                    Tarkibiy (Kalkulyatsiya)
+                  </button>
+                </div>
+
                 {/* Tarkibiy mahsulot (Virtual) UI */}
-                {form.product_type !== 'sell' ? (
-                  <div className="flex flex-col gap-3">
-                    {selected?.sell_conversions?.length > 0 && (
-                      <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 mb-2">
-                        <h4 className="text-sm font-bold text-indigo-900 mb-2">Bu mahsulotning tarkibiy qismlari (Kalkulyatsiya):</h4>
-                        <div className="flex flex-col gap-1.5">
-                          {selected.sell_conversions.map(c => (
-                            <div key={c.id} className="text-sm text-indigo-700 flex justify-between items-center bg-white px-3 py-1.5 rounded-lg shadow-sm">
-                              <span className="font-medium">{c.sell_product_name}</span>
-                              <span className="text-xs font-bold px-2 py-0.5 bg-indigo-100 rounded-md">Nisbat: {c.ratio}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {modal === 'edit' && selected?.product_type !== 'sell' && (
-                      <div className="flex justify-end gap-3">
-                        <button
-                          type="button"
-                          onClick={() => setForm(f => ({ ...f, product_type: 'sell' }))}
-                          className="text-sm font-semibold text-orange-600 hover:text-orange-800 transition-colors flex items-center gap-1.5"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
-                          Bu mahsulotni tarkibiyga aylantirish
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openAddComponent(selected)}
-                          className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-1.5"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
-                          Yangi tarkibiy yaratish
-                        </button>
-                      </div>
-                    )}
-                    {modal === 'add' && form.product_type !== 'sell' && (
-                      <div className="flex flex-col gap-2">
-                        <div className="flex justify-end">
-                          <button
-                            type="button"
-                            onClick={() => setForm(f => ({ ...f, product_type: 'sell' }))}
-                            className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-1.5"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
-                            Tarkibiy (Kalkulyatsiya) mahsulot qo'shish
-                          </button>
-                        </div>
-                        <p className="text-xs text-slate-500 text-right">
-                          Tarkibiy qism sotilganda asosiy mahsulot qoldig&apos;idan avtomatik ayiriladi. Avval asosiy (jismoniy) mahsulotni yarating, keyin uning tarkibiy qismini qo&apos;shing.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4 animate-fadeIn">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-800">Tarkibiy mahsulot (Kalkulyatsiya)</h4>
-                        <p className="text-xs text-slate-500">Bu mahsulot omborga kirim qilinmaydi. Sotilganda o'rniga asosiy jismoniy mahsulotdan zaxira yechiladi.</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setForm(f => ({ ...f, product_type: 'stock', conversion_source_id: '', conversion_source_name: '', conversion_ratio: 1 }))}
-                        className="px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
-                      >
-                        Bekor qilish
-                      </button>
+                {form.product_type === 'sell' && (
+                  <div className="bg-orange-50/50 p-5 rounded-2xl border border-orange-100 space-y-4 animate-fadeIn">
+                    <div>
+                      <h4 className="text-sm font-bold text-orange-900 mb-1">Tarkibiy mahsulot sozlamalari</h4>
+                      <p className="text-xs text-orange-700/80 leading-relaxed">
+                        Bu mahsulot omborga kirim qilinmaydi. Sotilganda o'rniga asosiy jismoniy mahsulotdan zaxira avtomatik tarzda yechiladi. Masalan: Dumba sotilganda Butun qo'ydan yechiladi.
+                      </p>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-200">
-                      <Field label="Jismoniy mahsulot (Omborda saqlanadi)" required>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-orange-200/60">
+                      <Field label="Qaysi mahsulotdan yechiladi?" required>
                         <ProdSearch 
                           value={{ id: form.conversion_source_id, name: form.conversion_source_name }}
                           onChange={v => setForm(f => ({ ...f, conversion_source_id: v.id, conversion_source_name: v.name }))}
                           excludeId={selected?.id}
                         />
                       </Field>
-                      <Field label="Sotilganda yechiladigan nisbat" required hint="1 birlik tarkibiy mahsulot sotilganda asosiy mahsulotdan qancha yechiladi?">
+                      <Field label="Yechilish nisbati" required hint="1 dona/kg sotilganda qancha yechiladi?">
                         <input
                           type="number" step="any" min="0.0001"
                           className={inputCls}
@@ -2134,6 +2108,20 @@ export default function Products() {
                           placeholder="M-n: 1.0"
                         />
                       </Field>
+                    </div>
+                  </div>
+                )}
+                
+                {selected?.sell_conversions?.length > 0 && form.product_type === 'stock' && (
+                  <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 mb-2 animate-fadeIn">
+                    <h4 className="text-sm font-bold text-indigo-900 mb-2">Bu mahsulotning tarkibiy qismlari (Kalkulyatsiya):</h4>
+                    <div className="flex flex-col gap-1.5">
+                      {selected.sell_conversions.map(c => (
+                        <div key={c.id} className="text-sm text-indigo-700 flex justify-between items-center bg-white px-3 py-1.5 rounded-lg shadow-sm border border-indigo-50">
+                          <span className="font-medium">{c.sell_product_name}</span>
+                          <span className="text-xs font-bold px-2 py-0.5 bg-indigo-100 rounded-md">Nisbat: {c.ratio}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
