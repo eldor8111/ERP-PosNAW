@@ -216,7 +216,7 @@ const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, on
   );
 });
 
-const ProductSearch = forwardRef(function ProductSearch({ onSelect, placeholder, onOpenAdd }, fwdRef) {
+const ProductSearch = forwardRef(function ProductSearch({ onSelect, placeholder, onOpenAdd, warehouseId }, fwdRef) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
   const [activeIdx, setActiveIdx] = useState(0);
@@ -240,7 +240,7 @@ const ProductSearch = forwardRef(function ProductSearch({ onSelect, placeholder,
         // _silent: true — har bir so'rov uchun alohida toast chiqmasin
         const requests = topVariants.map(v =>
           api.get('/products/pos-list', {
-            params: { search: v, limit: 50 },
+            params: { search: v, limit: 50, warehouse_id: warehouseId || undefined },
             signal: abortCtrl.signal,
             _silent: true,
           }).catch(err => {
@@ -266,7 +266,7 @@ const ProductSearch = forwardRef(function ProductSearch({ onSelect, placeholder,
       }
     }, 250);
     return () => { clearTimeout(timerRef.current); abortCtrl.abort(); };
-  }, [q]);
+  }, [q, warehouseId]);
 
   const select = (p) => { onSelect(p); setQ(''); setResults([]); setActiveIdx(0); inputRef.current?.focus(); };
 
@@ -973,7 +973,7 @@ export default function UlgurjiSotuv() {
                     </div>
                   </div>
 
-                  <ProductSearch ref={prodSearchRef} onSelect={selectFormProduct} placeholder="Mahsulot nomi, SKU, barkod..." onOpenAdd={() => setShowProdAddModal(true)} />
+                  <ProductSearch ref={prodSearchRef} onSelect={selectFormProduct} placeholder="Mahsulot nomi, SKU, barkod..." onOpenAdd={() => setShowProdAddModal(true)} warehouseId={warehouseId} />
 
                   {/* Mijoz tanlanmagan ogohlantirish */}
                   {!custId && (

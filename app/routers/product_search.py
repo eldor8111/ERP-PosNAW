@@ -119,6 +119,20 @@ def list_products_for_pos(
     stock_rows = stock_q.group_by(StockLevel.product_id).all()
     stock_map = {r.product_id: float(r.total_qty) for r in stock_rows}
 
+    # sell tipli mahsulotlar uchun konversiya ma'lumotini olish
+    from app.models.product import ProductConversion
+    sell_ids = [p.id for p in products_raw if (p.product_type or 'stock') == 'sell']
+    conversion_map = {}
+    if sell_ids:
+        convs = db.query(ProductConversion).filter(
+            ProductConversion.sell_product_id.in_(sell_ids)
+        ).all()
+        for c in convs:
+            conversion_map[c.sell_product_id] = {
+                "source_product_id": c.source_product_id,
+                "ratio": float(c.ratio),
+            }
+
     return [
         {
             "id": p.id,
@@ -138,6 +152,7 @@ def list_products_for_pos(
             "image_url": p.image_url,
             "product_type": p.product_type or "stock",
             "stock_quantity": stock_map.get(p.id, 0.0),
+            "conversion": conversion_map.get(p.id),
         }
         for p in products_raw
     ]

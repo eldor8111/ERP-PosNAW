@@ -1035,12 +1035,28 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 subtotal=sid["subtotal"],
             ))
             if final_status != SaleStatus.pending:
+                deduct_product_id = sid["product"].id
+                deduct_qty = Decimal(str(sid["quantity"]))
+                reason_str = f"Sotuv tahrirlash (sale #{sale_id})"
+                
+                if sid["product"].product_type == "sell":
+                    from app.models.product import ProductConversion
+                    conversion = db.query(ProductConversion).filter(
+                        ProductConversion.sell_product_id == sid["product"].id
+                    ).first()
+                    if conversion:
+                        deduct_product_id = conversion.source_product_id
+                        deduct_qty = deduct_qty * Decimal(str(conversion.ratio))
+                        source_prod = db.query(Product).filter(Product.id == deduct_product_id).first()
+                        if source_prod:
+                            reason_str += f" ({sid['product'].name} → {source_prod.name} x{conversion.ratio})"
+
                 deduct_stock(
                     db=db,
-                    product_id=sid["product"].id,
-                    quantity=sid["quantity"],
+                    product_id=deduct_product_id,
+                    quantity=deduct_qty,
                     user_id=current_user.id,
-                    reason=f"Sotuv tahrirlash (sale #{sale_id})",
+                    reason=reason_str,
                     reference_type="sale",
                     reference_id=sale_id,
                     warehouse_id=wh_id,

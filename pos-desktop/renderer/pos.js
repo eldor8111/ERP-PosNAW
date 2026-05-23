@@ -206,15 +206,36 @@ async function loadAllData() {
 
 async function loadProducts() {
   try {
-    const data = await api('/products/?limit=200');
-    allProducts = Array.isArray(data) ? data : (data?.items || []);
+    // pos-list tezroq va product_type qaytaradi
+    const data = await api('/products/pos-list?limit=500');
+    const raw = Array.isArray(data) ? data : (data?.items || []);
+    // sell tipli mahsulotlar uchun manba qoldiqlarini biriktirish
+    raw.forEach(p => {
+      if (p.product_type === 'sell' && p.conversion) {
+        const src = raw.find(x => String(x.id) === String(p.conversion.source_product_id));
+        p._sourceStock = src ? Number(src.stock_quantity || 0) : null;
+        p._conversionRatio = Number(p.conversion.ratio || 1);
+        p._sourceProductId = p.conversion.source_product_id;
+      }
+    });
+    allProducts = raw;
     renderSaleGrid(allProducts);
     renderProductsTable(allProducts);
     populateCatFilter();
     toast('Mahsulotlar yuklandi ✓', 'ok');
   } catch (e) {
-    document.getElementById('saleGrid').innerHTML = `<div class="empty-state">⚠️ ${e.message}</div>`;
-    toast(e.message, 'err');
+    // fallback: oddiy endpoint
+    try {
+      const data2 = await api('/products/?limit=200');
+      allProducts = Array.isArray(data2) ? data2 : (data2?.items || []);
+      renderSaleGrid(allProducts);
+      renderProductsTable(allProducts);
+      populateCatFilter();
+      toast('Mahsulotlar yuklandi ✓', 'ok');
+    } catch (e2) {
+      document.getElementById('saleGrid').innerHTML = `<div class="empty-state">⚠️ ${e2.message}</div>`;
+      toast(e2.message, 'err');
+    }
   }
 }
 
@@ -384,6 +405,17 @@ function saleBarcodeKey(e) {
   }
 }
 
+function _getSellableQty(p) {
+  // sell tipli mahsulot uchun manba qoldig'idan hisoblangan qoldiq
+  if (p.product_type === 'sell') {
+    if (p._sourceStock != null && p._conversionRatio) {
+      return p._sourceStock / p._conversionRatio;
+    }
+    return null; // ma'lum emas
+  }
+  return Number(p.stock_quantity || 0);
+}
+
 function renderSaleGrid(list) {
   const el = document.getElementById('saleGrid');
   if (!list.length) { el.innerHTML = '<div class="empty-state">Mahsulot topilmadi</div>'; return; }
@@ -391,14 +423,28 @@ function renderSaleGrid(list) {
     const img = p.image_url
       ? `<img src="${p.image_url.startsWith('/static') ? (CFG.apiUrl + p.image_url) : p.image_url}" alt="">`
       : `<span style="font-size:28px">📦</span>`;
-    const qty = Number(p.stock_quantity || 0);
+    const isSell = p.product_type === 'sell';
+    const sellQty = _getSellableQty(p);
+    const qty = isSell ? (sellQty ?? 0) : Number(p.stock_quantity || 0);
     const outOfStock = qty <= 0;
     const colorCls = qty <= 0 ? 'style="color:var(--red)"' : qty <= (p.min_stock || 5) ? 'style="color:var(--amber)"' : '';
+    let stockLabel;
+    if (isSell) {
+      if (sellQty == null) {
+        stockLabel = '⭐ Tarkibiy';
+      } else if (sellQty <= 0) {
+        stockLabel = '❌ Xom-ashyo tugagan';
+      } else {
+        stockLabel = `🔄 ~${fmt(Math.floor(sellQty))} ${p.unit || 'ta'} sotsa bo'ladi`;
+      }
+    } else {
+      stockLabel = `Qoldiq: ${fmt(qty)} ${p.unit || 'dona'}`;
+    }
     return `<div class="prod-card${outOfStock ? ' out-of-stock' : ''}" data-prod-id="${p.id}" onclick="addToCartById(${p.id})">
       <div class="prod-card-img">${img}</div>
-      <div class="prod-card-name">${p.name}</div>
+      <div class="prod-card-name">${p.name}${isSell ? ' <span style="font-size:9px;background:#6366f1;color:#fff;border-radius:4px;padding:1px 4px">Tark.</span>' : ''}</div>
       <div class="prod-card-price">${fmt(p.sale_price)} so'm</div>
-      <div class="prod-card-stock" ${colorCls}>Qoldiq: ${fmt(qty)} ${p.unit || 'dona'}</div>
+      <div class="prod-card-stock" ${colorCls}>${stockLabel}</div>
     </div>`;
   }).join('');
 }
@@ -764,7 +810,11 @@ function openKirimForm() {
 function kirimSearchProd(q) {
   const el = document.getElementById('kirimProdResults');
   if (!q) { el.innerHTML = ''; return; }
-  const list = allProducts.filter(p => p.name.toLowerCase().includes(q.toLowerCase()) || (p.sku || '').toLowerCase().includes(q.toLowerCase())).slice(0, 10);
+  // sell tipli (tarkibiy) mahsulotlarni kirimdan chiqarib tashlash
+  const list = allProducts
+    .filter(p => p.product_type !== 'sell')
+    .filter(p => p.name.toLowerCase().includes(q.toLowerCase()) || (p.sku || '').toLowerCase().includes(q.toLowerCase()))
+    .slice(0, 10);
   el.innerHTML = list.map(p => `
     <div class="prod-result-item" data-prod-id="${p.id}" onclick="addKirimItemById(${p.id})">
       <div><div class="pri-name">${p.name}</div><div class="pri-sku">${p.sku || ''}</div></div>
@@ -774,7 +824,12 @@ function kirimSearchProd(q) {
 
 function addKirimItemById(id) {
   const prod = allProducts.find(p => p.id === id);
-  if (prod) addKirimItem(prod);
+  if (!prod) return;
+  if (prod.product_type === 'sell') {
+    toast('⚠️ Tarkibiy mahsulotga kirim qilib bo\'lmaydi!', 'err');
+    return;
+  }
+  addKirimItem(prod);
 }
 
 function addKirimItem(prod) {
