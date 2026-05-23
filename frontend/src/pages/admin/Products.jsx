@@ -2064,21 +2064,41 @@ export default function Products() {
                       </div>
                     )}
                     {modal === 'edit' && selected?.product_type !== 'sell' && (
-                      <div className="flex justify-end">
+                      <div className="flex justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setForm(f => ({ ...f, product_type: 'sell' }))}
+                          className="text-sm font-semibold text-orange-600 hover:text-orange-800 transition-colors flex items-center gap-1.5"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                          Bu mahsulotni tarkibiyga aylantirish
+                        </button>
                         <button
                           type="button"
                           onClick={() => openAddComponent(selected)}
                           className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-1.5"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
-                          Yangi tarkibiy mahsulot yaratish (masalan: Dumba)
+                          Yangi tarkibiy yaratish
                         </button>
                       </div>
                     )}
-                    {modal === 'add' && (
-                      <p className="text-xs text-slate-500">
-                        Tarkibiy qism sotilganda asosiy mahsulot qoldig&apos;idan avtomatik ayiriladi. Avval asosiy (jismoniy) mahsulotni yarating, keyin uning tarkibiy qismini qo&apos;shing.
-                      </p>
+                    {modal === 'add' && form.product_type !== 'sell' && (
+                      <div className="flex flex-col gap-2">
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setForm(f => ({ ...f, product_type: 'sell' }))}
+                            className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-1.5"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+                            Tarkibiy (Kalkulyatsiya) mahsulot qo'shish
+                          </button>
+                        </div>
+                        <p className="text-xs text-slate-500 text-right">
+                          Tarkibiy qism sotilganda asosiy mahsulot qoldig&apos;idan avtomatik ayiriladi. Avval asosiy (jismoniy) mahsulotni yarating, keyin uning tarkibiy qismini qo&apos;shing.
+                        </p>
+                      </div>
                     )}
                   </div>
                 ) : (
