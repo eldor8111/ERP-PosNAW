@@ -1357,12 +1357,12 @@ def create_return_sale(db: Session, data: SaleCreate, current_user: User, ip: Op
 
         if is_virtual:
             from app.models.product import ProductConversion
-            conversions = db.query(ProductConversion).filter(ProductConversion.target_product_id == product.id).all()
+            conversions = db.query(ProductConversion).filter(ProductConversion.sell_product_id == product.id).all()
             if not conversions:
                 raise HTTPException(status_code=400, detail=f"'{product.name}' tarkibiy mahsulot uchun xom-ashyo (konversiya) topilmadi")
             
             for conv in conversions:
-                conv_qty = conv.source_quantity * qty_needed
+                conv_qty = conv.ratio * qty_needed
                 receive_stock(
                     db=db,
                     product_id=conv.source_product_id,
