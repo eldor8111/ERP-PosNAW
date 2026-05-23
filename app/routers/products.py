@@ -70,8 +70,15 @@ def list_products(
     from app.models.warehouse import Warehouse
     from app.schemas.product import WarehouseStockOut
 
+    from sqlalchemy.orm import joinedload
+
     q = db.query(Product).filter(Product.is_deleted == False)
     q = q.filter(Product.company_id == current_user.company_id)
+    # conversion va sell_conversions ni eager load qilamiz (lazy loading xatosi oldini olish)
+    q = q.options(
+        joinedload(Product.conversion).joinedload(ProductConversion.source_product),
+        joinedload(Product.sell_conversions).joinedload(ProductConversion.sell_product),
+    )
 
     if search:
         q = q.filter(_name_filter(search))
