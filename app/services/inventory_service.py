@@ -291,7 +291,7 @@ def create_chiqim_batch(
         product = db.query(Product).filter(Product.id == item.product_id).first()
         if product and getattr(product, 'product_type', 'stock') == 'sell':
             # Tarkibiy mahsulot: uning xom-ashyolarini chiqim qilamiz
-            conversions = db.query(ProductConversion).filter(ProductConversion.target_product_id == product.id).all()
+            conversions = db.query(ProductConversion).filter(ProductConversion.sell_product_id == product.id).all()
             if not conversions:
                 raise HTTPException(status_code=400, detail=f"'{product.name}' tarkibiy mahsulot uchun xom-ashyo (konversiya) topilmadi")
             

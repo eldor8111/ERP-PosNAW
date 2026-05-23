@@ -25,6 +25,16 @@ class ProductConversionOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ProductConversionReverseOut(BaseModel):
+    """Virtual mahsulotning tarkibiy qismi (teskari bog'lanish)"""
+    id: int
+    sell_product_id: int
+    sell_product_name: Optional[str] = None
+    ratio: Decimal
+
+    model_config = {"from_attributes": True}
+
+
 class WarehouseStockOut(BaseModel):
     warehouse_id: int
     warehouse_name: str
@@ -125,6 +135,7 @@ class ProductOut(BaseModel):
     status: ProductStatus
     product_type: str = "stock"
     conversion: Optional[ProductConversionOut] = None
+    sell_conversions: List[ProductConversionReverseOut] = []
     created_at: datetime
     stock_quantity: Optional[Decimal] = None
 
@@ -180,6 +191,7 @@ class ProductListOut(BaseModel):
     status: ProductStatus
     product_type: str = "stock"
     conversion: Optional[ProductConversionOut] = None
+    sell_conversions: List[ProductConversionReverseOut] = []
     stock_quantity: Optional[Decimal] = None
     warehouse_stocks: List[WarehouseStockOut] = []
 

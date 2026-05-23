@@ -1701,9 +1701,9 @@ export default function Products() {
                             <button onClick={() => openHistory(p)}
                               className="md:hidden text-sm font-bold text-indigo-600 hover:text-indigo-800 text-left w-full block mb-1">
                               <span className="truncate block">{p.name}</span>
-                              {p.product_type === 'sell' && p.conversions?.length > 0 && (
+                              {p.product_type === 'sell' && p.conversion && (
                                 <span className="text-xs text-indigo-400 font-medium block truncate">
-                                  (Tarkibiy: {p.conversions[0].source_product_name})
+                                  (Tarkibiy: {p.conversion.source_product_name})
                                 </span>
                               )}
                             </button>
@@ -1736,9 +1736,9 @@ export default function Products() {
                             <button onClick={() => openHistory(p)}
                               className="text-sm font-bold text-indigo-600 hover:text-indigo-800 hover:underline text-left w-full block">
                               <span className="truncate block">{p.name}</span>
-                              {p.product_type === 'sell' && p.conversions?.length > 0 && (
+                              {p.product_type === 'sell' && p.conversion && (
                                 <span className="text-xs text-indigo-400 font-medium block truncate no-underline">
-                                  (Tarkibiy: {p.conversions[0].source_product_name})
+                                  (Tarkibiy: {p.conversion.source_product_name})
                                 </span>
                               )}
                             </button>
@@ -2022,15 +2022,30 @@ export default function Products() {
 
                 {/* Tarkibiy mahsulot (Virtual) UI */}
                 {form.product_type !== 'sell' ? (
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setForm(f => ({ ...f, product_type: 'sell' }))}
-                      className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-1.5"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
-                      Tarkibiy (Kalkulyatsiya) mahsulot qo'shish
-                    </button>
+                  <div className="flex flex-col gap-3">
+                    {selected?.sell_conversions?.length > 0 && (
+                      <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 mb-2">
+                        <h4 className="text-sm font-bold text-indigo-900 mb-2">Bu mahsulotning tarkibiy qismlari (Kalkulyatsiya):</h4>
+                        <div className="flex flex-col gap-1.5">
+                          {selected.sell_conversions.map(c => (
+                            <div key={c.id} className="text-sm text-indigo-700 flex justify-between items-center bg-white px-3 py-1.5 rounded-lg shadow-sm">
+                              <span className="font-medium">{c.sell_product_name}</span>
+                              <span className="text-xs font-bold px-2 py-0.5 bg-indigo-100 rounded-md">Nisbat: {c.ratio}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, product_type: 'sell' }))}
+                        className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-1.5"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+                        Tarkibiy (Kalkulyatsiya) mahsulot qo'shish
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4 animate-fadeIn">

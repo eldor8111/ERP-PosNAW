@@ -1184,12 +1184,26 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
         # 2. Stock updates for simple status transition
         if old_status == SaleStatus.pending and sale.status != SaleStatus.pending:
             for item in sale.items:
+                deduct_product_id = item.product_id
+                deduct_qty = item.quantity
+                reason_str = f"Sotuv tasdiqlandi (sale #{sale.id})"
+                
+                if getattr(item.product, 'product_type', 'stock') == 'sell':
+                    from app.models.product import ProductConversion
+                    conversion = db.query(ProductConversion).filter(
+                        ProductConversion.sell_product_id == item.product_id
+                    ).first()
+                    if conversion:
+                        deduct_product_id = conversion.source_product_id
+                        deduct_qty = deduct_qty * Decimal(str(conversion.ratio))
+                        reason_str += f" ({item.product.name} → Asosiy x{conversion.ratio})"
+
                 deduct_stock(
                     db=db,
-                    product_id=item.product_id,
-                    quantity=item.quantity,
+                    product_id=deduct_product_id,
+                    quantity=deduct_qty,
                     user_id=current_user.id,
-                    reason=f"Sotuv tasdiqlandi (sale #{sale.id})",
+                    reason=reason_str,
                     reference_type="sale",
                     reference_id=sale.id,
                     warehouse_id=sale.warehouse_id,

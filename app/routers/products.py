@@ -28,7 +28,6 @@ def _attach_stock(product: Product) -> ProductOut:
         out.stock_quantity = product.stock_level.quantity
     else:
         out.stock_quantity = Decimal("0")
-    # Virtual product conversion ma'lumotini ulash
     if product.conversion:
         from app.schemas.product import ProductConversionOut
         src = product.conversion.source_product
@@ -39,6 +38,20 @@ def _attach_stock(product: Product) -> ProductOut:
             source_product_name=src.name if src else None,
             ratio=product.conversion.ratio,
         )
+    
+    # Tarkibiy qismlarni (sell_conversions) ulash
+    if getattr(product, 'sell_conversions', None):
+        from app.schemas.product import ProductConversionReverseOut
+        out.sell_conversions = []
+        for conv in product.sell_conversions:
+            sell_p = conv.sell_product
+            if sell_p and not sell_p.is_deleted:
+                out.sell_conversions.append(ProductConversionReverseOut(
+                    id=conv.id,
+                    sell_product_id=conv.sell_product_id,
+                    sell_product_name=sell_p.name,
+                    ratio=conv.ratio,
+                ))
     return out
 
 
