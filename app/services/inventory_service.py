@@ -182,8 +182,26 @@ def deduct_stock(
                 stock = get_or_create_stock(db, product_id, None)
                 stocks = [stock]
             
-            # Qolgan minus qismini birinchi stockdan yechib qoyamiz
-            stocks[0].quantity -= (quantity - total_available)
+            diff = quantity - total_available
+            qty_before_diff = stocks[0].quantity
+            stocks[0].quantity -= diff
+            
+            wh_note = f"Ombor #{stocks[0].warehouse_id}" if stocks[0].warehouse_id else "No-WH"
+            final_reason = f"{reason} ({wh_note})" if reason else wh_note
+            
+            movement = StockMovement(
+                product_id=product_id,
+                type=MovementType.OUT,
+                qty_before=qty_before_diff,
+                qty_after=stocks[0].quantity,
+                quantity=diff,
+                reference_type=reference_type,
+                reference_id=reference_id,
+                user_id=user_id,
+                reason=final_reason,
+            )
+            db.add(movement)
+            
             # remaining qismini esa bor qoldiqqa tenglashtiramiz toki for loop oddiy ishlasin
             remaining = total_available
         for stock in stocks:
