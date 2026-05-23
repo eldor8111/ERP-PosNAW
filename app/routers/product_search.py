@@ -14,7 +14,13 @@ from app.database import get_db
 from app.models.inventory import StockLevel
 from app.models.product import Product, ProductStatus
 from app.models.user import User, UserRole
-from app.schemas.product import ProductListOut, WarehouseStockOut
+from app.models.product import ProductConversion
+from app.schemas.product import (
+    ProductConversionOut,
+    ProductConversionReverseOut,
+    ProductListOut,
+    WarehouseStockOut,
+)
 from app.utils.product_filters import name_filter
 from app.utils.translit import translit_variants as _translit_variants
 
@@ -186,9 +192,14 @@ def list_products_paginated(
 ):
     from app.models.warehouse import Warehouse
     from sqlalchemy import case, func as f2
+    from sqlalchemy.orm import joinedload
 
     q = db.query(Product).filter(Product.is_deleted == False)
     q = q.filter(Product.company_id == current_user.company_id)
+    q = q.options(
+        joinedload(Product.conversion).joinedload(ProductConversion.source_product),
+        joinedload(Product.sell_conversions).joinedload(ProductConversion.sell_product),
+    )
 
     if search:
         q = q.filter(name_filter(search))
@@ -277,6 +288,31 @@ def list_products_paginated(
         for ws in item.warehouse_stocks:
             if ws.quantity < Decimal("0"):
                 ws.quantity = Decimal("0")
+
+        if p.conversion:
+            src = p.conversion.source_product
+            item.conversion = ProductConversionOut(
+                id=p.conversion.id,
+                sell_product_id=p.conversion.sell_product_id,
+                source_product_id=p.conversion.source_product_id,
+                source_product_name=src.name if src else None,
+                ratio=p.conversion.ratio,
+            )
+
+        if getattr(p, "sell_conversions", None):
+            item.sell_conversions = []
+            for conv in p.sell_conversions:
+                sell_p = conv.sell_product
+                if sell_p and not sell_p.is_deleted:
+                    item.sell_conversions.append(
+                        ProductConversionReverseOut(
+                            id=conv.id,
+                            sell_product_id=conv.sell_product_id,
+                            sell_product_name=sell_p.name,
+                            ratio=conv.ratio,
+                        )
+                    )
+
         items.append(item.model_dump())
 
     return {

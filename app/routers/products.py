@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.audit import log_action
 from app.core.dependencies import get_current_user, require_roles
@@ -212,6 +212,10 @@ def get_product(
 ):
     q = db.query(Product).filter(Product.id == product_id, Product.is_deleted == False)
     q = q.filter(Product.company_id == current_user.company_id)
+    q = q.options(
+        joinedload(Product.conversion).joinedload(ProductConversion.source_product),
+        joinedload(Product.sell_conversions).joinedload(ProductConversion.sell_product),
+    )
     product = q.first()
     if not product:
         raise HTTPException(status_code=404, detail="Mahsulot topilmadi")
@@ -381,21 +385,49 @@ def update_product(
     for field, value in update_data.items():
         setattr(product, field, value)
 
-    # Konversiyani yangilash (agar conversion berilgan bo'lsa)
-    if conversion_data is not None:
-        existing_conv = db.query(ProductConversion).filter(
-            ProductConversion.sell_product_id == product_id
-        ).first()
-        if existing_conv:
-            existing_conv.source_product_id = conversion_data.source_product_id
-            existing_conv.ratio = conversion_data.ratio
+    product_type = product.product_type or "stock"
+
+    if product_type == "sell":
+        if conversion_data is None:
+            existing_conv = db.query(ProductConversion).filter(
+                ProductConversion.sell_product_id == product_id
+            ).first()
+            if not existing_conv:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Virtual (sell) mahsulot uchun asosiy mahsulot va nisbatni kiriting",
+                )
         else:
-            new_conv = ProductConversion(
-                sell_product_id=product_id,
-                source_product_id=conversion_data.source_product_id,
-                ratio=conversion_data.ratio,
-            )
-            db.add(new_conv)
+            src_product = db.query(Product).filter(
+                Product.id == conversion_data.source_product_id,
+                Product.company_id == current_user.company_id,
+                Product.is_deleted == False,
+            ).first()
+            if not src_product:
+                raise HTTPException(status_code=404, detail="Asosiy mahsulot topilmadi")
+            if src_product.product_type == "sell":
+                raise HTTPException(status_code=400, detail="Asosiy mahsulot 'sell' turida bo'lishi mumkin emas")
+            existing_conv = db.query(ProductConversion).filter(
+                ProductConversion.sell_product_id == product_id
+            ).first()
+            if existing_conv:
+                existing_conv.source_product_id = conversion_data.source_product_id
+                existing_conv.ratio = conversion_data.ratio
+            else:
+                db.add(
+                    ProductConversion(
+                        sell_product_id=product_id,
+                        source_product_id=conversion_data.source_product_id,
+                        ratio=conversion_data.ratio,
+                    )
+                )
+        db.query(StockLevel).filter(StockLevel.product_id == product_id).delete(
+            synchronize_session=False
+        )
+    else:
+        db.query(ProductConversion).filter(
+            ProductConversion.sell_product_id == product_id
+        ).delete(synchronize_session=False)
 
     log_action(
         db=db,

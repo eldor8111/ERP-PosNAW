@@ -697,39 +697,66 @@ export default function Products() {
   }, [search]);
 
   /* ── product CRUD ───────────────────────────────── */
+  const fillFormFromProduct = (p) => ({
+    name: p.name, sku: p.sku, product_code: p.product_code || '',
+    extra_product_codes: Array.isArray(p.extra_product_codes) ? p.extra_product_codes : [],
+    barcode: p.barcode,
+    barcode_format: 'ean8',
+    extra_barcodes: Array.isArray(p.extra_barcodes) ? p.extra_barcodes : [],
+    brand: p.brand || '',
+    category_id: p.category_id || '', unit: p.unit,
+    cost_price: p.cost_price, wholesale_price: p.wholesale_price ?? '',
+    sale_price: p.sale_price,
+    cost_price_cur: '', wholesale_price_cur: '', sale_price_cur: '',
+    price_currency_id: '',
+    initial_stock: '',
+    min_stock: p.min_stock, max_stock: p.max_stock || '',
+    bin_location: p.bin_location || '',
+    images: Array.isArray(p.images) ? p.images : (p.image_url ? [p.image_url] : []),
+    weight: p.weight ?? '',
+    dimensions: p.dimensions || '',
+    status: p.status,
+    product_type: p.product_type || 'stock',
+    conversion_source_id: p.conversion?.source_product_id || '',
+    conversion_source_name: p.conversion?.source_product_name || '',
+    conversion_ratio: p.conversion?.ratio ?? 1,
+  });
+
   const openAdd = () => {
     setForm({ ...emptyProduct, barcode: genBarcodeByFormat('ean8') });
     setError('');
     setModal('add');
   };
-  const openEdit = (p) => {
-    setSelected(p);
+
+  const openAddComponent = (parentProduct) => {
+    if (!parentProduct || parentProduct.product_type === 'sell') return;
+    setSelected(null);
     setForm({
-      name: p.name, sku: p.sku, product_code: p.product_code || '',
-      extra_product_codes: Array.isArray(p.extra_product_codes) ? p.extra_product_codes : [],
-      barcode: p.barcode,
-      barcode_format: 'ean8',
-      extra_barcodes: Array.isArray(p.extra_barcodes) ? p.extra_barcodes : [],
-      brand: p.brand || '',
-      category_id: p.category_id || '', unit: p.unit,
-      cost_price: p.cost_price, wholesale_price: p.wholesale_price ?? '',
-      sale_price: p.sale_price,
-      cost_price_cur: '', wholesale_price_cur: '', sale_price_cur: '',
-      price_currency_id: '',
-      initial_stock: '',
-      min_stock: p.min_stock, max_stock: p.max_stock || '',
-      bin_location: p.bin_location || '',
-      images: Array.isArray(p.images) ? p.images : (p.image_url ? [p.image_url] : []),
-      weight: p.weight ?? '',
-      dimensions: p.dimensions || '',
-      status: p.status,
-      product_type: p.product_type || 'stock',
-      conversion_source_id: p.conversion?.source_product_id || '',
-      conversion_source_name: p.conversion?.source_product_name || '',
-      conversion_ratio: p.conversion?.ratio || 1,
+      ...emptyProduct,
+      barcode: genBarcodeByFormat('ean8'),
+      product_type: 'sell',
+      conversion_source_id: parentProduct.id,
+      conversion_source_name: parentProduct.name,
+      conversion_ratio: 1,
+      category_id: parentProduct.category_id || '',
+      unit: parentProduct.unit || 'dona',
     });
     setError('');
+    setModal('add');
+  };
+
+  const openEdit = async (p) => {
+    setSelected(p);
+    setForm(fillFormFromProduct(p));
+    setError('');
     setModal('edit');
+    try {
+      const { data: full } = await api.get(`/products/${p.id}`);
+      setSelected(full);
+      setForm(fillFormFromProduct(full));
+    } catch (err) {
+      toast.error(err.response?.data?.detail || err.message || 'Mahsulot ma\'lumotlarini yuklashda xatolik');
+    }
   };
   const closeModal = () => { setModal(null); setSelected(null); setError(''); };
 
@@ -2036,16 +2063,23 @@ export default function Products() {
                         </div>
                       </div>
                     )}
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => setForm(f => ({ ...f, product_type: 'sell' }))}
-                        className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-1.5"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
-                        Tarkibiy (Kalkulyatsiya) mahsulot qo'shish
-                      </button>
-                    </div>
+                    {modal === 'edit' && selected?.product_type !== 'sell' && (
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => openAddComponent(selected)}
+                          className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-1.5"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
+                          Yangi tarkibiy mahsulot yaratish (masalan: Dumba)
+                        </button>
+                      </div>
+                    )}
+                    {modal === 'add' && (
+                      <p className="text-xs text-slate-500">
+                        Tarkibiy qism sotilganda asosiy mahsulot qoldig&apos;idan avtomatik ayiriladi. Avval asosiy (jismoniy) mahsulotni yarating, keyin uning tarkibiy qismini qo&apos;shing.
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4 animate-fadeIn">
