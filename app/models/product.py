@@ -30,43 +30,42 @@ class Product(Base):
     sale_price = Column(Numeric(12, 2), nullable=False, default=0)
     min_stock = Column(Integer, default=0)
     max_stock = Column(Integer, nullable=True)
-    # TZ: Ombor joylashuvi (bin location)
     bin_location = Column(String(100), nullable=True)
-    # TZ: Rasmlar (product image URL — primary)
     image_url = Column(Text, nullable=True)
-    # TZ: Rasmlar — multiple images (JSON array of URLs)
     images = Column(Text, nullable=True)
     brand = Column(String(200), nullable=True)
-    # Qo'shimcha shtrix kodlar — JSON array of barcode strings
     extra_barcodes = Column(Text, nullable=True)
-    # Qo'shimcha maxsus kodlar — JSON array of product_code strings
     extra_product_codes = Column(Text, nullable=True)
-    # TZ: Vazn va o'lchamlar
-    weight = Column(Numeric(10, 3), nullable=True)       # kg
-    dimensions = Column(String(100), nullable=True)      # MxBxH sm
+    weight = Column(Numeric(10, 3), nullable=True)
+    dimensions = Column(String(100), nullable=True)
     status = Column(Enum(ProductStatus), default=ProductStatus.active)
-    # Virtual Products: 'stock' = asosiy (omborga kirim qilinadi), 'sell' = virtual (faqat sotiladi)
     product_type = Column(String(10), nullable=False, default="stock")
     is_deleted = Column(Boolean, default=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     category = relationship("Category", back_populates="products")
     stock_level = relationship("StockLevel", back_populates="product", uselist=False)
     stock_movements = relationship("StockMovement", back_populates="product")
     sale_items = relationship("SaleItem", back_populates="product")
-    # Virtual: bu mahsulot sell bo'lsa, uning konversiyasi (1 ta)
-    conversion = relationship("ProductConversion", foreign_keys="ProductConversion.sell_product_id",
-                              back_populates="sell_product", uselist=False)
-    # Virtual: bu mahsulot stock bo'lsa, unga bog'langan tarkibiy qismlar (ko'p)
-    sell_conversions = relationship("ProductConversion", foreign_keys="ProductConversion.source_product_id",
-                                    back_populates="source_product", cascade="all, delete-orphan")
+    # Bu mahsulot sell bo'lsa, uning konversiyasi (1 ta)
+    conversion = relationship(
+        "ProductConversion",
+        foreign_keys="ProductConversion.sell_product_id",
+        back_populates="sell_product",
+        uselist=False,
+    )
+    # Bu mahsulot stock bo'lsa, unga bog'langan tarkibiy qismlar (ko'p)
+    sell_conversions = relationship(
+        "ProductConversion",
+        foreign_keys="ProductConversion.source_product_id",
+        back_populates="source_product",
+        cascade="all, delete-orphan",
+    )
 
     __table_args__ = (
         Index('ix_product_company_status_deleted', 'company_id', 'status', 'is_deleted'),
         Index('ix_product_company_name', 'company_id', 'name'),
-        # Partial unique: faqat o'chirilmagan mahsulotlarda SKU va barcode har bir kompaniya uchun unique
         Index('uq_products_sku_active', 'company_id', 'sku', unique=True,
               postgresql_where=text('is_deleted = false')),
         Index('uq_products_barcode_active', 'company_id', 'barcode', unique=True,
@@ -76,9 +75,9 @@ class Product(Base):
 
 class ProductConversion(Base):
     """
-    Virtual Products: sell mahsulot (masalan Dumba) → stock mahsulot (masalan Butun qo'y) konversiyasi.
+    Virtual Products: sell mahsulot (masalan Dumba) -> stock mahsulot (masalan Butun qo'y) konversiyasi.
     ratio = sotilgan 1 birlik uchun asosiy mahsulotdan qancha yechilishi kerak.
-    Masalan: 1 kg Dumba sotilsa → 1.0 kg Butun qo'ydan yechiladi (ratio=1.0)
+    Masalan: 1 kg Dumba sotilsa -> 1.0 kg Butun qo'ydan yechiladi (ratio=1.0)
     """
     __tablename__ = "product_conversions"
 
