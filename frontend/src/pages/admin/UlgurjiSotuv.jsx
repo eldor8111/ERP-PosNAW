@@ -485,6 +485,8 @@ export default function UlgurjiSotuv() {
       setNote(sale.note || ''); setDiscType('sum');
       setDiscVal(sale.discount_amount > 0 ? String(sale.discount_amount) : '');
       setEditingSale({ id: sale.id, number: sale.number, warehouse_id: sale.warehouse_id });
+      if (sale.warehouse_id) setWarehouseId(String(sale.warehouse_id));
+      else setWarehouseId('');
       sessionStorage.setItem('ulgurji_session_sale_id', String(sale.id));
       setTab('new'); setOpenMenuId(null);
       toast.success(`"${sale.number}" sotuv tahrirlash uchun yuklandi`);

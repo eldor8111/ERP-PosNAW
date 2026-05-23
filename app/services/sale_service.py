@@ -479,7 +479,21 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
                     new_sl = _SL3(product_id=stock_product.id, warehouse_id=None, quantity=Decimal("0"))
                     db.add(new_sl)
                     stocks = [new_sl]
-                stocks[0].quantity -= (qty_to_deduct - total_avail)
+                diff = qty_to_deduct - total_avail
+                qty_before_diff = stocks[0].quantity
+                stocks[0].quantity -= diff
+                from app.models.inventory import StockMovement, MovementType
+                new_movements.append(StockMovement(
+                    product_id=stock_product.id,
+                    type=MovementType.OUT,
+                    qty_before=qty_before_diff,
+                    qty_after=stocks[0].quantity,
+                    quantity=diff,
+                    reference_type="sale",
+                    reference_id=sale.id,
+                    user_id=current_user.id,
+                    reason=f"Sotuv #{sale.number}" + (f" ({product.name} → {stock_product.name} x{ratio}" + ")" if is_virtual else ""),
+                ))
                 remaining_deduct = total_avail
             from app.models.inventory import StockMovement, MovementType
             for stock in stocks:
