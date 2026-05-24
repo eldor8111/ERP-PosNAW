@@ -298,6 +298,7 @@ def list_products_paginated(
                 source_product_name=src.name if src else None,
                 ratio=p.conversion.ratio,
             )
+            item.product_type = "sell"
 
         if getattr(p, "sell_conversions", None):
             item.sell_conversions = []

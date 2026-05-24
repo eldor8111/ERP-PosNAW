@@ -38,7 +38,8 @@ def _attach_stock(product: Product) -> ProductOut:
             source_product_name=src.name if src else None,
             ratio=product.conversion.ratio,
         )
-    
+        out.product_type = "sell"
+
     # Tarkibiy qismlarni (sell_conversions) ulash
     if getattr(product, 'sell_conversions', None):
         from app.schemas.product import ProductConversionReverseOut
@@ -157,6 +158,7 @@ def list_products(
                 source_product_name=src.name if src else None,
                 ratio=p.conversion.ratio,
             )
+            item.product_type = "sell"
 
         # sell_conversions (asosiy mahsulot → uning tarkibiy qismlari)
         if getattr(p, 'sell_conversions', None):
@@ -354,11 +356,10 @@ def update_product(
 
     old = {"name": product.name, "cost_price": str(product.cost_price), "sale_price": str(product.sale_price)}
 
-    conversion_data = data.conversion
+    fields_set = data.model_dump(exclude_unset=True)
+    conversion_sent = "conversion" in fields_set
+    conversion_data = data.conversion if conversion_sent else None
     update_data = data.model_dump(exclude_none=True, exclude={"conversion"})
-
-    if conversion_data is not None:
-        update_data["product_type"] = "sell"
 
     # Duplicate checks (exclude current product)
     dup_q = db.query(Product).filter(Product.is_deleted == False, Product.id != product_id)
@@ -393,47 +394,52 @@ def update_product(
 
     product_type = product.product_type or "stock"
 
-    if product_type == "sell":
-        if conversion_data is None:
-            existing_conv = db.query(ProductConversion).filter(
-                ProductConversion.sell_product_id == product_id
-            ).first()
-            if not existing_conv:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Virtual (sell) mahsulot uchun asosiy mahsulot va nisbatni kiriting",
-                )
+    if conversion_sent and conversion_data is not None:
+        product.product_type = "sell"
+        product_type = "sell"
+        src_product = db.query(Product).filter(
+            Product.id == conversion_data.source_product_id,
+            Product.company_id == current_user.company_id,
+            Product.is_deleted == False,
+        ).first()
+        if not src_product:
+            raise HTTPException(status_code=404, detail="Asosiy mahsulot topilmadi")
+        if src_product.product_type == "sell":
+            raise HTTPException(status_code=400, detail="Asosiy mahsulot 'sell' turida bo'lishi mumkin emas")
+        existing_conv = db.query(ProductConversion).filter(
+            ProductConversion.sell_product_id == product_id
+        ).first()
+        if existing_conv:
+            existing_conv.source_product_id = conversion_data.source_product_id
+            existing_conv.ratio = conversion_data.ratio
         else:
-            src_product = db.query(Product).filter(
-                Product.id == conversion_data.source_product_id,
-                Product.company_id == current_user.company_id,
-                Product.is_deleted == False,
-            ).first()
-            if not src_product:
-                raise HTTPException(status_code=404, detail="Asosiy mahsulot topilmadi")
-            if src_product.product_type == "sell":
-                raise HTTPException(status_code=400, detail="Asosiy mahsulot 'sell' turida bo'lishi mumkin emas")
-            existing_conv = db.query(ProductConversion).filter(
-                ProductConversion.sell_product_id == product_id
-            ).first()
-            if existing_conv:
-                existing_conv.source_product_id = conversion_data.source_product_id
-                existing_conv.ratio = conversion_data.ratio
-            else:
-                db.add(
-                    ProductConversion(
-                        sell_product_id=product_id,
-                        source_product_id=conversion_data.source_product_id,
-                        ratio=conversion_data.ratio,
-                    )
+            db.add(
+                ProductConversion(
+                    sell_product_id=product_id,
+                    source_product_id=conversion_data.source_product_id,
+                    ratio=conversion_data.ratio,
                 )
+            )
         db.query(StockLevel).filter(StockLevel.product_id == product_id).delete(
             synchronize_session=False
         )
-    else:
+    elif conversion_sent and conversion_data is None:
+        product.product_type = "stock"
         db.query(ProductConversion).filter(
             ProductConversion.sell_product_id == product_id
         ).delete(synchronize_session=False)
+    elif product_type == "sell":
+        existing_conv = db.query(ProductConversion).filter(
+            ProductConversion.sell_product_id == product_id
+        ).first()
+        if not existing_conv:
+            raise HTTPException(
+                status_code=400,
+                detail="Virtual (sell) mahsulot uchun asosiy mahsulot va nisbatni kiriting",
+            )
+        db.query(StockLevel).filter(StockLevel.product_id == product_id).delete(
+            synchronize_session=False
+        )
 
     log_action(
         db=db,

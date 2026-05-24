@@ -716,7 +716,7 @@ export default function Products() {
     weight: p.weight ?? '',
     dimensions: p.dimensions || '',
     status: p.status,
-    product_type: p.product_type || 'stock',
+    product_type: (p.conversion || p.product_type === 'sell') ? 'sell' : (p.product_type || 'stock'),
     conversion_source_id: p.conversion?.source_product_id || '',
     conversion_source_name: p.conversion?.source_product_name || '',
     conversion_ratio: p.conversion?.ratio ?? 1,
@@ -849,11 +849,15 @@ export default function Products() {
         dimensions:       form.dimensions?.trim() || null,
         status:           form.status,
         product_type:     effectiveType,
-        conversion:       effectiveType === 'sell' ? {
-          source_product_id: Number(form.conversion_source_id),
-          ratio: Number(form.conversion_ratio)
-        } : null,
       };
+      if (effectiveType === 'sell') {
+        payload.conversion = {
+          source_product_id: Number(form.conversion_source_id),
+          ratio: Number(form.conversion_ratio),
+        };
+      } else if (modal === 'edit' && selected?.conversion) {
+        payload.conversion = null;
+      }
       if (modal === 'add') {
         if (effectiveType !== 'sell') {
           payload.initial_stock = form.initial_stock !== '' ? Number(form.initial_stock) : 0;
