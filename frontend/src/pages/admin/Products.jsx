@@ -137,7 +137,7 @@ function ProdSearch({ value, onChange, placeholder = 'Mahsulot qidiring...', exc
         const { data } = await api.get('/products/pos-list', { params: { search: searchQ, limit: 50 } });
         // pos-list product_type qaytarmaydi, shuning uchun alohida filter qilmaymiz
         // stock tipidagi mahsulotlar uchun - konversiya bo'lmagan mahsulotlar
-        setResults((Array.isArray(data) ? data : []).filter(i => i.id !== excludeId));
+        setResults((Array.isArray(data) ? data : []).filter(i => i.id !== excludeId && (i.product_type || 'stock') === 'stock'));
       } catch (e) {
         // fallback: oddiy /products endpoint
         try {
@@ -746,14 +746,12 @@ export default function Products() {
   };
 
   const openEdit = async (p) => {
-    setSelected(p);
-    setForm(fillFormFromProduct(p));
     setError('');
-    setModal('edit');
     try {
       const { data: full } = await api.get(`/products/${p.id}`);
       setSelected(full);
       setForm(fillFormFromProduct(full));
+      setModal('edit');
     } catch (err) {
       toast.error(err.response?.data?.detail || err.message || 'Mahsulot ma\'lumotlarini yuklashda xatolik');
     }
@@ -812,8 +810,11 @@ export default function Products() {
     if (form.sale_price === '' || form.sale_price === null || form.sale_price === undefined) {
       setError("Chakana (sotuv) narxini kiriting"); return;
     }
-    if (form.product_type === 'sell') {
-      if (!form.conversion_source_id) { setError("Virtual mahsulot uchun asosiy mahsulotni tanlang"); return; }
+    const hasConversion = Boolean(form.conversion_source_id && Number(form.conversion_source_id) > 0);
+    const effectiveType = hasConversion ? 'sell' : form.product_type;
+
+    if (effectiveType === 'sell') {
+      if (!hasConversion) { setError("Tarkibiy mahsulot uchun asosiy mahsulotni tanlang (masalan: Butun qo'y)"); return; }
       if (!form.conversion_ratio || Number(form.conversion_ratio) <= 0) { setError("Virtual mahsulot uchun nisbatni to'g'ri kiriting"); return; }
     }
 
@@ -847,18 +848,23 @@ export default function Products() {
         weight:           form.weight !== '' ? Number(form.weight) : null,
         dimensions:       form.dimensions?.trim() || null,
         status:           form.status,
-        product_type:     form.product_type,
-        conversion:       form.product_type === 'sell' ? {
+        product_type:     effectiveType,
+        conversion:       effectiveType === 'sell' ? {
           source_product_id: Number(form.conversion_source_id),
           ratio: Number(form.conversion_ratio)
         } : null,
       };
       if (modal === 'add') {
-        payload.initial_stock = form.initial_stock !== '' ? Number(form.initial_stock) : 0;
-        payload.initial_warehouse_id = form.initial_warehouse_id ? Number(form.initial_warehouse_id) : undefined;
+        if (effectiveType !== 'sell') {
+          payload.initial_stock = form.initial_stock !== '' ? Number(form.initial_stock) : 0;
+          payload.initial_warehouse_id = form.initial_warehouse_id ? Number(form.initial_warehouse_id) : undefined;
+        }
         await api.post('/products', payload);
       } else {
         await api.put(`/products/${selected.id}`, payload);
+      }
+      if (effectiveType === 'sell') {
+        toast.success(`Tarkibiy mahsulot saqlandi — sotilganda "${form.conversion_source_name}" qoldig'idan yechiladi`);
       }
       closeModal();
       loadProducts();
@@ -1730,7 +1736,12 @@ export default function Products() {
                               <span className="truncate block">{p.name}</span>
                               {p.product_type === 'sell' && p.conversion && (
                                 <span className="text-xs text-indigo-400 font-medium block truncate">
-                                  (Tarkibiy: {p.conversion.source_product_name})
+                                  (Tarkibiy → {p.conversion.source_product_name})
+                                </span>
+                              )}
+                              {p.product_type === 'sell' && !p.conversion && (
+                                <span className="text-xs text-red-500 font-medium block truncate">
+                                  ⚠ Asosiy mahsulot bog&apos;lanmagan!
                                 </span>
                               )}
                             </button>
@@ -1765,7 +1776,12 @@ export default function Products() {
                               <span className="truncate block">{p.name}</span>
                               {p.product_type === 'sell' && p.conversion && (
                                 <span className="text-xs text-indigo-400 font-medium block truncate no-underline">
-                                  (Tarkibiy: {p.conversion.source_product_name})
+                                  (Tarkibiy → {p.conversion.source_product_name})
+                                </span>
+                              )}
+                              {p.product_type === 'sell' && !p.conversion && (
+                                <span className="text-xs text-red-500 font-medium block truncate no-underline">
+                                  ⚠ Asosiy mahsulot bog&apos;lanmagan!
                                 </span>
                               )}
                             </button>
@@ -2053,9 +2069,8 @@ export default function Products() {
                     type="button"
                     onClick={() => {
                       if (form.product_type === 'stock') return;
-                      if (modal === 'edit' && selected?.product_type === 'sell') {
-                        if (!confirm("Diqqat! Mahsulotni oddiy turga o'tkazsangiz uning barcha tarkibiy bog'lanishlari o'chadi. Davom etasizmi?")) return;
-                      }
+                      const msg = "Diqqat! Oddiy turga o'tkazsangiz tarkibiy bog'lanish o'chadi va sotuvda alohida qoldiqdan yechiladi. Davom etasizmi?";
+                      if (!confirm(msg)) return;
                       setForm(f => ({ ...f, product_type: 'stock', conversion_source_id: '', conversion_source_name: '', conversion_ratio: 1 }));
                     }}
                     className={`flex-1 px-4 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${

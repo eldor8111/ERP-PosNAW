@@ -283,8 +283,11 @@ def create_product(
     if dup_q.filter(Product.name == product_data["name"]).first():
         raise HTTPException(status_code=400, detail=f"'{product_data['name']}' nomli mahsulot allaqachon mavjud")
 
-    # sell mahsulot uchun konversiya bo'lishi shart
+    # Konversiya berilsa — avtomatik sell turiga o'tkazamiz
     product_type = product_data.get("product_type", "stock")
+    if conversion_data is not None:
+        product_type = "sell"
+        product_data["product_type"] = "sell"
     if product_type == "sell" and not conversion_data:
         raise HTTPException(status_code=400, detail="Virtual (sell) mahsulot uchun asosiy mahsulot va nisbatni kiriting")
 
@@ -353,6 +356,9 @@ def update_product(
 
     conversion_data = data.conversion
     update_data = data.model_dump(exclude_none=True, exclude={"conversion"})
+
+    if conversion_data is not None:
+        update_data["product_type"] = "sell"
 
     # Duplicate checks (exclude current product)
     dup_q = db.query(Product).filter(Product.is_deleted == False, Product.id != product_id)

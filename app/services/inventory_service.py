@@ -296,7 +296,7 @@ def create_chiqim_batch(
                 raise HTTPException(status_code=400, detail=f"'{product.name}' tarkibiy mahsulot uchun xom-ashyo (konversiya) topilmadi")
             
             for conv in conversions:
-                qty_needed = conv.source_quantity * item.quantity
+                qty_needed = conv.ratio * item.quantity
                 deduct_stock(
                     db=db,
                     product_id=conv.source_product_id,

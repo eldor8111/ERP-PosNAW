@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models.inventory import StockLevel
 from app.models.inventory_count import CountStatus, InventoryCount, InventoryCountItem
-from app.models.product import Product
+from app.models.product import Product, ProductConversion
 from app.models.warehouse import Warehouse
 from app.services.inventory_service import adjust_stock
 
@@ -129,6 +129,12 @@ def finalize_inventory_count(db: Session, count_id: int, user_id: int) -> Invent
     for item in count.items:
         if item.counted_qty is None:
             continue
+
+        prod = db.query(Product).filter(Product.id == item.product_id).first()
+        if prod and (prod.product_type == "sell" or db.query(ProductConversion).filter(
+            ProductConversion.sell_product_id == item.product_id
+        ).first()):
+            continue  # Tarkibiy mahsulot qoldig'i reviziya qilinmaydi
 
         # Find the EXACT StockLevel for this product + warehouse
         stock = (

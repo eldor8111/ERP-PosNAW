@@ -1067,18 +1067,13 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 deduct_product_id = sid["product"].id
                 deduct_qty = Decimal(str(sid["quantity"]))
                 reason_str = f"Sotuv tahrirlash (sale #{sale_id})"
-                
-                if sid["product"].product_type == "sell":
-                    from app.models.product import ProductConversion
-                    conversion = db.query(ProductConversion).filter(
-                        ProductConversion.sell_product_id == sid["product"].id
-                    ).first()
-                    if conversion:
-                        deduct_product_id = conversion.source_product_id
-                        deduct_qty = deduct_qty * Decimal(str(conversion.ratio))
-                        source_prod = db.query(Product).filter(Product.id == deduct_product_id).first()
-                        if source_prod:
-                            reason_str += f" ({sid['product'].name} → {source_prod.name} x{conversion.ratio})"
+
+                from app.utils.product_conversion import deduct_target_for_sale
+                deduct_product_id, deduct_qty, conversion, source_prod = deduct_target_for_sale(
+                    db, sid["product"].id, deduct_qty
+                )
+                if conversion and source_prod:
+                    reason_str += f" ({sid['product'].name} → {source_prod.name} x{conversion.ratio})"
 
                 deduct_stock(
                     db=db,
@@ -1198,20 +1193,17 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
 
         # 2. Stock updates for simple status transition
         if old_status == SaleStatus.pending and sale.status != SaleStatus.pending:
+            from app.utils.product_conversion import deduct_target_for_sale
             for item in sale.items:
                 deduct_product_id = item.product_id
                 deduct_qty = item.quantity
                 reason_str = f"Sotuv tasdiqlandi (sale #{sale.id})"
-                
-                if getattr(item.product, 'product_type', 'stock') == 'sell':
-                    from app.models.product import ProductConversion
-                    conversion = db.query(ProductConversion).filter(
-                        ProductConversion.sell_product_id == item.product_id
-                    ).first()
-                    if conversion:
-                        deduct_product_id = conversion.source_product_id
-                        deduct_qty = deduct_qty * Decimal(str(conversion.ratio))
-                        reason_str += f" ({item.product.name} → Asosiy x{conversion.ratio})"
+
+                deduct_product_id, deduct_qty, conversion, source_prod = deduct_target_for_sale(
+                    db, item.product_id, deduct_qty
+                )
+                if conversion and source_prod:
+                    reason_str += f" ({item.product.name} → {source_prod.name} x{conversion.ratio})"
 
                 deduct_stock(
                     db=db,
