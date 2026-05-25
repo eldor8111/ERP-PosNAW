@@ -39,8 +39,8 @@ def _attach_stock(product: Product) -> ProductOut:
             ratio=product.conversion.ratio,
         )
         out.product_type = "sell"
-        if src and getattr(src, "stock_level", None):
-            out.stock_quantity = src.stock_level.quantity / product.conversion.ratio
+        # Mijoz talabiga ko'ra virtual mahsulot qoldig'i har doim 0 bo'lib turishi kerak
+        out.stock_quantity = Decimal("0")
 
     # Tarkibiy qismlarni (sell_conversions) ulash
     if getattr(product, 'sell_conversions', None):
@@ -172,29 +172,9 @@ def list_products(
             )
             item.product_type = "sell"
             
-            # Virtual mahsulot qoldig'ini asosiy mahsulotdan hisoblaymiz
-            if src:
-                source_stocks = stock_by_product[src.id]
-                visible_source_stocks = source_stocks
-                if branch_wh_set is not None:
-                    visible_source_stocks = [s for s in source_stocks if s.warehouse_id in branch_wh_set]
-
-                item.warehouse_stocks = [
-                    WarehouseStockOut(
-                        warehouse_id=s.warehouse_id,
-                        warehouse_name=warehouses.get(s.warehouse_id, f"Ombor#{s.warehouse_id}"),
-                        quantity=max(Decimal("0"), s.quantity / p.conversion.ratio),
-                    )
-                    for s in visible_source_stocks if s.warehouse_id is not None
-                ]
-
-                if warehouse_id:
-                    wh_stock = next((s for s in source_stocks if s.warehouse_id == warehouse_id), None)
-                    raw_qty = wh_stock.quantity / p.conversion.ratio if wh_stock else Decimal("0")
-                else:
-                    raw_qty = sum((max(Decimal("0"), s.quantity) for s in visible_source_stocks), Decimal("0")) / p.conversion.ratio
-                
-                item.stock_quantity = max(raw_qty, Decimal("0"))
+            # Mijoz talabiga ko'ra virtual mahsulot qoldig'i har doim 0 bo'lib turishi kerak
+            item.stock_quantity = Decimal("0")
+            item.warehouse_stocks = []
 
         # sell_conversions (asosiy mahsulot → uning tarkibiy qismlari)
         if getattr(p, 'sell_conversions', None):

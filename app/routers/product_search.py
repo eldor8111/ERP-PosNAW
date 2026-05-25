@@ -146,10 +146,7 @@ def list_products_for_pos(
 
     def get_stock(p):
         if (p.product_type or 'stock') == 'sell':
-            conv = conversion_map.get(p.id)
-            if conv and conv["ratio"] > 0:
-                source_qty = stock_map.get(conv["source_product_id"], 0.0)
-                return source_qty / conv["ratio"]
+            # Mijoz talabiga ko'ra virtual mahsulot qoldig'i har doim 0 bo'lib turishi kerak
             return 0.0
         return stock_map.get(p.id, 0.0)
 
@@ -309,29 +306,10 @@ def list_products_paginated(
             )
             item.product_type = "sell"
 
-            # Virtual mahsulot qoldig'ini (va omborlar bo'yicha taqsimotni) asosiy mahsulotdan hisoblaymiz
-            if src:
-                source_stocks = stock_by_product[src.id]
-                visible_source_stocks = source_stocks
-                if branch_wh_set is not None:
-                    visible_source_stocks = [s for s in source_stocks if s.warehouse_id in branch_wh_set]
+            # Mijoz talabiga ko'ra virtual mahsulot qoldig'i har doim 0 bo'lib turishi kerak
+            item.stock_quantity = Decimal("0")
+            item.warehouse_stocks = []
 
-                item.warehouse_stocks = [
-                    WarehouseStockOut(
-                        warehouse_id=s.warehouse_id,
-                        warehouse_name=warehouses.get(s.warehouse_id, f"Ombor#{s.warehouse_id}"),
-                        quantity=max(Decimal("0"), s.quantity / p.conversion.ratio),
-                    )
-                    for s in visible_source_stocks if s.warehouse_id is not None
-                ]
-
-                if warehouse_id:
-                    wh_stock = next((s for s in source_stocks if s.warehouse_id == warehouse_id), None)
-                    raw_qty = wh_stock.quantity / p.conversion.ratio if wh_stock else Decimal("0")
-                else:
-                    raw_qty = sum((max(Decimal("0"), s.quantity) for s in visible_source_stocks), Decimal("0")) / p.conversion.ratio
-                
-                item.stock_quantity = max(raw_qty, Decimal("0"))
 
         if getattr(p, "sell_conversions", None):
             item.sell_conversions = []
