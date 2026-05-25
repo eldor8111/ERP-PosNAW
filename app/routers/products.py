@@ -39,6 +39,8 @@ def _attach_stock(product: Product) -> ProductOut:
             ratio=product.conversion.ratio,
         )
         out.product_type = "sell"
+        if src and getattr(src, "stock_level", None):
+            out.stock_quantity = src.stock_level.quantity / product.conversion.ratio
 
     # Tarkibiy qismlarni (sell_conversions) ulash
     if getattr(product, 'sell_conversions', None):
@@ -111,11 +113,21 @@ def list_products(
     # N+1 muammosini oldini olish: barcha stock levellarni BITTA so'rovda olamiz
     from collections import defaultdict
     product_ids = [p.id for p in products]
+
+    # Virtual mahsulotlarning asosiy mahsulot (source_product) IDlarini qo'shamiz
+    source_ids = set()
+    for p in products:
+        if getattr(p, "product_type", "stock") == "sell" and getattr(p, "conversion", None):
+            source_ids.add(p.conversion.source_product_id)
+
+    all_needed_ids = set(product_ids) | source_ids
+
     all_stock_rows = (
         db.query(StockLevel)
-        .filter(StockLevel.product_id.in_(product_ids))
+        .filter(StockLevel.product_id.in_(all_needed_ids))
         .all()
-    )
+    ) if all_needed_ids else []
+    
     stock_by_product: dict = defaultdict(list)
     for s in all_stock_rows:
         stock_by_product[s.product_id].append(s)
@@ -159,6 +171,30 @@ def list_products(
                 ratio=p.conversion.ratio,
             )
             item.product_type = "sell"
+            
+            # Virtual mahsulot qoldig'ini asosiy mahsulotdan hisoblaymiz
+            if src:
+                source_stocks = stock_by_product[src.id]
+                visible_source_stocks = source_stocks
+                if branch_wh_set is not None:
+                    visible_source_stocks = [s for s in source_stocks if s.warehouse_id in branch_wh_set]
+
+                item.warehouse_stocks = [
+                    WarehouseStockOut(
+                        warehouse_id=s.warehouse_id,
+                        warehouse_name=warehouses.get(s.warehouse_id, f"Ombor#{s.warehouse_id}"),
+                        quantity=max(Decimal("0"), s.quantity / p.conversion.ratio),
+                    )
+                    for s in visible_source_stocks if s.warehouse_id is not None
+                ]
+
+                if warehouse_id:
+                    wh_stock = next((s for s in source_stocks if s.warehouse_id == warehouse_id), None)
+                    raw_qty = wh_stock.quantity / p.conversion.ratio if wh_stock else Decimal("0")
+                else:
+                    raw_qty = sum((max(Decimal("0"), s.quantity) for s in visible_source_stocks), Decimal("0")) / p.conversion.ratio
+                
+                item.stock_quantity = max(raw_qty, Decimal("0"))
 
         # sell_conversions (asosiy mahsulot → uning tarkibiy qismlari)
         if getattr(p, 'sell_conversions', None):
@@ -215,7 +251,7 @@ def get_product(
     q = db.query(Product).filter(Product.id == product_id, Product.is_deleted == False)
     q = q.filter(Product.company_id == current_user.company_id)
     q = q.options(
-        joinedload(Product.conversion).joinedload(ProductConversion.source_product),
+        joinedload(Product.conversion).joinedload(ProductConversion.source_product).joinedload(Product.stock_level),
         joinedload(Product.sell_conversions).joinedload(ProductConversion.sell_product),
     )
     product = q.first()

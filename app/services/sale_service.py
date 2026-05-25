@@ -758,11 +758,20 @@ def create_pending_sale(db: Session, data: SaleCreate, current_user: User, ip: O
         unit_price = item_data.unit_price if item_data.unit_price is not None else product.sale_price
         discount = item_data.discount
         subtotal = max(Decimal("0"), (unit_price * item_data.quantity) - discount)
+        
+        from app.models.product import ProductConversion
+        conversion = db.query(ProductConversion).filter(ProductConversion.sell_product_id == product.id).first()
+        cost_price = product.cost_price
+        if conversion:
+            source = db.query(Product).filter(Product.id == conversion.source_product_id).first()
+            if source:
+                cost_price = (source.cost_price or Decimal("0")) * conversion.ratio
+
         sale_items_data.append({
             "product": product,
             "quantity": item_data.quantity,
             "unit_price": unit_price,
-            "cost_price": product.cost_price,
+            "cost_price": cost_price,
             "discount": discount,
             "subtotal": subtotal,
         })
@@ -846,17 +855,27 @@ def delete_sale(db: Session, sale_id: int, current_user: User) -> None:
     from app.models.batch import Batch
     
     for movement in old_movements:
-        # Qoldiqni oldingi holatga qaytaramiz
         stock = db.query(StockLevel).filter(
             StockLevel.product_id == movement.product_id,
             StockLevel.warehouse_id == sale.warehouse_id,
         ).first()
 
-        if stock:
-            # Sotuvda OUT harakati bo'lgan, shuning uchun qoldiqni qaytaramiz
-            stock.quantity = movement.qty_before
+        if not stock:
+            stock = db.query(StockLevel).filter(
+                StockLevel.product_id == movement.product_id,
+                StockLevel.warehouse_id == None,
+            ).first()
 
-        # Eski harakatni o'chiramiz
+        if not stock:
+            stock = StockLevel(
+                product_id=movement.product_id,
+                warehouse_id=sale.warehouse_id,
+                quantity=Decimal("0")
+            )
+            db.add(stock)
+
+        stock.quantity += movement.quantity
+
         db.delete(movement)
 
     # FIFO Batch larni tiklash
@@ -949,8 +968,20 @@ def _reverse_sale_effects(db: Session, sale: Sale) -> None:
             StockLevel.product_id == movement.product_id,
             StockLevel.warehouse_id == sale.warehouse_id,
         ).first()
-        if stock:
-            stock.quantity = movement.qty_before
+        if not stock:
+            stock = db.query(StockLevel).filter(
+                StockLevel.product_id == movement.product_id,
+                StockLevel.warehouse_id == None,
+            ).first()
+        if not stock:
+            stock = StockLevel(
+                product_id=movement.product_id,
+                warehouse_id=sale.warehouse_id,
+                quantity=Decimal("0")
+            )
+            db.add(stock)
+            
+        stock.quantity += movement.quantity
         db.delete(movement)
 
     # FIFO Batch larni tiklash
@@ -1035,11 +1066,20 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
             unit_price = item_d.unit_price if item_d.unit_price is not None else product.sale_price
             discount = item_d.discount
             subtotal = (unit_price * item_d.quantity) - discount
+            
+            from app.models.product import ProductConversion
+            conversion = db.query(ProductConversion).filter(ProductConversion.sell_product_id == product.id).first()
+            cost_price = product.cost_price
+            if conversion:
+                source = db.query(Product).filter(Product.id == conversion.source_product_id).first()
+                if source:
+                    cost_price = (source.cost_price or Decimal("0")) * conversion.ratio
+
             sale_items_data.append({
                 "product": product,
                 "quantity": item_d.quantity,
                 "unit_price": unit_price,
-                "cost_price": product.cost_price,
+                "cost_price": cost_price,
                 "discount": discount,
                 "subtotal": subtotal,
             })
@@ -1275,13 +1315,21 @@ def create_return_sale(db: Session, data: SaleCreate, current_user: User, ip: Op
 
         total_amount += subtotal
 
+        from app.models.product import ProductConversion
+        conversion = db.query(ProductConversion).filter(ProductConversion.sell_product_id == product.id).first()
+        cost_price = product.cost_price
+        if conversion:
+            source = db.query(Product).filter(Product.id == conversion.source_product_id).first()
+            if source:
+                cost_price = (source.cost_price or Decimal("0")) * conversion.ratio
+
         sale_items_data.append({
             "product": product,
             "quantity": qty,
             "unit_price": price,
             "discount": discount,
             "subtotal": subtotal,
-            "cost_price": product.cost_price,
+            "cost_price": cost_price,
         })
 
     total_amount -= data.discount_amount
@@ -1378,36 +1426,35 @@ def create_return_sale(db: Session, data: SaleCreate, current_user: User, ip: Op
 
         if is_virtual:
             from app.models.product import ProductConversion
-            conversions = db.query(ProductConversion).filter(ProductConversion.sell_product_id == product.id).all()
-            if not conversions:
+            conversion = db.query(ProductConversion).filter(ProductConversion.sell_product_id == product.id).first()
+            if not conversion:
                 raise HTTPException(status_code=400, detail=f"'{product.name}' tarkibiy mahsulot uchun xom-ashyo (konversiya) topilmadi")
             
-            for conv in conversions:
-                conv_qty = conv.ratio * qty_needed
-                receive_stock(
-                    db=db,
-                    product_id=conv.source_product_id,
-                    quantity=conv_qty,
-                    user_id=current_user.id,
-                    reason=f"Vazvrat #{sale.number} (Tarkibiy: {product.name})",
-                    reference_type="sale_refund",
-                    reference_id=sale.id,
-                    warehouse_id=data.warehouse_id,
-                )
-                
-                source_prod = db.query(Product).filter(Product.id == conv.source_product_id).first()
-                source_cost = source_prod.cost_price if source_prod else Decimal("0")
-                
-                return_batch = Batch(
-                    product_id=conv.source_product_id,
-                    warehouse_id=data.warehouse_id,
-                    lot_number=f"RETURN-{sale.number}",
-                    initial_quantity=conv_qty,
-                    quantity=conv_qty,
-                    purchase_price=source_cost,
-                    company_id=current_user.company_id,
-                )
-                db.add(return_batch)
+            conv_qty = conversion.ratio * qty_needed
+            receive_stock(
+                db=db,
+                product_id=conversion.source_product_id,
+                quantity=conv_qty,
+                user_id=current_user.id,
+                reason=f"Vazvrat #{sale.number} (Tarkibiy: {product.name})",
+                reference_type="sale_refund",
+                reference_id=sale.id,
+                warehouse_id=data.warehouse_id,
+            )
+            
+            source_prod = db.query(Product).filter(Product.id == conversion.source_product_id).first()
+            source_cost = source_prod.cost_price if source_prod else Decimal("0")
+            
+            return_batch = Batch(
+                product_id=conversion.source_product_id,
+                warehouse_id=data.warehouse_id,
+                lot_number=f"RETURN-{sale.number}",
+                initial_quantity=conv_qty,
+                quantity=conv_qty,
+                purchase_price=source_cost,
+                company_id=current_user.company_id,
+            )
+            db.add(return_batch)
         else:
             # Qoldiqni oshirish
             receive_stock(
