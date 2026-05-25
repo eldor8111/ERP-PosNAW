@@ -176,18 +176,24 @@ export default function ChiqimTolovlar() {
                     <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{new Date(i.created_at).toLocaleString('uz-UZ')}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
-                        <button
-                          onClick={() => openEdit(i)}
-                          className="px-2 py-1 text-xs font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
-                        >
-                          Tahrirlash
-                        </button>
-                        <button
-                          onClick={() => handleDelete(i)}
-                          className="px-2 py-1 text-xs font-semibold bg-red-50 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
-                        >
-                          O'chirish
-                        </button>
+                        {i.reference_type !== 'purchase_order' ? (
+                          <>
+                            <button
+                              onClick={() => openEdit(i)}
+                              className="px-2 py-1 text-xs font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
+                            >
+                              Tahrirlash
+                            </button>
+                            <button
+                              onClick={() => handleDelete(i)}
+                              className="px-2 py-1 text-xs font-semibold bg-red-50 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
+                            >
+                              O'chirish
+                            </button>
+                          </>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">Xarid bo'limidan</span>
+                        )}
                       </div>
                     </td>
                   </tr>

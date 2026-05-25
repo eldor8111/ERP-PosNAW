@@ -1171,7 +1171,8 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                                 branch_id=tx_branch_id, company_id=current_user.company_id,
                                 type="income", amount=p.amount, payment_type=p.type.value,
                                 reference_type="sale", reference_id=sale.id,
-                                description=f"Sotuv tahrirlash #{sale.number} ({p.type.value})"
+                                description=f"Sotuv tahrirlash #{sale.number} ({p.type.value})",
+                                created_at=sale.created_at
                             ))
             elif paid_amount > 0:
                 db.add(_SP(sale_id=sale.id, payment_type=payment_type.value, amount=paid_amount))
@@ -1180,7 +1181,8 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                         branch_id=tx_branch_id, company_id=current_user.company_id,
                         type="income", amount=paid_amount, payment_type=payment_type.value,
                         reference_type="sale", reference_id=sale.id,
-                        description=f"Sotuv tahrirlash #{sale.number}"
+                        description=f"Sotuv tahrirlash #{sale.number}",
+                        created_at=sale.created_at
                     ))
 
         # F. Sale maydonlarini yangilash

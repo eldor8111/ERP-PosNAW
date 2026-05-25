@@ -302,8 +302,51 @@ def update_purchase_order(db: Session, po_id: int, data, current_user: User) -> 
         po.note = data.note
     if data.expected_date is not None:
         po.expected_date = data.expected_date
+
+    # Moliya tranzaksiyasini yangilash
     if data.paid_amount is not None:
-        po.paid_amount = data.paid_amount
+        from app.models.moliya import Transaction, Wallet
+        old_paid = po.paid_amount or Decimal("0")
+        new_paid = Decimal(str(data.paid_amount))
+        
+        # Eski tranzaksiyani bekor qilish
+        old_tx = db.query(Transaction).filter(
+            Transaction.reference_type == "purchase_order",
+            Transaction.reference_id == po.id,
+            Transaction.type == "expense"
+        ).first()
+        
+        orig_created_at = None
+        if old_tx:
+            orig_created_at = old_tx.created_at
+            if old_tx.wallet_id:
+                w = db.get(Wallet, old_tx.wallet_id)
+                if w:
+                    w.balance = float(w.balance) + float(old_tx.amount)
+            db.delete(old_tx)
+        
+        # Yangi tranzaksiyani yozish (agar yangi summa > 0 bo'lsa)
+        if new_paid > 0:
+            wallet_id = getattr(data, 'wallet_id', None)
+            tx = Transaction(
+                branch_id=current_user.branch_id if current_user.branch_id else po.warehouse_id,
+                company_id=current_user.company_id,
+                type="expense",
+                amount=new_paid,
+                wallet_id=wallet_id,
+                reference_type="purchase_order",
+                reference_id=po.id,
+                description=f"Ta'minotchi to'lovi #{po.number} (tahrirlangan)",
+                created_at=orig_created_at if orig_created_at else None
+            )
+            db.add(tx)
+            if wallet_id:
+                w = db.get(Wallet, wallet_id)
+                if w:
+                    w.balance = float(w.balance) - float(new_paid)
+
+        po.paid_amount = new_paid
+
     if data.discount_amount is not None:
         po.discount_amount = data.discount_amount
 

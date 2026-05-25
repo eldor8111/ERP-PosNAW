@@ -508,7 +508,23 @@ export default function UlgurjiSotuv() {
       setCustId(sale.customer_id ? String(sale.customer_id) : '');
       setNote(sale.note || ''); setDiscType('sum');
       setDiscVal(sale.discount_amount > 0 ? String(sale.discount_amount) : '');
-      setEditingSale({ id: sale.id, number: sale.number, warehouse_id: sale.warehouse_id });
+      
+      // Load existing payments to prevent wipeout on save
+      if (sale.payments && sale.payments.length > 0) {
+        setPayments(sale.payments.map(p => ({ id: p.id || Math.random(), type: p.payment_type, amt: String(p.amount) })));
+      } else if (sale.paid_amount > 0) {
+        setPayments([{ id: Math.random(), type: sale.payment_type || 'cash', amt: String(sale.paid_amount) }]);
+      } else {
+        setPayments([]);
+      }
+      setPayType(sale.payment_type || 'cash');
+      setPaidAmt(sale.paid_amount ? String(sale.paid_amount) : '');
+      if (sale.debt_due_date) {
+        setDebtDate(sale.debt_due_date);
+        setShowDebtDate(true);
+      }
+
+      setEditingSale({ id: sale.id, number: sale.number, warehouse_id: sale.warehouse_id, created_at: sale.created_at });
       if (sale.warehouse_id) setWarehouseId(String(sale.warehouse_id));
       else setWarehouseId('');
       sessionStorage.setItem('ulgurji_session_sale_id', String(sale.id));
