@@ -28,6 +28,7 @@ const emptyForm = {
   cost_price_cur: '', wholesale_price_cur: '', sale_price_cur: '',
   initial_stock: '', min_stock: 0, max_stock: '',
   bin_location: '', images: [], weight: '', dimensions: '', status: 'active',
+  product_type: 'stock', conversion_source_id: '', conversion_source_name: '', conversion_ratio: 1,
 };
 
 const inputCls = "w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white";
@@ -124,6 +125,67 @@ function CurrencyDropdown({ value, onChange, currencies }) {
   );
 }
 
+function ProdSearch({ value, onChange, placeholder = 'Asosiy mahsulotni qidiring...' }) {
+  const [q, setQ] = useState('');
+  const [results, setResults] = useState([]);
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (value && value.name && !q) setQ(value.name);
+  }, [value]);
+
+  useEffect(() => {
+    if (q.length < 2) { setResults([]); return; }
+    const timer = setTimeout(async () => {
+      try {
+        const { data } = await api.get('/products/pos-list', { params: { search: q.replace(/['`’‘]/g, "'").toLowerCase(), limit: 50 } });
+        setResults((Array.isArray(data) ? data : []).filter(i => (i.product_type || 'stock') === 'stock'));
+      } catch (e) {}
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [q]);
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <div className="relative">
+        <input
+          className={inputCls}
+          placeholder={placeholder}
+          value={q}
+          onChange={e => { setQ(e.target.value); setOpen(true); if(!e.target.value) onChange({ id: '', name: '' }); }}
+          onFocus={() => setOpen(true)}
+        />
+        {value?.id && (
+          <button type="button" onClick={() => { onChange({ id: '', name: '' }); setQ(''); }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500 bg-white p-1 rounded-full">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        )}
+      </div>
+      {open && results.length > 0 && (
+        <div className="absolute z-[200] left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto overflow-x-hidden">
+          {results.map(r => (
+            <div key={r.id} onClick={() => { onChange(r); setQ(r.name); setOpen(false); }}
+              className="px-4 py-3 hover:bg-indigo-50 cursor-pointer border-b border-slate-50 last:border-0 flex justify-between items-center transition-colors">
+              <span className="font-semibold text-slate-700 text-sm">{r.name}</span>
+              <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded">{r.sku}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ProductAddModal({ onClose, onSaved }) {
   const [form, setForm] = useState({ ...emptyForm, barcode: genBarcodeByFormat('ean8') });
   const [saving, setSaving] = useState(false);
@@ -167,15 +229,24 @@ export default function ProductAddModal({ onClose, onSaved }) {
     if (!form.name?.trim())    { setError("Mahsulot nomini kiriting"); return; }
     if (!form.barcode?.trim()) { setError("Barkodni kiriting"); return; }
     if (form.sale_price === '' || form.sale_price === null) { setError("Chakana (sotuv) narxini kiriting"); return; }
+    
+    const hasConversion = Boolean(form.conversion_source_id && Number(form.conversion_source_id) > 0);
+    const effectiveType = hasConversion ? 'sell' : form.product_type;
+
+    if (effectiveType === 'sell') {
+      if (!hasConversion) { setError("Tarkibiy mahsulot uchun asosiy mahsulotni tanlang (masalan: Butun qo'y)"); return; }
+      if (!form.conversion_ratio || Number(form.conversion_ratio) <= 0) { setError("Virtual mahsulot uchun nisbatni to'g'ri kiriting"); return; }
+    }
+
     setSaving(true); setError('');
     try {
       const payload = {
         name:             form.name.trim(),
         sku:              form.sku?.trim() || genSku(),
-        product_code:        form.product_code?.trim() || null,
+        product_code:     form.product_code?.trim() || null,
         extra_product_codes: (form.extra_product_codes || []).filter(c => c.trim()),
-        barcode:             form.barcode.trim(),
-        extra_barcodes:      (form.extra_barcodes || []).filter(b => b.trim()),
+        barcode:          form.barcode.trim(),
+        extra_barcodes:   (form.extra_barcodes || []).filter(b => b.trim()),
         brand:            form.brand?.trim() || null,
         category_id:      form.category_id ? Number(form.category_id) : null,
         unit:             form.unit,
@@ -191,7 +262,15 @@ export default function ProductAddModal({ onClose, onSaved }) {
         dimensions:       form.dimensions?.trim() || null,
         status:           form.status,
         initial_stock:    form.initial_stock !== '' ? Number(form.initial_stock) : 0,
+        product_type:     effectiveType,
       };
+
+      if (effectiveType === 'sell') {
+        payload.conversion = {
+          source_product_id: Number(form.conversion_source_id),
+          ratio: Number(form.conversion_ratio),
+        };
+      }
       const res = await api.post('/products', payload);
       toast.success("Mahsulot qo'shildi");
       onSaved?.(res.data);
@@ -254,6 +333,47 @@ export default function ProductAddModal({ onClose, onSaved }) {
                     value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
                     placeholder="Masalan: Coca-Cola 0.5L" />
                 </Field>
+
+                <Field label="Mahsulot turi">
+                  <div className="bg-slate-50 p-2 rounded-2xl border border-slate-200 flex flex-col sm:flex-row gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, product_type: 'stock', conversion_source_id: '', conversion_source_name: '', conversion_ratio: 1 }))}
+                      className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all duration-300 ${form.product_type === 'stock' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 ring-2 ring-indigo-600 ring-offset-2' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'}`}>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                      Oddiy mahsulot
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, product_type: 'sell' }))}
+                      className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all duration-300 ${form.product_type === 'sell' ? 'bg-orange-500 text-white shadow-md shadow-orange-200 ring-2 ring-orange-500 ring-offset-2' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'}`}>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                      Tarkibiy (Kalkulyatsiya)
+                    </button>
+                  </div>
+                </Field>
+
+                {form.product_type === 'sell' && (
+                  <div className="bg-orange-50/50 p-5 rounded-2xl border border-orange-100 space-y-4 animate-fadeIn">
+                    <h4 className="text-sm font-black text-orange-900 flex items-center gap-2">
+                      <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
+                      Kalkulyatsiya sozlamalari
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <Field label="Qaysi mahsulotdan yechiladi?" required>
+                        <ProdSearch 
+                          value={{ id: form.conversion_source_id, name: form.conversion_source_name }}
+                          onChange={v => setForm(f => ({ ...f, conversion_source_id: v.id, conversion_source_name: v.name }))}
+                        />
+                      </Field>
+                      <Field label="Nisbat (1 dona uchun)" required hint="Masalan: 1 kg go'sht uchun = 1">
+                        <input type="number" step="0.001" min="0" className={inputCls}
+                          value={form.conversion_ratio} onChange={e => setForm(f => ({ ...f, conversion_ratio: e.target.value }))}
+                          placeholder="1" />
+                      </Field>
+                    </div>
+                  </div>
+                )}
 
                 <Field label="Brend (ishlab chiqaruvchi)" hint="Masalan: Coca-Cola, Samsung, Nestle">
                   <input className={inputCls} value={form.brand}

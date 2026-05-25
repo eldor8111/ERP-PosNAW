@@ -71,7 +71,7 @@ function Ic({ d, cls = 'w-4 h-4' }) {
   );
 }
 
-const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, onChange, onNew }, fwdRef) {
+const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, onChange, onNew, onFetch }, fwdRef) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -91,6 +91,19 @@ const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, on
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, []);
+
+  useEffect(() => {
+    if (q.trim().length >= 2) {
+      const timer = setTimeout(async () => {
+        try {
+          const res = await api.get('/customers/', { params: { search: q.trim().replace(/['`’‘]/g, "'").toLowerCase(), limit: 50 } });
+          const items = Array.isArray(res.data) ? res.data : (res.data?.items || []);
+          if (items.length > 0 && onFetch) onFetch(items);
+        } catch (e) {}
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [q, onFetch]);
 
   const saveNew = async (e) => {
     e.preventDefault();
@@ -338,6 +351,17 @@ export default function UlgurjiSotuv() {
   const navigate = useNavigate();
   const [customers, setCustomers] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
+
+  const handleNewFetchedCustomers = useCallback((newCusts) => {
+    setCustomers(prev => {
+      const map = new Map(prev.map(c => [c.id, c]));
+      let changed = false;
+      newCusts.forEach(c => {
+        if (!map.has(c.id)) { map.set(c.id, c); changed = true; }
+      });
+      return changed ? Array.from(map.values()) : prev;
+    });
+  }, []);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [autoPrint, setAutoPrint] = useState(localStorage.getItem('ulgurji_autoPrint') !== 'false');
@@ -938,7 +962,7 @@ export default function UlgurjiSotuv() {
                       </button>
                     </div>
                   </div>
-                  <CustomerSearch ref={custSearchRef} customers={customers} value={custId} onChange={setCustId} onNew={c => setCustomers(prev => [...prev, c])} />
+                  <CustomerSearch ref={custSearchRef} customers={customers} value={custId} onChange={setCustId} onNew={c => setCustomers(prev => [...prev, c])} onFetch={handleNewFetchedCustomers} />
                 </div>
 
                 <div className="border-t border-slate-100" />
@@ -1642,7 +1666,7 @@ export default function UlgurjiSotuv() {
             <div className="p-6 space-y-6">
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">Doimiy mijoz (Standart)</label>
-                <CustomerSearch customers={customers} value={defaultCustomerId} onChange={setDefaultCustomerId} />
+                <CustomerSearch customers={customers} value={defaultCustomerId} onChange={setDefaultCustomerId} onFetch={handleNewFetchedCustomers} />
                 <p className="text-[11px] text-slate-400 mt-1">Yangi sotuv sahifasi ochilganda shu mijoz avtomatik tanlanadi.</p>
               </div>
               <div className="flex items-center justify-between">
