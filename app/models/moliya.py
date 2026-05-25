@@ -48,7 +48,7 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id = Column(Integer, primary_key=True, index=True)
-    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True)
     type = Column(String(20), nullable=False) # 'income', 'expense'
     amount = Column(Numeric(14, 2), nullable=False)
     reference_type = Column(String(50), nullable=True) # e.g. 'sale', 'expense', 'supplier_payment'
