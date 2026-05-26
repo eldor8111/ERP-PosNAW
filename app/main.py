@@ -134,6 +134,17 @@ def _run_auto_migrations(engine):
         "CREATE INDEX IF NOT EXISTS ix_kassa_movements_company ON kassa_movements(company_id);",
         "CREATE INDEX IF NOT EXISTS ix_kassa_movements_wallet ON kassa_movements(wallet_id);",
         "CREATE INDEX IF NOT EXISTS ix_kassa_movements_created ON kassa_movements(created_at);",
+        # ── Foydalanuvchi ↔ Kassa biriktiruvi ──
+        """CREATE TABLE IF NOT EXISTS user_wallets (
+            id         SERIAL PRIMARY KEY,
+            user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            wallet_id  INTEGER NOT NULL REFERENCES wallets(id) ON DELETE CASCADE,
+            is_default BOOLEAN DEFAULT FALSE,
+            UNIQUE(user_id, wallet_id)
+        );""",
+        "CREATE INDEX IF NOT EXISTS ix_user_wallets_user ON user_wallets(user_id);",
+        # ── Sales jadvaliga wallet_id ustuni ──
+        "ALTER TABLE sales ADD COLUMN IF NOT EXISTS wallet_id INTEGER REFERENCES wallets(id);",
     ]
     _sa_text = __import__('sqlalchemy').text
     for sql in migrations:

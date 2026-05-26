@@ -76,7 +76,7 @@ def generate_return_number(db: Session) -> str:
 from app.models.customer import Customer  # type: ignore
 from app.models.currency import Currency  # type: ignore
 from app.models.company import Company as from_models_company  # type: ignore
-from app.models.moliya import Transaction  # type: ignore
+from app.models.moliya import Transaction, KassaMovement  # type: ignore
 from app.models.user import User  # type: ignore
 
 def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[str] = None, background_tasks=None) -> Sale:
@@ -323,6 +323,18 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
         br = db.query(_Branch).filter(_Branch.company_id == current_user.company_id).first()
         if br:
             tx_branch_id = br.id
+
+    # Foydalanuvchining default kassasini topish
+    _sa_text2 = __import__('sqlalchemy').text
+    _uw_row = db.execute(
+        _sa_text2("SELECT wallet_id FROM user_wallets WHERE user_id=:uid ORDER BY is_default DESC LIMIT 1"),
+        {"uid": current_user.id}
+    ).fetchone()
+    _cashier_wallet_id = _uw_row[0] if _uw_row else None
+
+    # Sale'ga wallet_id saqlash
+    if _cashier_wallet_id:
+        sale.wallet_id = _cashier_wallet_id
             
     if data.payments and len(data.payments) > 0:
         for p in data.payments:
@@ -337,6 +349,14 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
                         description=f"Sotuv to'lovi #{sale.number} ({p.type.value})"
                     )
                     db.add(tx)
+                # KassaMovement
+                if _cashier_wallet_id and p.type.value not in ("debt", "cashback"):
+                    db.add(KassaMovement(
+                        wallet_id=_cashier_wallet_id, company_id=current_user.company_id,
+                        direction="in", payment_type=p.type.value, amount=p.amount,
+                        reference_type="sale", reference_id=sale.id,
+                        description=f"Sotuv #{sale.number}", created_by=current_user.id,
+                    ))
     elif data.paid_amount > 0:
         if data.payment_type == PaymentType.mixed:
             if data.paid_cash > 0:
@@ -350,6 +370,13 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
                         description=f"Sotuv to'lovi #{sale.number} (Aralash/Naqd)"
                     )
                     db.add(tx_cash)
+                if _cashier_wallet_id:
+                    db.add(KassaMovement(
+                        wallet_id=_cashier_wallet_id, company_id=current_user.company_id,
+                        direction="in", payment_type="cash", amount=data.paid_cash,
+                        reference_type="sale", reference_id=sale.id,
+                        description=f"Sotuv #{sale.number} (Naqd)", created_by=current_user.id,
+                    ))
             if data.paid_card > 0:
                 sp_card = SalePayment(sale_id=sale.id, payment_type="card", amount=data.paid_card)
                 db.add(sp_card)
@@ -361,6 +388,13 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
                         description=f"Sotuv to'lovi #{sale.number} (Aralash/Karta)"
                     )
                     db.add(tx_card)
+                if _cashier_wallet_id:
+                    db.add(KassaMovement(
+                        wallet_id=_cashier_wallet_id, company_id=current_user.company_id,
+                        direction="in", payment_type="card", amount=data.paid_card,
+                        reference_type="sale", reference_id=sale.id,
+                        description=f"Sotuv #{sale.number} (Karta)", created_by=current_user.id,
+                    ))
         else:
             sp = SalePayment(sale_id=sale.id, payment_type=data.payment_type.value, amount=data.paid_amount)
             db.add(sp)
@@ -373,6 +407,13 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
                     description=f"Sotuv to'lovi #{sale.number}"
                 )
                 db.add(tx)
+            if _cashier_wallet_id and data.payment_type.value not in ("debt", "cashback"):
+                db.add(KassaMovement(
+                    wallet_id=_cashier_wallet_id, company_id=current_user.company_id,
+                    direction="in", payment_type=data.payment_type.value, amount=data.paid_amount,
+                    reference_type="sale", reference_id=sale.id,
+                    description=f"Sotuv #{sale.number}", created_by=current_user.id,
+                ))
 
     # 4. Optimized: barcha mahsulotlar uchun Batch larni BITTA query bilan olamiz (N+1 muammosi hal qilindi)
     # Virtual mahsulotlar uchun source_product_id larni ham qo'shamiz

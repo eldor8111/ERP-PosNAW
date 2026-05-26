@@ -101,6 +101,63 @@ def wallet_out(wallet, db, current_user):
     }
 
 
+# ─── Foydalanuvchi ↔ Kassa ───────────────────────────────────────────────────
+
+@router.get("/my-wallets")
+def my_wallets(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Joriy foydalanuvchiga biriktirilgan kassalar ro'yxati"""
+    _sa_text = __import__('sqlalchemy').text
+    rows = db.execute(
+        _sa_text("SELECT wallet_id, is_default FROM user_wallets WHERE user_id=:uid"),
+        {"uid": current_user.id}
+    ).fetchall()
+    wallet_ids = [r[0] for r in rows]
+    defaults = {r[0]: r[1] for r in rows}
+    if not wallet_ids:
+        return []
+    wallets = db.query(Wallet).filter(Wallet.id.in_(wallet_ids), Wallet.company_id == current_user.company_id).all()
+    return [
+        {**wallet_out(w, db, current_user), "is_default": defaults.get(w.id, False)}
+        for w in wallets
+    ]
+
+
+class AssignWalletIn(BaseModel):
+    user_id: int
+    wallet_id: int
+    is_default: bool = False
+
+
+@router.post("/assign-wallet")
+def assign_wallet(data: AssignWalletIn, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Foydalanuvchiga kassa biriktirish (Admin)"""
+    _sa_text = __import__('sqlalchemy').text
+    # Wallet company tekshiruvi
+    w = db.query(Wallet).filter(Wallet.id == data.wallet_id, Wallet.company_id == current_user.company_id).first()
+    if not w:
+        raise HTTPException(404, "Kassa topilmadi")
+    db.execute(
+        _sa_text("""INSERT INTO user_wallets(user_id, wallet_id, is_default)
+                    VALUES(:uid, :wid, :def)
+                    ON CONFLICT(user_id, wallet_id) DO UPDATE SET is_default=EXCLUDED.is_default"""),
+        {"uid": data.user_id, "wid": data.wallet_id, "def": data.is_default}
+    )
+    db.commit()
+    return {"ok": True}
+
+
+@router.delete("/assign-wallet")
+def remove_wallet(user_id: int, wallet_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Foydalanuvchidan kassani olib tashlash"""
+    _sa_text = __import__('sqlalchemy').text
+    db.execute(
+        _sa_text("DELETE FROM user_wallets WHERE user_id=:uid AND wallet_id=:wid"),
+        {"uid": user_id, "wid": wallet_id}
+    )
+    db.commit()
+    return {"ok": True}
+
+
 # ─── Xarajat kategoriyalari (FIXED PATHS — oldin yoziladi!) ──────────────────
 
 @router.get("/categories")
