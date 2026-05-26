@@ -61,7 +61,7 @@ function KassaCard({ kassa, onRefresh }) {
   }, [kassa.id]);
 
   const loadCategories = useCallback(async () => {
-    const r = await api.get('/kassa/expense-categories/list');
+    const r = await api.get('/kassa/categories');
     setCategories(r.data);
   }, []);
 
@@ -90,7 +90,7 @@ function KassaCard({ kassa, onRefresh }) {
         await api.post(`/kassa/${kassa.id}/withdraw`, { amount: Number(form.amount), payment_type: form.payment_type, description: form.description });
         toast.success('Chiqarildi');
       } else if (action === 'expense') {
-        await api.post('/kassa/expense', { wallet_id: kassa.id, category_id: Number(form.category_id), amount: Number(form.amount), payment_type: form.payment_type, description: form.description });
+        await api.post('/kassa/do-expense', { wallet_id: kassa.id, category_id: Number(form.category_id), amount: Number(form.amount), payment_type: form.payment_type, description: form.description });
         toast.success('Xarajat qilindi');
       }
       setModal(null);
@@ -277,7 +277,7 @@ function ExpenseCategoriesTab() {
   const save = async (e) => {
     e.preventDefault(); setSaving(true);
     try {
-      await api.post('/kassa/expense-categories/list', form);
+      await api.post('/kassa/categories', form);
       setForm({ name: '', description: '' }); load(); toast.success("Qo'shildi");
     } catch(ex) { toast.error(ex.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
   };

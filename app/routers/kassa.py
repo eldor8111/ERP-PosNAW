@@ -101,9 +101,65 @@ def wallet_out(wallet, db, current_user):
     }
 
 
+# ─── Xarajat kategoriyalari (FIXED PATHS — oldin yoziladi!) ──────────────────
+
+@router.get("/categories")
+def list_expense_categories(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    cats = db.query(ExpenseCategory).filter(
+        (ExpenseCategory.company_id == current_user.company_id) | (ExpenseCategory.company_id == None)
+    ).order_by(ExpenseCategory.name).all()
+    return [{"id": c.id, "name": c.name, "description": c.description} for c in cats]
+
+
+@router.post("/categories")
+def create_expense_category(data: ExpenseCategoryCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    cat = ExpenseCategory(
+        name=data.name,
+        description=data.description,
+        company_id=current_user.company_id,
+    )
+    db.add(cat)
+    db.commit()
+    db.refresh(cat)
+    return {"id": cat.id, "name": cat.name, "description": cat.description}
+
+
+@router.post("/do-expense")
+def create_expense(data: ExpenseCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    w = db.query(Wallet).filter(Wallet.id == data.wallet_id, Wallet.company_id == current_user.company_id).first()
+    if not w:
+        raise HTTPException(404, "Kassa topilmadi")
+    if data.amount <= 0:
+        raise HTTPException(400, "Summa musbat bo'lishi kerak")
+    from app.models.branch import Branch as _Branch
+    branch = db.query(_Branch).filter(_Branch.company_id == current_user.company_id).first()
+    branch_id = current_user.branch_id or (branch.id if branch else 0)
+    exp = Expense(branch_id=branch_id, category_id=data.category_id, amount=data.amount,
+        company_id=current_user.company_id, wallet_id=data.wallet_id,
+        description=data.description, approved_by=current_user.id)
+    db.add(exp)
+    db.flush()
+    session = db.query(KassaSession).filter(KassaSession.wallet_id == data.wallet_id, KassaSession.status == "open").first()
+    cat = db.get(ExpenseCategory, data.category_id)
+    mv = KassaMovement(wallet_id=data.wallet_id, company_id=current_user.company_id,
+        session_id=session.id if session else None, direction="out",
+        payment_type=data.payment_type, amount=data.amount, reference_type="expense",
+        reference_id=exp.id, description=data.description or (cat.name if cat else "Xarajat"),
+        created_by=current_user.id)
+    db.add(mv)
+    tx = Transaction(company_id=current_user.company_id, branch_id=branch_id,
+        wallet_id=data.wallet_id, type="expense", amount=data.amount,
+        payment_type=data.payment_type, reference_type="expense",
+        reference_id=exp.id, description=data.description or (cat.name if cat else "Xarajat"))
+    db.add(tx)
+    w.balance = float(w.balance or 0) - data.amount
+    db.commit()
+    return {"ok": True, "expense_id": exp.id}
+
+
 # ─── Kassalar CRUD ────────────────────────────────────────────────────────────
 
-@router.get("")
+@router.get("/")
 def list_wallets(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     wallets = db.query(Wallet).filter(
         Wallet.company_id == current_user.company_id,
@@ -430,96 +486,7 @@ def kassa_sessions(wallet_id: int, skip: int = 0, limit: int = 20, db: Session =
     ]
 
 
-# ─── Xarajat kategoriyalari ───────────────────────────────────────────────────
-
-@router.get("/expense-categories/list")
-def list_expense_categories(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    cats = db.query(ExpenseCategory).filter(
-        (ExpenseCategory.company_id == current_user.company_id) | (ExpenseCategory.company_id == None)
-    ).order_by(ExpenseCategory.name).all()
-    return [{"id": c.id, "name": c.name, "description": c.description} for c in cats]
-
-
-@router.post("/expense-categories/list")
-def create_expense_category(data: ExpenseCategoryCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    cat = ExpenseCategory(
-        name=data.name,
-        description=data.description,
-        company_id=current_user.company_id,
-    )
-    db.add(cat)
-    db.commit()
-    db.refresh(cat)
-    return {"id": cat.id, "name": cat.name, "description": cat.description}
-
-
-# ─── Xarajat qilish ───────────────────────────────────────────────────────────
-
-@router.post("/expense")
-def create_expense(data: ExpenseCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    # Wallet company isolation
-    w = db.query(Wallet).filter(Wallet.id == data.wallet_id, Wallet.company_id == current_user.company_id).first()
-    if not w:
-        raise HTTPException(404, "Kassa topilmadi")
-    if data.amount <= 0:
-        raise HTTPException(400, "Summa musbat bo'lishi kerak")
-
-    balances = get_kassa_balances(data.wallet_id, db)
-    if balances.get(data.payment_type, 0) < data.amount:
-        raise HTTPException(400, f"{data.payment_type} bo'yicha balans yetarli emas")
-
-    # Branch olish
-    from app.models.branch import Branch as _Branch
-    branch = db.query(_Branch).filter(_Branch.company_id == current_user.company_id).first()
-    branch_id = current_user.branch_id or (branch.id if branch else 0)
-
-    # Expense yozuvi
-    exp = Expense(
-        branch_id=branch_id,
-        category_id=data.category_id,
-        amount=data.amount,
-        company_id=current_user.company_id,
-        wallet_id=data.wallet_id,
-        description=data.description,
-        approved_by=current_user.id,
-    )
-    db.add(exp)
-    db.flush()
-
-    # Kassa harakati
-    session = db.query(KassaSession).filter(KassaSession.wallet_id == data.wallet_id, KassaSession.status == "open").first()
-    cat = db.get(ExpenseCategory, data.category_id)
-    mv = KassaMovement(
-        wallet_id=data.wallet_id,
-        company_id=current_user.company_id,
-        session_id=session.id if session else None,
-        direction="out",
-        payment_type=data.payment_type,
-        amount=data.amount,
-        reference_type="expense",
-        reference_id=exp.id,
-        description=data.description or (cat.name if cat else "Xarajat"),
-        created_by=current_user.id,
-    )
-    db.add(mv)
-
-    # Transaction (ChiqimTolovlar sahifasi uchun)
-    tx = Transaction(
-        company_id=current_user.company_id,
-        branch_id=branch_id,
-        wallet_id=data.wallet_id,
-        type="expense",
-        amount=data.amount,
-        payment_type=data.payment_type,
-        reference_type="expense",
-        reference_id=exp.id,
-        description=data.description or (cat.name if cat else "Xarajat"),
-    )
-    db.add(tx)
-
-    w.balance = float(w.balance or 0) - data.amount
-    db.commit()
-    return {"ok": True, "expense_id": exp.id}
+# (Expense endpoints moved above — before /{wallet_id} routes)
 
 
 @router.get("/{wallet_id}/expenses")
