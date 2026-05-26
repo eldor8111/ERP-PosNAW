@@ -159,7 +159,7 @@ def create_expense(data: ExpenseCreate, db: Session = Depends(get_db), current_u
 
 # ─── Kassalar CRUD ────────────────────────────────────────────────────────────
 
-@router.get("/")
+@router.get("")
 def list_wallets(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     wallets = db.query(Wallet).filter(
         Wallet.company_id == current_user.company_id,
