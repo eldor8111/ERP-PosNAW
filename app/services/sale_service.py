@@ -344,6 +344,7 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
                 if tx_branch_id:
                     tx = Transaction(
                         branch_id=tx_branch_id, company_id=current_user.company_id,
+                        wallet_id=_cashier_wallet_id,
                         type="income", amount=p.amount, payment_type=p.type.value,
                         reference_type="sale", reference_id=sale.id,
                         description=f"Sotuv to'lovi #{sale.number} ({p.type.value})"
