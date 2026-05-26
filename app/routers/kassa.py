@@ -6,7 +6,7 @@ from sqlalchemy import func
 from pydantic import BaseModel
 
 from app.database import get_db
-from app.core.auth import get_current_user
+from app.core.dependencies import get_current_user
 from app.models.moliya import (
     Wallet, KassaSession, KassaMovement, ExpenseCategory,
     Expense, Transaction, PAYMENT_TYPES
