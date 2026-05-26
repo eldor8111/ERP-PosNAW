@@ -19,6 +19,7 @@ from app.routers import (
 from app.routers import bin_locations, uploads, agents, telegram, lead  # type: ignore
 from app.routers import billing  # type: ignore
 from app.routers import payme as payme_router  # type: ignore
+from app.routers import kassa  # type: ignore
 from app.models import company  # noqa: F401 — ensure Alembic detects Company model
 from app.models import agent  # noqa: F401 — ensure Alembic detects Agent model
 from app.models import billing as billing_models  # noqa: F401 — ensure Alembic detects Tariff, BalanceLog
@@ -92,6 +93,47 @@ def _run_auto_migrations(engine):
             balance NUMERIC(14, 2) DEFAULT 0,
             UNIQUE(wallet_id, payment_type)
         );""",
+        # ── Kassa yangi ustunlar ──
+        "ALTER TABLE wallets ADD COLUMN IF NOT EXISTS is_open BOOLEAN DEFAULT TRUE;",
+        "ALTER TABLE wallets ADD COLUMN IF NOT EXISTS opening_balance NUMERIC(14,2) DEFAULT 0;",
+        "ALTER TABLE wallets ADD COLUMN IF NOT EXISTS opened_by INTEGER;",
+        "ALTER TABLE wallets ADD COLUMN IF NOT EXISTS closed_by INTEGER;",
+        "ALTER TABLE wallets ADD COLUMN IF NOT EXISTS opened_at TIMESTAMP;",
+        "ALTER TABLE wallets ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP;",
+        # ── Kassa sessiyalari ──
+        """CREATE TABLE IF NOT EXISTS kassa_sessions (
+            id              SERIAL PRIMARY KEY,
+            wallet_id       INTEGER NOT NULL REFERENCES wallets(id) ON DELETE CASCADE,
+            company_id      INTEGER NOT NULL REFERENCES companies(id),
+            opened_by       INTEGER REFERENCES users(id),
+            closed_by       INTEGER REFERENCES users(id),
+            opened_at       TIMESTAMP DEFAULT NOW(),
+            closed_at       TIMESTAMP,
+            opening_balance NUMERIC(14,2) DEFAULT 0,
+            closing_summary JSONB,
+            note            TEXT,
+            status          VARCHAR(20) DEFAULT 'open'
+        );""",
+        "CREATE INDEX IF NOT EXISTS ix_kassa_sessions_company ON kassa_sessions(company_id);",
+        "CREATE INDEX IF NOT EXISTS ix_kassa_sessions_wallet ON kassa_sessions(wallet_id);",
+        # ── Kassa harakatlari ──
+        """CREATE TABLE IF NOT EXISTS kassa_movements (
+            id             SERIAL PRIMARY KEY,
+            wallet_id      INTEGER REFERENCES wallets(id),
+            company_id     INTEGER NOT NULL REFERENCES companies(id),
+            session_id     INTEGER REFERENCES kassa_sessions(id),
+            direction      VARCHAR(10) NOT NULL,
+            payment_type   VARCHAR(30) NOT NULL DEFAULT 'cash',
+            amount         NUMERIC(14,2) NOT NULL,
+            reference_type VARCHAR(50),
+            reference_id   INTEGER,
+            description    TEXT,
+            created_by     INTEGER REFERENCES users(id),
+            created_at     TIMESTAMP DEFAULT NOW()
+        );""",
+        "CREATE INDEX IF NOT EXISTS ix_kassa_movements_company ON kassa_movements(company_id);",
+        "CREATE INDEX IF NOT EXISTS ix_kassa_movements_wallet ON kassa_movements(wallet_id);",
+        "CREATE INDEX IF NOT EXISTS ix_kassa_movements_created ON kassa_movements(created_at);",
     ]
     _sa_text = __import__('sqlalchemy').text
     for sql in migrations:
@@ -204,6 +246,7 @@ app.include_router(dashboard.router, prefix=API_PREFIX)
 app.include_router(billing.router, prefix=API_PREFIX)
 app.include_router(lead.router, prefix=API_PREFIX)
 app.include_router(payme_router.router, prefix=API_PREFIX)
+app.include_router(kassa.router, prefix=API_PREFIX)
 
 # Serve uploaded static files
 import os
