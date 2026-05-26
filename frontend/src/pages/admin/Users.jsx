@@ -107,13 +107,12 @@ export default function Users() {
   const openKassa = async (u) => {
     setSelected(u);
     try {
-      // User's current wallets - temporarily use all wallets and check via assign
-      const r = await api.get('/kassa');
-      setWallets(r.data);
-      // Get user's assigned wallets
-      const uwRows = await api.get(`/kassa/my-wallets`).catch(() => ({ data: [] }));
-      // Admin sees target user's wallets via backend query
-      setUserWallets([]);
+      const [walletsRes, uwRes] = await Promise.all([
+        api.get('/kassa'),
+        api.get(`/kassa/user-wallets?user_id=${u.id}`).catch(() => ({ data: [] }))
+      ]);
+      setWallets(walletsRes.data);
+      setUserWallets(uwRes.data.map(w => ({ wallet_id: w.id, is_default: w.is_default })));
     } catch { setUserWallets([]); }
     setModal('kassa');
   };

@@ -103,21 +103,30 @@ def wallet_out(wallet, db, current_user):
 
 # ─── Foydalanuvchi ↔ Kassa ───────────────────────────────────────────────────
 
-@router.get("/my-wallets")
-def my_wallets(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    """Joriy foydalanuvchiga biriktirilgan kassalar ro'yxati"""
+@router.get("/user-wallets")
+def get_user_wallets(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Berilgan foydalanuvchiga biriktirilgan kassalar ro'yxati (Admin)"""
     _sa_text = __import__('sqlalchemy').text
     rows = db.execute(
         _sa_text("SELECT wallet_id, is_default FROM user_wallets WHERE user_id=:uid"),
-        {"uid": current_user.id}
+        {"uid": user_id}
     ).fetchall()
-    wallet_ids = [r[0] for r in rows]
-    defaults = {r[0]: r[1] for r in rows}
-    if not wallet_ids:
+    if not rows:
         return []
-    wallets = db.query(Wallet).filter(Wallet.id.in_(wallet_ids), Wallet.company_id == current_user.company_id).all()
+    wallet_ids = [int(r[0]) for r in rows]
+    defaults = {int(r[0]): bool(r[1]) for r in rows}
+    wallets = db.query(Wallet).filter(
+        Wallet.id.in_(wallet_ids),
+        Wallet.company_id == current_user.company_id
+    ).all()
     return [
-        {**wallet_out(w, db, current_user), "is_default": defaults.get(w.id, False)}
+        {"id": w.id, "name": w.name, "type": w.type,
+         "is_default": defaults.get(w.id, False),
+         "balance_total": float(sum(get_kassa_balances(w.id, db).get(pt, 0) for pt in PAYMENT_TYPES))}
         for w in wallets
     ]
 
