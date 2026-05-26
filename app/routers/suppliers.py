@@ -246,7 +246,7 @@ def pay_supplier_debt(
         raise HTTPException(status_code=400, detail="To'lov miqdori musbat bo'lishi kerak")
     supplier.debt_balance = float(supplier.debt_balance or 0) - data.amount
 
-    from app.models.moliya import Transaction, Wallet
+    from app.models.moliya import Transaction, Wallet, KassaMovement
     from app.models.branch import Branch as _Branch
 
     # Wallet balansini yangilash (agar wallet tanlangan bo'lsa)
@@ -274,7 +274,21 @@ def pay_supplier_debt(
         description=data.reason
     )
     db.add(tx)
-        
+
+    # KassaMovement — ta'minotchi to'lovi (chiqim)
+    if data.wallet_id:
+        db.add(KassaMovement(
+            wallet_id=data.wallet_id,
+            company_id=current_user.company_id,
+            direction="out",
+            payment_type=data.payment_type or "cash",
+            amount=data.amount,
+            reference_type="supplier_payment",
+            reference_id=supplier_id,
+            description=f"Ta'minotchi to'lovi: {supplier.name} — {data.reason}",
+            created_by=current_user.id,
+        ))
+
     log_action(
         db,
         action="PAY_DEBT",

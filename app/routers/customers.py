@@ -199,7 +199,7 @@ def pay_debt(customer_id: int, data: DebtUpdate, db: Session = Depends(get_db), 
     cust.debt_balance -= data.amount
     
     if data.wallet_id:
-        from app.models.moliya import Transaction, Wallet
+        from app.models.moliya import Transaction, Wallet, KassaMovement
         wallet = db.get(Wallet, data.wallet_id)
         if wallet:
             wallet.balance = float(wallet.balance) + float(data.amount)
@@ -217,7 +217,19 @@ def pay_debt(customer_id: int, data: DebtUpdate, db: Session = Depends(get_db), 
             created_by=current_user.id
         )
         db.add(tx)
-        
+        # KassaMovement — mijoz to'lovi
+        db.add(KassaMovement(
+            wallet_id=data.wallet_id,
+            company_id=current_user.company_id,
+            direction="in",
+            payment_type=data.payment_type or "cash",
+            amount=data.amount,
+            reference_type="customer_payment",
+            reference_id=customer_id,
+            description=f"Mijoz to'lovi: {cust.name} — {data.reason}",
+            created_by=current_user.id,
+        ))
+
     db.commit()
     return {"message": "Qarzdorlik to'landi", "remaining_debt": float(cust.debt_balance)}
 
