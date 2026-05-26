@@ -247,6 +247,7 @@ def pay_supplier_debt(
     supplier.debt_balance = float(supplier.debt_balance or 0) - data.amount
 
     from app.models.moliya import Transaction, Wallet
+    from app.models.branch import Branch as _Branch
 
     # Wallet balansini yangilash (agar wallet tanlangan bo'lsa)
     if data.wallet_id:
@@ -254,10 +255,16 @@ def pay_supplier_debt(
         if wallet:
             wallet.balance = float(wallet.balance) - float(data.amount)
 
+    # branch_id ni xavfsiz olish
+    tx_branch_id = current_user.branch_id
+    if not tx_branch_id and current_user.company_id:
+        br = db.query(_Branch).filter(_Branch.company_id == current_user.company_id).first()
+        tx_branch_id = br.id if br else None
+
     # Tranzaksiya DOIM yoziladi (wallet_id bo'lmasa ham)
     tx = Transaction(
         company_id=current_user.company_id,
-        branch_id=current_user.branch_id or 0,
+        branch_id=tx_branch_id or 0,
         wallet_id=data.wallet_id,
         type="expense",
         amount=data.amount,

@@ -1321,6 +1321,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
           <Btn v="ghost" onClick={onBack}>{t('common.cancel')}</Btn>
           <Btn v="secondary" onClick={() => savePo('draft')} disabled={saving}>{t('purchase.saveDraft')}</Btn>
           <Btn v="secondary" onClick={() => savePo('sent')} disabled={saving}>{t('purchase.saveNoPayment')}</Btn>
+          <Btn v="amber" onClick={() => savePo('received')} disabled={saving}>Qabul qilish (Qarzga)</Btn>
           <Btn onClick={() => {
             if (!poForm.supplier_id || !poForm.warehouse_id || !poItems.length) { 
               setErr("Barcha majburiy maydonlarni (Ta'minotchi, Ombor, Mahsulotlar) to'ldiring!"); 
