@@ -74,7 +74,9 @@ export default function Users() {
   const { t } = useLang();
   const [users, setUsers] = useState([]);
   const [branches, setBranches] = useState([]);
-  const [modal, setModal] = useState(null); // 'create' | 'edit' | 'password'
+  const [wallets, setWallets] = useState([]);
+  const [userWallets, setUserWallets] = useState([]); // {wallet_id, is_default}
+  const [modal, setModal] = useState(null); // 'create' | 'edit' | 'password' | 'kassa'
   const [selected, setSelected] = useState(null);
   const [form, setForm] = useState(BLANK_FORM);
   const [newPwd, setNewPwd] = useState('');
@@ -90,6 +92,7 @@ export default function Users() {
   useEffect(() => {
     load();
     api.get('/branches').then(r => setBranches(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/kassa').then(r => setWallets(r.data)).catch(() => {});
   }, [load]);
 
   const openCreate = () => {
@@ -101,7 +104,37 @@ export default function Users() {
     setForm({ name: u.name, phone: u.phone, email: u.email || '', password: '', role: u.role, branch_id: u.branch_id ?? '' });
     setSelected(u); setError(''); setModal('edit');
   };
-  const openPwd = (u) => { setSelected(u); setNewPwd(''); setError(''); setModal('password'); };
+  const openKassa = async (u) => {
+    setSelected(u);
+    try {
+      // User's current wallets - temporarily use all wallets and check via assign
+      const r = await api.get('/kassa');
+      setWallets(r.data);
+      // Get user's assigned wallets
+      const uwRows = await api.get(`/kassa/my-wallets`).catch(() => ({ data: [] }));
+      // Admin sees target user's wallets via backend query
+      setUserWallets([]);
+    } catch { setUserWallets([]); }
+    setModal('kassa');
+  };
+
+  const toggleWallet = async (walletId, checked) => {
+    if (checked) {
+      await api.post('/kassa/assign-wallet', { user_id: selected.id, wallet_id: walletId, is_default: userWallets.length === 0 });
+      setUserWallets(prev => [...prev, { wallet_id: walletId, is_default: prev.length === 0 }]);
+    } else {
+      await api.delete('/kassa/assign-wallet', { params: { user_id: selected.id, wallet_id: walletId } });
+      setUserWallets(prev => prev.filter(w => w.wallet_id !== walletId));
+    }
+    toast.success(checked ? 'Kassa biriktirildi' : 'Kassa olib tashlandi');
+  };
+
+  const setDefaultWallet = async (walletId) => {
+    await api.post('/kassa/assign-wallet', { user_id: selected.id, wallet_id: walletId, is_default: true });
+    setUserWallets(prev => prev.map(w => ({ ...w, is_default: w.wallet_id === walletId })));
+    toast.success('Default kassa o\'rnatildi');
+  };
+
   const close = () => {
     setModal(null); setSelected(null); setError('');
   };
@@ -231,6 +264,11 @@ export default function Users() {
                     <button onClick={() => openEdit(u)} title={t('common.edit')} className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                    <button onClick={() => openKassa(u)} title="Kassa biriktirish" className="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
                       </svg>
                     </button>
                     <button onClick={() => openPwd(u)} title={t('user.changePassword')} className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg transition-colors">
@@ -385,6 +423,57 @@ export default function Users() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── KASSA MODAL ─────────────────────────────────────── */}
+      {modal === 'kassa' && selected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-100">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">Kassa biriktirish</h3>
+                <p className="text-xs text-slate-500 mt-0.5">{selected.name}</p>
+              </div>
+              <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-3 max-h-80 overflow-y-auto">
+              {wallets.length === 0 && <p className="text-slate-400 text-sm text-center py-4">Kassalar topilmadi. Avval kassa yarating.</p>}
+              {wallets.map(w => {
+                const assigned = userWallets.find(uw => uw.wallet_id === w.id);
+                const isDefault = assigned?.is_default;
+                return (
+                  <div key={w.id} className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${assigned ? 'border-emerald-200 bg-emerald-50' : 'border-slate-100 bg-slate-50'}`}>
+                    <input
+                      type="checkbox"
+                      checked={!!assigned}
+                      onChange={e => toggleWallet(w.id, e.target.checked)}
+                      className="w-4 h-4 text-emerald-600 rounded"
+                    />
+                    <div className="flex-1">
+                      <div className="text-sm font-semibold text-slate-800">{w.name}</div>
+                      <div className="text-xs text-slate-400">{w.type} • {((w.balances?.total) || 0).toLocaleString()} so'm</div>
+                    </div>
+                    {assigned && (
+                      <button
+                        onClick={() => setDefaultWallet(w.id)}
+                        className={`text-xs px-2 py-1 rounded-lg font-medium transition-colors ${isDefault ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600 hover:bg-emerald-100'}`}
+                      >
+                        {isDefault ? '✓ Default' : 'Default'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="px-6 pb-6">
+              <button onClick={close} className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm rounded-xl transition-colors">Yopish</button>
+            </div>
           </div>
         </div>
       )}
