@@ -33,6 +33,34 @@ def list_users(
     return q.all()
 
 
+@router.get("/{user_id}/wallets")
+def get_user_wallets(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Foydalanuvchiga biriktirilgan kassalar ro'yxati"""
+    _sa_text = __import__('sqlalchemy').text
+    rows = db.execute(
+        _sa_text("SELECT wallet_id, is_default FROM user_wallets WHERE user_id=:uid"),
+        {"uid": user_id}
+    ).fetchall()
+    if not rows:
+        return []
+    from app.models.moliya import Wallet
+    wallet_ids = [int(r[0]) for r in rows]
+    defaults = {int(r[0]): bool(r[1]) for r in rows}
+    wallets = db.query(Wallet).filter(
+        Wallet.id.in_(wallet_ids),
+        Wallet.company_id == current_user.company_id
+    ).all()
+    return [
+        {"id": w.id, "name": w.name, "type": w.type,
+         "is_default": defaults.get(w.id, False)}
+        for w in wallets
+    ]
+
+
 @router.get("/{user_id}", response_model=UserOut)
 def get_user(
     user_id: int,

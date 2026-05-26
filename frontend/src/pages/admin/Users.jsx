@@ -109,7 +109,7 @@ export default function Users() {
     try {
       const [walletsRes, uwRes] = await Promise.all([
         api.get('/kassa'),
-        api.get(`/kassa/user-wallets?user_id=${u.id}`).catch(() => ({ data: [] }))
+        api.get(`/users/${u.id}/wallets`).catch(() => ({ data: [] }))
       ]);
       setWallets(walletsRes.data);
       setUserWallets(uwRes.data.map(w => ({ wallet_id: w.id, is_default: w.is_default })));
