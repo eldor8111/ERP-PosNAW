@@ -17,7 +17,7 @@ const REF_LABELS = {
   sale: 'Sotuv', supplier_payment: "Ta'minotchi to'lovi",
   expense: 'Xarajat', invest: 'Investitsiya',
   withdraw: 'Chiqarish', opening: 'Ochilish balansi',
-  customer_payment: 'Mijoz to'lovi',
+  customer_payment: "Mijoz to'lovi",
 };
 
 const inp = 'w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white';
