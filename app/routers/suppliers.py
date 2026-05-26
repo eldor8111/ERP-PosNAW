@@ -245,24 +245,28 @@ def pay_supplier_debt(
     if data.amount <= 0:
         raise HTTPException(status_code=400, detail="To'lov miqdori musbat bo'lishi kerak")
     supplier.debt_balance = float(supplier.debt_balance or 0) - data.amount
-    
+
+    from app.models.moliya import Transaction, Wallet
+
+    # Wallet balansini yangilash (agar wallet tanlangan bo'lsa)
     if data.wallet_id:
-        from app.models.moliya import Transaction, Wallet
         wallet = db.get(Wallet, data.wallet_id)
         if wallet:
             wallet.balance = float(wallet.balance) - float(data.amount)
-        tx = Transaction(
-            company_id=current_user.company_id,
-            branch_id=current_user.branch_id or 0,
-            wallet_id=data.wallet_id,
-            type="expense",
-            amount=data.amount,
-            payment_type=data.payment_type,
-            reference_type="supplier_payment",
-            reference_id=supplier_id,
-            description=data.reason
-        )
-        db.add(tx)
+
+    # Tranzaksiya DOIM yoziladi (wallet_id bo'lmasa ham)
+    tx = Transaction(
+        company_id=current_user.company_id,
+        branch_id=current_user.branch_id or 0,
+        wallet_id=data.wallet_id,
+        type="expense",
+        amount=data.amount,
+        payment_type=data.payment_type,
+        reference_type="supplier_payment",
+        reference_id=supplier_id,
+        description=data.reason
+    )
+    db.add(tx)
         
     log_action(
         db,

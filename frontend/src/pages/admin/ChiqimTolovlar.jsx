@@ -221,19 +221,19 @@ export default function ChiqimTolovlar() {
           <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
             <h3 className="text-slate-500 text-sm font-semibold mb-3">Ta'minotchilarga to'lovlar</h3>
             <div className="text-slate-600 text-sm mt-3 pt-3 border-t border-slate-100">
-              Umumiy summa: <span className="font-bold text-lg text-indigo-600">{fmt(data.summary.taminotchi_tolov)}</span>
+              Umumiy summa: <span className="font-bold text-lg text-indigo-600">{fmt(data.summary.taminotchi_qarz_yopish)}</span>
             </div>
           </div>
           <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
             <h3 className="text-slate-500 text-sm font-semibold mb-3">Xarajatlar summasi</h3>
             <div className="text-slate-600 text-sm mt-3 pt-3 border-t border-slate-100">
-              Umumiy summa: <span className="font-bold text-lg text-blue-600">{fmt(data.summary.xarajat_summasi)}</span>
+              Umumiy summa: <span className="font-bold text-lg text-blue-600">{fmt(data.summary.xarajat)}</span>
             </div>
           </div>
           <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
             <h3 className="text-slate-500 text-sm font-semibold mb-3">Mijozga qaytaruv summasi</h3>
             <div className="text-slate-600 text-sm mt-3 pt-3 border-t border-slate-100">
-              Umumiy summa: <span className="font-bold text-lg text-amber-600">{fmt(data.summary.mijoz_qaytaruv)}</span>
+              Umumiy summa: <span className="font-bold text-lg text-amber-600">{fmt(data.summary.mijozga_qaytaruv)}</span>
             </div>
           </div>
         </div>
