@@ -178,6 +178,9 @@ export default function Reports() {
   const [movRefType, setMovRefType] = useState('');
   const [movDateFrom, setMovDateFrom] = useState(today());
   const [movDateTo, setMovDateTo] = useState(today());
+  const [fromSellProduct, setFromSellProduct] = useState('');
+  const [convRatio, setConvRatio] = useState('');
+  const [movProductId, setMovProductId] = useState('');
 
   // Load branches on mount
   useEffect(() => {
@@ -237,6 +240,7 @@ export default function Reports() {
         const p = new URLSearchParams({ date_from: movDateFrom, date_to: movDateTo, limit: '300' });
         if (movSearch) p.set('search', movSearch);
         if (movRefType) p.set('reference_type', movRefType);
+        if (movProductId) p.set('product_id', movProductId);
         const r = await api.get(`/inventory/movements?${p}`);
         setMovementsData(r.data);
       }
@@ -257,10 +261,14 @@ export default function Reports() {
     const urlTab = params.get('tab');
     const urlProductId = params.get('product_id');
     const urlProductName = params.get('product_name');
+    const urlFromSell = params.get('from_sell');
+    const urlRatio = params.get('ratio');
     if (urlTab === 'movements') {
       setTab('movements');
       if (urlProductName) setMovSearch(decodeURIComponent(urlProductName));
-      // 30 kunlik default filtr
+      if (urlProductId) setMovProductId(urlProductId);
+      if (urlFromSell) setFromSellProduct(decodeURIComponent(urlFromSell));
+      if (urlRatio) setConvRatio(urlRatio);
       setMovDateFrom(daysAgo(29));
       setMovDateTo(today());
     }
@@ -586,7 +594,50 @@ export default function Reports() {
                 </button>
               </div>
 
+              {/* Tarkibi mahsulot banner */}
+              {fromSellProduct && (
+                <div className="mx-6 mt-4 mb-1 bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
+                    <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-bold text-amber-800 text-sm">
+                      «{fromSellProduct}» — tarkibiy (virtual) mahsulot
+                    </p>
+                    <p className="text-amber-700 text-sm mt-0.5">
+                      Bu mahsulot sotilganda <strong>«{movSearch}»</strong> dan yechiladi.
+                      Quyida <strong>«{movSearch}»</strong> ning barcha harakatlari ko'rsatilgan.
+                    </p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-lg">
+                        {fromSellProduct}
+                      </span>
+                      <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                      </svg>
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-lg">
+                        {movSearch}
+                      </span>
+                      {convRatio && (
+                        <span className="text-xs text-amber-600 ml-1">
+                          (nisbat: {convRatio})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <button onClick={() => { setFromSellProduct(''); setConvRatio(''); }}
+                    className="text-amber-400 hover:text-amber-600 p-1 rounded-lg hover:bg-amber-100 transition-colors shrink-0">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+
               {/* Filtrlar */}
+
               <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 space-y-3">
                 <div className="flex flex-wrap gap-2">
                   {[

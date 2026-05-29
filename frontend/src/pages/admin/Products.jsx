@@ -782,7 +782,18 @@ export default function Products() {
 
   const navigate = useNavigate();
   const openHistory = (p) => {
-    navigate(`/admin/reports?tab=movements&product_id=${p.id}&product_name=${encodeURIComponent(p.name)}`);
+    // Tarkibi (sell) mahsulot bo'lsa → manba mahsulot (Butun qo'y) tarixiga yo'naltiramiz
+    if ((p.product_type === 'sell' || p.conversion) && p.conversion?.source_product_id) {
+      navigate(
+        `/admin/reports?tab=movements` +
+        `&product_id=${p.conversion.source_product_id}` +
+        `&product_name=${encodeURIComponent(p.conversion.source_product_name || '')}` +
+        `&from_sell=${encodeURIComponent(p.name)}` +
+        `&ratio=${p.conversion.ratio || 1}`
+      );
+    } else {
+      navigate(`/admin/reports?tab=movements&product_id=${p.id}&product_name=${encodeURIComponent(p.name)}`);
+    }
   };
   const closeHistory = () => { setHistProduct(null); setHistory([]); };
 
