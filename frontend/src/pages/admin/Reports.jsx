@@ -757,7 +757,21 @@ export default function Reports() {
                             <td className="px-4 py-3">
                               <div className="text-sm font-medium text-slate-800">{m.product_name}</div>
                               {m.product_sku && <div className="text-xs text-indigo-500 font-mono">{m.product_sku}</div>}
+                              {m.reason && (() => {
+                                // "(Dumba → Butun qo'y x1.0000)" formatdan sell mahsulot nomini ajratib olamiz
+                                const match = m.reason.match(/\(([^→\u2192]+)[→\u2192]/);
+                                const sellName = match ? match[1].trim() : null;
+                                return sellName ? (
+                                  <div className="flex items-center gap-1 mt-0.5">
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-bold rounded">
+                                      <span>⤷</span>
+                                      <span>{sellName}</span>
+                                    </span>
+                                  </div>
+                                ) : null;
+                              })()}
                             </td>
+
                             <td className="px-4 py-3 text-sm text-slate-600 tabular-nums">{fmt(m.qty_before)}</td>
                             <td className="px-4 py-3">
                               <span className={`text-sm font-bold tabular-nums ${delta < 0 ? 'text-red-500' : 'text-emerald-600'}`}>
