@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLang } from '../../context/LangContext';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
@@ -150,7 +150,8 @@ const Spinner = () => (
 // ─── Asosiy komponent ─────────────────────────────────────────────────────────
 export default function Reports() {
   const { t } = useLang();
-const [tab, setTab] = useState('sales');
+  const [tab, setTab] = useState('sales');
+  const urlReadRef = useRef(false);
   const [loading, setLoading] = useState(false);
   const [dateFrom, setDateFrom] = useState(today());
   const [dateTo, setDateTo] = useState(today());
@@ -247,6 +248,24 @@ const [tab, setTab] = useState('sales');
   }, [tab, dateFrom, dateTo, branchId]);
 
   useEffect(() => { load(); }, [tab]);
+
+  // URL params orqali kelganda avtomatik tab va filtr
+  useEffect(() => {
+    if (urlReadRef.current) return;
+    urlReadRef.current = true;
+    const params = new URLSearchParams(window.location.search);
+    const urlTab = params.get('tab');
+    const urlProductId = params.get('product_id');
+    const urlProductName = params.get('product_name');
+    if (urlTab === 'movements') {
+      setTab('movements');
+      if (urlProductName) setMovSearch(decodeURIComponent(urlProductName));
+      // 30 kunlik default filtr
+      setMovDateFrom(daysAgo(29));
+      setMovDateTo(today());
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const tabs = [
     { key: 'sales', label: t('reports.tab.sales'), icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },

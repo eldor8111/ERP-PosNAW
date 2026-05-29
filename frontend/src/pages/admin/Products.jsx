@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useLayoutEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import api from '../../api/axios';
@@ -779,19 +780,9 @@ export default function Products() {
     setForm(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== idx) }));
   };
 
-  /* ── history ─────────────────────────────────────── */
-  const openHistory = async (p) => {
-    setHistProduct(p);
-    setHistory([]);
-    setHistLoading(true);
-    try {
-      const r = await api.get(`/inventory/movements?product_id=${p.id}&limit=50`);
-      setHistory(r.data);
-    } catch {
-      setHistory([]);
-    } finally {
-      setHistLoading(false);
-    }
+  const navigate = useNavigate();
+  const openHistory = (p) => {
+    navigate(`/admin/reports?tab=movements&product_id=${p.id}&product_name=${encodeURIComponent(p.name)}`);
   };
   const closeHistory = () => { setHistProduct(null); setHistory([]); };
 
