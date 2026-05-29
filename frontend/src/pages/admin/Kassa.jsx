@@ -5,14 +5,20 @@ import toast from 'react-hot-toast';
 const fmt = v => Number(v || 0).toLocaleString('uz-UZ');
 const fmtDate = d => d ? new Date(d).toLocaleString('uz-UZ') : '—';
 
-const PT_LABELS = {
-  cash: '💵 Naqd', card: '💳 Karta', uzcard: '🟢 UzCard',
-  humo: '🔵 Humo', click: '🟡 Click', payme: '🔴 Payme',
-  uzum: '🟠 Uzum', keshbek: '🎁 Keshbek',
+const PT_CONFIG = {
+  cash:    { label: 'Naqd',    icon: '💵', bg: 'bg-emerald-500/15', border: 'border-emerald-500/30', text: 'text-emerald-400', dot: 'bg-emerald-400' },
+  card:    { label: 'Karta',   icon: '💳', bg: 'bg-blue-500/15',    border: 'border-blue-500/30',    text: 'text-blue-400',    dot: 'bg-blue-400'    },
+  uzcard:  { label: 'UzCard',  icon: '🟡', bg: 'bg-amber-500/15',   border: 'border-amber-500/30',   text: 'text-amber-400',   dot: 'bg-amber-400'   },
+  humo:    { label: 'Humo',    icon: '🔵', bg: 'bg-indigo-500/15',  border: 'border-indigo-500/30',  text: 'text-indigo-400',  dot: 'bg-indigo-400'  },
+  click:   { label: 'Click',   icon: '📱', bg: 'bg-yellow-500/15',  border: 'border-yellow-500/30',  text: 'text-yellow-400',  dot: 'bg-yellow-400'  },
+  payme:   { label: 'Payme',   icon: '🔴', bg: 'bg-red-500/15',     border: 'border-red-500/30',     text: 'text-red-400',     dot: 'bg-red-400'     },
+  uzum:    { label: 'Uzum',    icon: '🟠', bg: 'bg-orange-500/15',  border: 'border-orange-500/30',  text: 'text-orange-400',  dot: 'bg-orange-400'  },
+  keshbek: { label: 'Keshbek', icon: '🎁', bg: 'bg-purple-500/15',  border: 'border-purple-500/30',  text: 'text-purple-400',  dot: 'bg-purple-400'  },
 };
-const PT_KEYS = Object.keys(PT_LABELS);
+const PT_LABELS = Object.fromEntries(Object.entries(PT_CONFIG).map(([k,v])=>[k, v.icon+' '+v.label]));
+const PT_KEYS = Object.keys(PT_CONFIG);
 
-const DIR_COLORS = { in: 'text-emerald-600', out: 'text-red-500' };
+const DIR_COLORS = { in: 'text-emerald-400', out: 'text-red-400' };
 const REF_LABELS = {
   sale: 'Sotuv', supplier_payment: "Ta'minotchi to'lovi",
   expense: 'Xarajat', invest: 'Investitsiya',
@@ -105,63 +111,72 @@ function KassaCard({ kassa, onRefresh }) {
   const gradFrom = typeColor[kassa.type] || 'from-slate-700 to-slate-900';
 
   return (
-    <div className="rounded-2xl overflow-hidden shadow-lg border border-slate-200 hover:shadow-xl transition-shadow duration-300">
+    <div className="rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-slate-900 hover:shadow-indigo-500/10 transition-all duration-300">
       {/* Premium dark header */}
       <div className={`bg-gradient-to-br ${gradFrom} p-6 relative overflow-hidden`}>
-        <div className="absolute inset-0 opacity-10" style={{backgroundImage:'radial-gradient(circle at 80% 20%, white 0%, transparent 60%)'}} />
+        <div className="absolute inset-0" style={{backgroundImage:'radial-gradient(circle at 85% 15%, rgba(255,255,255,0.15) 0%, transparent 55%)'}} />
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-white/10" />
         <div className="relative flex items-start justify-between">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-2xl">{typeIcon[kassa.type] || '💰'}</span>
+            <div className="flex items-center gap-2.5 mb-2">
+              <div className="w-9 h-9 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center text-xl shadow-inner">{typeIcon[kassa.type] || '💰'}</div>
               <h3 className="text-xl font-black text-white tracking-tight">{kassa.name}</h3>
             </div>
-            <span className={`inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full backdrop-blur-sm ${
-              isOpen ? 'bg-white/20 text-white' : 'bg-black/20 text-white/70'
+            <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-sm border ${
+              isOpen ? 'bg-white/15 border-white/25 text-white' : 'bg-black/20 border-white/10 text-white/60'
             }`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}`}/>
-              {isOpen ? 'Ochiq' : 'Yopiq'}
+              <span className={`w-2 h-2 rounded-full ${isOpen ? 'bg-emerald-300 animate-pulse shadow-lg shadow-emerald-400' : 'bg-slate-400'}`}/>
+              {isOpen ? '● Ochiq' : '○ Yopiq'}
             </span>
           </div>
           <div className="text-right">
-            <div className="text-3xl font-black text-white tabular-nums">{fmt(total)}</div>
-            <div className="text-white/60 text-sm font-medium">so'm</div>
+            <div className="text-xs font-semibold text-white/50 uppercase tracking-widest mb-1">Balans</div>
+            <div className="text-3xl font-black text-white tabular-nums drop-shadow-lg">{fmt(total)}</div>
+            <div className="text-white/50 text-sm font-medium">so'm</div>
           </div>
         </div>
       </div>
 
       {/* Payment type balances */}
-      <div className="bg-slate-50 p-4 grid grid-cols-2 sm:grid-cols-4 gap-2 border-b border-slate-100">
-        {PT_KEYS.map(k => (
-          <div key={k} className="bg-white rounded-xl p-3 shadow-sm border border-slate-100 hover:border-indigo-200 transition-colors">
-            <div className="text-xs text-slate-400 font-medium mb-1">{PT_LABELS[k]}</div>
-            <div className={`text-sm font-bold tabular-nums ${(balances[k]||0) < 0 ? 'text-red-500' : (balances[k]||0) > 0 ? 'text-slate-800' : 'text-slate-400'}`}>
-              {fmt(balances[k])} <span className="text-xs font-normal text-slate-400">so'm</span>
+      <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-2 border-b border-white/5 bg-slate-800/50">
+        {PT_KEYS.map(k => {
+          const cfg = PT_CONFIG[k];
+          const val = balances[k] || 0;
+          return (
+            <div key={k} className={`${cfg.bg} border ${cfg.border} rounded-xl p-3 hover:scale-105 transition-transform cursor-default`}>
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-sm">{cfg.icon}</span>
+                <span className={`text-[10px] font-bold uppercase tracking-wider ${cfg.text}`}>{cfg.label}</span>
+              </div>
+              <div className={`text-sm font-black tabular-nums ${val < 0 ? 'text-red-400' : val > 0 ? 'text-white' : 'text-slate-500'}`}>
+                {fmt(val)} <span className="text-[10px] font-normal text-slate-500">so'm</span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Actions */}
-      <div className="bg-white px-4 py-3 flex flex-wrap gap-2">
+      <div className="bg-slate-800/80 px-4 py-3.5 flex flex-wrap gap-2">
         {!isOpen ? (
-          <button onClick={() => openModal('open')} className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-xl shadow-sm transition-all hover:shadow-emerald-200 hover:shadow-md">
+          <button onClick={() => openModal('open')} className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-emerald-500/25 transition-all hover:scale-105">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3l14 9-14 9V3z"/></svg>Ochish
           </button>
         ) : (
-          <button onClick={() => openModal('close')} className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-sm font-bold rounded-xl shadow-sm transition-all">
+          <button onClick={() => openModal('close')} className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white text-sm font-bold rounded-xl shadow-sm transition-all hover:scale-105">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>Yopish
           </button>
         )}
-        <button onClick={() => openModal('invest')} className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold rounded-xl shadow-sm transition-all hover:shadow-blue-200 hover:shadow-md">
+        <button onClick={() => openModal('invest')} className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-blue-500/25 transition-all hover:scale-105">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>Kirim
         </button>
-        <button onClick={() => openModal('withdraw')} className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl shadow-sm transition-all hover:shadow-amber-200 hover:shadow-md">
+        <button onClick={() => openModal('withdraw')} className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-amber-500/25 transition-all hover:scale-105">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>Chiqim
         </button>
-        <button onClick={() => openModal('expense')} className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-bold rounded-xl shadow-sm transition-all hover:shadow-red-200 hover:shadow-md">
+        <button onClick={() => openModal('expense')} className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-400 hover:to-rose-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-rose-500/25 transition-all hover:scale-105">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>Xarajat
         </button>
-        <button onClick={() => openModal('history')} className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border-2 border-slate-200 hover:border-indigo-300 text-slate-700 hover:text-indigo-600 text-sm font-bold rounded-xl transition-all">
+        <button onClick={() => openModal('history')} className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-700/80 hover:bg-slate-600 border border-slate-600 text-slate-300 hover:text-white text-sm font-bold rounded-xl transition-all hover:scale-105">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>Tarix
         </button>
       </div>
@@ -394,15 +409,15 @@ export default function Kassa() {
       {tab === 'kassalar' && kassalar.length > 0 && (
         <div className="grid grid-cols-3 gap-4">
           {[
-            {label:'Jami balans', value: fmt(totalBalance)+" so'm", color:'indigo', icon:'💎'},
-            {label:'Ochiq kassalar', value: totalOpen+' ta', color:'emerald', icon:'⚡'},
-            {label:'Jami kassalar', value: kassalar.length+' ta', color:'slate', icon:'🏦'},
+            { label:'Jami balans',    value: fmt(totalBalance)+" so'm", icon:'💎', grad:'from-violet-600 to-indigo-600', light:'bg-violet-500/10 border-violet-500/20 text-violet-300' },
+            { label:'Ochiq kassalar', value: totalOpen+' ta',            icon:'⚡', grad:'from-emerald-600 to-teal-600', light:'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' },
+            { label:'Jami kassalar',  value: kassalar.length+' ta',      icon:'🏦', grad:'from-blue-600 to-cyan-600',    light:'bg-blue-500/10 border-blue-500/20 text-blue-300'         },
           ].map(c=>(
-            <div key={c.label} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-center gap-4">
-              <div className={`w-12 h-12 rounded-xl bg-${c.color}-50 flex items-center justify-center text-2xl`}>{c.icon}</div>
+            <div key={c.label} className="bg-slate-800/80 border border-white/10 rounded-2xl shadow-xl p-5 flex items-center gap-4 hover:border-white/20 transition-all">
+              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${c.grad} flex items-center justify-center text-2xl shadow-lg`}>{c.icon}</div>
               <div>
-                <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{c.label}</div>
-                <div className={`text-xl font-black text-${c.color}-600 mt-0.5`}>{c.value}</div>
+                <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-0.5">{c.label}</div>
+                <div className="text-xl font-black text-white">{c.value}</div>
               </div>
             </div>
           ))}
