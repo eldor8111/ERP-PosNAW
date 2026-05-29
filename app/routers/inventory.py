@@ -102,15 +102,19 @@ def get_movements(
     product_id: Optional[int] = Query(None),
     type: Optional[MovementType] = Query(None),
     reference_type: Optional[str] = Query(None),
+    search: Optional[str] = Query(None, description="Mahsulot nomi yoki SKU"),
+    date_from: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    date_to: Optional[str] = Query(None, description="YYYY-MM-DD"),
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*WAREHOUSE_ROLES)),
 ):
+    from datetime import date as date_type, timedelta, datetime as dt
     q = (
         db.query(StockMovement)
         .join(Product, Product.id == StockMovement.product_id)
-        .options(joinedload(StockMovement.product))
+        .options(joinedload(StockMovement.product), joinedload(StockMovement.user))
         .order_by(StockMovement.created_at.desc())
     )
     q = q.filter(Product.company_id == current_user.company_id)
@@ -121,14 +125,68 @@ def get_movements(
         q = q.filter(StockMovement.type == type)
     if reference_type:
         q = q.filter(StockMovement.reference_type == reference_type)
+    if search:
+        q = q.filter(
+            (Product.name.ilike(f"%{search}%")) |
+            (Product.sku.ilike(f"%{search}%"))
+        )
+    if date_from:
+        try:
+            df = dt.strptime(date_from, "%Y-%m-%d")
+            q = q.filter(StockMovement.created_at >= df)
+        except Exception:
+            pass
+    if date_to:
+        try:
+            dt2 = dt.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
+            q = q.filter(StockMovement.created_at < dt2)
+        except Exception:
+            pass
 
     movements = q.offset(skip).limit(limit).all()
+
+    # ── Kontragent nomlarini yig'ish ──────────────────────────────────────
+    from sqlalchemy import text as sa_text
+    def _get_contragent(m: StockMovement) -> Optional[str]:
+        if not m.reference_id:
+            return None
+        rt = m.reference_type or ""
+        try:
+            if rt == "purchase_order":
+                row = db.execute(
+                    sa_text("SELECT s.name FROM purchase_orders po JOIN suppliers s ON po.supplier_id=s.id WHERE po.id=:id"),
+                    {"id": m.reference_id}
+                ).fetchone()
+                return row[0] if row else None
+            elif rt == "sale":
+                row = db.execute(
+                    sa_text("SELECT c.name FROM sales sa LEFT JOIN customers c ON sa.customer_id=c.id WHERE sa.id=:id"),
+                    {"id": m.reference_id}
+                ).fetchone()
+                return row[0] if row else "Noma'lum mijoz"
+            elif rt == "return_to_supplier":
+                row = db.execute(
+                    sa_text("SELECT name FROM suppliers WHERE id=:id"),
+                    {"id": m.reference_id}
+                ).fetchone()
+                return row[0] if row else None
+            elif rt in ("return_from_customer", "customer_return"):
+                row = db.execute(
+                    sa_text("SELECT c.name FROM sales sa LEFT JOIN customers c ON sa.customer_id=c.id WHERE sa.id=:id"),
+                    {"id": m.reference_id}
+                ).fetchone()
+                return row[0] if row else None
+        except Exception:
+            return None
+        return None
 
     return [
         StockMovementOut(
             id=m.id,
             product_id=m.product_id,
             product_name=m.product.name,
+            product_sku=m.product.sku,
+            product_unit=getattr(m.product, "unit", None),
             type=m.type,
             qty_before=m.qty_before,
             qty_after=m.qty_after,
@@ -136,6 +194,8 @@ def get_movements(
             reference_type=m.reference_type,
             reference_id=m.reference_id,
             reason=m.reason,
+            contragent_name=_get_contragent(m),
+            user_name=m.user.name if m.user else None,
             created_at=m.created_at,
         )
         for m in movements

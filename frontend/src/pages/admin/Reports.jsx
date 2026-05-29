@@ -172,6 +172,11 @@ const [tab, setTab] = useState('sales');
   const [plData, setPlData] = useState(null);
   const [batchData, setBatchData] = useState([]);
   const [productSalesData, setProductSalesData] = useState([]);
+  const [movementsData, setMovementsData] = useState([]);
+  const [movSearch, setMovSearch] = useState('');
+  const [movRefType, setMovRefType] = useState('');
+  const [movDateFrom, setMovDateFrom] = useState(today());
+  const [movDateTo, setMovDateTo] = useState(today());
 
   // Load branches on mount
   useEffect(() => {
@@ -227,6 +232,12 @@ const [tab, setTab] = useState('sales');
       } else if (tab === 'product-sales') {
         const r = await api.get(`/reports/product-sales${qs()}`);
         setProductSalesData(r.data);
+      } else if (tab === 'movements') {
+        const p = new URLSearchParams({ date_from: movDateFrom, date_to: movDateTo, limit: '300' });
+        if (movSearch) p.set('search', movSearch);
+        if (movRefType) p.set('reference_type', movRefType);
+        const r = await api.get(`/inventory/movements?${p}`);
+        setMovementsData(r.data);
       }
     } catch {
       // silent
@@ -251,6 +262,7 @@ const [tab, setTab] = useState('sales');
     { key: 'abc', label: t('reports.tab.abc'), icon: 'M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z' },
     { key: 'batches', label: t('reports.tab.batches'), icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4' },
     { key: 'product-sales', label: 'Mahsulotlar (Sotuv)', icon: 'M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z' },
+    { key: 'movements', label: '📦 Mahsulot harakatlari', icon: 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4' },
   ];
 
   return (
@@ -494,7 +506,196 @@ const [tab, setTab] = useState('sales');
           </>
         )}
 
-        {/* ── Foyda va Zarar (P&L) ── */}
+        {/* ── Mahsulot harakatlari ── */}
+        {tab === 'movements' && (() => {
+          const OP_MAP = {
+            'IN_purchase_order':       { label: 'Kirim (Xarid)',          bg: 'bg-emerald-100', text: 'text-emerald-700' },
+            'IN_manual_receive':       { label: "Qo'lda kirim",           bg: 'bg-teal-100',    text: 'text-teal-700'   },
+            'IN_return_from_customer': { label: 'Qaytarma (Mijoz)',        bg: 'bg-blue-100',    text: 'text-blue-700'   },
+            'IN_customer_return':      { label: 'Qaytarma (Mijoz)',        bg: 'bg-blue-100',    text: 'text-blue-700'   },
+            'IN_inventory_count':      { label: 'Inventarizatsiya (+)',    bg: 'bg-purple-100',  text: 'text-purple-700' },
+            'OUT_sale':                { label: 'Sotuv',                   bg: 'bg-indigo-100',  text: 'text-indigo-700' },
+            'OUT_chiqim':              { label: 'Chiqim',                  bg: 'bg-orange-100',  text: 'text-orange-700' },
+            'OUT_return_to_supplier':  { label: "Qaytarma (Ta'm.)",        bg: 'bg-amber-100',   text: 'text-amber-700'  },
+            'OUT_inventory_count':     { label: 'Inventarizatsiya (−)',    bg: 'bg-purple-100',  text: 'text-purple-700' },
+            'ADJUST_adjustment':       { label: 'Tuzatish',               bg: 'bg-slate-100',   text: 'text-slate-700'  },
+            'TRANSFER_IN_transfer':    { label: "Ko'chirma (Kirim)",       bg: 'bg-cyan-100',    text: 'text-cyan-700'   },
+            'TRANSFER_OUT_transfer':   { label: "Ko'chirma (Chiqim)",      bg: 'bg-slate-100',   text: 'text-slate-600'  },
+            'RETURN_return':           { label: 'Qaytarma',                bg: 'bg-rose-100',    text: 'text-rose-700'   },
+          };
+          const getOp = (m) => {
+            const key = `${m.type}_${m.reference_type || ''}`;
+            return OP_MAP[key] || OP_MAP[`${m.type}_`] || { label: m.reference_type || m.type, bg: 'bg-slate-100', text: 'text-slate-600' };
+          };
+          const REF_TYPES = [
+            { v: '', l: 'Barcha operatsiyalar' },
+            { v: 'purchase_order', l: 'Kirim (Xarid)' },
+            { v: 'sale', l: 'Sotuv' },
+            { v: 'chiqim', l: 'Chiqim' },
+            { v: 'return_to_supplier', l: "Qaytarma (Ta'minotchi)" },
+            { v: 'return_from_customer', l: 'Qaytarma (Mijoz)' },
+            { v: 'adjustment', l: 'Tuzatish' },
+            { v: 'inventory_count', l: 'Inventarizatsiya' },
+            { v: 'transfer', l: "Ko'chirma" },
+          ];
+          const inCount  = movementsData.filter(m => m.type === 'IN').length;
+          const outCount = movementsData.filter(m => m.type === 'OUT').length;
+          return (
+            <>
+              {/* Header */}
+              <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
+                <span className="text-sm font-bold text-slate-700">📦 Mahsulot harakatlari hisoboti</span>
+                <button onClick={() => {
+                  const ws = XLSX.utils.json_to_sheet(movementsData.map(m => ({
+                    'Sana': new Date(m.created_at).toLocaleString('uz-UZ'),
+                    'Operatsiya': getOp(m).label,
+                    'Mahsulot': m.product_name,
+                    'SKU': m.product_sku || '',
+                    'Oldingi qoldiq': Number(m.qty_before),
+                    "O'zgarish": m.type === 'OUT' ? -Number(m.quantity) : Number(m.quantity),
+                    'Yangi qoldiq': Number(m.qty_after),
+                    'Kontragent': m.contragent_name || '',
+                    'Birlik': m.product_unit || 'dona',
+                    'Foydalanuvchi': m.user_name || '',
+                  })));
+                  const wb = XLSX.utils.book_new();
+                  XLSX.utils.book_append_sheet(wb, ws, 'Harakatlar');
+                  saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `mahsulot_harakatlar_${today()}.xlsx`);
+                }} className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-semibold rounded-xl transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  Excel
+                </button>
+              </div>
+
+              {/* Filtrlar */}
+              <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { l: 'Bugun', f: today(), t: today() },
+                    { l: 'Bu hafta', f: daysAgo(6), t: today() },
+                    { l: 'Bu oy', f: firstOfMonth(), t: today() },
+                    { l: '30 kun', f: daysAgo(29), t: today() },
+                  ].map(p => (
+                    <button key={p.l} onClick={() => { setMovDateFrom(p.f); setMovDateTo(p.t); }}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                        movDateFrom === p.f && movDateTo === p.t
+                          ? 'bg-indigo-100 text-indigo-700' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}>{p.l}</button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap items-end gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Sana dan</label>
+                    <input type="date" value={movDateFrom} onChange={e => setMovDateFrom(e.target.value)}
+                      className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Sana ga</label>
+                    <input type="date" value={movDateTo} onChange={e => setMovDateTo(e.target.value)}
+                      className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Mahsulot</label>
+                    <input value={movSearch} onChange={e => setMovSearch(e.target.value)}
+                      placeholder="Nom yoki SKU..."
+                      className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-44" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Operatsiya turi</label>
+                    <select value={movRefType} onChange={e => setMovRefType(e.target.value)}
+                      className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                      {REF_TYPES.map(r => <option key={r.v} value={r.v}>{r.l}</option>)}
+                    </select>
+                  </div>
+                  <button onClick={load} disabled={loading}
+                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-colors">
+                    {loading ? 'Yuklanmoqda...' : '🔍 Izlash'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Summary */}
+              {movementsData.length > 0 && (
+                <div className="grid grid-cols-3 gap-4 px-6 py-4 border-b border-slate-100">
+                  {[
+                    { l: 'Jami harakatlar', v: movementsData.length + ' ta', color: 'slate' },
+                    { l: 'Kirim (IN)', v: inCount + ' ta', color: 'emerald' },
+                    { l: 'Chiqim (OUT)', v: outCount + ' ta', color: 'red' },
+                  ].map(c => (
+                    <div key={c.l} className="bg-white rounded-xl border border-slate-100 p-4 flex items-center gap-3 shadow-sm">
+                      <div>
+                        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{c.l}</div>
+                        <div className={`text-xl font-black text-${c.color}-600 mt-0.5`}>{c.v}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Jadval */}
+              {loading ? <Spinner /> : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-100">
+                        {['#', 'Sana', 'Operatsiya', 'Mahsulot nomi', 'Oldingi qoldiq', "O'zgarish", 'Yangi qoldiq', 'Kontragent', 'Birlik', 'Kim'].map(h => (
+                          <th key={h} className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {movementsData.map((m, i) => {
+                        const op = getOp(m);
+                        const delta = m.type === 'OUT' || m.type === 'TRANSFER_OUT'
+                          ? -Math.abs(Number(m.quantity))
+                          : Math.abs(Number(m.quantity));
+                        const qAfter = Number(m.qty_after);
+                        return (
+                          <tr key={m.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-4 py-3 text-xs text-slate-400">{i + 1}</td>
+                            <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">
+                              {new Date(m.created_at).toLocaleString('uz-UZ')}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-bold ${op.bg} ${op.text}`}>
+                                {op.label}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="text-sm font-medium text-slate-800">{m.product_name}</div>
+                              {m.product_sku && <div className="text-xs text-indigo-500 font-mono">{m.product_sku}</div>}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-600 tabular-nums">{fmt(m.qty_before)}</td>
+                            <td className="px-4 py-3">
+                              <span className={`text-sm font-bold tabular-nums ${delta < 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                                {delta > 0 ? '+' : ''}{fmt(Math.abs(delta))}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`text-sm font-bold tabular-nums ${qAfter < 0 ? 'text-red-600' : qAfter === 0 ? 'text-slate-400' : 'text-slate-800'}`}>
+                                {fmt(qAfter)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-500 max-w-[140px] truncate">
+                              {m.contragent_name || <span className="text-slate-300">—</span>}
+                            </td>
+                            <td className="px-4 py-3 text-xs text-slate-400">{m.product_unit || 'dona'}</td>
+                            <td className="px-4 py-3 text-xs text-slate-400">{m.user_name || '—'}</td>
+                          </tr>
+                        );
+                      })}
+                      {movementsData.length === 0 && (
+                        <tr><td colSpan={10} className="px-6 py-12 text-center text-sm text-slate-400">Ma'lumot topilmadi — filtrlash parametrlarini o'zgartiring</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          );
+        })()}
+
+
         {tab === 'pl' && (
           <>
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">

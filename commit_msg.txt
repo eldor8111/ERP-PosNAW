@@ -1,8 +1,0 @@
-design: Kassa sahifasiga premium dizayn
-
-- Dark gradient card header (cash=emerald, card=indigo, bank=blue)
-- Animated pulse indicator (ochiq/yopiq)
-- Payment type cards: white cards with hover effect
-- Icon + text action buttons with shadow hover
-- Summary stats bar (jami balans, ochiq kassalar)
-- Premium header with gradient button

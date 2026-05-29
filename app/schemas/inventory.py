@@ -56,6 +56,8 @@ class StockMovementOut(BaseModel):
     id: int
     product_id: int
     product_name: str
+    product_sku: Optional[str] = None
+    product_unit: Optional[str] = None
     type: MovementType
     qty_before: Decimal
     qty_after: Decimal
@@ -63,6 +65,8 @@ class StockMovementOut(BaseModel):
     reference_type: Optional[str]
     reference_id: Optional[int]
     reason: Optional[str]
+    contragent_name: Optional[str] = None
+    user_name: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
