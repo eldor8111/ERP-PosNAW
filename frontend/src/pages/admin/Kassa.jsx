@@ -100,40 +100,70 @@ function KassaCard({ kassa, onRefresh }) {
     } finally { setSaving(false); }
   };
 
+  const typeIcon = { cash:'💵', card:'💳', bank:'🏦' };
+  const typeColor = { cash:'from-emerald-600 to-emerald-800', card:'from-indigo-600 to-indigo-800', bank:'from-blue-600 to-blue-800' };
+  const gradFrom = typeColor[kassa.type] || 'from-slate-700 to-slate-900';
+
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-indigo-50 to-slate-50 border-b border-slate-100">
-        <div>
-          <h3 className="text-lg font-bold text-slate-800">{kassa.name}</h3>
-          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isOpen ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
-            {isOpen ? '⚡ Ochiq' : '🔒 Yopiq'}
-          </span>
+    <div className="rounded-2xl overflow-hidden shadow-lg border border-slate-200 hover:shadow-xl transition-shadow duration-300">
+      {/* Premium dark header */}
+      <div className={`bg-gradient-to-br ${gradFrom} p-6 relative overflow-hidden`}>
+        <div className="absolute inset-0 opacity-10" style={{backgroundImage:'radial-gradient(circle at 80% 20%, white 0%, transparent 60%)'}} />
+        <div className="relative flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-2xl">{typeIcon[kassa.type] || '💰'}</span>
+              <h3 className="text-xl font-black text-white tracking-tight">{kassa.name}</h3>
+            </div>
+            <span className={`inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full backdrop-blur-sm ${
+              isOpen ? 'bg-white/20 text-white' : 'bg-black/20 text-white/70'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}`}/>
+              {isOpen ? 'Ochiq' : 'Yopiq'}
+            </span>
+          </div>
+          <div className="text-right">
+            <div className="text-3xl font-black text-white tabular-nums">{fmt(total)}</div>
+            <div className="text-white/60 text-sm font-medium">so'm</div>
+          </div>
         </div>
-        <div className="text-2xl font-black text-indigo-700">{fmt(total)} <span className="text-sm font-medium text-slate-400">so'm</span></div>
       </div>
 
       {/* Payment type balances */}
-      <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div className="bg-slate-50 p-4 grid grid-cols-2 sm:grid-cols-4 gap-2 border-b border-slate-100">
         {PT_KEYS.map(k => (
-          <div key={k} className="bg-slate-50 rounded-xl p-3 flex flex-col">
-            <span className="text-xs text-slate-500">{PT_LABELS[k]}</span>
-            <span className={`text-sm font-bold mt-0.5 ${(balances[k] || 0) < 0 ? 'text-red-500' : 'text-slate-800'}`}>{fmt(balances[k])} so'm</span>
+          <div key={k} className="bg-white rounded-xl p-3 shadow-sm border border-slate-100 hover:border-indigo-200 transition-colors">
+            <div className="text-xs text-slate-400 font-medium mb-1">{PT_LABELS[k]}</div>
+            <div className={`text-sm font-bold tabular-nums ${(balances[k]||0) < 0 ? 'text-red-500' : (balances[k]||0) > 0 ? 'text-slate-800' : 'text-slate-400'}`}>
+              {fmt(balances[k])} <span className="text-xs font-normal text-slate-400">so'm</span>
+            </div>
           </div>
         ))}
       </div>
 
       {/* Actions */}
-      <div className="px-4 pb-4 flex flex-wrap gap-2">
+      <div className="bg-white px-4 py-3 flex flex-wrap gap-2">
         {!isOpen ? (
-          <button onClick={() => openModal('open')} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl">▶ Ochish</button>
+          <button onClick={() => openModal('open')} className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-xl shadow-sm transition-all hover:shadow-emerald-200 hover:shadow-md">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3l14 9-14 9V3z"/></svg>Ochish
+          </button>
         ) : (
-          <button onClick={() => openModal('close')} className="px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-xl">🔒 Yopish</button>
+          <button onClick={() => openModal('close')} className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-sm font-bold rounded-xl shadow-sm transition-all">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>Yopish
+          </button>
         )}
-        <button onClick={() => openModal('invest')} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl">↓ Investitsiya</button>
-        <button onClick={() => openModal('withdraw')} className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-xl">↑ Chiqarish</button>
-        <button onClick={() => openModal('expense')} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl">💸 Xarajat</button>
-        <button onClick={() => openModal('history')} className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-xl">📋 Tarixi</button>
+        <button onClick={() => openModal('invest')} className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold rounded-xl shadow-sm transition-all hover:shadow-blue-200 hover:shadow-md">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>Kirim
+        </button>
+        <button onClick={() => openModal('withdraw')} className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl shadow-sm transition-all hover:shadow-amber-200 hover:shadow-md">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>Chiqim
+        </button>
+        <button onClick={() => openModal('expense')} className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-bold rounded-xl shadow-sm transition-all hover:shadow-red-200 hover:shadow-md">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>Xarajat
+        </button>
+        <button onClick={() => openModal('history')} className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border-2 border-slate-200 hover:border-indigo-300 text-slate-700 hover:text-indigo-600 text-sm font-bold rounded-xl transition-all">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>Tarix
+        </button>
       </div>
 
       {/* Open modal */}
@@ -338,39 +368,65 @@ export default function Kassa() {
     } catch (ex) { toast.error(ex.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
   };
 
+  const totalBalance = kassalar.reduce((s,k) => s + (k.balances?.total||0), 0);
+  const totalOpen = kassalar.filter(k=>k.is_open).length;
+
   return (
     <div className="space-y-6">
+      {/* Premium Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">💰 Kassa</h1>
-          <p className="text-slate-500 text-sm mt-0.5">To'lov turlari bo'yicha kassa boshqaruvi</p>
+          <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
+            <span className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-xl flex items-center justify-center text-white text-lg shadow-md">💰</span>
+            Kassa boshqaruvi
+          </h1>
+          <p className="text-slate-400 text-sm mt-1 ml-11">Barcha kassalar va to'lov turlari</p>
         </div>
         {tab === 'kassalar' && (
-          <button onClick={() => setShowNew(true)} className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl flex items-center gap-2">
+          <button onClick={() => setShowNew(true)} className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white text-sm font-bold rounded-xl shadow-md hover:shadow-indigo-200 transition-all">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
             Yangi Kassa
           </button>
         )}
       </div>
 
+      {/* Summary Cards */}
+      {tab === 'kassalar' && kassalar.length > 0 && (
+        <div className="grid grid-cols-3 gap-4">
+          {[
+            {label:'Jami balans', value: fmt(totalBalance)+" so'm", color:'indigo', icon:'💎'},
+            {label:'Ochiq kassalar', value: totalOpen+' ta', color:'emerald', icon:'⚡'},
+            {label:'Jami kassalar', value: kassalar.length+' ta', color:'slate', icon:'🏦'},
+          ].map(c=>(
+            <div key={c.label} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-center gap-4">
+              <div className={`w-12 h-12 rounded-xl bg-${c.color}-50 flex items-center justify-center text-2xl`}>{c.icon}</div>
+              <div>
+                <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{c.label}</div>
+                <div className={`text-xl font-black text-${c.color}-600 mt-0.5`}>{c.value}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`px-5 py-2 text-sm font-semibold rounded-lg transition-all ${tab===t.id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+            className={`px-5 py-2 text-sm font-bold rounded-lg transition-all ${tab===t.id ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
             {t.label}
           </button>
         ))}
       </div>
 
       {tab === 'kassalar' && (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-5">
           {kassalar.map(k => <KassaCard key={k.id} kassa={k} onRefresh={load}/>)}
           {kassalar.length === 0 && (
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center text-slate-400">
-              <div className="text-4xl mb-3">💰</div>
-              <p className="font-semibold">Hali kassa yaratilmagan</p>
-              <p className="text-sm mt-1">Yangi Kassa tugmasini bosing</p>
+            <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-16 text-center">
+              <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">💰</div>
+              <p className="font-bold text-slate-600">Hali kassa yaratilmagan</p>
+              <p className="text-sm text-slate-400 mt-1">Yangi Kassa tugmasini bosib boshlang</p>
             </div>
           )}
         </div>

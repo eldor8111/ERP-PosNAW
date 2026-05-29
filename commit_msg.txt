@@ -1,7 +1,8 @@
-fix: foydalanuvchiga kassa biriktirish to'liq tuzatildi
+design: Kassa sahifasiga premium dizayn
 
-- users.py: POST /users/{id}/wallets - kassa biriktirish
-- users.py: DELETE /users/{id}/wallets/{wallet_id} - olib tashlash
-- users.py: POST /users/{id}/wallets/{wallet_id}/set-default
-- Users.jsx: barcha kassa API chaqiruvlari yangi endpointlarga o'zgartirildi
-- Xato handling qo'shildi (toast.error)
+- Dark gradient card header (cash=emerald, card=indigo, bank=blue)
+- Animated pulse indicator (ochiq/yopiq)
+- Payment type cards: white cards with hover effect
+- Icon + text action buttons with shadow hover
+- Summary stats bar (jami balans, ochiq kassalar)
+- Premium header with gradient button
