@@ -109,10 +109,10 @@ export default function Users() {
     try {
       const [walletsRes, uwRes] = await Promise.all([
         api.get('/kassa'),
-        api.get(`/users/${u.id}/wallets`).catch(() => ({ data: [] }))
+        api.get(`/kassa/user-wallets?user_id=${u.id}`).catch(() => ({ data: [] }))
       ]);
       setWallets(walletsRes.data);
-      setUserWallets(uwRes.data.map(w => ({ wallet_id: w.id, is_default: w.is_default })));
+      setUserWallets((uwRes.data || []).map(w => ({ wallet_id: w.id, is_default: w.is_default })));
     } catch { setUserWallets([]); }
     setModal('kassa');
   };
