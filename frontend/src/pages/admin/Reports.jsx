@@ -536,24 +536,47 @@ export default function Reports() {
         {/* ── Mahsulot harakatlari ── */}
         {tab === 'movements' && (() => {
           const OP_MAP = {
-            'IN_purchase_order':       { label: 'Kirim (Xarid)',          bg: 'bg-emerald-100', text: 'text-emerald-700' },
-            'IN_manual_receive':       { label: "Qo'lda kirim",           bg: 'bg-teal-100',    text: 'text-teal-700'   },
-            'IN_return_from_customer': { label: 'Qaytarma (Mijoz)',        bg: 'bg-blue-100',    text: 'text-blue-700'   },
-            'IN_customer_return':      { label: 'Qaytarma (Mijoz)',        bg: 'bg-blue-100',    text: 'text-blue-700'   },
-            'IN_inventory_count':      { label: 'Inventarizatsiya (+)',    bg: 'bg-purple-100',  text: 'text-purple-700' },
-            'OUT_sale':                { label: 'Sotuv',                   bg: 'bg-indigo-100',  text: 'text-indigo-700' },
-            'OUT_chiqim':              { label: 'Chiqim',                  bg: 'bg-orange-100',  text: 'text-orange-700' },
-            'OUT_return_to_supplier':  { label: "Qaytarma (Ta'm.)",        bg: 'bg-amber-100',   text: 'text-amber-700'  },
-            'OUT_inventory_count':     { label: 'Inventarizatsiya (−)',    bg: 'bg-purple-100',  text: 'text-purple-700' },
-            'ADJUST_adjustment':       { label: 'Tuzatish',               bg: 'bg-slate-100',   text: 'text-slate-700'  },
-            'TRANSFER_IN_transfer':    { label: "Ko'chirma (Kirim)",       bg: 'bg-cyan-100',    text: 'text-cyan-700'   },
-            'TRANSFER_OUT_transfer':   { label: "Ko'chirma (Chiqim)",      bg: 'bg-slate-100',   text: 'text-slate-600'  },
-            'RETURN_return':           { label: 'Qaytarma',                bg: 'bg-rose-100',    text: 'text-rose-700'   },
+            // IN variants
+            'IN_purchase_order':        { label: 'Kirim (Xarid)',          bg: 'bg-emerald-100', text: 'text-emerald-700' },
+            'IN_manual_receive':        { label: "Qo'lda kirim",           bg: 'bg-teal-100',    text: 'text-teal-700'   },
+            'IN_return_from_customer':  { label: 'Qaytarma (Mijoz)',        bg: 'bg-blue-100',    text: 'text-blue-700'   },
+            'IN_customer_return':       { label: 'Qaytarma (Mijoz)',        bg: 'bg-blue-100',    text: 'text-blue-700'   },
+            'IN_inventory_count':       { label: 'Inventarizatsiya (+)',    bg: 'bg-purple-100',  text: 'text-purple-700' },
+            'IN_stock_transfer':        { label: "Ko'chirma (Kirim)",       bg: 'bg-cyan-100',    text: 'text-cyan-700'   },
+            'IN_transfer':              { label: "Ko'chirma (Kirim)",       bg: 'bg-cyan-100',    text: 'text-cyan-700'   },
+            'IN_':                      { label: 'Kirim',                   bg: 'bg-emerald-100', text: 'text-emerald-700' },
+            // OUT variants
+            'OUT_sale':                 { label: 'Sotuv',                   bg: 'bg-indigo-100',  text: 'text-indigo-700' },
+            'OUT_chiqim':               { label: 'Chiqim',                  bg: 'bg-orange-100',  text: 'text-orange-700' },
+            'OUT_return_to_supplier':   { label: "Qaytarma (Ta'm.)",        bg: 'bg-amber-100',   text: 'text-amber-700'  },
+            'OUT_inventory_count':      { label: 'Inventarizatsiya (\u2212)', bg: 'bg-purple-100', text: 'text-purple-700' },
+            'OUT_stock_transfer':       { label: "Ko'chirma (Chiqim)",      bg: 'bg-slate-100',   text: 'text-slate-600'  },
+            'OUT_transfer':             { label: "Ko'chirma (Chiqim)",      bg: 'bg-slate-100',   text: 'text-slate-600'  },
+            'OUT_':                     { label: 'Chiqim',                  bg: 'bg-orange-100',  text: 'text-orange-700' },
+            // ADJUST
+            'ADJUST_adjustment':        { label: 'Tuzatish',               bg: 'bg-slate-100',   text: 'text-slate-700'  },
+            'ADJUST_inventory_count':   { label: 'Inventarizatsiya',        bg: 'bg-purple-100',  text: 'text-purple-700' },
+            'ADJUST_':                  { label: 'Tuzatish',               bg: 'bg-slate-100',   text: 'text-slate-700'  },
+            // TRANSFER
+            'TRANSFER_IN_transfer':     { label: "Ko'chirma (Kirim)",       bg: 'bg-cyan-100',    text: 'text-cyan-700'   },
+            'TRANSFER_IN_stock_transfer':{ label: "Ko'chirma (Kirim)",      bg: 'bg-cyan-100',    text: 'text-cyan-700'   },
+            'TRANSFER_IN_':             { label: "Ko'chirma (Kirim)",       bg: 'bg-cyan-100',    text: 'text-cyan-700'   },
+            'TRANSFER_OUT_transfer':    { label: "Ko'chirma (Chiqim)",      bg: 'bg-slate-100',   text: 'text-slate-600'  },
+            'TRANSFER_OUT_stock_transfer':{ label: "Ko'chirma (Chiqim)",    bg: 'bg-slate-100',   text: 'text-slate-600'  },
+            'TRANSFER_OUT_':            { label: "Ko'chirma (Chiqim)",      bg: 'bg-slate-100',   text: 'text-slate-600'  },
+            // RETURN
+            'RETURN_return':            { label: 'Qaytarma',                bg: 'bg-rose-100',    text: 'text-rose-700'   },
+            'RETURN_':                  { label: 'Qaytarma',                bg: 'bg-rose-100',    text: 'text-rose-700'   },
           };
           const getOp = (m) => {
             const key = `${m.type}_${m.reference_type || ''}`;
-            return OP_MAP[key] || OP_MAP[`${m.type}_`] || { label: m.reference_type || m.type, bg: 'bg-slate-100', text: 'text-slate-600' };
+            return (
+              OP_MAP[key] ||
+              OP_MAP[`${m.type}_`] ||
+              { label: m.reference_type ? m.reference_type.replace(/_/g, ' ') : m.type, bg: 'bg-slate-100', text: 'text-slate-600' }
+            );
           };
+
           const REF_TYPES = [
             { v: '', l: 'Barcha operatsiyalar' },
             { v: 'purchase_order', l: 'Kirim (Xarid)' },
