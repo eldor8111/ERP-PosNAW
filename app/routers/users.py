@@ -61,6 +61,79 @@ def get_user_wallets(
     ]
 
 
+from pydantic import BaseModel as _BaseModel
+class _AssignWalletIn(_BaseModel):
+    wallet_id: int
+    is_default: bool = False
+
+
+@router.post("/{user_id}/wallets", status_code=200)
+def assign_wallet_to_user(
+    user_id: int,
+    data: _AssignWalletIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Foydalanuvchiga kassa biriktirish"""
+    from app.models.moliya import Wallet
+    _sa_text = __import__('sqlalchemy').text
+    # Wallet kompaniyaga tegishli ekanligini tekshirish
+    w = db.query(Wallet).filter(
+        Wallet.id == data.wallet_id,
+        Wallet.company_id == current_user.company_id
+    ).first()
+    if not w:
+        raise HTTPException(status_code=404, detail="Kassa topilmadi")
+    db.execute(
+        _sa_text("""
+            INSERT INTO user_wallets(user_id, wallet_id, is_default)
+            VALUES(:uid, :wid, :def)
+            ON CONFLICT(user_id, wallet_id) DO UPDATE SET is_default=EXCLUDED.is_default
+        """),
+        {"uid": user_id, "wid": data.wallet_id, "def": data.is_default}
+    )
+    db.commit()
+    return {"ok": True}
+
+
+@router.delete("/{user_id}/wallets/{wallet_id}", status_code=200)
+def remove_wallet_from_user(
+    user_id: int,
+    wallet_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Foydalanuvchidan kassani olib tashlash"""
+    _sa_text = __import__('sqlalchemy').text
+    db.execute(
+        _sa_text("DELETE FROM user_wallets WHERE user_id=:uid AND wallet_id=:wid"),
+        {"uid": user_id, "wid": wallet_id}
+    )
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/{user_id}/wallets/{wallet_id}/set-default", status_code=200)
+def set_default_wallet(
+    user_id: int,
+    wallet_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Default kassani o'rnatish"""
+    _sa_text = __import__('sqlalchemy').text
+    db.execute(
+        _sa_text("""
+            INSERT INTO user_wallets(user_id, wallet_id, is_default)
+            VALUES(:uid, :wid, true)
+            ON CONFLICT(user_id, wallet_id) DO UPDATE SET is_default=true
+        """),
+        {"uid": user_id, "wid": wallet_id}
+    )
+    db.commit()
+    return {"ok": True}
+
+
 @router.get("/{user_id}", response_model=UserOut)
 def get_user(
     user_id: int,

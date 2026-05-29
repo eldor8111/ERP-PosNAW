@@ -109,7 +109,7 @@ export default function Users() {
     try {
       const [walletsRes, uwRes] = await Promise.all([
         api.get('/kassa'),
-        api.get(`/kassa/user-wallets?user_id=${u.id}`).catch(() => ({ data: [] }))
+        api.get(`/users/${u.id}/wallets`).catch(() => ({ data: [] }))
       ]);
       setWallets(walletsRes.data);
       setUserWallets((uwRes.data || []).map(w => ({ wallet_id: w.id, is_default: w.is_default })));
@@ -118,20 +118,31 @@ export default function Users() {
   };
 
   const toggleWallet = async (walletId, checked) => {
-    if (checked) {
-      await api.post('/kassa/assign-wallet', { user_id: selected.id, wallet_id: walletId, is_default: userWallets.length === 0 });
-      setUserWallets(prev => [...prev, { wallet_id: walletId, is_default: prev.length === 0 }]);
-    } else {
-      await api.delete('/kassa/assign-wallet', { params: { user_id: selected.id, wallet_id: walletId } });
-      setUserWallets(prev => prev.filter(w => w.wallet_id !== walletId));
+    try {
+      if (checked) {
+        await api.post(`/users/${selected.id}/wallets`, {
+          wallet_id: walletId,
+          is_default: userWallets.length === 0
+        });
+        setUserWallets(prev => [...prev, { wallet_id: walletId, is_default: prev.length === 0 }]);
+      } else {
+        await api.delete(`/users/${selected.id}/wallets/${walletId}`);
+        setUserWallets(prev => prev.filter(w => w.wallet_id !== walletId));
+      }
+      toast.success(checked ? 'Kassa biriktirildi' : 'Kassa olib tashlandi');
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Xatolik yuz berdi');
     }
-    toast.success(checked ? 'Kassa biriktirildi' : 'Kassa olib tashlandi');
   };
 
   const setDefaultWallet = async (walletId) => {
-    await api.post('/kassa/assign-wallet', { user_id: selected.id, wallet_id: walletId, is_default: true });
-    setUserWallets(prev => prev.map(w => ({ ...w, is_default: w.wallet_id === walletId })));
-    toast.success('Default kassa o\'rnatildi');
+    try {
+      await api.post(`/users/${selected.id}/wallets/${walletId}/set-default`);
+      setUserWallets(prev => prev.map(w => ({ ...w, is_default: w.wallet_id === walletId })));
+      toast.success('Default kassa o\'rnatildi');
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Xatolik yuz berdi');
+    }
   };
 
   const close = () => {

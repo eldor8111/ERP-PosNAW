@@ -1,0 +1,7 @@
+fix: foydalanuvchiga kassa biriktirish to'liq tuzatildi
+
+- users.py: POST /users/{id}/wallets - kassa biriktirish
+- users.py: DELETE /users/{id}/wallets/{wallet_id} - olib tashlash
+- users.py: POST /users/{id}/wallets/{wallet_id}/set-default
+- Users.jsx: barcha kassa API chaqiruvlari yangi endpointlarga o'zgartirildi
+- Xato handling qo'shildi (toast.error)
