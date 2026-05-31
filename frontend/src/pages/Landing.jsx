@@ -261,7 +261,7 @@ export default function Landing() {
                 <p className="m-0 text-slate-500 leading-[1.7] text-[16px]">{t('land.omniDesc')}</p>
                 <span className="inline-flex items-center gap-1.5 text-[14px] font-bold text-blue-600 mt-5 opacity-0 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0">{t('land.chaqqon.box_more') || 'Batafsil ko\'rish'} {ICONS.arrowRight}</span>
               </div>
-              <div className="absolute -right-[30px] -bottom-[30px] w-[65%] h-[110%] bg-[url('data:image/svg+xml;utf8,<svg_xmlns=\"http://www.w3.org/2000/svg\"_width=\"100\"_height=\"100\"_opacity=\"0.1\"><rect_x=\"10\"_y=\"10\"_width=\"80\"_height=\"80\"_rx=\"12\"_stroke=\"%232563eb\"_stroke-width=\"3\"_fill=\"none\"/></svg>')] bg-repeat z-[1] opacity-50 transform perspective-[800px] rotate-y-[-15deg] transition-transform duration-[800ms] group-hover:rotate-y-[-5deg] group-hover:translate-z-[20px] group-hover:opacity-80" />
+              <div className="absolute -right-[30px] -bottom-[30px] w-[65%] h-[110%] z-[1] opacity-30 transition-opacity duration-[800ms] group-hover:opacity-60" style={{backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' opacity='0.1'%3E%3Crect x='10' y='10' width='80' height='80' rx='12' stroke='%232563eb' stroke-width='3' fill='none'/%3E%3C/svg%3E\")", backgroundRepeat:"repeat"}} />
             </div>
 
             {/* Box 2 → ERP Tizim (Analitika) */}
