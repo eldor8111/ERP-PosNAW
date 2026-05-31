@@ -325,12 +325,18 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
             tx_branch_id = br.id
 
     # Foydalanuvchining default kassasini topish
-    _sa_text2 = __import__('sqlalchemy').text
-    _uw_row = db.execute(
-        _sa_text2("SELECT wallet_id FROM user_wallets WHERE user_id=:uid ORDER BY is_default DESC LIMIT 1"),
-        {"uid": current_user.id}
-    ).fetchone()
-    _cashier_wallet_id = _uw_row[0] if _uw_row else None
+    _cashier_wallet_id = None
+    try:
+        _sa_text2 = __import__('sqlalchemy').text
+        _uw_row = db.execute(
+            _sa_text2("SELECT wallet_id FROM user_wallets WHERE user_id=:uid ORDER BY is_default DESC LIMIT 1"),
+            {"uid": current_user.id}
+        ).fetchone()
+        _cashier_wallet_id = _uw_row[0] if _uw_row else None
+    except Exception:
+        # user_wallets jadvali mavjud bo'lmasa — kassa integratsiyasiz davom etamiz
+        db.rollback()
+        _cashier_wallet_id = None
 
     # Sale'ga wallet_id saqlash
     if _cashier_wallet_id:
