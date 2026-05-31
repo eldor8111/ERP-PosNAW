@@ -126,11 +126,17 @@ def create_new_transfer(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*ALLOWED)),
 ):
+    # ─── DEBUG LOG (vaqtinchalik) ───
+    import sys
+    for it in data.items:
+        print(f"[TRANSFER DEBUG] product_id={it.product_id} qty={it.quantity} target_product_id={it.target_product_id!r}", flush=True, file=sys.stderr)
+    # ────────────────────────────────
     transfer = create_transfer(db, data, current_user.id)
     db.commit()
     cid = None if current_user.role == UserRole.super_admin else current_user.company_id
     t = _load_transfer(db, transfer.id, cid)
     return _build_transfer_out(t)
+
 
 
 @router.get("/{transfer_id}", response_model=TransferOut)
