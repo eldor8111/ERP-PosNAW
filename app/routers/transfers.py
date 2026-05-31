@@ -36,6 +36,8 @@ def _build_transfer_out(t: StockTransfer) -> TransferOut:
                 id=item.id,
                 product_id=item.product_id,
                 product_name=item.product.name,
+                target_product_id=item.target_product_id,
+                target_product_name=item.target_product.name if item.target_product else None,
                 quantity=item.quantity,
             )
             for item in t.items
@@ -51,6 +53,7 @@ def _load_transfer(db: Session, transfer_id: int, company_id: Optional[int] = No
             joinedload(StockTransfer.to_warehouse),
             joinedload(StockTransfer.creator),
             joinedload(StockTransfer.items).joinedload(StockTransferItem.product),
+            joinedload(StockTransfer.items).joinedload(StockTransferItem.target_product),
         )
         .filter(StockTransfer.id == transfer_id)
     )

@@ -43,9 +43,17 @@ def create_transfer(db: Session, data, user_id: int) -> StockTransfer:
         if prod and getattr(prod, 'product_type', 'stock') == 'sell':
             raise HTTPException(status_code=400, detail=f"'{prod.name}' tarkibiy mahsulot bo'lgani uchun uni o'tkazma qilib bo'lmaydi")
 
+        # Maqsad mahsulotni tekshirish (agar ko'rsatilgan bo'lsa)
+        target_product_id = getattr(item_data, 'target_product_id', None) or None
+        if target_product_id:
+            target_prod = db.query(Product).filter(Product.id == target_product_id).first()
+            if not target_prod:
+                raise HTTPException(status_code=404, detail=f"Maqsad mahsulot ID={target_product_id} topilmadi")
+
         item = StockTransferItem(
             transfer_id=transfer.id,
             product_id=item_data.product_id,
+            target_product_id=target_product_id,
             quantity=item_data.quantity,
         )
         db.add(item)
@@ -75,11 +83,13 @@ def create_transfer(db: Session, data, user_id: int) -> StockTransfer:
             reason=f"Transfer #{transfer.number} chiqim",
         ))
 
-        to_stock = get_or_create_stock(db, item.product_id, transfer.to_warehouse_id)
+        # Maqsad mahsulot: target_product_id bo'lsa uni, bo'lmasa product_id ni ishlatish
+        dest_product_id = item.target_product_id or item.product_id
+        to_stock = get_or_create_stock(db, dest_product_id, transfer.to_warehouse_id)
         qty_before_to = to_stock.quantity
         to_stock.quantity += item.quantity
         db.add(StockMovement(
-            product_id=item.product_id,
+            product_id=dest_product_id,
             type=MovementType.TRANSFER_IN,
             qty_before=qty_before_to,
             qty_after=to_stock.quantity,
@@ -127,12 +137,13 @@ def confirm_transfer(db: Session, transfer_id: int, user_id: int) -> StockTransf
             reason=f"Transfer #{transfer.number} chiqim",
         ))
 
-        # Add to destination warehouse
-        to_stock = get_or_create_stock(db, item.product_id, transfer.to_warehouse_id)
+        # Add to destination warehouse (target_product_id bo'lsa uni ishlatish)
+        dest_product_id = item.target_product_id or item.product_id
+        to_stock = get_or_create_stock(db, dest_product_id, transfer.to_warehouse_id)
         qty_before_to = to_stock.quantity
         to_stock.quantity += item.quantity
         db.add(StockMovement(
-            product_id=item.product_id,
+            product_id=dest_product_id,
             type=MovementType.TRANSFER_IN,
             qty_before=qty_before_to,
             qty_after=to_stock.quantity,
@@ -158,6 +169,9 @@ def delete_transfer(db: Session, transfer_id: int, current_user) -> None:
     if not transfer:
         raise HTTPException(status_code=404, detail="Transfer topilmadi")
 
+    # Transfer itemlarini id bo'yicha map qilish (target_product_id uchun)
+    item_map = {item.product_id: item for item in transfer.items}
+
     # 1. Tarixdagi StockMovement yozuvlarini o'chirish (oldingi holatga qaytarish)
     old_movements = db.query(StockMovement).filter(
         StockMovement.reference_type == "stock_transfer",
@@ -166,9 +180,8 @@ def delete_transfer(db: Session, transfer_id: int, current_user) -> None:
 
     # Har bir harakatni teskari yo'nalishda bekor qilamiz
     for movement in old_movements:
-        # Qoldiqni oldingi holatga qaytaramiz
         if movement.type == MovementType.TRANSFER_OUT:
-            # FROM warehouse uchun - qoldiqni qaytaramiz
+            # FROM warehouse uchun — manba mahsulot qoldiqini qaytaramiz
             stock = db.query(StockLevel).filter(
                 StockLevel.product_id == movement.product_id,
                 StockLevel.warehouse_id == transfer.from_warehouse_id
@@ -176,7 +189,8 @@ def delete_transfer(db: Session, transfer_id: int, current_user) -> None:
             if stock:
                 stock.quantity = movement.qty_before
         elif movement.type == MovementType.TRANSFER_IN:
-            # TO warehouse uchun - qoldiqni kamaytamiz
+            # TO warehouse uchun — maqsad mahsulot qoldiqini kamaytamiz
+            # (movement.product_id allaqachon dest_product_id bo'lib saqlanган)
             stock = db.query(StockLevel).filter(
                 StockLevel.product_id == movement.product_id,
                 StockLevel.warehouse_id == transfer.to_warehouse_id
