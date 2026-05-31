@@ -37,11 +37,11 @@ def create_transfer(db: Session, data, user_id: int) -> StockTransfer:
     db.add(transfer)
     db.flush()
 
-    from app.models.product import Product
+    from app.models.product import Product, ProductConversion
     for item_data in data.items:
         prod = db.query(Product).filter(Product.id == item_data.product_id).first()
-        if prod and getattr(prod, 'product_type', 'stock') == 'sell':
-            raise HTTPException(status_code=400, detail=f"'{prod.name}' tarkibiy mahsulot bo'lgani uchun uni o'tkazma qilib bo'lmaydi")
+        if not prod:
+            raise HTTPException(status_code=404, detail=f"Mahsulot ID={item_data.product_id} topilmadi")
 
         # Maqsad mahsulotni tekshirish (agar ko'rsatilgan bo'lsa)
         target_product_id = getattr(item_data, 'target_product_id', None) or None
@@ -60,40 +60,58 @@ def create_transfer(db: Session, data, user_id: int) -> StockTransfer:
 
     db.flush()
 
-    # ── Auto-confirm: deduct from source, add to destination immediately ──
+    # ── Auto-confirm: deduct from source, add to destination ──
+    from app.models.product import Product, ProductConversion
     for item in transfer.items:
-        from_stock = get_or_create_stock(db, item.product_id, transfer.from_warehouse_id)
-        if from_stock.quantity < item.quantity:
+        prod = db.query(Product).filter(Product.id == item.product_id).first()
+
+        # Tarkibiy (sell) mahsulot bo'lsa — manba (raw material) mahsulotidan yechish
+        conversion = db.query(ProductConversion).filter(
+            ProductConversion.sell_product_id == item.product_id
+        ).first()
+
+        if conversion:
+            # Masalan: 5 kg Dumba -> 5 * ratio kg Butun qo'ydan yechiladi
+            src_product_id = conversion.source_product_id
+            src_qty = float(item.quantity) * float(conversion.ratio)
+        else:
+            src_product_id = item.product_id
+            src_qty = float(item.quantity)
+
+        # Manba ombordan chiqim
+        from_stock = get_or_create_stock(db, src_product_id, transfer.from_warehouse_id)
+        if from_stock.quantity < src_qty:
+            prod_name = prod.name if prod else f"ID={item.product_id}"
             raise HTTPException(
                 status_code=400,
-                detail=f"Mahsulot ID={item.product_id}: manba omborida yetarli qoldiq yo'q "
-                       f"(mavjud: {from_stock.quantity}, kerak: {item.quantity})"
+                detail=f"'{prod_name}': manba omborida yetarli qoldiq yo'q "
+                       f"(mavjud: {float(from_stock.quantity):.3f}, kerak: {src_qty:.3f})"
             )
         qty_before_from = from_stock.quantity
-        from_stock.quantity -= item.quantity
+        from_stock.quantity = float(from_stock.quantity) - src_qty
         db.add(StockMovement(
-            product_id=item.product_id,
+            product_id=src_product_id,
             type=MovementType.TRANSFER_OUT,
             qty_before=qty_before_from,
             qty_after=from_stock.quantity,
-            quantity=item.quantity,
+            quantity=src_qty,
             reference_type="stock_transfer",
             reference_id=transfer.id,
             user_id=user_id,
             reason=f"Transfer #{transfer.number} chiqim",
         ))
 
-        # Maqsad mahsulot: target_product_id bo'lsa uni, bo'lmasa product_id ni ishlatish
+        # Maqsad ombor: target_product_id bo'lsa uni, aks holda source mahsulotni ishlatish
         dest_product_id = item.target_product_id or item.product_id
         to_stock = get_or_create_stock(db, dest_product_id, transfer.to_warehouse_id)
         qty_before_to = to_stock.quantity
-        to_stock.quantity += item.quantity
+        to_stock.quantity = float(to_stock.quantity) + float(item.quantity)
         db.add(StockMovement(
             product_id=dest_product_id,
             type=MovementType.TRANSFER_IN,
             qty_before=qty_before_to,
             qty_after=to_stock.quantity,
-            quantity=item.quantity,
+            quantity=float(item.quantity),
             reference_type="stock_transfer",
             reference_id=transfer.id,
             user_id=user_id,

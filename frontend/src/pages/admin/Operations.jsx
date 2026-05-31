@@ -2206,7 +2206,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                     {targetOpen && (
                       <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-60 overflow-hidden max-h-48 overflow-y-auto">
                         {products
-                          .filter(p => !targetQ.trim() || matchesSearch(p.name, targetQ) || p.barcode?.includes(targetQ))
+                          .filter(p => !targetQ.trim() || p.name.toLowerCase().includes(targetQ.toLowerCase()) || p.barcode?.includes(targetQ))
                           .filter(p => p.id !== sel.id)
                           .slice(0, 15)
                           .map(p => (
