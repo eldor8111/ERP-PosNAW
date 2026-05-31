@@ -38,6 +38,10 @@ def create_transfer(db: Session, data, user_id: int) -> StockTransfer:
     db.flush()
 
     from app.models.product import Product, ProductConversion
+
+    # SQLAlchemy cache muammosini oldini olish uchun local ro'yxatda saqlaymiz
+    collected_items = []
+
     for item_data in data.items:
         prod = db.query(Product).filter(Product.id == item_data.product_id).first()
         if not prod:
@@ -50,45 +54,54 @@ def create_transfer(db: Session, data, user_id: int) -> StockTransfer:
             if not target_prod:
                 raise HTTPException(status_code=404, detail=f"Maqsad mahsulot ID={target_product_id} topilmadi")
 
-        item = StockTransferItem(
+        orm_item = StockTransferItem(
             transfer_id=transfer.id,
             product_id=item_data.product_id,
             target_product_id=target_product_id,
             quantity=item_data.quantity,
         )
-        db.add(item)
+        db.add(orm_item)
+        # target_product_id ni item_data dan olamiz - ORM cache ga ishonmaymiz
+        collected_items.append({
+            'product_id': item_data.product_id,
+            'quantity': float(item_data.quantity),
+            'target_product_id': target_product_id,
+            'prod': prod,
+        })
+
 
     db.flush()
 
-    # ── Auto-confirm: deduct from source, add to destination ──
+    # ── Auto-confirm: collected_items dan foydalanamiz (ORM cache'ga ishonmaymiz) ──
     from app.models.product import Product, ProductConversion
-    for item in transfer.items:
-        prod = db.query(Product).filter(Product.id == item.product_id).first()
+    for ref in collected_items:
+        prod           = ref['prod']
+        product_id     = ref['product_id']
+        quantity       = ref['quantity']
+        target_prod_id = ref['target_product_id']  # ← kalit: to'g'ri qiymat
 
-        # Tarkibiy (sell) mahsulot bo'lsa — manba (raw material) mahsulotidan yechish
+        # Tarkibiy (sell) mahsulot bo'lsa — ProductConversion orqali manba mahsulotini topamiz
         conversion = db.query(ProductConversion).filter(
-            ProductConversion.sell_product_id == item.product_id
+            ProductConversion.sell_product_id == product_id
         ).first()
 
         if conversion:
-            # Masalan: 5 kg Dumba -> 5 * ratio kg Butun qo'ydan yechiladi
             src_product_id = conversion.source_product_id
-            src_qty = float(item.quantity) * float(conversion.ratio)
+            src_qty = quantity * float(conversion.ratio)
         else:
-            src_product_id = item.product_id
-            src_qty = float(item.quantity)
+            src_product_id = product_id
+            src_qty = quantity
 
         # Manba ombordan chiqim
         from_stock = get_or_create_stock(db, src_product_id, transfer.from_warehouse_id)
-        if from_stock.quantity < src_qty:
-            prod_name = prod.name if prod else f"ID={item.product_id}"
+        if float(from_stock.quantity) < src_qty:
             raise HTTPException(
                 status_code=400,
-                detail=f"'{prod_name}': manba omborida yetarli qoldiq yo'q "
+                detail=f"'{prod.name}': manba omborida yetarli qoldiq yo'q "
                        f"(mavjud: {float(from_stock.quantity):.3f}, kerak: {src_qty:.3f})"
             )
-        qty_before_from = from_stock.quantity
-        from_stock.quantity = float(from_stock.quantity) - src_qty
+        qty_before_from = float(from_stock.quantity)
+        from_stock.quantity = qty_before_from - src_qty
         db.add(StockMovement(
             product_id=src_product_id,
             type=MovementType.TRANSFER_OUT,
@@ -101,17 +114,17 @@ def create_transfer(db: Session, data, user_id: int) -> StockTransfer:
             reason=f"Transfer #{transfer.number} chiqim",
         ))
 
-        # Maqsad ombor: target_product_id bo'lsa uni, aks holda source mahsulotni ishlatish
-        dest_product_id = item.target_product_id or item.product_id
+        # Maqsad ombor: target_product_id ko'rsatilgan bo'lsa uni, aks holda source mahsulot
+        dest_product_id = target_prod_id if target_prod_id else product_id
         to_stock = get_or_create_stock(db, dest_product_id, transfer.to_warehouse_id)
-        qty_before_to = to_stock.quantity
-        to_stock.quantity = float(to_stock.quantity) + float(item.quantity)
+        qty_before_to = float(to_stock.quantity)
+        to_stock.quantity = qty_before_to + quantity
         db.add(StockMovement(
             product_id=dest_product_id,
             type=MovementType.TRANSFER_IN,
             qty_before=qty_before_to,
             qty_after=to_stock.quantity,
-            quantity=float(item.quantity),
+            quantity=quantity,
             reference_type="stock_transfer",
             reference_id=transfer.id,
             user_id=user_id,
