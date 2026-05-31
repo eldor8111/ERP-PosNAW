@@ -414,7 +414,7 @@ export default function Landing() {
 
       {/* ── Lead Capture / So'rov Qoldirish ── */}
       <section id="lead-form" className="py-[140px] bg-blue-600 relative overflow-hidden">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;utf8,<svg_xmlns=\"http://www.w3.org/2000/svg\"_width=\"60\"_height=\"60\"_opacity=\"0.1\"><circle_cx=\"2\"_cy=\"2\"_r=\"2\"_fill=\"%23fff\"/></svg>')] bg-repeat animate-[slideUp_20s_linear_infinite] opacity-40 z-0" />
+        <div className="absolute inset-0 bg-repeat animate-[slideUp_20s_linear_infinite] opacity-40 z-0" style={{backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' opacity='0.1'%3E%3Ccircle cx='2' cy='2' r='2' fill='%23fff'/%3E%3C/svg%3E\")"}} />
         <div className="max-w-[1200px] mx-auto px-6 relative z-10">
           <div className="bg-white/10 text-white backdrop-blur-[20px] border border-white/20 rounded-[24px] shadow-[0_30px_60px_rgba(0,0,0,0.2)] relative z-[1] grid grid-cols-1 lg:grid-cols-2 gap-10 text-center lg:text-left p-[30px] lg:p-[60px]">
             <div className="flex flex-col">
