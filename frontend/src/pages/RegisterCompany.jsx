@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useLang } from '../context/LangContext';
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import api from '../api/axios'
 import { ECodeLogoPrimary } from '../components/ECodeLogo'
 import ECodeLogo from '../components/ECodeLogo'
@@ -212,6 +212,7 @@ export default function RegisterCompany() {
   const [resendTimer, setResendTimer] = useState(0)
   const [verifiedToken, setVerifiedToken] = useState('')
   const [otpSession, setOtpSession] = useState('')  // JWT da saqlangan OTP sessiyasi
+  const navigate = useNavigate()
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const clearErr = k => setErrors(e => { const n = { ...e }; delete n[k]; return n })
@@ -420,7 +421,7 @@ export default function RegisterCompany() {
         </div>
 
         {/* Logo */}
-        <div className="relative flex items-center gap-3">
+        <div onClick={() => navigate('/')} className="relative cursor-pointer w-max flex items-center gap-3">
           <ECodeLogoPrimary size={40} />
         </div>
 

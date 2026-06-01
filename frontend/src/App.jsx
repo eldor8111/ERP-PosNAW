@@ -38,7 +38,6 @@ const Filiallar       = lazy(() => import('./pages/admin/Filiallar'))
 const Tariflar        = lazy(() => import('./pages/admin/Tariflar'))
 const Register        = lazy(() => import('./pages/Register'))
 const Landing         = lazy(() => import('./pages/Landing'))
-const ERPTizim        = lazy(() => import('./pages/ERPTizim'))
 const VebSaytlar      = lazy(() => import('./pages/VebSaytlar'))
 const TelegramBotlar  = lazy(() => import('./pages/TelegramBotlar'))
 const NoyobDasturlar  = lazy(() => import('./pages/NoyobDasturlar'))
@@ -115,8 +114,8 @@ export default function App() {
             ? <Navigate to="/login" replace /> 
             : <Suspense fallback={<PageLoader />}><Landing /></Suspense>
           } />
-          <Route path="/erp-tizim" element={<Suspense fallback={<PageLoader />}><ERPTizim /></Suspense>} />
           <Route path="/veb-saytlar" element={<Suspense fallback={<PageLoader />}><VebSaytlar /></Suspense>} />
+          <Route path="/erp-tizim" element={<Suspense fallback={<PageLoader />}><Landing /></Suspense>} />
           <Route path="/telegram-botlar" element={<Suspense fallback={<PageLoader />}><TelegramBotlar /></Suspense>} />
           <Route path="/noyob-dasturlar" element={<Suspense fallback={<PageLoader />}><NoyobDasturlar /></Suspense>} />
           <Route path="/chaqqon-pro" element={<Suspense fallback={<PageLoader />}><ChaqqonPro /></Suspense>} />

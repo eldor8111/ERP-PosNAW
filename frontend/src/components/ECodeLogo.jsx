@@ -13,7 +13,7 @@ const GREEN_LIGHT = '#34d399';     // emerald-400 — qorang'u fonda yorqin yash
 export default function ECodeLogo({
   size = 32,
   showText = true,
-  textClassName = 'text-[14px]',
+  textClassName = 'text-[16px]',
   className = '',
 }) {
   return (

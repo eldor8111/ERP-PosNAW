@@ -479,7 +479,7 @@ export default function Login() {
           <div className="absolute top-1/2 right-0 w-40 h-40 rounded-full bg-purple-500/20" />
         </div>
 
-        <div className="relative">
+        <div onClick={() => navigate('/landing')} className="relative cursor-pointer w-max">
           <ECodeLogoPrimary size={40} />
         </div>
 

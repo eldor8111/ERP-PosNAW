@@ -13,8 +13,11 @@
     "electron:build": "cross-env VITE_ELECTRON=true vite build && electron-builder"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.10",
     "axios": "^1.13.6",
     "file-saver": "^2.0.5",
+    "headlessui": "^0.0.0",
+    "lucide-react": "^1.17.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-hot-toast": "^2.6.0",
