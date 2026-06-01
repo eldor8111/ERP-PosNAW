@@ -95,7 +95,7 @@ sale_items = (
     .join(Sale)
     .filter(
         Sale.created_at >= START_DATE,
-        Sale.status.notin_(["cancelled", "returned"]),  # bekor qilinganlar tashqari
+        Sale.status.notin_(["cancelled", "refunded"]),  # bekor qilinganlar tashqari
     )
     .all()
 )
