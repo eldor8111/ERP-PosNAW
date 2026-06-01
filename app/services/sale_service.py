@@ -163,6 +163,8 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
             # Virtual mahsulot uchun
             "conversion": conversion,
             "source_product": source_product,
+            # Desktop POS dan kelgan per-item warehouse (None bo'lishi mumkin)
+            "item_warehouse_id": item_data.warehouse_id,
         })
         total_amount += subtotal
 
@@ -444,8 +446,8 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
         Batch.quantity > 0,
         Batch.company_id == current_user.company_id
     )
-    if data.warehouse_id is not None:
-        batches_q = batches_q.filter(Batch.warehouse_id == data.warehouse_id)
+    # MUHIM: batch larni warehouse_id ga qarab filter QILMAYMIZ
+    # Har item o'zi uchun to'g'ri ombordan yechadi
     all_batches = batches_q.order_by(Batch.created_at.asc(), Batch.id.asc()).all()
 
     # product_id → sorted list of batches (FIFO)
@@ -455,34 +457,25 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
         batches_by_product[b.product_id].append(b)
 
     # StockLevel larni olamiz.
-    # MUHIM: Virtual mahsulot source'lari (masalan Butun qo'y) DOIM barcha omborlardan
-    # qidiriladi, chunki ular boshqa omborda bo'lishi mumkin.
+    # MUHIM: BARCHA mahsulotlar uchun BARCHA omborlardan yuklaymiz (quantity desc)
+    # Har bir item keyinchalik o'zi uchun eng to'g'ri omborni tanlaydi
     from app.models.inventory import StockLevel as _SL
     stocks_by_product: dict = defaultdict(list)
 
-    # Regular mahsulotlar: faqat kerakli ombor
-    if regular_ids:
-        if data.warehouse_id is not None:
-            reg_rows = db.query(_SL).filter(
-                _SL.product_id.in_(regular_ids),
-                _SL.warehouse_id == data.warehouse_id
-            ).with_for_update().all()
-        else:
-            reg_rows = db.query(_SL).filter(
-                _SL.product_id.in_(regular_ids),
-                _SL.quantity > 0
-            ).order_by(_SL.quantity.desc()).with_for_update().all()
-        for s in reg_rows:
+    # Regular va virtual source mahsulotlar: BARCHASI barcha omborlardan
+    all_product_ids_for_stock = list(set(virtual_source_ids + regular_ids))
+    if all_product_ids_for_stock:
+        all_stock_rows = db.query(_SL).filter(
+            _SL.product_id.in_(all_product_ids_for_stock),
+        ).order_by(_SL.quantity.desc()).with_for_update().all()
+        for s in all_stock_rows:
             stocks_by_product[s.product_id].append(s)
 
-    # Virtual source mahsulotlar: BARCHA omborlardan (warehouse_id dan qat'iy nazar)
-    if virtual_source_ids:
-        virt_rows = db.query(_SL).filter(
-            _SL.product_id.in_(virtual_source_ids),
-            _SL.quantity > 0
-        ).order_by(_SL.quantity.desc()).with_for_update().all()
-        for s in virt_rows:
-            stocks_by_product[s.product_id].append(s)
+    # preferred_wh_id: agar frontend yuborgan bo'lsa prioritet berish uchun
+    # (branch detection dan emas, faqat frontend dan)
+    # Bu qiymat data.warehouse_id da saqlanadi agar frontend yuborgan bo'lsa
+    # Branch detection dan kelgan warehouse_id ni preferensiya sifatida ishlatamiz
+    preferred_wh_id = data.warehouse_id
 
     new_sale_items = []
     new_movements = []
@@ -502,33 +495,51 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
         else:
             qty_to_deduct = qty_needed
 
-        # Har item uchun qaysi ombordan yechilgani
-        item_warehouse_id = data.warehouse_id  # default
+        # Har item uchun preferred warehouse:
+        # 1. Desktop POS yuborgan item.warehouse_id (eng yuqori prioritet)
+        # 2. Global warehouse_id (branch yoki frontend dan)
+        item_preferred_wh = item_d.get("item_warehouse_id") or preferred_wh_id
 
         # --- Stock kamaytirish ---
         # Virtual mahsulot source'i uchun DOIM barcha omborlardan yechamiz
-        # Oddiy mahsulot uchun esa warehouse_id ga qarab
-        use_all_warehouses = is_virtual or (data.warehouse_id is None)
+        # Oddiy mahsulot uchun: item_preferred_wh mavjud bo'lsa u yerdan, aks holda ko'p qoldig'idan
+        use_all_warehouses = is_virtual  # Endi faqat virtual uchun true
 
         if not use_all_warehouses:
-            # Oddiy mahsulot, aniq ombor
+            # Oddiy mahsulot: har bir item uchun eng to'g'ri omborni tanlaymiz
             stocks = stocks_by_product.get(stock_product.id, [])
-            if not stocks:
+
+            # 1. Preferred warehouse da qoldiq bormi?
+            preferred_stock = None
+            if item_preferred_wh:
+                preferred_stock = next((s for s in stocks if s.warehouse_id == item_preferred_wh and s.quantity > 0), None)
+
+            if preferred_stock:
+                # Preferred ombordan yechilamiz
+                selected_stock = preferred_stock
+            elif stocks:
+                # Eng ko'p qoldig'i bor ombordan yechilamiz
+                best = max(stocks, key=lambda s: s.quantity)
+                selected_stock = best
+            else:
+                # Stock yo'q: preferred omborga yangi StockLevel yaratamiz (manfiy ketadi)
                 from app.models.inventory import StockLevel as _SL2
-                new_sl = _SL2(product_id=stock_product.id, warehouse_id=data.warehouse_id, quantity=Decimal("0"))
+                wh_for_new = item_preferred_wh
+                new_sl = _SL2(product_id=stock_product.id, warehouse_id=wh_for_new, quantity=Decimal("0"))
                 db.add(new_sl)
                 stocks = [new_sl]
                 stocks_by_product[stock_product.id] = stocks
-            stock = stocks[0]
-            item_warehouse_id = data.warehouse_id  # aniq ombor
-            qty_before = stock.quantity
-            stock.quantity -= qty_to_deduct
+                selected_stock = new_sl
+
+            item_warehouse_id = selected_stock.warehouse_id  # ← Haqiqiy ombor!
+            qty_before = selected_stock.quantity
+            selected_stock.quantity -= qty_to_deduct
             from app.models.inventory import StockMovement, MovementType
             new_movements.append(StockMovement(
                 product_id=stock_product.id,
                 type=MovementType.OUT,
                 qty_before=qty_before,
-                qty_after=stock.quantity,
+                qty_after=selected_stock.quantity,
                 quantity=qty_to_deduct,
                 reference_type="sale",
                 reference_id=sale.id,

@@ -12,6 +12,7 @@ class SaleItemCreate(BaseModel):
     quantity: Decimal
     unit_price: Optional[Decimal] = None  # None bo'lsa mahsulot narxidan oladi
     discount: Decimal = Decimal("0")
+    warehouse_id: Optional[int] = None    # Desktop POS har item uchun sklad yuboradi
 
     @field_validator("quantity")
     @classmethod
