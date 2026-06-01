@@ -1893,13 +1893,17 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
   const [localProducts, setLocalProducts] = useState(propProducts || []);
   const [step, setStep]     = useState(1);
 
-  const [form, setForm]     = useState({ from_warehouse_id: '', to_warehouse_id: '', note: '' });
-  const [items, setItems]   = useState([]);
-  const [sel, setSel]       = useState(null);
-  const [qty, setQty]       = useState('1');
-  const qtyRef              = useRef(null);
-  const [saving, setSaving] = useState(false);
-  const [err, setErr]       = useState('');
+  const [form, setForm]        = useState({ from_warehouse_id: '', to_warehouse_id: '', note: '' });
+  const [items, setItems]      = useState([]);
+  const [sel, setSel]          = useState(null);
+  const [qty, setQty]          = useState('1');
+  const [selTargetProd, setSelTargetProd] = useState(null); // maqsad omborda boshqa mahsulot
+  const [targetQ, setTargetQ]  = useState('');
+  const [targetOpen, setTargetOpen] = useState(false);
+  const targetRef              = useRef(null);
+  const qtyRef                 = useRef(null);
+  const [saving, setSaving]    = useState(false);
+  const [err, setErr]          = useState('');
 
   // Fetch products directly when entering step 2 (don't rely on possibly-empty prop)
   useEffect(() => {
@@ -1925,10 +1929,22 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
     if (!sel || !qty) return;
     setItems(prev => {
       const ex = prev.find(i => i.product_id === sel.id);
-      if (ex) return prev.map(i => i.product_id === sel.id ? { ...i, quantity: Number(i.quantity) + Number(qty) } : i);
-      return [...prev, { product_id: sel.id, product_name: sel.name, unit: sel.unit || 'dona', quantity: Number(qty), stock: Number(sel.stock_quantity || 0) }];
+      if (ex) return prev.map(i => i.product_id === sel.id
+        ? { ...i, quantity: Number(i.quantity) + Number(qty) }
+        : i
+      );
+      return [...prev, {
+        product_id: sel.id,
+        product_name: sel.name,
+        unit: sel.unit || 'dona',
+        quantity: Number(qty),
+        stock: Number(sel.stock_quantity || 0),
+        // Maqsad mahsulot mapping (ixtiyoriy)
+        target_product_id: selTargetProd ? selTargetProd.id : null,
+        target_product_name: selTargetProd ? selTargetProd.name : null,
+      }];
     });
-    setSel(null); setQty('1');
+    setSel(null); setQty('1'); setSelTargetProd(null); setTargetQ('');
   };
 
   const save = async () => {
@@ -1938,7 +1954,11 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
         from_warehouse_id: Number(form.from_warehouse_id),
         to_warehouse_id:   Number(form.to_warehouse_id),
         note: form.note || null,
-        items: items.map(i => ({ product_id: i.product_id, quantity: i.quantity })),
+        items: items.map(i => ({
+          product_id: i.product_id,
+          quantity: i.quantity,
+          target_product_id: i.target_product_id || null,
+        })),
       });
       onSaved(); onBack();
     } catch (e) { setErr(e.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
@@ -2156,7 +2176,66 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                     ⚠️ Miqdor mavjud stokdan ({fmt(sel.stock_quantity)}) ko'p
                   </div>
                 )}
+
+                {/* ── Maqsad mahsulot (ixtiyoriy mapping) ── */}
+                <div className="border-t border-indigo-200 pt-3">
+                  <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3"/>
+                    </svg>
+                    Maqsad omborda boshqa mahsulotga (ixtiyoriy)
+                  </div>
+                  <div className="relative" ref={targetRef}>
+                    <div className={`flex items-center border rounded-xl bg-white overflow-hidden focus-within:ring-2 focus-within:ring-indigo-400 transition-colors ${selTargetProd ? 'border-indigo-300' : 'border-slate-200'}`}>
+                      <svg className="w-3.5 h-3.5 ml-3 shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+                      </svg>
+                      <input
+                        value={targetOpen ? targetQ : (selTargetProd ? selTargetProd.name : '')}
+                        onChange={e => { setTargetQ(e.target.value); setTargetOpen(true); if (!e.target.value) setSelTargetProd(null); }}
+                        onFocus={() => setTargetOpen(true)}
+                        onBlur={() => setTimeout(() => setTargetOpen(false), 150)}
+                        placeholder="Bo'sh = xuddi shu mahsulot..."
+                        className="flex-1 px-2 py-2 text-xs outline-none bg-transparent min-w-0"
+                      />
+                      {selTargetProd && (
+                        <button onMouseDown={() => { setSelTargetProd(null); setTargetQ(''); }}
+                          className="px-2 text-slate-400 hover:text-red-400 leading-none text-base">×</button>
+                      )}
+                    </div>
+                    {targetOpen && (
+                      <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-60 overflow-hidden max-h-48 overflow-y-auto">
+                        {products
+                          .filter(p => !targetQ.trim() || p.name.toLowerCase().includes(targetQ.toLowerCase()) || p.barcode?.includes(targetQ))
+                          .filter(p => p.id !== sel.id)
+                          .slice(0, 15)
+                          .map(p => (
+                            <button key={p.id} onMouseDown={() => { setSelTargetProd(p); setTargetQ(''); setTargetOpen(false); }}
+                              className="w-full text-left px-3 py-2 hover:bg-indigo-50 border-b border-slate-100 last:border-0 flex justify-between items-center gap-2">
+                              <span className="text-xs font-medium text-slate-800 truncate">{p.name}</span>
+                              <span className="text-[10px] text-slate-400 shrink-0">{p.sku}</span>
+                            </button>
+                          ))}
+                        {!targetQ.trim() && (
+                          <div className="px-3 py-2 text-[10px] text-slate-400 bg-slate-50 border-t border-slate-100 text-center">
+                            Qidiruv yozing yoki bo'sh qoldiring
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {selTargetProd && (
+                    <div className="mt-1.5 flex items-center gap-1.5 text-xs text-indigo-700 font-semibold bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-200">
+                      <span className="text-slate-500">{sel.name}</span>
+                      <svg className="w-3.5 h-3.5 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3"/>
+                      </svg>
+                      <span className="text-indigo-700">{selTargetProd.name}</span>
+                    </div>
+                  )}
+                </div>
               </div>
+
             ) : (
               <div className="flex-1 flex items-center justify-center text-slate-300 flex-col gap-2 py-10">
                 <svg className="w-12 h-12 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2214,8 +2293,20 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                       <tr key={i} className="hover:bg-white/80 transition-colors">
                         <td className="px-5 py-3.5 text-slate-400 text-xs">{i+1}</td>
                         <td className="px-5 py-3.5">
-                          <div className="font-semibold text-slate-800">{it.product_name}</div>
+                          {it.target_product_name ? (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-semibold text-slate-700 text-sm">{it.product_name}</span>
+                              <svg className="w-3.5 h-3.5 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3"/>
+                              </svg>
+                              <span className="font-bold text-indigo-700 text-sm">{it.target_product_name}</span>
+                              <span className="text-[10px] bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded font-semibold">mapping</span>
+                            </div>
+                          ) : (
+                            <div className="font-semibold text-slate-800">{it.product_name}</div>
+                          )}
                         </td>
+
                         <td className="px-4 py-3.5 text-center">
                           <span className={`text-sm font-semibold ${it.quantity > it.stock ? 'text-amber-600' : 'text-slate-600'}`}>{fmt(it.stock)}</span>
                         </td>
@@ -2327,7 +2418,19 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                   {items.map((it, i) => (
                     <tr key={i} className="hover:bg-slate-50">
                       <td className="px-5 py-3 text-slate-400 text-xs">{i+1}</td>
-                      <td className="px-5 py-3 font-medium text-slate-800">{it.product_name}</td>
+                      <td className="px-5 py-3">
+                        {it.target_product_name ? (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-medium text-slate-600 text-sm">{it.product_name}</span>
+                            <svg className="w-3.5 h-3.5 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3"/>
+                            </svg>
+                            <span className="font-bold text-indigo-700 text-sm">{it.target_product_name}</span>
+                          </div>
+                        ) : (
+                          <span className="font-medium text-slate-800">{it.product_name}</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-center font-bold text-indigo-600">{it.quantity}</td>
                       <td className="px-4 py-3 text-center text-slate-400 text-xs">{it.unit}</td>
                     </tr>
