@@ -515,15 +515,22 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
         if preferred_stock:
             # Preferred ombordan yechamiz (manfiy bo'lsa ham)
             selected_stock = preferred_stock
+        elif item_preferred_wh:
+            # Stock yo'q, lekin ombor aniq tanlangan: shu omborga yangi manfiy qoldiq (StockLevel) yaratamiz!
+            from app.models.inventory import StockLevel as _SL2
+            new_sl = _SL2(product_id=stock_product.id, warehouse_id=item_preferred_wh, quantity=Decimal("0"))
+            db.add(new_sl)
+            stocks.append(new_sl)
+            stocks_by_product[stock_product.id] = stocks
+            selected_stock = new_sl
         elif stocks:
-            # Eng ko'p qoldig'i bor ombordan yechamiz (faqat ombor tanlanmagan bo'lsa)
+            # Ombor umuman tanlanmagan bo'lsa: eng ko'p qoldig'i boridan yechamiz
             best = max(stocks, key=lambda s: s.quantity)
             selected_stock = best
         else:
-            # Stock yo'q: preferred omborga yangi StockLevel yaratamiz (manfiy ketadi)
+            # Hech qanday ombor ham yo'q, stock ham yo'q
             from app.models.inventory import StockLevel as _SL2
-            wh_for_new = item_preferred_wh
-            new_sl = _SL2(product_id=stock_product.id, warehouse_id=wh_for_new, quantity=Decimal("0"))
+            new_sl = _SL2(product_id=stock_product.id, warehouse_id=None, quantity=Decimal("0"))
             db.add(new_sl)
             stocks = [new_sl]
             stocks_by_product[stock_product.id] = stocks
