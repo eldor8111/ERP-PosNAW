@@ -1,188 +1,155 @@
 """
-Qoldiq to'g'irlash skripti (Reconciliation)
-============================================
-Bu skript:
-1. Jun 1 (yoki boshqacha sana) dagi boshlang'ich qoldiq kiritishlarni (ADJUST) o'qiydi
-2. O'sha sanadan beri bo'lgan barcha sotuvlarni (sale_items.warehouse_id) o'qiydi
-3. Har bir mahsulot+ombor uchun: haqiqiy_qoldiq = boshlang'ich - jami_sotilgan
-4. stock_levels jadvalini yangilaydi
+Qoldiq to'g'irlash skripti (Reconciliation v2)
+===============================================
+MANTIQ:
+  1. Har bir mahsulot+ombor uchun ENG OXIRGI inventarizatsiya (counted_qty) = boshlang'ich qoldiq
+  2. O'sha inventarizatsiyadan keyin bo'lgan barcha sotuvlarni yechamiz
+  3. To'g'ri joriy qoldiq = counted_qty - jami_sotilgan
+  4. stock_levels jadvalini yangilaymiz
 
-ISHLATISH:
-    python fix_stock_reconcile.py
-    
-    Avval DRY_RUN=True bilan tekshirib ko'ring (hech narsani o'zgartirmaydi)
-    Keyin DRY_RUN=False qilib ishga tushiring
+DRY_RUN = True  →  faqat ko'rsatadi, o'zgartirmaydi
+DRY_RUN = False →  bazani yangilaydi
 """
 
 import sys
-from datetime import datetime, timezone
 from decimal import Decimal
 from collections import defaultdict
 
-# ===================== SOZLAMALAR =====================
-DRY_RUN = True          # True = faqat ko'rsatadi, False = bazani yangilaydi
+DRY_RUN = True          # <<< True = xavfsiz test, False = haqiqiy yangilash
 WAREHOUSE_IDS = [18, 19]  # Ombor Sveji (18), Ombor Marazelka (19)
-START_DATE = datetime(2026, 6, 1, 0, 0, 0, tzinfo=timezone.utc)  # Boshlang'ich sana
-# ======================================================
 
 sys.path.insert(0, "/root/eldor/erppos")
-
 from app.database import SessionLocal
-from app.models.inventory import StockLevel, StockMovement, MovementType
-from app.models.sale import SaleItem, Sale
-from app.models.product import Product
-from app.models.warehouse import Warehouse
+from sqlalchemy import text
 
 db = SessionLocal()
 
-print("=" * 70)
-print("QOLDIQ TO'G'IRLASH SKRIPTI")
-print(f"Rejim: {'DRY RUN (hech narsa o\'zgartirilmaydi)' if DRY_RUN else '!!! REAL YANGILASH !!!'}")
-print(f"Sana: {START_DATE.date()} dan beri")
+print("=" * 75)
+print("QOLDIQ TO'G'IRLASH SKRIPTI v2")
+print(f"Rejim: {'DRY RUN (hech narsa o\'zgartirilmaydi)' if DRY_RUN else '!!! HAQIQIY YANGILASH !!!'}")
 print(f"Omborlar: {WAREHOUSE_IDS}")
-print("=" * 70)
+print("=" * 75)
 
-# ── 1. Boshlang'ich qoldiqlarni o'qiymiz (Jun 1 dagi ADJUST harakatlari) ──
-print("\n[1] Boshlang'ich qoldiq kiritishlar (ADJUST) o'qilmoqda...")
+# ── 1. Har bir mahsulot+ombor uchun ENG OXIRGI inventarizatsiyani topamiz ──
+print("\n[1] Har mahsulot uchun eng oxirgi inventarizatsiya o'qilmoqda...")
 
-# Jun 1 dagi barcha ADJUST harakatlarini topamiz
-initial_movements = db.query(StockMovement).filter(
-    StockMovement.type == MovementType.ADJUST,
-    StockMovement.created_at >= START_DATE,
-).order_by(StockMovement.product_id, StockMovement.created_at).all()
+last_counts = db.execute(text("""
+    SELECT DISTINCT ON (p.id, ic.warehouse_id)
+        p.id         AS product_id,
+        p.name       AS product_name,
+        ic.warehouse_id,
+        w.name       AS warehouse_name,
+        ic.id        AS count_id,
+        ic.created_at AS counted_at,
+        ici.counted_qty AS initial_qty
+    FROM inventory_count_items ici
+    JOIN inventory_counts ic ON ic.id = ici.count_id
+    JOIN products p ON p.id = ici.product_id
+    LEFT JOIN warehouses w ON w.id = ic.warehouse_id
+    WHERE ic.warehouse_id = ANY(:wh_ids)
+      AND ic.status = 'completed'
+    ORDER BY p.id, ic.warehouse_id, ic.created_at DESC
+"""), {"wh_ids": WAREHOUSE_IDS}).fetchall()
 
-# Har mahsulot uchun birinchi ADJUST dan oldingi qoldiq (qty_before)
-# Bu "boshlang'ich qoldiq kiritish" vaqtida eski qoldiq qancha edi?
-# qty_after - qty_before = ADJUST qilingan miqdor
-# Agar u 0 dan yangi qo'yilgan bo'lsa, qty_before=0, qty_after=boshlang'ich
+print(f"  Topilgan: {len(last_counts)} ta mahsulot+ombor kombinatsiyasi")
 
-# Lekin bizga kerak: ADJUST dan keyin qancha bo'ldi? => qty_after
-# Birinchi ADJUST (product_id + created_at eng kichik) = boshlang'ich qoldiq
+# ── 2. Jun 1 dan beri sotuvlarni warehouse_id bo'yicha jamlaymiz ──
+print("\n[2] Jun 1 dan beri barcha sotuvlar jamlanmoqda...")
 
-initial_stock: dict = {}  # (product_id, warehouse_id) -> boshlang'ich qoldiq
+sold_rows = db.execute(text("""
+    SELECT
+        si.product_id,
+        si.warehouse_id,
+        SUM(si.quantity) AS total_sold
+    FROM sale_items si
+    JOIN sales s ON s.id = si.sale_id
+    WHERE s.created_at >= '2026-06-01 00:00:00'
+      AND s.status NOT IN ('cancelled', 'refunded')
+      AND si.warehouse_id = ANY(:wh_ids)
+    GROUP BY si.product_id, si.warehouse_id
+"""), {"wh_ids": WAREHOUSE_IDS}).fetchall()
 
-print(f"  Topilgan ADJUST harakatlari: {len(initial_movements)}")
+sold_map = {}
+for r in sold_rows:
+    sold_map[(r.product_id, r.warehouse_id)] = Decimal(str(r.total_sold))
 
-# stock_movements da warehouse_id yo'q, lekin stock_levels da bor
-# Shuning uchun Jun 1 00:00 dagi stock_levels ni o'qiymiz (qty_before dan)
-# Muqobil: sale_items dagi warehouse_id ga qarab qayta hisoblaymiz
+print(f"  Topilgan: {len(sold_map)} ta mahsulot+ombor sotuvlar")
 
-# Jun 1 da sotuv boshlanishidan OLDINGI qoldiqlarni topish:
-# Birinchi sotuvning vaqtini topamiz
-first_sale = db.query(Sale).filter(
-    Sale.created_at >= START_DATE,
-).order_by(Sale.created_at.asc()).first()
+# ── 3. To'g'ri joriy qoldiqni hisoblaymiz ──
+print("\n[3] Hisoblash...")
+print("-" * 75)
+print(f"{'Mahsulot':30s} {'Ombor':18s} {'Boshlang\'ich':>12s} {'Sotilgan':>10s} {'To\'g\'ri':>10s} {'Hozirgi':>10s} {'Farq':>8s}")
+print("-" * 75)
 
-if first_sale:
-    print(f"  Birinchi sotuv vaqti: {first_sale.created_at} (ID: {first_sale.id})")
+updates = []  # (product_id, warehouse_id, correct_qty, old_qty)
+
+for row in last_counts:
+    pid = row.product_id
+    wid = row.warehouse_id
+    
+    initial = Decimal(str(row.initial_qty)) if row.initial_qty is not None else Decimal("0")
+    sold = sold_map.get((pid, wid), Decimal("0"))
+    correct = initial - sold
+    
+    # Hozirgi qoldiq
+    cur = db.execute(text(
+        "SELECT quantity FROM stock_levels WHERE product_id=:pid AND warehouse_id=:wid"
+    ), {"pid": pid, "wid": wid}).fetchone()
+    
+    current_qty = Decimal(str(cur.quantity)) if cur else Decimal("0")
+    diff = correct - current_qty
+    
+    flag = " ✓" if abs(diff) < Decimal("0.01") else " ← TO'G'IRLASH KERAK"
+    print(f"{row.product_name[:30]:30s} {(row.warehouse_name or 'NULL')[:18]:18s} {float(initial):>12.2f} {float(sold):>10.2f} {float(correct):>10.2f} {float(current_qty):>10.2f} {float(diff):>+8.2f}{flag}")
+    
+    if abs(diff) >= Decimal("0.001"):
+        updates.append((pid, wid, correct, current_qty, row.product_name, row.warehouse_name))
+
+# ── 4. Yangilash ──
+print(f"\n[4] To'g'irlash kerak bo'lgan qatorlar soni: {len(updates)}")
+
+if not DRY_RUN and updates:
+    print("\n  Yangilanmoqda...")
+    for pid, wid, correct_qty, old_qty, pname, wname in updates:
+        # stock_levels ni yangilaymiz
+        existing = db.execute(text(
+            "SELECT id FROM stock_levels WHERE product_id=:pid AND warehouse_id=:wid"
+        ), {"pid": pid, "wid": wid}).fetchone()
+        
+        if existing:
+            db.execute(text(
+                "UPDATE stock_levels SET quantity=:qty, updated_at=NOW() WHERE product_id=:pid AND warehouse_id=:wid"
+            ), {"qty": float(correct_qty), "pid": pid, "wid": wid})
+        else:
+            db.execute(text(
+                "INSERT INTO stock_levels (product_id, warehouse_id, quantity) VALUES (:pid, :wid, :qty)"
+            ), {"pid": pid, "wid": wid, "qty": float(correct_qty)})
+        
+        print(f"  ✓ {pname[:30]} [{wname}]: {float(old_qty):.2f} → {float(correct_qty):.2f}")
+    
+    db.commit()
+    print("\n  ✅ Barcha qoldiqlar yangilandi!")
+elif DRY_RUN and updates:
+    print("\n  ⚠️  DRY RUN rejimida — hech narsa o'zgartirilmadi.")
+    print("  Haqiqiy yangilash uchun: DRY_RUN = False qilib qayta ishga tushiring.")
 else:
-    print("  Jun 1 dan beri sotuv yo'q!")
-    sys.exit(0)
+    print("\n  ✅ Hamma qoldiq to'g'ri, yangilash shart emas!")
 
-# ── 2. Hozirgi stock_levels ni o'qiymiz ──
-print("\n[2] Hozirgi qoldiqlar (stock_levels) o'qilmoqda...")
-current_stocks = db.query(StockLevel, Product).join(Product).filter(
-    StockLevel.warehouse_id.in_(WAREHOUSE_IDS)
-).all()
+print("\n" + "=" * 75)
+print("XULOSA - Hozirgi MANFIY qoldiqlar (to'g'irlanmagan):")
+neg = db.execute(text("""
+    SELECT p.name, w.name as wname, sl.quantity
+    FROM stock_levels sl
+    JOIN products p ON p.id = sl.product_id
+    LEFT JOIN warehouses w ON w.id = sl.warehouse_id
+    WHERE sl.warehouse_id = ANY(:wh_ids) AND sl.quantity < 0
+    ORDER BY sl.quantity
+"""), {"wh_ids": WAREHOUSE_IDS}).fetchall()
 
-print(f"  Topilgan qatorlar: {len(current_stocks)}")
-
-# ── 3. Jun 1 dan beri barcha sotuvlarni warehouse_id bo'yicha o'qiymiz ──
-print("\n[3] Jun 1 dan beri barcha sotuvlar o'qilmoqda...")
-
-sale_items = (
-    db.query(SaleItem)
-    .join(Sale)
-    .filter(
-        Sale.created_at >= START_DATE,
-        Sale.status.notin_(["cancelled", "refunded"]),  # bekor qilinganlar tashqari
-    )
-    .all()
-)
-
-print(f"  Topilgan sotuv elementlari: {len(sale_items)}")
-
-# Har bir (product_id, warehouse_id) uchun jami sotilgan miqdor
-sold_per_wh: dict = defaultdict(Decimal)
-for si in sale_items:
-    if si.warehouse_id:
-        sold_per_wh[(si.product_id, si.warehouse_id)] += si.quantity
-
-# ── 4. Jun 1 dagi ADJUST harakatlaridan boshlang'ich qoldiqni aniqlaymiz ──
-# ADJUST qaydlarida warehouse_id yo'q, lekin biz stock_levels dagi joriy qiymat va
-# sotuvlar yig'indisi orqali "hisoblangan" joriy qiymatni topamiz.
-
-print("\n[4] Tahlil va to'g'irlash...")
-print("-" * 70)
-print(f"{'Mahsulot':30s} {'Ombor':18s} {'Joriy':>10s} {'Sotilgan':>10s} {'To\'g\'ri':>10s} {'Farq':>10s}")
-print("-" * 70)
-
-changes_needed = []
-
-for sl, product in current_stocks:
-    wh_name = sl.warehouse.name if sl.warehouse else "NULL"
-    
-    total_sold = sold_per_wh.get((sl.product_id, sl.warehouse_id), Decimal("0"))
-    
-    # Haqiqiy joriy qoldiq = joriy_qoldiq (hozirgi baza)
-    # Bu allaqachon sotuvlar yechilgan holda
-    # Muammo: ba'zi sotuvlar NOTO'G'RI ombordan yechilgan
-    
-    # Oddiy ko'rsatib chiqamiz
-    current = float(sl.quantity)
-    sold = float(total_sold)
-    
-    print(f"{product.name[:30]:30s} {wh_name[:18]:18s} {current:>10.2f} {sold:>10.2f} {current:>10.2f} {'0':>10s}")
-
-# ── 5. SaleItems da warehouse_id=NULL bo'lganlarni topamiz (asosiy muammo) ──
-print("\n[5] Warehouse_id ko'rsatilmagan sotuv elementlari...")
-null_wh_items = [si for si in sale_items if not si.warehouse_id]
-print(f"  Warehouse_id=NULL bo'lgan elementlar: {len(null_wh_items)}")
-if null_wh_items:
-    from collections import Counter
-    prod_counts = Counter(si.product_id for si in null_wh_items)
-    for pid, cnt in prod_counts.most_common(10):
-        prod = db.query(Product).get(pid)
-        print(f"    {prod.name if prod else pid}: {cnt} ta sotuv omborsiz")
-
-# ── 6. Har bir omborga qaysi mahsulotlar qancha sotilganini ko'rsatamiz ──
-print("\n[6] Omborlar bo'yicha sotuvlar xulosasi:")
-print("-" * 50)
-
-wh_names = {w.id: w.name for w in db.query(Warehouse).filter(Warehouse.id.in_(WAREHOUSE_IDS)).all()}
-
-from collections import defaultdict
-by_wh = defaultdict(lambda: defaultdict(Decimal))
-for si in sale_items:
-    wh = si.warehouse_id or "NULL"
-    if si.product:
-        by_wh[wh][si.product.name] += si.quantity
-
-for wh_id, products in sorted(by_wh.items(), key=lambda x: str(x[0])):
-    wh_name = wh_names.get(wh_id, f"NULL (id={wh_id})")
-    print(f"\n  Ombor: {wh_name}")
-    for pname, qty in sorted(products.items(), key=lambda x: -x[1]):
-        print(f"    {pname[:35]:35s}: {float(qty):8.2f} kg sotildi")
-
-print("\n" + "=" * 70)
-print("XULOSA:")
-print(f"  Jami sotuv elementlari tekshirildi: {len(sale_items)}")
-print(f"  Omborsiz (NULL warehouse) sotuvlar: {len(null_wh_items)}")
-print(f"  Hozirgi manfiy qoldiqlar:")
-
-neg_count = 0
-for sl, product in current_stocks:
-    if sl.quantity < 0:
-        wh_name = sl.warehouse.name if sl.warehouse else "NULL"
-        print(f"    {product.name[:30]:30s} [{wh_name}]: {float(sl.quantity):8.2f}")
-        neg_count += 1
-
-if neg_count == 0:
-    print("    Manfiy qoldiq yo'q!")
-
-print("\n  To'g'irlash uchun keyingi qadam:")
-print("  Har bir mahsulot uchun boshlang'ich qoldiq + kirims - sotuvlar = joriy qoldiq")
-print("  Boshlang'ich qoldiqni kiritish sanasini ayting va to'g'irlash skriptini yozaman.")
-print("=" * 70)
-
+if neg:
+    for r in neg:
+        print(f"  {r.name[:35]:35s} [{r.wname}]: {float(r.quantity):.2f}")
+else:
+    print("  Manfiy qoldiq yo'q! ✅")
+print("=" * 75)
 db.close()
