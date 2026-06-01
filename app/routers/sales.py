@@ -88,6 +88,14 @@ def _build_sale_out(sale: Sale) -> SaleOut:
     )
 
 
+@router.get("/debug-log")
+def get_debug_log():
+    import os
+    if os.path.exists("pos_sale_debug.log"):
+        with open("pos_sale_debug.log", "r", encoding="utf-8") as f:
+            return {"log": f.read()}
+    return {"log": "Log fayl topilmadi yoki bo'sh"}
+
 @router.post("/", response_model=SaleListOut)
 def make_sale(
     data: SaleCreate,
