@@ -502,6 +502,9 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
         else:
             qty_to_deduct = qty_needed
 
+        # Har item uchun qaysi ombordan yechilgani
+        item_warehouse_id = data.warehouse_id  # default
+
         # --- Stock kamaytirish ---
         # Virtual mahsulot source'i uchun DOIM barcha omborlardan yechamiz
         # Oddiy mahsulot uchun esa warehouse_id ga qarab
@@ -517,6 +520,7 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
                 stocks = [new_sl]
                 stocks_by_product[stock_product.id] = stocks
             stock = stocks[0]
+            item_warehouse_id = data.warehouse_id  # aniq ombor
             qty_before = stock.quantity
             stock.quantity -= qty_to_deduct
             from app.models.inventory import StockMovement, MovementType
@@ -534,6 +538,9 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
         else:
             # Virtual source yoki warehouse_id=None: barcha omborlardan yechamiz
             stocks = stocks_by_product.get(stock_product.id, [])
+            # Birinchi omborni default qilib olamiz
+            if stocks:
+                item_warehouse_id = stocks[0].warehouse_id
             total_avail = sum((s.quantity for s in stocks), Decimal("0"))
             remaining_deduct = qty_to_deduct
             if total_avail < qty_to_deduct:
@@ -566,6 +573,9 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
                 qty_before = stock.quantity
                 stock.quantity -= take
                 remaining_deduct -= take
+                # Eng ko'p qoldig'i bor birinchi omborni asosiy ombor deb belgilaymiz
+                if take > 0 and item_warehouse_id is None:
+                    item_warehouse_id = stock.warehouse_id
                 new_movements.append(StockMovement(
                     product_id=stock_product.id,
                     type=MovementType.OUT,
@@ -614,6 +624,8 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
         sale_item = SaleItem(
             sale_id=sale.id,
             product_id=product.id,
+            warehouse_id=item_warehouse_id,   # Qaysi ombordan sotildi
+            unit=product.unit or "dona",       # Mahsulot o'lchov birligi
             quantity=qty_needed,
             unit_price=item_d["unit_price"],
             cost_price=exact_unit_cost,

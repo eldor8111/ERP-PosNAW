@@ -23,6 +23,7 @@ def _load_sale(db: Session, sale_id: int, user: Optional[User] = None) -> Sale:
         db.query(Sale)
         .options(
             joinedload(Sale.items).joinedload(SaleItem.product),
+            joinedload(Sale.items).joinedload(SaleItem.warehouse),
             joinedload(Sale.payments),
             joinedload(Sale.cashier),
         )
@@ -44,6 +45,13 @@ def _build_sale_out(sale: Sale) -> SaleOut:
             cost_price=i.cost_price,
             discount=i.discount,
             subtotal=i.subtotal,
+            unit=getattr(i, 'unit', None) or (i.product.unit if i.product else 'dona') or 'dona',
+            warehouse_id=getattr(i, 'warehouse_id', None),
+            warehouse_name=(
+                i.warehouse.name
+                if getattr(i, 'warehouse', None)
+                else None
+            ),
         )
         for i in sale.items
     ]

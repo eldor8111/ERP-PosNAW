@@ -91,6 +91,9 @@ class SaleItemOut(BaseModel):
     cost_price: Decimal
     discount: Decimal
     subtotal: Decimal
+    unit: Optional[str] = "dona"           # O'lchov birligi (kg, litr, dona...)
+    warehouse_id: Optional[int] = None      # Qaysi ombordan sotildi
+    warehouse_name: Optional[str] = None    # Ombor nomi
 
     model_config = {"from_attributes": True}
 
