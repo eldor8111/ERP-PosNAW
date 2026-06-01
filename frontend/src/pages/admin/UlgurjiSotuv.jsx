@@ -500,10 +500,12 @@ export default function UlgurjiSotuv() {
       const r = await api.get(`/sales/${s.id}`);
       const sale = r.data;
       setCart((sale.items || []).map(it => ({
-        product_id: it.product_id, name: it.product_name, unit: 'dona',
+        product_id: it.product_id, name: it.product_name,
+        unit: it.unit || 'dona',            // ← SaleItem dan haqiqiy unit
         qty: Number(it.quantity), price: Number(it.unit_price),
         discount_type: 'sum', discount_val: it.discount > 0 ? String(it.discount) : '',
         wholesale_price: Number(it.unit_price), sale_price: Number(it.unit_price), stock_quantity: 9999,
+        warehouse_id: it.warehouse_id || null, // ← per-item sklad (Desktop POS dan)
       })));
       setCustId(sale.customer_id ? String(sale.customer_id) : '');
       setNote(sale.note || ''); setDiscType('sum');
@@ -673,6 +675,7 @@ export default function UlgurjiSotuv() {
       const items = cart.map(it => ({
         product_id: it.product_id, quantity: it.qty, unit_price: it.price,
         discount: it.discount_type === 'pct' ? it.price * it.qty * (parseN(it.discount_val) / 100) : parseN(it.discount_val),
+        warehouse_id: it.warehouse_id || undefined, // ← per-item sklad
       }));
       const paymentsList = payments.filter(p => parseN(p.amt) > 0).map(p => ({ type: p.type, amount: parseN(p.amt) }));
       const payload = {
@@ -770,6 +773,7 @@ export default function UlgurjiSotuv() {
         discount: it.discount_type === 'pct'
           ? it.price * it.qty * (parseN(it.discount_val) / 100)
           : parseN(it.discount_val),
+        warehouse_id: it.warehouse_id || undefined, // ← per-item sklad
       }));
       const payload = {
         items,
@@ -835,11 +839,13 @@ export default function UlgurjiSotuv() {
       const sale = r.data;
       if (sale.status !== 'pending') { sessionStorage.removeItem('ulgurji_session_sale_id'); return; }
       setCart((sale.items || []).map(it => ({
-        product_id: it.product_id, name: it.product_name, unit: 'dona',
+        product_id: it.product_id, name: it.product_name,
+        unit: it.unit || 'dona',            // ← haqiqiy unit
         qty: Number(it.quantity), price: Number(it.unit_price),
         discount_type: 'sum', discount_val: it.discount > 0 ? String(it.discount) : '',
         wholesale_price: Number(it.unit_price), sale_price: Number(it.unit_price), stock_quantity: 9999,
         addedAt: Date.now(),
+        warehouse_id: it.warehouse_id || null, // ← per-item sklad
       })));
       setCustId(sale.customer_id ? String(sale.customer_id) : '');
       setNote(sale.note || '');
@@ -863,6 +869,7 @@ export default function UlgurjiSotuv() {
         discount: it.discount_type === 'pct'
           ? it.price * it.qty * (parseN(it.discount_val) / 100)
           : parseN(it.discount_val),
+        warehouse_id: it.warehouse_id || undefined, // ← per-item sklad
       }));
       const payload = {
         items,
