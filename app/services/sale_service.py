@@ -1153,6 +1153,8 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 "cost_price": cost_price,
                 "discount": discount,
                 "subtotal": subtotal,
+                # Desktop POS dan kelgan per-item warehouse (None bo'lishi mumkin)
+                "item_warehouse_id": getattr(item_d, 'warehouse_id', None),
             })
             total_amount += subtotal
 
@@ -1165,6 +1167,8 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
         # C. Yangi SaleItem yaratish + stock yechish
         final_status = data.status if data.status is not None else sale.status
         for sid in sale_items_data:
+            # Per-item warehouse: Desktop POS yuborgan > global wh_id
+            item_wh = sid.get("item_warehouse_id") or wh_id
             db.add(SaleItem(
                 sale_id=sale.id,
                 product_id=sid["product"].id,
@@ -1173,6 +1177,8 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 cost_price=sid["cost_price"],
                 discount=sid["discount"],
                 subtotal=sid["subtotal"],
+                warehouse_id=item_wh,        # ← per-item sklad
+                unit=sid["product"].unit or 'dona',  # ← haqiqiy unit
             ))
             if final_status != SaleStatus.pending:
                 deduct_product_id = sid["product"].id
@@ -1194,7 +1200,7 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                     reason=reason_str,
                     reference_type="sale",
                     reference_id=sale_id,
-                    warehouse_id=wh_id,
+                    warehouse_id=item_wh,    # ← per-item sklad (global emas!)
                     allow_negative=True,
                 )
 
