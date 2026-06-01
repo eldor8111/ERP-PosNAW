@@ -501,103 +501,49 @@ def create_sale(db: Session, data: SaleCreate, current_user: User, ip: Optional[
         item_preferred_wh = item_d.get("item_warehouse_id") or preferred_wh_id
 
         # --- Stock kamaytirish ---
-        # Virtual mahsulot source'i uchun DOIM barcha omborlardan yechamiz
-        # Oddiy mahsulot uchun: item_preferred_wh mavjud bo'lsa u yerdan, aks holda ko'p qoldig'idan
-        use_all_warehouses = is_virtual  # Endi faqat virtual uchun true
+        # Barcha mahsulotlar (virtual va oddiy) uchun:
+        # FAQAT item_preferred_wh (agar mavjud bo'lsa) yoki ko'p qoldig'i bor ombordan yechamiz.
+        # Manfiyga kirish ruxsat etiladi, boshqa omborga qochib ketilmaydi.
+        
+        stocks = stocks_by_product.get(stock_product.id, [])
 
-        if not use_all_warehouses:
-            # Oddiy mahsulot: har bir item uchun eng to'g'ri omborni tanlaymiz
-            stocks = stocks_by_product.get(stock_product.id, [])
+        # 1. Preferred warehouse ni topamiz (qoldig'idan qat'iy nazar)
+        preferred_stock = None
+        if item_preferred_wh:
+            preferred_stock = next((s for s in stocks if s.warehouse_id == item_preferred_wh), None)
 
-            # 1. Preferred warehouse da qoldiq bormi?
-            preferred_stock = None
-            if item_preferred_wh:
-                preferred_stock = next((s for s in stocks if s.warehouse_id == item_preferred_wh and s.quantity > 0), None)
-
-            if preferred_stock:
-                # Preferred ombordan yechilamiz
-                selected_stock = preferred_stock
-            elif stocks:
-                # Eng ko'p qoldig'i bor ombordan yechilamiz
-                best = max(stocks, key=lambda s: s.quantity)
-                selected_stock = best
-            else:
-                # Stock yo'q: preferred omborga yangi StockLevel yaratamiz (manfiy ketadi)
-                from app.models.inventory import StockLevel as _SL2
-                wh_for_new = item_preferred_wh
-                new_sl = _SL2(product_id=stock_product.id, warehouse_id=wh_for_new, quantity=Decimal("0"))
-                db.add(new_sl)
-                stocks = [new_sl]
-                stocks_by_product[stock_product.id] = stocks
-                selected_stock = new_sl
-
-            item_warehouse_id = selected_stock.warehouse_id  # ← Haqiqiy ombor!
-            qty_before = selected_stock.quantity
-            selected_stock.quantity -= qty_to_deduct
-            from app.models.inventory import StockMovement, MovementType
-            new_movements.append(StockMovement(
-                product_id=stock_product.id,
-                type=MovementType.OUT,
-                qty_before=qty_before,
-                qty_after=selected_stock.quantity,
-                quantity=qty_to_deduct,
-                reference_type="sale",
-                reference_id=sale.id,
-                user_id=current_user.id,
-                reason=f"Sotuv #{sale.number}" + (f" ({product.name} \u2192 {stock_product.name} x{ratio}" + ")" if is_virtual else ""),
-            ))
+        if preferred_stock:
+            # Preferred ombordan yechamiz (manfiy bo'lsa ham)
+            selected_stock = preferred_stock
+        elif stocks:
+            # Eng ko'p qoldig'i bor ombordan yechamiz (faqat ombor tanlanmagan bo'lsa)
+            best = max(stocks, key=lambda s: s.quantity)
+            selected_stock = best
         else:
-            # Virtual source yoki warehouse_id=None: barcha omborlardan yechamiz
-            stocks = stocks_by_product.get(stock_product.id, [])
-            # Birinchi omborni default qilib olamiz
-            if stocks:
-                item_warehouse_id = stocks[0].warehouse_id
-            total_avail = sum((s.quantity for s in stocks), Decimal("0"))
-            remaining_deduct = qty_to_deduct
-            if total_avail < qty_to_deduct:
-                if not stocks:
-                    from app.models.inventory import StockLevel as _SL3
-                    new_sl = _SL3(product_id=stock_product.id, warehouse_id=None, quantity=Decimal("0"))
-                    db.add(new_sl)
-                    stocks = [new_sl]
-                diff = qty_to_deduct - total_avail
-                qty_before_diff = stocks[0].quantity
-                stocks[0].quantity -= diff
-                from app.models.inventory import StockMovement, MovementType
-                new_movements.append(StockMovement(
-                    product_id=stock_product.id,
-                    type=MovementType.OUT,
-                    qty_before=qty_before_diff,
-                    qty_after=stocks[0].quantity,
-                    quantity=diff,
-                    reference_type="sale",
-                    reference_id=sale.id,
-                    user_id=current_user.id,
-                    reason=f"Sotuv #{sale.number}" + (f" ({product.name} \u2192 {stock_product.name} x{ratio}" + ")" if is_virtual else ""),
-                ))
-                remaining_deduct = total_avail
-            from app.models.inventory import StockMovement, MovementType
-            for stock in stocks:
-                if remaining_deduct <= 0:
-                    break
-                take = min(remaining_deduct, stock.quantity)
-                qty_before = stock.quantity
-                stock.quantity -= take
-                remaining_deduct -= take
-                # Eng ko'p qoldig'i bor birinchi omborni asosiy ombor deb belgilaymiz
-                if take > 0 and item_warehouse_id is None:
-                    item_warehouse_id = stock.warehouse_id
-                new_movements.append(StockMovement(
-                    product_id=stock_product.id,
-                    type=MovementType.OUT,
-                    qty_before=qty_before,
-                    qty_after=stock.quantity,
-                    quantity=take,
-                    reference_type="sale",
-                    reference_id=sale.id,
-                    user_id=current_user.id,
-                    reason=f"Sotuv #{sale.number}" + (f" ({product.name} \u2192 {stock_product.name} x{ratio}" + ")" if is_virtual else ""),
-                ))
+            # Stock yo'q: preferred omborga yangi StockLevel yaratamiz (manfiy ketadi)
+            from app.models.inventory import StockLevel as _SL2
+            wh_for_new = item_preferred_wh
+            new_sl = _SL2(product_id=stock_product.id, warehouse_id=wh_for_new, quantity=Decimal("0"))
+            db.add(new_sl)
+            stocks = [new_sl]
+            stocks_by_product[stock_product.id] = stocks
+            selected_stock = new_sl
+
+        item_warehouse_id = selected_stock.warehouse_id  # ← Haqiqiy ombor!
+        qty_before = selected_stock.quantity
+        selected_stock.quantity -= qty_to_deduct
+        from app.models.inventory import StockMovement, MovementType
+        new_movements.append(StockMovement(
+            product_id=stock_product.id,
+            type=MovementType.OUT,
+            qty_before=qty_before,
+            qty_after=selected_stock.quantity,
+            quantity=qty_to_deduct,
+            reference_type="sale",
+            reference_id=sale.id,
+            user_id=current_user.id,
+            reason=f"Sotuv #{sale.number}" + (f" ({product.name} → {stock_product.name} x{ratio})" if is_virtual else ""),
+        ))
 
         # --- FIFO Batch Allocation: virtual uchun source_product batchlaridan ---
         batches = batches_by_product.get(stock_product.id, [])
