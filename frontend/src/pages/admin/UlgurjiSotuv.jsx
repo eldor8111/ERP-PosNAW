@@ -506,6 +506,7 @@ export default function UlgurjiSotuv() {
         discount_type: 'sum', discount_val: it.discount > 0 ? String(it.discount) : '',
         wholesale_price: Number(it.unit_price), sale_price: Number(it.unit_price), stock_quantity: 9999,
         warehouse_id: it.warehouse_id || null, // ← per-item sklad (Desktop POS dan)
+        warehouse_name: it.warehouse_name || null,
       })));
       setCustId(sale.customer_id ? String(sale.customer_id) : '');
       setNote(sale.note || ''); setDiscType('sum');
@@ -846,6 +847,7 @@ export default function UlgurjiSotuv() {
         wholesale_price: Number(it.unit_price), sale_price: Number(it.unit_price), stock_quantity: 9999,
         addedAt: Date.now(),
         warehouse_id: it.warehouse_id || null, // ← per-item sklad
+        warehouse_name: it.warehouse_name || null,
       })));
       setCustId(sale.customer_id ? String(sale.customer_id) : '');
       setNote(sale.note || '');
@@ -1215,7 +1217,15 @@ export default function UlgurjiSotuv() {
                             <td className="px-3 py-2.5 text-xs text-slate-400 font-mono">{idx + 1}</td>
                             <td className="px-2 py-2.5">
                               <div className="font-semibold text-slate-800 text-sm leading-tight">{it.name}</div>
-                              <div className="text-xs text-slate-400">{it.unit}</div>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-xs text-slate-400">{it.unit}</span>
+                                {it.warehouse_name && (
+                                  <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                                    <Ic d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" cls="w-3 h-3" />
+                                    {it.warehouse_name}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="px-2 py-2.5">
                               <div className="flex items-center gap-1 justify-center">

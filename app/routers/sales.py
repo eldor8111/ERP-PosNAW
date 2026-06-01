@@ -97,6 +97,11 @@ def make_sale(
     current_user: User = Depends(require_roles(*POS_ROLES)),
 ):
     """POS — yangi sotuv amalga oshirish"""
+    import json
+    with open("pos_sale_debug.log", "a", encoding="utf-8") as f:
+        f.write(f"\\n--- NEW SALE FROM POS (user {current_user.name}) ---\\n")
+        f.write(data.model_dump_json(indent=2) + "\\n")
+
     ip = request.client.host if request.client else None
     sale = create_sale(db=db, data=data, current_user=current_user, ip=ip, background_tasks=background_tasks)
     # _load_sale chaqirilmaydi — ortiqcha query yo'q, tezroq ishlaydi
