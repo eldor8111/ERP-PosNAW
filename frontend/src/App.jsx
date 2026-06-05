@@ -10,7 +10,6 @@ import RegisterCompany from './pages/RegisterCompany'
 import AdminLayout from './components/AdminLayout'
 
 // Lazy-loaded pages — faqat kerak bo'lganda yuklanadi
-const Dashboard       = lazy(() => import('./pages/admin/Dashboard'))
 const Products        = lazy(() => import('./pages/admin/Products'))
 const Purchases       = lazy(() => import('./pages/admin/Purchases'))
 const Warehouse       = lazy(() => import('./pages/admin/Warehouse'))
@@ -43,6 +42,8 @@ const TelegramBotlar  = lazy(() => import('./pages/TelegramBotlar'))
 const NoyobDasturlar  = lazy(() => import('./pages/NoyobDasturlar'))
 const ChaqqonPro      = lazy(() => import('./pages/ChaqqonPro'))
 const Aloqa           = lazy(() => import('./pages/Aloqa'))
+const Profile         = lazy(() => import('./pages/admin/Profile'))
+const NotFound        = lazy(() => import('./pages/NotFound'))
 
 // Sahifa almashinayotganda ko'rinadigan loading spinner
 function PageLoader() {
@@ -76,8 +77,9 @@ export default function App() {
               <AdminLayout />
             </PrivateRoute>
           }>
-            <Route path="dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
+            <Route index element={<Navigate to="products" replace />} />
             <Route path="products" element={<Suspense fallback={<PageLoader />}><Products /></Suspense>} />
+            <Route path="profile" element={<Suspense fallback={<PageLoader />}><Profile /></Suspense>} />
             <Route path="purchases" element={<Suspense fallback={<PageLoader />}><Purchases /></Suspense>} />
             <Route path="warehouse" element={<Suspense fallback={<PageLoader />}><Warehouse /></Suspense>} />
             <Route path="inventory-counts" element={<Suspense fallback={<PageLoader />}><InventoryCounts /></Suspense>} />
@@ -108,7 +110,7 @@ export default function App() {
               </PrivateRoute>
             } />
           </Route>
-                      
+          
           <Route path="/" element={
             window.location.hostname.startsWith('savdo.') || window.location.hostname.includes('biznes') 
             ? <Navigate to="/login" replace /> 
@@ -120,7 +122,7 @@ export default function App() {
           <Route path="/noyob-dasturlar" element={<Suspense fallback={<PageLoader />}><NoyobDasturlar /></Suspense>} />
           <Route path="/chaqqon-pro" element={<Suspense fallback={<PageLoader />}><ChaqqonPro /></Suspense>} />
           <Route path="/aloqa" element={<Suspense fallback={<PageLoader />}><Aloqa /></Suspense>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Suspense fallback={<PageLoader />}><NotFound /></Suspense>} />
         </Routes>
       </AuthProvider>
     </Router>

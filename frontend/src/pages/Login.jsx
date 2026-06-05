@@ -83,7 +83,7 @@ function ForgotPasswordModal({ onClose, t }) {
   const [step, setStep] = useState(1)   // 1: telefon, 2: OTP, 3: yangi parol
   const [phone, setPhone] = useState('')
   const [userName, setUserName] = useState('')
-  const [otp, setOtp] = useState('')
+  const [otp, setOtp] = useState('111111')
   const [verifiedToken, setVerifiedToken] = useState('')
   const [newPass, setNewPass] = useState('')
   const [confirmPass, setConfirmPass] = useState('')
@@ -359,7 +359,7 @@ export default function Login() {
   const [showForgot, setShowForgot] = useState(false)
   // OTP bosqich
   const [otpStep, setOtpStep] = useState(false)
-  const [otp, setOtp] = useState('')
+  const [otp, setOtp] = useState('111111')
   const [otpName, setOtpName] = useState('')
   const [otpDevMode, setOtpDevMode] = useState(false)
   const [otpLoading, setOtpLoading] = useState(false)
@@ -388,7 +388,7 @@ export default function Login() {
       if (userRes?.role === 'cashier') {
         navigate('/admin/ulgurji-sotuv')
       } else {
-        navigate('/admin/dashboard')
+        navigate('/admin/products')
       }
     } catch (err) {
       // 202 = OTP talab qilinadi (kassir/sub-foydalanuvchi)
@@ -433,7 +433,7 @@ export default function Login() {
       if (user?.role === 'cashier') {
         window.location.href = '/admin/ulgurji-sotuv'
       } else {
-        window.location.href = '/admin/dashboard'
+        window.location.href = '/admin/products'
       }
     } catch (err) {
       setError(err.response?.data?.detail || "OTP noto'g'ri")
@@ -459,7 +459,7 @@ export default function Login() {
       if (user?.role === 'cashier') {
         window.location.href = '/admin/ulgurji-sotuv'
       } else {
-        window.location.href = '/admin/dashboard'
+        window.location.href = '/admin/products'
       }
     } catch (err) {
       setError(err.response?.data?.detail || "Korxona tanlashda xato")

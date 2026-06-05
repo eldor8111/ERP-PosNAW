@@ -289,6 +289,7 @@ def create_product(
     if not product_data.get("sku"):
         product_data["sku"] = _generate_sku(db)
 
+
     product_data["company_id"] = current_user.company_id
     
     dup_q = db.query(Product).filter(Product.is_deleted == False)
@@ -380,6 +381,10 @@ def update_product(
     # Duplicate checks (exclude current product)
     dup_q = db.query(Product).filter(Product.is_deleted == False, Product.id != product_id)
     dup_q = dup_q.filter(Product.company_id == current_user.company_id)
+
+    if "sku" in update_data and update_data["sku"] != product.sku:
+        if dup_q.filter(Product.sku == update_data["sku"]).first():
+            raise HTTPException(status_code=400, detail=f"SKU '{update_data['sku']}' allaqachon mavjud")
 
     if "barcode" in update_data and update_data["barcode"] != product.barcode:
         if dup_q.filter(Product.barcode == update_data["barcode"]).first():

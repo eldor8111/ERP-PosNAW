@@ -175,13 +175,16 @@ def list_products_for_pos(
     ]
 
 
-
 @router.get("/paginated")
 def list_products_paginated(
     search: Optional[str] = Query(None, description="Nomi yoki SKU bo'yicha qidiruv"),
     category_id: Optional[int] = Query(None),
     status: Optional[ProductStatus] = Query(None),
     warehouse_id: Optional[int] = Query(None, description="Ombor bo'yicha filter"),
+    unit: Optional[str] = Query(None, description="O'lchov birligi bo'yicha filter (dona, kg, litr, metr, gramm)"),
+    stock_status: Optional[str] = Query(None, description="Ombor holati bo'yicha filter (qolmagan, kam-qolgan, minusda)"),
+    sort_by: Optional[str] = Query(None, description="Saralash maydoni: sale_price, wholesale_price, cost_price, profit"),
+    sort_order: Optional[str] = Query(None, description="Saralash tartibi: asc, desc"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=20000),
     db: Session = Depends(get_db),
@@ -204,6 +207,8 @@ def list_products_paginated(
         q = q.filter(Product.category_id == category_id)
     if status:
         q = q.filter(Product.status == status)
+    if unit:
+        q = q.filter(Product.unit == unit)
     if warehouse_id:
         q = q.join(StockLevel, (StockLevel.product_id == Product.id) & (StockLevel.warehouse_id == warehouse_id))
 
@@ -226,7 +231,20 @@ def list_products_paginated(
         stock_subq = stock_subq.filter(StockLevel.warehouse_id.in_(branch_wh_set))
     stock_subq = stock_subq.group_by(StockLevel.product_id).subquery()
 
-    stats = q.outerjoin(stock_subq, Product.id == stock_subq.c.product_id).with_entities(
+    if stock_status:
+        q = q.outerjoin(stock_subq, Product.id == stock_subq.c.product_id)
+        if stock_status == "qolmagan":
+            q = q.filter(f2.coalesce(stock_subq.c.total_stock, 0) <= 0)
+        elif stock_status == "kam-qolgan":
+            # User request: stock_quantity < min_stock
+            q = q.filter(f2.coalesce(stock_subq.c.total_stock, 0) <= Product.min_stock)
+        elif stock_status == "minusda":
+            q = q.filter(f2.coalesce(stock_subq.c.total_stock, 0) < 0)
+
+    # For stats, if q is already joined, don't join again
+    stats_q = q if stock_status else q.outerjoin(stock_subq, Product.id == stock_subq.c.product_id)
+    
+    stats = stats_q.with_entities(
         f2.count(Product.id).label("total"),
         f2.sum(case((Product.status == ProductStatus.active, 1), else_=0)).label("active"),
         f2.sum(case((f2.coalesce(stock_subq.c.total_stock, 0) <= Product.min_stock, 1), else_=0)).label("low"),
@@ -241,7 +259,24 @@ def list_products_paginated(
     wholesale_value = float(stats.wholesale_value or 0)
     cost_value = float(stats.cost_value or 0)
 
-    products = q.order_by(Product.name).offset(skip).limit(limit).all()
+    # Saralash tartibi
+    ALLOWED_SORT_FIELDS = ('sale_price', 'wholesale_price', 'cost_price', 'profit')
+    if sort_by in ALLOWED_SORT_FIELDS and sort_order in ('asc', 'desc'):
+        from sqlalchemy import asc as _asc, desc as _desc
+        dir_fn = _asc if sort_order == 'asc' else _desc
+        if sort_by == 'profit':
+            # Foyda marjasi = chakana narx - kirim narx
+            products = q.order_by(dir_fn(Product.sale_price - Product.cost_price)).offset(skip).limit(limit).all()
+        elif sort_by == 'sale_price':
+            products = q.order_by(dir_fn(Product.sale_price)).offset(skip).limit(limit).all()
+        elif sort_by == 'wholesale_price':
+            products = q.order_by(dir_fn(Product.wholesale_price)).offset(skip).limit(limit).all()
+        elif sort_by == 'cost_price':
+            products = q.order_by(dir_fn(Product.cost_price)).offset(skip).limit(limit).all()
+        else:
+            products = q.order_by(Product.name).offset(skip).limit(limit).all()
+    else:
+        products = q.order_by(Product.name).offset(skip).limit(limit).all()
 
     wh_q = db.query(Warehouse).filter(Warehouse.company_id == current_user.company_id)
     warehouses = {w.id: w.name for w in wh_q.all()}

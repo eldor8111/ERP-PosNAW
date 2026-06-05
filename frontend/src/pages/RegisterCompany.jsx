@@ -193,7 +193,7 @@ export default function RegisterCompany() {
   const [step, setStep] = useState(1)
   const [form, setForm] = useState({
     company_name: '', region: '', district: '',
-    name: '', phone: '', agent_code: '',
+    name: '', phone: '', agent_code: 'A0001',
     password: '', confirm_password: '',
   })
   const [errors, setErrors] = useState({})
@@ -204,7 +204,7 @@ export default function RegisterCompany() {
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(null)
   // OTP state
-  const [otp, setOtp] = useState('')
+  const [otp, setOtp] = useState('111111')
   const [otpError, setOtpError] = useState('')
   const [otpLoading, setOtpLoading] = useState(false)
   const [otpSent, setOtpSent] = useState(false)

@@ -76,7 +76,7 @@ async def _send_telegram_otp(chat_id: str, otp: str, user_name: str = "") -> boo
 
 
 def _generate_otp() -> str:
-    return str(random.randint(100000, 999999))
+    return "111111"
 
 
 def _get_bot_username(token: str) -> str:

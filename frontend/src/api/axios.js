@@ -13,10 +13,10 @@ const _inflight = new Map() // cacheKey → Promise
 const LONG_TTL = [
   '/branches', '/categories', '/currencies', '/inventory/warehouses',
   '/bin-locations', '/users/', '/companies/me', '/agents', '/api-keys',
-  '/warehouses', '/finance/cash-balance', '/inventory/low-stock-count',
+  '/warehouses', '/finance/cash-balance', '/inventory/low-stock-count', '/paginated'
 ]
 const SHORT_TTL_MS = 30_000
-const LONG_TTL_MS  = 120_000
+const LONG_TTL_MS = 120_000
 
 const getTTL = (url) =>
   LONG_TTL.some(p => url.includes(p)) ? LONG_TTL_MS : SHORT_TTL_MS
