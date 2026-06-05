@@ -23,6 +23,7 @@ def _load_sale(db: Session, sale_id: int, user: Optional[User] = None) -> Sale:
         db.query(Sale)
         .options(
             joinedload(Sale.items).joinedload(SaleItem.product),
+            joinedload(Sale.items).joinedload(SaleItem.warehouse),
             joinedload(Sale.payments),
             joinedload(Sale.cashier),
         )
@@ -44,6 +45,13 @@ def _build_sale_out(sale: Sale) -> SaleOut:
             cost_price=i.cost_price,
             discount=i.discount,
             subtotal=i.subtotal,
+            unit=getattr(i, 'unit', None) or (i.product.unit if i.product else 'dona') or 'dona',
+            warehouse_id=getattr(i, 'warehouse_id', None),
+            warehouse_name=(
+                i.warehouse.name
+                if getattr(i, 'warehouse', None)
+                else None
+            ),
         )
         for i in sale.items
     ]
@@ -80,6 +88,14 @@ def _build_sale_out(sale: Sale) -> SaleOut:
     )
 
 
+@router.get("/debug-log")
+def get_debug_log():
+    import os
+    if os.path.exists("pos_sale_debug.log"):
+        with open("pos_sale_debug.log", "r", encoding="utf-8") as f:
+            return {"log": f.read()}
+    return {"log": "Log fayl topilmadi yoki bo'sh"}
+
 @router.post("/", response_model=SaleListOut)
 def make_sale(
     data: SaleCreate,
@@ -89,6 +105,11 @@ def make_sale(
     current_user: User = Depends(require_roles(*POS_ROLES)),
 ):
     """POS — yangi sotuv amalga oshirish"""
+    import json
+    with open("pos_sale_debug.log", "a", encoding="utf-8") as f:
+        f.write(f"\\n--- NEW SALE FROM POS (user {current_user.name}) ---\\n")
+        f.write(data.model_dump_json(indent=2) + "\\n")
+
     ip = request.client.host if request.client else None
     sale = create_sale(db=db, data=data, current_user=current_user, ip=ip, background_tasks=background_tasks)
     # _load_sale chaqirilmaydi — ortiqcha query yo'q, tezroq ishlaydi

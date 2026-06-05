@@ -74,6 +74,8 @@ class SaleItem(Base):
     id = Column(Integer, primary_key=True, index=True)
     sale_id = Column(Integer, ForeignKey("sales.id"), nullable=False)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=True)  # Qaysi ombordan sotildi
+    unit = Column(String(20), nullable=True, default="dona")  # Mahsulot o'lchov birligi
     quantity = Column(Numeric(12, 3), nullable=False)
     unit_price = Column(Numeric(12, 2), nullable=False)
     cost_price = Column(Numeric(12, 2), nullable=False)
@@ -82,6 +84,7 @@ class SaleItem(Base):
 
     sale = relationship("Sale", back_populates="items")
     product = relationship("Product", back_populates="sale_items")
+    warehouse = relationship("Warehouse", foreign_keys=[warehouse_id])
     batches = relationship("SaleItemBatch", back_populates="sale_item", cascade="all, delete-orphan")
 
     __table_args__ = (

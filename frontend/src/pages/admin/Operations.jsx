@@ -814,6 +814,7 @@ function SaleDetailView({ saleId, onBack }) {
             <tr>
               <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">№</th>
               <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.product') || 'Mahsulot'}</th>
+              <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">Ombor</th>
               <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">Soni</th>
               <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">Narxi</th>
               <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">Chegirma</th>
@@ -824,8 +825,27 @@ function SaleDetailView({ saleId, onBack }) {
             {sale.items?.map((item, i) => (
               <tr key={item.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3 text-slate-400 text-xs">{i + 1}</td>
-                <td className="px-4 py-3 font-medium">{item.product_name}</td>
-                <td className="px-4 py-3 text-center">{item.quantity}</td>
+                <td className="px-4 py-3">
+                  <div className="font-medium text-slate-800">{item.product_name}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">{item.unit || 'dona'}</div>
+                </td>
+                <td className="px-4 py-3">
+                  {item.warehouse_name ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium border border-blue-100">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                        <polyline strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} points="9,22 9,12 15,12 15,22" />
+                      </svg>
+                      {item.warehouse_name}
+                    </span>
+                  ) : (
+                    <span className="text-slate-300 text-xs">—</span>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-center font-medium">
+                  {Number(item.quantity) % 1 === 0 ? Number(item.quantity).toFixed(0) : Number(item.quantity)}
+                  <span className="text-xs text-slate-400 ml-1">{item.unit || 'dona'}</span>
+                </td>
                 <td className="px-4 py-3 text-right">{fmt(item.unit_price)}</td>
                 <td className="px-4 py-3 text-right text-red-500">{Number(item.discount) > 0 ? `−${fmt(item.discount)}` : '—'}</td>
                 <td className="px-4 py-3 text-right font-semibold">{fmt(item.subtotal)}</td>
