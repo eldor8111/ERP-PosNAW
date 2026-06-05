@@ -208,11 +208,12 @@ def list_products_paginated(
     if status:
         q = q.filter(Product.status == status)
     if unit:
-        q = q.filter(Product.unit == unit)
+        q = q.filter(Product.unit.ilike(unit))
     if warehouse_id:
-        q = q.join(StockLevel, (StockLevel.product_id == Product.id) & (StockLevel.warehouse_id == warehouse_id))
+        # Ombor bo'yicha filter: OUTER JOIN ishlatamiz, shunda 0 qoldiqli/recordi yo'q mahsulotlar ham chiqadi
+        q = q.outerjoin(StockLevel, (StockLevel.product_id == Product.id) & (StockLevel.warehouse_id == warehouse_id))
 
-    ADMIN_ROLES_P = (UserRole.admin, UserRole.director)
+    ADMIN_ROLES_P = (UserRole.admin, UserRole.director, UserRole.super_admin)
     branch_wh_set = None
     if current_user.role not in ADMIN_ROLES_P and current_user.branch_id:
         branch_wh_set = {
@@ -236,28 +237,32 @@ def list_products_paginated(
         if stock_status == "qolmagan":
             q = q.filter(f2.coalesce(stock_subq.c.total_stock, 0) <= 0)
         elif stock_status == "kam-qolgan":
-            # User request: stock_quantity < min_stock
             q = q.filter(f2.coalesce(stock_subq.c.total_stock, 0) <= Product.min_stock)
         elif stock_status == "minusda":
             q = q.filter(f2.coalesce(stock_subq.c.total_stock, 0) < 0)
 
-    # For stats, if q is already joined, don't join again
+    # Stats: jami mahsulotlar soni va qiymatlari (head panel uchun)
+    # stats_q filterlardan o'tgan bo'lishi kerak, lekin limit/skip dan oldin
     stats_q = q if stock_status else q.outerjoin(stock_subq, Product.id == stock_subq.c.product_id)
     
-    stats = stats_q.with_entities(
+    stats_row = stats_q.with_entities(
         f2.count(Product.id).label("total"),
         f2.sum(case((Product.status == ProductStatus.active, 1), else_=0)).label("active"),
         f2.sum(case((f2.coalesce(stock_subq.c.total_stock, 0) <= Product.min_stock, 1), else_=0)).label("low"),
         f2.sum(f2.coalesce(stock_subq.c.total_stock, 0) * f2.coalesce(Product.sale_price, 0)).label("sale_value"),
         f2.sum(f2.coalesce(stock_subq.c.total_stock, 0) * f2.coalesce(Product.wholesale_price, 0)).label("wholesale_value"),
         f2.sum(f2.coalesce(stock_subq.c.total_stock, 0) * f2.coalesce(Product.cost_price, 0)).label("cost_value"),
-    ).one()
-    total_count  = int(stats.total or 0)
-    total_active = int(stats.active or 0)
-    out_of_stock = int(stats.low or 0)
-    sale_value = float(stats.sale_value or 0)
-    wholesale_value = float(stats.wholesale_value or 0)
-    cost_value = float(stats.cost_value or 0)
+    ).first()
+    if stats_row:
+        total_count  = int(stats_row.total or 0)
+        total_active = int(stats_row.active or 0)
+        out_of_stock = int(stats_row.low or 0)
+        sale_value = float(stats_row.sale_value or 0)
+        wholesale_value = float(stats_row.wholesale_value or 0)
+        cost_value = float(stats_row.cost_value or 0)
+    else:
+        total_count = total_active = out_of_stock = 0
+        sale_value = wholesale_value = cost_value = 0.0
 
     # Saralash tartibi
     ALLOWED_SORT_FIELDS = ('sale_price', 'wholesale_price', 'cost_price', 'profit')

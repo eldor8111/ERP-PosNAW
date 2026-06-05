@@ -444,7 +444,7 @@ export default function AdminLayout() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-2.5">
+          <div className="flex items-center gap-1 sm:gap-2.5">
             {/* Tizim faol */}
             {/* <div className="hidden md:flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 rounded-full px-3 py-1 xl:py-1.5">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -472,11 +472,11 @@ export default function AdminLayout() {
             <LangSwitcher t={t} lang={lang} setLang={setLang} LANGUAGES={LANGUAGES} />
 
             {/* Org kodi */}
-            <div className="hidden sm:flex flex-col items-center bg-slate-50 border border-slate-200 rounded-lg xl:rounded-xl px-3.5 py-1.5 min-w-[90px]">
+            <div className="flex flex-col items-center bg-slate-50 border border-slate-200 rounded-lg xl:rounded-xl px-2 sm:px-3.5 py-1 sm:py-1.5 min-w-[90px]">
               <span className="text-slate-400 text-[8px] xl:text-[10px] font-semibold leading-none mb-0.5 uppercase tracking-wide">{t('header.code')}</span>
               <div className='flex items-center gap-1'>
                 <span className="text-slate-700 text-[12px] xl:text-[14px] font-black leading-none tracking-wide">{orgData.code}</span>
-                <Copy className='size-4 text-slate-500 cursor-pointer' onClick={() => {
+                <Copy className='size-3 sm:size-4 text-slate-500 cursor-pointer' onClick={() => {
                   navigator.clipboard.writeText(orgData.code);
                   toast.success("copied");
                 }} />
@@ -484,17 +484,17 @@ export default function AdminLayout() {
             </div>
 
             {/* Balans */}
-            <div className="flex flex-col items-center bg-emerald-50 border border-emerald-200 rounded-lg xl:rounded-xl px-3.5 py-1.5 min-w-[75px]">
+            <div className="flex flex-col items-center bg-emerald-50 border border-emerald-200 rounded-lg xl:rounded-xl px-2 sm:px-3.5 py-1 sm:py-1.5 min-w-[75px]">
               <span className="text-emerald-500 text-[8px] xl:text-[10px] font-semibold leading-none mb-0.5 uppercase tracking-wide">{t('header.balance')}</span>
               <span className="text-emerald-700 text-[12px] xl:text-[14px] font-black leading-none tracking-wide">{fmt(orgData.balance)}</span>
             </div>
 
             {/* User */}
-            <Link to={'/admin/profile'} className="hidden md:flex items-center gap-2.5 bg-indigo-600 rounded-xl px-3 py-2 shadow-md shadow-indigo-200">
-              <div className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center text-white text-[11px] font-black shrink-0">
+            <Link to={'/admin/profile'} className="flex items-center gap-2.5 bg-indigo-600 rounded-lg sm:rounded-xl px-1.5 sm:px-3 py-1.5 sm:py-2 shadow-md shadow-indigo-200">
+              <div className="w-5 h-5 sm:w-6 sm:h-6 rounded sm:rounded-lg bg-white/20 flex items-center justify-center text-white text-[11px] font-black shrink-0">
                 {initials}
               </div>
-              <div className="flex flex-col">
+              <div className="hidden sm:flex flex-col">
                 <span className="text-white text-[12px] font-bold leading-none">{orgData.name}</span>
                 <span className="text-indigo-200 text-[10px] font-medium leading-none mt-0.25">{ROLE_LABELS[user?.role] || user?.role}</span>
               </div>
