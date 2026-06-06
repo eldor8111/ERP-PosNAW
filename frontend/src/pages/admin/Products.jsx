@@ -2188,7 +2188,7 @@ export default function Products() {
                 </div>
                 <div>
                   <div className="flex items-baseline gap-1.5">
-                    <span className="text-[1rem] md:text-[1.35rem] xl:text-[1.75rem] font-black text-slate-800 leading-none">{fmt(totalSaleValue) < 0 ? '0' : fmt(totalSaleValue)}</span>
+                    <span className="text-[1rem] md:text-[1.35rem] xl:text-[1.75rem] font-black text-slate-800 leading-none">{totalSaleValue < 0 ? 0 : fmt(totalSaleValue)}</span>
                     <span className="text-xs xl:text-sm font-bold text-slate-400">UZS</span>
                   </div>
                 </div>
@@ -2210,7 +2210,7 @@ export default function Products() {
                 </div>
                 <div>
                   <div className="flex items-baseline gap-1.5">
-                    <span className="text-[1rem] md:text-[1.35rem] xl:text-[1.75rem] font-black text-slate-800 leading-none">{fmt(totalWholesaleValue) < 0 ? '0' : fmt(totalWholesaleValue)}</span>
+                    <span className="text-[1rem] md:text-[1.35rem] xl:text-[1.75rem] font-black text-slate-800 leading-none">{totalWholesaleValue < 0 ? 0 : fmt(totalWholesaleValue)}</span>
                     <span className="text-xs xl:text-sm font-bold text-slate-400">UZS</span>
                   </div>
                 </div>
@@ -2232,7 +2232,7 @@ export default function Products() {
                 </div>
                 <div>
                   <div className="flex items-baseline gap-1.5">
-                    <span className="text-[1rem] md:text-[1.35rem] xl:text-[1.75rem] font-black text-slate-800 leading-none">{fmt(totalCostValue) < 0 ? '0' : fmt(totalCostValue)}</span>
+                    <span className="text-[1rem] md:text-[1.35rem] xl:text-[1.75rem] font-black text-slate-800 leading-none">{totalCostValue < 0 ? 0 : fmt(totalCostValue)}</span>
                     <span className="text-xs xl:text-sm font-bold text-slate-400">UZS</span>
                   </div>
                 </div>
