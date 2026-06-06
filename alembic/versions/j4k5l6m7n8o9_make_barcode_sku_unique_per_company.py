@@ -16,13 +16,19 @@ depends_on = None
 
 
 def upgrade():
-    # 1. Drop old constraints
-    op.drop_index('uq_products_barcode_active', table_name='products')
-    op.drop_index('uq_products_sku_active', table_name='products')
-    
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_idx = [i['name'] for i in inspector.get_indexes('products')]
+
+    # 1. Drop old constraints faqat mavjud bo'lsa
+    if 'uq_products_barcode_active' in existing_idx:
+        op.drop_index('uq_products_barcode_active', table_name='products')
+    if 'uq_products_sku_active' in existing_idx:
+        op.drop_index('uq_products_sku_active', table_name='products')
+
     # 2. Create new constraints (with company_id)
-    op.create_index('uq_products_barcode_active', 'products', ['company_id', 'barcode'], unique=True, postgresql_where=sa.text("is_deleted = false"))
-    op.create_index('uq_products_sku_active', 'products', ['company_id', 'sku'], unique=True, postgresql_where=sa.text("is_deleted = false"))
+    op.create_index('uq_products_barcode_active', 'products', ['company_id', 'barcode'], unique=True, postgresql_where=sa.text("is_deleted = false"), if_not_exists=True)
+    op.create_index('uq_products_sku_active', 'products', ['company_id', 'sku'], unique=True, postgresql_where=sa.text("is_deleted = false"), if_not_exists=True)
 
 
 def downgrade():

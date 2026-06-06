@@ -15,14 +15,17 @@ depends_on = None
 
 
 def upgrade():
-    # warehouse_id: qaysi ombordan sotildi
-    op.add_column('sale_items',
-        sa.Column('warehouse_id', sa.Integer(), sa.ForeignKey('warehouses.id'), nullable=True)
-    )
-    # unit: mahsulot o'lchov birligi (kg, dona, litr va h.k.)
-    op.add_column('sale_items',
-        sa.Column('unit', sa.String(length=20), nullable=True, server_default='dona')
-    )
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    cols = [c['name'] for c in inspector.get_columns('sale_items')]
+    if 'warehouse_id' not in cols:
+        op.add_column('sale_items',
+            sa.Column('warehouse_id', sa.Integer(), sa.ForeignKey('warehouses.id'), nullable=True)
+        )
+    if 'unit' not in cols:
+        op.add_column('sale_items',
+            sa.Column('unit', sa.String(length=20), nullable=True, server_default='dona')
+        )
     # Mavjud yozuvlar uchun warehouse_id ni sale.warehouse_id dan ko'chirish
     op.execute("""
         UPDATE sale_items si

@@ -15,15 +15,21 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column(
-        'stock_transfer_items',
-        sa.Column(
-            'target_product_id',
-            sa.Integer(),
-            sa.ForeignKey('products.id', ondelete='SET NULL'),
-            nullable=True
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if 'stock_transfer_items' not in inspector.get_table_names():
+        return
+    cols = [c['name'] for c in inspector.get_columns('stock_transfer_items')]
+    if 'target_product_id' not in cols:
+        op.add_column(
+            'stock_transfer_items',
+            sa.Column(
+                'target_product_id',
+                sa.Integer(),
+                sa.ForeignKey('products.id', ondelete='SET NULL'),
+                nullable=True
+            )
         )
-    )
 
 
 def downgrade():

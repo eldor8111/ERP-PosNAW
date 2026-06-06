@@ -44,10 +44,11 @@ def upgrade():
         op.add_column('products', sa.Column('extra_product_codes', sa.Text(), nullable=True))
 
     # ── purchase_orders ───────────────────────────────────────────────────
-    if not _col_exists('purchase_orders', 'paid_amount'):
-        op.add_column('purchase_orders', sa.Column('paid_amount', sa.Numeric(14, 2), server_default='0', nullable=True))
-    if not _col_exists('purchase_orders', 'discount_amount'):
-        op.add_column('purchase_orders', sa.Column('discount_amount', sa.Numeric(14, 2), server_default='0', nullable=True))
+    if _table_exists('purchase_orders'):
+        if not _col_exists('purchase_orders', 'paid_amount'):
+            op.add_column('purchase_orders', sa.Column('paid_amount', sa.Numeric(14, 2), server_default='0', nullable=True))
+        if not _col_exists('purchase_orders', 'discount_amount'):
+            op.add_column('purchase_orders', sa.Column('discount_amount', sa.Numeric(14, 2), server_default='0', nullable=True))
 
     # ── transactions ──────────────────────────────────────────────────────
     if not _col_exists('transactions', 'payment_type'):
@@ -94,7 +95,7 @@ def upgrade():
         )
 
     # ── wallet_balances ───────────────────────────────────────────────────
-    if not _table_exists('wallet_balances'):
+    if _table_exists('wallets') and not _table_exists('wallet_balances'):
         op.create_table(
             'wallet_balances',
             sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),

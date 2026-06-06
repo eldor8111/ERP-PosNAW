@@ -1,4 +1,6 @@
 from sqlalchemy import Column, Integer, String, Numeric, ForeignKey, UniqueConstraint  # type: ignore
+from sqlalchemy.orm import relationship
+
 from app.database import Base  # type: ignore
 
 class Customer(Base):
@@ -15,6 +17,8 @@ class Customer(Base):
     
     # Skidka (sotuvda avtomatik qo'llaniladi)
     discount_percent = Column(Numeric(5, 2), default=0)
+    # Customer ichiga qo'shing
+    special_products = relationship("Product", back_populates="customer")
 
     # Keshbek va Sodiqlik kartasi
     card_number = Column(String(20), index=True, nullable=True)
