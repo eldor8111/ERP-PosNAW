@@ -76,6 +76,30 @@ def list_customers(
     return q.order_by(Customer.name).offset(skip).limit(limit).all()
 
 
+@router.get("/paginated")
+def list_customers_paginated(
+    search: Optional[str] = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    q = db.query(Customer)
+    q = q.filter(Customer.company_id == current_user.company_id)
+    if search:
+        q = q.filter(
+            name_phone_search_filter(Customer.name, Customer.phone, search)
+        )
+    
+    total = q.count()
+    items = q.order_by(Customer.name).offset(skip).limit(limit).all()
+    
+    return {
+        "items": items,
+        "total": total
+    }
+
+
 @router.post("", status_code=201)
 def create_customer(data: CustomerIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     customer_data = data.model_dump()

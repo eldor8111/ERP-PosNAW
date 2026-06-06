@@ -7,7 +7,7 @@ import BarcodePrintModal from '../../components/BarcodeTemplates';
 import { useLang } from '../../context/LangContext';
 import toast from 'react-hot-toast';
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
-import { ChevronsUpDown, CheckIcon, Search, Layers, ToggleLeft, Warehouse, ListOrdered, SearchIcon, Flame, CircleCheck, PencilRuler, TrendingUp, TrendingDown, Banknote, Wallet, BarChart3, Box, EllipsisVertical, ChevronsRight, ChevronsLeft, ChevronLeft, ChevronRight } from 'lucide-react'; // Ikonkalar uchun (ixtiyoriy)
+import { ChevronsUpDown, CheckIcon, Search, Layers, ToggleLeft, Warehouse, ListOrdered, SearchIcon, Flame, CircleCheck, PencilRuler, TrendingUp, TrendingDown, Banknote, Wallet, BarChart3, Box, EllipsisVertical, ChevronsRight, ChevronsLeft, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'; // Ikonkalar uchun (ixtiyoriy)
 
 const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8010/api').replace('/api', '');
 
@@ -1582,8 +1582,20 @@ export default function Products() {
             </div>
           </div>
         </div>
-
       </div>
+
+      <div
+        onClick={(e) => {
+          const main = e.currentTarget.closest('main');
+          if (main) main.scrollTo({ top: main.scrollHeight, behavior: 'smooth' });
+        }}
+        className='fixed bottom-5 group -right-12 flex justify-left items-center z-30 hover:-right-5 transition-all w-18 h-11 text-white'
+      >
+        <div className='flex bg-indigo-600 items-center pl-0 group-hover:pl-2.5 transition-all w-11 h-11 rounded-lg shadow-md cursor-pointer'>
+          <ChevronDown className='size-6 rotate-90 group-hover:rotate-0 transition-all' />
+        </div>
+      </div>
+
       {/* ── PRODUCTS TAB ─────────────────────────────── */}
       {activeTab === 'products' && (
         <>
@@ -2108,20 +2120,20 @@ export default function Products() {
                     <div className="flex items-center flex-nowrap gap-0 sm:gap-1">
                       <button disabled={page === 1} onClick={() => setPage(1)}
                         className={`rounded-lg ${page === 1 ? 'text-slate-300' : 'text-slate-700 hover:bg-white bg-slate-50 cursor-pointer'} transition-colors`}>
-                          <ChevronsLeft className='size-4 sm:size-5'/>
+                        <ChevronsLeft className='size-4 sm:size-5' />
                       </button>
                       <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
                         className={`rounded-lg ${page === 1 ? 'text-slate-300' : 'text-slate-700 hover:bg-white bg-slate-50 cursor-pointer'} transition-colors`}>
-                          <ChevronLeft className='size-4 sm:size-5'/>
+                        <ChevronLeft className='size-4 sm:size-5' />
                       </button>
                       <span className="px-2 sm:px-3 text-[12px] xl:text-[14px] whitespace-nowrap font-semibold text-slate-700">{page} / {Math.ceil(totalRecords / limit) || 1}</span>
                       <button disabled={page >= (Math.ceil(totalRecords / limit) || 1)} onClick={() => setPage(p => p + 1)}
                         className={`rounded-lg ${page >= (Math.ceil(totalRecords / limit) || 1) ? 'text-slate-300' : 'text-slate-700 hover:bg-white bg-slate-50 cursor-pointer'} transition-colors`}>
-                          <ChevronRight className='size-4 sm:size-5'/>
+                        <ChevronRight className='size-4 sm:size-5' />
                       </button>
                       <button disabled={page === (Math.ceil(totalRecords / limit) || 1)} onClick={() => setPage(Math.ceil(totalRecords / limit) || 1)}
                         className={`rounded-lg ${page === (Math.ceil(totalRecords / limit) || 1) ? 'text-slate-300' : 'text-slate-700 hover:bg-white bg-slate-50 cursor-pointer'} transition-colors`}>
-                          <ChevronsRight className='size-4 sm:size-5'/>
+                        <ChevronsRight className='size-4 sm:size-5' />
                       </button>
                     </div>
 
@@ -2154,7 +2166,7 @@ export default function Products() {
                               anchor="top end"
                               className="z-50 min-w-[120px] mb-1 overflow-auto rounded-xl bg-white border border-slate-200 p-1 shadow-2xl focus:outline-none [--anchor-gap:4px]"
                             >
-                              {[5, 10, 20, 50, 100].map((n) => (
+                              {[5, 10, 20, 50, 100, 500, 1000].map((n) => (
                                 <ListboxOption key={n} value={n} className="group flex cursor-pointer items-center gap-2 rounded-lg py-2 px-3 select-none data-[focus]:bg-indigo-50">
                                   <CheckIcon className="size-4 text-indigo-600 group-not-data-[selected]:invisible" />
                                   <div className="text-[13px] font-medium text-slate-700 group-data-[selected]:text-indigo-700">{n} {t('common.item')}</div>

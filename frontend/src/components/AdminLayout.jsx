@@ -24,7 +24,7 @@ function buildNavGroups(t) {
         },
         {
           name: t('nav.sales'),
-          path: '/admin/sotuv-mijozlar',
+          path: '/admin/customers',
           roles: ROLE_GROUPS.SALES,
           icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>,
         },
@@ -296,7 +296,7 @@ export default function AdminLayout() {
       {/* Mobile Backdrop */}
       {mobileMenuOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-slate-900/50 z-40 backdrop-blur-sm transition-opacity"
+          className="lg:hidden fixed inset-0 bg-slate-900/50 z-50 backdrop-blur-sm transition-opacity"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
@@ -411,7 +411,7 @@ export default function AdminLayout() {
       <div className="flex-1 flex flex-col overflow-hidden w-full relative">
 
         {/* Top Header */}
-        <header className="bg-white border-b border-slate-100 px-4 md:px-6 py-2.5 flex items-center justify-between shrink-0" style={{ boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
+        <header className="bg-white border-b border-slate-100 px-4 md:px-6 py-2.25 flex items-center justify-between shrink-0" style={{ boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
           <div className="flex items-center gap-1 xl:gap-3">
             <button
               onClick={() => setMobileMenuOpen(true)}
