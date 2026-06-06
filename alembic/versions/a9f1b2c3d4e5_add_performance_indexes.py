@@ -12,6 +12,7 @@ Bu migration eng ko'p ishlatiladigan filtrlash ustunlariga index qo'shadi:
 - sale_items: sale_id, product_id
 """
 from alembic import op
+import sqlalchemy as sa
 
 revision = 'a9f1b2c3d4e5'
 down_revision = ('09735e25bc45', '4b197855415f')
@@ -19,42 +20,48 @@ branch_labels = None
 depends_on = None
 
 
+def _safe_index(inspector, table, index_name, columns, **kwargs):
+    """Jadval va ustunlar mavjud bo'lsa index yaratadi."""
+    tables = inspector.get_table_names()
+    if table not in tables:
+        return
+    existing_cols = {c['name'] for c in inspector.get_columns(table)}
+    if not all(c in existing_cols for c in columns):
+        return
+    op.create_index(index_name, table, columns, if_not_exists=True, **kwargs)
+
+
 def upgrade():
-    # Sales jadvali — dashboard va hisobotlarda eng ko'p filtrlash
-    op.create_index('ix_sales_company_id',    'sales', ['company_id'],    if_not_exists=True)
-    op.create_index('ix_sales_created_at',    'sales', ['created_at'],    if_not_exists=True)
-    op.create_index('ix_sales_status',        'sales', ['status'],        if_not_exists=True)
-    op.create_index('ix_sales_warehouse_id',  'sales', ['warehouse_id'],  if_not_exists=True)
-    op.create_index('ix_sales_cashier_id',    'sales', ['cashier_id'],    if_not_exists=True)
-    op.create_index('ix_sales_customer_id',   'sales', ['customer_id'],   if_not_exists=True)
-    # Composite index: company + date — dashboard uchun eng muhimi
-    op.create_index('ix_sales_company_created', 'sales', ['company_id', 'created_at'], if_not_exists=True)
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
 
-    # Products jadvali
-    op.create_index('ix_products_company_id',  'products', ['company_id'],  if_not_exists=True)
-    op.create_index('ix_products_is_deleted',  'products', ['is_deleted'],  if_not_exists=True)
-    op.create_index('ix_products_status',      'products', ['status'],      if_not_exists=True)
-    op.create_index('ix_products_category_id', 'products', ['category_id'], if_not_exists=True)
+    _safe_index(insp, 'sales', 'ix_sales_company_id',    ['company_id'])
+    _safe_index(insp, 'sales', 'ix_sales_created_at',    ['created_at'])
+    _safe_index(insp, 'sales', 'ix_sales_status',        ['status'])
+    _safe_index(insp, 'sales', 'ix_sales_warehouse_id',  ['warehouse_id'])
+    _safe_index(insp, 'sales', 'ix_sales_cashier_id',    ['cashier_id'])
+    _safe_index(insp, 'sales', 'ix_sales_customer_id',   ['customer_id'])
+    _safe_index(insp, 'sales', 'ix_sales_company_created', ['company_id', 'created_at'])
 
-    # Stock levels — inventar so'rovlar
-    op.create_index('ix_stock_levels_warehouse_id', 'stock_levels', ['warehouse_id'], if_not_exists=True)
-    op.create_index('ix_stock_levels_product_id',   'stock_levels', ['product_id'],   if_not_exists=True)
+    _safe_index(insp, 'products', 'ix_products_company_id',  ['company_id'])
+    _safe_index(insp, 'products', 'ix_products_is_deleted',  ['is_deleted'])
+    _safe_index(insp, 'products', 'ix_products_status',      ['status'])
+    _safe_index(insp, 'products', 'ix_products_category_id', ['category_id'])
 
-    # Sale items — hisobot agregatsiyalari
-    op.create_index('ix_sale_items_sale_id',    'sale_items', ['sale_id'],    if_not_exists=True)
-    op.create_index('ix_sale_items_product_id', 'sale_items', ['product_id'], if_not_exists=True)
+    _safe_index(insp, 'stock_levels', 'ix_stock_levels_warehouse_id', ['warehouse_id'])
+    _safe_index(insp, 'stock_levels', 'ix_stock_levels_product_id',   ['product_id'])
 
-    # Customers
-    op.create_index('ix_customers_company_id', 'customers', ['company_id'], if_not_exists=True)
+    _safe_index(insp, 'sale_items', 'ix_sale_items_sale_id',    ['sale_id'])
+    _safe_index(insp, 'sale_items', 'ix_sale_items_product_id', ['product_id'])
 
-    # Expenses
-    op.create_index('ix_expenses_company_id',  'expenses',  ['company_id'], if_not_exists=True)
-    op.create_index('ix_expenses_created_at',  'expenses',  ['created_at'], if_not_exists=True)
+    _safe_index(insp, 'customers', 'ix_customers_company_id', ['company_id'])
 
-    # Batches (FIFO)
-    op.create_index('ix_batches_product_id',   'batches', ['product_id'],   if_not_exists=True)
-    op.create_index('ix_batches_company_id',   'batches', ['company_id'],   if_not_exists=True)
-    op.create_index('ix_batches_warehouse_id', 'batches', ['warehouse_id'], if_not_exists=True)
+    _safe_index(insp, 'expenses', 'ix_expenses_company_id', ['company_id'])
+    _safe_index(insp, 'expenses', 'ix_expenses_created_at', ['created_at'])
+
+    _safe_index(insp, 'batches', 'ix_batches_product_id',   ['product_id'])
+    _safe_index(insp, 'batches', 'ix_batches_company_id',   ['company_id'])
+    _safe_index(insp, 'batches', 'ix_batches_warehouse_id', ['warehouse_id'])
 
 
 def downgrade():
