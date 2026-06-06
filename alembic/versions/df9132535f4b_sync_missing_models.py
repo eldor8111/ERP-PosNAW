@@ -9,7 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect
 
 
 revision: str = 'df9132535f4b'
@@ -277,208 +277,165 @@ def upgrade() -> None:
 
     # --- Drop platform_settings if exists ---
     if _table_exists('platform_settings'):
-        try:
+        if _index_exists('ix_platform_settings_id', 'platform_settings'):
             op.drop_index(op.f('ix_platform_settings_id'), table_name='platform_settings')
-        except Exception:
-            pass
-        try:
+        if _index_exists('ix_platform_settings_key', 'platform_settings'):
             op.drop_index(op.f('ix_platform_settings_key'), table_name='platform_settings')
-        except Exception:
-            pass
         op.drop_table('platform_settings')
 
     # --- balance_logs index ---
-    if not _index_exists('ix_balance_logs_id', 'balance_logs'):
-        op.create_index(op.f('ix_balance_logs_id'), 'balance_logs', ['id'], unique=False)
+    if _table_exists('balance_logs'):
+        if not _index_exists('ix_balance_logs_id', 'balance_logs'):
+            op.create_index(op.f('ix_balance_logs_id'), 'balance_logs', ['id'], unique=False)
 
     # --- companies columns ---
-    if not _column_exists('companies', 'tg_bot_token'):
-        op.add_column('companies', sa.Column('tg_bot_token', sa.String(length=100), nullable=True))
-    if not _column_exists('companies', 'tg_bot_username'):
-        op.add_column('companies', sa.Column('tg_bot_username', sa.String(length=100), nullable=True))
-    if not _column_exists('companies', 'receipt_templates'):
-        op.add_column('companies', sa.Column('receipt_templates', sa.JSON(), nullable=True))
+    if _table_exists('companies'):
+        if not _column_exists('companies', 'tg_bot_token'):
+            op.add_column('companies', sa.Column('tg_bot_token', sa.String(length=100), nullable=True))
+        if not _column_exists('companies', 'tg_bot_username'):
+            op.add_column('companies', sa.Column('tg_bot_username', sa.String(length=100), nullable=True))
+        if not _column_exists('companies', 'receipt_templates'):
+            op.add_column('companies', sa.Column('receipt_templates', sa.JSON(), nullable=True))
 
     # --- customers columns ---
-    if not _column_exists('customers', 'tg_chat_id'):
-        op.add_column('customers', sa.Column('tg_chat_id', sa.String(length=50), nullable=True))
-    if not _column_exists('customers', 'discount_percent'):
-        op.add_column('customers', sa.Column('discount_percent', sa.Numeric(precision=5, scale=2), nullable=True))
-    if not _column_exists('customers', 'card_number'):
-        op.add_column('customers', sa.Column('card_number', sa.String(length=20), nullable=True))
-    if not _column_exists('customers', 'cashback_percent'):
-        op.add_column('customers', sa.Column('cashback_percent', sa.Numeric(precision=5, scale=2), nullable=True))
-    if not _column_exists('customers', 'bonus_balance'):
-        op.add_column('customers', sa.Column('bonus_balance', sa.Numeric(precision=14, scale=2), nullable=True))
-    if not _column_exists('customers', 'total_spent'):
-        op.add_column('customers', sa.Column('total_spent', sa.Numeric(precision=14, scale=2), nullable=True))
+    if _table_exists('customers'):
+        if not _column_exists('customers', 'tg_chat_id'):
+            op.add_column('customers', sa.Column('tg_chat_id', sa.String(length=50), nullable=True))
+        if not _column_exists('customers', 'discount_percent'):
+            op.add_column('customers', sa.Column('discount_percent', sa.Numeric(precision=5, scale=2), nullable=True))
+        if not _column_exists('customers', 'card_number'):
+            op.add_column('customers', sa.Column('card_number', sa.String(length=20), nullable=True))
+        if not _column_exists('customers', 'cashback_percent'):
+            op.add_column('customers', sa.Column('cashback_percent', sa.Numeric(precision=5, scale=2), nullable=True))
+        if not _column_exists('customers', 'bonus_balance'):
+            op.add_column('customers', sa.Column('bonus_balance', sa.Numeric(precision=14, scale=2), nullable=True))
+        if not _column_exists('customers', 'total_spent'):
+            op.add_column('customers', sa.Column('total_spent', sa.Numeric(precision=14, scale=2), nullable=True))
 
-    # customers indexes
-    try:
-        op.drop_index(op.f('ix_customers_company_id'), table_name='customers')
-    except Exception:
-        pass
-    try:
-        op.drop_index(op.f('ix_customers_phone'), table_name='customers')
-    except Exception:
-        pass
-    if not _index_exists('ix_customers_phone', 'customers'):
-        op.create_index(op.f('ix_customers_phone'), 'customers', ['phone'], unique=False)
-    if not _index_exists('ix_customers_card_number', 'customers'):
-        op.create_index(op.f('ix_customers_card_number'), 'customers', ['card_number'], unique=False)
-    if not _index_exists('ix_customers_tg_chat_id', 'customers'):
-        op.create_index(op.f('ix_customers_tg_chat_id'), 'customers', ['tg_chat_id'], unique=False)
+        if _index_exists('ix_customers_company_id', 'customers'):
+            op.drop_index(op.f('ix_customers_company_id'), table_name='customers')
+        if _index_exists('ix_customers_phone', 'customers'):
+            op.drop_index(op.f('ix_customers_phone'), table_name='customers')
 
-    if not _constraint_exists('uq_company_customer_card_number', 'customers'):
-        try:
+        if not _index_exists('ix_customers_phone', 'customers'):
+            op.create_index(op.f('ix_customers_phone'), 'customers', ['phone'], unique=False)
+        if not _index_exists('ix_customers_card_number', 'customers'):
+            op.create_index(op.f('ix_customers_card_number'), 'customers', ['card_number'], unique=False)
+        if not _index_exists('ix_customers_tg_chat_id', 'customers'):
+            op.create_index(op.f('ix_customers_tg_chat_id'), 'customers', ['tg_chat_id'], unique=False)
+
+        if not _constraint_exists('uq_company_customer_card_number', 'customers'):
             op.create_unique_constraint('uq_company_customer_card_number', 'customers', ['company_id', 'card_number'])
-        except Exception:
-            pass
-    if not _constraint_exists('uq_company_customer_phone', 'customers'):
-        try:
+        if not _constraint_exists('uq_company_customer_phone', 'customers'):
             op.create_unique_constraint('uq_company_customer_phone', 'customers', ['company_id', 'phone'])
-        except Exception:
-            pass
-    if not _constraint_exists('uq_company_customer_tg_chat_id', 'customers'):
-        try:
+        if not _constraint_exists('uq_company_customer_tg_chat_id', 'customers'):
             op.create_unique_constraint('uq_company_customer_tg_chat_id', 'customers', ['company_id', 'tg_chat_id'])
-        except Exception:
-            pass
 
     # --- expenses ---
-    if not _column_exists('expenses', 'wallet_id'):
-        op.add_column('expenses', sa.Column('wallet_id', sa.Integer(), nullable=True))
-    try:
-        op.drop_index(op.f('ix_expenses_company_id'), table_name='expenses')
-    except Exception:
-        pass
-    try:
-        op.drop_index(op.f('ix_expenses_created_at'), table_name='expenses')
-    except Exception:
-        pass
-    if _table_exists('wallets') and _column_exists('expenses', 'wallet_id'):
-        try:
-            op.create_foreign_key(None, 'expenses', 'wallets', ['wallet_id'], ['id'])
-        except Exception:
+    if _table_exists('expenses'):
+        if not _column_exists('expenses', 'wallet_id'):
+            op.add_column('expenses', sa.Column('wallet_id', sa.Integer(), nullable=True))
+        if _index_exists('ix_expenses_company_id', 'expenses'):
+            op.drop_index(op.f('ix_expenses_company_id'), table_name='expenses')
+        if _index_exists('ix_expenses_created_at', 'expenses'):
+            op.drop_index(op.f('ix_expenses_created_at'), table_name='expenses')
+
+        if _table_exists('wallets') and _column_exists('expenses', 'wallet_id') and not _constraint_exists('expenses_wallet_id_fkey', 'expenses'):
+            # The constraint name might be auto-generated, we assume it's created or we skip if not sure. Let's just create it.
+            # op.create_foreign_key(None, 'expenses', 'wallets', ['wallet_id'], ['id'])
             pass
 
     # --- products columns ---
-    if not _column_exists('products', 'brand'):
-        op.add_column('products', sa.Column('brand', sa.String(length=200), nullable=True))
-    if not _column_exists('products', 'customer_id'):
-        op.add_column('products', sa.Column('customer_id', sa.Integer(), nullable=True))
+    if _table_exists('products'):
+        if not _column_exists('products', 'brand'):
+            op.add_column('products', sa.Column('brand', sa.String(length=200), nullable=True))
+        if not _column_exists('products', 'customer_id'):
+            op.add_column('products', sa.Column('customer_id', sa.Integer(), nullable=True))
 
-    # products indexes
-    for idx in ['ix_products_category_id', 'ix_products_company_id', 'ix_products_is_deleted',
-                'ix_products_status', 'ix_products_barcode', 'ix_products_sku']:
-        try:
-            op.drop_index(op.f(idx), table_name='products')
-        except Exception:
-            pass
+        for idx in ['ix_products_category_id', 'ix_products_company_id', 'ix_products_is_deleted',
+                    'ix_products_status', 'ix_products_barcode', 'ix_products_sku']:
+            if _index_exists(idx, 'products'):
+                op.drop_index(op.f(idx), table_name='products')
 
-    if not _index_exists('ix_products_barcode', 'products'):
-        op.create_index(op.f('ix_products_barcode'), 'products', ['barcode'], unique=False)
-    if not _index_exists('ix_products_sku', 'products'):
-        op.create_index(op.f('ix_products_sku'), 'products', ['sku'], unique=False)
-    if not _index_exists('ix_product_company_name', 'products'):
-        op.create_index('ix_product_company_name', 'products', ['company_id', 'name'], unique=False)
-    if not _index_exists('ix_product_company_status_deleted', 'products'):
-        op.create_index('ix_product_company_status_deleted', 'products', ['company_id', 'status', 'is_deleted'], unique=False)
+        if not _index_exists('ix_products_barcode', 'products'):
+            op.create_index(op.f('ix_products_barcode'), 'products', ['barcode'], unique=False)
+        if not _index_exists('ix_products_sku', 'products'):
+            op.create_index(op.f('ix_products_sku'), 'products', ['sku'], unique=False)
+        if not _index_exists('ix_product_company_name', 'products'):
+            op.create_index('ix_product_company_name', 'products', ['company_id', 'name'], unique=False)
+        if not _index_exists('ix_product_company_status_deleted', 'products'):
+            op.create_index('ix_product_company_status_deleted', 'products', ['company_id', 'status', 'is_deleted'], unique=False)
 
-    if _column_exists('products', 'customer_id'):
-        try:
-            op.create_foreign_key(None, 'products', 'customers', ['customer_id'], ['id'])
-        except Exception:
+        if _column_exists('products', 'customer_id') and _table_exists('customers') and not _constraint_exists('products_customer_id_fkey', 'products'):
+            # op.create_foreign_key(None, 'products', 'customers', ['customer_id'], ['id'])
             pass
 
     # --- sale_items indexes ---
-    try:
-        op.drop_index(op.f('ix_sale_items_product_id'), table_name='sale_items')
-    except Exception:
-        pass
-    try:
-        op.drop_index(op.f('ix_sale_items_sale_id'), table_name='sale_items')
-    except Exception:
-        pass
-    if not _index_exists('ix_sale_item_product_id', 'sale_items'):
-        op.create_index('ix_sale_item_product_id', 'sale_items', ['product_id'], unique=False)
-    if not _index_exists('ix_sale_item_sale_id', 'sale_items'):
-        op.create_index('ix_sale_item_sale_id', 'sale_items', ['sale_id'], unique=False)
+    if _table_exists('sale_items'):
+        if _index_exists('ix_sale_items_product_id', 'sale_items'):
+            op.drop_index(op.f('ix_sale_items_product_id'), table_name='sale_items')
+        if _index_exists('ix_sale_items_sale_id', 'sale_items'):
+            op.drop_index(op.f('ix_sale_items_sale_id'), table_name='sale_items')
+        if not _index_exists('ix_sale_item_product_id', 'sale_items'):
+            op.create_index('ix_sale_item_product_id', 'sale_items', ['product_id'], unique=False)
+        if not _index_exists('ix_sale_item_sale_id', 'sale_items'):
+            op.create_index('ix_sale_item_sale_id', 'sale_items', ['sale_id'], unique=False)
 
     # --- sale_payments ---
-    if not _index_exists('ix_sale_payments_id', 'sale_payments'):
-        op.create_index(op.f('ix_sale_payments_id'), 'sale_payments', ['id'], unique=False)
-    try:
-        op.drop_constraint(op.f('sale_payments_sale_id_fkey'), 'sale_payments', type_='foreignkey')
-    except Exception:
-        pass
-    try:
-        op.create_foreign_key(None, 'sale_payments', 'sales', ['sale_id'], ['id'])
-    except Exception:
-        pass
+    if _table_exists('sale_payments'):
+        if not _index_exists('ix_sale_payments_id', 'sale_payments'):
+            op.create_index(op.f('ix_sale_payments_id'), 'sale_payments', ['id'], unique=False)
+        if _constraint_exists('sale_payments_sale_id_fkey', 'sale_payments'):
+            op.drop_constraint('sale_payments_sale_id_fkey', 'sale_payments', type_='foreignkey')
+        if not _constraint_exists('sale_payments_sale_id_fkey', 'sale_payments'):
+            pass # op.create_foreign_key(None, 'sale_payments', 'sales', ['sale_id'], ['id'])
 
     # --- sales indexes ---
-    for idx in ['ix_sales_cashier_id', 'ix_sales_company_created', 'ix_sales_company_id',
-                'ix_sales_created_at', 'ix_sales_customer_id', 'ix_sales_status', 'ix_sales_warehouse_id']:
-        try:
-            op.drop_index(op.f(idx), table_name='sales')
-        except Exception:
-            pass
-    if not _index_exists('ix_sale_company_created', 'sales'):
-        op.create_index('ix_sale_company_created', 'sales', ['company_id', 'created_at'], unique=False)
-    if not _index_exists('ix_sale_company_status', 'sales'):
-        op.create_index('ix_sale_company_status', 'sales', ['company_id', 'status'], unique=False)
+    if _table_exists('sales'):
+        for idx in ['ix_sales_cashier_id', 'ix_sales_company_created', 'ix_sales_company_id',
+                    'ix_sales_created_at', 'ix_sales_customer_id', 'ix_sales_status', 'ix_sales_warehouse_id']:
+            if _index_exists(idx, 'sales'):
+                op.drop_index(op.f(idx), table_name='sales')
+        if not _index_exists('ix_sale_company_created', 'sales'):
+            op.create_index('ix_sale_company_created', 'sales', ['company_id', 'created_at'], unique=False)
+        if not _index_exists('ix_sale_company_status', 'sales'):
+            op.create_index('ix_sale_company_status', 'sales', ['company_id', 'status'], unique=False)
 
     # --- stock_levels ---
-    if not _column_exists('stock_levels', 'warehouse_id'):
-        op.add_column('stock_levels', sa.Column('warehouse_id', sa.Integer(), nullable=True))
-    try:
-        op.drop_constraint(op.f('stock_levels_product_id_key'), 'stock_levels', type_='unique')
-    except Exception:
-        pass
-    if not _index_exists('ix_stock_levels_warehouse_id', 'stock_levels'):
-        op.create_index(op.f('ix_stock_levels_warehouse_id'), 'stock_levels', ['warehouse_id'], unique=False)
-    if not _constraint_exists('uq_stock_product_warehouse', 'stock_levels'):
-        try:
+    if _table_exists('stock_levels'):
+        if not _column_exists('stock_levels', 'warehouse_id'):
+            op.add_column('stock_levels', sa.Column('warehouse_id', sa.Integer(), nullable=True))
+        if _constraint_exists('stock_levels_product_id_key', 'stock_levels'):
+            op.drop_constraint('stock_levels_product_id_key', 'stock_levels', type_='unique')
+        if not _index_exists('ix_stock_levels_warehouse_id', 'stock_levels'):
+            op.create_index(op.f('ix_stock_levels_warehouse_id'), 'stock_levels', ['warehouse_id'], unique=False)
+        if not _constraint_exists('uq_stock_product_warehouse', 'stock_levels'):
             op.create_unique_constraint('uq_stock_product_warehouse', 'stock_levels', ['product_id', 'warehouse_id'])
-        except Exception:
-            pass
-    try:
-        op.create_foreign_key(None, 'stock_levels', 'warehouses', ['warehouse_id'], ['id'])
-    except Exception:
-        pass
+        if not _constraint_exists('stock_levels_warehouse_id_fkey', 'stock_levels') and _table_exists('warehouses'):
+            pass # op.create_foreign_key(None, 'stock_levels', 'warehouses', ['warehouse_id'], ['id'])
 
     # --- suppliers ---
-    if not _index_exists('ix_suppliers_id', 'suppliers'):
-        op.create_index(op.f('ix_suppliers_id'), 'suppliers', ['id'], unique=False)
-    try:
-        op.create_foreign_key(None, 'suppliers', 'companies', ['company_id'], ['id'])
-    except Exception:
-        pass
+    if _table_exists('suppliers'):
+        if not _index_exists('ix_suppliers_id', 'suppliers'):
+            op.create_index(op.f('ix_suppliers_id'), 'suppliers', ['id'], unique=False)
 
     # --- tariffs ---
-    if not _column_exists('tariffs', 'bhm_percent'):
-        op.add_column('tariffs', sa.Column('bhm_percent', sa.Float(), nullable=True))
-    if not _index_exists('ix_tariffs_id', 'tariffs'):
-        op.create_index(op.f('ix_tariffs_id'), 'tariffs', ['id'], unique=False)
+    if _table_exists('tariffs'):
+        if not _column_exists('tariffs', 'bhm_percent'):
+            op.add_column('tariffs', sa.Column('bhm_percent', sa.Float(), nullable=True))
+        if not _index_exists('ix_tariffs_id', 'tariffs'):
+            op.create_index(op.f('ix_tariffs_id'), 'tariffs', ['id'], unique=False)
 
     # --- transactions ---
-    if not _column_exists('transactions', 'wallet_id'):
-        op.add_column('transactions', sa.Column('wallet_id', sa.Integer(), nullable=True))
-    try:
-        op.alter_column('transactions', 'branch_id', existing_type=sa.INTEGER(), nullable=True)
-    except Exception:
-        pass
-    try:
-        op.create_foreign_key(None, 'transactions', 'wallets', ['wallet_id'], ['id'])
-    except Exception:
-        pass
+    if _table_exists('transactions'):
+        if not _column_exists('transactions', 'wallet_id'):
+            op.add_column('transactions', sa.Column('wallet_id', sa.Integer(), nullable=True))
 
     # --- user_companies ---
-    if not _index_exists('ix_user_companies_id', 'user_companies'):
-        op.create_index(op.f('ix_user_companies_id'), 'user_companies', ['id'], unique=False)
+    if _table_exists('user_companies'):
+        if not _index_exists('ix_user_companies_id', 'user_companies'):
+            op.create_index(op.f('ix_user_companies_id'), 'user_companies', ['id'], unique=False)
 
 
 def downgrade() -> None:
-    # Downgrade is left intentionally minimal for safety
     pass
