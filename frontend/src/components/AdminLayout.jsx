@@ -324,21 +324,14 @@ export default function AdminLayout() {
 
         {/* Navigation */}
         <nav
-          className={`flex-1 ${collapsed && 'pt-4'} overflow-y-auto px-3 space-y-0.5`}
+          className={`flex-1 overflow-y-auto px-3 space-y-0.5`}
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {navGroups.map((group) => {
             const visibleLinks = group.links.filter(link => user && link.roles.includes(user.role));
             if (!visibleLinks.length) return null;
             return (
-              <div key={group.key} className="mb-1">
-                {!collapsed && (
-                  <p className="text-[8px] xl:text-[10px] flex items-center font-bold text-slate-400 uppercase tracking-widest px-2 py-1 xl:py-2 select-none">
-                    <Minus size={20} /> {group.label} <Minus size={20} />
-                  </p>
-                )}
-                {collapsed && <div className="" />}
-
+              <div key={group.key} className="mb-1 mt-2">
                 {visibleLinks.map((link) => {
                   const isActive = location.pathname.startsWith(link.path);
                   const isBlocked = isSubExpired && !link.path.includes('/admin/tariflar');
@@ -348,7 +341,7 @@ export default function AdminLayout() {
                       to={isBlocked ? '/admin/tariflar' : link.path}
                       onClick={() => setMobileMenuOpen(false)}
                       title={collapsed ? link.name : undefined}
-                      className={`flex items-center gap-1 sm:gap-2 px-2.25 py-2 rounded-lg transition-all duration-150 group mb-0.5 ${isBlocked
+                      className={`flex items-center gap-1 sm:gap-2 px-2.25 py-1.75 rounded-lg transition-all duration-150 group mb-0.5 ${isBlocked
                         ? 'opacity-35 cursor-not-allowed pointer-events-none'
                         : isActive
                           ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
@@ -362,7 +355,7 @@ export default function AdminLayout() {
                         )}
                       </span>
                       {!collapsed && (
-                        <span className={`text-[11px] sm:text-[13px] xl:text-[16px] leading-[16px] transition-all font-medium truncate flex-1 ${isActive ? 'font-semibold' : ''}`}>
+                        <span className={`text-[11px] sm:text-[13px] xl:text-[16px] transition-all font-medium truncate flex-1 ${isActive ? 'font-semibold' : ''}`}>
                           {link.name}
                         </span>
                       )}

@@ -7,7 +7,7 @@ import BarcodePrintModal from '../../components/BarcodeTemplates';
 import { useLang } from '../../context/LangContext';
 import toast from 'react-hot-toast';
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
-import { ChevronsUpDown, CheckIcon, Search, Layers, ToggleLeft, Warehouse, ListOrdered, SearchIcon, Flame, CircleCheck, PencilRuler, TrendingUp, TrendingDown, Banknote, Wallet, BarChart3, Box, EllipsisVertical } from 'lucide-react'; // Ikonkalar uchun (ixtiyoriy)
+import { ChevronsUpDown, CheckIcon, Search, Layers, ToggleLeft, Warehouse, ListOrdered, SearchIcon, Flame, CircleCheck, PencilRuler, TrendingUp, TrendingDown, Banknote, Wallet, BarChart3, Box, EllipsisVertical, ChevronsRight, ChevronsLeft, ChevronLeft, ChevronRight } from 'lucide-react'; // Ikonkalar uchun (ixtiyoriy)
 
 const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8010/api').replace('/api', '');
 
@@ -1442,16 +1442,6 @@ export default function Products() {
                   Ko'p mahsulot qo'shish
                 </button>
                 <button
-                  onClick={downloadTemplate}
-                  title="Shablonni yuklab oling va to'ldiring"
-                  className="cursor-pointer leading-none inline-flex items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-xl transition-colors border border-slate-200"
-                >
-                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  {t('common.download')}
-                </button>
-                <button
                   onClick={openImport}
                   className="cursor-pointer leading-none inline-flex items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-violet-50 hover:bg-violet-100 text-violet-700 text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-xl transition-colors border border-violet-200"
                 >
@@ -1597,9 +1587,10 @@ export default function Products() {
       {/* ── PRODUCTS TAB ─────────────────────────────── */}
       {activeTab === 'products' && (
         <>
-          {/* Filters */}
-          <div className="flex w-full gap-3">
-            <div className="flex items-center gap-1.5 xl:gap-2 px-2 py-1.5 xl:py-2 w-full border border-slate-200 rounded-lg shadow-xs">
+          <div className="flex flex-wrap items-center gap-1 xl:gap-2 w-full">
+            {/* 1. QIDIRUV INPUTI */}
+
+            <div className="flex items-center gap-1.5 xl:gap-2 px-2 py-1 w-max min-w-full sm:min-w-[300px] lg:min-w-[560px] flex-1 xl:py-2.5 border border-slate-200 rounded-lg shadow-xs">
               <Search className="size-5 shrink-0 text-slate-400 pointer-events-none" />
               <input
                 type="text"
@@ -1609,16 +1600,6 @@ export default function Products() {
                 className="w-full pr-2 text-[14px] xl:text-[16px] text-slate-900 outline-none focus:border-indigo-500 transition-colors"
               />
             </div>
-            <button
-              onClick={loadProducts}
-              className="w-max flex gap-2 items-center justify-center leading-none px-3 py-1.5 xl:px-5 xl:py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[14px] xl:text-[16px] font-medium rounded-lg shadow-xs hover:shadow-sm active:scale-[0.98] transition-all cursor-pointer text-center"
-            >
-              <SearchIcon className='size-5' /> {t('common.search').replace('...', '')}
-            </button>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-1 xl:gap-2 w-full">
-            {/* 1. QIDIRUV INPUTI */}
 
             {/* 2. KATEGORIYALAR LISTBOX */}
             <div className="w-full sm:w-auto min-w-[180px] flex-1 sm:flex-none">
@@ -1735,62 +1716,6 @@ export default function Products() {
                     </ListboxOptions>
                   </div>
                 </Listbox>
-              </div>
-            )}
-
-            {/* 6. DINAMIK PROGRESS YOKI OMMAVIY AMALLAR PANELI */}
-            {deleteProgress === 'deleting' ? (
-              <div className="flex items-center gap-2 xl:gap-3 px-4 py-2.5 bg-red-50 border border-red-200 rounded-lg min-w-[220px] shadow-xs">
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-red-600">{t('product.deleting')}</span>
-                    <span className="text-xs font-bold text-red-700">{deletePercent}%</span>
-                  </div>
-                  <div className="w-full bg-red-200 rounded-full h-2 overflow-hidden">
-                    <div className="bg-red-500 h-2 rounded-full transition-all duration-200" style={{ width: `${deletePercent}%` }} />
-                  </div>
-                </div>
-              </div>
-            ) : selectedIds.length > 0 && (
-              <div className="relative w-full sm:w-auto">
-                <button
-                  onClick={() => setMassActionsOpen(o => !o)}
-                  className="w-full sm:w-auto px-5 py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm font-semibold rounded-lg transition-colors inline-flex items-center justify-between sm:justify-start gap-2 shrink-0 border border-indigo-100 cursor-pointer"
-                >
-                  <span>Ommaviy amallar ({selectedIds.length})</span>
-                  <svg className={`w-4 h-4 transition-transform ${massActionsOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-                {massActionsOpen && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setMassActionsOpen(false)} />
-                    <div className="absolute top-full mt-2 left-0 w-60 bg-white rounded-lg shadow-xl border border-slate-200/80 z-20 py-1.5 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-100">
-                      <button
-                        onClick={() => {
-                          const selProds = products.filter(p => selectedIds.includes(p.id));
-                          if (selProds.some(p => p.product_type === 'sell')) {
-                            toast.error("Tarkibiy (Kalkulyatsiya) mahsulot qoldig'ini ommaviy tahrirlab bo'lmaydi. Ularni tanlovdan olib tashlang!");
-                            return;
-                          }
-                          setMassActionsOpen(false); setBulkStockModal(true);
-                        }}
-                        className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors flex items-center gap-2.5 cursor-pointer"
-                      >
-                        <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-                        Qoldiqni tahrirlash
-                      </button>
-                      <div className="border-t border-slate-100 my-1" />
-                      <button
-                        onClick={() => { setMassActionsOpen(false); handleBulkDelete(); }}
-                        className="w-full text-left px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2.5 cursor-pointer"
-                      >
-                        <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                        O'chirish
-                      </button>
-                    </div>
-                  </>
-                )}
               </div>
             )}
 
@@ -1936,6 +1861,63 @@ export default function Products() {
             </div>
           </div>
 
+
+          {/* 6. DINAMIK PROGRESS YOKI OMMAVIY AMALLAR PANELI */}
+          {deleteProgress === 'deleting' ? (
+            <div className="flex items-center gap-2 xl:gap-3 px-4 py-2.5 bg-red-50 border border-red-200 rounded-lg min-w-[220px] shadow-xs">
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold text-red-600">{t('product.deleting')}</span>
+                  <span className="text-xs font-bold text-red-700">{deletePercent}%</span>
+                </div>
+                <div className="w-full bg-red-200 rounded-full h-2 overflow-hidden">
+                  <div className="bg-red-500 h-2 rounded-full transition-all duration-200" style={{ width: `${deletePercent}%` }} />
+                </div>
+              </div>
+            </div>
+          ) : selectedIds.length > 0 && (
+            <div className="relative w-full sm:w-auto">
+              <button
+                onClick={() => setMassActionsOpen(o => !o)}
+                className="w-full sm:w-auto px-5 py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm font-semibold rounded-lg transition-colors inline-flex items-center justify-between sm:justify-start gap-2 shrink-0 border border-indigo-100 cursor-pointer"
+              >
+                <span>Ommaviy amallar ({selectedIds.length})</span>
+                <svg className={`w-4 h-4 transition-transform ${massActionsOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {massActionsOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setMassActionsOpen(false)} />
+                  <div className="absolute top-full mt-2 left-0 w-60 bg-white rounded-lg shadow-xl border border-slate-200/80 z-20 py-1.5 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-100">
+                    <button
+                      onClick={() => {
+                        const selProds = products.filter(p => selectedIds.includes(p.id));
+                        if (selProds.some(p => p.product_type === 'sell')) {
+                          toast.error("Tarkibiy (Kalkulyatsiya) mahsulot qoldig'ini ommaviy tahrirlab bo'lmaydi. Ularni tanlovdan olib tashlang!");
+                          return;
+                        }
+                        setMassActionsOpen(false); setBulkStockModal(true);
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                      Qoldiqni tahrirlash
+                    </button>
+                    <div className="border-t border-slate-100 my-1" />
+                    <button
+                      onClick={() => { setMassActionsOpen(false); handleBulkDelete(); }}
+                      className="w-full text-left px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      O'chirish
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Products Table */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
             {loading ? (
@@ -1992,7 +1974,7 @@ export default function Products() {
                               />
                             </td>
 
-                            <td className="text-left px-2 text-[12px] lg:text-[14px] text-slate-500 font-medium">{rowNumber}</td>
+                            <td className="text-left px-2 py-3 text-[12px] lg:text-[14px] text-slate-500 font-medium">{rowNumber}</td>
 
                             <td className="py-3">
                               {thumb ? (
@@ -2124,14 +2106,22 @@ export default function Products() {
                     </div>
 
                     <div className="flex items-center flex-nowrap gap-0 sm:gap-1">
+                      <button disabled={page === 1} onClick={() => setPage(1)}
+                        className={`rounded-lg ${page === 1 ? 'text-slate-300' : 'text-slate-700 hover:bg-white bg-slate-50 cursor-pointer'} transition-colors`}>
+                          <ChevronsLeft className='size-4 sm:size-5'/>
+                      </button>
                       <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
-                        className={`rounded-lg border ${page === 1 ? 'border-transparent text-slate-300' : 'border-slate-200 text-slate-700 hover:bg-white bg-slate-50'} transition-colors`}>
-                        <svg className="w-4 h-4 xl:w-5 xl:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+                        className={`rounded-lg ${page === 1 ? 'text-slate-300' : 'text-slate-700 hover:bg-white bg-slate-50 cursor-pointer'} transition-colors`}>
+                          <ChevronLeft className='size-4 sm:size-5'/>
                       </button>
                       <span className="px-2 sm:px-3 text-[12px] xl:text-[14px] whitespace-nowrap font-semibold text-slate-700">{page} / {Math.ceil(totalRecords / limit) || 1}</span>
                       <button disabled={page >= (Math.ceil(totalRecords / limit) || 1)} onClick={() => setPage(p => p + 1)}
-                        className={`rounded-lg border ${page >= (Math.ceil(totalRecords / limit) || 1) ? 'border-transparent text-slate-300' : 'border-slate-200 text-slate-700 hover:bg-white bg-slate-50'} transition-colors`}>
-                        <svg className="w-4 h-4 xl:w-5 xl:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+                        className={`rounded-lg ${page >= (Math.ceil(totalRecords / limit) || 1) ? 'text-slate-300' : 'text-slate-700 hover:bg-white bg-slate-50 cursor-pointer'} transition-colors`}>
+                          <ChevronRight className='size-4 sm:size-5'/>
+                      </button>
+                      <button disabled={page === (Math.ceil(totalRecords / limit) || 1)} onClick={() => setPage(Math.ceil(totalRecords / limit) || 1)}
+                        className={`rounded-lg ${page === (Math.ceil(totalRecords / limit) || 1) ? 'text-slate-300' : 'text-slate-700 hover:bg-white bg-slate-50 cursor-pointer'} transition-colors`}>
+                          <ChevronsRight className='size-4 sm:size-5'/>
                       </button>
                     </div>
 
