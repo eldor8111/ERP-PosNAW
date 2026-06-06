@@ -963,7 +963,17 @@ export default function UlgurjiSotuv() {
                       </button>
                     </div>
                   </div>
-                  <CustomerSearch ref={custSearchRef} customers={customers} value={custId} onChange={setCustId} onNew={c => setCustomers(prev => [...prev, c])} onFetch={handleNewFetchedCustomers} />
+                  <CustomerSearch ref={custSearchRef} customers={customers} value={custId}
+                    onChange={(newId) => {
+                      // Mijoz o'zgarganda session pending sale dan ajralamiz
+                      // (boshqa mijoz uchun tasodifan eski pending sale ni update qilmaslik uchun)
+                      if (newId !== custId && editingSale) {
+                        setEditingSale(null);
+                        sessionStorage.removeItem('ulgurji_session_sale_id');
+                      }
+                      setCustId(newId);
+                    }}
+                    onNew={c => setCustomers(prev => [...prev, c])} onFetch={handleNewFetchedCustomers} />
                 </div>
 
                 <div className="border-t border-slate-100" />
