@@ -55,3 +55,4 @@ app.db
 # Utility va test skriptlar (faqat lokal, serverga ko'chirilmasin)
 scripts/
 tmp/invoices/
+node_modules/
