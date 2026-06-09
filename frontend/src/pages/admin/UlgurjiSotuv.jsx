@@ -690,10 +690,14 @@ export default function UlgurjiSotuv() {
 
       let res;
       if (editingSale) {
+        // Faqat aniq tahrirlangan sotuvni yangilaymiz (sessionStorage dan EMAS)
         res = await api.put(`/sales/${editingSale.id}`, { ...payload, warehouse_id: editingSale.warehouse_id || (warehouseId ? Number(warehouseId) : undefined) });
         toast.success(`"${editingSale.number}" sotuv yangilandi!`); setEditingSale(null);
+        sessionStorage.removeItem('ulgurji_session_sale_id'); // ← sessiyani tozalash
       } else {
+        // Yangi sotuv — hech qachon sessionStorage dagi pending ID ishlatilmaydi!
         res = await api.post('/sales/', payload);
+        sessionStorage.removeItem('ulgurji_session_sale_id'); // ← old pending session clear
         toast.success('Sotuv muvaffaqiyatli saqlandi!');
       }
 
@@ -787,9 +791,9 @@ export default function UlgurjiSotuv() {
         warehouse_id: warehouseId ? Number(warehouseId) : undefined,
       };
 
-      // Har bir tab o'zining pending savosini alohida kuzatadi
-      const sessionSaleId = sessionStorage.getItem('ulgurji_session_sale_id');
-      const activeSaleId = editingSale?.id || (sessionSaleId ? Number(sessionSaleId) : null);
+      // MUHIM: faqat aniq tahrirlayotgan savoni yangilaymiz
+      // sessionStorage dan kelgan ID — YANGI mijoz uchun HECH QACHON ishlatilmaydi!
+      const activeSaleId = editingSale?.id || null;
 
       if (activeSaleId) {
         const wid = editingSale?.warehouse_id || payload.warehouse_id;
@@ -859,39 +863,11 @@ export default function UlgurjiSotuv() {
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sahifadan chiqilganda (component unmount) savatni tarixga saqlash
-  useEffect(() => {
-    return () => {
-      const d = pendingSaveDataRef.current;
-      if (!d || !d.cart.length || !d.custId) return;
-      const items = d.cart.map(it => ({
-        product_id: it.product_id,
-        quantity: it.qty,
-        unit_price: it.price,
-        discount: it.discount_type === 'pct'
-          ? it.price * it.qty * (parseN(it.discount_val) / 100)
-          : parseN(it.discount_val),
-        warehouse_id: it.warehouse_id || undefined, // ← per-item sklad
-      }));
-      const payload = {
-        items,
-        payment_type: 'cash',
-        ...(d.editingSale ? {} : { paid_amount: 0 }),
-        discount_amount: d.saleDisc,
-        customer_id: Number(d.custId),
-        warehouse_id: d.warehouseId ? Number(d.warehouseId) : undefined,
-      };
-      // Shu tab uchun mavjud pending savoni yangilash (yangi yaratmaslik)
-      const sessionSaleId = sessionStorage.getItem('ulgurji_session_sale_id');
-      const activeSaleId = d.editingSale?.id || (sessionSaleId ? Number(sessionSaleId) : null);
-      if (activeSaleId) {
-        const wid = d.editingSale?.warehouse_id || payload.warehouse_id;
-        api.put(`/sales/${activeSaleId}`, { ...payload, warehouse_id: wid });
-      } else {
-        api.post('/sales/pending', payload);
-      }
-    };
-  }, []);
+  // XAVFSIZ: Unmount vaqtida avtomatik saqlash O'CHIRILDI!
+  // Sabab: bu bug ning asosiy manbai edi — unmount da sessionStorage dagi
+  // BOSHQA mijoz uchun yaratilgan pending sale ID ustiga yangi mijoz ma'lumotlari
+  // yozilib ketardi. Foydalanuvchi "Saqlash" tugmasini o'zi bosishi kerak.
+  // useEffect(() => { return () => { ... } }, []);  ← o'chirildi (BUG FIX)
 
   // Tab o'zgarganda (Tarixi yoki Arxiv ga o'tganda) auto-pending saqlash
   const handleTabChange = async (newTab) => {
@@ -987,7 +963,17 @@ export default function UlgurjiSotuv() {
                       </button>
                     </div>
                   </div>
-                  <CustomerSearch ref={custSearchRef} customers={customers} value={custId} onChange={setCustId} onNew={c => setCustomers(prev => [...prev, c])} onFetch={handleNewFetchedCustomers} />
+                  <CustomerSearch ref={custSearchRef} customers={customers} value={custId}
+                    onChange={(newId) => {
+                      // Mijoz o'zgarganda session pending sale dan ajralamiz
+                      // (boshqa mijoz uchun tasodifan eski pending sale ni update qilmaslik uchun)
+                      if (newId !== custId && editingSale) {
+                        setEditingSale(null);
+                        sessionStorage.removeItem('ulgurji_session_sale_id');
+                      }
+                      setCustId(newId);
+                    }}
+                    onNew={c => setCustomers(prev => [...prev, c])} onFetch={handleNewFetchedCustomers} />
                 </div>
 
                 <div className="border-t border-slate-100" />
