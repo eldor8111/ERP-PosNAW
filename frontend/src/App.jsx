@@ -28,7 +28,7 @@ const KirimTolovlar   = lazy(() => import('./pages/admin/KirimTolovlar'))
 const ChiqimTolovlar  = lazy(() => import('./pages/admin/ChiqimTolovlar'))
 const Kassa           = lazy(() => import('./pages/admin/Kassa'))
 const MobileDashboard = lazy(() => import('./pages/admin/MobileDashboard'))
-const Users           = lazy(() => import('./pages/admin/Users'))
+const Employees           = lazy(() => import('./pages/admin/Users'))
 const Shifts          = lazy(() => import('./pages/admin/Shifts'))
 const SuperAdmin      = lazy(() => import('./pages/admin/SuperAdmin'))
 const AgentsPage      = lazy(() => import('./pages/admin/SuperAdmin').then(m => ({ default: m.AgentsPage })))
@@ -96,14 +96,14 @@ export default function App() {
             <Route path="operations" element={<Suspense fallback={<PageLoader />}><Operations /></Suspense>} />
             <Route path="settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
             <Route path="mobile" element={<Suspense fallback={<PageLoader />}><MobileDashboard /></Suspense>} />
-            <Route path="users" element={<Suspense fallback={<PageLoader />}><Users /></Suspense>} />
+            <Route path="employees" element={<Suspense fallback={<PageLoader />}><Employees /></Suspense>} />
             <Route path="shifts" element={<Suspense fallback={<PageLoader />}><Shifts /></Suspense>} />
             <Route path="super-admin" element={<Suspense fallback={<PageLoader />}><SuperAdmin /></Suspense>} />
             <Route path="agents" element={<Suspense fallback={<PageLoader />}><AgentsPage /></Suspense>} />
             <Route path="ombor" element={<Suspense fallback={<PageLoader />}><Ombor /></Suspense>} />
             <Route path="filiallar" element={<Suspense fallback={<PageLoader />}><Filiallar /></Suspense>} />
             <Route path="tariflar" element={<Suspense fallback={<PageLoader />}><Tariflar /></Suspense>} />
-            <Route path="users/create" element={
+            <Route path="employees/create" element={
               <PrivateRoute roles={ROLE_GROUPS.MANAGEMENT}>
                 <Suspense fallback={<PageLoader />}><Register /></Suspense>
               </PrivateRoute>

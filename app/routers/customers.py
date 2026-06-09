@@ -37,7 +37,6 @@ class CustomerIn(BaseModel):
     def phone_valid(cls, v):
         if v is None:
             return v
-        # Bo'sh string'ni None ga o'tkazish
         stripped = v.strip()
         if not stripped:
             return None
@@ -45,6 +44,28 @@ class CustomerIn(BaseModel):
         if not clean.isdigit() or not (7 <= len(clean) <= 15):
             raise ValueError("Telefon raqam noto'g'ri (faqat raqamlar, 7-15 ta belgi)")
         return v
+
+
+class CustomerOut(BaseModel):
+    id: int
+    name: str
+    phone: Optional[str] = None
+    debt_balance: Decimal
+    debt_limit: Decimal
+    loyalty_points: int
+    card_number: Optional[str] = None
+    cashback_percent: Decimal
+    bonus_balance: Decimal = Decimal("0")
+    total_spent: Decimal = Decimal("0")
+    company_id: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+
+class PaginatedCustomersOut(BaseModel):
+    items: list[CustomerOut]
+    total: int
 
 
 class DebtUpdate(BaseModel):
@@ -76,11 +97,16 @@ def list_customers(
     return q.order_by(Customer.name).offset(skip).limit(limit).all()
 
 
-@router.get("/paginated")
+@router.get("/paginated", response_model=PaginatedCustomersOut)
 def list_customers_paginated(
     search: Optional[str] = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=500),
+    sort_by: Optional[str] = Query(None), # debt_balance, name, id
+    sort_order: Optional[str] = Query("asc"), # asc, desc
+    min_debt: Optional[Decimal] = Query(None),
+    max_debt: Optional[Decimal] = Query(None),
+    exact_debt: Optional[Decimal] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -91,8 +117,30 @@ def list_customers_paginated(
             name_phone_search_filter(Customer.name, Customer.phone, search)
         )
     
+    if exact_debt is not None:
+        q = q.filter(Customer.debt_balance == exact_debt)
+    else:
+        if min_debt is not None:
+            q = q.filter(Customer.debt_balance >= min_debt)
+        if max_debt is not None:
+            q = q.filter(Customer.debt_balance <= max_debt)
+    
     total = q.count()
-    items = q.order_by(Customer.name).offset(skip).limit(limit).all()
+
+    # Sorting
+    if sort_by:
+        col = getattr(Customer, sort_by, None)
+        if col:
+            if sort_order == "desc":
+                q = q.order_by(col.desc())
+            else:
+                q = q.order_by(col.asc())
+        else:
+            q = q.order_by(Customer.name)
+    else:
+        q = q.order_by(Customer.name)
+
+    items = q.offset(skip).limit(limit).all()
     
     return {
         "items": items,

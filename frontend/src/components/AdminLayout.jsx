@@ -6,7 +6,7 @@ import { useLang } from '../context/LangContext';
 import { ROLES, ROLE_GROUPS, ROLE_LABELS, ROLE_GRADIENTS } from '../constants/roles';
 import ECodeLogo, { ECodeIcon } from './ECodeLogo';
 import toast from 'react-hot-toast';
-import { CircleChevronLeft, Copy, Minus, TextAlignJustify, X } from 'lucide-react';
+import { BriefcaseBusiness, CircleChevronLeft, Copy, Minus, TextAlignJustify, X } from 'lucide-react';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU');
 
@@ -113,10 +113,10 @@ function buildNavGroups(t) {
       label: t('nav.management_group'),
       links: [
         {
-          name: t('nav.users'),
-          path: '/admin/users',
+          name: 'Xodimlar',
+          path: '/admin/employees',
           roles: ROLE_GROUPS.MANAGEMENT,
-          icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>,
+          icon: <BriefcaseBusiness className="w-[22px] h-[22px]" />
         },
         {
           name: t('nav.settings'),

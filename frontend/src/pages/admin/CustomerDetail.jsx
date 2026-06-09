@@ -7,17 +7,17 @@ const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ')
 const fmtDate = (d) => d ? new Date(d).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
 
 const TIER_STYLES = {
-  Gold:     'bg-amber-100 text-amber-700',
-  Silver:   'bg-slate-200 text-slate-700',
-  Bronze:   'bg-orange-100 text-orange-700',
+  Gold: 'bg-amber-100 text-amber-700',
+  Silver: 'bg-slate-200 text-slate-700',
+  Bronze: 'bg-orange-100 text-orange-700',
   Standard: 'bg-slate-100 text-slate-500',
 }
 
 const STATUS_STYLES = {
-  completed:     'bg-emerald-100 text-emerald-700',
-  refunded:      'bg-red-100 text-red-700',
-  partial_refund:'bg-amber-100 text-amber-700',
-  cancelled:     'bg-slate-100 text-slate-500',
+  completed: 'bg-emerald-100 text-emerald-700',
+  refunded: 'bg-red-100 text-red-700',
+  partial_refund: 'bg-amber-100 text-amber-700',
+  cancelled: 'bg-slate-100 text-slate-500',
 }
 const STATUS_LABELS = {
   completed: 'Bajarildi', refunded: 'Qaytarildi',
@@ -33,11 +33,12 @@ const PAY_STYLES = {
 }
 
 const TABS = [
-  { id: 'umumiy',      label: 'Umumiy' },
-  { id: 'sotuvlar',    label: 'Sotuvlar' },
-  { id: 'qaytarishlar',label: 'Qaytarishlar' },
-  { id: 'operatsiyalar',label: 'Operatsiyalar' },
-  { id: 'akt',         label: 'Akt Sverka' },
+  { id: 'umumiy', label: 'Umumiy' },
+  { id: 'sotuvlar', label: 'Sotuvlar' },
+  { id: 'qaytarishlar', label: 'Qaytarishlar' },
+  { id: 'operatsiyalar', label: 'Operatsiyalar' },
+  { id: 'akt', label: 'Akt Sverka' },
+  { id: 'kirim_tolovlar', label: "Kirim to'lovlar" },
 ]
 
 function StatCard({ icon, label, value, sub, color = 'indigo' }) {
@@ -50,14 +51,30 @@ function StatCard({ icon, label, value, sub, color = 'indigo' }) {
     violet: 'bg-violet-50 text-violet-600',
   }
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-center gap-4">
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${colors[color]}`}>
+    <div className="group relative bg-gradient-to-br from-slate-50/90 via-white to-slate-100/60 rounded-2xl border border-slate-200/60 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] p-2 sm:p-5 cursor-pointer flex items-center gap-4 overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_24px_-6px_rgba(0,0,0,0.08)] hover:border-slate-300/70">
+
+      <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full bg-gradient-to-r from-transparent via-white/50 to-transparent -skew-x-12 transition-transform duration-1000 ease-out pointer-events-none z-10" />
+
+      <div className="absolute -inset-px bg-gradient-to-br from-white/40 via-transparent to-slate-200/20 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+
+      {/* Ikonka Konteyneri */}
+      <div className={`w-13 h-13 rounded-xl flex items-center justify-center shrink-0 shadow-sm border border-black/5 transition-all duration-300 group-hover:scale-105 group-hover:shadow ${colors[color]}`}>
         {icon}
       </div>
-      <div className="min-w-0">
-        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{label}</div>
-        <div className="text-xl font-bold text-slate-800 mt-0.5 truncate">{value}</div>
-        {sub && <div className="text-xs text-slate-400 mt-0.5">{sub}</div>}
+
+      {/* Matnlar qismi */}
+      <div className="min-w-0 z-10">
+        <div className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+          {label}
+        </div>
+        <div className="text-lg sm:text-2xl font-extrabold text-slate-800 sm:mt-0.5 tracking-tight truncate">
+          {value}
+        </div>
+        {sub && (
+          <div className="text-[11px] sm:text-xs text-slate-500 font-medium sm:mt-1 flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+            {sub}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -127,27 +144,27 @@ export default function CustomerDetail() {
   return (
     <div className="space-y-6">
       {/* Back button + Header */}
-      <div className="flex items-start gap-4">
+      <div className="flex items-center sm:gap-4">
         <button
           onClick={() => navigate('/admin/customers')}
-          className="mt-1 p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+          className="mt-1 p-2 rounded-xl cursor-pointer hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
         <div className="flex items-center gap-4 flex-1">
-          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-bold shrink-0 ${avatarColor}`}>
+          <div className={`w-10 h-10 sm:w-14 sm:h-14 rounded-lg sm:rounded-2xl flex items-center justify-center text-xl font-bold shrink-0 ${avatarColor}`}>
             {initial}
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-slate-800">{stats.name}</h1>
-              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${TIER_STYLES[stats.tier]}`}>
+              <h1 className="text-md sm:text-2xl font-bold text-slate-800">{stats.name}</h1>
+              <span className={`px-2 py-0.5 rounded-lg sm:rounded-full text-xs font-semibold ${TIER_STYLES[stats.tier]}`}>
                 {stats.tier}
               </span>
             </div>
-            <div className="flex items-center gap-3 mt-1 text-sm text-slate-500">
+            <div className="flex items-center gap-3 mt-1 text-xs sm:text-sm text-slate-500">
               {stats.phone && (
                 <span className="flex items-center gap-1">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -169,12 +186,12 @@ export default function CustomerDetail() {
 
       {/* Tabs */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="flex border-b border-slate-100 overflow-x-auto">
+        <div className="flex border-b overflow-x-auto overflow-y-hidden border-slate-100">
           {TABS.map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`px-5 py-3.5 text-sm font-semibold whitespace-nowrap transition-colors border-b-2 -mb-px
+              className={`px-2 md:px-5 py-3.5 text-[12px] sm:text-sm cursor-pointer font-semibold whitespace-nowrap transition-colors border-b-2 -mb-px
                 ${tab === t.id
                   ? 'border-indigo-600 text-indigo-600'
                   : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -185,77 +202,81 @@ export default function CustomerDetail() {
           ))}
         </div>
 
-        <div className="p-6">
+        <div className="p-2 sm:p-4 md:p-6">
           {/* UMUMIY TAB */}
           {tab === 'umumiy' && (
             <div className="space-y-6">
-              {/* Virtual Card */}
-              {stats.card_number && (
-                <div className="bg-linear-to-tr from-indigo-900 via-indigo-800 to-indigo-600 rounded-3xl p-6 md:p-8 text-white shadow-xl shadow-indigo-900/20 relative overflow-hidden flex flex-col justify-between min-h-[220px] max-w-md border border-indigo-500/30">
-                  {/* Background decoration */}
-                  <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
-                  <div className="absolute -left-10 -bottom-10 w-32 h-32 bg-indigo-400/20 rounded-full blur-xl"></div>
-                  
-                  <div className="relative z-10 flex justify-between items-start">
-                    <div>
-                      <div className="text-indigo-200 text-xs uppercase tracking-widest font-semibold mb-1">Mijoz Kartasi</div>
-                      <div className="text-xl font-bold drop-shadow-sm">{stats.name}</div>
-                    </div>
-                    <div className="bg-white/20 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full text-sm font-semibold flex items-center gap-1.5 shadow-sm">
-                      <svg className="w-4 h-4 text-amber-300" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                      </svg>
-                      {stats.cashback_percent > 0 ? `${stats.cashback_percent}% Keshbek` : 'Standard Card'}
-                    </div>
-                  </div>
-                  
-                  <div className="relative z-10 mt-8 space-y-5">
-                    <div className="text-2xl sm:text-3xl font-mono tracking-[0.2em] text-white/90 drop-shadow-md">
-                      {stats.card_number.replace(/(.{4})/g, '$1 ').trim()}
-                    </div>
-                    <div className="flex items-center justify-between border-t border-white/10 pt-4">
-                      <div>
-                        <div className="text-indigo-200 text-[10px] uppercase font-bold tracking-wider mb-0.5">Bonus Balans</div>
-                        <div className="font-bold text-lg text-emerald-300">{fmt(stats.bonus_balance)} <span className="text-xs font-medium opacity-80">so'm</span></div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-indigo-200 text-[10px] uppercase font-bold tracking-wider mb-0.5">Jami Xaridlar</div>
-                        <div className="font-bold text-base text-white">{fmt(stats.total_spent)} <span className="text-xs font-medium opacity-80">so'm</span></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+              <div className='flex gap-6 flex-col xl:flex-row'>
+                <div className='w-full xl:w-max bg-linear-to-t py-4 sm:p-10 xl:p-0 mx-auto from-white  xl:via-white xl:to-white md:via-indigo-00 md:to-indigo-600 shadow-inner shadow-white rounded-3xl'>
+                  {/* Virtual Card */}
+                  {stats.card_number && (
+                    <div className="bg-linear-to-tr mx-auto from-indigo-900 via-indigo-800 to-indigo-600 rounded-3xl p-4 sm:p-6 md:p-8 text-white shadow-xl shadow-indigo-900/20 relative overflow-hidden flex flex-col justify-between sm:h-[280px] w-max border-2 border-indigo-500">
+                      {/* Background decoration */}
+                      <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
+                      <div className="absolute -left-10 -bottom-10 w-32 h-32 bg-indigo-400/20 rounded-full blur-xl"></div>
 
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard
-                  color="indigo"
-                  label="Jami Sotuvlar"
-                  value={`${fmt(stats.total_sales_count)} ta`}
-                  sub={`${fmt(stats.total_sales_amount)} so'm`}
-                  icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>}
-                />
-                <StatCard
-                  color="emerald"
-                  label="To'langan"
-                  value={`${fmt(stats.total_paid_amount)} so'm`}
-                  sub={`${fmt(stats.total_sales_count)} sotuvdan`}
-                  icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-                />
-                <StatCard
-                  color="red"
-                  label="Qarzdorlik"
-                  value={`${fmt(stats.debt_balance)} so'm`}
-                  sub={stats.debt_limit > 0 ? `Limit: ${fmt(stats.debt_limit)} so'm` : 'Limit belgilanmagan'}
-                  icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-                />
-                <StatCard
-                  color="amber"
-                  label="Qaytarishlar"
-                  value={`${fmt(stats.total_returns_count)} ta`}
-                  sub={`${fmt(stats.total_returns_amount)} so'm`}
-                  icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>}
-                />
+                      <div className="relative z-10 flex justify-between items-start">
+                        <div>
+                          <div className="text-indigo-200 text-[9px] sm:text-[11px] uppercase tracking-widest font-semibold sm:mb-1">Mijoz Kartasi</div>
+                          <div className="text-lg sm:text-xl font-bold drop-shadow-sm">{stats.name}</div>
+                        </div>
+                        <div className="bg-white/20 backdrop-blur-md border border-white/10 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-semibold flex items-center gap-1.5 shadow-sm">
+                          <svg className="w-4 h-4 text-amber-300" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          </svg>
+                          {stats.cashback_percent > 0 ? `${stats.cashback_percent}% Keshbek` : 'Standard Card'}
+                        </div>
+                      </div>
+
+                      <div className="relative z-10 mt-4 sm:mt-8 space-y-2 sm:space-y-5">
+                        <div className="text-[23px] sm:text-[30px] font-mono sm:tracking-[4px] text-white/90 drop-shadow-md">
+                          {stats.card_number}
+                        </div>
+                        <div className="flex items-center justify-between border-t border-white/10 pt-4">
+                          <div>
+                            <div className="text-indigo-200 text-[10px] uppercase font-bold tracking-wider mb-0.5">Bonus Balans</div>
+                            <div className="font-bold text-[14px] sm:text-lg text-emerald-300">{fmt(stats.bonus_balance)} <span className="text-xs font-medium opacity-80">so'm</span></div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-indigo-200 text-[10px] uppercase font-bold tracking-wider mb-0.5">Jami Xaridlar</div>
+                            <div className="font-bold text-[14px] sm:text-base text-white">{fmt(stats.total_spent)} <span className="text-xs font-medium opacity-80">so'm</span></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 flex-1 w-full gap-1 sm:gap-4">
+                  <StatCard
+                    color="indigo"
+                    label="Jami Sotuvlar"
+                    value={`${fmt(stats.total_sales_count)} ta`}
+                    sub={`${fmt(stats.total_sales_amount)} so'm`}
+                    icon={<svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>}
+                  />
+                  <StatCard
+                    color="emerald"
+                    label="To'langan"
+                    value={`${fmt(stats.total_paid_amount)} so'm`}
+                    sub={`${fmt(stats.total_sales_count)} sotuvdan`}
+                    icon={<svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                  />
+                  <StatCard
+                    color="red"
+                    label="Qarzdorlik"
+                    value={`${fmt(stats.debt_balance)} so'm`}
+                    sub={stats.debt_limit > 0 ? `Limit: ${fmt(stats.debt_limit)} so'm` : 'Limit belgilanmagan'}
+                    icon={<svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                  />
+                  <StatCard
+                    color="amber"
+                    label="Qaytarishlar"
+                    value={`${fmt(stats.total_returns_count)} ta`}
+                    sub={`${fmt(stats.total_returns_amount)} so'm`}
+                    icon={<svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>}
+                  />
+                </div>
               </div>
 
               {/* Loyalty progress */}
@@ -319,9 +340,9 @@ function SalesTable({ rows, loading, emptyText = "Sotuvlar yo'q" }) {
             <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-4">{t('admin.dict.number') || 'Raqam'}</th>
             <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-4">{t('admin.dict.status') || 'Holat'}</th>
             <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-4">To'lov turi</th>
-            <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-4">{t('admin.dict.total') || 'Jami'}</th>
-            <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-4">To'langan</th>
-            <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">{t('admin.dict.debt') || 'Qarz'}</th>
+            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-4">{t('admin.dict.total') || 'Jami'}</th>
+            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-4">To'langan</th>
+            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">{t('admin.dict.debt') || 'Qarz'}</th>
             <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pl-4">{t('admin.dict.date') || 'Sana'}</th>
           </tr>
         </thead>
@@ -341,9 +362,9 @@ function SalesTable({ rows, loading, emptyText = "Sotuvlar yo'q" }) {
                     {PAY_LABELS[s.payment_type] || s.payment_type}
                   </span>
                 </td>
-                <td className="py-3 pr-4 text-right font-semibold text-slate-800">{fmt(s.total_amount)}</td>
-                <td className="py-3 pr-4 text-right text-emerald-600 font-medium">{fmt(s.paid_amount)}</td>
-                <td className={`py-3 pr-4 text-right font-medium ${debt > 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                <td className="py-3 text-left font-semibold text-slate-800">{fmt(s.total_amount)} so'm</td>
+                <td className="py-3 text-left text-emerald-600 font-medium">{fmt(s.paid_amount)} so'm</td>
+                <td className={`py-3 px-4 text-left font-medium ${debt > 0 ? 'text-red-500' : 'text-slate-400'}`}>
                   {debt > 0 ? fmt(debt) : '—'}
                 </td>
                 <td className="py-3 pl-4 text-slate-500 whitespace-nowrap">{fmtDate(s.created_at)}</td>
@@ -354,14 +375,14 @@ function SalesTable({ rows, loading, emptyText = "Sotuvlar yo'q" }) {
         <tfoot>
           <tr className="border-t-2 border-slate-200">
             <td colSpan={3} className="pt-3 text-xs font-semibold text-slate-400 uppercase">{t('admin.dict.total') || 'Jami'}</td>
-            <td className="pt-3 text-right font-bold text-slate-800">
-              {fmt(rows.reduce((s, r) => s + Number(r.total_amount), 0))}
+            <td className="pt-3 text-left font-bold text-slate-800">
+              {fmt(rows.reduce((s, r) => s + Number(r.total_amount), 0))} so'm
             </td>
-            <td className="pt-3 text-right font-bold text-emerald-600">
-              {fmt(rows.reduce((s, r) => s + Number(r.paid_amount), 0))}
+            <td className="pt-3 text-left font-bold text-emerald-600">
+              {fmt(rows.reduce((s, r) => s + Number(r.paid_amount), 0))} so'm
             </td>
-            <td className="pt-3 text-right font-bold text-red-500">
-              {fmt(rows.reduce((s, r) => s + Math.max(0, Number(r.total_amount) - Number(r.paid_amount)), 0))}
+            <td className="pt-3 text-left font-bold text-red-500">
+              {fmt(rows.reduce((s, r) => s + Math.max(0, Number(r.total_amount) - Number(r.paid_amount)), 0))} so'm
             </td>
             <td />
           </tr>
