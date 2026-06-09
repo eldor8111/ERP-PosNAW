@@ -37,8 +37,10 @@ def send_tg_sync(token, chat_id, text, filepath=None):
     except Exception as e:
         _logger.error("[TG] Telegram xabarnomasi yuborishda xato: %s", e)
 def generate_sale_number(db: Session) -> str:
-    """MAX ishlatadi — COUNT dan 2-3x tezroq."""
-    today = datetime.now(timezone.utc).strftime("%Y%m%d")
+    """MAX ishlatadi — COUNT dan 2-3x tezroq. Toshkent vaqti (UTC+5) ishlatiladi."""
+    from datetime import timezone, timedelta
+    UZ_TZ = timezone(timedelta(hours=5))
+    today = datetime.now(UZ_TZ).strftime("%Y%m%d")
     prefix = f"S{today}"
     max_num_str = (
         db.query(func.max(Sale.number))
@@ -56,8 +58,10 @@ def generate_sale_number(db: Session) -> str:
 
 
 def generate_return_number(db: Session) -> str:
-    """MAX ishlatadi — COUNT dan 2-3x tezroq."""
-    today = datetime.now(timezone.utc).strftime("%Y%m%d")
+    """MAX ishlatadi — COUNT dan 2-3x tezroq. Toshkent vaqti (UTC+5) ishlatiladi."""
+    from datetime import timezone, timedelta
+    UZ_TZ = timezone(timedelta(hours=5))
+    today = datetime.now(UZ_TZ).strftime("%Y%m%d")
     prefix = f"R{today}"
     max_num_str = (
         db.query(func.max(Sale.number))
