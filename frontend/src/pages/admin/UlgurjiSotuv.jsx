@@ -435,6 +435,11 @@ export default function UlgurjiSotuv() {
 
   const scanBufRef   = useRef('');
   const scanTimeRef  = useRef(0);
+  const [custPrices, setCustPrices] = useState({});
+  const [custPriceType, setCustPriceType] = useState('sale');
+  const custPricesRef = useRef({});
+  const custPriceTypeRef = useRef('sale');
+
   const customersRef = useRef([]);
   const setCustIdRef = useRef(setCustId);
   const addToCartRef = useRef(null);
@@ -465,6 +470,33 @@ export default function UlgurjiSotuv() {
     const nd = draftsList.filter((_, i) => i !== idx);
     setDraftsList(nd); localStorage.setItem('ulgurji_drafts', JSON.stringify(nd));
   };
+
+  useEffect(() => {
+    if (!custId) {
+      setCustPrices({});
+      setCustPriceType('sale');
+      return;
+    }
+    // price_type ni customers listdan olamiz (qo'shimcha API yo'q)
+    const cust = customersRef.current.find(c => String(c.id) === String(custId));
+    const priceType = cust?.price_type || 'sale';
+    setCustPriceType(priceType);
+
+    api.get(`/customers/${custId}/prices`)
+      .then(r => {
+        const map = {};
+        (r.data || []).forEach(cp => { map[cp.product_id] = Number(cp.price); });
+        setCustPrices(map);
+        // Savatchadagi narxlarni yangilash
+        setCart(prev => prev.map(it => {
+          if (map[it.product_id] != null) return { ...it, price: map[it.product_id] };
+          if (priceType === 'wholesale') return { ...it, price: Number(it.wholesale_price) || Number(it.sale_price) || it.price };
+          if (priceType === 'cost') return { ...it, price: Number(it.cost_price) || Number(it.sale_price) || it.price };
+          return it;
+        }));
+      })
+      .catch(() => setCustPrices({}));
+  }, [custId]);
 
   useEffect(() => {
     api.get('/customers/?limit=200').then(r => setCustomers(Array.isArray(r.data) ? r.data : (r.data?.items || []))).catch(() => {});
@@ -563,7 +595,13 @@ export default function UlgurjiSotuv() {
       toast.error('Avval mijozni tanlang!');
       return;
     }
-    const price = useWholesale && p.wholesale_price ? Number(p.wholesale_price) : Number(p.sale_price || 0);
+    const custPrice = custPricesRef.current[p.id];
+    const priceType = custPriceTypeRef.current;
+    const price = custPrice != null ? custPrice
+      : priceType === 'wholesale' ? (Number(p.wholesale_price) || Number(p.sale_price) || 0)
+      : priceType === 'cost'      ? (Number(p.cost_price) || Number(p.sale_price) || 0)
+      : useWholesale && p.wholesale_price ? Number(p.wholesale_price)
+      : Number(p.sale_price || 0);
     setCart(prev => {
       const ex = prev.find(i => i.product_id === p.id);
       if (ex) {
@@ -588,20 +626,31 @@ export default function UlgurjiSotuv() {
   // Select product into form
   const selectFormProduct = useCallback((p) => {
     setFormProduct(p);
-    const price = useWholesale && p.wholesale_price ? Number(p.wholesale_price) : Number(p.sale_price || 0);
+    const custPrice = custPricesRef.current[p.id];
+    const priceType = custPriceTypeRef.current;
+    const price = custPrice != null ? custPrice
+      : priceType === 'wholesale' ? (Number(p.wholesale_price) || Number(p.sale_price) || 0)
+      : priceType === 'cost'      ? (Number(p.cost_price) || Number(p.sale_price) || 0)
+      : useWholesale && p.wholesale_price ? Number(p.wholesale_price)
+      : Number(p.sale_price || 0);
     setFormPrice(String(price));
     setFormQty('1');
     setFormDiscVal('');
     setTimeout(() => formQtyRef.current?.select(), 40);
   }, [useWholesale]);
 
-  // Update formPrice when useWholesale toggles and product is selected
+  // Update formPrice when useWholesale toggles or customer changes
   useEffect(() => {
     if (formProduct) {
-      const price = useWholesale && formProduct.wholesale_price ? Number(formProduct.wholesale_price) : Number(formProduct.sale_price || 0);
+      const custPrice = custPrices[formProduct.id];
+      const price = custPrice != null ? custPrice
+        : custPriceType === 'wholesale' ? (Number(formProduct.wholesale_price) || Number(formProduct.sale_price) || 0)
+        : custPriceType === 'cost'      ? (Number(formProduct.cost_price) || Number(formProduct.sale_price) || 0)
+        : useWholesale && formProduct.wholesale_price ? Number(formProduct.wholesale_price)
+        : Number(formProduct.sale_price || 0);
       setFormPrice(String(price));
     }
-  }, [useWholesale]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [useWholesale, custPrices, custPriceType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addFormToCart = () => {
     if (!custId) return toast.error('Avval mijozni tanlang!');
@@ -819,7 +868,9 @@ export default function UlgurjiSotuv() {
   // Auto-save: boshqa bo'limga o'tganda yoki sahifa yopilganda pending saqlash
   const cartRef = useRef(cart);
   cartRef.current = cart;
-  custIdRef.current = custId;  // har render da yangilanadi (addToCart uchun ham)
+  custIdRef.current = custId;
+  custPricesRef.current = custPrices;
+  custPriceTypeRef.current = custPriceType;
 
   // Unmount vaqtida kerak bo'lgan barcha ma'lumotlarni ref da saqlaymiz
   const pendingSaveDataRef = useRef(null);
