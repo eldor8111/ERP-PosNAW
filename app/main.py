@@ -4,6 +4,8 @@ from fastapi.middleware.gzip import GZipMiddleware  # type: ignore
 from fastapi.staticfiles import StaticFiles  # type: ignore
 import asyncio
 import os
+from dotenv import load_dotenv  # type: ignore
+load_dotenv()
 from contextlib import asynccontextmanager
 from slowapi import _rate_limit_exceeded_handler  # type: ignore
 from slowapi.errors import RateLimitExceeded  # type: ignore
