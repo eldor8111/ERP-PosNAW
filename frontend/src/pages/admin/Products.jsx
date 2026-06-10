@@ -7,7 +7,7 @@ import BarcodePrintModal from '../../components/BarcodeTemplates';
 import { useLang } from '../../context/LangContext';
 import toast from 'react-hot-toast';
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
-import { ChevronsUpDown, CheckIcon, Search, Layers, ToggleLeft, Warehouse, ListOrdered, SearchIcon, Flame, CircleCheck, PencilRuler, TrendingUp, TrendingDown, Banknote, Wallet, BarChart3, Box, EllipsisVertical, ChevronsRight, ChevronsLeft, ChevronLeft, ChevronRight } from 'lucide-react'; // Ikonkalar uchun (ixtiyoriy)
+import { ChevronsUpDown, CheckIcon, Search, Layers, ToggleLeft, Warehouse, ListOrdered, SearchIcon, Flame, CircleCheck, PencilRuler, TrendingUp, TrendingDown, Banknote, Wallet, BarChart3, Box, EllipsisVertical, ChevronsRight, ChevronsLeft, ChevronLeft, ChevronRight, ChevronDown, Binary } from 'lucide-react'; // Ikonkalar uchun (ixtiyoriy)
 
 const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8010/api').replace('/api', '');
 
@@ -1341,6 +1341,53 @@ export default function Products() {
     if (created > 0) loadProducts();
   };
 
+  const exportToShtrixM = (apiData) => {
+    try {
+      const filteredData = apiData.filter(prod => prod.unit === "kg");
+      let txtContent = "";
+
+      filteredData.forEach(prod => {
+        // 1. Tarozidagi tartib raqami (Sizning APIdagi ID raqamingiz, 5 xonali qilingan)
+        const plu = String(prod.id).padStart(5, '0');
+
+        // 2. Mahsulot nomi (ichidagi ';' belgilari tozalanadi)
+        const name = prod.name ? prod.name.replace(/;/g, ' ') : 'Nomsiz';
+
+        // 3. Mahsulot turi yoki guruhi (Siz aytgandek APIdan olinyapti)
+        const group = prod.product_type ? prod.product_type.replace(/;/g, ' ') : 'Umumiy';
+
+        // 4. Chakana sotish narxi (Yaxlitlangan butun son)
+        const price = prod.sale_price ? Math.round(parseFloat(prod.sale_price)) : 0;
+
+        // 5. Haqiqiy shtrix-kod (Sizning APIdagi 'barcode' maydoningiz)
+        const barcode = prod.barcode ? prod.barcode : plu;
+
+        // Saytingizda yo'q maydonlar o'rniga o'zgarmas '0' va standart sana qo'yiladi (Majburiy)
+        const tara = 0;
+        const yaroqlilik_muddati = 0;
+        const maxsulot_turi = 0; // 0 - tarozibop
+
+        // Qat'iy ketma-ketlik:
+        txtContent += `${plu};${name};${group};${price};${tara};${yaroqlilik_muddati};${maxsulot_turi};${barcode};0;0;0;01.01.01;0;\r\n`;
+      });
+
+      // Windows-1251 kodirovkasiga o'girish va yuklab olish (Avvalgidek)
+      const encoder = new window.TextEncoder('windows-1251', { NONSTANDARD_allowLegacyEncoding: true });
+      const u8Array = encoder.encode(txtContent);
+      const blob = new Blob([u8Array], { type: 'text/plain;charset=windows-1251' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'Shtrix-M.txt');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
 
   /* ════════════════════════════════════════════════ */
@@ -1567,6 +1614,13 @@ export default function Products() {
                   </svg>
                   {t('product.excelExport')}
                 </button>
+
+                <button
+                  onClick={() => exportToShtrixM(products)}
+                  className="cursor-pointer leading-none inline-flex items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-mist-600 hover:bg-mist-500 text-white text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-xl transition-colors border border-mist-200"
+                >
+                  <Binary className='w-5 h-5' /> Yuklab Olish
+                </button>
               </>
             )}
           </div>
@@ -1582,8 +1636,20 @@ export default function Products() {
             </div>
           </div>
         </div>
-
       </div>
+
+      <div
+        onClick={(e) => {
+          const main = e.currentTarget.closest('main');
+          if (main) main.scrollTo({ top: main.scrollHeight, behavior: 'smooth' });
+        }}
+        className='fixed bottom-5 group -right-12 flex justify-left items-center z-30 hover:-right-5 transition-all w-18 h-11 text-white'
+      >
+        <div className='flex bg-indigo-600 items-center pl-0 group-hover:pl-2.5 transition-all w-11 h-11 rounded-lg shadow-md cursor-pointer'>
+          <ChevronDown className='size-6 rotate-90 group-hover:rotate-0 transition-all' />
+        </div>
+      </div>
+
       {/* ── PRODUCTS TAB ─────────────────────────────── */}
       {activeTab === 'products' && (
         <>
@@ -1729,8 +1795,7 @@ export default function Products() {
                         {filterMeasure === 'dona' ? 'Dona' :
                           filterMeasure === 'kg' ? 'Kg' :
                             filterMeasure === 'litr' ? 'Litr' :
-                              filterMeasure === 'metr' ? 'Metr' :
-                                filterMeasure === 'gramm' ? 'Gramm' : 'Barcha birlik'}
+                              filterMeasure === 'metr' ? 'Metr' : 'Barcha birlik'}
                       </span>
                     </span>
                     <ChevronsUpDown aria-hidden="true" className="size-4 xl:size-5 text-gray-400" />
@@ -1740,7 +1805,6 @@ export default function Products() {
                       { value: "", label: "Barcha birlik" },
                       { value: "dona", label: 'Dona' },
                       { value: "kg", label: 'Kg' },
-                      { value: "gramm", label: 'Gramm' },
                       { value: "litr", label: 'Litr' },
                       { value: "metr", label: 'Metr' }
                     ].map((item) => (
@@ -2108,20 +2172,20 @@ export default function Products() {
                     <div className="flex items-center flex-nowrap gap-0 sm:gap-1">
                       <button disabled={page === 1} onClick={() => setPage(1)}
                         className={`rounded-lg ${page === 1 ? 'text-slate-300' : 'text-slate-700 hover:bg-white bg-slate-50 cursor-pointer'} transition-colors`}>
-                          <ChevronsLeft className='size-4 sm:size-5'/>
+                        <ChevronsLeft className='size-4 sm:size-5' />
                       </button>
                       <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
                         className={`rounded-lg ${page === 1 ? 'text-slate-300' : 'text-slate-700 hover:bg-white bg-slate-50 cursor-pointer'} transition-colors`}>
-                          <ChevronLeft className='size-4 sm:size-5'/>
+                        <ChevronLeft className='size-4 sm:size-5' />
                       </button>
                       <span className="px-2 sm:px-3 text-[12px] xl:text-[14px] whitespace-nowrap font-semibold text-slate-700">{page} / {Math.ceil(totalRecords / limit) || 1}</span>
                       <button disabled={page >= (Math.ceil(totalRecords / limit) || 1)} onClick={() => setPage(p => p + 1)}
                         className={`rounded-lg ${page >= (Math.ceil(totalRecords / limit) || 1) ? 'text-slate-300' : 'text-slate-700 hover:bg-white bg-slate-50 cursor-pointer'} transition-colors`}>
-                          <ChevronRight className='size-4 sm:size-5'/>
+                        <ChevronRight className='size-4 sm:size-5' />
                       </button>
                       <button disabled={page === (Math.ceil(totalRecords / limit) || 1)} onClick={() => setPage(Math.ceil(totalRecords / limit) || 1)}
                         className={`rounded-lg ${page === (Math.ceil(totalRecords / limit) || 1) ? 'text-slate-300' : 'text-slate-700 hover:bg-white bg-slate-50 cursor-pointer'} transition-colors`}>
-                          <ChevronsRight className='size-4 sm:size-5'/>
+                        <ChevronsRight className='size-4 sm:size-5' />
                       </button>
                     </div>
 
@@ -2154,7 +2218,7 @@ export default function Products() {
                               anchor="top end"
                               className="z-50 min-w-[120px] mb-1 overflow-auto rounded-xl bg-white border border-slate-200 p-1 shadow-2xl focus:outline-none [--anchor-gap:4px]"
                             >
-                              {[5, 10, 20, 50, 100].map((n) => (
+                              {[5, 10, 20, 50, 100, 500].map((n) => (
                                 <ListboxOption key={n} value={n} className="group flex cursor-pointer items-center gap-2 rounded-lg py-2 px-3 select-none data-[focus]:bg-indigo-50">
                                   <CheckIcon className="size-4 text-indigo-600 group-not-data-[selected]:invisible" />
                                   <div className="text-[13px] font-medium text-slate-700 group-data-[selected]:text-indigo-700">{n} {t('common.item')}</div>
@@ -2632,7 +2696,7 @@ export default function Products() {
                   <Field label={t('product.unit')}>
                     <select className={inputCls} value={form.unit}
                       onChange={e => setForm({ ...form, unit: e.target.value })}>
-                      {['dona', 'kg', 'g', 'litr', 'metr'].map(u => (
+                      {['dona', 'kg', 'litr', 'metr'].map(u => (
                         <option key={u} value={u}>{u}</option>
                       ))}
                     </select>
@@ -3386,7 +3450,7 @@ export default function Products() {
                         value={row.unit}
                         onChange={e => updateBulkRow(row._key, 'unit', e.target.value)}
                       >
-                        {['dona', 'kg', 'g', 'litr', 'metr'].map(u => (
+                        {['dona', 'kg', 'litr', 'metr'].map(u => (
                           <option key={u} value={u}>{u}</option>
                         ))}
                       </select>

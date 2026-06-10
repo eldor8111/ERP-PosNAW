@@ -76,7 +76,7 @@ async def _send_telegram_otp(chat_id: str, otp: str, user_name: str = "") -> boo
 
 
 def _generate_otp() -> str:
-    return "111111"
+    return str(random.randint(100000, 999999))
 
 
 def _get_bot_username(token: str) -> str:
@@ -362,7 +362,7 @@ def verify_otp(data: VerifyOtpRequest):
         raise HTTPException(status_code=400, detail="OTP sessiyasi bu telefon uchun emas.")
 
     provided_otp = data.otp.strip()
-    if session_data.get("otp") != provided_otp and provided_otp != "111111":
+    if session_data.get("otp") != provided_otp:
         raise HTTPException(status_code=400, detail="OTP noto'g'ri. Qayta urinib ko'ring.")
 
     # OTP to'g'ri — verified_token yaratish
@@ -677,7 +677,7 @@ def login_verify_otp(request: Request, data: LoginOtpVerifyRequest, db: Session 
         raise HTTPException(status_code=400, detail="OTP sessiyasi bu telefon uchun emas.")
 
     provided_otp = data.otp.strip()
-    if session_data.get("otp") != provided_otp and provided_otp != "111111":
+    if session_data.get("otp") != provided_otp:
         raise HTTPException(status_code=400, detail="OTP noto'g'ri")
 
     user = db.query(User).filter(User.phone == normalized, User.status == UserStatus.active).first()

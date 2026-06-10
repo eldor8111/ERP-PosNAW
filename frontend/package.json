@@ -15,6 +15,7 @@
   "dependencies": {
     "@headlessui/react": "^2.2.10",
     "axios": "^1.13.6",
+    "fast-text-encoding": "^1.0.6",
     "file-saver": "^2.0.5",
     "headlessui": "^0.0.0",
     "lucide-react": "^1.17.0",

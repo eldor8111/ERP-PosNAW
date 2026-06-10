@@ -6,7 +6,7 @@ import { useLang } from '../context/LangContext';
 import { ROLES, ROLE_GROUPS, ROLE_LABELS, ROLE_GRADIENTS } from '../constants/roles';
 import ECodeLogo, { ECodeIcon } from './ECodeLogo';
 import toast from 'react-hot-toast';
-import { CircleChevronLeft, Copy, Minus, TextAlignJustify, X } from 'lucide-react';
+import { BriefcaseBusiness, CircleChevronLeft, Copy, Minus, TextAlignJustify, X } from 'lucide-react';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU');
 
@@ -24,7 +24,7 @@ function buildNavGroups(t) {
         },
         {
           name: t('nav.sales'),
-          path: '/admin/sotuv-mijozlar',
+          path: '/admin/customers',
           roles: ROLE_GROUPS.SALES,
           icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>,
         },
@@ -113,10 +113,10 @@ function buildNavGroups(t) {
       label: t('nav.management_group'),
       links: [
         {
-          name: t('nav.users'),
-          path: '/admin/users',
+          name: 'Xodimlar',
+          path: '/admin/employees',
           roles: ROLE_GROUPS.MANAGEMENT,
-          icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>,
+          icon: <BriefcaseBusiness className="w-[22px] h-[22px]" />
         },
         {
           name: t('nav.settings'),
@@ -296,7 +296,7 @@ export default function AdminLayout() {
       {/* Mobile Backdrop */}
       {mobileMenuOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-slate-900/50 z-40 backdrop-blur-sm transition-opacity"
+          className="lg:hidden fixed inset-0 bg-slate-900/50 z-50 backdrop-blur-sm transition-opacity"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
@@ -411,7 +411,7 @@ export default function AdminLayout() {
       <div className="flex-1 flex flex-col overflow-hidden w-full relative">
 
         {/* Top Header */}
-        <header className="bg-white border-b border-slate-100 px-4 md:px-6 py-2.5 flex items-center justify-between shrink-0" style={{ boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
+        <header className="bg-white border-b border-slate-100 px-4 md:px-6 py-2.25 flex items-center justify-between shrink-0" style={{ boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
           <div className="flex items-center gap-1 xl:gap-3">
             <button
               onClick={() => setMobileMenuOpen(true)}

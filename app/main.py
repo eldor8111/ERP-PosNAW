@@ -27,8 +27,10 @@ from app.models import agent  # noqa: F401 — ensure Alembic detects Agent mode
 from app.models import billing as billing_models  # noqa: F401 — ensure Alembic detects Tariff, BalanceLog
 from app.models import bot_session  # noqa: F401 — ensure bot_sessions table exists
 from app.models import payme_transaction  # noqa: F401 — ensure payme_transactions table exists
-
+from dotenv import load_dotenv
 from app.services.scheduler import start_scheduler
+
+load_dotenv()
 
 def _run_alembic_upgrade():
     """Alembic orqali barcha migratsiyalarni bajaradi (alembic upgrade head)."""

@@ -1,0 +1,10 @@
+nohup: ignoring input
+INFO:     Will watch for changes in these directories: ['/home/nullcoder/Desktop/e-code/ERP-PosNAW/app']
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [81719] using WatchFiles
+CORS_ORIGINS sozlanmagan — barcha domenga ochiq (*). Production uchun .env faylida CORS_ORIGINS=https://sizning-domen.uz ni belgilang.
+INFO:     Started server process [81725]
+INFO:     Waiting for application startup.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO:     Stopping reloader process [81719]
