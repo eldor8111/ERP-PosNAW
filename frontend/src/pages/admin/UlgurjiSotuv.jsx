@@ -16,51 +16,51 @@ const today = () => new Date().toISOString().slice(0, 10);
 const parseN = (s) => parseFloat(String(s || '').replace(/\s/g, '')) || 0;
 
 const PAY_ICONS = {
-  cash: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="13" rx="2"/><circle cx="12" cy="12.5" r="2.5"/><path d="M6 9.5h.01M18 9.5h.01M6 15.5h.01M18 15.5h.01"/></svg>),
-  card: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/></svg>),
-  uzcard: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><circle cx="17" cy="15" r="1.5"/><circle cx="14" cy="15" r="1.5"/></svg>),
-  humo: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h3M15 15h3"/></svg>),
-  bank: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18M3 10h18M5 10V21M19 10V21M10 10V21M14 10V21M12 3L2 10h20L12 3z"/></svg>),
-  click: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>),
-  payme: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M10 7h4M10 11h4M10 15h2"/></svg>),
-  uzum: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/><path d="M8 12h8M12 8v8"/></svg>),
-  debt: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>),
-  mixed: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><path d="M16 3h5v5M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>),
+  cash: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="13" rx="2" /><circle cx="12" cy="12.5" r="2.5" /><path d="M6 9.5h.01M18 9.5h.01M6 15.5h.01M18 15.5h.01" /></svg>),
+  card: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /><path d="M6 15h4" /></svg>),
+  uzcard: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /><circle cx="17" cy="15" r="1.5" /><circle cx="14" cy="15" r="1.5" /></svg>),
+  humo: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /><path d="M6 15h3M15 15h3" /></svg>),
+  bank: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18M3 10h18M5 10V21M19 10V21M10 10V21M14 10V21M12 3L2 10h20L12 3z" /></svg>),
+  click: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="2" width="10" height="20" rx="2" /><path d="M11 18h2" /></svg>),
+  payme: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="2" width="10" height="20" rx="2" /><path d="M10 7h4M10 11h4M10 15h2" /></svg>),
+  uzum: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z" /><path d="M8 12h8M12 8v8" /></svg>),
+  debt: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" /><rect x="9" y="3" width="6" height="4" rx="1" /><path d="M9 12h6M9 16h4" /></svg>),
+  mixed: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><path d="M16 3h5v5M4 20L21 3" /><path d="M21 16v5h-5" /><path d="M15 15l6 6" /><path d="M4 4l5 5" /></svg>),
 };
 
 const PAY_TYPES = [
-  { id: 'cash',   label: 'Naqd',    accent: 'emerald' },
-  { id: 'card',   label: 'Karta',   accent: 'blue'    },
-  { id: 'uzcard', label: 'Uzcard',  accent: 'blue'    },
-  { id: 'humo',   label: 'Humo',    accent: 'violet'  },
-  { id: 'bank',   label: 'Bank',    accent: 'cyan'    },
-  { id: 'click',  label: 'Click',   accent: 'indigo'  },
-  { id: 'payme',  label: 'Payme',   accent: 'sky'     },
-  { id: 'uzum',   label: 'Uzum',    accent: 'orange'  },
-  { id: 'debt',   label: 'Qarzga',  accent: 'amber'   },
-  { id: 'mixed',  label: 'Aralash', accent: 'purple'  },
+  { id: 'cash', label: 'Naqd', accent: 'emerald' },
+  { id: 'card', label: 'Karta', accent: 'blue' },
+  { id: 'uzcard', label: 'Uzcard', accent: 'blue' },
+  { id: 'humo', label: 'Humo', accent: 'violet' },
+  { id: 'bank', label: 'Bank', accent: 'cyan' },
+  { id: 'click', label: 'Click', accent: 'indigo' },
+  { id: 'payme', label: 'Payme', accent: 'sky' },
+  { id: 'uzum', label: 'Uzum', accent: 'orange' },
+  { id: 'debt', label: 'Qarzga', accent: 'amber' },
+  { id: 'mixed', label: 'Aralash', accent: 'purple' },
 ];
 
 const ACCENT_CLS = {
   emerald: { active: 'border-emerald-500 bg-emerald-500 text-white shadow-emerald-200', idle: 'border-slate-200 text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50' },
-  blue:    { active: 'border-blue-500 bg-blue-500 text-white shadow-blue-200',          idle: 'border-slate-200 text-blue-600 hover:border-blue-300 hover:bg-blue-50' },
-  violet:  { active: 'border-violet-500 bg-violet-500 text-white shadow-violet-200',    idle: 'border-slate-200 text-violet-600 hover:border-violet-300 hover:bg-violet-50' },
-  cyan:    { active: 'border-cyan-500 bg-cyan-500 text-white shadow-cyan-200',          idle: 'border-slate-200 text-cyan-600 hover:border-cyan-300 hover:bg-cyan-50' },
-  indigo:  { active: 'border-indigo-500 bg-indigo-500 text-white shadow-indigo-200',    idle: 'border-slate-200 text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50' },
-  sky:     { active: 'border-sky-500 bg-sky-500 text-white shadow-sky-200',             idle: 'border-slate-200 text-sky-600 hover:border-sky-300 hover:bg-sky-50' },
-  orange:  { active: 'border-orange-500 bg-orange-500 text-white shadow-orange-200',    idle: 'border-slate-200 text-orange-600 hover:border-orange-300 hover:bg-orange-50' },
-  amber:   { active: 'border-amber-500 bg-amber-500 text-white shadow-amber-200',       idle: 'border-slate-200 text-amber-600 hover:border-amber-300 hover:bg-amber-50' },
-  purple:  { active: 'border-purple-500 bg-purple-500 text-white shadow-purple-200',    idle: 'border-slate-200 text-purple-600 hover:border-purple-300 hover:bg-purple-50' },
+  blue: { active: 'border-blue-500 bg-blue-500 text-white shadow-blue-200', idle: 'border-slate-200 text-blue-600 hover:border-blue-300 hover:bg-blue-50' },
+  violet: { active: 'border-violet-500 bg-violet-500 text-white shadow-violet-200', idle: 'border-slate-200 text-violet-600 hover:border-violet-300 hover:bg-violet-50' },
+  cyan: { active: 'border-cyan-500 bg-cyan-500 text-white shadow-cyan-200', idle: 'border-slate-200 text-cyan-600 hover:border-cyan-300 hover:bg-cyan-50' },
+  indigo: { active: 'border-indigo-500 bg-indigo-500 text-white shadow-indigo-200', idle: 'border-slate-200 text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50' },
+  sky: { active: 'border-sky-500 bg-sky-500 text-white shadow-sky-200', idle: 'border-slate-200 text-sky-600 hover:border-sky-300 hover:bg-sky-50' },
+  orange: { active: 'border-orange-500 bg-orange-500 text-white shadow-orange-200', idle: 'border-slate-200 text-orange-600 hover:border-orange-300 hover:bg-orange-50' },
+  amber: { active: 'border-amber-500 bg-amber-500 text-white shadow-amber-200', idle: 'border-slate-200 text-amber-600 hover:border-amber-300 hover:bg-amber-50' },
+  purple: { active: 'border-purple-500 bg-purple-500 text-white shadow-purple-200', idle: 'border-slate-200 text-purple-600 hover:border-purple-300 hover:bg-purple-50' },
 };
 
 const STATUS_META = {
-  completed: { l: 'Yakunlandi',              c: 'bg-emerald-100 text-emerald-700' },
-  cancelled:  { l: 'Bekor',                  c: 'bg-red-100 text-red-600' },
-  pending:    { l: 'Tasdiqlash kutulmoqda',  c: 'bg-amber-100 text-amber-700 ring-1 ring-amber-300' },
+  completed: { l: 'Yakunlandi', c: 'bg-emerald-100 text-emerald-700' },
+  cancelled: { l: 'Bekor', c: 'bg-red-100 text-red-600' },
+  pending: { l: 'Tasdiqlash kutulmoqda', c: 'bg-amber-100 text-amber-700 ring-1 ring-amber-300' },
 };
 const PAY_META = {
-  cash:'Naqd', card:'Karta', uzcard:'Uzcard', humo:'Humo', bank:"Bank o'tkazmasi",
-  click:'Click', payme:'Payme', visa:'Visa', uzum:'Uzum', debt:'Qarz', mixed:'Aralash',
+  cash: 'Naqd', card: 'Karta', uzcard: 'Uzcard', humo: 'Humo', bank: "Bank o'tkazmasi",
+  click: 'Click', payme: 'Payme', visa: 'Visa', uzum: 'Uzum', debt: 'Qarz', mixed: 'Aralash',
 };
 
 function Ic({ d, cls = 'w-4 h-4' }) {
@@ -99,7 +99,7 @@ const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, on
           const res = await api.get('/customers/', { params: { search: q.trim().replace(/['`’‘]/g, "'").toLowerCase(), limit: 50 } });
           const items = Array.isArray(res.data) ? res.data : (res.data?.items || []);
           if (items.length > 0 && onFetch) onFetch(items);
-        } catch (e) {}
+        } catch (e) { }
       }, 400);
       return () => clearTimeout(timer);
     }
@@ -131,7 +131,7 @@ const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, on
       <div className={`flex items-center gap-2 border-2 rounded-xl px-3 py-2.5 bg-white transition-all ${open ? 'border-indigo-500 ring-4 ring-indigo-100' : 'border-slate-200 hover:border-slate-300'}`}>
         <Ic d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" cls="w-4 h-4 text-slate-400 shrink-0" />
         <input
-          value={open ? q : (selected ? `${selected.name}${selected.phone ? ' · '+selected.phone : ''}` : '')}
+          value={open ? q : (selected ? `${selected.name}${selected.phone ? ' · ' + selected.phone : ''}` : '')}
           onChange={e => { setQ(e.target.value); setOpen(true); if (!e.target.value) onChange(''); }}
           onFocus={() => setOpen(true)}
           placeholder="Mijoz tanlang yoki qidiring..."
@@ -286,7 +286,7 @@ const ProductSearch = forwardRef(function ProductSearch({ onSelect, placeholder,
   const handleKey = (e) => {
     if (!results.length) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, results.length - 1)); }
-    if (e.key === 'ArrowUp')   { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, 0)); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, 0)); }
     if (e.key === 'Enter' && results[activeIdx]) { e.preventDefault(); select(results[activeIdx]); }
     if (e.key === 'Escape') { setResults([]); setQ(''); }
   };
@@ -433,8 +433,8 @@ export default function UlgurjiSotuv() {
   const LIMIT = 25;
   const [openMenuId, setOpenMenuId] = useState(null);
 
-  const scanBufRef   = useRef('');
-  const scanTimeRef  = useRef(0);
+  const scanBufRef = useRef('');
+  const scanTimeRef = useRef(0);
   const customersRef = useRef([]);
   const setCustIdRef = useRef(setCustId);
   const addToCartRef = useRef(null);
@@ -444,7 +444,7 @@ export default function UlgurjiSotuv() {
   const [draftsList, setDraftsList] = useState([]);
   useEffect(() => {
     if (tab === 'drafts') {
-      try { setDraftsList(JSON.parse(localStorage.getItem('ulgurji_drafts') || '[]')); } catch(e) { setDraftsList([]); }
+      try { setDraftsList(JSON.parse(localStorage.getItem('ulgurji_drafts') || '[]')); } catch (e) { setDraftsList([]); }
     }
   }, [tab]);
 
@@ -467,8 +467,8 @@ export default function UlgurjiSotuv() {
   };
 
   useEffect(() => {
-    api.get('/customers/?limit=200').then(r => setCustomers(Array.isArray(r.data) ? r.data : (r.data?.items || []))).catch(() => {});
-    api.get('/warehouses/').then(r => setWarehouses(Array.isArray(r.data) ? r.data : [])).catch(() => {});
+    api.get('/customers/?limit=200').then(r => setCustomers(Array.isArray(r.data) ? r.data : (r.data?.items || []))).catch(() => { });
+    api.get('/warehouses/').then(r => setWarehouses(Array.isArray(r.data) ? r.data : [])).catch(() => { });
     api.get('/companies/me/receipt_templates').then(r => {
       const d = r.data?.receipt_templates || {};
       if (Object.keys(d).length) {
@@ -478,7 +478,7 @@ export default function UlgurjiSotuv() {
         if (d.nak) stored.nak = d.nak;
         if (Object.keys(stored).length) saveReceiptSettings(stored);
       }
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   const loadSales = useCallback(() => {
@@ -488,7 +488,7 @@ export default function UlgurjiSotuv() {
     if (!params.search) delete params.search;
     api.get('/sales/', { params })
       .then(r => setSales(Array.isArray(r.data) ? r.data : []))
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoadingSales(false));
   }, [filters, page]);
 
@@ -511,7 +511,7 @@ export default function UlgurjiSotuv() {
       setCustId(sale.customer_id ? String(sale.customer_id) : '');
       setNote(sale.note || ''); setDiscType('sum');
       setDiscVal(sale.discount_amount > 0 ? String(sale.discount_amount) : '');
-      
+
       // Load existing payments to prevent wipeout on save
       if (sale.payments && sale.payments.length > 0) {
         setPayments(sale.payments.map(p => ({ id: p.id || Math.random(), type: p.payment_type, amt: String(p.amount) })));
@@ -549,7 +549,7 @@ export default function UlgurjiSotuv() {
       const tpl = size === 'nak' ? 'nak' : size === '58' ? '58' : '80';
       let rSettings = getReceiptSettings();
       if (!rSettings.r58 && !rSettings.r80 && !rSettings.nak) {
-        try { const res = await api.get('/companies/me/receipt_templates'); const d = res.data?.receipt_templates || {}; if (d.r58 || d.r80 || d.nak) { saveReceiptSettings(d); rSettings = d; } } catch {}
+        try { const res = await api.get('/companies/me/receipt_templates'); const d = res.data?.receipt_templates || {}; if (d.r58 || d.r80 || d.nak) { saveReceiptSettings(d); rSettings = d; } } catch { }
       }
       const tmplCfg = tpl === 'nak' ? (rSettings.nak || {}) : (rSettings['r' + tpl] || {});
       printReceiptHtml(buildReceiptHtml(data, tpl, tmplCfg));
@@ -607,7 +607,7 @@ export default function UlgurjiSotuv() {
     if (!custId) return toast.error('Avval mijozni tanlang!');
     if (!formProduct) return toast.error('Mahsulot tanlanmagan!');
     const price = parseFloat(formPrice) || 0;
-    const qty   = parseFloat(formQty)  || 1;
+    const qty = parseFloat(formQty) || 1;
     if (qty <= 0) return toast.error("Miqdor 0 dan katta bo'lishi kerak!");
     setCart(prev => {
       const ex = prev.find(i => i.product_id === formProduct.id);
@@ -642,7 +642,7 @@ export default function UlgurjiSotuv() {
       if (e.key === 'Enter') {
         const buf = scanBufRef.current.trim(); scanBufRef.current = '';
         if (buf.length < 4) return;
-        const cust = customersRef.current.find(c => c.phone && (c.phone === buf || c.phone.replace(/\D/g,'') === buf.replace(/\D/g,'')));
+        const cust = customersRef.current.find(c => c.phone && (c.phone === buf || c.phone.replace(/\D/g, '') === buf.replace(/\D/g, '')));
         if (cust) { setCustIdRef.current(String(cust.id)); toast.success(`Mijoz tanlandi: ${cust.name}`); return; }
         api.get(`/products/barcode/${encodeURIComponent(buf)}`)
           .then(r => { if (r.data?.id) addToCartRef.current(r.data); })
@@ -663,10 +663,10 @@ export default function UlgurjiSotuv() {
 
   const subtotal = cart.reduce((s, it) => s + itemNet(it), 0);
   const saleDisc = discType === 'pct' ? subtotal * (parseN(discVal) / 100) : parseN(discVal);
-  const total    = Math.max(0, subtotal - saleDisc);
-  const paid     = payments.reduce((s, p) => s + (parseN(p.amt) || 0), 0);
-  const debt     = Math.max(0, total - paid);
-  const change   = Math.max(0, paid - total);
+  const total = Math.max(0, subtotal - saleDisc);
+  const paid = payments.reduce((s, p) => s + (parseN(p.amt) || 0), 0);
+  const debt = Math.max(0, total - paid);
+  const change = Math.max(0, paid - total);
 
   const submitSale = async (overridePayType, pPaid = 0, pCash = 0, pCard = 0) => {
     if (!cart.length) return toast.error('Savat bo\'sh!');
@@ -716,7 +716,7 @@ export default function UlgurjiSotuv() {
               subtotal: itemNet(it),
             })),
           }, tpl, cfg));
-        } catch {}
+        } catch { }
       }
 
       sessionStorage.removeItem('ulgurji_session_sale_id');
@@ -740,8 +740,8 @@ export default function UlgurjiSotuv() {
     if (totalPaid === 0) finalPayType = 'debt';
     else if (types.length === 1 && debt === 0) finalPayType = types[0];
     else finalPayType = 'mixed';
-    const pCash = payments.filter(p => p.type === 'cash').reduce((s, p) => s + (parseN(p.amt)||0), 0);
-    const pCard = payments.filter(p => p.type !== 'cash').reduce((s, p) => s + (parseN(p.amt)||0), 0);
+    const pCash = payments.filter(p => p.type === 'cash').reduce((s, p) => s + (parseN(p.amt) || 0), 0);
+    const pCard = payments.filter(p => p.type !== 'cash').reduce((s, p) => s + (parseN(p.amt) || 0), 0);
     await submitSale(finalPayType, totalPaid, pCash, pCard);
   };
 
@@ -904,7 +904,7 @@ export default function UlgurjiSotuv() {
           {tab === 'new' && (
             <button onClick={() => toast.info("Excel orqali yuklash tez kunda qo'shiladi")}
               className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors text-sm font-bold border border-emerald-100">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
               Excel
             </button>
           )}
@@ -916,9 +916,9 @@ export default function UlgurjiSotuv() {
             <Ic d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </button>
           {[
-            { id: 'new',    label: 'Yangi',  icon: 'M12 4v16m8-8H4' },
-            { id: 'list',   label: 'Tarixi', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
-            { id: 'drafts', label: 'Arxiv',  icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
+            { id: 'new', label: 'Yangi', icon: 'M12 4v16m8-8H4' },
+            { id: 'list', label: 'Tarixi', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+            { id: 'drafts', label: 'Arxiv', icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
           ].map(t => (
             <button key={t.id} onClick={() => handleTabChange(t.id)}
               className={`flex items-center gap-0.5 md:gap-1 px-2 md:px-3.5 py-2 rounded-xl font-semibold transition-all ${tab === t.id ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
@@ -1015,7 +1015,7 @@ export default function UlgurjiSotuv() {
                   {/* Mijoz tanlanmagan ogohlantirish */}
                   {!custId && (
                     <div className="mt-2 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-                      <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                      <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                       <span className="text-xs font-semibold text-amber-700">Mahsulot qo'shish uchun avval mijoz tanlang</span>
                     </div>
                   )}
@@ -1046,7 +1046,7 @@ export default function UlgurjiSotuv() {
 
                       {/* Grid for Inputs */}
                       <div className="grid grid-cols-2 gap-3 mb-1">
-                        
+
                         {/* Miqdor */}
                         <div>
                           <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 block">Miqdor ({formProduct.unit || 'dona'})</label>
@@ -1068,8 +1068,8 @@ export default function UlgurjiSotuv() {
                           <div className="flex justify-between items-center mb-1">
                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block">Narx</label>
                             <div className="flex gap-1">
-                               {formProduct.wholesale_price > 0 && <button onClick={()=>setFormPrice(String(formProduct.wholesale_price))} className="text-[9px] font-bold px-1.5 py-0.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded transition-colors" title="Ulgurji narx">U</button>}
-                               {formProduct.sale_price > 0 && <button onClick={()=>setFormPrice(String(formProduct.sale_price))} className="text-[9px] font-bold px-1.5 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded transition-colors" title="Chakana narx">C</button>}
+                              {formProduct.wholesale_price > 0 && <button onClick={() => setFormPrice(String(formProduct.wholesale_price))} className="text-[9px] font-bold px-1.5 py-0.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded transition-colors" title="Ulgurji narx">U</button>}
+                              {formProduct.sale_price > 0 && <button onClick={() => setFormPrice(String(formProduct.sale_price))} className="text-[9px] font-bold px-1.5 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded transition-colors" title="Chakana narx">C</button>}
                             </div>
                           </div>
                           <div className="relative">
@@ -1099,7 +1099,7 @@ export default function UlgurjiSotuv() {
                                 className="w-full border border-white rounded-xl px-3 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white" />
                             </div>
                           </div>
-                          
+
                           <div className="flex-[1.2] flex items-end">
                             <button onClick={addFormToCart}
                               className="w-full h-10 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black text-[13px] rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-indigo-200 transition-all">
@@ -1113,7 +1113,7 @@ export default function UlgurjiSotuv() {
                   ) : (
                     <div className="mt-3 flex flex-col items-center justify-center py-8 text-slate-300 gap-2">
                       <Ic d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" cls="w-10 h-10" />
-                      <p className="text-sm text-slate-400 text-center">Mahsulot qidiring yoki<br/>barkod skanerlang</p>
+                      <p className="text-sm text-slate-400 text-center">Mahsulot qidiring yoki<br />barkod skanerlang</p>
                     </div>
                   )}
                 </div>
@@ -1133,7 +1133,7 @@ export default function UlgurjiSotuv() {
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5 block">Sotuv chegirmasi</label>
                   <div className="flex gap-2">
                     <div className="flex rounded-xl border-2 border-slate-200 overflow-hidden">
-                      {['pct','amt'].map(t => (
+                      {['pct', 'amt'].map(t => (
                         <button key={t} onClick={() => setDiscType(t)}
                           className={`px-3 py-2 text-xs font-bold transition-colors ${discType === t ? 'bg-amber-500 text-white' : 'bg-white text-slate-500'}`}>
                           {t === 'pct' ? '%' : "So'm"}
@@ -1159,7 +1159,7 @@ export default function UlgurjiSotuv() {
               {/* Cart header */}
               <div className="shrink-0 px-4 py-2.5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                 <span className="text-sm font-bold text-slate-600">
-                  {cart.length > 0 ? `${cart.length} xil · ${cart.reduce((s,i)=>s+i.qty,0).toFixed(1)} birlik` : 'Savat bo\'sh'}
+                  {cart.length > 0 ? `${cart.length} xil · ${cart.reduce((s, i) => s + i.qty, 0).toFixed(1)} birlik` : 'Savat bo\'sh'}
                 </span>
                 {cart.length > 0 && (
                   <button onClick={() => { if (window.confirm("Savatni tozalash?")) setCart([]); }}
@@ -1178,7 +1178,7 @@ export default function UlgurjiSotuv() {
                     </div>
                     <div className="text-center">
                       <p className="font-bold text-slate-400">Savat bo'sh</p>
-                      <p className="text-xs text-slate-300 mt-1">Chap paneldan mahsulot qo'shing<br/>yoki barkod skanerlang</p>
+                      <p className="text-xs text-slate-300 mt-1">Chap paneldan mahsulot qo'shing<br />yoki barkod skanerlang</p>
                     </div>
                   </div>
                 ) : (
@@ -1426,7 +1426,7 @@ export default function UlgurjiSotuv() {
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
                   <tr>
-                    {['#','Sotuv raqami','Mijoz','Jami',"To'langan",'Qarz',"To'lov",'Holat','Kassir','Sana',''].map(h => (
+                    {['#', 'Sotuv raqami', 'Mijoz', 'Jami', "To'langan", 'Qarz', "To'lov", 'Holat', 'Kassir', 'Sana', ''].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -1451,31 +1451,31 @@ export default function UlgurjiSotuv() {
                         <td className="px-4 py-3"><span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{PAY_META[s.payment_type] || s.payment_type}</span></td>
                         <td className="px-4 py-3"><span className={`text-xs font-bold px-2 py-0.5 rounded-full ${STATUS_META[s.status]?.c || 'bg-slate-100 text-slate-500'}`}>{STATUS_META[s.status]?.l || s.status}</span></td>
                         <td className="px-4 py-3 text-sm text-slate-500">{s.cashier_name}</td>
-                        <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">{s.created_at ? new Date(s.created_at).toLocaleDateString('uz-UZ', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—'}</td>
+                        <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">{s.created_at ? new Date(s.created_at).toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</td>
                         <td className="px-2 py-3 relative" onClick={e => e.stopPropagation()}>
                           <button onClick={e => { e.stopPropagation(); setOpenMenuId(openMenuId === s.id ? null : s.id); }}
                             className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all">
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" /></svg>
                           </button>
                           {openMenuId === s.id && (
                             <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-2xl py-1 min-w-[170px]" onMouseLeave={() => setOpenMenuId(null)}>
                               <button onClick={() => loadEditSale(s)} className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-indigo-50 flex items-center gap-2.5">
-                                <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                 Tahrirlash
                               </button>
-                              <div className="border-t border-slate-100 my-1"/>
+                              <div className="border-t border-slate-100 my-1" />
                               <div className="px-4 py-1 text-xs font-semibold text-slate-400 uppercase tracking-wide">Chop etish</div>
-                              {[{size:'58',label:'58mm'},{size:'80',label:'80mm'},{size:'nak',label:'A4 Nakladnoy'}].map(opt => (
+                              {[{ size: '58', label: '58mm' }, { size: '80', label: '80mm' }, { size: 'nak', label: 'A4 Nakladnoy' }].map(opt => (
                                 <button key={opt.size} onClick={() => { printSale(s, opt.size); setOpenMenuId(null); }}
                                   className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-indigo-50 flex items-center gap-2.5">
-                                  <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                                  <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                                   {opt.label}
                                 </button>
                               ))}
-                              <div className="border-t border-slate-100 my-1"/>
+                              <div className="border-t border-slate-100 my-1" />
                               <button onClick={() => { deleteSale(s.id); setOpenMenuId(null); }}
                                 className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2.5">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                 O'chirish
                               </button>
                             </div>
@@ -1489,9 +1489,9 @@ export default function UlgurjiSotuv() {
                   <tfoot>
                     <tr className="bg-indigo-50 border-t-2 border-indigo-100">
                       <td colSpan={3} className="px-4 py-3 text-xs font-bold text-indigo-700">{sales.length} ta sotuv</td>
-                      <td className="px-4 py-3 text-right font-black text-indigo-800 whitespace-nowrap">{fmt(sales.reduce((s,x)=>s+Number(x.total_amount),0))} s</td>
-                      <td className="px-4 py-3 text-right font-black text-emerald-700 whitespace-nowrap">{fmt(sales.reduce((s,x)=>s+Number(x.paid_amount),0))} s</td>
-                      <td className="px-4 py-3 text-right font-black text-red-600 whitespace-nowrap">{fmt(sales.reduce((s,x)=>s+Math.max(0,Number(x.total_amount)-Number(x.paid_amount)),0))} s</td>
+                      <td className="px-4 py-3 text-right font-black text-indigo-800 whitespace-nowrap">{fmt(sales.reduce((s, x) => s + Number(x.total_amount), 0))} s</td>
+                      <td className="px-4 py-3 text-right font-black text-emerald-700 whitespace-nowrap">{fmt(sales.reduce((s, x) => s + Number(x.paid_amount), 0))} s</td>
+                      <td className="px-4 py-3 text-right font-black text-red-600 whitespace-nowrap">{fmt(sales.reduce((s, x) => s + Math.max(0, Number(x.total_amount) - Number(x.paid_amount)), 0))} s</td>
                       <td colSpan={5} />
                     </tr>
                   </tfoot>
@@ -1526,7 +1526,7 @@ export default function UlgurjiSotuv() {
                 <div>
                   <div className="flex items-center gap-3 mb-2">
                     <span className="bg-amber-100 text-amber-700 text-[10px] font-black uppercase px-2 py-0.5 rounded-full tracking-wide">
-                      {new Date(d.date).toLocaleString('uz-UZ', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}
+                      {new Date(d.date).toLocaleString('uz-UZ', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                     </span>
                     <span className="text-sm font-bold text-slate-800">{d.cart.length} xil mahsulot</span>
                   </div>
@@ -1554,7 +1554,7 @@ export default function UlgurjiSotuv() {
         const now = new Date();
         return (
           <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm p-0 md:p-4">
-            <div className="bg-white w-full md:max-w-lg rounded-t-3xl md:rounded-2xl shadow-2xl overflow-hidden flex flex-col" style={{maxHeight:'95vh'}}>
+            <div className="bg-white w-full md:max-w-lg rounded-t-3xl md:rounded-2xl shadow-2xl overflow-hidden flex flex-col" style={{ maxHeight: '95vh' }}>
               <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center">
@@ -1562,7 +1562,7 @@ export default function UlgurjiSotuv() {
                   </div>
                   <div>
                     <h2 className="text-base font-black text-slate-800">Kassaga to'lov</h2>
-                    <p className="text-xs text-indigo-500 font-mono">{now.toLocaleString('ru-RU').replace(',','')}</p>
+                    <p className="text-xs text-indigo-500 font-mono">{now.toLocaleString('ru-RU').replace(',', '')}</p>
                   </div>
                 </div>
                 <button onClick={closeModal} className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500">
@@ -1586,7 +1586,7 @@ export default function UlgurjiSotuv() {
                       return (
                         <div key={line.id} className="flex items-center gap-2">
                           <div className="relative w-36 shrink-0">
-                            <div className={`absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none ${acls.idle.split(' ').find(c=>c.startsWith('text'))||'text-slate-400'}`}>{PAY_ICONS[line.type]}</div>
+                            <div className={`absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none ${acls.idle.split(' ').find(c => c.startsWith('text')) || 'text-slate-400'}`}>{PAY_ICONS[line.type]}</div>
                             <select value={line.type} onChange={e => updateLine(line.id, 'type', e.target.value)}
                               className="w-full h-10 pl-8 pr-2 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white appearance-none cursor-pointer">
                               {PAY_TYPES.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
@@ -1595,8 +1595,8 @@ export default function UlgurjiSotuv() {
                           {isDebt
                             ? <div className="flex-1 h-10 px-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center"><span className="text-sm font-black text-amber-700">{fmt(remaining > 0 ? remaining : total)} s — qarzga</span></div>
                             : <input type="number" value={line.amt} onChange={e => updateLine(line.id, 'amt', e.target.value)}
-                                placeholder="0" autoFocus={idx === payments.length - 1}
-                                className="flex-1 h-10 px-3 border border-slate-200 rounded-lg text-base font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-300 min-w-0" />
+                              placeholder="0" autoFocus={idx === payments.length - 1}
+                              className="flex-1 h-10 px-3 border border-slate-200 rounded-lg text-base font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-300 min-w-0" />
                           }
                           {!isDebt && <button onClick={() => fillLine(line.id)} className="shrink-0 h-10 px-3 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 whitespace-nowrap">Qoldi</button>}
                           <button onClick={() => removeLine(line.id)} className={`shrink-0 w-8 h-10 rounded-lg flex items-center justify-center ${payments.length > 1 ? 'text-slate-300 hover:text-red-500 hover:bg-red-50' : 'text-slate-200 cursor-not-allowed'}`}>
@@ -1627,11 +1627,11 @@ export default function UlgurjiSotuv() {
 
                 <div className="bg-slate-50 rounded-xl border border-slate-100 divide-y divide-slate-100">
                   {[
-                    { label: 'Umumiy summa', val: fmt(total)+' s', cls: 'text-slate-800 font-bold' },
-                    saleDisc > 0 && { label: 'Chegirma', val: '−'+fmt(saleDisc)+' s', cls: 'text-amber-600 font-semibold' },
-                    { label: "To'lov", val: fmt(paid)+' s', cls: 'text-emerald-600 font-black' },
-                    remaining > 0 && { label: 'Qarzga', val: fmt(remaining)+' s', cls: 'text-red-600 font-black' },
-                    change > 0 && { label: 'Qaytim', val: fmt(change)+' s', cls: 'text-blue-600 font-black' },
+                    { label: 'Umumiy summa', val: fmt(total) + ' s', cls: 'text-slate-800 font-bold' },
+                    saleDisc > 0 && { label: 'Chegirma', val: '−' + fmt(saleDisc) + ' s', cls: 'text-amber-600 font-semibold' },
+                    { label: "To'lov", val: fmt(paid) + ' s', cls: 'text-emerald-600 font-black' },
+                    remaining > 0 && { label: 'Qarzga', val: fmt(remaining) + ' s', cls: 'text-red-600 font-black' },
+                    change > 0 && { label: 'Qaytim', val: fmt(change) + ' s', cls: 'text-blue-600 font-black' },
                   ].filter(Boolean).map((r, i) => (
                     <div key={i} className="flex justify-between items-center px-4 py-2.5 text-sm">
                       <span className="text-slate-500">{r.label}</span>
@@ -1700,7 +1700,7 @@ export default function UlgurjiSotuv() {
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">Chek formati</label>
                 <div className="grid grid-cols-3 gap-2">
-                  {[{id:'58',label:'58 mm'},{id:'80',label:'80 mm'},{id:'A4',label:'A4'}].map(w => (
+                  {[{ id: '58', label: '58 mm' }, { id: '80', label: '80 mm' }, { id: 'A4', label: 'A4' }].map(w => (
                     <button key={w.id} onClick={() => setReceiptWidth(w.id)}
                       className={`py-2 text-sm font-semibold rounded-xl border-2 transition-colors ${receiptWidth === w.id ? 'border-indigo-500 text-indigo-700 bg-indigo-50' : 'border-slate-100 text-slate-500 hover:border-slate-300'}`}>
                       {w.label}
@@ -1725,7 +1725,7 @@ function SaleDetailContent({ saleId }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get(`/sales/${saleId}`).then(r => setData(r.data)).catch(() => {}).finally(() => setLoading(false));
+    api.get(`/sales/${saleId}`).then(r => setData(r.data)).catch(() => { }).finally(() => setLoading(false));
   }, [saleId]);
 
   if (loading) return <div className="flex justify-center py-16"><div className="w-7 h-7 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div>;
@@ -1761,10 +1761,10 @@ function SaleDetailContent({ saleId }) {
       </table>
       <div className="bg-slate-50 rounded-xl p-4 space-y-2">
         {[
-          { l: 'Umumiy summa', v: fmtL(data.total_amount)+' s', c: 'font-bold text-slate-800' },
-          Number(data.discount_amount) > 0 && { l: 'Chegirma', v: '−'+fmtL(data.discount_amount)+' s', c: 'text-amber-600 font-semibold' },
-          { l: "To'langan", v: fmtL(data.paid_amount)+' s', c: 'font-bold text-emerald-700' },
-          debt > 0 && { l: 'Qarz', v: fmtL(debt)+' s', c: 'font-bold text-red-600' },
+          { l: 'Umumiy summa', v: fmtL(data.total_amount) + ' s', c: 'font-bold text-slate-800' },
+          Number(data.discount_amount) > 0 && { l: 'Chegirma', v: '−' + fmtL(data.discount_amount) + ' s', c: 'text-amber-600 font-semibold' },
+          { l: "To'langan", v: fmtL(data.paid_amount) + ' s', c: 'font-bold text-emerald-700' },
+          debt > 0 && { l: 'Qarz', v: fmtL(debt) + ' s', c: 'font-bold text-red-600' },
         ].filter(Boolean).map((r, i) => (
           <div key={i} className="flex justify-between text-sm">
             <span className="text-slate-500">{r.l}</span><span className={r.c}>{r.v}</span>

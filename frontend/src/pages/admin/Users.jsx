@@ -92,7 +92,7 @@ export default function Users() {
   useEffect(() => {
     load();
     api.get('/branches').then(r => setBranches(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
-    api.get('/kassa').then(r => setWallets(r.data)).catch(() => {});
+    api.get('/kassa').then(r => setWallets(r.data)).catch(() => { });
   }, [load]);
 
   const openCreate = () => {
@@ -115,6 +115,12 @@ export default function Users() {
       setUserWallets((uwRes.data || []).map(w => ({ wallet_id: w.id, is_default: w.is_default })));
     } catch { setUserWallets([]); }
     setModal('kassa');
+  };
+  const openPwd = (u) => {
+    setSelected(u);
+    setNewPwd('');
+    setError('');
+    setModal('password');
   };
 
   const toggleWallet = async (walletId, checked) => {

@@ -2,6 +2,8 @@ import { useLang } from '../../context/LangContext';
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
+import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ListOrdered, ChevronsUpDown, CheckIcon } from 'lucide-react';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ')
 const fmtDate = (d) => d ? new Date(d).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
@@ -92,12 +94,17 @@ export default function CustomerDetail() {
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadingTab, setLoadingTab] = useState(false)
+  const [income, setIncome] = useState([])
+  const [salesData, setSalesData] = useState([])
 
   useEffect(() => {
     api.get(`/customers/${customerId}/stats`)
       .then(r => setStats(r.data))
       .catch(() => navigate('/admin/customers'))
       .finally(() => setLoading(false))
+
+    api.get('/finance/payments/income').then(r => setIncome(r.data.items))
+    api.get(`/sales`).then(r => setSalesData(r.data))
   }, [customerId, navigate])
 
   const loadSales = useCallback(async () => {
@@ -305,7 +312,7 @@ export default function CustomerDetail() {
 
           {/* SOTUVLAR TAB */}
           {tab === 'sotuvlar' && (
-            <SalesTable rows={sales} loading={loadingTab} />
+            <SalesTable rows={sales} stats={stats} salesData={salesData} loading={loadingTab} />
           )}
 
           {/* QAYTARISHLAR TAB */}
@@ -322,76 +329,271 @@ export default function CustomerDetail() {
           {tab === 'akt' && (
             <AktSverka stats={stats} sales={sales} returns={returns} loading={loadingTab} />
           )}
+
+          {tab === 'kirim_tolovlar' && (
+            <KirimTolovlar stats={stats} income={income} loading={loadingTab} />
+          )}
         </div>
       </div>
     </div>
   )
 }
-
-function SalesTable({ rows, loading, emptyText = "Sotuvlar yo'q" }) {
+function SalesTable({ rows, stats, salesData, loading, emptyText = "Sotuvlar yo'q" }) {
   const { t } = useLang();
+
+  // 1. BARCHA HOOKLAR ENG TEPADA BO'LISHI SHART
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [selectedEmployee, setSelectedEmployee] = useState('all');
+
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(() => Number(localStorage.getItem('sales_limit')) || 10);
+
+  // Filtrlar o'zgarganda 1-sahifaga qaytish
+  useEffect(() => {
+    setPage(1);
+  }, [fromDate, toDate, selectedEmployee, limit]);
+
+
+  // 2. HOOKLARDAN KEYINGI ERTA QAYTISHLAR (Early returns)
   if (loading) return <LoadingSpinner />
   if (!rows.length) return <Empty text={emptyText} />
+
+
+  // 3. ASOSIY MANTIQ
+  const filteredByEmployee = [];
+
+  // Ma'lumotlarni ham mijoz bo'yicha, ham sana bo'yicha filtrlash
+  const filtered_sales = salesData.filter(i => {
+    if (i.customer_name !== stats.name) return false;
+
+    if (fromDate || toDate) {
+      const itemDate = new Date(i.created_at);
+
+      if (fromDate) {
+        const from = new Date(fromDate);
+        from.setHours(0, 0, 0, 0);
+        if (itemDate < from) return false;
+      }
+
+      if (toDate) {
+        const to = new Date(toDate);
+        to.setHours(23, 59, 59, 999);
+        if (itemDate > to) return false;
+      }
+    }
+    return true;
+  });
+
+  // Xodimlarni yig'ish
+  filtered_sales.forEach(item => {
+    if (filteredByEmployee.includes(item.cashier_name)) return;
+    filteredByEmployee.push(item.cashier_name);
+  });
+
+  // Xodim bo'yicha filtrlash
+  const filteredByEmployeeSales = filtered_sales.filter(item => {
+    if (selectedEmployee === 'all') return true;
+    return item.cashier_name === selectedEmployee;
+  });
+
+  // Sahifalash (Pagination Logic)
+  const totalRecords = filteredByEmployeeSales.length;
+  const totalPages = Math.ceil(totalRecords / limit) || 1;
+  const paginatedSales = filteredByEmployeeSales.slice((page - 1) * limit, page * limit);
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-slate-100">
-            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-4">{t('admin.dict.number') || 'Raqam'}</th>
-            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-4">{t('admin.dict.status') || 'Holat'}</th>
-            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-4">To'lov turi</th>
-            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-4">{t('admin.dict.total') || 'Jami'}</th>
-            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pr-4">To'langan</th>
-            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3">{t('admin.dict.debt') || 'Qarz'}</th>
-            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-3 pl-4">{t('admin.dict.date') || 'Sana'}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-50">
-          {rows.map(s => {
-            const debt = Number(s.total_amount) - Number(s.paid_amount)
-            return (
-              <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                <td className="py-3 pr-4 font-mono text-xs text-slate-600">{s.number}</td>
-                <td className="py-3 pr-4">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_STYLES[s.status] || ''}`}>
-                    {STATUS_LABELS[s.status] || s.status}
-                  </span>
-                </td>
-                <td className="py-3 pr-4">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${PAY_STYLES[s.payment_type] || ''}`}>
-                    {PAY_LABELS[s.payment_type] || s.payment_type}
-                  </span>
-                </td>
-                <td className="py-3 text-left font-semibold text-slate-800">{fmt(s.total_amount)} so'm</td>
-                <td className="py-3 text-left text-emerald-600 font-medium">{fmt(s.paid_amount)} so'm</td>
-                <td className={`py-3 px-4 text-left font-medium ${debt > 0 ? 'text-red-500' : 'text-slate-400'}`}>
-                  {debt > 0 ? fmt(debt) : '—'}
-                </td>
-                <td className="py-3 pl-4 text-slate-500 whitespace-nowrap">{fmtDate(s.created_at)}</td>
+    <div>
+      <div className="flex justify-end mb-4 gap-1 flex-wrap xl:gap-3 sm:-mt-2">
+        {/* Xodim filtrlari */}
+        <div className="flex items-center border px-3 border-slate-200 rounded-md gap-2 bg-white">
+          <label htmlFor="employee" className='text-sm xl:text-md text-slate-600'>Xodim</label>
+          <select
+            id="employee"
+            value={selectedEmployee}
+            onChange={(e) => setSelectedEmployee(e.target.value)}
+            className='cursor-pointer py-1.5 xl:py-2 border-l border-slate-200 pl-2 outline-none bg-transparent'
+          >
+            <option value="all">Barchasi</option>
+            {filteredByEmployee.map(employee => (
+              <option key={employee} className='' value={employee}>{employee}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Sana filtrlari */}
+        <div className='flex gap-1 xl:gap-3 flex-wrap justify-end'>
+          <div className='flex items-center border px-3 border-slate-200 rounded-md gap-2 bg-white'>
+            <label htmlFor="from" className='text-sm xl:text-md text-slate-600'>dan</label>
+            <input
+              type="date"
+              id='from'
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className='cursor-pointer text-sm xl:text-md py-1.5 xl:py-2 border-l border-slate-200 pl-2 outline-none bg-transparent'
+            />
+          </div>
+          <div className='flex items-center border px-3 border-slate-200 rounded-md gap-2 bg-white'>
+            <label htmlFor="to" className='text-sm xl:text-md text-slate-600'>gacha</label>
+            <input
+              type="date"
+              id='to'
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className='cursor-pointer text-sm xl:text-md py-1.5 xl:py-2 border-l border-slate-200 pl-2 outline-none bg-transparent'
+            />
+          </div>
+          {/* Filterni tozalash tugmasi */}
+          {(fromDate || toDate) && (
+            <button
+              onClick={() => { setFromDate(''); setToDate(''); }}
+              className="text-sm cursor-pointer text-red-500 hover:text-red-700 underline px-2"
+            >
+              Tozalash
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Table Konteyneri */}
+      <div className="flex bg-white rounded-2xl flex-col h-full border border-slate-100 shadow-sm">
+        <div className="w-full overflow-x-auto table-fixed scrollbar-thin scrollbar-thumb-slate-200 rounded-t-2xl overflow-hidden">
+          <table className="min-w-[1200px] w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100">
+                <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.number') || 'Raqam'}</th>
+                <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{'Xodim'}</th>
+                <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">To'lov turi</th>
+                <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.total') || 'Jami'}</th>
+                <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">To'langan</th>
+                <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.debt') || 'Qarz'}</th>
+                <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.date') || 'Sana'}</th>
               </tr>
-            )
-          })}
-        </tbody>
-        <tfoot>
-          <tr className="border-t-2 border-slate-200">
-            <td colSpan={3} className="pt-3 text-xs font-semibold text-slate-400 uppercase">{t('admin.dict.total') || 'Jami'}</td>
-            <td className="pt-3 text-left font-bold text-slate-800">
-              {fmt(rows.reduce((s, r) => s + Number(r.total_amount), 0))} so'm
-            </td>
-            <td className="pt-3 text-left font-bold text-emerald-600">
-              {fmt(rows.reduce((s, r) => s + Number(r.paid_amount), 0))} so'm
-            </td>
-            <td className="pt-3 text-left font-bold text-red-500">
-              {fmt(rows.reduce((s, r) => s + Math.max(0, Number(r.total_amount) - Number(r.paid_amount)), 0))} so'm
-            </td>
-            <td />
-          </tr>
-        </tfoot>
-      </table>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {paginatedSales.length > 0 ? (
+                paginatedSales.map(s => {
+                  const debt = Number(s.total_amount) - Number(s.paid_amount)
+                  return (
+                    <tr key={s.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-4 font-mono text-xs text-slate-600">{s.number}</td>
+                      <td className="px-4 py-4">
+                        <code className="py-0.5 rounded-full text-xs">
+                          {s.cashier_name}
+                        </code>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${PAY_STYLES[s.payment_type] || ''}`}>
+                          {PAY_LABELS[s.payment_type] || s.payment_type}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-left font-semibold text-slate-800">{fmt(s.total_amount)} so'm</td>
+                      <td className="px-4 py-4 text-left text-emerald-600 font-medium">{fmt(s.paid_amount)} so'm</td>
+                      <td className={`px-4 py-4 text-left font-medium ${debt > 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                        {debt > 0 ? fmt(debt) : '—'}
+                      </td>
+                      <td className="px-4 py-4 text-slate-500 whitespace-nowrap">{fmtDate(s.created_at)}</td>
+                    </tr>
+                  )
+                })
+              ) : (
+                <tr>
+                  <td colSpan="7" className="text-center py-16 text-slate-500">
+                    <div className="flex flex-col items-center gap-2 text-slate-400">
+                      <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                      <span className="text-sm">Ushbu holat bo'yicha ma'lumot topilmadi</span>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+            {/* Tfoot: Umumiy yig'indilar */}
+            {filteredByEmployeeSales.length > 0 && (
+              <tfoot>
+                <tr className="border-t-2 border-slate-200 bg-slate-50/50">
+                  <td colSpan={3} className="px-4 py-4 text-xs font-semibold text-slate-400 uppercase">{t('admin.dict.total') || 'Jami'}</td>
+                  <td className="px-4 py-4 text-left font-bold text-slate-800">
+                    {fmt(filteredByEmployeeSales.reduce((s, r) => s + Number(r.total_amount), 0))} so'm
+                  </td>
+                  <td className="px-4 py-4 text-left font-bold text-emerald-600">
+                    {fmt(filteredByEmployeeSales.reduce((s, r) => s + Number(r.paid_amount), 0))} so'm
+                  </td>
+                  <td className="px-4 py-4 text-left font-bold text-red-500">
+                    {fmt(filteredByEmployeeSales.reduce((s, r) => s + Math.max(0, Number(r.total_amount) - Number(r.paid_amount)), 0))} so'm
+                  </td>
+                  <td />
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+
+        {/* Sahifalash (Pagination) qismi */}
+        {filteredByEmployeeSales.length > 0 && (
+          <div className="px-6 py-3 border-t border-slate-100 flex items-center justify-between text-xs md:text-sm text-slate-500 bg-slate-50 rounded-b-2xl">
+            <span>Jami <strong className="text-slate-700">{totalRecords}</strong> ta sotuv</span>
+
+            <div className="flex items-center flex-nowrap gap-0 sm:gap-1">
+              <button disabled={page === 1} onClick={() => setPage(1)}
+                className={`rounded-lg ${page === 1 ? 'text-slate-300' : 'text-slate-700 hover:bg-white bg-slate-50 cursor-pointer'} transition-colors`}>
+                <ChevronsLeft className='size-4 sm:size-5' />
+              </button>
+              <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
+                className={`rounded-lg ${page === 1 ? 'text-slate-300' : 'text-slate-700 hover:bg-white bg-slate-50 cursor-pointer'} transition-colors`}>
+                <ChevronLeft className='size-4 sm:size-5' />
+              </button>
+              <span className="px-2 sm:px-3 text-[12px] xl:text-[14px] whitespace-nowrap font-semibold text-slate-700">{page} / {totalPages}</span>
+              <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}
+                className={`rounded-lg ${page >= totalPages ? 'text-slate-300' : 'text-slate-700 hover:bg-white bg-slate-50 cursor-pointer'} transition-colors`}>
+                <ChevronRight className='size-4 sm:size-5' />
+              </button>
+              <button disabled={page === totalPages} onClick={() => setPage(totalPages)}
+                className={`rounded-lg ${page === totalPages ? 'text-slate-300' : 'text-slate-700 hover:bg-white bg-slate-50 cursor-pointer'} transition-colors`}>
+                <ChevronsRight className='size-4 sm:size-5' />
+              </button>
+            </div>
+
+            <div className='flex gap-1 md:gap-3 text-right md:text-left items-center flex-col md:flex-row'>
+              <div className="z-30 ml-auto md:ml-0">
+                <Listbox
+                  value={limit}
+                  onChange={(val) => {
+                    const v = Number(val);
+                    localStorage.setItem('sales_limit', v);
+                    setLimit(v);
+                  }}
+                >
+                  <div className="relative min-w-[90px] sm:min-w-[120px]">
+                    <ListboxButton className="w-full cursor-pointer flex items-center py-1 px-2 xl:px-3 xl:py-1.5 justify-between rounded-lg border border-slate-200 text-[13px] xl:text-[14px] bg-white text-slate-900 outline-none hover:border-indigo-400 focus:border-indigo-500 transition-colors shadow-sm text-left">
+                      <span className="flex items-center gap-2">
+                        <ListOrdered className="size-4 shrink-0 text-slate-400" />
+                        <span>{limit} {t('common.item') || 'ta'}</span>
+                      </span>
+                      <ChevronsUpDown aria-hidden="true" className="size-4 text-gray-400" />
+                    </ListboxButton>
+                    <ListboxOptions
+                      anchor="top end"
+                      className="z-50 min-w-[120px] mb-1 overflow-auto rounded-xl bg-white border border-slate-200 p-1 shadow-2xl focus:outline-none [--anchor-gap:4px]"
+                    >
+                      {[5, 10, 20, 50, 100, 500].map((n) => (
+                        <ListboxOption key={n} value={n} className="group flex cursor-pointer items-center gap-2 rounded-lg py-2 px-3 select-none data-[focus]:bg-indigo-50">
+                          <CheckIcon className="size-4 text-indigo-600 group-not-data-[selected]:invisible" />
+                          <div className="text-[13px] font-medium text-slate-700 group-data-[selected]:text-indigo-700">{n} {t('common.item') || 'ta'}</div>
+                        </ListboxOption>
+                      ))}
+                    </ListboxOptions>
+                  </div>
+                </Listbox>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
-
 function OperationsTable({ rows, loading }) {
   const { t } = useLang();
   if (loading) return <LoadingSpinner />
@@ -499,6 +701,121 @@ function AktSverka({ stats, sales, returns, loading }) {
       </div>
     </div>
   )
+}
+
+function KirimTolovlar({ stats, income, loading, openEdit, handleDelete }) {
+  // Pullarni chiroyli formatda chiqarish uchun yordamchi funksiya (Masalan: 1 250 000)
+  const fmt = (num) => {
+    return num ? Number(num).toLocaleString('uz-UZ') : '0';
+  };
+
+  // Ma'lumotlarni contagent nomi bo'yicha filtrlash
+  const correct_income = income && stats
+    ? income.filter(i => i.contragent === stats.name)
+    : [];
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="min-w-full">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-100">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">#</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">CONTRAGENT</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">TURI</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">TO'LOV</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500" colSpan="6">TO'LOV TURLARI</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">KIRIM MANBASI</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">KASSA</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">MA'LUMOT</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">SANA</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">AMALLAR</th>
+            </tr>
+            <tr className="bg-slate-50 border-b border-slate-100">
+              <th colSpan="4"></th>
+              <th className="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 border-x border-slate-200">NAQD</th>
+              <th className="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 border-x border-slate-200">UZCARD/HUMO</th>
+              <th className="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 border-x border-slate-200">BANK O'TKAZMASI</th>
+              <th className="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 border-x border-slate-200">CLICK</th>
+              <th className="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 border-x border-slate-200">PAYME</th>
+              <th className="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 border-x border-slate-200">UZUM</th>
+              <th colSpan="5"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {loading ? (
+              <tr>
+                <td colSpan="15" className="text-center py-8 text-slate-500">
+                  Yuklanmoqda...
+                </td>
+              </tr>
+            ) : correct_income.length > 0 ? (
+              correct_income.map((i, idx) => (
+                <tr key={i.id || idx} className="hover:bg-slate-50 text-sm">
+                  <td className="px-4 py-3 text-slate-500">{idx + 1}</td>
+                  <td className="px-4 py-3 font-semibold text-indigo-600">{i.contragent}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded-md text-xs font-medium ${i.turi === 'Mijoz' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                      {i.turi || 'Mijoz'}
+                    </span>
+                  </td>
+                  {/* Agar obyektingizda 'amount' o'rniga 'value' bo'lsa, i.value deb o'zgartiring */}
+                  <td className="px-4 py-3 font-bold text-emerald-600">{fmt(i.amount || i.value)}</td>
+
+                  {/* To'lov turlari bo'yicha filterlar */}
+                  <td className="px-2 py-3 text-center border-x border-slate-50">{['cash', 'naqd'].includes(i.payment_type) ? fmt(i.amount || i.value) : 0}</td>
+                  <td className="px-2 py-3 text-center border-x border-slate-50">{['card', 'plastik', 'uzcard', 'humo'].includes(i.payment_type) ? fmt(i.amount || i.value) : 0}</td>
+                  <td className="px-2 py-3 text-center border-x border-slate-50">{['bank', 'bank_transfer'].includes(i.payment_type) ? fmt(i.amount || i.value) : 0}</td>
+                  <td className="px-2 py-3 text-center border-x border-slate-50">{i.payment_type === 'click' ? fmt(i.amount || i.value) : 0}</td>
+                  <td className="px-2 py-3 text-center border-x border-slate-50">{i.payment_type === 'payme' ? fmt(i.amount || i.value) : 0}</td>
+                  <td className="px-2 py-3 text-center border-x border-slate-50">{i.payment_type === 'uzum' ? fmt(i.amount || i.value) : 0}</td>
+
+                  <td className="px-4 py-3">
+                    <span className="px-2 py-1 rounded-md text-xs bg-blue-50 text-blue-600 border border-blue-100">
+                      {i.reference_type === 'customer_payment' ? "Qarz yopish" : i.reference_type === 'sale' ? "Sotuv" : "Ta'minotchidan qaytaruv"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-slate-600 text-xs">{i.wallet || i.name || '—'}</td>
+                  <td className="px-4 py-3 text-slate-500 text-xs">{i.description || '—'}</td>
+                  <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">
+                    {i.created_at ? new Date(i.created_at).toLocaleString('uz-UZ') : '—'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      {i.reference_type !== 'sale' ? (
+                        <>
+                          <button
+                            onClick={() => openEdit && openEdit(i)}
+                            className="px-2 py-1 text-xs font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
+                          >
+                            Tahrirlash
+                          </button>
+                          <button
+                            onClick={() => handleDelete && handleDelete(i)}
+                            className="px-2 py-1 text-xs font-semibold bg-red-50 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
+                          >
+                            O'chirish
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-xs text-slate-400 italic">Savdo bo'limidan</span>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="15" className="text-center py-8 text-slate-500">
+                  Ma'lumot topilmadi
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 function LoadingSpinner() {
