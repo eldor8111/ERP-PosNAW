@@ -65,6 +65,9 @@ class ProductCreate(BaseModel):
     dimensions: Optional[str] = None
     brand: Optional[str] = None
     status: ProductStatus = ProductStatus.active
+    mxik_code: Optional[str] = None
+    parent_code: Optional[int] = None
+    unit_id: Optional[int] = None
     # Virtual Products
     product_type: str = "stock"  # 'stock' yoki 'sell'
     conversion: Optional[ProductConversionIn] = None  # faqat product_type='sell' uchun
@@ -101,6 +104,9 @@ class ProductUpdate(BaseModel):
     weight: Optional[Decimal] = None
     dimensions: Optional[str] = None
     status: Optional[ProductStatus] = None
+    mxik_code: Optional[str] = None
+    parent_code: Optional[int] = None
+    unit_id: Optional[int] = None
     # Virtual Products
     product_type: Optional[str] = None  # 'stock' yoki 'sell'
     conversion: Optional[ProductConversionIn] = None
@@ -138,6 +144,9 @@ class ProductOut(BaseModel):
     sell_conversions: List[ProductConversionReverseOut] = []
     created_at: datetime
     stock_quantity: Optional[Decimal] = None
+    mxik_code: Optional[str] = None
+    parent_code: Optional[int] = None
+    unit_id: Optional[int] = None
 
     model_config = {"from_attributes": True}
 
@@ -194,6 +203,9 @@ class ProductListOut(BaseModel):
     sell_conversions: List[ProductConversionReverseOut] = []
     stock_quantity: Optional[Decimal] = None
     warehouse_stocks: List[WarehouseStockOut] = []
+    mxik_code: Optional[str] = None
+    parent_code: Optional[int] = None
+    unit_id: Optional[int] = None
 
     model_config = {"from_attributes": True}
 
