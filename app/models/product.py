@@ -44,14 +44,11 @@ class Product(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
-    # Product ichiga qo'shing
-    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
-    customer = relationship("Customer", back_populates="special_products")
-
     category = relationship("Category", back_populates="products")
     stock_level = relationship("StockLevel", back_populates="product", uselist=False)
     stock_movements = relationship("StockMovement", back_populates="product")
     sale_items = relationship("SaleItem", back_populates="product")
+    customer_prices = relationship("CustomerPrice", back_populates="product", cascade="all, delete-orphan")
     # Bu mahsulot sell bo'lsa, uning konversiyasi (1 ta)
     conversion = relationship(
         "ProductConversion",

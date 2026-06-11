@@ -14,11 +14,13 @@ class Customer(Base):
     debt_limit = Column(Numeric(14, 2), default=0)
     loyalty_points = Column(Integer, default=0)
     tg_chat_id = Column(String(50), index=True, nullable=True)
-    
+
+    price_types = Column(Integer, default=0, server_default='0', nullable=False)
+
     # Skidka (sotuvda avtomatik qo'llaniladi)
     discount_percent = Column(Numeric(5, 2), default=0)
-    # Customer ichiga qo'shing
-    special_products = relationship("Product", back_populates="customer")
+    price_type = Column(String(20), default="sale", server_default='sale')
+    custom_prices = relationship("CustomerPrice", back_populates="customer")
 
     # Keshbek va Sodiqlik kartasi
     card_number = Column(String(20), index=True, nullable=True)

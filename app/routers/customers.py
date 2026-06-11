@@ -10,6 +10,7 @@ from decimal import Decimal
 
 from app.database import get_db  # type: ignore
 from app.models.customer import Customer  # type: ignore
+from app.models.customer_prices import CustomerPrice  # type: ignore
 from app.core.dependencies import get_current_user  # type: ignore
 from app.models.user import User, UserRole  # type: ignore
 
@@ -24,7 +25,8 @@ class CustomerIn(BaseModel):
     loyalty_points: Optional[int] = 0
     card_number: Optional[str] = None
     cashback_percent: Optional[Decimal] = Decimal("0")
-
+    price_type: Optional[str] = "sale"  # sale, wholesale, cost
+    
     @field_validator("card_number")
     @classmethod
     def card_valid(cls, v):
@@ -472,4 +474,82 @@ def delete_customer(customer_id: int, db: Session = Depends(get_db), current_use
         raise HTTPException(status_code=404, detail="Not found")
     db.query(Sale).filter(Sale.customer_id == customer_id).update({"customer_id": None})
     db.delete(cust)
+    db.commit()
+
+
+# ── Customer Prices ────────────────────────────────────────────────────────────
+
+class CustomerPriceIn(BaseModel):
+    product_id: int
+    price: Decimal
+
+
+@router.get("/{customer_id}/prices")
+def list_customer_prices(
+    customer_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    cust = db.query(Customer).filter(
+        Customer.id == customer_id,
+        Customer.company_id == current_user.company_id,
+    ).first()
+    if not cust:
+        raise HTTPException(status_code=404, detail="Mijoz topilmadi")
+    return db.query(CustomerPrice).filter(
+        CustomerPrice.customer_id == customer_id,
+        CustomerPrice.company_id == current_user.company_id,
+    ).all()
+
+
+@router.post("/{customer_id}/prices", status_code=201)
+def set_customer_price(
+    customer_id: int,
+    data: CustomerPriceIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    cust = db.query(Customer).filter(
+        Customer.id == customer_id,
+        Customer.company_id == current_user.company_id,
+    ).first()
+    if not cust:
+        raise HTTPException(status_code=404, detail="Mijoz topilmadi")
+    existing = db.query(CustomerPrice).filter(
+        CustomerPrice.customer_id == customer_id,
+        CustomerPrice.product_id == data.product_id,
+        CustomerPrice.company_id == current_user.company_id,
+    ).first()
+    if existing:
+        existing.price = data.price
+        db.commit()
+        db.refresh(existing)
+        return existing
+    cp = CustomerPrice(
+        company_id=current_user.company_id,
+        customer_id=customer_id,
+        product_id=data.product_id,
+        price=data.price,
+    )
+    db.add(cp)
+    db.commit()
+    db.refresh(cp)
+    return cp
+
+
+@router.delete("/{customer_id}/prices/{product_id}", status_code=204)
+def delete_customer_price(
+    customer_id: int,
+    product_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    cp = db.query(CustomerPrice).filter(
+        CustomerPrice.customer_id == customer_id,
+        CustomerPrice.product_id == product_id,
+        CustomerPrice.company_id == current_user.company_id,
+    ).first()
+    if not cp:
+        raise HTTPException(status_code=404, detail="Narx topilmadi")
+    db.delete(cp)
     db.commit()

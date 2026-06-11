@@ -180,14 +180,14 @@ api.interceptors.response.use(
       }
       return Promise.reject(error)
     }
-    if (status === 400) { toast.error(detail || "Noto'g'ri ma'lumot kiritildi"); return Promise.reject(error) }
-    if (status === 403) { toast.warn("Sizda bu amalni bajarish huquqi yo'q"); return Promise.reject(error) }
-    if (status === 404) { toast.warn(detail || "Ma'lumot topilmadi"); return Promise.reject(error) }
+    if (status === 400) { if (!config._silent) toast.error(detail || "Noto'g'ri ma'lumot kiritildi"); return Promise.reject(error) }
+    if (status === 403) { if (!config._silent) toast.warn("Sizda bu amalni bajarish huquqi yo'q"); return Promise.reject(error) }
+    if (status === 404) { if (!config._silent) toast.warn(detail || "Ma'lumot topilmadi"); return Promise.reject(error) }
     if (status === 422) {
       const msg = error.response?.data?.detail?.[0]?.msg || "Maydonlarni to'g'ri to'ldiring"
-      toast.error(msg); return Promise.reject(error)
+      if (!config._silent) toast.error(msg); return Promise.reject(error)
     }
-    if (status >= 500) { toast.error(detail || 'Server xatosi yuz berdi. Iltimos qayta urinib ko\'ring.'); return Promise.reject(error) }
+    if (status >= 500) { if (!config._silent) toast.error(detail || 'Server xatosi yuz berdi. Iltimos qayta urinib ko\'ring.'); return Promise.reject(error) }
     if (!error.response && !config._silent) {
       if (error.code === 'ECONNABORTED') _showTimeoutToast()
       else toast.error("Server bilan aloqa yo'q.")

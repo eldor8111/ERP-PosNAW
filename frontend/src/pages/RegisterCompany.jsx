@@ -204,7 +204,7 @@ export default function RegisterCompany() {
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(null)
   // OTP state
-  const [otp, setOtp] = useState('111111')
+  const [otp, setOtp] = useState('')
   const [otpError, setOtpError] = useState('')
   const [otpLoading, setOtpLoading] = useState(false)
   const [otpSent, setOtpSent] = useState(false)
@@ -264,11 +264,15 @@ export default function RegisterCompany() {
     if (!validateStep2()) return
     setOtpLoading(true)
     setOtpError('')
+    setErrors({})
     try {
       const normalized = form.phone.replace(/[^0-9]/g, '')
-      const res = await api.post('/auth/send-otp', { phone: normalized, purpose: 'register' })
+      const res = await api.post('/auth/send-otp', { phone: normalized, purpose: 'register' }, { _silent: true })
       if (!res.data.sent) {
-        setErrors({ submit: res.data.message || t('auth.errNoBot') || 'Botga ulanmagan' })
+        // Bot ulanmagan — foydalanuvchiga bot linkni ko'rsatamiz
+        const botLink = res.data.bot_link
+        const msg = res.data.message || t('auth.errNoBot') || 'Botga ulanmagan'
+        setErrors({ submit: botLink ? `${msg} 👉 ${botLink}` : msg })
         setOtpLoading(false)
         return
       }
@@ -278,7 +282,8 @@ export default function RegisterCompany() {
       setStep(3)
       startResendTimer()
     } catch (err) {
-      setErrors({ submit: err.response?.data?.detail || t('auth.errSendOtp') || 'OTP yuborishda xato' })
+      const detail = err.response?.data?.detail
+      setErrors({ submit: detail || t('auth.errSendOtp') || 'OTP yuborishda xato' })
     } finally {
       setOtpLoading(false)
     }
@@ -291,9 +296,11 @@ export default function RegisterCompany() {
     setOtpError('')
     try {
       const normalized = form.phone.replace(/[^0-9]/g, '')
-      const res = await api.post('/auth/send-otp', { phone: normalized, purpose: 'register' })
+      const res = await api.post('/auth/send-otp', { phone: normalized, purpose: 'register' }, { _silent: true })
       if (!res.data.sent) {
-        setOtpError(res.data.message || t('auth.errNoBot') || 'Botga ulanmagan')
+        const botLink = res.data.bot_link
+        const msg = res.data.message || t('auth.errNoBot') || 'Botga ulanmagan'
+        setOtpError(botLink ? `${msg} 👉 ${botLink}` : msg)
         setOtpLoading(false)
         return
       }
@@ -314,7 +321,7 @@ export default function RegisterCompany() {
     setOtpError('')
     try {
       const normalized = form.phone.replace(/[^0-9]/g, '')
-      const res = await api.post('/auth/verify-otp', { phone: normalized, otp, otp_session: otpSession })
+      const res = await api.post('/auth/verify-otp', { phone: normalized, otp, otp_session: otpSession }, { _silent: true })
       setVerifiedToken(res.data.verified_token)
       // OTP tasdiqlandi — ro'yxatni yakunlash
       await submitRegister(res.data.verified_token)
@@ -616,12 +623,25 @@ export default function RegisterCompany() {
                 </InputField>
               </div>
 
-              {errors.submit && (
-                <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl px-4 py-3 flex items-center gap-2">
-                  <Icon d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" cls="w-4 h-4 shrink-0" />
-                  {errors.submit}
-                </div>
-              )}
+              {errors.submit && (() => {
+                const parts = errors.submit.split('👉')
+                const hasLink = parts.length === 2
+                return (
+                  <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl px-4 py-3 flex items-start gap-2">
+                    <Icon d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" cls="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>
+                      {hasLink ? (
+                        <>{parts[0].trim()} 👉{' '}
+                          <a href={parts[1].trim()} target="_blank" rel="noreferrer"
+                            className="underline font-semibold text-red-700 hover:text-red-800">
+                            Telegram botga o'tish
+                          </a>
+                        </>
+                      ) : errors.submit}
+                    </span>
+                  </div>
+                )
+              })()}
 
               <div className="flex gap-3 pt-1">
                 <button
