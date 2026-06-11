@@ -3176,32 +3176,32 @@ export default function Products() {
         <div className="fixed inset-0 z-[60] bg-white flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-white shadow-sm shrink-0">
-            <div className="flex items-center gap-2 xl:gap-3">
-              <button onClick={() => setBulkAddOpen(false)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500">
+            <div className="flex items-center gap-4 xl:gap-3">
+              <button onClick={() => setBulkAddOpen(false)} className="p-1.5 cursor-pointer hover:bg-slate-100 rounded-lg text-slate-500">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
               <div>
-                <h2 className="text-2xl font-bold text-slate-800">Ko'p mahsulot qo'shish</h2>
-                <p className="text-sm text-slate-400 mt-0.5">Bir vaqtda bir nechta mahsulot qo'shish — har bir qatorda birnechta shtrix kod kiritish mumkin</p>
+                <h2 className="text-sm md:text-lg xl:text-2xl font-bold text-slate-800">Ko'p mahsulot qo'shish</h2>
+                <p className="text-xs xl:text-sm hidden lg:block text-slate-400 mt-0.5">Bir vaqtda bir nechta mahsulot qo'shish — har bir qatorda birnechta shtrix kod kiritish mumkin</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 xl:gap-3">
-              <span className="text-base text-slate-500 font-semibold">{bulkRows.length} ta qator</span>
+            <div className="flex items-center flex-wrap justify-end gap-y-1 gap-x-2 xl:gap-3">
+              <span className="text-[13px] xl:text-base text-slate-500 leading-none font-semibold">{bulkRows.length} ta qator</span>
               {/* Global warehouse selector for initial stock */}
               {warehouses.length > 0 && (
                 <div className="flex items-center gap-2">
-                  <label className="text-sm font-semibold text-slate-500 whitespace-nowrap">Ombor:</label>
+                  <label className="text-sm hidden md:block font-semibold text-slate-500 whitespace-nowrap">Ombor:</label>
                   <select
                     value={bulkWarehouseId}
                     onChange={e => setBulkWarehouseId(e.target.value)}
-                    className={`h-10 px-3 border rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white min-w-[160px] ${bulkRows.some(r => Number(r.initial_stock) > 0) && !bulkWarehouseId
+                    className={`h-9 xl:h-10 px-3 cursor-pointer border rounded-lg xl:rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white min-w-[160px] ${bulkRows.some(r => Number(r.initial_stock) > 0) && !bulkWarehouseId
                       ? 'border-red-400 ring-1 ring-red-400 text-red-600'
                       : 'border-slate-200 text-slate-700'
                       }`}
                   >
-                    <option value="">— Ombor tanlang —</option>
+                    <option value="">Ombor tanlang</option>
                     {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                   </select>
                 </div>
@@ -3209,7 +3209,7 @@ export default function Products() {
               <button
                 onClick={handleBulkAddSave}
                 disabled={bulkSaving}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-base font-bold rounded-xl transition-colors shadow-md"
+                className="inline-flex items-center gap-2 px-4 xl:px-6 py-1.5 xl:py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-base font-bold rounded-lg xl:rounded-xl transition-colors shadow-md"
               >
                 {bulkSaving ? (
                   <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Saqlanmoqda...</>
@@ -3239,281 +3239,284 @@ export default function Products() {
           )}
 
           {/* Table */}
-          <div className="flex-1 overflow-auto p-5">
-            <div className="min-w-[1100px]">
-              {/* Column headers */}
-              <div className="grid gap-3 mb-3 text-sm font-extrabold text-slate-600 uppercase tracking-wide px-3"
-                style={{ gridTemplateColumns: '40px 1fr 110px 110px 110px 110px 1fr 80px 160px 80px 40px' }}>
-                <span>#</span>
-                <span>Mahsulot nomi *</span>
-                <span className="text-indigo-600">Kod</span>
-                <span>Chakana *</span>
-                <span>Ulgurji</span>
-                <span>Tan narxi</span>
-                <span>Shtrix kodlar</span>
-                <span>O'lchov</span>
-                <span>Kategoriya</span>
-                <span>Qoldiq</span>
-                <span></span>
-              </div>
+          <div className="flex-1 p-5">
+            <div className="min-w-full pb-4 overflow-x-auto">
+              <div style={{ minWidth: '1550px' }}>
 
-              {/* Rows */}
-              <div className="space-y-3">
-                {bulkRows.map((row, rowIdx) => (
-                  <div key={row._key} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-                    <div className="grid gap-3 items-start"
-                      style={{ gridTemplateColumns: '40px 1fr 110px 110px 110px 110px 1fr 80px 160px 80px 40px' }}>
-                      {/* # */}
-                      <div className="flex items-center justify-center h-11 text-base font-bold text-slate-400">{rowIdx + 1}</div>
+                {/* Column headers */}
+                <div className="grid gap-3 mb-3 text-xs xl:text-sm font-extrabold text-slate-600 uppercase tracking-wide px-3"
+                  style={{ gridTemplateColumns: '34px 1fr 110px 110px 110px 110px 1fr 80px 160px 80px 40px' }}>
+                  <span>#</span>
+                  <span>Mahsulot nomi *</span>
+                  <span className="text-indigo-600">Kod</span>
+                  <span>Chakana *</span>
+                  <span>Ulgurji</span>
+                  <span>Tan narxi</span>
+                  <span>Shtrix kodlar</span>
+                  <span>O'lchov</span>
+                  <span>Kategoriya</span>
+                  <span>Qoldiq</span>
+                  <span></span>
+                </div>
 
-                      {/* Name */}
-                      <input
-                        className="h-12 px-3 border border-slate-200 rounded-lg text-base font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
-                        value={row.name}
-                        onChange={e => updateBulkRow(row._key, 'name', e.target.value)}
-                        placeholder="Mahsulot nomi..."
-                      />
+                {/* Rows */}
+                <div className="xl:space-y-3">
+                  {bulkRows.map((row, rowIdx) => (
+                    <div key={row._key} className="p-4">
+                      <div className="grid gap-2 lg:gap-3 items-start"
+                        style={{ gridTemplateColumns: '34px 1fr 110px 110px 110px 110px 1fr 80px 160px 80px 40px' }}>
+                        {/* # */}
+                        <div className="flex items-center justify-start h-8 lg:h-10 xl:h-12 text-base font-bold text-slate-400">{rowIdx + 1}</div>
 
-                      {/* Kod (multiple) */}
-                      <div className="space-y-1.5">
-                        {(row.extra_product_codes || ['']).map((pc, pcIdx) => (
-                          <div key={pcIdx} className="flex gap-1 items-center">
-                            <input
-                              id={`bulk-pc-${row._key}-${pcIdx}`}
-                              className="flex-1 h-9 px-2 border border-indigo-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-indigo-50/40 placeholder-slate-400 min-w-0"
-                              value={pc}
-                              onChange={e => {
-                                const updated = [...(row.extra_product_codes || [''])];
-                                updated[pcIdx] = e.target.value;
-                                updateBulkRow(row._key, 'extra_product_codes', updated);
-                              }}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  if (pc.trim()) {
-                                    const updated = [...(row.extra_product_codes || [''])];
-                                    if (pcIdx === updated.length - 1) updated.push('');
-                                    updateBulkRow(row._key, 'extra_product_codes', updated);
-                                    setTimeout(() => document.getElementById(`bulk-pc-${row._key}-${pcIdx + 1}`)?.focus(), 30);
+                        {/* Name */}
+                        <input
+                          className="h-8 lg:h-10 xl:h-12 px-3 border border-slate-200 rounded-lg min-w-50 text-base font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
+                          value={row.name}
+                          onChange={e => updateBulkRow(row._key, 'name', e.target.value)}
+                          placeholder="Mahsulot nomi..."
+                        />
+
+                        {/* Kod (multiple) */}
+                        <div className="space-y-1.5">
+                          {(row.extra_product_codes || ['']).map((pc, pcIdx) => (
+                            <div key={pcIdx} className="flex gap-1 items-center">
+                              <input
+                                id={`bulk-pc-${row._key}-${pcIdx}`}
+                                className="flex-1 h-8 lg:h-10 xl:h-12 px-2 border border-indigo-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-indigo-50/40 placeholder-slate-400 min-w-0"
+                                value={pc}
+                                onChange={e => {
+                                  const updated = [...(row.extra_product_codes || [''])];
+                                  updated[pcIdx] = e.target.value;
+                                  updateBulkRow(row._key, 'extra_product_codes', updated);
+                                }}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (pc.trim()) {
+                                      const updated = [...(row.extra_product_codes || [''])];
+                                      if (pcIdx === updated.length - 1) updated.push('');
+                                      updateBulkRow(row._key, 'extra_product_codes', updated);
+                                      setTimeout(() => document.getElementById(`bulk-pc-${row._key}-${pcIdx + 1}`)?.focus(), 30);
+                                    }
                                   }
-                                }
-                              }}
-                              placeholder={pcIdx === 0 ? 'Kod...' : 'Qo\'shimcha...'}
-                            />
-                            {pcIdx > 0 && (
+                                }}
+                                placeholder={pcIdx === 0 ? 'Kod...' : 'Qo\'shimcha...'}
+                              />
+                              {pcIdx > 0 && (
+                                <button type="button"
+                                  onClick={() => {
+                                    const updated = (row.extra_product_codes || ['']).filter((_, i) => i !== pcIdx);
+                                    updateBulkRow(row._key, 'extra_product_codes', updated.length ? updated : ['']);
+                                  }}
+                                  className="p-1 text-slate-300 hover:text-red-400 shrink-0">
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          <button type="button"
+                            onClick={() => {
+                              const updated = [...(row.extra_product_codes || ['']), ''];
+                              updateBulkRow(row._key, 'extra_product_codes', updated);
+                            }}
+                            className="text-[12px] leading-10 cursor-pointer text-indigo-400 hover:text-indigo-600 font-medium flex items-center gap-0.5 transition-colors">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Kod qo'shish
+                          </button>
+                        </div>
+
+                        {/* Sale price (Chakana) — birinchi */}
+                        <input
+                          className="h-8 lg:h-10 xl:h-12 px-3 border border-emerald-300 rounded-lg text-base font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full bg-emerald-50"
+                          value={fmtPrice(row.sale_price)}
+                          onChange={e => updateBulkRow(row._key, 'sale_price', parsePrice(e.target.value))}
+                          placeholder="0"
+                          inputMode="numeric"
+                        />
+
+                        {/* Wholesale (Ulgurji) — ikkinchi */}
+                        <input
+                          className="h-8 lg:h-10 xl:h-12 px-3 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
+                          value={fmtPrice(row.wholesale_price)}
+                          onChange={e => updateBulkRow(row._key, 'wholesale_price', parsePrice(e.target.value))}
+                          placeholder="—"
+                          inputMode="numeric"
+                        />
+
+                        {/* Cost price (Tan narxi) — uchinchi */}
+                        <input
+                          className="h-8 lg:h-10 xl:h-12 px-3 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
+                          value={fmtPrice(row.cost_price)}
+                          onChange={e => updateBulkRow(row._key, 'cost_price', parsePrice(e.target.value))}
+                          placeholder="0"
+                          inputMode="numeric"
+                        />
+
+                        {/* Barcodes */}
+                        <div className="space-y-2">
+                          {row.barcodes.map((bc, bcIdx) => (
+                            <div key={bcIdx} className="flex gap-1.5 items-center">
+                              <span className={`text-xs lg:text-sm font-bold px-1.5 py-1 rounded shrink-0 ${bcIdx === 0 ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 bg-slate-100'
+                                }`}>{bcIdx + 1}</span>
+                              <input
+                                data-bulk-barcode-input="true"
+                                className={`flex-1 h-8 lg:h-10 xl:h-12 px-3 border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 ${bcIdx === 0
+                                  ? row.barcode_status === 'exists'
+                                    ? 'border-red-300 bg-red-50/50 focus:ring-red-400'
+                                    : row.barcode_status === 'new'
+                                      ? 'border-emerald-300 bg-emerald-50/50 focus:ring-emerald-400'
+                                      : 'border-indigo-200 bg-indigo-50/50 focus:ring-indigo-500'
+                                  : 'border-slate-200 focus:ring-indigo-500'
+                                  }`}
+                                value={bc}
+                                onChange={e => {
+                                  updateBulkBarcode(row._key, bcIdx, e.target.value);
+                                  if (bcIdx === 0) updateBulkRow(row._key, 'barcode_status', null);
+                                }}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter' && bcIdx === 0) {
+                                    e.preventDefault();
+                                    checkBulkBarcode(row._key, bc);
+                                  }
+                                }}
+                                onBlur={() => bcIdx === 0 && bc.trim() && checkBulkBarcode(row._key, bc)}
+                                placeholder={bcIdx === 0 ? "Skaner qiling yoki kiriting..." : "Barcode..."}
+                              />
                               <button type="button"
                                 onClick={() => {
-                                  const updated = (row.extra_product_codes || ['']).filter((_, i) => i !== pcIdx);
-                                  updateBulkRow(row._key, 'extra_product_codes', updated.length ? updated : ['']);
+                                  const nb = genBarcodeByFormat('ean8');
+                                  updateBulkBarcode(row._key, bcIdx, nb);
+                                  if (bcIdx === 0) updateBulkRow(row._key, 'barcode_status', null);
                                 }}
-                                className="p-1 text-slate-300 hover:text-red-400 shrink-0">
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                        <button type="button"
-                          onClick={() => {
-                            const updated = [...(row.extra_product_codes || ['']), ''];
-                            updateBulkRow(row._key, 'extra_product_codes', updated);
-                          }}
-                          className="text-[11px] text-indigo-400 hover:text-indigo-600 font-medium flex items-center gap-0.5 transition-colors">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                          </svg>
-                          Kod qo'shish
-                        </button>
-                      </div>
-
-                      {/* Sale price (Chakana) — birinchi */}
-                      <input
-                        className="h-11 px-3 border border-emerald-300 rounded-lg text-base font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full bg-emerald-50"
-                        value={fmtPrice(row.sale_price)}
-                        onChange={e => updateBulkRow(row._key, 'sale_price', parsePrice(e.target.value))}
-                        placeholder="0"
-                        inputMode="numeric"
-                      />
-
-                      {/* Wholesale (Ulgurji) — ikkinchi */}
-                      <input
-                        className="h-11 px-3 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
-                        value={fmtPrice(row.wholesale_price)}
-                        onChange={e => updateBulkRow(row._key, 'wholesale_price', parsePrice(e.target.value))}
-                        placeholder="—"
-                        inputMode="numeric"
-                      />
-
-                      {/* Cost price (Tan narxi) — uchinchi */}
-                      <input
-                        className="h-11 px-3 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
-                        value={fmtPrice(row.cost_price)}
-                        onChange={e => updateBulkRow(row._key, 'cost_price', parsePrice(e.target.value))}
-                        placeholder="0"
-                        inputMode="numeric"
-                      />
-
-                      {/* Barcodes */}
-                      <div className="space-y-2">
-                        {row.barcodes.map((bc, bcIdx) => (
-                          <div key={bcIdx} className="flex gap-1.5 items-center">
-                            <span className={`text-sm font-bold px-1.5 py-1 rounded shrink-0 ${bcIdx === 0 ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 bg-slate-100'
-                              }`}>{bcIdx + 1}</span>
-                            <input
-                              data-bulk-barcode-input="true"
-                              className={`flex-1 h-10 px-3 border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 ${bcIdx === 0
-                                ? row.barcode_status === 'exists'
-                                  ? 'border-red-300 bg-red-50/50 focus:ring-red-400'
-                                  : row.barcode_status === 'new'
-                                    ? 'border-emerald-300 bg-emerald-50/50 focus:ring-emerald-400'
-                                    : 'border-indigo-200 bg-indigo-50/50 focus:ring-indigo-500'
-                                : 'border-slate-200 focus:ring-indigo-500'
-                                }`}
-                              value={bc}
-                              onChange={e => {
-                                updateBulkBarcode(row._key, bcIdx, e.target.value);
-                                if (bcIdx === 0) updateBulkRow(row._key, 'barcode_status', null);
-                              }}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter' && bcIdx === 0) {
-                                  e.preventDefault();
-                                  checkBulkBarcode(row._key, bc);
-                                }
-                              }}
-                              onBlur={() => bcIdx === 0 && bc.trim() && checkBulkBarcode(row._key, bc)}
-                              placeholder={bcIdx === 0 ? "Skaner qiling yoki kiriting..." : "Barcode..."}
-                            />
-                            <button type="button"
-                              onClick={() => {
-                                const nb = genBarcodeByFormat('ean8');
-                                updateBulkBarcode(row._key, bcIdx, nb);
-                                if (bcIdx === 0) updateBulkRow(row._key, 'barcode_status', null);
-                              }}
-                              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors shrink-0"
-                              title="Yangi barcode">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                              </svg>
-                            </button>
-                            {bcIdx > 0 && (
-                              <button type="button"
-                                onClick={() => removeBulkBarcode(row._key, bcIdx)}
-                                className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0">
+                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors shrink-0"
+                                title="Yangi barcode">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                 </svg>
                               </button>
-                            )}
-                          </div>
-                        ))}
+                              {bcIdx > 0 && (
+                                <button type="button"
+                                  onClick={() => removeBulkBarcode(row._key, bcIdx)}
+                                  className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                          ))}
 
-                        {/* Barcode check status */}
-                        {row.barcode_status === 'checking' && (
-                          <div className="flex items-center gap-1.5 text-sm text-slate-400">
-                            <div className="w-3.5 h-3.5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
-                            Tekshirilmoqda...
-                          </div>
-                        )}
-                        {row.barcode_status === 'exists' && row.barcode_product && (
-                          <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg">
-                            <svg className="w-4 h-4 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                            </svg>
-                            <span className="text-sm font-semibold text-red-600">Allaqachon mavjud:</span>
-                            <span className="text-sm text-red-700 font-bold truncate">{row.barcode_product.name}</span>
-                          </div>
-                        )}
-                        {row.barcode_status === 'new' && (
-                          <div className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
+                          {/* Barcode check status */}
+                          {row.barcode_status === 'checking' && (
+                            <div className="flex items-center gap-1.5 text-sm text-slate-400">
+                              <div className="w-3.5 h-3.5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                              Tekshirilmoqda...
+                            </div>
+                          )}
+                          {row.barcode_status === 'exists' && row.barcode_product && (
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg">
+                              <svg className="w-4 h-4 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                              </svg>
+                              <span className="text-sm font-semibold text-red-600">Allaqachon mavjud:</span>
+                              <span className="text-sm text-red-700 font-bold truncate">{row.barcode_product.name}</span>
+                            </div>
+                          )}
+                          {row.barcode_status === 'new' && (
+                            <div className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Yangi mahsulot — qo'shiladi
+                            </div>
+                          )}
+
+                          <button type="button"
+                            onClick={() => addBulkBarcode(row._key)}
+                            className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-500 hover:text-indigo-700 transition-colors mt-1">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                             </svg>
-                            Yangi mahsulot — qo'shiladi
-                          </div>
-                        )}
+                            Barcode qo'shish
+                          </button>
+                        </div>
 
+                        {/* Unit */}
+                        <select
+                          className="h-8 lg:h-10 xl:h-12 px-2 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
+                          value={row.unit}
+                          onChange={e => updateBulkRow(row._key, 'unit', e.target.value)}
+                        >
+                          {['dona', 'kg', 'litr', 'metr'].map(u => (
+                            <option key={u} value={u}>{u}</option>
+                          ))}
+                        </select>
+
+                        {/* Category */}
+                        <select
+                          className="h-8 lg:h-10 xl:h-12 px-2 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
+                          value={row.category_id}
+                          onChange={e => updateBulkRow(row._key, 'category_id', e.target.value)}
+                        >
+                          <option value="">Kategoriya</option>
+                          {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+
+                        {/* Initial stock */}
+                        <div className="space-y-1">
+                          <input type="number" min="0"
+                            className={`h-8 lg:h-10 xl:h-12 px-3 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full ${Number(row.initial_stock) > 0 && !bulkWarehouseId
+                              ? 'border-amber-400 bg-amber-50'
+                              : 'border-slate-200'
+                              }`}
+                            value={row.initial_stock}
+                            onChange={e => updateBulkRow(row._key, 'initial_stock', e.target.value)}
+                            placeholder="0"
+                          />
+                          {Number(row.initial_stock) > 0 && !bulkWarehouseId && (
+                            <p className="text-[10px] text-amber-600 font-semibold leading-tight">⚠ Ombor tanlanmagan</p>
+                          )}
+                          {Number(row.initial_stock) > 0 && bulkWarehouseId && (
+                            <p className="text-[10px] text-emerald-600 font-semibold leading-tight">✓ {warehouses.find(w => String(w.id) === String(bulkWarehouseId))?.name}</p>
+                          )}
+                        </div>
+
+                        {/* Remove row */}
                         <button type="button"
-                          onClick={() => addBulkBarcode(row._key)}
-                          className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-500 hover:text-indigo-700 transition-colors mt-1">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          onClick={() => removeBulkRow(row._key)}
+                          className="lg:h-10 h-8 xl:h-12 cursor-pointer w-10 flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Qatorni o'chirish">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
-                          Barcode qo'shish
                         </button>
                       </div>
-
-                      {/* Unit */}
-                      <select
-                        className="h-11 px-2 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
-                        value={row.unit}
-                        onChange={e => updateBulkRow(row._key, 'unit', e.target.value)}
-                      >
-                        {['dona', 'kg', 'litr', 'metr'].map(u => (
-                          <option key={u} value={u}>{u}</option>
-                        ))}
-                      </select>
-
-                      {/* Category */}
-                      <select
-                        className="h-11 px-2 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
-                        value={row.category_id}
-                        onChange={e => updateBulkRow(row._key, 'category_id', e.target.value)}
-                      >
-                        <option value="">Kategoriya</option>
-                        {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                      </select>
-
-                      {/* Initial stock */}
-                      <div className="space-y-1">
-                        <input type="number" min="0"
-                          className={`h-11 px-3 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full ${Number(row.initial_stock) > 0 && !bulkWarehouseId
-                            ? 'border-amber-400 bg-amber-50'
-                            : 'border-slate-200'
-                            }`}
-                          value={row.initial_stock}
-                          onChange={e => updateBulkRow(row._key, 'initial_stock', e.target.value)}
-                          placeholder="0"
-                        />
-                        {Number(row.initial_stock) > 0 && !bulkWarehouseId && (
-                          <p className="text-[10px] text-amber-600 font-semibold leading-tight">⚠ Ombor tanlanmagan</p>
-                        )}
-                        {Number(row.initial_stock) > 0 && bulkWarehouseId && (
-                          <p className="text-[10px] text-emerald-600 font-semibold leading-tight">✓ {warehouses.find(w => String(w.id) === String(bulkWarehouseId))?.name}</p>
-                        )}
-                      </div>
-
-                      {/* Remove row */}
-                      <button type="button"
-                        onClick={() => removeBulkRow(row._key)}
-                        className="h-11 w-10 flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Qatorni o'chirish">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
 
-              {/* Manual add */}
-              <div className="mt-4 flex items-center gap-2 xl:gap-3">
-                <button
-                  type="button"
-                  onClick={() => setBulkRows(rows => [...rows, emptyBulkRow()])}
-                  className="h-11 px-5 border-2 border-dashed border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/30 text-slate-400 hover:text-indigo-600 text-sm font-semibold rounded-xl transition-all flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Qo'lda qo'shish
-                </button>
-                <span className="text-xs text-slate-400 flex items-center gap-1.5">
-                  <svg className="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m0 14v1m8-8h-1M5 12H4m13.657-6.343l-.707.707M7.05 16.95l-.707.707m9.9 0l-.707-.707M7.757 7.757l-.707-.707" /><circle cx="12" cy="12" r="3" /></svg>
-                  Bo'sh joyga bosib skaner qiling — avtomatik qo'shiladi
-                </span>
+                {/* Manual add */}
+                <div className="mt-4 flex items-center gap-2 xl:gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setBulkRows(rows => [...rows, emptyBulkRow()])}
+                    className="h-9 md:h-11 px-3 md:px-5 border-2 border-dashed border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50/30 cursor-pointer text-slate-400 hover:text-indigo-600 text-xs md:text-sm font-semibold rounded-xl transition-all flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Qo'lda qo'shish
+                  </button>
+                  <span className="text-xs text-slate-400 flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m0 14v1m8-8h-1M5 12H4m13.657-6.343l-.707.707M7.05 16.95l-.707.707m9.9 0l-.707-.707M7.757 7.757l-.707-.707" /><circle cx="12" cy="12" r="3" /></svg>
+                    Bo'sh joyga bosib skaner qiling — avtomatik qo'shiladi
+                  </span>
+                </div>
               </div>
             </div>
           </div>
