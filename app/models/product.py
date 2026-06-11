@@ -1,7 +1,8 @@
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, Index, text
+from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, Index, text, \
+    SmallInteger
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -49,6 +50,12 @@ class Product(Base):
     stock_movements = relationship("StockMovement", back_populates="product")
     sale_items = relationship("SaleItem", back_populates="product")
     customer_prices = relationship("CustomerPrice", back_populates="product", cascade="all, delete-orphan")
+
+    # MXIK / Fiskal
+    mxik_code = Column(String(20), nullable=False, index=True)
+    parent_code = Column(Integer, nullable=False)
+    unit_id = Column(Integer, nullable=False)
+
     # Bu mahsulot sell bo'lsa, uning konversiyasi (1 ta)
     conversion = relationship(
         "ProductConversion",
