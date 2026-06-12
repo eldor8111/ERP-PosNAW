@@ -10,7 +10,7 @@ TASNIF_BASE_URL = "https://tasnif.soliq.uz/api/cl-api"
 
 
 async def fetch_mxik_info(mxik_code: str, terminal_id: str, lang: str = "uz") -> dict:
-    """tasnif.soliq.uz dan MXIK ma'lumotini olish."""
+    """tasnif.soliq.uz dan MXIK ma'lumotini olish (API 1)."""
     url = f"{TASNIF_BASE_URL}/integration-mxik/get/information"
     params = {
         "mxikCode":   mxik_code,
@@ -25,17 +25,49 @@ async def fetch_mxik_info(mxik_code: str, terminal_id: str, lang: str = "uz") ->
         return resp.json()
 
 
+async def fetch_vat_lgota(mxik_codes: list[str]) -> dict:
+    """
+    tasnif.soliq.uz API 2 — QQS lgota ma'lumotlari.
+    POST /integration-mxik/references/set/lgotaxtasnif/vat
+    Qaytaradi: {mxik_code: {withoutVat: [...], zeroVat: [...], ...}}
+    """
+    url = f"{TASNIF_BASE_URL}/integration-mxik/references/set/lgotaxtasnif/vat"
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.post(url, json={"tasnifCodes": mxik_codes})
+        if resp.status_code == 400:
+            return {}
+        resp.raise_for_status()
+        return resp.json()
+
+
+def _parse_vat_rate_type_from_lgota(vat_info: Optional[dict]) -> Optional[VatRateType]:
+    """
+    API 2 javobidan QQS turini aniqlash.
+    zeroVat bo'sh emas → zero (0% QQS)
+    withoutVat bo'sh emas → exempt (lgota)
+    ikkalasi bo'sh → None (API 1 lgotaId ga qarab aniqlanadi)
+    """
+    if not vat_info:
+        return None
+    if vat_info.get("zeroVat"):
+        return VatRateType.zero
+    if vat_info.get("withoutVat"):
+        return VatRateType.exempt
+    return VatRateType.standard
+
+
 def _parse_vat_rate_type(lgota_id: Optional[int]) -> VatRateType:
-    """lgotaId bo'yicha QQS turini aniqlash."""
+    """API 1 lgotaId bo'yicha QQS turini aniqlash (fallback)."""
     if lgota_id is None:
         return VatRateType.standard
     return VatRateType.exempt
 
 
-def upsert_mxik_reference(db: Session, data: dict) -> MxikReference:
+def upsert_mxik_reference(db: Session, data: dict, vat_info: Optional[dict] = None) -> MxikReference:
     """
-    API javobini DB ga saqlash yoki yangilash.
-    data — tasnif API javobidagi bitta mahsulot dict i.
+    API 1 + API 2 javobini DB ga saqlash yoki yangilash.
+    data     — API 1 javobidagi bitta mahsulot dict i
+    vat_info — API 2 javobidan ushbu mxik_code uchun {withoutVat, zeroVat, ...}
     """
     mxik_code = data.get("mxikCode") or data.get("mxik")
 
@@ -60,10 +92,25 @@ def upsert_mxik_reference(db: Session, data: dict) -> MxikReference:
     ref.international_code = data.get("internationalCode") or data.get("internalCode")
     ref.label              = int(data.get("label") or 0)
     ref.use_card           = int(data.get("useCard") or 0)
-    ref.lgota_id           = data.get("lgotaId")
-    ref.lgota_name         = data.get("lgotaName")
-    ref.vat_rate_type      = _parse_vat_rate_type(data.get("lgotaId"))
-    ref.last_synced_at     = datetime.now(timezone.utc)
+
+    # QQS: avval API 2 dan, bo'lmasa API 1 lgotaId dan
+    vat_type_from_api2 = _parse_vat_rate_type_from_lgota(vat_info)
+    if vat_type_from_api2 is not None:
+        ref.vat_rate_type = vat_type_from_api2
+        # lgota ma'lumotlarini API 2 dan olamiz
+        without_vat = (vat_info or {}).get("withoutVat") or []
+        if without_vat:
+            ref.lgota_id   = without_vat[0].get("lgotaId")
+            ref.lgota_name = without_vat[0].get("lgotaName")
+        else:
+            ref.lgota_id   = data.get("lgotaId")
+            ref.lgota_name = data.get("lgotaName")
+    else:
+        ref.lgota_id      = data.get("lgotaId")
+        ref.lgota_name    = data.get("lgotaName")
+        ref.vat_rate_type = _parse_vat_rate_type(data.get("lgotaId"))
+
+    ref.last_synced_at = datetime.now(timezone.utc)
 
     db.flush()
 
@@ -97,7 +144,7 @@ async def sync_mxik(
 ) -> MxikReference:
     """
     MXIK ma'lumotini DB dan qaytaradi.
-    DB da yo'q bo'lsa yoki force_refresh=True bo'lsa, API dan oladi.
+    DB da yo'q bo'lsa yoki force_refresh=True bo'lsa, API 1 + API 2 dan oladi.
     """
     if not force_refresh:
         existing = db.query(MxikReference).filter(
@@ -106,14 +153,12 @@ async def sync_mxik(
         if existing:
             return existing
 
+    # API 1: asosiy ma'lumotlar
     response = await fetch_mxik_info(mxik_code, terminal_id)
 
-    # API 1 ikki xil format qaytarishi mumkin
     if response.get("data"):
-        # format: {"data": [...]}
         items = response["data"]
     elif response.get("content"):
-        # format: {"content": [...]}
         items = response["content"]
     else:
         items = [response]
@@ -121,4 +166,12 @@ async def sync_mxik(
     if not items:
         raise ValueError(f"MXIK {mxik_code} topilmadi")
 
-    return upsert_mxik_reference(db, items[0])
+    # API 2: QQS lgota ma'lumotlari (xato bo'lsa o'tkazib yuboramiz)
+    vat_data: dict = {}
+    try:
+        vat_response = await fetch_vat_lgota([mxik_code])
+        vat_data = vat_response.get(mxik_code) or {}
+    except Exception:
+        pass
+
+    return upsert_mxik_reference(db, items[0], vat_info=vat_data or None)
