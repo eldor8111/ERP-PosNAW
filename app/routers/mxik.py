@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user
 from app.database import get_db
 from app.models.mxik import MxikReference
+from app.models.tovarlar_catalog import TovarlarCatalog
 from app.models.user import User
 from app.schemas.mxik import MxikReferenceOut, MxikSyncRequest
 from app.services.tasnif_service import sync_mxik
@@ -39,6 +40,29 @@ async def sync_mxik_endpoint(
         raise HTTPException(status_code=502, detail=f"Tasnif API xatosi: {str(e)}")
 
     return ref
+
+
+@router.get("/barcode/{barcode}")
+def get_by_barcode(
+    barcode: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Shtrix kod bo'yicha tovarlar_catalog jadvalidan mahsulot topadi.
+    Qaytaradi: mxik_code, mxik_name, unit_name, group_name, lgota_id
+    """
+    item = db.query(TovarlarCatalog).filter(TovarlarCatalog.barcode == barcode).first()
+    if not item:
+        raise HTTPException(status_code=404, detail=f"Barcode {barcode} katalogda topilmadi")
+    return {
+        "mxik_code":      item.mxik_code,
+        "mxik_name":      item.mxik_name,
+        "unit_name":      item.unit_name,
+        "group_name":     item.group_name,
+        "attribute_name": item.attribute_name,
+        "lgota_id":       item.lgota_id,
+    }
 
 
 @router.get("/{mxik_code}", response_model=MxikReferenceOut)

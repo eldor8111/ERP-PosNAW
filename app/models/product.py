@@ -53,15 +53,15 @@ class Product(Base):
     customer_prices = relationship("CustomerPrice", back_populates="product", cascade="all, delete-orphan")
 
     # MXIK / Fiskal
-    mxik_code          = Column(String(20), nullable=True, index=True)
-    mxik_reference_id  = Column(Integer, ForeignKey("mxik_references.id"), nullable=True, index=True)
-    package_code       = Column(Integer, nullable=True)   # operator tanlagan paket kodi
-    parent_code        = Column(Integer, nullable=True)
-    unit_id            = Column(Integer, nullable=True)
+    mxik_code = Column(String(20), nullable=True, index=True)
+    mxik_reference_id = Column(Integer, ForeignKey("mxik_references.id"), nullable=True, index=True)
+    package_code = Column(Integer, nullable=True)  # operator tanlagan paket kodi
+    parent_code = Column(Integer, nullable=True)
+    unit_id = Column(Integer, nullable=True)
 
     # QQS — mxik_reference dan ko'chirib saqlanadi (tez kirish uchun)
-    vat_rate_type  = Column(Enum(VatRateType), nullable=True)
-    vat_lgota_id   = Column(Integer, nullable=True)
+    vat_rate_type = Column(Enum(VatRateType), nullable=True)
+    vat_lgota_id = Column(Integer, nullable=True)
     vat_lgota_name = Column(Text, nullable=True)
     vat_checked_at = Column(DateTime, nullable=True)
 
