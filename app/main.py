@@ -19,6 +19,7 @@ from app.routers import (
     warehouses, branches, super_admin, companies, dashboard
 )
 from app.routers import bin_locations, uploads, agents, telegram, lead  # type: ignore
+from app.routers import mxik as mxik_router  # type: ignore
 from app.routers import billing  # type: ignore
 from app.routers import payme as payme_router  # type: ignore
 from app.routers import kassa  # type: ignore
@@ -262,6 +263,7 @@ app.include_router(billing.router, prefix=API_PREFIX)
 app.include_router(lead.router, prefix=API_PREFIX)
 app.include_router(payme_router.router, prefix=API_PREFIX)
 app.include_router(kassa.router, prefix=API_PREFIX)
+app.include_router(mxik_router.router, prefix=API_PREFIX)
 
 # Serve uploaded static files
 import os

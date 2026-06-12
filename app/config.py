@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     PAYME_MERCHANT_ID: str = ""
     PAYME_SECRET_KEY: str = ""
     PAYME_IS_TEST: bool = True
+    # Tasnif / MXIK
+    DEFAULT_TERMINAL_ID: str = ""
+    TASNIF_BASE_URL: str = "https://tasnif.soliq.uz/api/cl-api"
 
     class Config:
         env_file = ".env"

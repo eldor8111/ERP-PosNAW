@@ -23,3 +23,4 @@ from .transfer import StockTransfer, StockTransferItem  # type: ignore
 from .bin_location import BinLocation  # type: ignore
 from .payme_transaction import PaymeTransaction  # type: ignore
 from .customer_prices import CustomerPrice  # type: ignore
+from .mxik import MxikReference, MxikPackage, VatRateType  # type: ignore

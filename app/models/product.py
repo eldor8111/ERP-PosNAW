@@ -6,6 +6,7 @@ from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, Num
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+from app.models.mxik import VatRateType
 
 
 class ProductStatus(str, enum.Enum):
@@ -52,9 +53,19 @@ class Product(Base):
     customer_prices = relationship("CustomerPrice", back_populates="product", cascade="all, delete-orphan")
 
     # MXIK / Fiskal
-    mxik_code = Column(String(20), nullable=False, index=True)
-    parent_code = Column(Integer, nullable=False)
-    unit_id = Column(Integer, nullable=False)
+    mxik_code          = Column(String(20), nullable=True, index=True)
+    mxik_reference_id  = Column(Integer, ForeignKey("mxik_references.id"), nullable=True, index=True)
+    package_code       = Column(Integer, nullable=True)   # operator tanlagan paket kodi
+    parent_code        = Column(Integer, nullable=True)
+    unit_id            = Column(Integer, nullable=True)
+
+    # QQS — mxik_reference dan ko'chirib saqlanadi (tez kirish uchun)
+    vat_rate_type  = Column(Enum(VatRateType), nullable=True)
+    vat_lgota_id   = Column(Integer, nullable=True)
+    vat_lgota_name = Column(Text, nullable=True)
+    vat_checked_at = Column(DateTime, nullable=True)
+
+    mxik_reference = relationship("MxikReference", foreign_keys=[mxik_reference_id])
 
     # Bu mahsulot sell bo'lsa, uning konversiyasi (1 ta)
     conversion = relationship(
