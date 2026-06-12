@@ -644,6 +644,14 @@ export default function Products() {
   const [blSaving, setBlSaving] = useState(false);
   const [blError, setBlError] = useState('');
 
+  const [showMxik, setShowMxik] = useState(false);
+  const [mxikCode, setMxikCode] = useState();
+  const [mxikData, setMxikData] = useState(null);
+
+  // function handleMxikCodeChange(e) {
+  //   api.get(`/tasnif-api/mxik/get-by-mxik?mxikCode=${e}`).then(r => setMxikData(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+  // }
+
   /* ── loaders ────────────────────────────────────── */
 
   const loadCategories = useCallback(() => {
@@ -2789,6 +2797,21 @@ export default function Products() {
                       </div>
                     </Field>
                   </div>
+
+                  <div className="sm:col-span-6 mb-8 relative">
+                    <Field label="MXIK kod">
+                      <input type="number" onFocus={() => setShowMxik(true)} onBlur={() => setShowMxik(false)} className={inputCls} placeholder="12345678..." />
+                    </Field>
+                    <div className={`w-full ${showMxik ? 'opacity-100 -bottom-13' : 'opacity-0 -bottom-12'} flex items-center px-3 transition-all ease-in h-12 absolute shadow bg-white border border-slate-200 rounded-xl`}>
+                      <p className="text-xs text-slate-500">{mxikData?.mxikName || "MXIK kod kiriting"}</p>
+                    </div>
+                  </div>
+                  <div className="sm:col-span-6">
+                    <Field label="O'lchov kod">
+                      <input type="number" className={inputCls} placeholder="12345678..." />
+                    </Field>
+                  </div>
+
                 </div>
 
                 {/* Extra barcodes */}
