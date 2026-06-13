@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user
 from app.database import get_db
-from app.models.mxik import MxikReference
+from app.models.mxik import MxikReference, MxikPackage
 from app.models.tovarlar_catalog import TovarlarCatalog
 from app.models.user import User
 from app.schemas.mxik import MxikReferenceOut, MxikSyncRequest
@@ -55,6 +55,19 @@ def get_by_barcode(
     item = db.query(TovarlarCatalog).filter(TovarlarCatalog.barcode == barcode).first()
     if not item:
         raise HTTPException(status_code=404, detail=f"Barcode {barcode} katalogda topilmadi")
+
+    # MxikPackage dan parent_code ni olish (asosiy birlik packageType=1)
+    parent_code = None
+    if item.mxik_code:
+        ref = db.query(MxikReference).filter(MxikReference.mxik_code == item.mxik_code).first()
+        if ref:
+            unit_pkg = db.query(MxikPackage).filter(
+                MxikPackage.mxik_reference_id == ref.id,
+                MxikPackage.is_unit_package == 1,
+            ).first()
+            if unit_pkg:
+                parent_code = unit_pkg.code
+
     return {
         "mxik_code":      item.mxik_code,
         "mxik_name":      item.mxik_name,
@@ -62,6 +75,7 @@ def get_by_barcode(
         "group_name":     item.group_name,
         "attribute_name": item.attribute_name,
         "lgota_id":       item.lgota_id,
+        "parent_code":    parent_code,
     }
 
 

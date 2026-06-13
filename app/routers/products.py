@@ -60,14 +60,14 @@ def _attach_stock(product: Product) -> ProductOut:
 
 @router.get("/", response_model=List[ProductListOut])
 def list_products(
-    search: Optional[str] = Query(None, description="Nomi yoki SKU bo'yicha qidiruv"),
-    category_id: Optional[int] = Query(None),
-    status: Optional[ProductStatus] = Query(None),
-    warehouse_id: Optional[int] = Query(None, description="Ombor bo'yicha filter"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=20000),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+        search: Optional[str] = Query(None, description="Nomi yoki SKU bo'yicha qidiruv"),
+        category_id: Optional[int] = Query(None),
+        status: Optional[ProductStatus] = Query(None),
+        warehouse_id: Optional[int] = Query(None, description="Ombor bo'yicha filter"),
+        skip: int = Query(0, ge=0),
+        limit: int = Query(50, ge=1, le=20000),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
 ):
     from app.models.inventory import StockLevel
     from app.models.warehouse import Warehouse
@@ -127,7 +127,7 @@ def list_products(
         .filter(StockLevel.product_id.in_(all_needed_ids))
         .all()
     ) if all_needed_ids else []
-    
+
     stock_by_product: dict = defaultdict(list)
     for s in all_stock_rows:
         stock_by_product[s.product_id].append(s)
@@ -171,7 +171,7 @@ def list_products(
                 ratio=p.conversion.ratio,
             )
             item.product_type = "sell"
-            
+
             # Mijoz talabiga ko'ra virtual mahsulot qoldig'i har doim 0 bo'lib turishi kerak
             item.stock_quantity = Decimal("0")
             item.warehouse_stocks = []
@@ -194,12 +194,11 @@ def list_products(
     return result
 
 
-
 @router.get("/barcode/{barcode}", response_model=ProductOut)
 def get_by_barcode(
-    barcode: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+        barcode: str,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
 ):
     base_filter = [
         Product.is_deleted == False,
@@ -224,9 +223,9 @@ def get_by_barcode(
 
 @router.get("/{product_id}", response_model=ProductOut)
 def get_product(
-    product_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+        product_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
 ):
     q = db.query(Product).filter(Product.id == product_id, Product.is_deleted == False)
     q = q.filter(Product.company_id == current_user.company_id)
@@ -252,10 +251,10 @@ def _generate_sku(db: Session) -> str:
 
 @router.post("/", response_model=ProductOut, status_code=status.HTTP_201_CREATED)
 def create_product(
-    data: ProductCreate,
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*WRITE_ROLES)),
+        data: ProductCreate,
+        request: Request,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*WRITE_ROLES)),
 ):
     # Extract non-model fields before dump
     initial_stock = data.initial_stock or Decimal("0")
@@ -289,16 +288,16 @@ def create_product(
     if not product_data.get("sku"):
         product_data["sku"] = _generate_sku(db)
 
-
     product_data["company_id"] = current_user.company_id
-    
+
     dup_q = db.query(Product).filter(Product.is_deleted == False)
     dup_q = dup_q.filter(Product.company_id == current_user.company_id)
 
     if dup_q.filter(Product.sku == product_data["sku"]).first():
         raise HTTPException(status_code=400, detail=f"SKU '{product_data['sku']}' allaqachon mavjud")
     if dup_q.filter(Product.barcode == data.barcode).first():
-        raise HTTPException(status_code=400, detail=f"Shtrix kod '{data.barcode}' allaqachon mavjud — boshqa mahsulotda ishlatilgan")
+        raise HTTPException(status_code=400,
+                            detail=f"Shtrix kod '{data.barcode}' allaqachon mavjud — boshqa mahsulotda ishlatilgan")
     if dup_q.filter(Product.name == product_data["name"]).first():
         raise HTTPException(status_code=400, detail=f"'{product_data['name']}' nomli mahsulot allaqachon mavjud")
 
@@ -308,7 +307,8 @@ def create_product(
         product_type = "sell"
         product_data["product_type"] = "sell"
     if product_type == "sell" and not conversion_data:
-        raise HTTPException(status_code=400, detail="Virtual (sell) mahsulot uchun asosiy mahsulot va nisbatni kiriting")
+        raise HTTPException(status_code=400,
+                            detail="Virtual (sell) mahsulot uchun asosiy mahsulot va nisbatni kiriting")
 
     product = Product(**product_data)
     db.add(product)
@@ -318,7 +318,8 @@ def create_product(
     if product_type == "stock":
         if not initial_warehouse_id:
             from app.models.warehouse import Warehouse
-            first_wh = db.query(Warehouse).filter(Warehouse.company_id == current_user.company_id).order_by(Warehouse.id.asc()).first()
+            first_wh = db.query(Warehouse).filter(Warehouse.company_id == current_user.company_id).order_by(
+                Warehouse.id.asc()).first()
             if first_wh:
                 initial_warehouse_id = first_wh.id
         stock = StockLevel(product_id=product.id, quantity=initial_stock, warehouse_id=initial_warehouse_id)
@@ -359,11 +360,11 @@ def create_product(
 
 @router.put("/{product_id}", response_model=ProductOut)
 def update_product(
-    product_id: int,
-    data: ProductUpdate,
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*WRITE_ROLES)),
+        product_id: int,
+        data: ProductUpdate,
+        request: Request,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*WRITE_ROLES)),
 ):
     q = db.query(Product).filter(Product.id == product_id, Product.is_deleted == False)
     q = q.filter(Product.company_id == current_user.company_id)
@@ -479,10 +480,10 @@ def update_product(
 
 @router.patch("/{product_id}/status", response_model=ProductOut)
 def toggle_product_status(
-    product_id: int,
-    data: ProductStatusUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*WRITE_ROLES)),
+        product_id: int,
+        data: ProductStatusUpdate,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*WRITE_ROLES)),
 ):
     q = db.query(Product).filter(Product.id == product_id, Product.is_deleted == False)
     q = q.filter(Product.company_id == current_user.company_id)
@@ -497,10 +498,10 @@ def toggle_product_status(
 
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_product(
-    product_id: int,
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director)),
+        product_id: int,
+        request: Request,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(UserRole.admin, UserRole.director)),
 ):
     q = db.query(Product).filter(Product.id == product_id, Product.is_deleted == False)
     q = q.filter(Product.company_id == current_user.company_id)
@@ -522,15 +523,17 @@ def delete_product(
 
 from pydantic import BaseModel
 
+
 class BulkDeleteProductsRequest(BaseModel):
     product_ids: List[int]
 
+
 @router.post("/bulk-delete", status_code=status.HTTP_200_OK)
 def bulk_delete_products(
-    request: Request,
-    payload: BulkDeleteProductsRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director)),
+        request: Request,
+        payload: BulkDeleteProductsRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(UserRole.admin, UserRole.director)),
 ):
     q = db.query(Product).filter(
         Product.id.in_(payload.product_ids),

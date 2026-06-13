@@ -25,6 +25,17 @@ async def fetch_mxik_info(mxik_code: str, terminal_id: str, lang: str = "uz") ->
         return resp.json()
 
 
+async def fetch_mxik_packages(mxik_code: str, terminal_id: str, lang: str = "uz") -> list:
+    """tasnif.soliq.uz dan MXIK paketlarini olish — to'liq ro'yxat, terminal ID siz ham ishlaydi."""
+    url = f"{TASNIF_BASE_URL}/integration-mxik/get/package"
+    params = {"mxikCode": mxik_code, "terminalId": terminal_id, "lang": lang}
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.get(url, params=params)
+        if resp.status_code != 200:
+            return []
+        return resp.json().get("data") or []
+
+
 async def fetch_vat_lgota(mxik_codes: list[str]) -> dict:
     """
     tasnif.soliq.uz API 2 — QQS lgota ma'lumotlari.
@@ -63,11 +74,17 @@ def _parse_vat_rate_type(lgota_id: Optional[int]) -> VatRateType:
     return VatRateType.exempt
 
 
-def upsert_mxik_reference(db: Session, data: dict, vat_info: Optional[dict] = None) -> MxikReference:
+def upsert_mxik_reference(
+    db: Session,
+    data: dict,
+    vat_info: Optional[dict] = None,
+    packages: Optional[list] = None,
+) -> MxikReference:
     """
-    API 1 + API 2 javobini DB ga saqlash yoki yangilash.
+    API 1 + API 2 + packages endpoint javobini DB ga saqlash yoki yangilash.
     data     — API 1 javobidagi bitta mahsulot dict i
     vat_info — API 2 javobidan ushbu mxik_code uchun {withoutVat, zeroVat, ...}
+    packages — /integration-mxik/get/package endpointidan kelgan to'liq paket ro'yxati
     """
     mxik_code = data.get("mxikCode") or data.get("mxik")
 
@@ -114,21 +131,25 @@ def upsert_mxik_reference(db: Session, data: dict, vat_info: Optional[dict] = No
 
     db.flush()
 
-    # Paketlarni qayta yozish
+    # Paketlarni qayta yozish — packages endpointidan kelgan ro'yxat ustunlik qiladi
+    pkg_list = packages if packages is not None else (data.get("packages") or [])
+    # packageType=1 (asosiy birlik) ning code ini topamiz — parent_code uchun
+    base_code = next((p.get("code") for p in pkg_list if str(p.get("packageType")) == "1"), None)
+
     db.query(MxikPackage).filter(MxikPackage.mxik_reference_id == ref.id).delete()
-    for pkg in data.get("packages") or []:
+    for pkg in pkg_list:
+        pkg_type = int(pkg["packageType"]) if pkg.get("packageType") else None
+        is_unit = 1 if pkg_type == 1 else 0
+        # parent_code: asosiy birlik uchun null, qolganlar uchun base_code
+        derived_parent = None if pkg_type == 1 else base_code
         db.add(MxikPackage(
             mxik_reference_id = ref.id,
             code              = pkg.get("code"),
-            parent_code       = pkg.get("parentCode"),
-            container_code    = pkg.get("containerCode"),
-            container_name    = pkg.get("containerName"),
-            unit_id           = pkg.get("unitId"),
-            unit_name         = pkg.get("unitName"),
-            parent_value      = pkg.get("parentValue"),
-            name              = pkg.get("name"),
-            type              = int(pkg["type"]) if pkg.get("type") else None,
-            is_unit_package   = int(pkg["isUnitPackage"]) if pkg.get("isUnitPackage") else None,
+            parent_code       = derived_parent,
+            unit_name         = pkg.get("nameUz") or pkg.get("unitName"),
+            name              = pkg.get("nameUz") or pkg.get("name"),
+            type              = pkg_type,
+            is_unit_package   = is_unit,
         ))
 
     db.commit()
@@ -174,4 +195,11 @@ async def sync_mxik(
     except Exception:
         pass
 
-    return upsert_mxik_reference(db, items[0], vat_info=vat_data or None)
+    # API 3: to'liq paket ro'yxati — parent_code ni chiqarish uchun
+    pkg_list: list = []
+    try:
+        pkg_list = await fetch_mxik_packages(mxik_code, terminal_id)
+    except Exception:
+        pass
+
+    return upsert_mxik_reference(db, items[0], vat_info=vat_data or None, packages=pkg_list or None)
