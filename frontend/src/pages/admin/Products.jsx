@@ -34,9 +34,12 @@ const BARCODE_FORMATS = [
   { value: 'ean13', label: 'EAN-13', len: 13 },
   { value: 'upca', label: 'UPC-A', len: 12 },
   { value: 'free', label: 'Erkin', len: null },
+  { value: 'skaner', label: 'Skaner', len: null },
 ];
+
 const genBarcodeByFormat = (fmtVal) => {
   const f = BARCODE_FORMATS.find(f => f.value === fmtVal) || BARCODE_FORMATS[0];
+  if (f.value === 'skaner') return '';
   if (!f.len) return genBarcode();
   const min = Math.pow(10, f.len - 1);
   return String(Math.floor(min + Math.random() * (9 * Math.pow(10, f.len - 1))));
@@ -647,6 +650,7 @@ export default function Products() {
   const [showMxik, setShowMxik] = useState(false);
   const [mxikCode, setMxikCode] = useState();
   const [mxikData, setMxikData] = useState(null);
+  const [barcode, setBarcode] = useState();
 
   // function handleMxikCodeChange(e) {
   //   api.get(`/tasnif-api/mxik/get-by-mxik?mxikCode=${e}`).then(r => setMxikData(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
@@ -665,6 +669,8 @@ export default function Products() {
   const loadPaginated = useCallback(() => {
     api.get('/products/paginated').then(r => setPaginated(r.data.items)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, []);
+
+  // api.get('/mxik/barcode/4780068020047').then(r => console.log(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
 
   const loadProducts = useCallback(() => {
     setLoading(true);
@@ -2775,7 +2781,7 @@ export default function Products() {
                     <Field label="Birlamchi shtrix kod" required>
                       <div className="flex gap-2">
                         <select
-                          className="px-2 py-3 border border-slate-200 rounded-xl text-xs font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-700 shrink-0"
+                          className="px-2 py-3 border border-slate-200 rounded-xl text-xs font-semibold bg-wxhite focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-700 shrink-0"
                           value={form.barcode_format}
                           onChange={e => setForm({ ...form, barcode_format: e.target.value, barcode: genBarcodeByFormat(e.target.value) })}
                         >
@@ -2784,7 +2790,22 @@ export default function Products() {
                         <input
                           className={`${inputCls} flex-1 font-mono text-base ${!form.barcode?.trim() && error ? errCls : ''}`}
                           value={form.barcode}
-                          onChange={e => setForm({ ...form, barcode: e.target.value })}
+                          type='number'
+                          onChange={async e => {
+                            const val = e.target.value;
+                            setForm(f => ({ ...f, barcode: val }));
+                            if (val && val.length >= 8) { // To'g'ri bo'yi yetarli bo'lganda so'rov
+                              try {
+                                const { data } = await api.get(`/mxik/barcode/${val}`);
+                                if (data && data.mxik_name) {
+                                  setForm(f => ({ ...f, barcode: val, name: data.mxik_name }));
+                                  toast.success("Mahsulot nomi MXIK dan yuklab olindi", { position: "top-right" })
+                                }
+                              } catch {
+                                // e'tiborga olinmaydi
+                              }
+                            }
+                          }}
                           placeholder="12345678"
                         />
                         <button type="button" onClick={() => setForm({ ...form, barcode: genBarcodeByFormat(form.barcode_format) })}

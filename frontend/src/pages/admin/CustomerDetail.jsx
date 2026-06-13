@@ -354,11 +354,9 @@ function SalesTable({ rows, stats, salesData, loading, emptyText = "Sotuvlar yo'
     setPage(1);
   }, [fromDate, toDate, selectedEmployee, limit]);
 
-
   // 2. HOOKLARDAN KEYINGI ERTA QAYTISHLAR (Early returns)
   if (loading) return <LoadingSpinner />
   if (!rows.length) return <Empty text={emptyText} />
-
 
   // 3. ASOSIY MANTIQ
   const filteredByEmployee = [];
