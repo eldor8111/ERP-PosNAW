@@ -5,6 +5,7 @@ import { saveAs } from 'file-saver';
 import api from '../../api/axios';
 import { matchesSearch, searchVariants } from '../../utils/translit';
 import toast from 'react-hot-toast';
+import { CircleArrowDown, Flame, PackageCheck, ShoppingCart, SquareArrowDown } from 'lucide-react';
 const fmt    = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const fmtDay = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
 const fmtDt  = (d) => d ? new Date(d).toLocaleString('uz-UZ') : '—';
@@ -2258,9 +2259,9 @@ function PurchaseOrdersTab() {
 
 /* ===================== MAIN ===================== */
 const TABS_IDS = [
-  { id: 'kirimlar',  key: 'purchase.tabKirimlar',  icon: '\u{1F4E6}' },
-  { id: 'suppliers', key: 'purchase.tabSuppliers', icon: '\u{1F3ED}' },
-  { id: 'orders',    key: 'purchase.tabOrders',    icon: '\u{1F4CB}' },
+  { id: 'kirimlar',  key: 'purchase.tabKirimlar',  icon: <CircleArrowDown size={18} className='text-indigo-500' /> },
+  { id: 'suppliers', key: 'purchase.tabSuppliers', icon: <PackageCheck size={18} className='text-green-500' /> },
+  { id: 'orders',    key: 'purchase.tabOrders',    icon: <ShoppingCart size={18} className='text-yellow-500' /> },
 ];
 
 export default function Purchases() {
@@ -2285,7 +2286,7 @@ export default function Purchases() {
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
         {TABS_IDS.map(tab_=>(
           <button key={tab_.id} onClick={()=>setTab(tab_.id)}
-            className={`px-5 py-2 text-sm font-semibold rounded-lg transition-all flex items-center gap-2 ${tab===tab_.id?'bg-white text-slate-800 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>
+            className={`px-5 py-2 text-sm cursor-pointer font-semibold rounded-lg transition-all flex items-center gap-2 ${tab===tab_.id?'bg-white text-slate-800 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>
             <span>{tab_.icon}</span>{t(tab_.key)}
           </button>
         ))}
@@ -2296,4 +2297,3 @@ export default function Purchases() {
     </div>
   );
 }
-

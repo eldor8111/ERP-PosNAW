@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
 import { ChevronDown, CreditCard, Users, ListOrdered, ChevronsUpDown, CheckIcon, AlertTriangle, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, EllipsisVertical, History, Star, Banknote, Layers, CircleCheck, Plus, Minus } from 'lucide-react';
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
 
-const emptyForm = { name: '', phone: '', debt_balance: '', debt_limit: '', loyalty_points: 0, card_number: '', cashback_percent: 0 };
+const emptyForm = { name: '', phone: '', debt_balance: '', debt_limit: '', loyalty_points: 0, card_number: '', cashback_percent: 0, debt_currency: 'UZS' };
 
 const TIERS = {
   Gold: { label: 'Gold', cls: 'bg-amber-100 text-amber-700' },
@@ -370,11 +370,11 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
 
   const openAdd = () => { setForm({ ...emptyForm, card_number: generateCard() }); setError(''); setModal('add'); };
   const openEdit = (c) => {
-    setForm({ name: c.name, phone: c.phone || '', debt_balance: c.debt_balance || 0, debt_limit: c.debt_limit || 0, loyalty_points: c.loyalty_points || 0, card_number: c.card_number || '', cashback_percent: c.cashback_percent || 0 });
+    setForm({ name: c.name, phone: c.phone || '', debt_balance: c.debt_balance || 0, debt_limit: c.debt_limit || 0, loyalty_points: c.loyalty_points || 0, card_number: c.card_number || '', cashback_percent: c.cashback_percent || 0, debt_currency: 'UZS' });
     setSelected(c); setError(''); setModal('edit');
   };
   const openPay = (c) => {
-    setSelected(c); https://claude.ai/discover/cowork
+    setSelected(c);
     setPayInfo('');
     setPayDebtLength([{ id: Date.now(), payType: '', payAmount: '', currencyType: 'UZS' }]);
     if (wallets.length > 0) setPayWallet(String(wallets[0].id));
@@ -399,10 +399,13 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
     e.preventDefault();
     setSaving(true); setError('');
     try {
+      const currencyObj = currencies.find(c => c.code === (form.debt_currency || 'UZS')) || { rate: 1 };
+      const finalDebtBalance = form.debt_balance ? Number(form.debt_balance) * currencyObj.rate : 0;
+
       const payload = {
         name: form.name,
         phone: form.phone || null,
-        debt_balance: form.debt_balance ? Number(form.debt_balance) : 0,
+        debt_balance: finalDebtBalance,
         debt_limit: form.debt_limit ? Number(form.debt_limit) : 0,
         loyalty_points: form.loyalty_points ? Number(form.loyalty_points) : 0,
         card_number: form.card_number || null,
@@ -849,7 +852,7 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
               <h3 className="text-lg font-bold text-slate-800">
                 {modal === 'add' ? t('customer.addCustomer') : t('customer.editCustomer')}
               </h3>
-              <button onClick={closeModal} className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400">
+              <button onClick={closeModal} className="p-2 cursor-pointer hover:bg-slate-100 rounded-xl transition-colors text-slate-400">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -869,22 +872,52 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Telefon raqam</label>
-                  <input
-                    value={form.phone}
-                    onChange={e => setForm({ ...form, phone: e.target.value })}
-                    placeholder="+998 90 123 45 67"
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
+                  <div className="bg-white text-sm px-3.5 flex border border-slate-200 gap-2 items-center rounded-xl">
+                    <span>+998</span>
+                    <input
+                      value={form.phone}
+                      maxLength={9}
+                      onChange={e => setForm({ ...form, phone: e.target.value })}
+                      placeholder="90 123 45 67"
+                      className="w-full border-l border-slate-300 px-2 py-2.5 focus:outline-none"
+                    />
+                  </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Boshlang'ich qarz / Joriy qarz (so'm)</label>
-                  <input
-                    type="number" min="0"
-                    value={form.debt_balance}
-                    onChange={e => setForm({ ...form, debt_balance: e.target.value })}
-                    placeholder="Masalan: 50000"
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Boshlang'ich qarz / Joriy qarz</label>
+                  <div className="flex cursor-pointer bg-white items-center border border-slate-200 rounded-xl focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500 transition-all">
+                    <Listbox value={form.debt_currency || 'UZS'} onChange={(val) => {
+                       const oldC = currencies.find(c => c.code === (form.debt_currency || 'UZS')) || { rate: 1 };
+                       const newC = currencies.find(c => c.code === val) || { rate: 1 };
+                       let nb = form.debt_balance;
+                       if (nb && !isNaN(Number(nb))) {
+                         nb = Number(((Number(nb) * oldC.rate) / newC.rate).toFixed(2));
+                       }
+                       setForm({ ...form, debt_currency: val, debt_balance: nb !== '' ? nb : '' });
+                    }}>
+                      <div className="relative">
+                        <ListboxButton className="h-[42px] px-3 flex items-center bg-slate-50 border-r border-slate-200 hover:bg-slate-100 rounded-l-xl transition-colors text-sm font-semibold text-slate-700 outline-none w-[85px] justify-between">
+                          <span className="block truncate">{form.debt_currency || 'UZS'}</span>
+                          <ChevronsUpDown className="size-3.5 text-slate-400 shrink-0" />
+                        </ListboxButton>
+                        <ListboxOptions className="absolute z-[100] top-full mt-1 left-0 max-h-60 w-[120px] overflow-auto rounded-xl outline-none bg-white text-sm border border-slate-200 shadow-2xl p-1">
+                          {currencies?.map((c) => (
+                            <ListboxOption key={c.code} value={c.code} className="group relative py-2 px-3 select-none cursor-pointer rounded-lg text-slate-700 data-[focus]:bg-indigo-50 data-[focus]:text-indigo-700 outline-none flex items-center justify-between transition-colors">
+                              <span className="block truncate font-medium group-data-[selected]:font-bold">{c.code}</span>
+                              <CheckIcon className="size-3.5 text-indigo-600 invisible group-data-[selected]:visible" />
+                            </ListboxOption>
+                          ))}
+                        </ListboxOptions>
+                      </div>
+                    </Listbox>
+                    <input
+                      type="number" min="0" step="any"
+                      value={form.debt_balance}
+                      onChange={e => setForm({ ...form, debt_balance: e.target.value })}
+                      placeholder="Qarz miqdori"
+                      className="h-[42px] flex-1 w-full px-3 rounded-r-xl text-sm outline-none bg-transparent"
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Kredit limiti (so'm)</label>
@@ -937,10 +970,10 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
               </div>
               {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={closeModal} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">
+                <button type="button" onClick={closeModal} className="flex-1 cursor-pointer py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">
                   {t('common.cancel')}
                 </button>
-                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
+                <button type="submit" disabled={saving} className="flex-1 cursor-pointer py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
                   {saving ? t('common.saving') : t('common.save')}
                 </button>
               </div>

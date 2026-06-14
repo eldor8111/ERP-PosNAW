@@ -328,7 +328,7 @@ function Field({ label, required, children, hint }) {
   );
 }
 
-const inputCls = "w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white";
+const inputCls = "w-full px-4 py-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white";
 const errCls = "border-red-400 ring-1 ring-red-400";
 
 /* ─── ImageUploadZone ──────────────────────────────── */
@@ -649,8 +649,7 @@ export default function Products() {
 
   const [showMxik, setShowMxik] = useState(false);
   const [mxikCode, setMxikCode] = useState();
-  const [mxikData, setMxikData] = useState(null);
-  const [barcode, setBarcode] = useState();
+  const [barcode_input, setBarcodeInput] = useState();
 
   // function handleMxikCodeChange(e) {
   //   api.get(`/tasnif-api/mxik/get-by-mxik?mxikCode=${e}`).then(r => setMxikData(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
@@ -2498,13 +2497,13 @@ export default function Products() {
             )}
 
             {/* 2-column grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6">
 
               {/* ── LEFT: main info (2/3) ── */}
               <div className="md:col-span-2 space-y-5">
 
                 {/* --- PRODUCT TYPE TOGGLE --- */}
-                <div className="bg-slate-50 p-2 rounded-2xl border border-slate-200 flex flex-col sm:flex-row gap-2">
+                <div className="bg-slate-50 p-1.5 lg:p-2 rounded-lg border border-slate-200 flex flex-col sm:flex-row gap-2">
                   <button
                     type="button"
                     onClick={() => {
@@ -2513,7 +2512,7 @@ export default function Products() {
                       if (!confirm(msg)) return;
                       setForm(f => ({ ...f, product_type: 'stock', conversion_source_id: '', conversion_source_name: '', conversion_ratio: 1 }));
                     }}
-                    className={`flex-1 px-4 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${form.product_type === 'stock'
+                    className={`flex-1 px-4 py-2 lg:py-3 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 transition-all ${form.product_type === 'stock'
                       ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/60 ring-1 ring-indigo-500/10'
                       : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700 border border-transparent'
                       }`}
@@ -2524,7 +2523,7 @@ export default function Products() {
                   <button
                     type="button"
                     onClick={() => setForm(f => ({ ...f, product_type: 'sell' }))}
-                    className={`flex-1 px-4 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${form.product_type === 'sell'
+                    className={`flex-1 px-4 py-2 lg:py-3 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 transition-all ${form.product_type === 'sell'
                       ? 'bg-white text-orange-600 shadow-sm border border-slate-200/60 ring-1 ring-orange-500/10'
                       : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700 border border-transparent'
                       }`}
@@ -2590,7 +2589,7 @@ export default function Products() {
                 </Field>
 
                 {/* ── PRICES BLOCK (Moved from below) ── */}
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-5 shadow-sm space-y-4">
                   <h4 className="text-sm font-bold text-slate-800 border-b border-slate-200 pb-3 flex items-center gap-2">
                     <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     Narxlar va Foyda
@@ -2602,9 +2601,9 @@ export default function Products() {
                       {/* Tan narxi */}
                       <div>
                         <label className="block text-sm font-semibold text-slate-600 mb-1.5">{t('product.costPriceLabel')}</label>
-                        <div className="flex rounded-xl border border-slate-200 focus-within:ring-2 focus-within:ring-indigo-500 bg-white shadow-sm">
+                        <div className="flex rounded-lg border border-slate-200 focus-within:ring-2 focus-within:ring-indigo-500 bg-white shadow-sm">
                           <input type="number" min="0" step="0.01"
-                            className="flex-1 min-w-0 px-3 py-3 text-base font-medium focus:outline-none bg-transparent rounded-l-xl"
+                            className="flex-1 min-w-0 px-3 py-3 text-base font-medium focus:outline-none bg-transparent rounded-l-lg"
                             value={form.cost_price} onChange={e => setForm({ ...form, cost_price: e.target.value })} placeholder="0" />
                           <CurrencyDropdown
                             value={form.cost_price_cur}
@@ -2623,9 +2622,9 @@ export default function Products() {
                       {/* Ulgurji narxi */}
                       <div>
                         <label className="block text-sm font-semibold text-slate-600 mb-1.5">{t('product.wholesalePriceLabel')}</label>
-                        <div className="flex rounded-xl border border-slate-200 focus-within:ring-2 focus-within:ring-indigo-500 bg-white shadow-sm">
+                        <div className="flex rounded-lg border border-slate-200 focus-within:ring-2 focus-within:ring-indigo-500 bg-white shadow-sm">
                           <input type="number" min="0" step="0.01"
-                            className="flex-1 min-w-0 px-3 py-3 text-base font-medium focus:outline-none bg-transparent rounded-l-xl"
+                            className="flex-1 min-w-0 px-3 py-3 text-base font-medium focus:outline-none bg-transparent rounded-l-lg"
                             value={form.wholesale_price} onChange={e => setForm({ ...form, wholesale_price: e.target.value })} placeholder="—" />
                           <CurrencyDropdown
                             value={form.wholesale_price_cur}
@@ -2648,10 +2647,10 @@ export default function Products() {
                         {t('product.retailPriceLabel')} <span className="text-red-500">*</span>
                         <span className="ml-2 text-xs font-normal text-slate-400">{t('product.mainSalePrice')}</span>
                       </label>
-                      <div className={`flex rounded-xl border focus-within:ring-2 focus-within:ring-indigo-500 bg-white shadow-sm ${(form.sale_price === '' || form.sale_price === null) && error ? 'border-red-400 ring-1 ring-red-400' : 'border-slate-300'
+                      <div className={`flex rounded-lg border focus-within:ring-2 focus-within:ring-indigo-500 bg-white shadow-sm ${(form.sale_price === '' || form.sale_price === null) && error ? 'border-red-400 ring-1 ring-red-400' : 'border-slate-300'
                         }`}>
                         <input type="number" min="0" step="0.01"
-                          className="flex-1 min-w-0 px-4 py-3.5 text-xl font-bold text-slate-800 focus:outline-none bg-transparent rounded-l-xl"
+                          className="flex-1 min-w-0 px-3 py-3 text-base font-medium text-slate-800 focus:outline-none bg-transparent rounded-l-lg"
                           value={form.sale_price} onChange={e => setForm({ ...form, sale_price: e.target.value })} placeholder="0" />
                         <CurrencyDropdown
                           value={form.sale_price_cur}
@@ -2690,32 +2689,7 @@ export default function Products() {
                   )}
                 </div>
 
-                {/* Category + Unit (Yuqoriga ko'chirildi) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field label={t('admin.dict.category') || 'Kategoriya'}>
-                    <div className="flex gap-2">
-                      <select className={`${inputCls} flex-1`} value={form.category_id}
-                        onChange={e => setForm({ ...form, category_id: e.target.value })}>
-                        <option value="">{t('product.noCategory')}</option>
-                        {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                      </select>
-                      <button
-                        type="button"
-                        title={t('product.addCategoryTitle')}
-                        onClick={() => { openAddCat(); }}
-                        className="shrink-0 w-11 h-11 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold text-xl rounded-xl border-2 border-indigo-100 hover:border-indigo-300 transition-all"
-                      >+</button>
-                    </div>
-                  </Field>
-                  <Field label={t('product.unit')}>
-                    <select className={inputCls} value={form.unit}
-                      onChange={e => setForm({ ...form, unit: e.target.value })}>
-                      {['dona', 'kg', 'litr', 'metr'].map(u => (
-                        <option key={u} value={u}>{u}</option>
-                      ))}
-                    </select>
-                  </Field>
-                </div>
+
 
                 {/* Stock (Yuqoriga ko'chirildi) */}
                 {form.product_type !== 'sell' && (
@@ -2732,7 +2706,7 @@ export default function Products() {
                             value={form.initial_warehouse_id}
                             onChange={e => setForm({ ...form, initial_warehouse_id: e.target.value })}
                           >
-                            <option value="">— Ombor tanlang —</option>
+                            <option value="">Ombor tanlang</option>
                             {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                           </select>
                           {Number(form.initial_stock) > 0 && !form.initial_warehouse_id && (
@@ -2764,204 +2738,208 @@ export default function Products() {
                 </Field>
 
                 {/* Barcode + SKU + Kod */}
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
-                  <div className="sm:col-span-3">
-                    <Field label={t('product.skuLabel')} hint={t('product.skuHint')}>
-                      <input className={inputCls} value={form.sku}
-                        onChange={e => setForm({ ...form, sku: e.target.value })} placeholder={t('product.skuPlaceholder')} />
-                    </Field>
-                  </div>
-                  <div className="sm:col-span-3">
-                    <Field label="Birlamchi maxsus kod" hint="Maxsus kodingiz">
-                      <input className={inputCls} value={form.product_code}
-                        onChange={e => setForm({ ...form, product_code: e.target.value })} placeholder="Ixtiyoriy" />
-                    </Field>
-                  </div>
-                  <div className="sm:col-span-6">
-                    <Field label="Birlamchi shtrix kod" required>
-                      <div className="flex gap-2">
-                        <select
-                          className="px-2 py-3 border border-slate-200 rounded-xl text-xs font-semibold bg-wxhite focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-700 shrink-0"
-                          value={form.barcode_format}
-                          onChange={e => setForm({ ...form, barcode_format: e.target.value, barcode: genBarcodeByFormat(e.target.value) })}
-                        >
-                          {BARCODE_FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                        </select>
-                        <input
-                          className={`${inputCls} flex-1 font-mono text-base ${!form.barcode?.trim() && error ? errCls : ''}`}
-                          value={form.barcode}
-                          type='number'
-                          onChange={async e => {
-                            const val = e.target.value;
-                            setForm(f => ({ ...f, barcode: val }));
-                            if (val && val.length >= 8) { // To'g'ri bo'yi yetarli bo'lganda so'rov
-                              try {
-                                const { data } = await api.get(`/mxik/barcode/${val}`);
-                                if (data && data.mxik_name) {
-                                  setForm(f => ({ ...f, barcode: val, name: data.mxik_name }));
-                                  toast.success("Mahsulot nomi MXIK dan yuklab olindi", { position: "top-right" })
-                                }
-                              } catch {
-                                // e'tiborga olinmaydi
-                              }
-                            }
-                          }}
-                          placeholder="12345678"
-                        />
-                        <button type="button" onClick={() => setForm({ ...form, barcode: genBarcodeByFormat(form.barcode_format) })}
-                          title="Yangi barcode"
-                          className="px-4 py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl transition-colors shrink-0">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                          </svg>
-                        </button>
+                <div className="space-y-3">
+                  <div className="flex w-full flex-col xl:flex-row gap-4">
+                    <div className="flex w-full gap-4">
+                      <div className="w-full">
+                        <Field label={t('product.skuLabel')} hint={t('product.skuHint')}>
+                          <input className={inputCls} value={form.sku}
+                            onChange={e => setForm({ ...form, sku: e.target.value })} placeholder={t('product.skuPlaceholder')} />
+                        </Field>
                       </div>
-                    </Field>
-                  </div>
+                      <div className="w-full">
+                        <Field label="Birlamchi maxsus kod" hint="Maxsus kodingiz">
+                          <input className={inputCls} value={form.product_code}
+                            onChange={e => setForm({ ...form, product_code: e.target.value })} placeholder="Ixtiyoriy" />
+                        </Field>
+                      </div>
+                    </div>
 
-                  <div className="sm:col-span-6 mb-8 relative">
-                    <Field label="MXIK kod">
-                      <input type="number" onFocus={() => setShowMxik(true)} onBlur={() => setShowMxik(false)} className={inputCls} placeholder="12345678..." />
-                    </Field>
-                    <div className={`w-full ${showMxik ? 'opacity-100 -bottom-13' : 'opacity-0 -bottom-12'} flex items-center px-3 transition-all ease-in h-12 absolute shadow bg-white border border-slate-200 rounded-xl`}>
-                      <p className="text-xs text-slate-500">{mxikData?.mxikName || "MXIK kod kiriting"}</p>
+                    <div className="sm:col-span-6 w-full">
+                      <Field label="Birlamchi shtrix kod" required>
+                        <div className="flex gap-2">
+                          <select
+                            className="px-2 py-3 border border-slate-200 rounded-lg text-xs font-semibold bg-wxhite focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-700 shrink-0"
+                            value={form.barcode_format}
+                            onChange={e => setForm({ ...form, barcode_format: e.target.value, barcode: genBarcodeByFormat(e.target.value) })}
+                          >
+                            {BARCODE_FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                          </select>
+                          <input
+                            className={`${inputCls} flex-1 font-mono text-base ${!form.barcode?.trim() && error ? errCls : ''}`}
+                            value={form.barcode}
+                            type='number'
+                            onChange={async e => {
+                              const val = e.target.value;
+                              setForm(f => ({ ...f, barcode: val }));
+                              if (val && val.length >= 8) { // To'g'ri bo'yi yetarli bo'lganda so'rov
+                                try {
+                                  const { data } = await api.get(`/mxik/barcode/${val}`);
+                                  if (data && data.mxik_name) {
+                                    setForm(f => ({ ...f, barcode: val, name: data.mxik_name }));
+                                    setMxikCode(data.mxik_code)
+                                    if (data.parent_code) {
+                                      setBarcodeInput(data.parent_code);
+                                    }
+                                    toast.success("Ma'lumotlar yuklab olindi", { position: "top-right" })
+                                  }
+                                } catch {
+                                  // e'tiborga olinmaydi
+                                }
+                              }
+                            }}
+                            placeholder="12345678"
+                          />
+                          <button type="button" onClick={() => setForm({ ...form, barcode: genBarcodeByFormat(form.barcode_format) })}
+                            title="Yangi barcode"
+                            className="px-4 py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg transition-colors shrink-0">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                          </button>
+                        </div>
+                      </Field>
                     </div>
                   </div>
-                  <div className="sm:col-span-6">
-                    <Field label="O'lchov kod">
-                      <input type="number" className={inputCls} placeholder="12345678..." />
+
+                  {/* Extra barcodes */}
+                  <div className="border border-slate-200 rounded-lg p-4 space-y-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-semibold text-slate-600">Qo'shimcha shtrix kodlar</span>
+                      <button
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, extra_barcodes: [...(f.extra_barcodes || []), ''] }))}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-semibold rounded-lg transition-colors"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        Barcode qo'shish
+                      </button>
+                    </div>
+                    {(form.extra_barcodes || []).length === 0 ? (
+                      <p className="text-xs text-slate-400 py-1">Hozircha qo'shimcha shtrix kod yo'q</p>
+                    ) : (
+                      (form.extra_barcodes || []).map((bc, idx) => (
+                        <div key={idx} className="flex gap-2 items-center">
+                          <span className="text-xs text-slate-400 font-mono w-5 shrink-0">{idx + 2}.</span>
+                          <input
+                            id={`extra-bc-${idx}`}
+                            className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            value={bc}
+                            autoFocus={idx === (form.extra_barcodes || []).length - 1 && bc === ''}
+                            onChange={e => {
+                              const updated = [...(form.extra_barcodes || [])];
+                              updated[idx] = e.target.value;
+                              setForm(f => ({ ...f, extra_barcodes: updated }));
+                            }}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                // Scanner Enter — add new empty row and focus it
+                                if (bc.trim()) {
+                                  setForm(f => {
+                                    const next = [...(f.extra_barcodes || [])];
+                                    if (idx === next.length - 1) next.push('');
+                                    return { ...f, extra_barcodes: next };
+                                  });
+                                  setTimeout(() => {
+                                    document.getElementById(`extra-bc-${idx + 1}`)?.focus();
+                                  }, 30);
+                                }
+                              }
+                            }}
+                            placeholder="Shtrix kod skanerlang..."
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setForm(f => ({ ...f, extra_barcodes: f.extra_barcodes.filter((_, i) => i !== idx) }))}
+                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Extra product codes */}
+                  <div className="border border-indigo-100 rounded-lg p-4 space-y-2 bg-indigo-50/30">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-semibold text-slate-600">Qo'shimcha maxsus kodlar</span>
+                      <button
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, extra_product_codes: [...(f.extra_product_codes || []), ''] }))}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-semibold rounded-lg transition-colors border border-indigo-200"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        Kod qo'shish
+                      </button>
+                    </div>
+                    {(form.extra_product_codes || []).length === 0 ? (
+                      <p className="text-xs text-slate-400 py-1">Hozircha qo'shimcha kod yo'q</p>
+                    ) : (
+                      (form.extra_product_codes || []).map((pc, idx) => (
+                        <div key={idx} className="flex gap-2 items-center">
+                          <span className="text-xs text-slate-400 font-mono w-5 shrink-0">{idx + 1}.</span>
+                          <input
+                            id={`extra-pc-${idx}`}
+                            className="flex-1 px-3 py-2 border border-indigo-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                            value={pc}
+                            autoFocus={idx === (form.extra_product_codes || []).length - 1 && pc === ''}
+                            onChange={e => {
+                              const updated = [...(form.extra_product_codes || [])];
+                              updated[idx] = e.target.value;
+                              setForm(f => ({ ...f, extra_product_codes: updated }));
+                            }}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (pc.trim()) {
+                                  setForm(f => {
+                                    const next = [...(f.extra_product_codes || [])];
+                                    if (idx === next.length - 1) next.push('');
+                                    return { ...f, extra_product_codes: next };
+                                  });
+                                  setTimeout(() => document.getElementById(`extra-pc-${idx + 1}`)?.focus(), 30);
+                                }
+                              }
+                            }}
+                            placeholder="Maxsus kod kiriting..."
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setForm(f => ({ ...f, extra_product_codes: f.extra_product_codes.filter((_, i) => i !== idx) }))}
+                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-4 w-full">
+                  <div className="sm:col-span-6 relative w-full">
+                    <Field label="MXIK kod">
+                      <input type="number" value={mxikCode} onChange={(e) => setMxikCode(e.target.value)} className={inputCls} placeholder="12345678..." />
                     </Field>
                   </div>
-
-                </div>
-
-                {/* Extra barcodes */}
-                <div className="border border-slate-200 rounded-xl p-4 space-y-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-semibold text-slate-600">Qo'shimcha shtrix kodlar</span>
-                    <button
-                      type="button"
-                      onClick={() => setForm(f => ({ ...f, extra_barcodes: [...(f.extra_barcodes || []), ''] }))}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-semibold rounded-lg transition-colors"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      Barcode qo'shish
-                    </button>
+                  <div className="sm:col-span-6 w-full">
+                    <Field label="O'lchov kod">
+                      <input type="number" value={barcode_input} onChange={(e) => setBarcodeInput(e.target.value)} className={inputCls} placeholder="12345678..." />
+                    </Field>
                   </div>
-                  {(form.extra_barcodes || []).length === 0 ? (
-                    <p className="text-xs text-slate-400 py-1">Hozircha qo'shimcha shtrix kod yo'q</p>
-                  ) : (
-                    (form.extra_barcodes || []).map((bc, idx) => (
-                      <div key={idx} className="flex gap-2 items-center">
-                        <span className="text-xs text-slate-400 font-mono w-5 shrink-0">{idx + 2}.</span>
-                        <input
-                          id={`extra-bc-${idx}`}
-                          className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          value={bc}
-                          autoFocus={idx === (form.extra_barcodes || []).length - 1 && bc === ''}
-                          onChange={e => {
-                            const updated = [...(form.extra_barcodes || [])];
-                            updated[idx] = e.target.value;
-                            setForm(f => ({ ...f, extra_barcodes: updated }));
-                          }}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              // Scanner Enter — add new empty row and focus it
-                              if (bc.trim()) {
-                                setForm(f => {
-                                  const next = [...(f.extra_barcodes || [])];
-                                  if (idx === next.length - 1) next.push('');
-                                  return { ...f, extra_barcodes: next };
-                                });
-                                setTimeout(() => {
-                                  document.getElementById(`extra-bc-${idx + 1}`)?.focus();
-                                }, 30);
-                              }
-                            }
-                          }}
-                          placeholder="Shtrix kod skanerlang..."
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setForm(f => ({ ...f, extra_barcodes: f.extra_barcodes.filter((_, i) => i !== idx) }))}
-                          className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    ))
-                  )}
                 </div>
-
-                {/* Extra product codes */}
-                <div className="border border-indigo-100 rounded-xl p-4 space-y-2 bg-indigo-50/30">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-semibold text-slate-600">Qo'shimcha maxsus kodlar</span>
-                    <button
-                      type="button"
-                      onClick={() => setForm(f => ({ ...f, extra_product_codes: [...(f.extra_product_codes || []), ''] }))}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-semibold rounded-lg transition-colors border border-indigo-200"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      Kod qo'shish
-                    </button>
-                  </div>
-                  {(form.extra_product_codes || []).length === 0 ? (
-                    <p className="text-xs text-slate-400 py-1">Hozircha qo'shimcha kod yo'q</p>
-                  ) : (
-                    (form.extra_product_codes || []).map((pc, idx) => (
-                      <div key={idx} className="flex gap-2 items-center">
-                        <span className="text-xs text-slate-400 font-mono w-5 shrink-0">{idx + 1}.</span>
-                        <input
-                          id={`extra-pc-${idx}`}
-                          className="flex-1 px-3 py-2 border border-indigo-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                          value={pc}
-                          autoFocus={idx === (form.extra_product_codes || []).length - 1 && pc === ''}
-                          onChange={e => {
-                            const updated = [...(form.extra_product_codes || [])];
-                            updated[idx] = e.target.value;
-                            setForm(f => ({ ...f, extra_product_codes: updated }));
-                          }}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              if (pc.trim()) {
-                                setForm(f => {
-                                  const next = [...(f.extra_product_codes || [])];
-                                  if (idx === next.length - 1) next.push('');
-                                  return { ...f, extra_product_codes: next };
-                                });
-                                setTimeout(() => document.getElementById(`extra-pc-${idx + 1}`)?.focus(), 30);
-                              }
-                            }
-                          }}
-                          placeholder="Maxsus kod kiriting..."
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setForm(f => ({ ...f, extra_product_codes: f.extra_product_codes.filter((_, i) => i !== idx) }))}
-                          className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {/* Kategoriya va Qoldiq yuqoriga ko'chirildi */}
-
               </div>
 
               {/* ── RIGHT: details (1/3) ── */}
@@ -3019,17 +2997,43 @@ export default function Products() {
                   </select>
                 </Field>
 
+                {/* Category + Unit (Yuqoriga ko'chirildi) */}
+                <div className="flex flex-col gap-4">
+                  <Field label={t('admin.dict.category') || 'Kategoriya'}>
+                    <div className="flex gap-2">
+                      <select className={`${inputCls} flex-1`} value={form.category_id}
+                        onChange={e => setForm({ ...form, category_id: e.target.value })}>
+                        <option value="">{t('product.noCategory')}</option>
+                        {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                      <button
+                        type="button"
+                        title={t('product.addCategoryTitle')}
+                        onClick={() => { openAddCat(); }}
+                        className="shrink-0 cursor-pointer w-11 h-11 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold text-xl rounded-xl border-2 border-indigo-100 hover:border-indigo-300 transition-all"
+                      >+</button>
+                    </div>
+                  </Field>
+                  <Field label={t('product.unit')}>
+                    <select className={inputCls} value={form.unit}
+                      onChange={e => setForm({ ...form, unit: e.target.value })}>
+                      {['dona', 'kg', 'litr', 'metr'].map(u => (
+                        <option key={u} value={u}>{u}</option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
               </div>
             </div>
 
             {/* Actions */}
             <div className="flex gap-3 mt-8 pt-6 border-t border-slate-100">
               <button type="button" onClick={closeModal}
-                className="flex-1 py-3 border border-slate-200 text-slate-600 font-semibold text-base rounded-xl hover:bg-slate-50 transition-colors">
+                className="flex-1 py-3 border cursor-pointer border-slate-200 text-slate-600 font-semibold text-base rounded-xl hover:bg-slate-50 transition-colors">
                 {t('product.cancelAction')}
               </button>
               <button type="submit" disabled={saving}
-                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-bold text-base rounded-xl transition-colors">
+                className="flex-1 py-3 bg-indigo-600 cursor-pointer hover:bg-indigo-700 disabled:opacity-60 text-white font-bold text-base rounded-xl transition-colors">
                 {saving ? t('common.saving') : t('common.save')}
               </button>
             </div>

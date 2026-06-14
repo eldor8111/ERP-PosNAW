@@ -72,6 +72,7 @@ export default function Profile() {
     const [error, setError] = useState(null);
     const [warehouses, setWarehouses] = useState([]);
     const [branches, setBranches] = useState([]);
+    const [companyName, setCompanyName] = useState("");
     const [warehouseId, setWarehouseId] = useState(() => {
         const saved = localStorage.getItem('dashboard_warehouse_id');
         return saved ? Number(saved) : '';
@@ -83,7 +84,7 @@ export default function Profile() {
 
     useEffect(() => {
         if (user?.role !== 'super_admin') {
-
+            api.get('/billing/my-company').then(r => setCompanyName(r.data.name)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
             api.get('/warehouses').then(r => setWarehouses(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
             api.get('/branches').then(r => setBranches(r.data.filter(b => b.is_active))).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
         }
@@ -280,7 +281,14 @@ export default function Profile() {
                             </div>
 
                             {/* Ikonkali va tartibli aloqa/sana qismi */}
-                            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-5 gap-y-2 text-sm text-gray-500 font-medium">
+                            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-3 gap-y-2 text-sm text-gray-500 font-medium">
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold text-indigo-600 bg-indigo-50/70 border border-indigo-100 shadow-xs uppercase tracking-widest backdrop-blur-xs">
+                                    <svg className="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h18v3H3V3z" />
+                                    </svg>
+                                    {companyName || "Kompaniya nomi"}
+                                </div>
+
                                 <div className="flex items-center gap-2 text-gray-700 bg-gray-50/80 px-2.5 py-1 rounded-lg border border-gray-100/50 backdrop-blur-sm">
                                     <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.387a12.035 12.035 0 01-7.108-7.108c-.155-.44.01-1.29.387-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
@@ -299,7 +307,7 @@ export default function Profile() {
                     </div>
 
                     {/* O'ng tomon: Neon effektli Tahrirlash tugmasi */}
-                    <button className="w-full md:w-auto inline-flex items-center justify-center gap-2.5 px-6 py-3 text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-violet-600 rounded-xl shadow-sm hover:from-indigo-500 hover:to-violet-500 active:scale-[0.98] transition-all duration-200 cursor-pointer border border-indigo-500/10 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+                    <button className="w-full md:w-auto inline-flex items-center justify-center gap-2.5 px-6 py-2 text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-violet-600 rounded-xl shadow-sm hover:from-indigo-500 hover:to-violet-500 active:scale-[0.98] transition-all duration-200 cursor-pointer border border-indigo-500/10 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
                         <svg className="w-4 h-4 text-indigo-100" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
                         </svg>
@@ -386,7 +394,7 @@ export default function Profile() {
                                 onChange={(value) => handleWarehouseChange({ target: { value } })}
                             >
                                 <div className="relative">
-                                    <ListboxButton className="w-full cursor-pointer flex items-center p-3 justify-between rounded-lg border border-slate-200 text-[1rem] bg-white text-slate-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors shadow-sm text-left">
+                                    <ListboxButton className="w-full cursor-pointer flex items-center px-3 py-2 justify-between rounded-lg border border-slate-200 text-[1rem] bg-white text-slate-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors shadow-sm text-left">
                                         <span className="flex items-center gap-3">
                                             <Warehouse className="size-5 shrink-0 text-slate-400" />
                                             <span className="block truncate">

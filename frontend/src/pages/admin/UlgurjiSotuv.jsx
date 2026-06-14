@@ -128,7 +128,7 @@ const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, on
 
   return (
     <div ref={ref} className="relative">
-      <div className={`flex items-center gap-2 border-2 rounded-xl px-3 py-2.5 bg-white transition-all ${open ? 'border-indigo-500 ring-4 ring-indigo-100' : 'border-slate-200 hover:border-slate-300'}`}>
+      <div className={`flex items-center gap-2 border-2 rounded-lg px-3 py-2.5 bg-white transition-all ${open ? 'border-indigo-500 ring-4 ring-indigo-100' : 'border-slate-200 hover:border-slate-300'}`}>
         <Ic d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" cls="w-4 h-4 text-slate-400 shrink-0" />
         <input
           value={open ? q : (selected ? `${selected.name}${selected.phone ? ' · ' + selected.phone : ''}` : '')}
@@ -141,7 +141,7 @@ const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, on
       </div>
 
       {selected && !open && (
-        <div className="mt-1.5 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-xl flex items-center justify-between">
+        <div className="mt-1.5 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-full bg-indigo-200 text-indigo-700 flex items-center justify-center text-xs font-black">{selected.name?.[0]?.toUpperCase()}</div>
             <div>
@@ -157,12 +157,12 @@ const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, on
       )}
 
       {open && (
-        <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-72 overflow-y-auto">
+        <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-2xl z-50 overflow-hidden max-h-72 overflow-y-auto">
           {filtered.length === 0
             ? <div className="px-4 py-4 text-center text-sm text-slate-400">"{q}" — topilmadi</div>
             : filtered.map(c => (
               <button key={c.id} onMouseDown={() => { onChange(c.id); setQ(''); setOpen(false); }}
-                className="w-full flex items-center justify-between px-4 py-3 hover:bg-indigo-50 border-b border-slate-50 last:border-0 transition-colors">
+                className="w-full flex cursor-pointer items-center justify-between px-4 py-3 hover:bg-indigo-50 border-b border-slate-50 last:border-0 transition-colors">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-xs font-bold">{c.name?.[0]?.toUpperCase()}</div>
                   <div className="text-left">
@@ -179,7 +179,7 @@ const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, on
           }
           {/* + Yangi mijoz */}
           <button onMouseDown={() => { setShowForm(true); setOpen(false); }}
-            className="w-full flex items-center gap-2 px-4 py-3 text-indigo-600 hover:bg-indigo-50 font-bold text-sm border-t border-slate-100 transition-colors">
+            className="w-full flex cursor-pointer items-center gap-2 px-4 py-3 text-indigo-600 hover:bg-indigo-50 font-bold text-sm border-t border-slate-100 transition-colors">
             <span className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-base leading-none">+</span>
             Yangi mijoz qo'shish
           </button>
@@ -295,7 +295,7 @@ const ProductSearch = forwardRef(function ProductSearch({ onSelect, placeholder,
 
   return (
     <div className="relative">
-      <div className={`flex items-center gap-2 border-2 rounded-xl px-3 py-2.5 bg-white transition-all ${q ? 'border-indigo-500 ring-4 ring-indigo-100' : 'border-slate-200 hover:border-slate-300'}`}>
+      <div className={`flex items-center gap-2 border-2 rounded-lg px-3 py-2.5 bg-white transition-all ${q ? 'border-indigo-500 ring-4 ring-indigo-100' : 'border-slate-200 hover:border-slate-300'}`}>
         {loading
           ? <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin shrink-0" />
           : <Ic d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" cls="w-4 h-4 text-slate-400 shrink-0" />
@@ -315,7 +315,7 @@ const ProductSearch = forwardRef(function ProductSearch({ onSelect, placeholder,
             ? <div className="px-4 py-4 text-center text-sm text-slate-400">"{q}" — topilmadi</div>
             : results.map((p, i) => (
               <button key={p.id} onMouseDown={() => select(p)}
-                className={`w-full flex items-center gap-3 px-4 py-3 border-b border-slate-50 last:border-0 transition-colors text-left ${i === activeIdx ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}>
+                className={`w-full cursor-pointer flex items-center gap-3 px-4 py-3 border-b border-slate-50 last:border-0 transition-colors text-left ${i === activeIdx ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}>
                 <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
                   {p.image_url ? <img src={p.image_url} alt="" className="w-full h-full object-cover" /> : <Ic d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" cls="w-4 h-4 text-slate-400" />}
                 </div>
@@ -336,7 +336,7 @@ const ProductSearch = forwardRef(function ProductSearch({ onSelect, placeholder,
           }
           {/* + Yangi mahsulot */}
           <button onMouseDown={() => { setResults([]); setQ(''); onOpenAdd?.(); }}
-            className="w-full flex items-center gap-2 px-4 py-3 text-emerald-600 hover:bg-emerald-50 font-bold text-sm border-t border-slate-100 transition-colors">
+            className="w-full flex cursor-pointer items-center gap-2 px-4 py-3 text-emerald-600 hover:bg-emerald-50 font-bold text-sm border-t border-slate-100 transition-colors">
             <span className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-base leading-none">+</span>
             Yangi mahsulot qo'shish
           </button>
@@ -889,7 +889,7 @@ export default function UlgurjiSotuv() {
       {/* ── HEADER ── */}
       <div className="shrink-0 bg-white border-b border-slate-200 px-3 md:px-5 py-2.5 flex items-center justify-between shadow-sm gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center shadow-md shadow-indigo-200 shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-md shadow-indigo-200 shrink-0">
             <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" cls="w-4 h-4 text-white" />
           </div>
           <span className="font-black text-slate-800 text-base hidden sm:inline">Ulgurji Sotuv</span>
@@ -1014,7 +1014,7 @@ export default function UlgurjiSotuv() {
 
                   {/* Mijoz tanlanmagan ogohlantirish */}
                   {!custId && (
-                    <div className="mt-2 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                    <div className="mt-2 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                       <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                       <span className="text-xs font-semibold text-amber-700">Mahsulot qo'shish uchun avval mijoz tanlang</span>
                     </div>
@@ -1022,7 +1022,7 @@ export default function UlgurjiSotuv() {
 
                   {/* Selected product card */}
                   {formProduct ? (
-                    <div className="mt-3 bg-indigo-50 border border-indigo-100 rounded-2xl p-3">
+                    <div className="mt-3 bg-indigo-50 border border-indigo-100 rounded-lg p-3">
                       {/* Product info */}
                       <div className="flex items-center gap-2.5 mb-3">
                         <div className="w-10 h-10 rounded-xl bg-white border border-indigo-100 flex items-center justify-center shrink-0 overflow-hidden">
@@ -1045,29 +1045,29 @@ export default function UlgurjiSotuv() {
                       </div>
 
                       {/* Grid for Inputs */}
-                      <div className="grid grid-cols-2 gap-3 mb-1">
+                      <div className="grid grid-cols-2 items-center gap-3 mb-1">
 
                         {/* Miqdor */}
                         <div>
                           <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 block">Miqdor ({formProduct.unit || 'dona'})</label>
                           <div className="flex items-center gap-1">
                             <button onClick={() => setFormQty(q => String(Math.max(0, (parseFloat(q) || 1) - 1)))}
-                              className="w-10 h-10 rounded-xl bg-white flex items-center justify-center font-black text-slate-600 text-xl active:bg-slate-100 border border-slate-200">−</button>
+                              className="w-10 h-10 rounded-lg bg-white flex items-center justify-center font-black text-slate-600 text-xl active:bg-slate-100 border border-slate-200">−</button>
                             <input ref={formQtyRef} type="number" value={formQty}
                               onChange={e => setFormQty(e.target.value)}
                               onFocus={e => e.target.select()}
                               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); formPriceRef.current?.focus(); } }}
-                              className="flex-1 w-full border border-white rounded-xl py-2 text-center text-base font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
+                              className="flex-1 w-full border border-white rounded-lg py-2 text-center text-base font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
                             <button onClick={() => setFormQty(q => String((parseFloat(q) || 1) + 1))}
-                              className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-black text-white text-xl active:bg-indigo-700">+</button>
+                              className="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center font-black text-white text-xl active:bg-indigo-700">+</button>
                           </div>
                         </div>
 
                         {/* Narx */}
                         <div>
-                          <div className="flex justify-between items-center mb-1">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block">Narx</label>
-                            <div className="flex gap-1">
+                          <div className="flex justify-between items-center">
+                            <label className="text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wide block">Narx</label>
+                            <div className="flex gap-1 mb-1">
                               {formProduct.wholesale_price > 0 && <button onClick={() => setFormPrice(String(formProduct.wholesale_price))} className="text-[9px] font-bold px-1.5 py-0.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded transition-colors" title="Ulgurji narx">U</button>}
                               {formProduct.sale_price > 0 && <button onClick={() => setFormPrice(String(formProduct.sale_price))} className="text-[9px] font-bold px-1.5 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded transition-colors" title="Chakana narx">C</button>}
                             </div>
@@ -1088,7 +1088,7 @@ export default function UlgurjiSotuv() {
                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 block">Chegirma</label>
                             <div className="flex gap-1.5">
                               <button onClick={() => setFormDiscType(t => t === 'pct' ? 'amt' : 'pct')}
-                                className="w-10 h-10 shrink-0 rounded-xl bg-white border border-amber-200 text-amber-600 font-black text-xs hover:bg-amber-50 active:bg-amber-100 transition-colors">
+                                className="w-10 h-10 shrink-0 rounded-lg bg-white border border-amber-200 text-amber-600 font-black text-xs hover:bg-amber-50 active:bg-amber-100 transition-colors">
                                 {formDiscType === 'pct' ? '%' : "S"}
                               </button>
                               <input ref={formDiscRef} type="number" value={formDiscVal}
@@ -1096,13 +1096,13 @@ export default function UlgurjiSotuv() {
                                 onFocus={e => e.target.select()}
                                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addFormToCart(); } }}
                                 placeholder="0"
-                                className="w-full border border-white rounded-xl px-3 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white" />
+                                className="w-full border border-white rounded-lg px-3 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white" />
                             </div>
                           </div>
 
                           <div className="flex-[1.2] flex items-end">
                             <button onClick={addFormToCart}
-                              className="w-full h-10 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black text-[13px] rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-indigo-200 transition-all">
+                              className="w-full h-10 bg-indigo-600 cursor-pointer hover:bg-indigo-700 active:bg-indigo-800 text-white font-black text-[13px] rounded-lg flex items-center justify-center gap-1.5 shadow-md shadow-indigo-200 transition-all">
                               <Ic d="M12 4v16m8-8H4" cls="w-4 h-4" />
                               <span className="hidden sm:inline">Savatga</span> qo'shish
                             </button>
@@ -1125,24 +1125,24 @@ export default function UlgurjiSotuv() {
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5 block">Izoh</label>
                   <textarea value={note} onChange={e => setNote(e.target.value)}
                     placeholder="Shartnoma raqami, izoh..." rows={2}
-                    className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none bg-white" />
+                    className="w-full border-2 border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none bg-white" />
                 </div>
 
                 {/* Sotuv chegirmasi */}
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5 block">Sotuv chegirmasi</label>
                   <div className="flex gap-2">
-                    <div className="flex rounded-xl border-2 border-slate-200 overflow-hidden">
+                    <div className="flex rounded-lg border-2 border-slate-200 overflow-hidden">
                       {['pct', 'amt'].map(t => (
                         <button key={t} onClick={() => setDiscType(t)}
-                          className={`px-3 py-2 text-xs font-bold transition-colors ${discType === t ? 'bg-amber-500 text-white' : 'bg-white text-slate-500'}`}>
+                          className={`px-3 py-2 text-xs cursor-pointer font-bold transition-colors ${discType === t ? 'bg-amber-500 text-white' : 'bg-white text-slate-500'}`}>
                           {t === 'pct' ? '%' : "So'm"}
                         </button>
                       ))}
                     </div>
                     <input type="number" value={discVal} onChange={e => setDiscVal(e.target.value)}
                       placeholder="0"
-                      className="flex-1 border-2 border-slate-200 rounded-xl px-3 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white" />
+                      className="flex-1 border-2 border-slate-200 rounded-lg px-3 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white" />
                   </div>
                   {saleDisc > 0 && <p className="text-xs text-amber-600 font-semibold mt-1">− {fmt(saleDisc)} s chegirma</p>}
                 </div>
@@ -1203,7 +1203,7 @@ export default function UlgurjiSotuv() {
                             <td className="px-3 py-2.5 text-xs text-slate-400 font-mono">{idx + 1}</td>
                             <td className="px-2 py-2.5">
                               <div className="font-semibold text-slate-800 text-sm leading-tight">{it.name}</div>
-                              <div className="flex items-center gap-2 mt-0.5">
+                              <div className="flex items-center gap-2 ">
                                 <span className="text-xs text-slate-400">{it.unit}</span>
                                 {it.warehouse_name && (
                                   <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1">
@@ -1250,7 +1250,7 @@ export default function UlgurjiSotuv() {
                             </td>
                             <td className="pr-2 py-2.5">
                               <button onClick={() => removeItem(idx)}
-                                className="w-7 h-7 rounded-lg text-slate-300 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-colors">
+                                className="w-7 h-7 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-colors">
                                 <Ic d="M6 18L18 6M6 6l12 12" cls="w-3.5 h-3.5" />
                               </button>
                             </td>
