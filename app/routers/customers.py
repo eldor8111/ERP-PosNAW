@@ -56,7 +56,7 @@ class CustomerOut(BaseModel):
     phone: Optional[str] = None
     debt_balance: Decimal
     debt_currency: str = "UZS"
-    debt_balances: dict = {}
+    debt_balances: Optional[dict] = {}
     debt_limit: Decimal
     loyalty_points: int
     card_number: Optional[str] = None
@@ -158,6 +158,8 @@ def list_customers_paginated(
 def create_customer(data: CustomerIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     customer_data = data.model_dump()
     customer_data["company_id"] = current_user.company_id
+    if customer_data.get("debt_balances") is None:
+        customer_data["debt_balances"] = {}
     customer = Customer(**customer_data)
     db.add(customer)
     db.commit()
@@ -183,6 +185,8 @@ def update_customer(customer_id: int, data: CustomerIn, db: Session = Depends(ge
     if not cust:
         raise HTTPException(status_code=404, detail="Customer not found")
     for key, val in data.model_dump().items():
+        if key == "debt_balances" and val is None:
+            val = {}
         setattr(cust, key, val)
     db.commit()
     db.refresh(cust)
@@ -218,6 +222,8 @@ def get_customer_stats(customer_id: int, db: Session = Depends(get_db), current_
         "cashback_percent": float(cust.cashback_percent or 0),
         "bonus_balance": float(cust.bonus_balance or 0),
         "total_spent": float(cust.total_spent or 0),
+        "debt_currency": cust.debt_currency or "UZS",
+        "debt_balances": cust.debt_balances or {},
         "total_sales_count": len(completed),
         "total_sales_amount": sum(float(s.total_amount) for s in completed),
         "total_paid_amount": sum(float(s.paid_amount) for s in completed),

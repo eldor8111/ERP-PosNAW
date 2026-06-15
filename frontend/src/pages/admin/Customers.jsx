@@ -754,19 +754,20 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
                     </td>
                     <td className="px-6 py-4 text-xs md:text-sm text-slate-500">{c.phone || '—'}</td>
                     <td className="px-6 py-4">
-                      {c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).length > 0 ? (
-                        <div className="flex flex-col gap-0.5">
-                          {Object.entries(c.debt_balances).map(([curr, amt]) => (
-                            <span key={curr} className={`text-xs md:text-sm font-semibold ${Number(amt) > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                              {fmt(amt)} {curr === 'UZS' ? "so'm" : curr === "USD" ? "$" : curr}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className={`text-xs md:text-sm font-semibold ${Number(c.debt_balance) > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                          {fmt(c.debt_balance)} {c.debt_currency === 'UZS' ? "so'm" : c.debt_currency === "USD" ? "$" : (c.debt_currency || "so'm")}
+                      <div className="flex flex-col gap-0.5">
+                        <span className={`text-xs md:text-sm font-bold ${Number(c.debt_balance) > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                          {fmt(c.debt_balance)} so'm
                         </span>
-                      )}
+                        {c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).filter(curr => curr !== 'UZS').length > 0 && (
+                          <div className="flex flex-wrap gap-x-3 border-t border-slate-100 pt-0.5 mt-0.5">
+                            {Object.entries(c.debt_balances).map(([curr, amt]) => curr !== 'UZS' && (
+                              <span key={curr} className="text-xs text-red-500 font-medium whitespace-nowrap">
+                                {fmt(amt)} {curr === 'USD' ? '$' : curr}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-xs md:text-sm text-slate-500">{fmt(c.debt_limit)} so'm</td>
                     <td className="px-6 py-4">
