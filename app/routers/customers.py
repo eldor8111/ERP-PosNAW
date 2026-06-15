@@ -65,6 +65,8 @@ class CustomerOut(BaseModel):
     bonus_balance: Decimal = Decimal("0")
     total_spent: Decimal = Decimal("0")
     company_id: Optional[int] = None
+    price_type: Optional[str] = "sale"
+    discount_percent: Optional[Decimal] = Decimal("0")
 
     class Config:
         from_attributes = True

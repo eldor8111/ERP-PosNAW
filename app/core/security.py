@@ -7,13 +7,18 @@ from jose import JWTError, jwt  # type: ignore
 from app.config import settings  # type: ignore
 
 
+def _truncate_password(password: str) -> bytes:
+    """bcrypt 72 baytdan uzun parollarni qo'llab-quvvatlamaydi — qisqartiramiz."""
+    return password.encode("utf-8")[:72]
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+    return bcrypt.checkpw(_truncate_password(plain_password), hashed_password.encode("utf-8"))
 
 
 def hash_password(password: str) -> str:
     salt = bcrypt.gensalt()
-    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
+    return bcrypt.hashpw(_truncate_password(password), salt).decode("utf-8")
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
