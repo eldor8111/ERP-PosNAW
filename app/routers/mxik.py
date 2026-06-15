@@ -1,11 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from pip._internal.cli import status_codes
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, require_roles
 from app.database import get_db
 from app.models.mxik import MxikReference, MxikPackage
 from app.models.tovarlar_catalog import TovarlarCatalog
-from app.models.user import User
+from app.models.user import User, UserRole
+from app.routers.billing import require_super_admin
+from app.routers.users import create_user
 from app.schemas.mxik import MxikReferenceOut, MxikSyncRequest
 from app.services.tasnif_service import sync_mxik
 from app.config import settings
@@ -93,3 +97,16 @@ def get_mxik(
             detail="MXIK topilmadi. Avval POST /mxik/sync chaqiring.",
         )
     return ref
+
+@router.delete("/{mxik_code}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_mxik(
+        mxik_code: str,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(UserRole.super_admin),)
+):
+    q = db.query(MxikPackage).filter(MxikPackage.code == mxik_code).first()
+    if not q:
+        raise HTTPException(status_code=404, detail="MXIK topilmadi")
+    db.delete(q)
+    db.commit()
+    return None

@@ -68,6 +68,8 @@ class ProductCreate(BaseModel):
     mxik_code: Optional[str] = None
     parent_code: Optional[int] = None
     unit_id: Optional[int] = None
+    cost_currency: str = "UZS"
+    sale_currency: str = "UZS"
     # Virtual Products
     product_type: str = "stock"  # 'stock' yoki 'sell'
     conversion: Optional[ProductConversionIn] = None  # faqat product_type='sell' uchun
@@ -107,6 +109,8 @@ class ProductUpdate(BaseModel):
     mxik_code: Optional[str] = None
     parent_code: Optional[int] = None
     unit_id: Optional[int] = None
+    cost_currency: Optional[str] = None
+    sale_currency: Optional[str] = None
     # Virtual Products
     product_type: Optional[str] = None  # 'stock' yoki 'sell'
     conversion: Optional[ProductConversionIn] = None
@@ -147,6 +151,8 @@ class ProductOut(BaseModel):
     mxik_code: Optional[str] = None
     parent_code: Optional[int] = None
     unit_id: Optional[int] = None
+    cost_currency: str = "UZS"
+    sale_currency: str = "UZS"
 
     model_config = {"from_attributes": True}
 
@@ -206,6 +212,8 @@ class ProductListOut(BaseModel):
     mxik_code: Optional[str] = None
     parent_code: Optional[int] = None
     unit_id: Optional[int] = None
+    cost_currency: str = "UZS"
+    sale_currency: str = "UZS"
 
     model_config = {"from_attributes": True}
 
