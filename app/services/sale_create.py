@@ -259,15 +259,16 @@ def create_sale(
 
     _cashier_wallet_id = None
     try:
+        # Savepoint orqali — rollback butun tranzaksiyani bekor qilmasin
         _sa_text = __import__("sqlalchemy").text
-        _uw_row = db.execute(
-            _sa_text("SELECT wallet_id FROM user_wallets WHERE user_id=:uid ORDER BY is_default DESC LIMIT 1"),
-            {"uid": current_user.id},
-        ).fetchone()
-        _cashier_wallet_id = _uw_row[0] if _uw_row else None
+        with db.begin_nested():  # SAVEPOINT
+            _uw_row = db.execute(
+                _sa_text("SELECT wallet_id FROM user_wallets WHERE user_id=:uid ORDER BY is_default DESC LIMIT 1"),
+                {"uid": current_user.id},
+            ).fetchone()
+            _cashier_wallet_id = _uw_row[0] if _uw_row else None
     except Exception:
-        db.rollback()
-        _cashier_wallet_id = None
+        _cashier_wallet_id = None  # user_wallets jadvali yo'q — e'tibor bermaslik
 
     if _cashier_wallet_id:
         try:
