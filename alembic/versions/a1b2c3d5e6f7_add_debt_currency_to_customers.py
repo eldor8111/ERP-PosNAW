@@ -16,12 +16,27 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column('customers',
-        sa.Column('debt_currency', sa.String(3), nullable=False, server_default='UZS')
-    )
-    op.add_column('customers',
-        sa.Column('debt_balances', sa.JSON(), nullable=False, server_default='{}')
-    )
+    from sqlalchemy import text
+    conn = op.get_bind()
+
+    exists = conn.execute(text(
+        "SELECT 1 FROM information_schema.columns "
+        "WHERE table_name='customers' AND column_name='debt_currency'"
+    )).fetchone()
+    if not exists:
+        op.add_column('customers',
+            sa.Column('debt_currency', sa.String(3), nullable=False, server_default='UZS')
+        )
+
+    exists2 = conn.execute(text(
+        "SELECT 1 FROM information_schema.columns "
+        "WHERE table_name='customers' AND column_name='debt_balances'"
+    )).fetchone()
+    if not exists2:
+        op.add_column('customers',
+            sa.Column('debt_balances', sa.JSON(), nullable=False, server_default='{}')
+        )
+
 
 
 def downgrade():

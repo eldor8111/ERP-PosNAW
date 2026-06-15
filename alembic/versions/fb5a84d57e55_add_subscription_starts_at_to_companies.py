@@ -17,7 +17,14 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column('companies', sa.Column('subscription_starts_at', sa.DateTime(), nullable=True))
+    from sqlalchemy import text
+    conn = op.get_bind()
+    exists = conn.execute(text(
+        "SELECT 1 FROM information_schema.columns "
+        "WHERE table_name='companies' AND column_name='subscription_starts_at'"
+    )).fetchone()
+    if not exists:
+        op.add_column('companies', sa.Column('subscription_starts_at', sa.DateTime(), nullable=True))
 
 
 def downgrade() -> None:
