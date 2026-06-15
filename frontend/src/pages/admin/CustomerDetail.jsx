@@ -242,11 +242,11 @@ export default function CustomerDetail() {
                         <div className="flex items-center justify-between border-t border-white/10 pt-4">
                           <div>
                             <div className="text-indigo-200 text-[10px] uppercase font-bold tracking-wider mb-0.5">Bonus Balans</div>
-                            <div className="font-bold text-[14px] sm:text-lg text-emerald-300">{fmt(stats.bonus_balance)} <span className="text-xs font-medium opacity-80">so'm</span></div>
+                            <div className="font-bold text-[14px] sm:text-lg text-emerald-300">{fmt(stats.bonus_balance)} <span className="text-xs font-medium opacity-80">{stats.debt_currency === 'USD' ? '$' : "so'm"}</span></div>
                           </div>
                           <div className="text-right">
                             <div className="text-indigo-200 text-[10px] uppercase font-bold tracking-wider mb-0.5">Jami Xaridlar</div>
-                            <div className="font-bold text-[14px] sm:text-base text-white">{fmt(stats.total_spent)} <span className="text-xs font-medium opacity-80">so'm</span></div>
+                            <div className="font-bold text-[14px] sm:text-base text-white">{fmt(stats.total_spent)} <span className="text-xs font-medium opacity-80">{stats.debt_currency === 'USD' ? '$' : "so'm"}</span></div>
                           </div>
                         </div>
                       </div>
@@ -259,28 +259,28 @@ export default function CustomerDetail() {
                     color="indigo"
                     label="Jami Sotuvlar"
                     value={`${fmt(stats.total_sales_count)} ta`}
-                    sub={`${fmt(stats.total_sales_amount)} so'm`}
+                    sub={`${fmt(stats.total_sales_amount)} ${stats.debt_currency === 'USD' ? '$' : "so'm"}`}
                     icon={<svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>}
                   />
                   <StatCard
                     color="emerald"
                     label="To'langan"
-                    value={`${fmt(stats.total_paid_amount)} so'm`}
+                    value={`${fmt(stats.total_paid_amount)} ${stats.debt_currency === 'USD' ? '$' : "so'm"}`}
                     sub={`${fmt(stats.total_sales_count)} sotuvdan`}
                     icon={<svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
                   />
                   <StatCard
                     color="red"
                     label="Qarzdorlik"
-                    value={`${fmt(stats.debt_balance)} so'm`}
-                    sub={stats.debt_limit > 0 ? `Limit: ${fmt(stats.debt_limit)} so'm` : 'Limit belgilanmagan'}
+                    value={`${fmt(stats.debt_balance)} ${stats.debt_currency === 'USD' ? '$' : (stats.debt_currency || "so'm")}`}
+                    sub={stats.debt_limit > 0 ? `Limit: ${fmt(stats.debt_limit)} ${stats.debt_currency === 'USD' ? '$' : "so'm"}` : 'Limit belgilanmagan'}
                     icon={<svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
                   />
                   <StatCard
                     color="amber"
                     label="Qaytarishlar"
                     value={`${fmt(stats.total_returns_count)} ta`}
-                    sub={`${fmt(stats.total_returns_amount)} so'm`}
+                    sub={`${fmt(stats.total_returns_amount)} ${stats.debt_currency === 'USD' ? '$' : "so'm"}`}
                     icon={<svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>}
                   />
                 </div>
@@ -485,8 +485,8 @@ function SalesTable({ rows, stats, salesData, loading, emptyText = "Sotuvlar yo'
                           {PAY_LABELS[s.payment_type] || s.payment_type}
                         </span>
                       </td>
-                      <td className="px-4 py-4 text-left font-semibold text-slate-800">{fmt(s.total_amount)} so'm</td>
-                      <td className="px-4 py-4 text-left text-emerald-600 font-medium">{fmt(s.paid_amount)} so'm</td>
+                      <td className="px-4 py-4 text-left font-semibold text-slate-800">{fmt(s.total_amount)} {s.currency === 'USD' ? '$' : "so'm"}</td>
+                      <td className="px-4 py-4 text-left text-emerald-600 font-medium">{fmt(s.paid_amount)} {s.currency === 'USD' ? '$' : "so'm"}</td>
                       <td className={`px-4 py-4 text-left font-medium ${debt > 0 ? 'text-red-500' : 'text-slate-400'}`}>
                         {debt > 0 ? fmt(debt) : '—'}
                       </td>
@@ -513,13 +513,13 @@ function SalesTable({ rows, stats, salesData, loading, emptyText = "Sotuvlar yo'
                 <tr className="border-t-2 border-slate-200 bg-slate-50/50">
                   <td colSpan={3} className="px-4 py-4 text-xs font-semibold text-slate-400 uppercase">{t('admin.dict.total') || 'Jami'}</td>
                   <td className="px-4 py-4 text-left font-bold text-slate-800">
-                    {fmt(filteredByEmployeeSales.reduce((s, r) => s + Number(r.total_amount), 0))} so'm
+                    {fmt(filteredByEmployeeSales.reduce((s, r) => s + Number(r.total_amount), 0))} {stats.debt_currency === 'USD' ? '$' : "so'm"}
                   </td>
                   <td className="px-4 py-4 text-left font-bold text-emerald-600">
-                    {fmt(filteredByEmployeeSales.reduce((s, r) => s + Number(r.paid_amount), 0))} so'm
+                    {fmt(filteredByEmployeeSales.reduce((s, r) => s + Number(r.paid_amount), 0))} {stats.debt_currency === 'USD' ? '$' : "so'm"}
                   </td>
                   <td className="px-4 py-4 text-left font-bold text-red-500">
-                    {fmt(filteredByEmployeeSales.reduce((s, r) => s + Math.max(0, Number(r.total_amount) - Number(r.paid_amount)), 0))} so'm
+                    {fmt(filteredByEmployeeSales.reduce((s, r) => s + Math.max(0, Number(r.total_amount) - Number(r.paid_amount)), 0))} {stats.debt_currency === 'USD' ? '$' : "so'm"}
                   </td>
                   <td />
                 </tr>
@@ -619,10 +619,10 @@ function OperationsTable({ rows, loading }) {
           </div>
           <div className="text-right">
             <div className={`text-sm font-bold ${r.type === 'sale' ? 'text-indigo-600' : 'text-emerald-600'}`}>
-              {r.type === 'sale' ? '-' : '+'}{fmt(r.amount)} so'm
+              {r.type === 'sale' ? '-' : '+'}{fmt(r.amount)} {r.currency === 'USD' ? '$' : (r.currency || "so'm")}
             </div>
             {r.type === 'sale' && r.debt > 0 && (
-              <div className="text-xs text-red-500">Qarz: {fmt(r.debt)} so'm</div>
+              <div className="text-xs text-red-500">Qarz: {fmt(r.debt)} {r.currency === 'USD' ? '$' : (r.currency || "so'm")}</div>
             )}
           </div>
         </div>
@@ -654,8 +654,8 @@ function AktSverka({ stats, sales, returns, loading }) {
           <thead>
             <tr className="border-b border-slate-200">
               <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-2">Operatsiya</th>
-              <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-2 pr-4">Debet (so'm)</th>
-              <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-2">Kredit (so'm)</th>
+              <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-2 pr-4">{`Debet (${stats.debt_currency === 'USD' ? '$' : "so'm"})`}</th>
+              <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-2">{`Kredit (${stats.debt_currency === 'USD' ? '$' : "so'm"})`}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -676,7 +676,7 @@ function AktSverka({ stats, sales, returns, loading }) {
               <td className="pt-3 font-bold text-slate-700">Yakuniy Qoldiq (Qarzdorlik)</td>
               <td />
               <td className={`pt-3 text-right font-bold text-lg ${balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                {fmt(balance)} so'm
+                {fmt(balance)} {stats.debt_currency === 'USD' ? '$' : (stats.debt_currency || "so'm")}
               </td>
             </tr>
           </tfoot>
@@ -686,15 +686,15 @@ function AktSverka({ stats, sales, returns, loading }) {
       <div className="grid grid-cols-3 gap-4 text-center">
         <div className="bg-indigo-50 rounded-xl p-4">
           <div className="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-1">Jami Sotuv</div>
-          <div className="text-lg font-bold text-indigo-700">{fmt(totalSales)} so'm</div>
+          <div className="text-lg font-bold text-indigo-700">{fmt(totalSales)} {stats.debt_currency === 'USD' ? '$' : "so'm"}</div>
         </div>
         <div className="bg-emerald-50 rounded-xl p-4">
           <div className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-1">To'langan</div>
-          <div className="text-lg font-bold text-emerald-700">{fmt(totalPaid)} so'm</div>
+          <div className="text-lg font-bold text-emerald-700">{fmt(totalPaid)} {stats.debt_currency === 'USD' ? '$' : "so'm"}</div>
         </div>
         <div className={`rounded-xl p-4 ${balance > 0 ? 'bg-red-50' : 'bg-slate-50'}`}>
           <div className={`text-xs font-semibold uppercase tracking-wider mb-1 ${balance > 0 ? 'text-red-400' : 'text-slate-400'}`}>Qoldiq Qarz</div>
-          <div className={`text-lg font-bold ${balance > 0 ? 'text-red-700' : 'text-slate-500'}`}>{fmt(balance)} so'm</div>
+          <div className={`text-lg font-bold ${balance > 0 ? 'text-red-700' : 'text-slate-500'}`}>{fmt(balance)} {stats.debt_currency === 'USD' ? '$' : (stats.debt_currency || "so'm")}</div>
         </div>
       </div>
     </div>

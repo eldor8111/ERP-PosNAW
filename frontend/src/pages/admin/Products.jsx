@@ -25,7 +25,7 @@ const fmt = (v) => {
   if (v === null || v === undefined || v === '') return '0';
   const n = Number(v);
   if (isNaN(n) || n === 0) return '0';
-  return n.toLocaleString('ru-RU');
+  return n.toLocaleString('ru-RU', { maximumFractionDigits: 2 });
 };
 const genBarcode = () => Math.floor(10000000 + Math.random() * 90000000).toString();
 
@@ -738,8 +738,10 @@ export default function Products() {
     category_id: p.category_id || '', unit: p.unit,
     cost_price: p.cost_price, wholesale_price: p.wholesale_price ?? '',
     sale_price: p.sale_price,
-    cost_price_cur: '', wholesale_price_cur: '', sale_price_cur: '',
-    price_currency_id: '',
+    cost_price_cur: getCurrencyIdByCode(p.cost_currency),
+    wholesale_price_cur: getCurrencyIdByCode(p.sale_currency),
+    sale_price_cur: getCurrencyIdByCode(p.sale_currency),
+    price_currency_id: getCurrencyIdByCode(p.sale_currency),
     initial_stock: '',
     min_stock: p.min_stock, max_stock: p.max_stock || '',
     bin_location: p.bin_location || '',
@@ -852,13 +854,6 @@ export default function Products() {
 
     setSaving(true); setError('');
     try {
-      // Per-field currency rate helpers
-      const rateFor = (curId) => {
-        if (!curId) return 1;
-        const c = currencies.find(c => String(c.id) === String(curId));
-        return c ? Number(c.rate) : 1;
-      };
-
       const payload = {
         name: form.name.trim(),
         sku: form.sku?.trim() || undefined,
@@ -869,9 +864,11 @@ export default function Products() {
         brand: form.brand?.trim() || null,
         category_id: form.category_id ? Number(form.category_id) : null,
         unit: form.unit,
-        cost_price: Math.round((Number(form.cost_price) || 0) * rateFor(form.cost_price_cur)),
-        wholesale_price: form.wholesale_price !== '' ? Math.round(Number(form.wholesale_price) * rateFor(form.wholesale_price_cur)) : null,
-        sale_price: Math.round(Number(form.sale_price) * rateFor(form.sale_price_cur)),
+        cost_price: Number(form.cost_price) || 0,
+        cost_currency: getPureCode(form.cost_price_cur),
+        wholesale_price: form.wholesale_price !== '' ? Number(form.wholesale_price) : null,
+        sale_price: Number(form.sale_price) || 0,
+        sale_currency: getPureCode(form.sale_price_cur),
         min_stock: Number(form.min_stock) || 0,
         max_stock: form.max_stock ? Number(form.max_stock) : null,
         bin_location: form.bin_location?.trim() || null,
@@ -881,6 +878,7 @@ export default function Products() {
         dimensions: form.dimensions?.trim() || null,
         status: form.status,
         product_type: effectiveType,
+        price_currency_id: form.sale_price_cur ? Number(form.sale_price_cur) : null,
       };
       if (effectiveType === 'sell') {
         payload.conversion = {
@@ -1054,9 +1052,26 @@ export default function Products() {
   const catName = (id) => categories.find(c => c.id === id)?.name || '—';
 
   // Price currency helpers
-  const priceCurSelected = currencies.find(c => String(c.id) === String(form.price_currency_id)) || null;
-  const priceRate = priceCurSelected ? Number(priceCurSelected.rate) : 1;
-  const priceCurCode = priceCurSelected?.code || "so'm";
+  const getRate = (curId) => {
+    if (!curId) return 1;
+    const c = currencies.find(c => String(c.id) === String(curId));
+    return c ? Number(c.rate) : 1;
+  };
+  const getCode = (curId) => {
+    if (!curId) return "so'm";
+    const c = currencies.find(c => String(c.id) === String(curId));
+    return c ? (c.code === 'UZS' ? "so'm" : c.code) : "so'm";
+  };
+  const getPureCode = (curId) => {
+    if (!curId) return "UZS";
+    const c = currencies.find(c => String(c.id) === String(curId));
+    return c ? c.code : "UZS";
+  };
+  const getCurrencyIdByCode = (code) => {
+    if (!code) return '';
+    const c = currencies.find(curr => curr.code === code);
+    return c ? String(c.id) : '';
+  };
 
   /* ────────────────────── Excel Import (Advanced) ─────────────────────── */
   const IMPORT_FIELDS = [
@@ -2013,7 +2028,7 @@ export default function Products() {
                       <col style={{ width: '100px' }} />
                       <col style={{ width: '60px' }} />
                       <col style={{ width: '90px' }} />
-                      <col style={{ width: '80px' }} />
+                      <col style={{ width: '90px' }} />
                       <col style={{ width: '110px' }} />
                       <col style={{ width: '110px' }} />
                       <col style={{ width: '70px' }} />
@@ -2101,13 +2116,21 @@ export default function Products() {
                             <td className="py-3">
                               <span className="inline-flex px-2 py-1 bg-slate-100 text-slate-700 text-xs font-semibold rounded-md">{p.unit}</span>
                             </td>
-                            <td className="px-2 py-3 text-xs text-slate-500 font-medium">{fmt(p.cost_price)}</td>
+                            <td className="px-2 py-3 text-xs text-slate-500 font-medium">
+                              {fmt(p.cost_price)} {p.cost_currency === 'UZS' ? "so'm" : p.cost_currency === "USD" ? "$" : (p.cost_currency || "so'm")}
+                            </td>
                             <td className="px-2 py-3 text-xs text-slate-500">
-                              {p.wholesale_price ? fmt(p.wholesale_price) : <span className="text-slate-300">—</span>}
+                              {p.wholesale_price ? (
+                                <>
+                                  {fmt(p.wholesale_price)} {p.sale_currency === 'UZS' ? "so'm" : (p.sale_currency || "so'm")}
+                                </>
+                              ) : <span className="text-slate-300">—</span>}
                             </td>
                             <td className="py-3">
-                              <span className="text-[12px] xl:text-[14px] font-black text-slate-900">{fmt(p.sale_price)}</span>
-                              <span className="text-xs text-slate-400 ml-0.5">{t('common.sum')}</span>
+                              <span className="text-[12px] xl:text-[14px] font-black text-slate-900">
+                                {fmt(p.sale_price)}
+                              </span>
+                              <span className="text-xs text-slate-400 ml-0.5">{p.sale_currency === 'UZS' ? "so'm" : p.sale_currency === "USD" ? "$" : (p.sale_currency || "so'm")}</span>
                             </td>
                             <td className="px-2 py-3">
                               <div className="flex flex-col gap-1">
@@ -2668,23 +2691,27 @@ export default function Products() {
                   </div>
 
                   {/* UZS preview & Margin hint combined */}
-                  {((priceCurSelected && (form.cost_price || form.sale_price)) || (form.cost_price && form.sale_price && Number(form.sale_price) > 0)) && (
+                  {((form.cost_price_cur || form.sale_price_cur || form.wholesale_price_cur) && (form.cost_price || form.sale_price || form.wholesale_price)) && (
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
                       <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-indigo-900">
                         <span className="font-bold flex items-center gap-1.5">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
                           {t('product.uzsPreview')}
                         </span>
-                        {form.cost_price && <span>{t('product.costShort')} <strong>{fmt(Math.round(Number(form.cost_price) * priceRate))}</strong></span>}
-                        {form.wholesale_price && <span>{t('product.wholesaleShort')} <strong>{fmt(Math.round(Number(form.wholesale_price) * priceRate))}</strong></span>}
-                        {form.sale_price && <span>{t('product.retailShort')} <strong>{fmt(Math.round(Number(form.sale_price) * priceRate))}</strong></span>}
+                        {form.cost_price && <span>{t('product.costShort')} <strong>{fmt(Math.round(Number(form.cost_price) * getRate(form.cost_price_cur)))}</strong></span>}
+                        {form.wholesale_price && <span>{t('product.wholesaleShort')} <strong>{fmt(Math.round(Number(form.wholesale_price) * getRate(form.wholesale_price_cur)))}</strong></span>}
+                        {form.sale_price && <span>{t('product.retailShort')} <strong>{fmt(Math.round(Number(form.sale_price) * getRate(form.sale_price_cur)))}</strong></span>}
                       </div>
-                      {form.cost_price && form.sale_price && Number(form.sale_price) > 0 && (
-                        <div className="shrink-0 text-sm bg-white px-3 py-1.5 rounded-lg border border-indigo-100 shadow-sm text-indigo-700 font-medium">
-                          Margin: <strong>{(((Number(form.sale_price) - Number(form.cost_price)) / Number(form.sale_price)) * 100).toFixed(1)}%</strong>
-                          &nbsp;|&nbsp; Foyda: <strong>{fmt(Number(form.sale_price) - Number(form.cost_price))} {priceCurCode}</strong>
-                        </div>
-                      )}
+                      {form.cost_price && form.sale_price && Number(form.sale_price) > 0 && (() => {
+                        const costUZS = Number(form.cost_price) * getRate(form.cost_price_cur);
+                        const saleUZS = Number(form.sale_price) * getRate(form.sale_price_cur);
+                        return (
+                          <div className="shrink-0 text-sm bg-white px-3 py-1.5 rounded-lg border border-indigo-100 shadow-sm text-indigo-700 font-medium">
+                            Margin: <strong>{(((saleUZS - costUZS) / saleUZS) * 100).toFixed(1)}%</strong>
+                            &nbsp;|&nbsp; Foyda: <strong>{fmt(Math.round(saleUZS - costUZS))} so'm</strong>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>

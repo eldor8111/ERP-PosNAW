@@ -370,7 +370,16 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
 
   const openAdd = () => { setForm({ ...emptyForm, card_number: generateCard() }); setError(''); setModal('add'); };
   const openEdit = (c) => {
-    setForm({ name: c.name, phone: c.phone || '', debt_balance: c.debt_balance || 0, debt_limit: c.debt_limit || 0, loyalty_points: c.loyalty_points || 0, card_number: c.card_number || '', cashback_percent: c.cashback_percent || 0, debt_currency: 'UZS' });
+    setForm({
+      name: c.name,
+      phone: c.phone || '',
+      debt_balance: c.debt_balance || 0,
+      debt_limit: c.debt_limit || 0,
+      loyalty_points: c.loyalty_points || 0,
+      card_number: c.card_number || '',
+      cashback_percent: c.cashback_percent || 0,
+      debt_currency: c.debt_currency || 'UZS'
+    });
     setSelected(c); setError(''); setModal('edit');
   };
   const openPay = (c) => {
@@ -399,13 +408,11 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
     e.preventDefault();
     setSaving(true); setError('');
     try {
-      const currencyObj = currencies.find(c => c.code === (form.debt_currency || 'UZS')) || { rate: 1 };
-      const finalDebtBalance = form.debt_balance ? Number(form.debt_balance) * currencyObj.rate : 0;
-
       const payload = {
         name: form.name,
         phone: form.phone || null,
-        debt_balance: finalDebtBalance,
+        debt_balance: form.debt_balance ? Number(form.debt_balance) : 0,
+        debt_currency: form.debt_currency || 'UZS',
         debt_limit: form.debt_limit ? Number(form.debt_limit) : 0,
         loyalty_points: form.loyalty_points ? Number(form.loyalty_points) : 0,
         card_number: form.card_number || null,
@@ -728,7 +735,7 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
                     <td className="px-6 py-4 text-xs md:text-sm text-slate-500">{c.phone || '—'}</td>
                     <td className="px-6 py-4">
                       <span className={`text-xs md:text-sm font-semibold ${Number(c.debt_balance) > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                        {fmt(c.debt_balance)} so'm
+                        {fmt(c.debt_balance)} {c.debt_currency === 'UZS' ? "so'm" : c.debt_currency === "USD" ? "$" : (c.debt_currency || "so'm")}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-xs md:text-sm text-slate-500">{fmt(c.debt_limit)} so'm</td>
@@ -887,13 +894,7 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Boshlang'ich qarz / Joriy qarz</label>
                   <div className="flex cursor-pointer bg-white items-center border border-slate-200 rounded-xl focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500 transition-all">
                     <Listbox value={form.debt_currency || 'UZS'} onChange={(val) => {
-                       const oldC = currencies.find(c => c.code === (form.debt_currency || 'UZS')) || { rate: 1 };
-                       const newC = currencies.find(c => c.code === val) || { rate: 1 };
-                       let nb = form.debt_balance;
-                       if (nb && !isNaN(Number(nb))) {
-                         nb = Number(((Number(nb) * oldC.rate) / newC.rate).toFixed(2));
-                       }
-                       setForm({ ...form, debt_currency: val, debt_balance: nb !== '' ? nb : '' });
+                       setForm({ ...form, debt_currency: val });
                     }}>
                       <div className="relative">
                         <ListboxButton className="h-[42px] px-3 flex items-center bg-slate-50 border-r border-slate-200 hover:bg-slate-100 rounded-l-xl transition-colors text-sm font-semibold text-slate-700 outline-none w-[85px] justify-between">

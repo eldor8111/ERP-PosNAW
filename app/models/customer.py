@@ -11,6 +11,7 @@ class Customer(Base):
     phone = Column(String(20), nullable=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
     debt_balance = Column(Numeric(14, 2), default=0)
+    debt_currency = Column(String(3), nullable=False, server_default="UZS", default='UZS')
     debt_limit = Column(Numeric(14, 2), default=0)
     loyalty_points = Column(Integer, default=0)
     tg_chat_id = Column(String(50), index=True, nullable=True)

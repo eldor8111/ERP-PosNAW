@@ -195,13 +195,11 @@ function CurrenciesTab() {
                     disabled={c.is_default}  // Asosiy valyutani o'chirish mumkin emas
                     onClick={() => api.patch(`/currencies/${c.id}`, { is_active: !c.is_active }).then(() => load()).catch(e => alert(e.response?.data?.detail || 'Xatolik'))}
                     title={c.is_default ? "Asosiy valyutani o'chirib bo'lmaydi" : (c.is_active ? "Faolsizlashtirish" : "Faollashtirish")}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
-                      c.is_active ? 'bg-indigo-500' : 'bg-slate-200'
-                    } ${c.is_default ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${c.is_active ? 'bg-indigo-500' : 'bg-slate-200'
+                      } ${c.is_default ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                   >
-                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
-                      c.is_active ? 'translate-x-[18px]' : 'translate-x-0.5'
-                    }`} />
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${c.is_active ? 'translate-x-[18px]' : 'translate-x-0.5'
+                      }`} />
                   </button>
                 </td>
 
@@ -304,9 +302,8 @@ function ApiKeysTab() {
                 </code>
                 <button
                   onClick={copyToken}
-                  className={`px-3 py-2 text-xs font-semibold rounded-lg transition-colors shrink-0 ${
-                    copied ? 'bg-emerald-500 text-white' : 'bg-amber-200 hover:bg-amber-300 text-amber-800'
-                  }`}
+                  className={`px-3 py-2 text-xs font-semibold rounded-lg transition-colors shrink-0 ${copied ? 'bg-emerald-500 text-white' : 'bg-amber-200 hover:bg-amber-300 text-amber-800'
+                    }`}
                 >
                   {copied ? 'Nusxalandi!' : 'Nusxalash'}
                 </button>
@@ -399,11 +396,11 @@ function ApiKeysTab() {
 // ── Password tab ─────────────────────────────────────────────────────────────
 function PasswordTab() {
   const { t } = useLang();
-  const [form, setForm]   = useState({ new_password: '', confirm: '' });
+  const [form, setForm] = useState({ new_password: '', confirm: '' });
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg]     = useState('');
-  const [err, setErr]     = useState('');
-  const [show, setShow]   = useState({ new: false, confirm: false });
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+  const [show, setShow] = useState({ new: false, confirm: false });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -458,12 +455,11 @@ function PasswordTab() {
             </div>
             {form.new_password.length > 0 && (
               <div className="flex gap-1 mt-2">
-                {[1,2,3,4].map(i => (
-                  <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${
-                    form.new_password.length >= i * 3
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${form.new_password.length >= i * 3
                       ? (form.new_password.length >= 12 ? 'bg-emerald-500' : form.new_password.length >= 8 ? 'bg-amber-400' : 'bg-red-400')
                       : 'bg-slate-200'
-                  }`} />
+                    }`} />
                 ))}
               </div>
             )}
@@ -519,7 +515,7 @@ function PasswordTab() {
 
 // ── Telegram Bot Tab ───────────────────────────────────────────────────────────
 const TG_PATH = "M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a5.962 5.962 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.699 1.201-1.22 1.28-.106.016-.215.023-.324.023-.329 0-.655-.078-.962-.23-.09-.045-2.072-1.373-2.91-2.133-.255-.23-.55-.664-.047-1.12.13-.12 2.4-2.2 4.414-4.043.203-.186.417-.384.417-.61 0-.306-.275-.417-.463-.384l-.536.09-5.694 3.447c-.382.235-.905.39-1.424.39-.17 0-.339-.022-.505-.065L4.053 12.55c-.71-.225-.71-.708.15-1.047 2.768-1.196 9.2-3.953 11.233-4.279.172-.027.35-.042.508-.042z";
-const TG_ICON_SM = <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH}/></svg>;
+const TG_ICON_SM = <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH} /></svg>;
 
 function TelegramBotTab() {
   const [savedToken, setSavedToken] = useState(null);
@@ -543,7 +539,7 @@ function TelegramBotTab() {
         if (co.tg_bot_token && !co.tg_bot_username) {
           api.put(`/companies/${co.id}`, { tg_bot_token: co.tg_bot_token })
             .then(r2 => setBotUsername(r2.data?.tg_bot_username || ''))
-            .catch(() => {});
+            .catch(() => { });
         }
       }
     }).catch(e => toast.error(e.response?.data?.detail || e.message));
@@ -600,7 +596,7 @@ function TelegramBotTab() {
           className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
           Yaratish
         </button>
@@ -655,7 +651,7 @@ function TelegramBotTab() {
                     <button onClick={() => { navigator.clipboard.writeText(savedToken); toast.success('Token nusxalandi!'); }}
                       title="Tokenni nusxalash" className="flex-shrink-0 text-slate-300 hover:text-indigo-500 transition-colors">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                       </svg>
                     </button>
                   </div>
@@ -664,7 +660,7 @@ function TelegramBotTab() {
                 {/* HOLAT */}
                 <td className="px-4 py-3.5">
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-md">
-                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"/>Faol
+                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />Faol
                   </span>
                 </td>
 
@@ -675,8 +671,8 @@ function TelegramBotTab() {
                     <button onClick={() => setShowDetails(true)}
                       className="w-8 h-8 flex items-center justify-center rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors" title="Nastroyka">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                       </svg>
                     </button>
                     {/* 3 nuqta — menyu, tepaga ochiladi */}
@@ -684,25 +680,25 @@ function TelegramBotTab() {
                       <button onClick={() => setMenuOpen(p => !p)}
                         className="w-8 h-8 flex items-center justify-center rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M12 5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 7a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 7a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/>
+                          <path d="M12 5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 7a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 7a1.5 1.5 0 110-3 1.5 1.5 0 010 3z" />
                         </svg>
                       </button>
                       {menuOpen && (
                         <>
-                          <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)}/>
+                          <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
                           <div className="absolute right-0 bottom-full mb-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 min-w-[180px] py-1 overflow-hidden">
                             <button onClick={() => { setShowModal(true); setMenuOpen(false); setErr(''); setToken(''); }}
                               className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2.5">
                               <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                               </svg>
                               Tokenni yangilash
                             </button>
-                            <div className="border-t border-slate-100"/>
+                            <div className="border-t border-slate-100" />
                             <button onClick={handleDelete}
                               className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2.5">
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                               </svg>
                               Uzib qo'yish
                             </button>
@@ -718,7 +714,7 @@ function TelegramBotTab() {
                 <td colSpan={7} className="px-4 py-14 text-center">
                   <div className="flex flex-col items-center gap-3 text-slate-400">
                     <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center">
-                      <svg className="w-6 h-6 text-slate-300" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH}/></svg>
+                      <svg className="w-6 h-6 text-slate-300" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH} /></svg>
                     </div>
                     <p className="text-sm font-medium text-slate-500">Hali bot ulanmagan</p>
                     <p className="text-xs text-slate-400">Telegram bot ulash uchun yuqoridagi "Yaratish" tugmasini bosing</p>
@@ -744,13 +740,13 @@ function TelegramBotTab() {
                 <div>
                   <p className="font-bold text-slate-800">{botUsername ? `@${botUsername}` : 'Bot'}</p>
                   <p className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse inline-block"/>Faol
+                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse inline-block" />Faol
                   </p>
                 </div>
               </div>
               <button onClick={() => setShowDetails(false)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
@@ -763,7 +759,7 @@ function TelegramBotTab() {
                 <button onClick={() => { navigator.clipboard.writeText(webhookUrl); toast.success('Nusxalandi!'); }}
                   className="flex-shrink-0 text-slate-400 hover:text-indigo-600 transition-colors">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
                 </button>
               </div>
@@ -777,7 +773,7 @@ function TelegramBotTab() {
                 <button onClick={() => { navigator.clipboard.writeText(savedToken); toast.success('Token nusxalandi!'); }}
                   className="flex-shrink-0 text-slate-400 hover:text-indigo-600 transition-colors">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
                 </button>
               </div>
@@ -798,7 +794,7 @@ function TelegramBotTab() {
             {botUsername && (
               <a href={`https://t.me/${botUsername}`} target="_blank" rel="noreferrer"
                 className="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-semibold text-sm rounded-xl transition-colors">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH}/></svg>
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH} /></svg>
                 Telegramda ochish → @{botUsername}
               </a>
             )}
@@ -814,13 +810,13 @@ function TelegramBotTab() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600">
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH}/></svg>
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH} /></svg>
                 </div>
                 <h3 className="font-bold text-slate-800">{savedToken ? 'Tokenni yangilash' : 'Bot ulash'}</h3>
               </div>
               <button onClick={() => setShowModal(false)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
@@ -923,98 +919,142 @@ const defaultNakladnoyCfg = {
 function ReceiptPreview({ cfg, mm }) {
   const { t } = useLang();
   const narrow = mm === 58;
+
+  const lineSolid = { borderTop: '1.5px solid #000', margin: '6px 0' };
+  const lineDashed = { borderTop: '1.5px dashed #000', margin: '6px 0' };
+
   return (
-    <div className={`${narrow ? 'w-48' : 'w-64'} bg-white border border-slate-300 shadow-xl rounded-sm mx-auto font-mono leading-snug text-slate-800`}
-      style={{ fontSize: narrow ? '8px' : '9px' }}>
-      {/* Header */}
-      <div className="px-3 pt-3 pb-1 text-center space-y-0.5 border-b border-dashed border-slate-300">
-        {cfg.logo && <img src={cfg.logo} alt="logo" style={{ height: `${Math.round((cfg.logo_size||40) * 0.55)}px`, maxWidth: '100%', objectFit: 'contain', margin: '0 auto 3px' }} />}
-        {cfg.company && <div className="font-bold" style={{ fontSize: narrow ? '10px' : '11px' }}>{cfg.company}</div>}
-        {cfg.address && <div className="text-slate-500">{cfg.address}</div>}
-        {cfg.phone && <div className="text-slate-500">Tel: {cfg.phone}</div>}
-        {cfg.inn && <div className="text-slate-400">STIR: {cfg.inn}</div>}
-        {cfg.header && <div className="italic text-slate-600 mt-1">{cfg.header}</div>}
+    <div className={`${narrow ? 'w-48' : 'w-64'} bg-white border border-slate-300 shadow-xl rounded-sm mx-auto font-mono leading-snug text-black font-bold`}
+      style={{ fontSize: narrow ? '10px' : '11.5px', padding: '10px' }}>
+      
+      {cfg.logo && <div className="text-center mb-1"><img src={cfg.logo} alt="logo" style={{ height: `${Math.round((cfg.logo_size || 40) * 0.6)}px`, maxWidth: '100%', objectFit: 'contain', margin: '0 auto' }} /></div>}
+      {cfg.company ? <div className="text-center mb-1.5" style={{ fontSize: '13px' }}>{cfg.company}</div> : null}
+      {cfg.address && <div className="text-center mb-1.5">{cfg.address}</div>}
+      {cfg.phone && <div className="text-center mb-1.5">Tel: {cfg.phone}</div>}
+      {cfg.inn && <div className="text-center mb-1.5">STIR: {cfg.inn}</div>}
+      {cfg.header && <div className="text-center mb-1.5">{cfg.header}</div>}
+      
+      <div className="flex justify-between">
+        <span>Chek:</span>
+        <span>#00001</span>
       </div>
-      {/* Meta */}
-      <div className="px-3 py-1 flex justify-between text-slate-500 border-b border-dashed border-slate-300">
-        <span>Chek #00001</span>
-        {cfg.show_date && <span>17.03.2025</span>}
+      <div className="flex justify-between">
+        <span>Kassir:</span>
+        <span>{cfg.show_cashier ? 'Sardor' : 'Sardor'}</span>
       </div>
+      <div className="flex justify-between">
+        <span>Sana:</span>
+        <span>15.06.2026 09:56</span>
+      </div>
+      
+      <div style={lineDashed}></div>
+      <div className="flex justify-between">
+        <span>Mijoz:</span>
+        <span>AKMAL AKA</span>
+      </div>
+      <div style={lineDashed}></div>
+
       {/* Items */}
-      <div className="px-3 py-1.5 space-y-1 border-b border-dashed border-slate-300">
-        <div>
-          <div className="flex justify-between"><span>Mahsulot A</span><span>50,000</span></div>
-          <div className="text-slate-400 pl-2">2 x 25,000</div>
-        </div>
-        <div>
-          <div className="flex justify-between"><span>Mahsulot B</span><span>30,000</span></div>
-          <div className="text-slate-400 pl-2">1 x 30,000</div>
-        </div>
+      <div>1. Mahsulot A</div>
+      <div className="flex justify-between">
+        <span>2 x 25,000</span>
+        <span>50,000</span>
       </div>
-      {/* Totals */}
-      <div className="px-3 py-1.5 space-y-0.5 border-b border-dashed border-slate-300">
-        <div className="flex justify-between font-bold"><span>JAMI:</span><span>80,000 so'm</span></div>
-        <div className="flex justify-between text-slate-500"><span>Naqd:</span><span>100,000</span></div>
-        <div className="flex justify-between text-slate-500"><span>Qaytim:</span><span>20,000</span></div>
-        {cfg.show_cashier && <div className="text-slate-400 mt-1">Kassir: Sardor</div>}
+      <div style={lineDashed}></div>
+      
+      <div>2. Mahsulot B</div>
+      <div className="flex justify-between">
+        <span>1 x 30,000</span>
+        <span>30,000</span>
       </div>
-      {/* Barcode */}
-      {cfg.show_barcode && (
-        <div className="px-3 py-1.5 text-center border-b border-dashed border-slate-300">
-          <div className="inline-flex gap-px items-end">
-            {Array.from({length: 28}).map((_, i) => (
-              <div key={i} style={{ width: '2px', height: `${8 + (i % 3 === 0 ? 4 : i % 2 === 0 ? 2 : 0)}px`, background: '#334155' }} />
-            ))}
-          </div>
-          <div className="text-[7px] text-slate-500 mt-0.5">0000-0001-17032025</div>
-        </div>
-      )}
-      {/* QR */}
+      <div style={lineDashed}></div>
+
+      <div className="flex justify-between">
+        <span>Jami:</span>
+        <span>2 xil mahsulot</span>
+      </div>
+      <div style={lineSolid}></div>
+
+      <div className="flex justify-between">
+        <span>JAMI:</span>
+        <span>80,000 so'm</span>
+      </div>
+      <div style={lineDashed}></div>
+      
+      <div className="flex justify-between">
+        <span>To'lov:</span>
+        <span>100,000 so'm</span>
+      </div>
+      <div style={lineDashed}></div>
+
+      <div className="flex justify-between">
+        <span>Oldingi qarz:</span>
+        <span>0 so'm</span>
+      </div>
+      <div className="flex justify-between">
+        <span>Qarzga:</span>
+        <span>0 so'm</span>
+      </div>
+      <div style={lineSolid}></div>
+      
+      <div className="flex justify-between">
+        <span>Jami qarz:</span>
+        <span>0 so'm</span>
+      </div>
+      <br />
+      <div className="flex justify-between">
+        <span>Qaytim:</span>
+        <span>20,000 so'm</span>
+      </div>
+
       {cfg.show_qr && (
-        <div className="px-3 py-1.5 text-center border-b border-dashed border-slate-300">
-          <div className="w-12 h-12 bg-slate-100 border border-slate-200 mx-auto grid" style={{ gridTemplateColumns: 'repeat(5,1fr)', gap: '1px', padding: '3px' }}>
-            {Array.from({length:25}).map((_,i) => <div key={i} className={i % 3 === 0 ? 'bg-slate-800' : 'bg-white'} />)}
+        <>
+          <div style={lineDashed}></div>
+          <div className="text-center">
+            <div className="w-12 h-12 bg-slate-100 border border-slate-200 mx-auto grid" style={{ gridTemplateColumns: 'repeat(5,1fr)', gap: '1px', padding: '3px' }}>
+              {Array.from({ length: 25 }).map((_, i) => <div key={i} className={i % 3 === 0 ? 'bg-slate-800' : 'bg-white'} />)}
+            </div>
           </div>
-        </div>
+        </>
       )}
-      {/* Footer */}
-      {cfg.footer && <div className="px-3 py-2 text-center italic text-slate-500">{cfg.footer}</div>}
+
+      <div className="text-center mt-3">{cfg.footer || 'Xaridingiz uchun raxmat!'}</div>
     </div>
   );
 }
 
 // ── Nakladnoy preview ─────────────────────────────────────────────────────────
 function NakladnoyPreview({ cfg }) {
-  const sh = (key, def=true) => cfg[key] !== undefined ? cfg[key] : def;
+  const sh = (key, def = true) => cfg[key] !== undefined ? cfg[key] : def;
   const logoPos = cfg.logo_position || 'center';
 
   const cols = [
     { key: 'show_ordering_number', label: '№' },
     { label: 'Mahsulot nomi', always: true },
-    { key: 'show_measurement',     label: "O'lchov" },
-    { key: 'show_warehouse',       label: 'Ombor' },
-    { key: 'show_sku',             label: 'SKU' },
-    { key: 'show_price',           label: 'Narxi' },
-    { key: 'show_discount',        label: 'Chegirma' },
+    { key: 'show_measurement', label: "O'lchov" },
+    { key: 'show_warehouse', label: 'Ombor' },
+    { key: 'show_sku', label: 'SKU' },
+    { key: 'show_price', label: 'Narxi' },
+    { key: 'show_discount', label: 'Chegirma' },
     { key: 'show_price_with_discount', label: "Cheg.narx" },
-    { key: 'show_net_price',       label: 'Sof narx' },
-    { key: 'show_currency',        label: 'Val.' },
+    { key: 'show_net_price', label: 'Sof narx' },
+    { key: 'show_currency', label: 'Val.' },
     { label: 'Soni', always: true },
     { label: 'Jami', always: true },
   ].filter(col => col.always || sh(col.key, col.key === 'show_ordering_number' || col.key === 'show_price'));
 
   const sampleItems = [
-    { n:1, name:'Mahsulot A', unit:"dona", wh:'Asosiy', sku:'A001', price:'25,000', disc:'-', pw:'25,000', net:'50,000', cur:"so'm", qty:2, total:'50,000' },
-    { n:2, name:'Mahsulot B', unit:"kg",   wh:'Filial',  sku:'B002', price:'30,000', disc:'-', pw:'30,000', net:'30,000', cur:"so'm", qty:1, total:'30,000' },
+    { n: 1, name: 'Mahsulot A', unit: "dona", wh: 'Asosiy', sku: 'A001', price: '25,000', disc: '-', pw: '25,000', net: '50,000', cur: "so'm", qty: 2, total: '50,000' },
+    { n: 2, name: 'Mahsulot B', unit: "kg", wh: 'Filial', sku: 'B002', price: '30,000', disc: '-', pw: '30,000', net: '30,000', cur: "so'm", qty: 1, total: '30,000' },
   ];
-  const colKeys = ['show_ordering_number','always_name','show_measurement','show_warehouse','show_sku','show_price','show_discount','show_price_with_discount','show_net_price','show_currency','always_qty','always_total'];
-  const sampleVals = { show_ordering_number:'n', always_name:'name', show_measurement:'unit', show_warehouse:'wh', show_sku:'sku', show_price:'price', show_discount:'disc', show_price_with_discount:'pw', show_net_price:'net', show_currency:'cur', always_qty:'qty', always_total:'total' };
+  const colKeys = ['show_ordering_number', 'always_name', 'show_measurement', 'show_warehouse', 'show_sku', 'show_price', 'show_discount', 'show_price_with_discount', 'show_net_price', 'show_currency', 'always_qty', 'always_total'];
+  const sampleVals = { show_ordering_number: 'n', always_name: 'name', show_measurement: 'unit', show_warehouse: 'wh', show_sku: 'sku', show_price: 'price', show_discount: 'disc', show_price_with_discount: 'pw', show_net_price: 'net', show_currency: 'cur', always_qty: 'qty', always_total: 'total' };
 
   return (
     <div className="bg-white border border-slate-300 shadow-lg rounded p-3 w-full max-w-sm mx-auto text-[7px] font-mono text-slate-700 leading-snug">
       {cfg.logo && (
         <div style={{ textAlign: logoPos, marginBottom: '4px' }}>
-          <img src={cfg.logo} alt="logo" style={{ height: `${Math.round((cfg.logo_size||50)*0.35)}px`, maxWidth: '70px', objectFit: 'contain', display: 'inline-block' }} />
+          <img src={cfg.logo} alt="logo" style={{ height: `${Math.round((cfg.logo_size || 50) * 0.35)}px`, maxWidth: '70px', objectFit: 'contain', display: 'inline-block' }} />
         </div>
       )}
       <div className="text-center border-b border-slate-300 pb-1.5 mb-1.5">
@@ -1039,15 +1079,15 @@ function NakladnoyPreview({ cfg }) {
 
       <table className="w-full border-collapse mb-1.5" style={{ borderSpacing: 0 }}>
         <thead>
-          <tr>{cols.map((col,i) => <th key={i} className="border border-slate-400 px-0.5 py-0.5 text-center bg-slate-100 text-[6px]">{col.label}</th>)}</tr>
+          <tr>{cols.map((col, i) => <th key={i} className="border border-slate-400 px-0.5 py-0.5 text-center bg-slate-100 text-[6px]">{col.label}</th>)}</tr>
         </thead>
         <tbody>
           {sampleItems.map((item, ri) => (
             <tr key={ri}>
               {cols.map((col, ci) => {
-                const ck = colKeys[['show_ordering_number','always_name','show_measurement','show_warehouse','show_sku','show_price','show_discount','show_price_with_discount','show_net_price','show_currency','always_qty','always_total'].indexOf(col.key || (col.always && (ci===0?'show_ordering_number':ci===cols.length-1?'always_total':'always_name')))];
-                const allCols = ['show_ordering_number','always_name','show_measurement','show_warehouse','show_sku','show_price','show_discount','show_price_with_discount','show_net_price','show_currency','always_qty','always_total'];
-                const origIdx = allCols.indexOf(col.key || (col.label==='Mahsulot nomi'?'always_name':col.label==='Soni'?'always_qty':'always_total'));
+                const ck = colKeys[['show_ordering_number', 'always_name', 'show_measurement', 'show_warehouse', 'show_sku', 'show_price', 'show_discount', 'show_price_with_discount', 'show_net_price', 'show_currency', 'always_qty', 'always_total'].indexOf(col.key || (col.always && (ci === 0 ? 'show_ordering_number' : ci === cols.length - 1 ? 'always_total' : 'always_name')))];
+                const allCols = ['show_ordering_number', 'always_name', 'show_measurement', 'show_warehouse', 'show_sku', 'show_price', 'show_discount', 'show_price_with_discount', 'show_net_price', 'show_currency', 'always_qty', 'always_total'];
+                const origIdx = allCols.indexOf(col.key || (col.label === 'Mahsulot nomi' ? 'always_name' : col.label === 'Soni' ? 'always_qty' : 'always_total'));
                 const vkey = sampleVals[allCols[origIdx]];
                 return <td key={ci} className="border border-slate-300 px-0.5 py-0.5 text-center">{item[vkey]}</td>;
               })}
@@ -1089,8 +1129,8 @@ function NakladnoyPreview({ cfg }) {
 const RIC = 'w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white';
 
 const SUB_TABS = [
-  { id: '58',  label: 'Chek 58mm',      icon: '🧾' },
-  { id: '80',  label: 'Chek 80mm',      icon: '🧾' },
+  { id: '58', label: 'Chek 58mm', icon: '🧾' },
+  { id: '80', label: 'Chek 80mm', icon: '🧾' },
   { id: 'nak', label: 'Nakladnoy (A4)', icon: '📄' },
 ];
 
@@ -1121,13 +1161,13 @@ function LogoUpload({ logo, size, onUpload, onRemove, onSizeChange, positionPick
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="file" accept="image/*" className="hidden" onChange={handleFile} />
             <span className="inline-flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-semibold rounded-lg transition-colors">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
               Rasm yuklash
             </span>
           </label>
           {logo && (
             <button onClick={onRemove} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 border border-red-200 rounded-lg transition-colors">
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               Logoni olib tashlash
             </button>
           )}
@@ -1145,11 +1185,10 @@ function LogoUpload({ logo, size, onUpload, onRemove, onSizeChange, positionPick
             <div>
               <p className="text-[11px] text-slate-500 mb-1">Logo holati:</p>
               <div className="flex gap-1">
-                {[['left','◀ Chap'],['center','▪ Markaz'],['right',"O'ng ▶"]].map(([v, l]) => (
+                {[['left', '◀ Chap'], ['center', '▪ Markaz'], ['right', "O'ng ▶"]].map(([v, l]) => (
                   <button key={v} onClick={() => onPositionChange(v)}
-                    className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-all ${
-                      position === v ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-600 hover:border-indigo-300'
-                    }`}>{l}
+                    className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-all ${position === v ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-600 hover:border-indigo-300'
+                      }`}>{l}
                   </button>
                 ))}
               </div>
@@ -1208,52 +1247,52 @@ function ReceiptFields({ cfg, upd }) {
           {
             label: 'Sarlavha bo\'limi',
             fields: [
-              ['show_number',       'Chek raqami'],
-              ['show_date',         'Sana va vaqt'],
-              ['show_status',       'Holat'],
+              ['show_number', 'Chek raqami'],
+              ['show_date', 'Sana va vaqt'],
+              ['show_status', 'Holat'],
               ['show_account_name', 'Filial nomi'],
-              ['show_employee',     'Xodim / Kassir ismi'],
+              ['show_employee', 'Xodim / Kassir ismi'],
             ],
           },
           {
             label: 'Mahsulot qatori',
             fields: [
-              ['show_ordering_number',    '№ tartib raqami'],
-              ['show_unit',               "O'lchov birligi"],
-              ['show_warehouse',          'Ombor nomi'],
-              ['show_package',            'Paket ma\'lumoti'],
-              ['show_price_per_unit',     'Birlik narxi'],
-              ['show_discount',           'Chegirma'],
-              ['show_price_with_discount','Chegirmali narx'],
-              ['show_currency',           'Valyuta nomi'],
+              ['show_ordering_number', '№ tartib raqami'],
+              ['show_unit', "O'lchov birligi"],
+              ['show_warehouse', 'Ombor nomi'],
+              ['show_package', 'Paket ma\'lumoti'],
+              ['show_price_per_unit', 'Birlik narxi'],
+              ['show_discount', 'Chegirma'],
+              ['show_price_with_discount', 'Chegirmali narx'],
+              ['show_currency', 'Valyuta nomi'],
             ],
           },
           {
             label: 'Jami bo\'lim',
             fields: [
-              ['show_total',          'Jami summa'],
-              ['show_net_price',      'Sof narx'],
+              ['show_total', 'Jami summa'],
+              ['show_net_price', 'Sof narx'],
               ['show_total_quantity', 'Jami miqdor'],
               ['show_total_national', "Milliy valyutada jami"],
-              ['show_payment_type',   "To'lov turi va summasi"],
+              ['show_payment_type', "To'lov turi va summasi"],
             ],
           },
           {
             label: 'Qarz bo\'limi',
             fields: [
-              ['show_debt',         'Joriy qarzdorlik'],
-              ['show_before_debt',  'Oldingi qarz'],
+              ['show_debt', 'Joriy qarzdorlik'],
+              ['show_before_debt', 'Oldingi qarz'],
               ['show_last_payment', "Oxirgi to'lov"],
             ],
           },
           {
             label: 'Qo\'shimcha',
             fields: [
-              ['show_note',               'Izoh'],
+              ['show_note', 'Izoh'],
               ['show_contractor_contact', 'Mijoz kontakti'],
-              ['show_cashier',            'Kassir imzosi satri'],
-              ['show_barcode',            'Barkod'],
-              ['show_qr',                 'QR kod'],
+              ['show_cashier', 'Kassir imzosi satri'],
+              ['show_barcode', 'Barkod'],
+              ['show_qr', 'QR kod'],
             ],
           },
         ].map(group => (
@@ -1277,7 +1316,7 @@ function ReceiptFields({ cfg, upd }) {
           <span className="text-xs font-semibold text-slate-500">Nusxalar soni:</span>
           <select value={cfg.copies} onChange={e => upd('copies', e.target.value)}
             className="px-2 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
-            {['1','2','3'].map(n => <option key={n} value={n}>{n} ta</option>)}
+            {['1', '2', '3'].map(n => <option key={n} value={n}>{n} ta</option>)}
           </select>
         </div>
       </div>
@@ -1385,47 +1424,47 @@ function NakladnoyFields({ cfg, upd }) {
       <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-4">
         <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">A4 da ko'rsatiladigan maydonlar</p>
         <ToggleGroup title="Sarlavha bo'limi" cfg={cfg} upd={upd} fields={[
-          ['show_contractor_name',   'Mijoz ismi'],
-          ['show_account_name',      'Filial nomi'],
-          ['show_account_username',  'Foydalanuvchi'],
-          ['show_employee',          'Xodim ismi'],
-          ['show_status',            'Holat'],
-          ['show_number',            'Hujjat raqami'],
-          ['show_date',              'Sana'],
+          ['show_contractor_name', 'Mijoz ismi'],
+          ['show_account_name', 'Filial nomi'],
+          ['show_account_username', 'Foydalanuvchi'],
+          ['show_employee', 'Xodim ismi'],
+          ['show_status', 'Holat'],
+          ['show_number', 'Hujjat raqami'],
+          ['show_date', 'Sana'],
         ]} />
         <ToggleGroup title="Jadval ustunlari" cfg={cfg} upd={upd} fields={[
-          ['show_ordering_number',     '№ tartib raqami'],
-          ['show_measurement',         "O'lchov birligi"],
-          ['show_package',             'Paket nomi'],
+          ['show_ordering_number', '№ tartib raqami'],
+          ['show_measurement', "O'lchov birligi"],
+          ['show_package', 'Paket nomi'],
           ['show_quantity_in_package', 'Paketdagi miqdor'],
-          ['show_price',               'Narx'],
-          ['show_discount',            'Chegirma'],
+          ['show_price', 'Narx'],
+          ['show_discount', 'Chegirma'],
           ['show_price_with_discount', 'Chegirmali narx'],
-          ['show_currency',            'Valyuta'],
-          ['show_net_price',           'Sof narx'],
-          ['show_warehouse',           'Ombor nomi'],
-          ['show_sku',                 'SKU (Artikul)'],
-          ['show_image',               'Mahsulot rasmi'],
-          ['show_category',            'Kategoriya'],
+          ['show_currency', 'Valyuta'],
+          ['show_net_price', 'Sof narx'],
+          ['show_warehouse', 'Ombor nomi'],
+          ['show_sku', 'SKU (Artikul)'],
+          ['show_image', 'Mahsulot rasmi'],
+          ['show_category', 'Kategoriya'],
         ]} />
         <ToggleGroup title="Jami bo'lim" cfg={cfg} upd={upd} fields={[
-          ['show_totals',                 'Jami summa'],
-          ['show_total_national',         "Milliy valyutada jami"],
-          ['show_total_quantity',         'Jami miqdor'],
+          ['show_totals', 'Jami summa'],
+          ['show_total_national', "Milliy valyutada jami"],
+          ['show_total_quantity', 'Jami miqdor'],
           ['show_total_quantity_package', 'Jami paket miqdori'],
-          ['show_payment_amounts',        "To'lov summasi"],
-          ['show_exact_discounts',        'Chegirma summasi'],
-          ['show_percent_discount',       '% chegirma'],
+          ['show_payment_amounts', "To'lov summasi"],
+          ['show_exact_discounts', 'Chegirma summasi'],
+          ['show_percent_discount', '% chegirma'],
         ]} />
         <ToggleGroup title="Qarz bo'limi" cfg={cfg} upd={upd} fields={[
           ['show_contractor_debts', 'Joriy qarzdorlik'],
-          ['show_before_debts',     'Oldingi qarz'],
-          ['show_last_payment',     "Oxirgi to'lov"],
-          ['show_debts',            'Umumiy qarzlar'],
+          ['show_before_debts', 'Oldingi qarz'],
+          ['show_last_payment', "Oxirgi to'lov"],
+          ['show_debts', 'Umumiy qarzlar'],
         ]} />
         <ToggleGroup title="Qo'shimcha" cfg={cfg} upd={upd} fields={[
           ['show_contractor_contacts', 'Mijoz kontaktlari'],
-          ['show_note',                'Izoh'],
+          ['show_note', 'Izoh'],
         ]} />
       </div>
     </div>
@@ -1436,11 +1475,11 @@ function NakladnoyFields({ cfg, upd }) {
 function ReceiptTab() {
   const { t } = useLang();
   const [loading, setLoading] = useState(true);
-  const [sub, setSub]       = useState('58');
-  const [cfg58, setCfg58]   = useState({ ...defaultReceiptCfg });
-  const [cfg80, setCfg80]   = useState({ ...defaultReceiptCfg, show_qr: true });
+  const [sub, setSub] = useState('58');
+  const [cfg58, setCfg58] = useState({ ...defaultReceiptCfg });
+  const [cfg80, setCfg80] = useState({ ...defaultReceiptCfg, show_qr: true });
   const [cfgNak, setCfgNak] = useState({ ...defaultNakladnoyCfg });
-  const [saved, setSaved]   = useState(false);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     api.get('/companies/me/receipt_templates')
@@ -1466,8 +1505,8 @@ function ReceiptTab() {
       .finally(() => setLoading(false));
   }, []);
 
-  const upd58  = (k, v) => setCfg58(p => ({ ...p, [k]: v }));
-  const upd80  = (k, v) => setCfg80(p => ({ ...p, [k]: v }));
+  const upd58 = (k, v) => setCfg58(p => ({ ...p, [k]: v }));
+  const upd80 = (k, v) => setCfg80(p => ({ ...p, [k]: v }));
   const updNak = (k, v) => setCfgNak(p => ({ ...p, [k]: v }));
 
   const handleSave = () => {
@@ -1482,7 +1521,7 @@ function ReceiptTab() {
   };
 
   const currentCfg = sub === '58' ? cfg58 : sub === '80' ? cfg80 : cfgNak;
-  const updFn      = sub === '58' ? upd58  : sub === '80' ? upd80  : updNak;
+  const updFn = sub === '58' ? upd58 : sub === '80' ? upd80 : updNak;
 
   if (loading) return <div className="text-sm text-slate-500 animate-pulse py-10 px-4">Shablonlar serverdan yuklanmoqda...</div>;
 
@@ -1650,9 +1689,8 @@ function BranchesTab() {
                   )}
                 </td>
                 <td className="px-4 py-3.5">
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
-                    b.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
-                  }`}>
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${b.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                    }`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${b.is_active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
                     {b.is_active ? 'Faol' : 'Faolsiz'}
                   </span>
@@ -1704,12 +1742,12 @@ export default function Settings() {
   const [tab, setTab] = useState('valyuta');
 
   const TABS = [
-    { id:'filiyal', label:t('settings.tab.branches'), icon:<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg> },
-    { id:'valyuta', label:t('settings.tab.currencies'), icon:<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
-    { id:'api',     label:t('settings.tab.api'), icon:<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg> },
-    { id:'chek',    label:t('settings.tab.receipt'), icon:<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg> },
-    { id:'tgbot',   label:t('settings.tab.telegram'),  icon:<svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a5.962 5.962 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.699 1.201-1.22 1.28-.106.016-.215.023-.324.023-.329 0-.655-.078-.962-.23-.09-.045-2.072-1.373-2.91-2.133-.255-.23-.55-.664-.047-1.12.13-.12 2.4-2.2 4.414-4.043.203-.186.417-.384.417-.61 0-.306-.275-.417-.463-.384l-.536.09-5.694 3.447c-.382.235-.905.39-1.424.39-.17 0-.339-.022-.505-.065L4.053 12.55c-.71-.225-.71-.708.15-1.047 2.768-1.196 9.2-3.953 11.233-4.279.172-.027.35-.042.508-.042z"/></svg> },
-    { id:'parol',   label:t('settings.tab.password'), icon:<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg> },
+    { id: 'filiyal', label: t('settings.tab.branches'), icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg> },
+    { id: 'valyuta', label: t('settings.tab.currencies'), icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+    { id: 'api', label: t('settings.tab.api'), icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg> },
+    { id: 'chek', label: t('settings.tab.receipt'), icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg> },
+    { id: 'tgbot', label: t('settings.tab.telegram'), icon: <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a5.962 5.962 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.699 1.201-1.22 1.28-.106.016-.215.023-.324.023-.329 0-.655-.078-.962-.23-.09-.045-2.072-1.373-2.91-2.133-.255-.23-.55-.664-.047-1.12.13-.12 2.4-2.2 4.414-4.043.203-.186.417-.384.417-.61 0-.306-.275-.417-.463-.384l-.536.09-5.694 3.447c-.382.235-.905.39-1.424.39-.17 0-.339-.022-.505-.065L4.053 12.55c-.71-.225-.71-.708.15-1.047 2.768-1.196 9.2-3.953 11.233-4.279.172-.027.35-.042.508-.042z" /></svg> },
+    { id: 'parol', label: t('settings.tab.password'), icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg> },
   ];
 
   return (
@@ -1722,9 +1760,8 @@ export default function Settings() {
       <div className="flex gap-1 bg-white border border-slate-200 rounded-2xl p-1.5 w-fit shadow-sm">
         {TABS.map(tab_item => (
           <button key={tab_item.id} onClick={() => setTab(tab_item.id)}
-            className={`flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-xl transition-all ${
-              tab === tab_item.id ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-            }`}>
+            className={`flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-xl transition-all ${tab === tab_item.id ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+              }`}>
             {tab_item.icon}<span>{tab_item.label}</span>
           </button>
         ))}
@@ -1732,10 +1769,10 @@ export default function Settings() {
 
       {tab === 'filiyal' && <BranchesTab />}
       {tab === 'valyuta' && <CurrenciesTab />}
-      {tab === 'api'     && <ApiKeysTab />}
-      {tab === 'chek'    && <ReceiptTab />}
-      {tab === 'tgbot'   && <TelegramBotTab />}
-      {tab === 'parol'   && <PasswordTab />}
+      {tab === 'api' && <ApiKeysTab />}
+      {tab === 'chek' && <ReceiptTab />}
+      {tab === 'tgbot' && <TelegramBotTab />}
+      {tab === 'parol' && <PasswordTab />}
     </div>
   );
 }

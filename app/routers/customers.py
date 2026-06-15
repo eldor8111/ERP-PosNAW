@@ -21,6 +21,7 @@ class CustomerIn(BaseModel):
     name: str
     phone: Optional[str] = None
     debt_balance: Optional[Decimal] = Decimal("0")
+    debt_currency: Optional[str] = "UZS"
     debt_limit: Optional[Decimal] = Decimal("0")
     loyalty_points: Optional[int] = 0
     card_number: Optional[str] = None
@@ -53,6 +54,7 @@ class CustomerOut(BaseModel):
     name: str
     phone: Optional[str] = None
     debt_balance: Decimal
+    debt_currency: str = "UZS"
     debt_limit: Decimal
     loyalty_points: int
     card_number: Optional[str] = None

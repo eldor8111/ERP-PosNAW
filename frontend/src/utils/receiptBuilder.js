@@ -201,71 +201,107 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
     ? `<div style="text-align:center;margin-bottom:3px"><img src="${cfg.logo}" style="height:${thermalSz}px;max-width:${Math.round(thermalSz*3)}px;object-fit:contain" alt="logo"/></div>`
     : '';
 
-  const fsBig = narrow ? '13px' : '17px';
-  const fsMid = narrow ? '12px' : '15px';
-  const fsSmall = narrow ? '11px' : '13px';
+  const fsMid = narrow ? '12px' : '14px';
 
-  const rows = (sale.items || []).map(i => {
+  const oldDebt = Number(sale.before_debt || 0);
+  const newDebt = Number(debt || 0);
+  const jamiQarz = oldDebt + newDebt;
+  const xilMaxsulot = sale.items?.length || 0;
+  
+  const paidAmount = sale.payment_types_array 
+    ? sale.payment_types_array.reduce((acc, curr) => acc + Number(curr.amount), 0)
+    : Number(sale.paid_amount || 0);
+
+  const sanaStr = new Date(sale.created_at || Date.now()).toLocaleString('ru-RU', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  }).replace(',', '');
+
+  const rows = (sale.items || []).map((i, idx) => {
     const qty = Number(i.quantity || i.qty_ordered || 0);
     const up = Number(i.unit_price);
     const disc = Number(i.discount || (i.discount_type==='pct'?(up*qty*(i.discount_val/100)):i.discount_val) || 0);
     const sub = Number(i.subtotal || (up * qty - disc));
-    return `<tr>
-      <td><b>${i.product_name || i.product?.name || `ID=${i.product_id}`}</b></td>
-      <td style="text-align:right">${qty} × ${up.toLocaleString('uz-UZ')}</td>
-      <td style="text-align:right;white-space:nowrap"><b>${sub.toLocaleString('uz-UZ')}</b></td>
-    </tr>`;
+    return `
+      <div>${idx + 1}. ${i.product_name || i.product?.name || `ID=${i.product_id}`}</div>
+      <div class="flex">
+        <span>${qty} x ${up.toLocaleString('uz-UZ')}</span>
+        <span>${sub.toLocaleString('uz-UZ')}</span>
+      </div>
+      <hr class="dash"/>
+    `;
   }).join('');
+
+  const debtSectionHtml = (oldDebt > 0 || newDebt > 0 || sale.contractor_name) ? `
+  <div class="flex">
+    <span>Oldingi qarz:</span>
+    <span>${oldDebt.toLocaleString('uz-UZ')} so'm</span>
+  </div>
+  <div class="flex">
+    <span>Qarzga:</span>
+    <span>${newDebt.toLocaleString('uz-UZ')} so'm</span>
+  </div>
+  <hr/>
+  <div class="flex">
+    <span>Jami qarz:</span>
+    <span>${jamiQarz.toLocaleString('uz-UZ')} so'm</span>
+  </div>` : '';
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Chek ${sale.number || sale.id}</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-  body { font-family: 'Courier New', monospace; font-size: ${fsMid}; font-weight:bold; color:#000; width: ${width}; padding: 10px; }
+  body { font-family: 'Courier New', monospace; font-size: ${fsMid}; font-weight:bold; color:#000; width: ${width}; padding: 10px; line-height: 1.4; }
   .center { text-align:center; }
-  .norm { font-weight:normal; }
-  .sub { font-size:${fsSmall}; color:#000; font-weight:normal; }
-  hr { border:none; border-top:2px solid #000; margin:5px 0; }
-  hr.dash { border-top:1px dashed #000; margin:4px 0; }
-  table { width:100%; border-collapse:collapse; }
-  td, th { padding:3px 0; vertical-align:top; color:#000; font-size:${fsMid}; }
-  th { font-weight:bold; border-bottom:1px solid #000; }
-  .tr { text-align:right; }
-  .total-row td { font-weight:bold; font-size:${fsBig}; padding-top:5px; }
+  .flex { display:flex; justify-content:space-between; }
+  hr { border:none; border-top:1.5px solid #000; margin:6px 0; }
+  hr.dash { border-top:1.5px dashed #000; margin:6px 0; }
   @media print { body { width:auto; margin:0; padding:2px; } @page { margin:1mm; } }
 </style></head><body>
   ${thermalLogoHtml}
-  ${cfg.company ? `<div class="center" style="font-size:${narrow?'15px':'19px'};font-weight:bold">${cfg.company}</div>` : (!cfg.logo ? `<div class="center" style="font-size:${fsBig};font-weight:bold">SOTUV CHEKI</div>` : '')}
-  ${cfg.address ? `<div class="center sub">${cfg.address}</div>` : ''}
-  ${cfg.phone ? `<div class="center sub">Tel: ${cfg.phone}</div>` : ''}
-  ${cfg.inn ? `<div class="center sub">STIR: ${cfg.inn}</div>` : ''}
-  ${cfg.header ? `<div class="center sub">${cfg.header}</div>` : ''}
-  <hr/>
-  <div style="display:flex;justify-content:space-between;font-size:${fsSmall}" class="norm">
-    <span><b>${sale.number || sale.id}</b></span>
-    ${cfg.show_date !== false ? `<span>${new Date(sale.created_at || Date.now()).toLocaleString('uz-UZ')}</span>` : ''}
+  ${cfg.company ? `<div class="center" style="margin-bottom:8px;font-size:16px;">${cfg.company}</div>` : ''}
+  ${cfg.address ? `<div class="center" style="margin-bottom:6px;">${cfg.address}</div>` : ''}
+  
+  <div class="flex">
+    <span>Chek:</span>
+    <span>${sale.number || sale.id || '---'}</span>
   </div>
-  ${cfg.show_cashier !== false ? `<div class="sub">Kassir: <b>${sale.cashier_name || sale.cashier?.name || 'Kassir'}</b></div>` : ''}
+  <div class="flex">
+    <span>Kassir:</span>
+    <span>${sale.cashier_name || sale.cashier?.name || 'Kassir'}</span>
+  </div>
+  <div class="flex">
+    <span>Sana:</span>
+    <span>${sanaStr}</span>
+  </div>
   <hr class="dash"/>
-  <table>
-    <tr><th style="text-align:left">Mahsulot</th><th class="tr">Soni×Narx</th><th class="tr">Jami</th></tr>
-    ${rows}
-  </table>
-  <hr/>
-  ${Number(sale.discount_amount)>0 ? `<div style="display:flex;justify-content:space-between;font-size:${fsSmall}"><span>Chegirma:</span><span>-${Number(sale.discount_amount).toLocaleString('uz-UZ')} so'm</span></div>` : ''}
-  <table>
-    <tr class="total-row"><td>JAMI:</td><td class="tr">${Number(sale.total_amount).toLocaleString('uz-UZ')} so'm</td></tr>
-    
-    ${
-       sale.payment_types_array ? 
-       sale.payment_types_array.map(pt => `<tr style="font-size:${fsSmall}" class="norm"><td>To'lov (${pt.type}):</td><td class="tr"><b>${Number(pt.amount).toLocaleString('uz-UZ')} so'm</b></td></tr>`).join('') 
-       : `<tr style="font-size:${fsSmall}" class="norm"><td>To'langan:</td><td class="tr"><b>${Number(sale.paid_amount).toLocaleString('uz-UZ')} so'm</b></td></tr>`
-    }
+  
+  ${sale.contractor_name ? `<div class="flex"><span>Mijoz:</span><span style="text-transform:uppercase">${sale.contractor_name}</span></div><hr class="dash"/>` : ''}
 
-    ${debt>0 ? `<tr style="font-size:${fsSmall}" class="norm"><td>Qarz:</td><td class="tr"><b>${Number(debt).toLocaleString('uz-UZ')} so'm</b></td></tr>` : ''}
-    ${change>0 ? `<tr style="font-size:${fsSmall}" class="norm"><td>Qaytim:</td><td class="tr"><b>${Number(change).toLocaleString('uz-UZ')} so'm</b></td></tr>` : ''}
-  </table>
+  ${rows}
+
+  <div class="flex">
+    <span>Jami:</span>
+    <span>${xilMaxsulot} xil mahsulot</span>
+  </div>
+  <hr/>
+  
+  <div class="flex">
+    <span>JAMI:</span>
+    <span>${Number(sale.total_amount).toLocaleString('uz-UZ')} so'm</span>
+  </div>
   <hr class="dash"/>
-  ${cfg.show_barcode !== false && (sale.number || sale.id) ? `<div class="center sub" style="margin:3px 0;letter-spacing:3px">||||||||||||||||||||||||||||<br/>${sale.number || sale.id}</div><hr class="dash"/>` : ''}
-  <div class="center" style="margin-top:4px;font-size:${fsSmall};font-weight:bold">${cfg.footer || 'Xarid uchun rahmat!'}</div>
+
+  ${sale.payment_types_array && sale.payment_types_array.length > 0
+    ? sale.payment_types_array.map(pt => `<div class="flex"><span>To'lov (${pt.type}):</span><span>${Number(pt.amount).toLocaleString('uz-UZ')} so'm</span></div>`).join('') 
+    : `<div class="flex"><span>To'lov:</span><span>${paidAmount.toLocaleString('uz-UZ')} so'm</span></div>`
+  }
+  <hr class="dash"/>
+
+  ${debtSectionHtml}
+  
+  ${change > 0 ? `<div class="flex"><span>Qaytim:</span><span>${Number(change).toLocaleString('uz-UZ')} so'm</span></div><hr class="dash"/>` : ''}
+
+  <div class="center" style="margin-top:15px;">${cfg.footer || 'Xaridingiz uchun raxmat!'}</div>
 </body></html>`;
 }
+
