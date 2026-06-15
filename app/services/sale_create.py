@@ -270,7 +270,10 @@ def create_sale(
         _cashier_wallet_id = None
 
     if _cashier_wallet_id:
-        sale.wallet_id = _cashier_wallet_id
+        try:
+            sale.wallet_id = _cashier_wallet_id  # Agar model da mavjud bo'lsa
+        except AttributeError:
+            pass  # wallet_id ustuni olib tashlangan
 
     if data.payments and len(data.payments) > 0:
         for p in data.payments:
