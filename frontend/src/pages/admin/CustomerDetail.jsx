@@ -272,7 +272,19 @@ export default function CustomerDetail() {
                   <StatCard
                     color="red"
                     label="Qarzdorlik"
-                    value={`${fmt(stats.debt_balance)} ${stats.debt_currency === 'USD' ? '$' : (stats.debt_currency || "so'm")}`}
+                    value={
+                      stats.debt_balances && Object.keys(stats.debt_balances).length > 0 ? (
+                        <div className="flex flex-col">
+                          {Object.entries(stats.debt_balances).map(([curr, amt]) => (
+                            <div key={curr} className="text-lg sm:text-2xl font-extrabold tracking-tight truncate">
+                              {fmt(amt)} {curr === 'USD' ? '$' : (curr || "so'm")}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        `${fmt(stats.debt_balance)} ${stats.debt_currency === 'USD' ? '$' : (stats.debt_currency || "so'm")}`
+                      )
+                    }
                     sub={stats.debt_limit > 0 ? `Limit: ${fmt(stats.debt_limit)} ${stats.debt_currency === 'USD' ? '$' : "so'm"}` : 'Limit belgilanmagan'}
                     icon={<svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
                   />

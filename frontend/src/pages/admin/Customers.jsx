@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
 import { ChevronDown, CreditCard, Users, ListOrdered, ChevronsUpDown, CheckIcon, AlertTriangle, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, EllipsisVertical, History, Star, Banknote, Layers, CircleCheck, Plus, Minus } from 'lucide-react';
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
 
-const emptyForm = { name: '', phone: '', debt_balance: '', debt_limit: '', loyalty_points: 0, card_number: '', cashback_percent: 0, debt_currency: 'UZS' };
+const emptyForm = { name: '', phone: '', debt_limit: '', loyalty_points: 0, card_number: '', cashback_percent: 0, debts: [{ amount: '', currency: 'UZS' }] };
 
 const TIERS = {
   Gold: { label: 'Gold', cls: 'bg-amber-100 text-amber-700' },
@@ -370,15 +370,20 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
 
   const openAdd = () => { setForm({ ...emptyForm, card_number: generateCard() }); setError(''); setModal('add'); };
   const openEdit = (c) => {
+    let debts = [{ amount: '', currency: 'UZS' }];
+    if (c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).length > 0) {
+      debts = Object.entries(c.debt_balances).map(([curr, amt]) => ({ amount: amt, currency: curr }));
+    } else if (c.debt_balance > 0) {
+      debts = [{ amount: c.debt_balance, currency: c.debt_currency || 'UZS' }];
+    }
     setForm({
       name: c.name,
       phone: c.phone || '',
-      debt_balance: c.debt_balance || 0,
       debt_limit: c.debt_limit || 0,
       loyalty_points: c.loyalty_points || 0,
       card_number: c.card_number || '',
       cashback_percent: c.cashback_percent || 0,
-      debt_currency: c.debt_currency || 'UZS'
+      debts
     });
     setSelected(c); setError(''); setModal('edit');
   };
@@ -408,11 +413,26 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
     e.preventDefault();
     setSaving(true); setError('');
     try {
+      const debtBalances = {};
+      form.debts.forEach(d => {
+        if (d.amount && !isNaN(Number(d.amount))) {
+          const amt = Number(d.amount);
+          debtBalances[d.currency] = (debtBalances[d.currency] || 0) + amt;
+        }
+      });
+
+      let totalInUZS = 0;
+      Object.entries(debtBalances).forEach(([curr, amt]) => {
+        const rate = currencies.find(c => c.code === curr)?.rate || 1;
+        totalInUZS += amt * rate;
+      });
+
       const payload = {
         name: form.name,
         phone: form.phone || null,
-        debt_balance: form.debt_balance ? Number(form.debt_balance) : 0,
-        debt_currency: form.debt_currency || 'UZS',
+        debt_balance: totalInUZS,
+        debt_currency: 'UZS',
+        debt_balances: debtBalances,
         debt_limit: form.debt_limit ? Number(form.debt_limit) : 0,
         loyalty_points: form.loyalty_points ? Number(form.loyalty_points) : 0,
         card_number: form.card_number || null,
@@ -734,9 +754,19 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
                     </td>
                     <td className="px-6 py-4 text-xs md:text-sm text-slate-500">{c.phone || '—'}</td>
                     <td className="px-6 py-4">
-                      <span className={`text-xs md:text-sm font-semibold ${Number(c.debt_balance) > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                        {fmt(c.debt_balance)} {c.debt_currency === 'UZS' ? "so'm" : c.debt_currency === "USD" ? "$" : (c.debt_currency || "so'm")}
-                      </span>
+                      {c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).length > 0 ? (
+                        <div className="flex flex-col gap-0.5">
+                          {Object.entries(c.debt_balances).map(([curr, amt]) => (
+                            <span key={curr} className={`text-xs md:text-sm font-semibold ${Number(amt) > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                              {fmt(amt)} {curr === 'UZS' ? "so'm" : curr === "USD" ? "$" : curr}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className={`text-xs md:text-sm font-semibold ${Number(c.debt_balance) > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                          {fmt(c.debt_balance)} {c.debt_currency === 'UZS' ? "so'm" : c.debt_currency === "USD" ? "$" : (c.debt_currency || "so'm")}
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-xs md:text-sm text-slate-500">{fmt(c.debt_limit)} so'm</td>
                     <td className="px-6 py-4">
@@ -890,34 +920,67 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
                     />
                   </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Boshlang'ich qarz / Joriy qarz</label>
-                  <div className="flex cursor-pointer bg-white items-center border border-slate-200 rounded-xl focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500 transition-all">
-                    <Listbox value={form.debt_currency || 'UZS'} onChange={(val) => {
-                       setForm({ ...form, debt_currency: val });
-                    }}>
-                      <div className="relative">
-                        <ListboxButton className="h-[42px] px-3 flex items-center bg-slate-50 border-r border-slate-200 hover:bg-slate-100 rounded-l-xl transition-colors text-sm font-semibold text-slate-700 outline-none w-[85px] justify-between">
-                          <span className="block truncate">{form.debt_currency || 'UZS'}</span>
-                          <ChevronsUpDown className="size-3.5 text-slate-400 shrink-0" />
-                        </ListboxButton>
-                        <ListboxOptions className="absolute z-[100] top-full mt-1 left-0 max-h-60 w-[120px] overflow-auto rounded-xl outline-none bg-white text-sm border border-slate-200 shadow-2xl p-1">
-                          {currencies?.map((c) => (
-                            <ListboxOption key={c.code} value={c.code} className="group relative py-2 px-3 select-none cursor-pointer rounded-lg text-slate-700 data-[focus]:bg-indigo-50 data-[focus]:text-indigo-700 outline-none flex items-center justify-between transition-colors">
-                              <span className="block truncate font-medium group-data-[selected]:font-bold">{c.code}</span>
-                              <CheckIcon className="size-3.5 text-indigo-600 invisible group-data-[selected]:visible" />
-                            </ListboxOption>
-                          ))}
-                        </ListboxOptions>
+                <div className="col-span-2">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-600">Boshlang'ich qarz / Joriy qarz</label>
+                    <button
+                      type="button"
+                      onClick={() => setForm({ ...form, debts: [...form.debts, { amount: '', currency: 'UZS' }] })}
+                      className="text-xs text-indigo-600 hover:text-indigo-700 font-bold flex items-center gap-1 bg-indigo-50 px-2 py-1 rounded-lg"
+                    >
+                      <Plus className="size-3" /> Qo'shish
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {form.debts.map((debt, idx) => (
+                      <div key={idx} className="flex gap-2 items-center group">
+                        <div className="flex flex-1 cursor-pointer bg-white items-center border border-slate-200 rounded-xl focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500 transition-all">
+                          <Listbox value={debt.currency} onChange={(val) => {
+                             const newDebts = [...form.debts];
+                             newDebts[idx].currency = val;
+                             setForm({ ...form, debts: newDebts });
+                          }}>
+                            <div className="relative">
+                              <ListboxButton className="h-[42px] px-3 flex items-center bg-slate-50 border-r border-slate-200 hover:bg-slate-100 rounded-l-xl transition-colors text-sm font-semibold text-slate-700 outline-none w-[85px] justify-between">
+                                <span className="block truncate">{debt.currency}</span>
+                                <ChevronsUpDown className="size-3.5 text-slate-400 shrink-0" />
+                              </ListboxButton>
+                              <ListboxOptions className="absolute z-[100] top-full mt-1 left-0 max-h-60 w-[120px] overflow-auto rounded-xl outline-none bg-white text-sm border border-slate-200 shadow-2xl p-1">
+                                {currencies?.map((c) => (
+                                  <ListboxOption key={c.code} value={c.code} className="group relative py-2 px-3 select-none cursor-pointer rounded-lg text-slate-700 data-[focus]:bg-indigo-50 data-[focus]:text-indigo-700 outline-none flex items-center justify-between transition-colors">
+                                    <span className="block truncate font-medium group-data-[selected]:font-bold">{c.code}</span>
+                                    <CheckIcon className="size-3.5 text-indigo-600 invisible group-data-[selected]:visible" />
+                                  </ListboxOption>
+                                ))}
+                              </ListboxOptions>
+                            </div>
+                          </Listbox>
+                          <input
+                            type="number" step="any"
+                            value={debt.amount}
+                            onChange={e => {
+                               const newDebts = [...form.debts];
+                               newDebts[idx].amount = e.target.value;
+                               setForm({ ...form, debts: newDebts });
+                            }}
+                            placeholder="Qarz miqdori"
+                            className="h-[42px] flex-1 w-full px-3 rounded-r-xl text-sm outline-none bg-transparent"
+                          />
+                        </div>
+                        {form.debts.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newDebts = form.debts.filter((_, i) => i !== idx);
+                              setForm({ ...form, debts: newDebts });
+                            }}
+                            className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                          >
+                            <Minus className="size-4" />
+                          </button>
+                        )}
                       </div>
-                    </Listbox>
-                    <input
-                      type="number" min="0" step="any"
-                      value={form.debt_balance}
-                      onChange={e => setForm({ ...form, debt_balance: e.target.value })}
-                      placeholder="Qarz miqdori"
-                      className="h-[42px] flex-1 w-full px-3 rounded-r-xl text-sm outline-none bg-transparent"
-                    />
+                    ))}
                   </div>
                 </div>
                 <div>

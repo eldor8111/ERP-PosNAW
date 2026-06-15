@@ -19,7 +19,11 @@ def upgrade():
     op.add_column('customers',
         sa.Column('debt_currency', sa.String(3), nullable=False, server_default='UZS')
     )
+    op.add_column('customers',
+        sa.Column('debt_balances', sa.JSON(), nullable=False, server_default='{}')
+    )
 
 
 def downgrade():
+    op.drop_column('customers', 'debt_balances')
     op.drop_column('customers', 'debt_currency')
