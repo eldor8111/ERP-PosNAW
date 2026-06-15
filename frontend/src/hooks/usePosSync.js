@@ -169,10 +169,14 @@ export default function usePosSync({ onSyncSuccess } = {}) {
     [fetchWithCache]
   );
 
-  const fetchCustomers = useCallback(
-    (params = {}) => fetchWithCache('/customers/', CACHE_CUSTOMERS_KEY, { limit: 500, ...params }),
-    [fetchWithCache]
-  );
+  const fetchCustomers = useCallback(async (params = {}) => {
+    try {
+      const r = await api.get('/customers/', { params: { limit: 500, ...params } });
+      return Array.isArray(r.data) ? r.data : (r.data.items || []);
+    } catch {
+      return [];
+    }
+  }, []);
 
   const fetchCategories = useCallback(
     (params = {}) => fetchWithCache('/categories/', CACHE_CATEGORIES_KEY, { limit: 200, ...params }),

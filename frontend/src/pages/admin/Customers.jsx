@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { matchesSearch } from '../../utils/translit';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import api from '../../api/axios';
@@ -8,7 +9,8 @@ import toast from 'react-hot-toast';
 import { ChevronDown, CreditCard, Users, ListOrdered, ChevronsUpDown, CheckIcon, AlertTriangle, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, EllipsisVertical, History, Star, Banknote, Layers, CircleCheck, Plus, Minus } from 'lucide-react';
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
 
-const emptyForm = { name: '', phone: '', debt_limit: '', loyalty_points: 0, card_number: '', cashback_percent: 0, debts: [{ amount: '', currency: 'UZS' }] };
+const getEmptyForm = () => ({ name: '', phone: '', debt_limit: '', loyalty_points: 0, card_number: '', cashback_percent: 0, debts: [{ amount: '', currency: 'UZS' }] });
+const emptyForm = getEmptyForm();
 
 const TIERS = {
   Gold: { label: 'Gold', cls: 'bg-amber-100 text-amber-700' },
@@ -38,11 +40,9 @@ const Avatar = ({ name, size = 'sm' }) => {
 };
 
 const inputCls = 'w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white';
-const ic = 'border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white';
 
 
 function CustSearch({ customers, value, onChange, onAfterSelect }) {
-  const { t } = useLang();
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -168,8 +168,6 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
   const [modal, setModal] = useState(null);
   const [selected, setSelected] = useState(null);
   const [form, setForm] = useState(emptyForm);
-  const [payAmount, setPayAmount] = useState('');
-  const [payType, setPayType] = useState('cash');
   const [payWallet, setPayWallet] = useState('');
   const [payInfo, setPayInfo] = useState('');
   const [wallets, setWallets] = useState([]);
@@ -220,7 +218,6 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
   const [skipRows, setSkipRows] = useState(1);
   const [allowUpdate, setAllowUpdate] = useState(false);
   const [currencies, setCurrencies] = useState([]);
-  const [currencyType, setCurrencyType] = useState('UZS');
 
   const IMPORT_FIELDS = [
     { key: '', label: '— Tanlang —' },
@@ -368,7 +365,7 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
     return '8888 ' + Math.floor(1000 + Math.random() * 9000) + ' ' + Math.floor(1000 + Math.random() * 9000) + ' ' + Math.floor(1000 + Math.random() * 9000);
   };
 
-  const openAdd = () => { setForm({ ...emptyForm, card_number: generateCard() }); setError(''); setModal('add'); };
+  const openAdd = () => { setForm({ ...getEmptyForm(), card_number: generateCard() }); setError(''); setModal('add'); };
   const openEdit = (c) => {
     let debts = [{ amount: '', currency: 'UZS' }];
     if (c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).length > 0) {
@@ -429,7 +426,7 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
 
       const payload = {
         name: form.name,
-        phone: form.phone || null,
+        phone: form.phone ? (form.phone.length === 9 ? '998' + form.phone : form.phone) : null,
         debt_balance: totalInUZS,
         debt_currency: 'UZS',
         debt_balances: debtBalances,
@@ -442,7 +439,14 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
       else await api.put(`/customers/${selected.id}`, payload);
       closeModal(); load();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Xatolik yuzaga keldi');
+      const detail = err.response?.data?.detail;
+      if (Array.isArray(detail)) {
+        setError(detail.map(d => d.msg || String(d)).join(', '));
+      } else if (typeof detail === 'object' && detail !== null) {
+        setError(JSON.stringify(detail));
+      } else {
+        setError(detail || 'Xatolik yuzaga keldi');
+      }
     } finally { setSaving(false); }
   };
 
@@ -506,8 +510,6 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
   const totalDebt = totalAllDebt;
 
   const debtors = customers.filter(c => Number(c.debt_balance) > 0).length;
-
-  const [tab, setTab] = useState('mijozlar');
 
   // 1. Boshlang'ich state endi oddiy sonlar emas, ob'ektlar massivi bo'ladi:
   const [payDebtLength, setPayDebtLength] = useState([
@@ -752,20 +754,34 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
                     </td>
                     <td className="px-6 py-4 text-xs md:text-sm text-slate-500">{c.phone || '—'}</td>
                     <td className="px-6 py-4">
-                      <div className="flex flex-col item-start">
+                      {(() => {
+                        let totalInUZS = 0;
+                        if (c.debt_balances && typeof c.debt_balances === 'object') {
+                          Object.entries(c.debt_balances).forEach(([code, amt]) => {
+                            const rate = code === 'UZS' ? 1 : (currencies.find(curr => curr.code === code)?.rate || 0);
+                            totalInUZS += Number(amt) * rate;
+                          });
+                        } else {
+                          totalInUZS = Number(c.debt_balance || 0);
+                        }
+
+                        return (
+                          <div className="flex flex-col item-start">
                         <div className={`text-sm font-bold inline-flex rounded-lg ${Number(c.debt_balance) > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
-                          {fmt(c.debt_balance)} so'm
-                        </div>
-                        {c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).some(curr => curr !== 'UZS' && Number(c.debt_balances[curr]) !== 0) && (
-                          <div className="flex flex-wrap gap-2">
-                            {Object.entries(c.debt_balances).map(([curr, amt]) => (curr !== 'UZS' && Number(amt) !== 0) && (
-                              <span key={curr} className="inline-flex items-center text-xs font-semibold text-red-500">
-                                {fmt(amt)} {curr === 'USD' ? '$' : curr}
-                              </span>
-                            ))}
+                          {fmt((c.debt_balances && typeof c.debt_balances === 'object') ? (c.debt_balances.UZS || 0) : c.debt_balance)} so'm
+                            </div>
+                            {c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).some(curr => curr !== 'UZS' && Number(c.debt_balances[curr]) !== 0) && (
+                              <div className="flex flex-wrap gap-2">
+                                {Object.entries(c.debt_balances).map(([curr, amt]) => (curr !== 'UZS' && Number(amt) !== 0) && (
+                                  <span key={curr} className="inline-flex items-center text-xs font-semibold text-red-500">
+                                    {fmt(amt)} {curr === 'USD' ? '$' : curr}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-6 py-4 text-xs md:text-sm text-slate-500">{fmt(c.debt_limit)} so'm</td>
                     <td className="px-6 py-4">
@@ -935,9 +951,8 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
                       <div key={idx} className="flex gap-2 items-center group">
                         <div className="flex flex-1 cursor-pointer bg-white items-center border border-slate-200 rounded-xl focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500 transition-all">
                           <Listbox value={debt.currency} onChange={(val) => {
-                             const newDebts = [...form.debts];
-                             newDebts[idx].currency = val;
-                             setForm({ ...form, debts: newDebts });
+                            const newDebts = form.debts.map((d, i) => i === idx ? { ...d, currency: val } : d);
+                            setForm({ ...form, debts: newDebts });
                           }}>
                             <div className="relative">
                               <ListboxButton className="h-[42px] px-3 flex items-center bg-slate-50 border-r border-slate-200 hover:bg-slate-100 rounded-l-xl transition-colors text-sm font-semibold text-slate-700 outline-none w-[85px] justify-between">
@@ -958,9 +973,8 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
                             type="number" step="any"
                             value={debt.amount}
                             onChange={e => {
-                               const newDebts = [...form.debts];
-                               newDebts[idx].amount = e.target.value;
-                               setForm({ ...form, debts: newDebts });
+                              const newDebts = form.debts.map((d, i) => i === idx ? { ...d, amount: e.target.value } : d);
+                              setForm({ ...form, debts: newDebts });
                             }}
                             placeholder="Qarz miqdori"
                             className="h-[42px] flex-1 w-full px-3 rounded-r-xl text-sm outline-none bg-transparent"
@@ -1093,7 +1107,7 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
                     <div className="font-bold text-slate-800 text-sm md:text-base truncate">{selected.name}</div>
                     {selected.phone && <div className="text-xs md:text-sm text-slate-500 mt-0.5 truncate">{selected.phone}</div>}
                     <div className="text-sm md:text-base font-bold text-red-500 mt-1">
-                      Joriy qarz: {fmt(debt)} so'm
+                      Joriy qarz: {fmt((selected.debt_balances && typeof selected.debt_balances === 'object' && selected.debt_balances.UZS !== undefined) ? selected.debt_balances.UZS : selected.debt_balance)} so'm
                       {selected.debt_balances && Object.keys(selected.debt_balances).length > 0 && (
                         <div className="flex flex-wrap gap-x-2 mt-0.5">
                           {Object.entries(selected.debt_balances).map(([curr, amt]) => (
@@ -1737,11 +1751,11 @@ function TolovTab({ customers, totalAllDebt = 0 }) {
   const [err, setErr] = useState('');
 
   useEffect(() => {
-    api.get('/currencies').then(r => setCurrencies(r.data)).catch(() => {});
+    api.get('/currencies').then(r => setCurrencies(r.data)).catch(() => { });
     api.get('/finance/wallets').then(r => {
       setWallets(r.data);
       if (r.data.length > 0) setForm(f => ({ ...f, wallet_id: String(r.data[0].id) }));
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   const load = () => {
@@ -1774,7 +1788,7 @@ function TolovTab({ customers, totalAllDebt = 0 }) {
     if (!sel) { setErr("Mijozni tanlang"); return; }
     const amt = parseAmt(form.amount);
     if (!amt || amt <= 0) { setErr("Miqdor kiritilmagan"); return; }
-    
+
     setSaving(true); setErr('');
     try {
       await api.post(`/customers/${sel.id}/pay-debt`, {
@@ -1994,20 +2008,33 @@ export default function Customers() {
     { id: 'mijozlar', label: t('customer.customers'), icon: <Users className='size-4 text-indigo-600' /> },
     { id: 'tolov', label: "To'lov qabul qilish", icon: <CreditCard className='size-4 text-indigo-600' /> },
   ];
-  const [customers, setCustomers] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('pos_cache_customers'))?.data || []; } catch { return []; }
-  });
+  const [customers, setCustomers] = useState([]);
+  const [currencies, setCurrencies] = useState([]);
 
   useEffect(() => {
     api.get('/customers', { params: { limit: 300 }, _silent: true })
       .then(r => {
         const data = r.data;
         setCustomers(data);
-        localStorage.setItem('pos_cache_customers', JSON.stringify({ ts: Date.now(), data }));
       }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, []);
 
-  const totalAllDebt = customers.reduce((s, c) => s + Number(c.debt_balance || 0), 0);
+  useEffect(() => {
+    api.get('/currencies').then(r => setCurrencies(r.data)).catch(() => { });
+  }, []);
+
+  const totalAllDebt = customers.reduce((s, c) => {
+    let sum = 0;
+    if (c.debt_balances && typeof c.debt_balances === 'object') {
+      Object.entries(c.debt_balances).forEach(([code, amt]) => {
+        const rate = code === 'UZS' ? 1 : (currencies.find(curr => curr.code === code)?.rate || 0);
+        sum += Number(amt) * rate;
+      });
+    } else {
+      sum = Number(c.debt_balance || 0);
+    }
+    return s + sum;
+  }, 0);
 
   return (
     <div className="space-y-3">

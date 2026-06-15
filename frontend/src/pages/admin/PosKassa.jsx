@@ -95,7 +95,7 @@ const navigate = useNavigate();
   };
 
   const [products, setProducts] = useState(() => readCache('pos_cache_products'));
-  const [customers, setCustomers] = useState(() => readCache('pos_cache_customers'));
+  const [customers, setCustomers] = useState([]);
   const [categories, setCategories] = useState(() => readCache('pos_cache_categories'));
   const [refreshing, setRefreshing] = useState(false);
   
@@ -107,7 +107,6 @@ const navigate = useNavigate();
   
   const [showSettings, setShowSettings] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
-  const [expanded, setExpanded] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
 
   // Buyurtma raqami generatori
@@ -434,7 +433,7 @@ const navigate = useNavigate();
   };
 
   return (
-    <div className={`font-sans select-none bg-slate-200 flex overflow-hidden ${expanded ? 'fixed inset-0 z-[200]' : 'w-full h-[calc(100vh-65px)]'}`}>
+    <div className={`font-sans select-none bg-slate-200 flex overflow-hidden w-full h-[calc(100vh-65px)]`}>
       {showShiftModal && (
         <ShiftOpenModal
           onOpened={() => { reloadShift(); setShowShiftModal(false); }}

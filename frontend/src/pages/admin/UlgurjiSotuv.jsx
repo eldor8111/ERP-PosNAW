@@ -2,7 +2,6 @@
  * UlgurjiSotuv — Ulgurji (wholesale) sotuv sahifasi
  */
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import { buildReceiptHtml, printReceiptHtml, getReceiptSettings, saveReceiptSettings } from '../../utils/receiptBuilder';
 import { toast } from '../../utils/toast';
@@ -99,7 +98,7 @@ const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, on
           const res = await api.get('/customers/', { params: { search: q.trim().replace(/['`’‘]/g, "'").toLowerCase(), limit: 50 } });
           const items = Array.isArray(res.data) ? res.data : (res.data?.items || []);
           if (items.length > 0 && onFetch) onFetch(items);
-        } catch (e) { }
+        } catch (err) { console.error('Fetch customers error:', err); }
       }, 400);
       return () => clearTimeout(timer);
     }
@@ -150,11 +149,11 @@ const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, on
             </div>
           </div>
           <div className="text-right">
-            {Number(selected.debt_balance) !== 0 && (
+            {(Number(selected.debt_balance) !== 0 || (selected.debt_balances && Object.values(selected.debt_balances).some(v => Number(v) !== 0))) && (
               <div className="flex flex-col items-end gap-1">
                 <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">Qarzdorlik</div>
                 <div className={`text-xs font-black px-2.5 py-1 rounded-lg border shadow-sm ${Number(selected.debt_balance) > 0 ? 'text-red-700 bg-red-50/50 border-red-100' : 'text-emerald-700 bg-emerald-50/50 border-emerald-100'}`}>
-                  {fmt(selected.debt_balance)} so'm
+                  {fmt((selected.debt_balances && typeof selected.debt_balances === 'object' && selected.debt_balances.UZS !== undefined) ? selected.debt_balances.UZS : selected.debt_balance)} so'm
                 </div>
                 {selected.debt_balances && typeof selected.debt_balances === 'object' && Object.keys(selected.debt_balances).some(k => k !== 'UZS' && Number(selected.debt_balances[k]) !== 0) && (
                   <div className="flex flex-wrap gap-1 justify-end max-w-[150px]">
@@ -187,10 +186,10 @@ const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, on
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  {Number(c.debt_balance) !== 0 && (
+                  {(Number(c.debt_balance) !== 0 || (c.debt_balances && Object.values(c.debt_balances).some(v => Number(v) !== 0))) && (
                     <div className="flex flex-col items-end gap-1">
                       <div className={`text-xs font-black ${Number(c.debt_balance) > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                        {fmt(c.debt_balance)} so'm
+                        {fmt((c.debt_balances && typeof c.debt_balances === 'object' && c.debt_balances.UZS !== undefined) ? c.debt_balances.UZS : c.debt_balance)} so'm
                       </div>
                       {c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).some(k => k !== 'UZS' && Number(c.debt_balances[k]) !== 0) && (
                         <div className="flex flex-wrap gap-1 justify-end max-w-[120px]">
@@ -358,8 +357,8 @@ const ProductSearch = forwardRef(function ProductSearch({ onSelect, placeholder,
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  <div className="text-sm font-black text-indigo-700">{fmt(p.wholesale_price || p.sale_price)} s</div>
-                  {p.wholesale_price && p.sale_price !== p.wholesale_price && <div className="text-xs text-slate-400 line-through">{fmt(p.sale_price)} s</div>}
+                  <div className="text-sm font-black text-indigo-700">{fmt(p.wholesale_price || p.sale_price)} {p.sale_currency === 'USD' ? '$' : (p.sale_currency || 's')}</div>
+                  {p.wholesale_price && p.sale_price !== p.wholesale_price && <div className="text-xs text-slate-400 line-through">{fmt(p.sale_price)} {p.sale_currency === 'USD' ? '$' : (p.sale_currency || 's')}</div>}
                   <div className={`text-xs font-semibold mt-0.5 ${Number(p.stock_quantity) <= 0 ? 'text-red-500' : 'text-emerald-600'}`}>{fmt(p.stock_quantity)} {p.unit || 'dona'}</div>
                 </div>
               </button>
@@ -379,7 +378,6 @@ const ProductSearch = forwardRef(function ProductSearch({ onSelect, placeholder,
 
 /* ─── Asosiy komponent ──────────────────────────────────── */
 export default function UlgurjiSotuv() {
-  const navigate = useNavigate();
   const [customers, setCustomers] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
 
@@ -412,9 +410,11 @@ export default function UlgurjiSotuv() {
   // Product entry form
   const [formProduct, setFormProduct] = useState(null);
   const [formPrice, setFormPrice] = useState('');
+  const [formCurrency, setFormCurrency] = useState('');
   const [formQty, setFormQty] = useState('1');
   const [formDiscType, setFormDiscType] = useState('pct');
   const [formDiscVal, setFormDiscVal] = useState('');
+  const [currencies, setCurrencies] = useState([]);
   const formQtyRef = useRef(null);
   const custSearchRef = useRef(null);
   const prodSearchRef = useRef(null);
@@ -442,17 +442,12 @@ export default function UlgurjiSotuv() {
     toast.success('Sozlamalar saqlandi');
   };
 
-  const [payType, setPayType] = useState('cash');
-  const [curPayAmt, setCurPayAmt] = useState('');
   const [payments, setPayments] = useState([]);
   const [discType, setDiscType] = useState('pct');
   const [discVal, setDiscVal] = useState('');
   const [payNote, setPayNote] = useState('');
   const [debtDate, setDebtDate] = useState('');
   const [showDebtDate, setShowDebtDate] = useState(false);
-  const [paidAmt, setPaidAmt] = useState('');
-  const [paidCash, setPaidCash] = useState('');
-  const [paidCard, setPaidCard] = useState('');
   const [editingSale, setEditingSale] = useState(null);
   const [pendingSaving, setPendingSaving] = useState(false);
 
@@ -476,7 +471,7 @@ export default function UlgurjiSotuv() {
   const [draftsList, setDraftsList] = useState([]);
   useEffect(() => {
     if (tab === 'drafts') {
-      try { setDraftsList(JSON.parse(localStorage.getItem('ulgurji_drafts') || '[]')); } catch (e) { setDraftsList([]); }
+      try { setDraftsList(JSON.parse(localStorage.getItem('ulgurji_drafts') || '[]')); } catch (err) { console.error('Load drafts error:', err); setDraftsList([]); }
     }
   }, [tab]);
 
@@ -501,6 +496,7 @@ export default function UlgurjiSotuv() {
   useEffect(() => {
     api.get('/customers/?limit=200').then(r => setCustomers(Array.isArray(r.data) ? r.data : (r.data?.items || []))).catch(() => { });
     api.get('/warehouses/').then(r => setWarehouses(Array.isArray(r.data) ? r.data : [])).catch(() => { });
+    api.get('/currencies/').then(r => setCurrencies(Array.isArray(r.data) ? r.data : [])).catch(() => { });
     api.get('/companies/me/receipt_templates').then(r => {
       const d = r.data?.receipt_templates || {};
       if (Object.keys(d).length) {
@@ -552,8 +548,6 @@ export default function UlgurjiSotuv() {
       } else {
         setPayments([]);
       }
-      setPayType(sale.payment_type || 'cash');
-      setPaidAmt(sale.paid_amount ? String(sale.paid_amount) : '');
       if (sale.debt_due_date) {
         setDebtDate(sale.debt_due_date);
         setShowDebtDate(true);
@@ -580,12 +574,9 @@ export default function UlgurjiSotuv() {
       if (!s.items) { const r = await api.get(`/sales/${s.id}`); data = r.data; }
       const tpl = size === 'nak' ? 'nak' : size === '58' ? '58' : '80';
       let rSettings = getReceiptSettings();
-      if (!rSettings.r58 && !rSettings.r80 && !rSettings.nak) {
-        try { const res = await api.get('/companies/me/receipt_templates'); const d = res.data?.receipt_templates || {}; if (d.r58 || d.r80 || d.nak) { saveReceiptSettings(d); rSettings = d; } } catch { }
-      }
       const tmplCfg = tpl === 'nak' ? (rSettings.nak || {}) : (rSettings['r' + tpl] || {});
       printReceiptHtml(buildReceiptHtml(data, tpl, tmplCfg));
-    } catch { toast.error("Chop etishda xatolik"); }
+    } catch (err) { console.error('Print error:', err); toast.error("Chop etishda xatolik"); }
   };
 
   const addToCart = useCallback((p) => {
@@ -595,7 +586,13 @@ export default function UlgurjiSotuv() {
       toast.error('Avval mijozni tanlang!');
       return;
     }
-    const price = useWholesale && p.wholesale_price ? Number(p.wholesale_price) : Number(p.sale_price || 0);
+    let price = useWholesale && p.wholesale_price ? Number(p.wholesale_price) : Number(p.sale_price || 0);
+    // Konvertatsiya qilish (agar barkod bilan to'g'ridan-to'g'ri qo'shilsa)
+    if (p.sale_currency && p.sale_currency !== 'UZS') {
+      const rate = currencies.find(c => c.code === p.sale_currency)?.rate || 1;
+      price = price * rate;
+    }
+
     setCart(prev => {
       const ex = prev.find(i => i.product_id === p.id);
       if (ex) {
@@ -612,35 +609,51 @@ export default function UlgurjiSotuv() {
         addedAt: Date.now(),
       }];
     });
-  }, [useWholesale]); // custIdRef orqali o'qiladi — dep sifatida kerak emas
+  }, [useWholesale, currencies]); // custIdRef orqali o'qiladi — dep sifatida kerak emas
 
   const updateItem = (idx, field, val) => setCart(prev => prev.map((it, i) => i === idx ? { ...it, [field]: val } : it));
   const removeItem = (idx) => setCart(prev => prev.filter((_, i) => i !== idx));
 
-  // Select product into form
+  // Select product into form — narxni mahsulot o'z valyutasida ko'rsatadi
   const selectFormProduct = useCallback((p) => {
     setFormProduct(p);
+    // Narxni mahsulot asl valyutasida chiqar (masalan, USD da saqlangan bo'lsa — dollar qiymatida)
     const price = useWholesale && p.wholesale_price ? Number(p.wholesale_price) : Number(p.sale_price || 0);
     setFormPrice(String(price));
+    // Select ni mahsulot valyutasiga o'rnat
+    setFormCurrency(p.sale_currency && p.sale_currency !== '' ? p.sale_currency : 'UZS');
     setFormQty('1');
     setFormDiscVal('');
     setTimeout(() => formQtyRef.current?.select(), 40);
   }, [useWholesale]);
 
-  // Update formPrice when useWholesale toggles and product is selected
+  // Faqat useWholesale toggle bo'lganda narxni yangilash (valyuta o'zgarmaydi)
+  const prevUseWholesaleRef = useRef(useWholesale);
   useEffect(() => {
-    if (formProduct) {
-      const price = useWholesale && formProduct.wholesale_price ? Number(formProduct.wholesale_price) : Number(formProduct.sale_price || 0);
-      setFormPrice(String(price));
+    if (prevUseWholesaleRef.current !== useWholesale && formProduct) {
+      // Ulgurji/chakana toggle da faqat narxni o'zgar, valyuta o'zgarmasin
+      const rawPrice = useWholesale && formProduct.wholesale_price
+        ? Number(formProduct.wholesale_price)
+        : Number(formProduct.sale_price || 0);
+      setFormPrice(String(rawPrice));
     }
+    prevUseWholesaleRef.current = useWholesale;
   }, [useWholesale]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addFormToCart = () => {
     if (!custId) return toast.error('Avval mijozni tanlang!');
     if (!formProduct) return toast.error('Mahsulot tanlanmagan!');
-    const price = parseFloat(formPrice) || 0;
+    let price = parseFloat(formPrice) || 0;
     const qty = parseFloat(formQty) || 1;
     if (qty <= 0) return toast.error("Miqdor 0 dan katta bo'lishi kerak!");
+
+    // Savatga har doim UZS da saqlaymiz
+    // UZS => 1, boshqasi => kurs x narx
+    if (formCurrency !== 'UZS') {
+      const rate = currencies.find(c => c.code === formCurrency)?.rate || 1;
+      price = price * rate; // masalan: 3$ * 12000 = 36000 so'm
+    }
+
     setCart(prev => {
       const ex = prev.find(i => i.product_id === formProduct.id);
       if (ex) return prev.map(i => i.product_id === formProduct.id
@@ -654,7 +667,7 @@ export default function UlgurjiSotuv() {
         addedAt: Date.now(),
       }];
     });
-    setFormProduct(null); setFormPrice(''); setFormQty('1'); setFormDiscVal('');
+    setFormProduct(null); setFormPrice(''); setFormQty('1'); setFormDiscVal(''); setFormCurrency('UZS');
     // switch to cart tab on mobile to show the result
     setMobileTab('cart');
     setTimeout(() => setMobileTab('form'), 300); // bounce back after brief show
@@ -748,13 +761,11 @@ export default function UlgurjiSotuv() {
               subtotal: itemNet(it),
             })),
           }, tpl, cfg));
-        } catch { }
+        } catch (err) { console.error('Auto-print error:', err); }
       }
-
-      sessionStorage.removeItem('ulgurji_session_sale_id');
-      setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDiscVal(''); setPaidAmt('');
-      setPaidCash(''); setPaidCard(''); setPayNote(''); setDebtDate('');
-      setShowPayment(false); setShowDebtDate(false); setPayType('cash'); setPayments([]); setCurPayAmt('');
+      setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDiscVal('');
+      setPayNote(''); setDebtDate('');
+      setShowPayment(false); setShowDebtDate(false); setPayments([]);
       setFormProduct(null); setFormPrice(''); setFormQty('1'); setFormDiscVal('');
     } catch (e) { toast.error(e?.response?.data?.detail || 'Saqlashda xatolik'); }
     finally { setSaving(false); }
@@ -797,7 +808,7 @@ export default function UlgurjiSotuv() {
     if (!custId) return toast.error('Mijoz tanlanmagan!');
     if (!hasShift) { setShowShiftModal(true); return; }
     setPayments([{ id: Date.now(), type: 'cash', amt: '' }]);
-    setCurPayAmt(''); setShowPayment(true);
+    setShowPayment(true);
   };
 
   // ── Pending (to'lovsiz) saqlash ──────────────────────────────────────────
@@ -1100,17 +1111,25 @@ export default function UlgurjiSotuv() {
                           <div className="flex justify-between items-center">
                             <label className="text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wide block">Narx</label>
                             <div className="flex gap-1 mb-1">
-                              {formProduct.wholesale_price > 0 && <button onClick={() => setFormPrice(String(formProduct.wholesale_price))} className="text-[9px] font-bold px-1.5 py-0.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded transition-colors" title="Ulgurji narx">U</button>}
-                              {formProduct.sale_price > 0 && <button onClick={() => setFormPrice(String(formProduct.sale_price))} className="text-[9px] font-bold px-1.5 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded transition-colors" title="Chakana narx">C</button>}
+                              {formProduct.wholesale_price > 0 && <button onClick={() => { setFormPrice(String(formProduct.wholesale_price)); setFormCurrency(formProduct.sale_currency || 'UZS'); }} className="text-[9px] font-bold px-1.5 py-0.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded transition-colors" title="Ulgurji narx">U</button>}
+                              {formProduct.sale_price > 0 && <button onClick={() => { setFormPrice(String(formProduct.sale_price)); setFormCurrency(formProduct.sale_currency || 'UZS'); }} className="text-[9px] font-bold px-1.5 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded transition-colors" title="Chakana narx">C</button>}
                             </div>
                           </div>
-                          <div className="relative">
-                            <input ref={formPriceRef} type="number" value={formPrice}
-                              onChange={e => setFormPrice(e.target.value)}
-                              onFocus={e => e.target.select()}
-                              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); formDiscRef.current?.focus(); } }}
-                              className="w-full border border-white rounded-xl px-3 py-2 text-base font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 pr-6 bg-white" />
-                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 uppercase">So'm</span>
+                          <div className="flex items-center gap-1">
+                            <div className="relative flex-1">
+                              <input ref={formPriceRef} type="number" value={formPrice}
+                                onChange={e => setFormPrice(e.target.value)}
+                                onFocus={e => e.target.select()}
+                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); formDiscRef.current?.focus(); } }}
+                                className="w-full border border-white rounded-xl px-3 py-2 text-base font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
+                            </div>
+                            {/* <select
+                              value={formCurrency}
+                              onChange={e => {
+                                setFormCurrency(e.target.value);
+                              }}
+                              className="border border-slate-200 rounded-lg px-1.5 py-2 text-[11px] font-black text-indigo-600 focus:outline-none bg-white">
+                            </select> */}
                           </div>
                         </div>
 
@@ -1577,7 +1596,7 @@ export default function UlgurjiSotuv() {
 
       {/* ══ TO'LOV MODALI ══ */}
       {showPayment && (() => {
-        const closeModal = () => { setShowPayment(false); setShowDebtDate(false); setPayments([]); setCurPayAmt(''); };
+        const closeModal = () => { setShowPayment(false); setShowDebtDate(false); setPayments([]); };
         const remaining = Math.max(0, total - paid);
         const updateLine = (id, field, val) => setPayments(prev => prev.map(p => p.id === id ? { ...p, [field]: val } : p));
         const removeLine = (id) => { if (payments.length > 1) setPayments(prev => prev.filter(p => p.id !== id)); };
