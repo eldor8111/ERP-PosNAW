@@ -21,10 +21,10 @@ router = APIRouter(prefix="/billing", tags=["Billing"])
 # Default sozlamalar (DB bo'sh bo'lsa ishlatiladi)
 DEFAULT_SETTINGS = {
     "card_number": "0000 0000 0000 0000",
-    "card_owner":  "Karta egasi",
+    "card_owner": "Karta egasi",
     "tg_username": "username",
-    "phone":       "+998 00 000 00 00",
-    "phone_raw":   "+998000000000",
+    "phone": "+998 00 000 00 00",
+    "phone_raw": "+998000000000",
 }
 
 
@@ -37,8 +37,6 @@ def _get_settings_dict(db: Session) -> dict:
     except Exception:
         db.rollback()
     return result
-
-
 
 
 # ─── Yordamchi ────────────────────────────────────────────────────────────────
@@ -83,11 +81,13 @@ def _company_billing_out(c: Company) -> dict:
         "balance": float(c.balance or 0),
         "tariff_id": c.tariff_id,
         "tariff_name": c.tariff.name if c.tariff else None,
+        "subscription_starts_at": c.subscription_starts_at.isoformat() if c.subscription_starts_at else None,
         "subscription_ends_at": sub_ends.isoformat() if sub_ends else None,
         "is_trial": bool(c.is_trial),
         "subscription_active": is_active_sub,
         "days_left": days_left,
         "created_at": c.created_at.isoformat() if c.created_at else None,
+        "purchased_at": c.purchased_at.isoformat() if c.purchased_at else None,
     }
 
 
@@ -95,8 +95,8 @@ def _company_billing_out(c: Company) -> dict:
 
 @router.get("/settings")
 def get_payment_settings(
-    db: Session = Depends(get_db),
-    _: User = Depends(get_current_user_allow_expired),
+        db: Session = Depends(get_db),
+        _: User = Depends(get_current_user_allow_expired),
 ):
     """Karta raqami, Telegram, Telefon — barcha login qilganlar uchun"""
     return _get_settings_dict(db)
@@ -106,8 +106,8 @@ def get_payment_settings(
 
 @router.get("/tariffs")
 def list_tariffs(
-    db: Session = Depends(get_db),
-    _: User = Depends(get_current_user_allow_expired),
+        db: Session = Depends(get_db),
+        _: User = Depends(get_current_user_allow_expired),
 ):
     """Barcha faol tariflar (hamma foydalanuvchilar ko'ra oladi)"""
     tariffs = db.query(Tariff).filter(Tariff.is_active == True).order_by(Tariff.sort_order).all()
@@ -127,9 +127,9 @@ class TariffCreate(BaseModel):
 
 @router.post("/tariffs")
 def create_tariff(
-    data: TariffCreate,
-    db: Session = Depends(get_db),
-    admin: User = Depends(require_super_admin),
+        data: TariffCreate,
+        db: Session = Depends(get_db),
+        admin: User = Depends(require_super_admin),
 ):
     t = Tariff(
         name=data.name,
@@ -162,10 +162,10 @@ class TariffUpdate(BaseModel):
 
 @router.put("/tariffs/{tariff_id}")
 def update_tariff(
-    tariff_id: int,
-    data: TariffUpdate,
-    db: Session = Depends(get_db),
-    _: User = Depends(require_super_admin),
+        tariff_id: int,
+        data: TariffUpdate,
+        db: Session = Depends(get_db),
+        _: User = Depends(require_super_admin),
 ):
     t = db.query(Tariff).filter(Tariff.id == tariff_id).first()
     if not t:
@@ -179,9 +179,9 @@ def update_tariff(
 
 @router.delete("/tariffs/{tariff_id}")
 def delete_tariff(
-    tariff_id: int,
-    db: Session = Depends(get_db),
-    _: User = Depends(require_super_admin),
+        tariff_id: int,
+        db: Session = Depends(get_db),
+        _: User = Depends(require_super_admin),
 ):
     t = db.query(Tariff).filter(Tariff.id == tariff_id).first()
     if not t:
@@ -195,8 +195,8 @@ def delete_tariff(
 
 @router.get("/my-company")
 def get_my_company_billing(
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user_allow_expired),
+        db: Session = Depends(get_db),
+        user: User = Depends(get_current_user_allow_expired),
 ):
     """Foydalanuvchi o'z korxonasining billing holatini ko'radi"""
     if not user.company_id:
@@ -211,8 +211,8 @@ def get_my_company_billing(
 
 @router.get("/companies")
 def list_companies_billing(
-    db: Session = Depends(get_db),
-    _: User = Depends(require_super_admin),
+        db: Session = Depends(get_db),
+        _: User = Depends(require_super_admin),
 ):
     """Barcha korxonalar billing holati"""
     companies = db.query(Company).order_by(Company.id).all()
@@ -221,9 +221,9 @@ def list_companies_billing(
 
 @router.get("/companies/{company_id}")
 def get_company_billing(
-    company_id: int,
-    db: Session = Depends(get_db),
-    _: User = Depends(require_super_admin),
+        company_id: int,
+        db: Session = Depends(get_db),
+        _: User = Depends(require_super_admin),
 ):
     c = db.query(Company).filter(Company.id == company_id).first()
     if not c:
@@ -235,9 +235,9 @@ def get_company_billing(
 
 @router.post("/companies/{company_id}/activate-trial")
 def activate_trial(
-    company_id: int,
-    db: Session = Depends(get_db),
-    admin: User = Depends(require_super_admin),
+        company_id: int,
+        db: Session = Depends(get_db),
+        admin: User = Depends(require_super_admin),
 ):
     """7 kunlik sinov muddatini yoqish (bepul) — Super Admin uchun"""
     c = db.query(Company).filter(Company.id == company_id).first()
@@ -251,6 +251,7 @@ def activate_trial(
 
     base = current_end if (current_end and current_end > now) else now
     c.subscription_ends_at = base + timedelta(days=7)
+    c.subscription_starts_at = base
     c.is_trial = True
 
     log = BalanceLog(
@@ -272,8 +273,8 @@ def activate_trial(
 
 @router.post("/activate-my-trial")
 def activate_my_trial(
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+        user: User = Depends(get_current_user),
 ):
     """O'z korxonasi uchun 7 kunlik bepul sinov faollashtirish — har bir korxona bir marta"""
     if not user.company_id:
@@ -291,7 +292,9 @@ def activate_my_trial(
 
     now = datetime.now(timezone.utc)
     c.subscription_ends_at = now + timedelta(days=7)
+    c.subscription_starts_at = now
     c.is_trial = True
+    c.purchased_at = now
     if trial_tariff:
         c.tariff_id = trial_tariff.id
 
@@ -321,10 +324,10 @@ class TopUpRequest(BaseModel):
 
 @router.post("/companies/{company_id}/top-up")
 def top_up_balance(
-    company_id: int,
-    data: TopUpRequest,
-    db: Session = Depends(get_db),
-    admin: User = Depends(require_super_admin),
+        company_id: int,
+        data: TopUpRequest,
+        db: Session = Depends(get_db),
+        admin: User = Depends(require_super_admin),
 ):
     """Korxona balansini to'ldirish (Super Admin qo'lda)"""
     if data.amount <= 0:
@@ -358,15 +361,15 @@ def top_up_balance(
 
 class SubscribeRequest(BaseModel):
     tariff_id: int
-    months: int = 1   # necha oylik obuna
+    months: int = 1  # necha oylik obuna
 
 
 @router.post("/companies/{company_id}/subscribe")
 def activate_subscription(
-    company_id: int,
-    data: SubscribeRequest,
-    db: Session = Depends(get_db),
-    admin: User = Depends(require_super_admin),
+        company_id: int,
+        data: SubscribeRequest,
+        db: Session = Depends(get_db),
+        admin: User = Depends(require_super_admin),
 ):
     """Balansdan hisobdan chiqarib obunani faollashtirish"""
     c = db.query(Company).filter(Company.id == company_id).first()
@@ -386,11 +389,6 @@ def activate_subscription(
             detail=f"Balans yetarli emas. Kerak: {total_price:,.0f} s, Balans: {current_balance:,.0f} s"
         )
 
-    # Balansdan chiqarish
-    c.balance = current_balance - total_price
-    c.tariff_id = tariff.id
-    c.is_trial = False
-
     now = datetime.now(timezone.utc)
     current_end = c.subscription_ends_at
     if current_end and current_end.tzinfo is None:
@@ -398,6 +396,13 @@ def activate_subscription(
 
     base = current_end if (current_end and current_end > now) else now
     extra_days = tariff.duration_days * data.months
+
+    # Balansdan chiqarish
+    c.balance = current_balance - total_price
+    c.tariff_id = tariff.id
+    c.is_trial = False
+    c.purchased_at = now
+    c.subscription_starts_at = base
     c.subscription_ends_at = base + timedelta(days=extra_days)
 
     log = BalanceLog(
@@ -422,10 +427,10 @@ def activate_subscription(
 
 @router.get("/companies/{company_id}/logs")
 def get_balance_logs(
-    company_id: int,
-    limit: int = 50,
-    db: Session = Depends(get_db),
-    _: User = Depends(require_super_admin),
+        company_id: int,
+        limit: int = 50,
+        db: Session = Depends(get_db),
+        _: User = Depends(require_super_admin),
 ):
     logs = (
         db.query(BalanceLog)

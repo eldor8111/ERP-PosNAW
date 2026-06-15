@@ -24,12 +24,14 @@ class Company(Base):
     receipt_templates = Column(JSON, default=lambda: {"r58": {}, "r80": {}, "nak": {}})
 
     # ── Billing ──────────────────────────────────────────────
-    tariff_id            = Column(Integer, ForeignKey("tariffs.id"), nullable=True)
-    subscription_ends_at = Column(DateTime, nullable=True)   # obuna tugash vaqti
-    is_trial             = Column(Boolean, default=False)    # sinov muddatimi?
+    tariff_id = Column(Integer, ForeignKey("tariffs.id"), nullable=True)
+    subscription_starts_at = Column(DateTime, nullable=True)  # obuna boshlanish vaqti
+    subscription_ends_at = Column(DateTime, nullable=True)  # obuna tugash vaqti
+    purchased_at = Column(DateTime, nullable=True)  # to'lov qilingan vaqt
+    is_trial = Column(Boolean, default=False)  # sinov muddatimi?
 
     branches = relationship("Branch", back_populates="company")
-    agent    = relationship("Agent")
-    tariff   = relationship("Tariff", foreign_keys=[tariff_id])
+    agent = relationship("Agent")
+    tariff = relationship("Tariff", foreign_keys=[tariff_id])
     # Multi-korxona bog'lanish
     user_companies = relationship("UserCompany", back_populates="company", lazy="dynamic")
