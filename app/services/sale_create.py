@@ -199,10 +199,32 @@ def create_sale(
         customer.loyalty_points += loyalty_earned
 
         if data.paid_amount < total_amount:
-            debt_amount = total_amount - data.paid_amount
+            debt_amount = (total_amount - data.paid_amount) * exchange_rate
             if customer.debt_limit > 0 and (customer.debt_balance + debt_amount) > customer.debt_limit:
                 raise HTTPException(status_code=400, detail="Mijozning qarz limiti oshib ketdi")
+            
             customer.debt_balance += debt_amount
+            
+            # Sync with multi-currency debt_balances
+            if not customer.debt_balances:
+                customer.debt_balances = {}
+            
+            # The actual debt amount in the sale's currency
+            actual_debt_in_currency = total_amount - data.paid_amount
+            
+            # Sale currency code
+            sale_currency = "UZS"
+            if data.currency_id:
+                from app.models.currency import Currency
+                curr_obj = db.query(Currency).filter(Currency.id == data.currency_id).first()
+                if curr_obj:
+                    sale_currency = curr_obj.code
+            
+            curr_val = float(customer.debt_balances.get(sale_currency, 0))
+            customer.debt_balances[sale_currency] = curr_val + float(actual_debt_in_currency)
+            
+            from sqlalchemy.orm.attributes import flag_modified
+            flag_modified(customer, "debt_balances")
 
     if data.paid_amount < total_amount and not data.customer_id:
         raise HTTPException(status_code=400, detail="Qarzga sotish uchun mijozni tanlash majburiy")

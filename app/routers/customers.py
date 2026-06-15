@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session  # type: ignore
 from pydantic import BaseModel, field_validator  # type: ignore
 from app.utils.translit import name_phone_search_filter  # type: ignore
 from decimal import Decimal
+from sqlalchemy.orm.attributes import flag_modified  # type: ignore
 
 from app.database import get_db  # type: ignore
 from app.models.customer import Customer  # type: ignore
@@ -77,6 +78,7 @@ class PaginatedCustomersOut(BaseModel):
 class DebtUpdate(BaseModel):
     amount: Decimal
     reason: str
+    currency: Optional[str] = "UZS"
     wallet_id: Optional[int] = None
     payment_type: Optional[str] = "cash"
 
@@ -273,19 +275,40 @@ def get_customer_history(customer_id: int, db: Session = Depends(get_db), curren
 
 @router.post("/{customer_id}/pay-debt")
 def pay_debt(customer_id: int, data: DebtUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from app.models.currency import Currency as CurrencyModel
+    from app.models.moliya import Transaction, Wallet, KassaMovement
+    from sqlalchemy.orm.attributes import flag_modified
+
     q = db.query(Customer).filter(Customer.id == customer_id)
     q = q.filter(Customer.company_id == current_user.company_id)
     cust = q.first()
     if not cust:
         raise HTTPException(status_code=404, detail="Customer not found")
-    if data.amount > cust.debt_balance:
-        raise HTTPException(status_code=400, detail="To'lov qarzdorlikdan ko'p bo'lolmaydi")
-    cust.debt_balance -= data.amount
-    
+    currency = data.currency or "UZS"
+
+    # Ensure debt_balances is initialised before any reads
+    if not cust.debt_balances:
+        cust.debt_balances = {}
+
+    # Update the currency-specific balance in debt_balances JSON
+    curr_val = Decimal(str(cust.debt_balances.get(currency, 0)))
+    cust.debt_balances[currency] = float(max(Decimal("0"), curr_val - data.amount))
+    flag_modified(cust, "debt_balances")
+
+    # Update aggregate debt_balance (always in UZS)
+    exchange_rate = Decimal("1")
+    if currency != "UZS":
+        curr_obj = db.query(CurrencyModel).filter(CurrencyModel.code == currency).first()
+        if curr_obj:
+            exchange_rate = Decimal(str(curr_obj.rate))
+
+    amount_in_uzs = data.amount * exchange_rate
+    cust.debt_balance = max(Decimal("0"), (cust.debt_balance or Decimal("0")) - amount_in_uzs)
+
     if data.wallet_id:
-        from app.models.moliya import Transaction, Wallet, KassaMovement
         wallet = db.get(Wallet, data.wallet_id)
         if wallet:
+            # Credit wallet with the raw amount in the payment currency
             wallet.balance = float(wallet.balance) + float(data.amount)
         tx = Transaction(
             company_id=current_user.company_id,
@@ -293,12 +316,10 @@ def pay_debt(customer_id: int, data: DebtUpdate, db: Session = Depends(get_db), 
             wallet_id=data.wallet_id,
             type="income",
             amount=data.amount,
-            currency="UZS",
             payment_type=data.payment_type,
             reference_type="customer_payment",
             reference_id=customer_id,
             description=data.reason,
-            created_by=current_user.id
         )
         db.add(tx)
         # KassaMovement — mijoz to'lovi
@@ -315,7 +336,13 @@ def pay_debt(customer_id: int, data: DebtUpdate, db: Session = Depends(get_db), 
         ))
 
     db.commit()
-    return {"message": "Qarzdorlik to'landi", "remaining_debt": float(cust.debt_balance)}
+    return {
+        "message": "Qarzdorlik to'landi",
+        "remaining_debt": float(cust.debt_balance),
+        "debt_balances": cust.debt_balances,
+    }
+
+
 
 
 @router.get("/{customer_id}/cashback")

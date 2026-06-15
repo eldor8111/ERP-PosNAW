@@ -461,11 +461,9 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
       }
 
       for (const item of validPayments) {
-        const currency = currencies.find(c => c.code === item.currencyType) || { rate: 1 };
-        const amountInUZS = Number(item.payAmount) * currency.rate;
-
         await api.post(`/customers/${selected.id}/pay-debt`, {
-          amount: amountInUZS,
+          amount: Number(item.payAmount),
+          currency: item.currencyType || "UZS",
           payment_type: item.payType,
           reason: payInfo || "Mijoz qarz to'lovi",
           wallet_id: payWallet ? Number(payWallet) : null,
@@ -754,14 +752,14 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
                     </td>
                     <td className="px-6 py-4 text-xs md:text-sm text-slate-500">{c.phone || '—'}</td>
                     <td className="px-6 py-4">
-                      <div className="flex flex-col gap-0.5">
-                        <span className={`text-xs md:text-sm font-bold ${Number(c.debt_balance) > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                      <div className="flex flex-col item-start">
+                        <div className={`text-sm font-bold inline-flex rounded-lg ${Number(c.debt_balance) > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
                           {fmt(c.debt_balance)} so'm
-                        </span>
-                        {c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).filter(curr => curr !== 'UZS').length > 0 && (
-                          <div className="flex flex-wrap gap-x-3 border-t border-slate-100 pt-0.5 mt-0.5">
-                            {Object.entries(c.debt_balances).map(([curr, amt]) => curr !== 'UZS' && (
-                              <span key={curr} className="text-xs text-red-500 font-medium whitespace-nowrap">
+                        </div>
+                        {c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).some(curr => curr !== 'UZS' && Number(c.debt_balances[curr]) !== 0) && (
+                          <div className="flex flex-wrap gap-2">
+                            {Object.entries(c.debt_balances).map(([curr, amt]) => (curr !== 'UZS' && Number(amt) !== 0) && (
+                              <span key={curr} className="inline-flex items-center text-xs font-semibold text-red-500">
                                 {fmt(amt)} {curr === 'USD' ? '$' : curr}
                               </span>
                             ))}
@@ -797,7 +795,7 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
                         onPay={() => openPay(c)}
                         onPoints={() => openPoints(c)}
                         onHistory={() => openHistory(c)}
-                        hasDebt={Number(c.debt_balance) > 0}
+                        hasDebt={Number(c.debt_balance) > 0 || (c.debt_balances && typeof c.debt_balances === 'object' && Object.values(c.debt_balances).some(v => Number(v) > 0))}
                       />
                     </td>
                   </tr>)
@@ -908,7 +906,7 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
                     className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
-                <div>
+                <div className="col-span-2">
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Telefon raqam</label>
                   <div className="bg-white text-sm px-3.5 flex border border-slate-200 gap-2 items-center rounded-xl">
                     <span>+998</span>
@@ -1050,12 +1048,18 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
       {/* ── PAY DEBT MODAL ──────────────────────────────────── */}
       {modal === 'pay' && selected && (() => {
         const debt = Number(selected.debt_balance) || 0;
+        // Per-currency totals being paid
+        const paidPerCurrency = payDebtLength.reduce((acc, item) => {
+          const c = item.currencyType || 'UZS';
+          acc[c] = (acc[c] || 0) + (Number(item.payAmount) || 0);
+          return acc;
+        }, {});
+        // Total paid converted to UZS for aggregate remaining
         const paid = payDebtLength.reduce((sum, item) => {
           const currency = currencies.find(c => c.code === item.currencyType) || { rate: 1 };
           return sum + (Number(item.payAmount) || 0) * currency.rate;
         }, 0);
         const remaining = Math.max(0, debt - paid);
-        const change = Math.max(0, paid - debt);
         const PAY_TYPES = [
           { key: 'cash', label: 'Naqd' },
           { key: 'card', label: 'Karta' },
@@ -1088,7 +1092,18 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
                   <div className="min-w-0">
                     <div className="font-bold text-slate-800 text-sm md:text-base truncate">{selected.name}</div>
                     {selected.phone && <div className="text-xs md:text-sm text-slate-500 mt-0.5 truncate">{selected.phone}</div>}
-                    <div className="text-sm md:text-base font-bold text-red-500 mt-1">Joriy qarz: {fmt(debt)} so'm</div>
+                    <div className="text-sm md:text-base font-bold text-red-500 mt-1">
+                      Joriy qarz: {fmt(debt)} so'm
+                      {selected.debt_balances && Object.keys(selected.debt_balances).length > 0 && (
+                        <div className="flex flex-wrap gap-x-2 mt-0.5">
+                          {Object.entries(selected.debt_balances).map(([curr, amt]) => (
+                            <span key={curr} className="text-[10px] md:text-xs text-slate-500 font-medium">
+                              {curr}: {fmt(amt)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -1207,7 +1222,10 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
 
                           <button
                             type="button"
-                            onClick={() => handleInputChange(index, 'payAmount', String(Math.round(debt)))}
+                            onClick={() => {
+                              const currDebt = item.currencyType === 'UZS' ? debt : (selected.debt_balances?.[item.currencyType] || 0);
+                              handleInputChange(index, 'payAmount', String(currDebt));
+                            }}
                             className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-slate-200 border-l-0 font-bold px-3 md:px-4 h-full rounded-r-xl transition-colors whitespace-nowrap text-xs md:text-sm"
                           >
                             Barchasi
@@ -1267,24 +1285,45 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
 
                 {/* Summary */}
                 <div className="flex justify-end">
-                  <div className="w-full md:w-72 space-y-2 bg-indigo-50/50 rounded-xl p-4 border border-indigo-100/50 backdrop-blur-sm">
-                    <div className="flex justify-between text-xs md:text-sm items-center">
-                      <span className="text-slate-500 font-medium tracking-tight">Umumiy summa:</span>
-                      <span className="font-bold text-slate-700">{fmt(debt)}</span>
-                    </div>
-                    <div className="flex justify-between text-xs md:text-sm items-center">
-                      <span className="text-slate-500 font-medium tracking-tight">To'lov:</span>
-                      <span className="font-bold text-blue-600">{fmt(paid)} uzs</span>
-                    </div>
-                    <div className="border-t border-indigo-100/50 my-2" />
-                    <div className="flex justify-between text-sm md:text-base items-center">
-                      <span className="text-slate-600 font-semibold tracking-tight">Qarzga:</span>
-                      <span className={`font-bold ${remaining > 0 ? 'text-red-500' : 'text-emerald-600'}`}>{fmt(remaining)}</span>
-                    </div>
-                    {change > 0 && (
-                      <div className="flex justify-between text-sm items-center pt-1 animate-bounce-subtle">
-                        <span className="text-amber-600 font-bold tracking-tight">Qaytim:</span>
-                        <span className="font-bold text-amber-600">{fmt(change)}</span>
+                  <div className="w-full md:w-auto min-w-64 space-y-2 bg-indigo-50/50 rounded-xl p-4 border border-indigo-100/50 backdrop-blur-sm">
+                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Qarz holati</div>
+                    {/* Per-currency debt and payment breakdown */}
+                    {Object.entries(paidPerCurrency).map(([curr, payAmt]) => {
+                      const currDebt = curr === 'UZS'
+                        ? (selected.debt_balances?.['UZS'] ?? debt)
+                        : (Number(selected.debt_balances?.[curr]) || 0);
+                      const currRemaining = Math.max(0, currDebt - payAmt);
+                      const currChange = Math.max(0, payAmt - currDebt);
+                      return (
+                        <div key={curr} className="space-y-1 pb-2 border-b border-indigo-100/50 last:border-0">
+                          <div className="flex justify-between text-xs items-center">
+                            <span className="text-slate-500 font-medium">{curr} qarzi:</span>
+                            <span className="font-bold text-slate-700">{fmt(currDebt)} {curr}</span>
+                          </div>
+                          <div className="flex justify-between text-xs items-center">
+                            <span className="text-slate-500 font-medium">To'lov:</span>
+                            <span className="font-bold text-blue-600">{fmt(payAmt)} {curr}</span>
+                          </div>
+                          <div className="flex justify-between text-xs items-center">
+                            <span className="text-slate-600 font-semibold">Qoldi:</span>
+                            <span className={`font-bold ${currRemaining > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                              {fmt(currRemaining)} {curr}
+                            </span>
+                          </div>
+                          {currChange > 0 && (
+                            <div className="flex justify-between text-xs items-center">
+                              <span className="text-amber-600 font-bold">Qaytim:</span>
+                              <span className="font-bold text-amber-600">{fmt(currChange)} {curr}</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {/* Aggregate UZS remaining for reference */}
+                    {Object.keys(paidPerCurrency).length > 0 && (
+                      <div className="flex justify-between text-xs items-center pt-1">
+                        <span className="text-slate-400 font-medium">Jami qoldi (UZS):</span>
+                        <span className={`font-semibold ${remaining > 0 ? 'text-red-400' : 'text-emerald-500'}`}>{fmt(remaining)} UZS</span>
                       </div>
                     )}
                   </div>
@@ -1294,7 +1333,21 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
               {/* Footer */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 md:px-7 py-4 md:py-5 border-t border-slate-100 bg-slate-50 shrink-0">
                 <div className="text-xs md:text-sm text-slate-500 font-medium text-center sm:text-left">
-                  Mijoz qoldig'i qarz: <span className={`font-bold ${remaining > 0 ? 'text-red-600' : 'text-emerald-600'}`}>{fmt(remaining)} UZS</span>
+                  <span className="font-semibold text-slate-600">To'lovdan keyin qoladi:</span>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                    {selected.debt_balances && Object.entries(selected.debt_balances).map(([curr, amt]) => {
+                      const willPay = paidPerCurrency[curr] || 0;
+                      const afterPay = Math.max(0, Number(amt) - willPay);
+                      return (
+                        <span key={curr} className={`font-bold ${afterPay > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                          {fmt(afterPay)} {curr}
+                        </span>
+                      );
+                    })}
+                    {(!selected.debt_balances || Object.keys(selected.debt_balances).length === 0) && (
+                      <span className={`font-bold ${remaining > 0 ? 'text-red-600' : 'text-emerald-600'}`}>{fmt(remaining)} UZS</span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex gap-2 md:gap-3 w-full sm:w-auto">
                   <button onClick={closeModal} className="flex-1 sm:flex-none px-4 md:px-6 py-2 md:py-2.5 rounded-xl border border-slate-300 text-slate-600 text-sm font-bold bg-white hover:bg-slate-50 transition-all">
@@ -1677,13 +1730,23 @@ function TolovTab({ customers, totalAllDebt = 0 }) {
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(false);
   const [sel, setSel] = useState(null);
-  const [form, setForm] = useState({ amount: '', payType: 'cash', description: '' });
+  const [form, setForm] = useState({ amount: '', payType: 'cash', description: '', currency: 'UZS', wallet_id: '' });
   const [saving, setSaving] = useState(false);
+  const [currencies, setCurrencies] = useState([]);
+  const [wallets, setWallets] = useState([]);
   const [err, setErr] = useState('');
+
+  useEffect(() => {
+    api.get('/currencies').then(r => setCurrencies(r.data)).catch(() => {});
+    api.get('/finance/wallets').then(r => {
+      setWallets(r.data);
+      if (r.data.length > 0) setForm(f => ({ ...f, wallet_id: String(r.data[0].id) }));
+    }).catch(() => {});
+  }, []);
 
   const load = () => {
     api.get('/customers', { params: { limit: 500 }, _silent: true })
-      .then(r => setDebtors((Array.isArray(r.data) ? r.data : []).filter(c => Number(c.debt_balance) > 0)))
+      .then(r => setDebtors((Array.isArray(r.data) ? r.data : []).filter(c => Number(c.debt_balance) > 0 || (c.debt_balances && typeof c.debt_balances === 'object' && Object.values(c.debt_balances).some(v => Number(v) > 0)))))
       .catch(e => toast.error(e.response?.data?.detail || e.message || 'Xatolik'));
   };
   useEffect(() => { load(); }, []);
@@ -1700,7 +1763,7 @@ function TolovTab({ customers, totalAllDebt = 0 }) {
 
   const openModal = (c = null) => {
     setSel(c);
-    setForm({ amount: '', payType: 'cash', description: '' });
+    setForm(f => ({ ...f, amount: '', description: '', currency: 'UZS' }));
     setErr('');
     setModal(true);
   };
@@ -1711,12 +1774,15 @@ function TolovTab({ customers, totalAllDebt = 0 }) {
     if (!sel) { setErr("Mijozni tanlang"); return; }
     const amt = parseAmt(form.amount);
     if (!amt || amt <= 0) { setErr("Miqdor kiritilmagan"); return; }
-    if (amt > Number(sel.debt_balance)) { setErr("Miqdor qarzdan oshib ketadi"); return; }
+    
     setSaving(true); setErr('');
     try {
-      await api.post(`/finance/customer-debts/${sel.id}/pay`, {
+      await api.post(`/customers/${sel.id}/pay-debt`, {
         amount: amt,
-        description: form.description || `Mijoz to'lovi: ${sel.name}`,
+        payment_type: form.payType,
+        wallet_id: form.wallet_id ? Number(form.wallet_id) : undefined,
+        currency: form.currency,
+        reason: form.description || `Mijoz to'lovi: ${sel.name} (${form.currency})`,
       });
       toast.success("To'lov qabul qilindi!");
       close();
@@ -1785,7 +1851,18 @@ function TolovTab({ customers, totalAllDebt = 0 }) {
                 </td>
                 <td className="px-5 py-4 text-xs md:text-sm text-slate-500">{c.phone || '—'}</td>
                 <td className="px-5 py-4">
-                  <span className="text-xs md:text-sm font-bold text-red-600">{fmt(c.debt_balance)} so'm</span>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs md:text-sm font-bold text-red-600">{fmt(c.debt_balance)} so'm</span>
+                    {c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).some(k => k !== 'UZS' && Number(c.debt_balances[k]) !== 0) && (
+                      <div className="flex flex-wrap gap-1">
+                        {Object.entries(c.debt_balances).map(([curr, amt]) => (curr !== 'UZS' && Number(amt) !== 0) && (
+                          <span key={curr} className="inline-flex items-center text-[9px] font-black text-white bg-red-500 px-1.5 py-0.5 rounded shadow-sm">
+                            {fmt(amt)} {curr}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </td>
                 <td className="px-5 py-4 text-xs md:text-sm text-slate-400">{fmt(c.debt_limit)} so'm</td>
                 <td className="px-5 py-4">
@@ -1830,16 +1907,45 @@ function TolovTab({ customers, totalAllDebt = 0 }) {
                     {sel.phone && <div className="text-xs text-slate-400 mt-0.5">{sel.phone}</div>}
                   </div>
                   <div className="text-right">
-                    <div className="text-xs text-slate-400">Qarz</div>
+                    <div className="text-xs text-slate-400">Jami qarz (UZS)</div>
                     <div className="text-red-600 font-bold">{fmt(sel.debt_balance)} so'm</div>
+                    {sel.debt_balances && typeof sel.debt_balances === 'object' && Object.keys(sel.debt_balances).some(k => k !== 'UZS' && Number(sel.debt_balances[k]) !== 0) && (
+                      <div className="flex flex-wrap gap-1 justify-end mt-1">
+                        {Object.entries(sel.debt_balances).map(([curr, amt]) => (curr !== 'UZS' && Number(amt) !== 0) && (
+                          <span key={curr} className="text-[9px] font-black text-white bg-red-500 px-1 py-0.5 rounded">
+                            {fmt(amt)} {curr}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Valyuta</label>
+                  <select value={form.currency} onChange={e => setForm(f => ({ ...f, currency: e.target.value }))}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="UZS">UZS (So'm)</option>
+                    {currencies.filter(c => c.code !== 'UZS').map(c => <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Kassa/Hamyon</label>
+                  <select value={form.wallet_id} onChange={e => setForm(f => ({ ...f, wallet_id: e.target.value }))}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500">
+                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                  </select>
+                </div>
+              </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">To'lov miqdori *</label>
-                <input type="text" inputMode="numeric" required className={inputCls} value={form.amount}
-                  onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} placeholder="Miqdor (so'm)..." />
-                {sel && form.amount && parseAmt(form.amount) > 0 && (
+                <div className="relative">
+                  <input type="text" inputMode="numeric" required className={inputCls} value={form.amount}
+                    onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} placeholder="0.00" />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">{form.currency}</span>
+                </div>
+                {sel && form.amount && parseAmt(form.amount) > 0 && form.currency === 'UZS' && (
                   <div className="text-xs text-slate-400 mt-1">
                     To'lovdan keyin qarz: <span className="font-semibold text-amber-600">
                       {fmt(Math.max(0, Number(sel.debt_balance) - parseAmt(form.amount)))} so'm

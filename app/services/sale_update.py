@@ -194,10 +194,29 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 Customer.company_id == current_user.company_id,
             ).first()
             if new_customer:
-                new_debt = max(Decimal("0"), total_amount - paid_amount)
+                new_debt = max(Decimal("0"), (total_amount - paid_amount) * (sale.exchange_rate or Decimal("1")))
                 if new_debt > 0:
                     new_customer.debt_balance = (new_customer.debt_balance or Decimal("0")) + new_debt
-                exr = Decimal("1")
+
+                    # Sync with multi-currency debt_balances
+                    if not new_customer.debt_balances:
+                        new_customer.debt_balances = {}
+                    
+                    sale_currency = "UZS"
+                    if sale.currency_id:
+                        from app.models.currency import Currency
+                        curr_obj = db.query(Currency).filter(Currency.id == sale.currency_id).first()
+                        if curr_obj:
+                            sale_currency = curr_obj.code
+                            
+                    curr_val = float(new_customer.debt_balances.get(sale_currency, 0))
+                    # Note: we need to use the raw debt without exchange rate multiplication for the specific currency
+                    raw_debt = max(Decimal("0"), total_amount - paid_amount)
+                    new_customer.debt_balances[sale_currency] = curr_val + float(raw_debt)
+                    from sqlalchemy.orm.attributes import flag_modified
+                    flag_modified(new_customer, "debt_balances")
+
+                exr = sale.exchange_rate or Decimal("1")
                 if getattr(new_customer, "cashback_percent", 0) > 0:
                     cashback = (total_amount * exr * new_customer.cashback_percent) / Decimal("100")
                     new_customer.bonus_balance = (new_customer.bonus_balance or Decimal("0")) + cashback
@@ -258,26 +277,93 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
             if sale.customer_id:
                 customer = db.query(Customer).filter(Customer.id == sale.customer_id).first()
                 if customer:
-                    old_debt = sale.total_amount - sale.paid_amount
-                    new_debt = sale.total_amount - data.paid_amount
+                    old_debt = (sale.total_amount - sale.paid_amount) * (sale.exchange_rate or Decimal("1"))
+                    new_debt = (sale.total_amount - data.paid_amount) * (sale.exchange_rate or Decimal("1"))
                     if old_status == SaleStatus.pending and sale.status != SaleStatus.pending:
                         if new_debt > 0:
                             customer.debt_balance = (customer.debt_balance or Decimal("0")) + new_debt
+                            
+                            # Sync JSON
+                            if not customer.debt_balances: customer.debt_balances = {}
+                            
+                            sale_currency = "UZS"
+                            if sale.currency_id:
+                                from app.models.currency import Currency
+                                curr_obj = db.query(Currency).filter(Currency.id == sale.currency_id).first()
+                                if curr_obj:
+                                    sale_currency = curr_obj.code
+                                    
+                            curr_val = float(customer.debt_balances.get(sale_currency, 0))
+                            raw_new_debt = sale.total_amount - data.paid_amount
+                            customer.debt_balances[sale_currency] = curr_val + float(raw_new_debt)
+                            from sqlalchemy.orm.attributes import flag_modified
+                            flag_modified(customer, "debt_balances")
+
                     elif old_status != SaleStatus.pending and sale.status == SaleStatus.pending:
                         if old_debt > 0:
                             customer.debt_balance = max(Decimal("0"), customer.debt_balance - old_debt)
+
+                            # Sync JSON
+                            if customer.debt_balances:
+                                sale_currency = "UZS"
+                                if sale.currency_id:
+                                    from app.models.currency import Currency
+                                    curr_obj = db.query(Currency).filter(Currency.id == sale.currency_id).first()
+                                    if curr_obj:
+                                        sale_currency = curr_obj.code
+                                        
+                                if sale_currency in customer.debt_balances:
+                                    curr_val = float(customer.debt_balances.get(sale_currency, 0))
+                                    raw_old_debt = sale.total_amount - sale.paid_amount
+                                    customer.debt_balances[sale_currency] = max(0.0, curr_val - float(raw_old_debt))
+                                    from sqlalchemy.orm.attributes import flag_modified
+                                    flag_modified(customer, "debt_balances")
+
                     elif old_status != SaleStatus.pending and sale.status != SaleStatus.pending:
                         diff = new_debt - old_debt
                         customer.debt_balance = max(Decimal("0"), customer.debt_balance + diff)
+
+                        # Sync JSON
+                        if not customer.debt_balances: customer.debt_balances = {}
+                        
+                        sale_currency = "UZS"
+                        if sale.currency_id:
+                            from app.models.currency import Currency
+                            curr_obj = db.query(Currency).filter(Currency.id == sale.currency_id).first()
+                            if curr_obj:
+                                sale_currency = curr_obj.code
+                                
+                        curr_val = float(customer.debt_balances.get(sale_currency, 0))
+                        raw_diff = (sale.total_amount - data.paid_amount) - (sale.total_amount - sale.paid_amount)
+                        customer.debt_balances[sale_currency] = max(0.0, curr_val + float(raw_diff))
+                        from sqlalchemy.orm.attributes import flag_modified
+                        flag_modified(customer, "debt_balances")
+
             sale.paid_amount = data.paid_amount
 
         if data.paid_amount is None and old_status == SaleStatus.pending and sale.status != SaleStatus.pending:
             if sale.customer_id:
                 customer = db.query(Customer).filter(Customer.id == sale.customer_id).first()
                 if customer:
-                    remaining_debt = sale.total_amount - sale.paid_amount
+                    remaining_debt = (sale.total_amount - sale.paid_amount) * (sale.exchange_rate or Decimal("1"))
                     if remaining_debt > 0:
                         customer.debt_balance = (customer.debt_balance or Decimal("0")) + remaining_debt
+
+                        # Sync JSON
+                        if not customer.debt_balances: customer.debt_balances = {}
+                        
+                        sale_currency = "UZS"
+                        if sale.currency_id:
+                            from app.models.currency import Currency
+                            curr_obj = db.query(Currency).filter(Currency.id == sale.currency_id).first()
+                            if curr_obj:
+                                sale_currency = curr_obj.code
+                                
+                        curr_val = float(customer.debt_balances.get(sale_currency, 0))
+                        raw_remaining = sale.total_amount - sale.paid_amount
+                        customer.debt_balances[sale_currency] = curr_val + float(raw_remaining)
+                        from sqlalchemy.orm.attributes import flag_modified
+                        flag_modified(customer, "debt_balances")
 
         if old_status == SaleStatus.pending and sale.status != SaleStatus.pending:
             from app.utils.product_conversion import deduct_target_for_sale

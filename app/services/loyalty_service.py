@@ -16,12 +16,35 @@ def restore_customer_after_sale(customer: Customer, sale: Sale) -> None:
     total = Decimal(str(sale.total_amount or 0))
     paid = Decimal(str(sale.paid_amount or 0))
 
-    # 1. Qarzni tiklash
-    debt_in_sale = total - paid
-    if debt_in_sale > 0:
+    # 1. Qarzni tiklash (Aggregate and JSON)
+    debt_in_sale_raw = total - paid
+    if debt_in_sale_raw > 0:
+        # Multi-currency debt_balances sync
+        if not customer.debt_balances: customer.debt_balances = {}
+        
+        from app.models.currency import Currency as CurrencyModel
+        sale_currency = "UZS"
+        if getattr(sale, "currency_id", None):
+            # We need DB session here, but we don't have it in args. 
+            # In SQLAlchemy, an object usually has an associated session via object_session(object)
+            from sqlalchemy.orm import object_session
+            sess = object_session(customer)
+            if sess:
+                curr_obj = sess.get(CurrencyModel, sale.currency_id)
+                if curr_obj:
+                    sale_currency = curr_obj.code
+        
+        # Subtract the raw debt from the specific currency bucket
+        current_bucket_val = Decimal(str(customer.debt_balances.get(sale_currency, 0)))
+        customer.debt_balances[sale_currency] = float(max(Decimal("0"), current_bucket_val - debt_in_sale_raw))
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(customer, "debt_balances")
+
+        # Update aggregate UZS balance
+        debt_in_uzs = debt_in_sale_raw * exr
         customer.debt_balance = max(
             Decimal("0"),
-            (customer.debt_balance or Decimal("0")) - debt_in_sale
+            (customer.debt_balance or Decimal("0")) - debt_in_uzs
         )
 
     # 2. Ishlatilgan keshbekni qaytarish (mijoz bonus_balance dan to'lagan edi)

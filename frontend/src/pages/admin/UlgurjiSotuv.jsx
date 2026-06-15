@@ -150,8 +150,24 @@ const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, on
             </div>
           </div>
           <div className="text-right">
-            {Number(selected.debt_balance) > 0 && <div className="text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">Qarz: {fmt(selected.debt_balance)} s</div>}
-            {Number(selected.loyalty_points) > 0 && <div className="text-xs text-emerald-600 font-semibold mt-0.5">🏆 {fmt(selected.loyalty_points)} ball</div>}
+            {Number(selected.debt_balance) !== 0 && (
+              <div className="flex flex-col items-end gap-1">
+                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">Qarzdorlik</div>
+                <div className={`text-xs font-black px-2.5 py-1 rounded-lg border shadow-sm ${Number(selected.debt_balance) > 0 ? 'text-red-700 bg-red-50/50 border-red-100' : 'text-emerald-700 bg-emerald-50/50 border-emerald-100'}`}>
+                  {fmt(selected.debt_balance)} so'm
+                </div>
+                {selected.debt_balances && typeof selected.debt_balances === 'object' && Object.keys(selected.debt_balances).some(k => k !== 'UZS' && Number(selected.debt_balances[k]) !== 0) && (
+                  <div className="flex flex-wrap gap-1 justify-end max-w-[150px]">
+                    {Object.entries(selected.debt_balances).map(([curr, amt]) => (curr !== 'UZS' && Number(amt) !== 0) && (
+                      <div key={curr} className="inline-flex items-center gap-1 text-[10px] font-black text-white px-2 py-0.5 bg-red-500 rounded-md shadow-sm">
+                        {fmt(amt)} {curr === 'USD' ? '$' : curr}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {Number(selected.loyalty_points) > 0 && <div className="text-xs text-emerald-600 font-bold mt-1 inline-flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">🏆 {fmt(selected.loyalty_points)} b</div>}
           </div>
         </div>
       )}
@@ -171,8 +187,23 @@ const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, on
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  {Number(c.debt_balance) > 0 && <div className="text-xs font-bold text-red-500">-{fmt(c.debt_balance)} s</div>}
-                  {Number(c.debt_limit) > 0 && <div className="text-xs text-slate-400">limit: {fmt(c.debt_limit)} s</div>}
+                  {Number(c.debt_balance) !== 0 && (
+                    <div className="flex flex-col items-end gap-1">
+                      <div className={`text-xs font-black ${Number(c.debt_balance) > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                        {fmt(c.debt_balance)} so'm
+                      </div>
+                      {c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).some(k => k !== 'UZS' && Number(c.debt_balances[k]) !== 0) && (
+                        <div className="flex flex-wrap gap-1 justify-end max-w-[120px]">
+                          {Object.entries(c.debt_balances).map(([curr, amt]) => (curr !== 'UZS' && Number(amt) !== 0) && (
+                            <span key={curr} className="text-[9px] font-black text-red-500 bg-red-50 px-1 py-0.5 rounded border border-red-100">
+                              {fmt(amt)} {curr === 'USD' ? '$' : curr}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {Number(c.debt_limit) > 0 && <div className="text-[10px] text-slate-400 font-medium tracking-tight mt-0.5">limit: {fmt(c.debt_limit)}</div>}
                 </div>
               </button>
             ))
@@ -396,6 +427,7 @@ export default function UlgurjiSotuv() {
 
   // Clock
   const [currentTime, setCurrentTime] = useState(new Date());
+  const selected = customers.find(c => String(c.id) === String(custId));
   useEffect(() => {
     const t = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(t);
@@ -1571,6 +1603,27 @@ export default function UlgurjiSotuv() {
               </div>
 
               <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+                {selected && (
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-0.5">Mijoz</div>
+                      <div className="text-sm font-black text-indigo-700">{selected.name}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Mavjud qarz</div>
+                      <div className="text-sm font-black text-red-600">{fmt(selected.debt_balance)} s</div>
+                      {selected.debt_balances && typeof selected.debt_balances === 'object' && Object.keys(selected.debt_balances).some(k => k !== 'UZS' && Number(selected.debt_balances[k]) !== 0) && (
+                        <div className="flex flex-wrap gap-1 justify-end mt-1">
+                          {Object.entries(selected.debt_balances).map(([curr, amt]) => (curr !== 'UZS' && Number(amt) !== 0) && (
+                            <span key={curr} className="inline-flex items-center text-[9px] font-black text-white bg-red-500 px-1.5 py-0.5 rounded shadow-sm">
+                              {fmt(amt)} {curr}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">To'lov</span>

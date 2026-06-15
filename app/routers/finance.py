@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
 from sqlalchemy import func  # type: ignore
 from pydantic import BaseModel  # type: ignore
+from sqlalchemy.orm.attributes import flag_modified  # type: ignore
 from decimal import Decimal
 
 from app.database import get_db  # type: ignore
@@ -75,6 +76,8 @@ class TransactionIn(BaseModel):
 class DebtPaymentIn(BaseModel):
     amount: Decimal
     description: Optional[str] = None
+    currency: Optional[str] = "UZS"
+    wallet_id: Optional[int] = None
 
 
 # ─── Wallets ──────────────────────────────────────────────────────────────────
@@ -694,32 +697,57 @@ def record_customer_debt_payment(
     if not customer or (user.role.value != "super_admin" and customer.company_id != user.company_id):
         raise HTTPException(status_code=404, detail="Mijoz topilmadi")
 
-    pay = float(data.amount)
-    balance = float(customer.debt_balance)
-    if pay > balance:
-        raise HTTPException(status_code=400, detail="To'lov summasi qarz balansidan katta")
+    currency = data.currency or "UZS"
+    pay = data.amount
 
-    customer.debt_balance = balance - pay
-    # Find user's branch or fallback to company's first branch
+    # Ensure debt_balances is initialised
+    if not customer.debt_balances:
+        customer.debt_balances = {}
+
+    # Update currency-specific balance
+    curr_val = Decimal(str(customer.debt_balances.get(currency, 0)))
+    customer.debt_balances[currency] = float(max(Decimal("0"), curr_val - pay))
+    flag_modified(customer, "debt_balances")
+
+    # Update aggregate debt_balance
+    exchange_rate = Decimal("1")
+    if currency != "UZS":
+        from app.models.currency import Currency as CurrencyModel
+        curr_obj = db.query(CurrencyModel).filter(CurrencyModel.code == currency).first()
+        if curr_obj:
+            exchange_rate = Decimal(str(curr_obj.rate))
+
+    amount_in_uzs = pay * exchange_rate
+    customer.debt_balance = max(Decimal("0"), (customer.debt_balance or Decimal("0")) - amount_in_uzs)
+
+    # Wallet and Transaction
+    if data.wallet_id:
+        wallet = db.get(Wallet, data.wallet_id)
+        if wallet:
+            wallet.balance = float(wallet.balance or 0) + float(pay)
+
     from app.models.branch import Branch as _Branch
     tx_branch_id = user.branch_id
     if not tx_branch_id and user.company_id:
         br = db.query(_Branch).filter(_Branch.company_id == user.company_id).first()
         tx_branch_id = br.id if br else None
+
     tx = Transaction(
         branch_id=tx_branch_id or 0,
+        wallet_id=data.wallet_id,
         type="income",
-        amount=data.amount,
+        amount=pay,
         company_id=user.company_id,
         reference_type="customer_payment",
         reference_id=customer_id,
-        description=data.description or f"Mijoz qarzi to'lovi: {customer.name}",
+        description=data.description or f"Mijoz qarzi to'lovi: {customer.name} ({currency})",
     )
     db.add(tx)
     db.commit()
     return {
         "customer_id": customer_id,
-        "paid": pay,
+        "paid": float(pay),
+        "currency": currency,
         "remaining_debt": float(customer.debt_balance),
     }
 

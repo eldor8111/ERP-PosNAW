@@ -376,8 +376,21 @@ function CustSearch({ customers, value, onChange, placeholder = 'Ism yoki telefo
                 <div className="text-sm font-medium text-slate-800">{c.name}</div>
                 {c.phone && <div className="text-xs text-slate-400">{c.phone}</div>}
               </div>
-              {c.debt_balance > 0 && (
-                <span className="text-xs text-red-500 font-medium ml-2">Qarz: {fmt(c.debt_balance)}</span>
+              {Number(c.debt_balance) !== 0 && (
+                <div className="flex flex-col items-end gap-1">
+                  <div className={`text-xs font-black py-0.5 px-2 rounded-md ${Number(c.debt_balance) > 0 ? 'text-red-600 bg-red-50 border border-red-100' : 'text-emerald-600 bg-emerald-50 border border-emerald-100'}`}>
+                    Qarz: {fmt(c.debt_balance)} s
+                  </div>
+                  {c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).some(curr => curr !== 'UZS' && Number(c.debt_balances[curr]) !== 0) && (
+                    <div className="flex flex-wrap gap-1 justify-end max-w-[120px]">
+                      {Object.entries(c.debt_balances).map(([curr, amt]) => (curr !== 'UZS' && Number(amt) !== 0) && (
+                        <span key={curr} className="text-[9px] font-black text-red-500 bg-white px-1 py-0.5 rounded border border-red-100 leading-none">
+                          {fmt(amt)} {curr}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
             </button>
           ))}

@@ -55,7 +55,20 @@ const [q, setQ] = useState('');
                 <div className="text-sm font-bold text-slate-800">{c.name}</div>
                 {c.phone && <div className="text-xs text-slate-500 font-medium">{c.phone}</div>}
               </div>
-              {Number(c.debt_balance) > 0 && <span className="text-xs text-red-600 font-bold bg-red-50 px-2.5 py-1 rounded-lg">{t('common.debt')}: {fmt(c.debt_balance)}</span>}
+              {Number(c.debt_balance) !== 0 && (
+                <div className="flex flex-col items-end gap-1">
+                  <span className="text-xs text-red-600 font-bold bg-red-50 px-2.5 py-1 rounded-lg">{t('common.debt')}: {fmt(c.debt_balance)}</span>
+                  {c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).some(curr => curr !== 'UZS' && Number(c.debt_balances[curr]) !== 0) && (
+                    <div className="flex flex-wrap gap-1 justify-end max-w-[150px]">
+                      {Object.entries(c.debt_balances).map(([curr, amt]) => (curr !== 'UZS' && Number(amt) !== 0) && (
+                        <span key={curr} className="inline-flex items-center text-[9px] font-black text-red-500 bg-white border border-red-100 px-1 py-0.5 rounded shadow-sm leading-none">
+                          {fmt(amt)} {curr === 'USD' ? '$' : curr}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </button>
           ))}
         </div>
