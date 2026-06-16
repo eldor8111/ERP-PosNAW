@@ -153,7 +153,7 @@ const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, on
               <div className="flex flex-col items-end gap-1">
                 <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">Qarzdorlik</div>
                 <div className={`text-xs font-black px-2.5 py-1 rounded-lg border shadow-sm ${Number(selected.debt_balance) > 0 ? 'text-red-700 bg-red-50/50 border-red-100' : 'text-emerald-700 bg-emerald-50/50 border-emerald-100'}`}>
-                  {fmt((selected.debt_balances && typeof selected.debt_balances === 'object' && selected.debt_balances.UZS !== undefined) ? selected.debt_balances.UZS : selected.debt_balance)} so'm
+                  {fmt((selected.debt_balances && typeof selected.debt_balances === 'object' && Object.keys(selected.debt_balances).length > 0) ? (selected.debt_balances.UZS || 0) : selected.debt_balance)} so'm
                 </div>
                 {selected.debt_balances && typeof selected.debt_balances === 'object' && Object.keys(selected.debt_balances).some(k => k !== 'UZS' && Number(selected.debt_balances[k]) !== 0) && (
                   <div className="flex flex-wrap gap-1 justify-end max-w-[150px]">
@@ -189,7 +189,7 @@ const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, on
                   {(Number(c.debt_balance) !== 0 || (c.debt_balances && Object.values(c.debt_balances).some(v => Number(v) !== 0))) && (
                     <div className="flex flex-col items-end gap-1">
                       <div className={`text-xs font-black ${Number(c.debt_balance) > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                        {fmt((c.debt_balances && typeof c.debt_balances === 'object' && c.debt_balances.UZS !== undefined) ? c.debt_balances.UZS : c.debt_balance)} so'm
+                        {fmt((c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).length > 0) ? (c.debt_balances.UZS || 0) : c.debt_balance)} so'm
                       </div>
                       {c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).some(k => k !== 'UZS' && Number(c.debt_balances[k]) !== 0) && (
                         <div className="flex flex-wrap gap-1 justify-end max-w-[120px]">
@@ -321,7 +321,7 @@ const ProductSearch = forwardRef(function ProductSearch({ onSelect, placeholder,
     if (e.key === 'Escape') { setResults([]); setQ(''); }
   };
 
-  const showDropdown = results.length > 0 || (q.trim().length > 0 && !loading);
+
 
   return (
     <div className="relative">
@@ -333,13 +333,25 @@ const ProductSearch = forwardRef(function ProductSearch({ onSelect, placeholder,
         <input ref={inputRef} value={q}
           onChange={e => { setQ(e.target.value); setActiveIdx(0); }}
           onKeyDown={handleKey}
+          onFocus={async () => {
+            if (!q.trim()) {
+              setLoading(true);
+              try {
+                const res = await api.get('/products/pos-list', { params: { limit: 20, warehouse_id: warehouseId || undefined }, _silent: true });
+                const items = Array.isArray(res.data) ? res.data : (res.data?.items || []);
+                setResults(items);
+              } catch { /* ignore */ }
+              finally { setLoading(false); }
+            }
+          }}
+          onBlur={() => setResults([])}
           placeholder={placeholder || "Mahsulot nomi, SKU yoki barkod..."}
           className="flex-1 text-sm outline-none bg-transparent placeholder:text-slate-400"
         />
         {q && <button onClick={() => { setQ(''); setResults([]); inputRef.current?.focus(); }} className="text-slate-300 hover:text-red-400"><Ic d="M6 18L18 6M6 6l12 12" cls="w-3.5 h-3.5" /></button>}
       </div>
 
-      {showDropdown && (
+      {(results.length > 0 || (q.trim() && !loading)) && (
         <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-[420px] overflow-y-auto">
           {results.length === 0
             ? <div className="px-4 py-4 text-center text-sm text-slate-400">"{q}" — topilmadi</div>
@@ -573,11 +585,26 @@ export default function UlgurjiSotuv() {
       let data = s;
       if (!s.items) { const r = await api.get(`/sales/${s.id}`); data = r.data; }
       const tpl = size === 'nak' ? 'nak' : size === '58' ? '58' : '80';
-      let rSettings = getReceiptSettings();
-      const tmplCfg = tpl === 'nak' ? (rSettings.nak || {}) : (rSettings['r' + tpl] || {});
+      const rSettings = getReceiptSettings();
+      const cfgRaw = tpl === 'nak' ? (rSettings.nak || {}) : (rSettings['r' + tpl] || {});
+      // Company ma'lumotlari fallback: istalgan shablonda kiritilgan bo'lsa ham ishlaydi
+      const _r58 = rSettings.r58 || {};
+      const _r80 = rSettings.r80 || {};
+      const _rN  = rSettings.nak || {};
+      const _CF  = ['company', 'address', 'phone', 'inn', 'logo', 'logo_size', 'footer'];
+      const _mrgd = {};
+      for (const f of _CF) { _mrgd[f] = cfgRaw[f] || _r58[f] || _r80[f] || _rN[f] || ''; }
+      const tmplCfg = { ...cfgRaw, ..._mrgd };
       printReceiptHtml(buildReceiptHtml(data, tpl, tmplCfg));
     } catch (err) { console.error('Print error:', err); toast.error("Chop etishda xatolik"); }
   };
+
+  // Valyuta kursi olish yordamchisi
+  const getRate = useCallback((code) => {
+    if (!code || String(code).toUpperCase() === 'UZS') return 1;
+    const cur = currencies.find(c => String(c.code).toUpperCase() === String(code).toUpperCase());
+    return cur ? (parseFloat(cur.rate) || 1) : 1;
+  }, [currencies]);
 
   const addToCart = useCallback((p) => {
     // custIdRef.current ishlatamiz — closure eskirgan custId ni o'qimaydi
@@ -586,30 +613,28 @@ export default function UlgurjiSotuv() {
       toast.error('Avval mijozni tanlang!');
       return;
     }
-    let price = useWholesale && p.wholesale_price ? Number(p.wholesale_price) : Number(p.sale_price || 0);
-    // Konvertatsiya qilish (agar barkod bilan to'g'ridan-to'g'ri qo'shilsa)
-    if (p.sale_currency && p.sale_currency !== 'UZS') {
-      const rate = currencies.find(c => c.code === p.sale_currency)?.rate || 1;
-      price = price * rate;
-    }
+    const price = useWholesale && p.wholesale_price ? Number(p.wholesale_price) : Number(p.sale_price || 0);
+    const currency = p.sale_currency || 'UZS';
+    const rate = getRate(currency);
 
     setCart(prev => {
       const ex = prev.find(i => i.product_id === p.id);
       if (ex) {
         // Narxni ham yangilaymiz (eski noto'g'ri narx qolmasin)
         return prev.map(i => i.product_id === p.id
-          ? { ...i, qty: i.qty + 1, price: price || i.price }
+          ? { ...i, qty: i.qty + 1 }
           : i);
       }
       return [...prev, {
         product_id: p.id, name: p.name, unit: p.unit || 'dona', qty: 1, price,
+        currency, rate,
         discount_type: 'pct', discount_val: 0,
         wholesale_price: Number(p.wholesale_price || 0), sale_price: Number(p.sale_price || 0),
         stock_quantity: Number(p.stock_quantity || 0), image_url: p.image_url,
         addedAt: Date.now(),
       }];
     });
-  }, [useWholesale, currencies]); // custIdRef orqali o'qiladi — dep sifatida kerak emas
+  }, [useWholesale, getRate]); // custIdRef orqali o'qiladi — dep sifatida kerak emas
 
   const updateItem = (idx, field, val) => setCart(prev => prev.map((it, i) => i === idx ? { ...it, [field]: val } : it));
   const removeItem = (idx) => setCart(prev => prev.filter((_, i) => i !== idx));
@@ -627,6 +652,7 @@ export default function UlgurjiSotuv() {
     setTimeout(() => formQtyRef.current?.select(), 40);
   }, [useWholesale]);
 
+
   // Faqat useWholesale toggle bo'lganda narxni yangilash (valyuta o'zgarmaydi)
   const prevUseWholesaleRef = useRef(useWholesale);
   useEffect(() => {
@@ -643,25 +669,21 @@ export default function UlgurjiSotuv() {
   const addFormToCart = () => {
     if (!custId) return toast.error('Avval mijozni tanlang!');
     if (!formProduct) return toast.error('Mahsulot tanlanmagan!');
-    let price = parseFloat(formPrice) || 0;
+    const price = parseFloat(formPrice) || 0;
     const qty = parseFloat(formQty) || 1;
     if (qty <= 0) return toast.error("Miqdor 0 dan katta bo'lishi kerak!");
 
-    // Savatga har doim UZS da saqlaymiz
-    // UZS => 1, boshqasi => kurs x narx
-    if (formCurrency !== 'UZS') {
-      const rate = currencies.find(c => c.code === formCurrency)?.rate || 1;
-      price = price * rate; // masalan: 3$ * 12000 = 36000 so'm
-    }
+    const currency = formCurrency || 'UZS';
+    const rate = getRate(currency);
 
     setCart(prev => {
       const ex = prev.find(i => i.product_id === formProduct.id);
       if (ex) return prev.map(i => i.product_id === formProduct.id
-        ? { ...i, qty: i.qty + qty, price, discount_type: formDiscType, discount_val: parseFloat(formDiscVal) || 0 }
+        ? { ...i, qty: i.qty + qty, price, currency, rate, discount_type: formDiscType, discount_val: parseFloat(formDiscVal) || 0 }
         : i);
       return [...prev, {
         product_id: formProduct.id, name: formProduct.name, unit: formProduct.unit || 'dona',
-        qty, price, discount_type: formDiscType, discount_val: parseFloat(formDiscVal) || 0,
+        qty, price, currency, rate, discount_type: formDiscType, discount_val: parseFloat(formDiscVal) || 0,
         wholesale_price: Number(formProduct.wholesale_price || 0), sale_price: Number(formProduct.sale_price || 0),
         stock_quantity: Number(formProduct.stock_quantity || 0), image_url: formProduct.image_url,
         addedAt: Date.now(),
@@ -698,18 +720,35 @@ export default function UlgurjiSotuv() {
     };
     window.addEventListener('keydown', handle, true);
     return () => window.removeEventListener('keydown', handle, true);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const itemNet = (it) => {
     const gross = it.price * it.qty;
     const disc = it.discount_type === 'pct' ? gross * (parseN(it.discount_val) / 100) : parseN(it.discount_val);
     return Math.max(0, gross - disc);
   };
+  const itemNetUZS = (it) => itemNet(it) * (it.rate || 1);
 
-  const subtotal = cart.reduce((s, it) => s + itemNet(it), 0);
+  const subtotal = cart.reduce((s, it) => s + itemNetUZS(it), 0);
+  
+  // Valyuta bo'yicha jami summalarni hisoblash
+  const totalsByCurrency = cart.reduce((acc, it) => {
+    const cur = it.currency || 'UZS';
+    acc[cur] = (acc[cur] || 0) + itemNet(it);
+    return acc;
+  }, {});
+
   const saleDisc = discType === 'pct' ? subtotal * (parseN(discVal) / 100) : parseN(discVal);
   const total = Math.max(0, subtotal - saleDisc);
-  const paid = payments.reduce((s, p) => s + (parseN(p.amt) || 0), 0);
+  
+  const getPaidUZS = (paymentList) => {
+    return paymentList.reduce((s, p) => {
+      const rate = getRate(p.currency || 'UZS');
+      return s + (parseN(p.amt) * rate);
+    }, 0);
+  };
+  
+  const paid = getPaidUZS(payments);
   const debt = Math.max(0, total - paid);
   const change = Math.max(0, paid - total);
 
@@ -718,12 +757,71 @@ export default function UlgurjiSotuv() {
     if (!custId) return toast.error('Mijoz tanlanmagan! Iltimos mijoz tanlang.');
     setSaving(true);
     try {
-      const items = cart.map(it => ({
-        product_id: it.product_id, quantity: it.qty, unit_price: it.price,
-        discount: it.discount_type === 'pct' ? it.price * it.qty * (parseN(it.discount_val) / 100) : parseN(it.discount_val),
-        warehouse_id: it.warehouse_id || undefined, // ← per-item sklad
+      const items = cart.map(it => {
+        const uPriceUZS = it.price * (it.rate || 1);
+        const discUZS = it.discount_type === 'pct' ? uPriceUZS * it.qty * (parseN(it.discount_val) / 100) : parseN(it.discount_val) * (it.rate || 1);
+        return {
+          product_id: it.product_id, quantity: it.qty, unit_price: uPriceUZS,
+          discount: discUZS,
+          warehouse_id: it.warehouse_id || undefined, 
+          currency: it.currency,
+          rate: it.rate,
+        };
+      });
+      // To'lovlarni ham valyutasi bilan yuboramiz
+      const paymentsList = payments.filter(p => parseN(p.amt) > 0).map(p => ({ 
+        type: p.type, 
+        amount: parseN(p.amt),
+        currency: p.currency || 'UZS',
+        rate: getRate(p.currency)
       }));
-      const paymentsList = payments.filter(p => parseN(p.amt) > 0).map(p => ({ type: p.type, amount: parseN(p.amt) }));
+      // Haqiqiy qarzni valyutalar kesimida hisoblash
+      const actualDebts = {};
+      
+      if (overridePayType === 'debt' && pPaid === 0) {
+        // To'liq qarzga berilsa (qarz tugmasi orqali)
+        Object.assign(actualDebts, totalsByCurrency);
+      } else {
+        const remain = { ...totalsByCurrency };
+        let overpaidUZS = 0;
+        
+        // 1. To'lovlarni mos valyutadan ayiramiz
+        for (const p of payments) {
+          const a = parseN(p.amt);
+          if (a <= 0 || p.type === 'debt') continue; // Qarz line bo'lsa hisoblanmaydi
+          const c = p.currency || 'UZS';
+          if (!remain[c]) remain[c] = 0;
+          remain[c] -= a;
+        }
+        
+        // 2. Ortib qolgan (manfiy) to'lovlarni UZS ga o'tkazib yig'amiz
+        for (const c in remain) {
+          if (remain[c] < -0.001) {
+            overpaidUZS += Math.abs(remain[c]) * getRate(c);
+            delete remain[c];
+          }
+        }
+        
+        // 3. Qolgan (musbat) qarzlarni overpaid UZS dan uzamiz
+        for (const c in remain) {
+          if (remain[c] > 0.001 && overpaidUZS > 0.001) {
+            const needUZS = remain[c] * getRate(c);
+            if (overpaidUZS >= needUZS) {
+              overpaidUZS -= needUZS;
+              delete remain[c];
+            } else {
+              remain[c] -= overpaidUZS / getRate(c);
+              overpaidUZS = 0;
+            }
+          }
+        }
+        
+        // 4. Haqiqatan ham qarz bo'lib qolgan summalarni kiritamiz
+        for (const c in remain) {
+          if (remain[c] > 0.01) actualDebts[c] = Number(remain[c].toFixed(2));
+        }
+      }
+
       const payload = {
         items, payment_type: overridePayType, paid_amount: pPaid, paid_cash: pCash, paid_card: pCard,
         discount_amount: saleDisc, note: note || payNote || undefined,
@@ -731,6 +829,7 @@ export default function UlgurjiSotuv() {
         warehouse_id: warehouseId ? Number(warehouseId) : undefined,
         debt_due_date: overridePayType === 'debt' && debtDate ? debtDate : undefined,
         payments: paymentsList.length > 0 ? paymentsList : undefined,
+        currency_totals: Object.keys(actualDebts).length > 0 ? actualDebts : undefined
       };
 
       let res;
@@ -750,15 +849,51 @@ export default function UlgurjiSotuv() {
         try {
           const rSettings = getReceiptSettings();
           const tpl = receiptWidth === 'A4' ? 'nak' : receiptWidth;
-          const cfg = tpl === 'nak' ? (rSettings.nak || {}) : (rSettings['r' + tpl] || {});
+          const cfgRaw = tpl === 'nak' ? (rSettings.nak || {}) : (rSettings['r' + tpl] || {});
+          // Company ma'lumotlari fallback: agar tanlangan shablonda bo'sh bo'lsa,
+          // boshqa shablonlardan olamiz (58mm da kiritilgan bo'lsa — 80mm uchun ham ishlaydi)
+          const r58 = rSettings.r58 || {};
+          const r80 = rSettings.r80 || {};
+          const rNak = rSettings.nak || {};
+          const COMPANY_FIELDS = ['company', 'address', 'phone', 'inn', 'logo', 'logo_size', 'footer'];
+          const merged = {};
+          for (const f of COMPANY_FIELDS) {
+            merged[f] = cfgRaw[f] || r58[f] || r80[f] || rNak[f] || '';
+          }
+          const cfg = { ...cfgRaw, ...merged };
+          // Tanlangan mijozni aniqlaymiz
+          const selectedCust = customers.find(c => String(c.id) === String(custId));
+          // To'lov turlarini ro'yxat sifatida tayyorlaymiz
+          const payTypesArr = payments.filter(p => parseN(p.amt) > 0).map(p => ({
+            type: p.type, amount: parseN(p.amt) * (getRate(p.currency || 'UZS'))
+          }));
           printReceiptHtml(buildReceiptHtml({
             number: res.data.number, id: res.data.id, created_at: res.data.created_at,
-            cashier_name: res.data.cashier_name, total_amount: res.data.total_amount,
-            paid_amount: res.data.paid_amount, discount_amount: saleDisc,
+            cashier_name: res.data.cashier_name,
+            total_amount: res.data.total_amount,
+            paid_amount: res.data.paid_amount,
+            discount_amount: saleDisc,
+            // Mijoz ma'lumotlari
+            contractor_name: selectedCust ? selectedCust.name : undefined,
+            contractor_contacts: selectedCust?.phone ? [{ value: selectedCust.phone }] : [],
+            // To'lov turlari ro'yxati
+            payment_types_array: payTypesArr.length > 0 ? payTypesArr : undefined,
+            // Izoh
+            note: note || payNote || undefined,
+            // Qarz ma'lumotlari
+            before_debt: selectedCust
+              ? ((selectedCust.debt_balances && Object.keys(selectedCust.debt_balances).length > 0) ? (selectedCust.debt_balances.UZS || 0) : Number(selectedCust.debt_balance || 0))
+              : 0,
             items: cart.map(it => ({
-              product_name: it.name, quantity: it.qty, unit_price: it.price,
-              discount: it.discount_type === 'pct' ? it.price * it.qty * (parseN(it.discount_val) / 100) : parseN(it.discount_val),
-              subtotal: itemNet(it),
+              product_name: it.name,
+              quantity: it.qty,
+              unit_price: it.price * (it.rate || 1),
+              discount: it.discount_type === 'pct'
+                ? it.price * (it.rate || 1) * it.qty * (parseN(it.discount_val) / 100)
+                : parseN(it.discount_val) * (it.rate || 1),
+              subtotal: itemNetUZS(it),
+              unit: it.unit,
+              currency_name: it.currency === 'USD' ? "$ (UZS)" : (it.currency === 'RUB' ? "₽ (UZS)" : "so'm"),
             })),
           }, tpl, cfg));
         } catch (err) { console.error('Auto-print error:', err); }
@@ -777,15 +912,16 @@ export default function UlgurjiSotuv() {
     if (!custId) return toast.error('Mijoz tanlanmagan! Iltimos mijoz tanlang.');
     if (debt > 0 && !debtDate && showDebtDate) return toast.error('Qarz muddat sanasini kiriting!');
     if (debt > 0 && !showDebtDate) { setShowDebtDate(true); return; }
-    const totalPaid = payments.reduce((s, p) => s + (parseN(p.amt) || 0), 0);
+    const totalPaidUZS = getPaidUZS(payments); // Haqiqiy to'langan hamma pulni so'mdagi qiymati
     const types = [...new Set(payments.map(p => p.type))];
     let finalPayType;
-    if (totalPaid === 0) finalPayType = 'debt';
+    if (totalPaidUZS === 0) finalPayType = 'debt';
     else if (types.length === 1 && debt === 0) finalPayType = types[0];
     else finalPayType = 'mixed';
-    const pCash = payments.filter(p => p.type === 'cash').reduce((s, p) => s + (parseN(p.amt) || 0), 0);
-    const pCard = payments.filter(p => p.type !== 'cash').reduce((s, p) => s + (parseN(p.amt) || 0), 0);
-    await submitSale(finalPayType, totalPaid, pCash, pCard);
+    // Backend ga yuborish uchun faqat so'mdagi yig'indilar
+    const pCashUZS = payments.filter(p => p.type === 'cash' || p.type === 'uzcard' || p.type === 'humo' || p.type === 'click' || p.type === 'payme' || p.type === 'transfer' ? p.type === 'cash' : false).reduce((s, p) => s + (parseN(p.amt) * getRate(p.currency)), 0);
+    const pCardUZS = payments.filter(p => p.type !== 'cash' && p.type !== 'debt').reduce((s, p) => s + (parseN(p.amt) * getRate(p.currency)), 0);
+    await submitSale(finalPayType, totalPaidUZS, pCashUZS, pCardUZS);
   };
 
   const handleDirectAction = async (actionType) => {
@@ -816,13 +952,17 @@ export default function UlgurjiSotuv() {
     if (!cart.length || !custId) return;
     setPendingSaving(true);
     try {
-      const items = cart.map(it => ({
-        product_id: it.product_id, quantity: it.qty, unit_price: it.price,
-        discount: it.discount_type === 'pct'
-          ? it.price * it.qty * (parseN(it.discount_val) / 100)
-          : parseN(it.discount_val),
-        warehouse_id: it.warehouse_id || undefined, // ← per-item sklad
-      }));
+      const items = cart.map(it => {
+        const uPriceUZS = it.price * (it.rate || 1);
+        const discUZS = it.discount_type === 'pct' ? uPriceUZS * it.qty * (parseN(it.discount_val) / 100) : parseN(it.discount_val) * (it.rate || 1);
+        return {
+          product_id: it.product_id, quantity: it.qty, unit_price: uPriceUZS,
+          discount: discUZS,
+          warehouse_id: it.warehouse_id || undefined,
+          currency: it.currency,
+          rate: it.rate,
+        };
+      });
       const payload = {
         items,
         payment_type: 'cash',
@@ -904,7 +1044,7 @@ export default function UlgurjiSotuv() {
     }).catch(() => {
       sessionStorage.removeItem('ulgurji_session_sale_id');
     });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // XAVFSIZ: Unmount vaqtida avtomatik saqlash O'CHIRILDI!
   // Sabab: bu bug ning asosiy manbai edi — unmount da sessionStorage dagi
@@ -1123,13 +1263,32 @@ export default function UlgurjiSotuv() {
                                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); formDiscRef.current?.focus(); } }}
                                 className="w-full border border-white rounded-xl px-3 py-2 text-base font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
                             </div>
-                            {/* <select
+                            <select
                               value={formCurrency}
                               onChange={e => {
-                                setFormCurrency(e.target.value);
+                                const newCode = e.target.value;
+                                if (!newCode || newCode === formCurrency) return;
+                                
+                                const oldRate = getRate(formCurrency);
+                                const newRate = getRate(newCode);
+                                const currentPrice = parseFloat(formPrice) || 0;
+                                
+                                if (currentPrice > 0) {
+                                  // Narxni konvertatsiya qilish
+                                  const priceInUZS = currentPrice * oldRate;
+                                  const converted = priceInUZS / newRate;
+                                  // Agar juda kichik bo'lsa ko'proq kasr qismini qoldiramiz
+                                  const formatted = converted < 0.01 ? converted.toFixed(4) : converted.toFixed(2);
+                                  setFormPrice(String(parseFloat(formatted)));
+                                }
+                                setFormCurrency(newCode);
                               }}
-                              className="border border-slate-200 rounded-lg px-1.5 py-2 text-[11px] font-black text-indigo-600 focus:outline-none bg-white">
-                            </select> */}
+                              className="border border-slate-200 rounded-lg px-1.5 py-2 text-sm font-black text-indigo-600 focus:outline-none bg-white">
+                              <option value="UZS">UZS</option>
+                              {currencies.filter(c => String(c.code).toUpperCase() !== 'UZS').map((item) => (
+                                <option key={item.id} value={item.code}>{item.code}</option>
+                              ))}
+                            </select>
                           </div>
                         </div>
 
@@ -1249,6 +1408,7 @@ export default function UlgurjiSotuv() {
                       {cart.map((it, idx) => {
                         const net = itemNet(it);
                         const hasDisc = parseN(it.discount_val) > 0;
+                        const curSym = it.currency === 'USD' ? '$' : (it.currency === 'UZS' ? 's' : it.currency);
                         return (
                           <tr key={idx} className="hover:bg-slate-50/80 group transition-colors">
                             <td className="px-3 py-2.5 text-xs text-slate-400 font-mono">{idx + 1}</td>
@@ -1261,6 +1421,9 @@ export default function UlgurjiSotuv() {
                                     <Ic d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" cls="w-3 h-3" />
                                     {it.warehouse_name}
                                   </span>
+                                )}
+                                {it.currency && it.currency !== 'UZS' && (
+                                  <span className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-1 py-0.5 rounded uppercase">{it.currency}</span>
                                 )}
                               </div>
                             </td>
@@ -1280,14 +1443,14 @@ export default function UlgurjiSotuv() {
                                 <input type="number" value={it.price}
                                   onChange={e => updateItem(idx, 'price', parseFloat(e.target.value) || 0)}
                                   className="w-full text-right font-bold text-slate-800 border border-slate-200 rounded-lg py-1 pr-6 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
-                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">s</span>
+                                <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold ${it.currency === 'USD' ? 'text-green-600' : 'text-slate-400'}`}>{curSym}</span>
                               </div>
                             </td>
                             <td className="px-2 py-2.5">
                               <div className="flex items-center gap-1">
                                 <button onClick={() => updateItem(idx, 'discount_type', it.discount_type === 'pct' ? 'amt' : 'pct')}
                                   className="w-7 h-7 rounded bg-amber-50 text-amber-600 text-[10px] font-black border border-amber-200 shrink-0">
-                                  {it.discount_type === 'pct' ? '%' : 's'}
+                                  {it.discount_type === 'pct' ? '%' : curSym}
                                 </button>
                                 <input type="number" value={it.discount_val || ''}
                                   onChange={e => updateItem(idx, 'discount_val', parseFloat(e.target.value) || 0)}
@@ -1296,8 +1459,9 @@ export default function UlgurjiSotuv() {
                               </div>
                             </td>
                             <td className="px-3 py-2.5 text-right">
-                              <div className="font-black text-slate-800 text-sm">{fmt(net)} s</div>
-                              {hasDisc && <div className="text-xs text-slate-400 line-through">{fmt(it.price * it.qty)} s</div>}
+                              <div className="font-black text-slate-800 text-sm whitespace-nowrap">{fmt(net)} {curSym}</div>
+                              {hasDisc && <div className="text-xs text-slate-400 line-through whitespace-nowrap">{fmt(it.price * it.qty)} {curSym}</div>}
+                              {it.currency !== 'UZS' && <div className="text-[10px] text-indigo-500 font-bold">≈ {fmt(Math.round(net * it.rate))} s</div>}
                             </td>
                             <td className="pr-2 py-2.5">
                               <button onClick={() => removeItem(idx)}
@@ -1315,21 +1479,24 @@ export default function UlgurjiSotuv() {
 
               {/* Cart totals */}
               {cart.length > 0 && (
-                <div className="shrink-0 bg-slate-50 border-t border-slate-200 px-4 py-3 space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Mahsulotlar jami:</span>
-                    <span className="font-bold text-slate-700">{fmt(subtotal)} s</span>
+                <div className="shrink-0 bg-slate-50 border-t-2 border-slate-200 px-4 py-4 space-y-2">
+                  <div className="">
+                    {Object.entries(totalsByCurrency).map(([cur, amt]) => (
+                      <div key={cur} className="flex justify-between items-center group">
+                        <span className="text-[14px] font-black text-slate-600 uppercase tracking-widest leading-none">{cur === 'UZS' ? 'Mahsulotlar' : cur} jami:</span>
+                        <span className={`text-[18px] font-black text-indigo-600`}>
+                          {fmt(amt)} {cur === 'USD' ? '$' : (cur === 'UZS' ? 'so\'m' : cur)}
+                        </span>
+                      </div>
+                    ))}
                   </div>
+
                   {saleDisc > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-amber-600">Chegirma:</span>
-                      <span className="font-bold text-amber-600">− {fmt(saleDisc)} s</span>
+                    <div className="flex justify-between items-center py-2 border-y border-dashed border-slate-200">
+                      <span className="text-[11px] font-black text-amber-600 uppercase tracking-wider">Chegirma:</span>
+                      <span className="text-sm font-black text-amber-600">− {fmt(saleDisc)} s</span>
                     </div>
                   )}
-                  <div className="flex justify-between border-t border-slate-200 pt-2">
-                    <span className="font-bold text-slate-700 text-base">Umumiy summa:</span>
-                    <span className="text-xl font-black text-indigo-700">{fmt(total)} s</span>
-                  </div>
                 </div>
               )}
             </div>
@@ -1390,8 +1557,19 @@ export default function UlgurjiSotuv() {
                 </button>
               </div>
 
+              {totalsByCurrency && Object.keys(totalsByCurrency).length > 1 && (
+                <div className="px-3 py-2 bg-indigo-50/50 border-y border-indigo-100 flex flex-wrap gap-x-4 gap-y-1">
+                  {Object.entries(totalsByCurrency).map(([cur, amt]) => (
+                    <div key={cur} className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">{cur}:</span>
+                      <span className="text-xs font-black text-indigo-700">{fmt(amt)} {cur === 'USD' ? '$' : (cur === 'UZS' ? 's' : cur)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Row 2: full-width Pay button */}
-              <div className="px-2 pb-2">
+              <div className="px-2 pb-2 mt-2">
                 <button onClick={openPayModal}
                   disabled={cart.length === 0 || saving}
                   className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-black text-sm shadow-md transition-all disabled:opacity-40
@@ -1437,11 +1615,10 @@ export default function UlgurjiSotuv() {
 
               <button onClick={openPayModal}
                 disabled={cart.length === 0 || saving}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-sm shadow-md transition-all disabled:opacity-40
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-md shadow-md transition-all disabled:opacity-40
                   ${!custId && cart.length > 0 ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-200' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200'}`}>
                 <Ic d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" cls="w-4 h-4" />
-                <span>{!custId && cart.length > 0 ? 'Mijoz tanlang' : editingSale ? 'Yangilash' : "To'lov"}</span>
-                {cart.length > 0 && <span className="font-black">{fmt(total)} s</span>}
+                <span>{!custId && cart.length > 0 ? 'Mijoz tanlang' : editingSale ? 'Yangilash' : "To'lov qilish"}</span>
               </button>
             </div>
           </div>
@@ -1600,8 +1777,16 @@ export default function UlgurjiSotuv() {
         const remaining = Math.max(0, total - paid);
         const updateLine = (id, field, val) => setPayments(prev => prev.map(p => p.id === id ? { ...p, [field]: val } : p));
         const removeLine = (id) => { if (payments.length > 1) setPayments(prev => prev.filter(p => p.id !== id)); };
-        const addLine = () => setPayments(prev => [...prev, { id: Date.now(), type: 'cash', amt: '' }]);
-        const fillLine = (id) => { const la = parseN(payments.find(p => p.id === id)?.amt) || 0; const rem = Math.max(0, remaining + la); updateLine(id, 'amt', rem > 0 ? String(rem) : String(total)); };
+        const addLine = () => setPayments(prev => [...prev, { id: Date.now(), type: 'cash', amt: '', currency: 'UZS' }]);
+          const fillLine = (id) => { 
+          const line = payments.find(p => p.id === id);
+          if (!line) return;
+          const totalOtherPaidUZS = getPaidUZS(payments.filter(p => p.id !== id));
+          const stillNeededUZS = Math.max(0, total - totalOtherPaidUZS);
+          const lineRate = getRate(line.currency);
+          const neededInLineCurrency = stillNeededUZS / lineRate;
+          updateLine(id, 'amt', String(Math.round(neededInLineCurrency * 100) / 100)); 
+        };
         const now = new Date();
         return (
           <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm p-0 md:p-4">
@@ -1652,28 +1837,62 @@ export default function UlgurjiSotuv() {
                   </div>
                   <div className="space-y-2">
                     {payments.map((line, idx) => {
-                      const pt = PAY_TYPES.find(p => p.id === line.type);
-                      const acls = ACCENT_CLS[pt?.accent] || ACCENT_CLS.indigo;
                       const isDebt = line.type === 'debt';
+                      const lineRate = getRate(line.currency);
+                      const amtInUZS = (parseN(line.amt) || 0) * lineRate;
+
                       return (
-                        <div key={line.id} className="flex items-center gap-2">
-                          <div className="relative w-36 shrink-0">
-                            <div className={`absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none ${acls.idle.split(' ').find(c => c.startsWith('text')) || 'text-slate-400'}`}>{PAY_ICONS[line.type]}</div>
-                            <select value={line.type} onChange={e => updateLine(line.id, 'type', e.target.value)}
-                              className="w-full h-10 pl-8 pr-2 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white appearance-none cursor-pointer">
-                              {PAY_TYPES.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
-                            </select>
+                        <div key={line.id} className="bg-slate-50/50 border border-slate-100 rounded-xl p-2 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <div className="relative flex-1">
+                              <select value={line.type} onChange={e => updateLine(line.id, 'type', e.target.value)}
+                                className="w-full h-10 pl-3 pr-8 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white appearance-none cursor-pointer">
+                                {PAY_TYPES.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+                              </select>
+                              <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                <Ic d="M19 9l-7 7-7-7" cls="w-4 h-4" />
+                              </div>
+                            </div>
+                            
+                            <div className="relative w-32">
+                              <select value={line.currency || 'UZS'} onChange={e => updateLine(line.id, 'currency', e.target.value)}
+                                className="w-full h-10 pl-3 pr-8 border border-slate-200 rounded-lg text-sm font-black text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white appearance-none cursor-pointer">
+                                <option value="UZS">UZS</option>
+                                {currencies.filter(c => c.code !== 'UZS').map(c => <option key={c.id} value={c.code}>{c.code}</option>)}
+                              </select>
+                              <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                <Ic d="M12 8c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3zM12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z" cls="w-4 h-4" />
+                              </div>
+                            </div>
+
+                            <button onClick={() => removeLine(line.id)} className={`shrink-0 w-8 h-10 rounded-lg flex items-center justify-center ${payments.length > 1 ? 'text-slate-300 hover:text-red-500 hover:bg-red-50' : 'text-slate-200 cursor-not-allowed'}`}>
+                              <Ic d="M6 18L18 6M6 6l12 12" cls="w-4 h-4" />
+                            </button>
                           </div>
-                          {isDebt
-                            ? <div className="flex-1 h-10 px-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center"><span className="text-sm font-black text-amber-700">{fmt(remaining > 0 ? remaining : total)} s — qarzga</span></div>
-                            : <input type="number" value={line.amt} onChange={e => updateLine(line.id, 'amt', e.target.value)}
-                              placeholder="0" autoFocus={idx === payments.length - 1}
-                              className="flex-1 h-10 px-3 border border-slate-200 rounded-lg text-base font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-300 min-w-0" />
-                          }
-                          {!isDebt && <button onClick={() => fillLine(line.id)} className="shrink-0 h-10 px-3 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 whitespace-nowrap">Qoldi</button>}
-                          <button onClick={() => removeLine(line.id)} className={`shrink-0 w-8 h-10 rounded-lg flex items-center justify-center ${payments.length > 1 ? 'text-slate-300 hover:text-red-500 hover:bg-red-50' : 'text-slate-200 cursor-not-allowed'}`}>
-                            <Ic d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" cls="w-3.5 h-3.5" />
-                          </button>
+
+                          <div className="flex items-center gap-2">
+                            {isDebt
+                                ? <div className="flex-1 h-10 px-3 bg-amber-50 border border-amber-100 rounded-lg flex items-center"><span className="text-sm font-black text-amber-700">Qarzga yoziladi</span></div>
+                                : <div className="flex-1 relative">
+                                    <input type="number" value={line.amt} onChange={e => updateLine(line.id, 'amt', e.target.value)}
+                                      placeholder="0" autoFocus={idx === payments.length - 1}
+                                      className="w-full h-10 pl-3 pr-10 border border-slate-200 rounded-lg text-lg font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 min-w-0" />
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 capitalize">{line.currency || 'UZS'}</span>
+                                  </div>
+                            }
+                            {!isDebt && (
+                              <button onClick={() => fillLine(line.id)} 
+                                className="shrink-0 h-10 px-4 bg-slate-800 text-white text-xs font-black rounded-lg hover:bg-slate-700 transition-colors shadow-sm">
+                                QOLDIQNI TO'LDIRISH
+                              </button>
+                            )}
+                          </div>
+                          
+                          {line.currency && line.currency !== 'UZS' && amtInUZS > 0 && (
+                            <div className="text-[10px] font-bold text-indigo-500 pl-1">
+                              ≈ {fmt(amtInUZS)} so'm (Kurs: {fmt(lineRate)})
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -1698,12 +1917,20 @@ export default function UlgurjiSotuv() {
                 )}
 
                 <div className="bg-slate-50 rounded-xl border border-slate-100 divide-y divide-slate-100">
+                  <div className="px-4 py-2 bg-indigo-50/50 flex justify-between items-center border-b border-indigo-100">
+                    <span className="text-[10px] font-black text-indigo-500 uppercase">Valyuta bo'yicha jami</span>
+                    <div className="flex gap-3">
+                      {Object.entries(totalsByCurrency).map(([cur, amt]) => (
+                        <span key={cur} className="text-xs font-black text-slate-700">{fmt(amt)} {cur === 'USD' ? '$' : (cur === 'UZS' ? 's' : cur)}</span>
+                      ))}
+                    </div>
+                  </div>
                   {[
-                    { label: 'Umumiy summa', val: fmt(total) + ' s', cls: 'text-slate-800 font-bold' },
-                    saleDisc > 0 && { label: 'Chegirma', val: '−' + fmt(saleDisc) + ' s', cls: 'text-amber-600 font-semibold' },
-                    { label: "To'lov", val: fmt(paid) + ' s', cls: 'text-emerald-600 font-black' },
-                    remaining > 0 && { label: 'Qarzga', val: fmt(remaining) + ' s', cls: 'text-red-600 font-black' },
-                    change > 0 && { label: 'Qaytim', val: fmt(change) + ' s', cls: 'text-blue-600 font-black' },
+                    { label: 'Umumiy summa (UZS)', val: fmt(total) + ' s', cls: 'text-slate-800 font-bold' },
+                    saleDisc > 0 && { label: 'Chegirma (UZS)', val: '−' + fmt(saleDisc) + ' s', cls: 'text-amber-600 font-semibold' },
+                    { label: "Jami to'lov (UZS)", val: fmt(paid) + ' s', cls: 'text-emerald-600 font-black' },
+                    remaining > 0 && { label: 'Qarzga qoladi (UZS)', val: fmt(remaining) + ' s', cls: 'text-red-600 font-black' },
+                    change > 0 && { label: 'Qaytim (UZS)', val: fmt(change) + ' s', cls: 'text-blue-600 font-black' },
                   ].filter(Boolean).map((r, i) => (
                     <div key={i} className="flex justify-between items-center px-4 py-2.5 text-sm">
                       <span className="text-slate-500">{r.label}</span>

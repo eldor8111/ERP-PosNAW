@@ -1510,11 +1510,27 @@ function ReceiptTab() {
   const updNak = (k, v) => setCfgNak(p => ({ ...p, [k]: v }));
 
   const handleSave = () => {
+    // Company ma'lumotlarini barcha shablonlarga sinxronlaymiz:
+    // Foydalanuvchi istalgan shablonda phone/address/company/inn kiritsа —
+    // barcha shablonlarga avtomatik nusxa ko'chiriladi.
+    const COMPANY_FIELDS = ['company', 'address', 'phone', 'inn', 'logo', 'logo_size', 'footer'];
+    const activeCompany = {};
+    for (const field of COMPANY_FIELDS) {
+      activeCompany[field] =
+        (sub === '58' ? cfg58 : sub === '80' ? cfg80 : cfgNak)[field] ||
+        cfg58[field] || cfg80[field] || cfgNak[field] || '';
+    }
+    const synced58  = { ...cfg58,  ...activeCompany };
+    const synced80  = { ...cfg80,  ...activeCompany };
+    const syncedNak = { ...cfgNak, ...activeCompany };
+
     api.put('/companies/me/receipt_templates', {
-      receipt_templates: { r58: cfg58, r80: cfg80, nak: cfgNak }
+      receipt_templates: { r58: synced58, r80: synced80, nak: syncedNak }
     }).then(() => {
-      // ✅ company_id bilan saqlash (barcha print funksiyalar shu yerdan o'qiydi)
-      saveReceiptSettings({ r58: cfg58, r80: cfg80, nak: cfgNak });
+      setCfg58(synced58);
+      setCfg80(synced80);
+      setCfgNak(syncedNak);
+      saveReceiptSettings({ r58: synced58, r80: synced80, nak: syncedNak });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     }).catch(e => alert(e.response?.data?.detail || "Saqlashda xatolik yuz berdi"));

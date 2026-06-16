@@ -259,7 +259,9 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
 </style></head><body>
   ${thermalLogoHtml}
   ${cfg.company ? `<div class="center" style="margin-bottom:8px;font-size:16px;">${cfg.company}</div>` : ''}
-  ${cfg.address ? `<div class="center" style="margin-bottom:6px;">${cfg.address}</div>` : ''}
+  ${cfg.address ? `<div class="center" style="margin-bottom:4px;">${cfg.address}</div>` : ''}
+  ${cfg.phone ? `<div class="center" style="margin-bottom:4px;">Tel: ${cfg.phone}</div>` : ''}
+  ${cfg.inn ? `<div class="center" style="margin-bottom:6px;">STIR: ${cfg.inn}</div>` : ''}
   
   <div class="flex">
     <span>Chek:</span>
@@ -275,7 +277,9 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   </div>
   <hr class="dash"/>
   
-  ${sale.contractor_name ? `<div class="flex"><span>Mijoz:</span><span style="text-transform:uppercase">${sale.contractor_name}</span></div><hr class="dash"/>` : ''}
+  ${sale.contractor_name ? `<div class="flex"><span>Mijoz:</span><span style="text-transform:uppercase">${sale.contractor_name}</span></div>` : ''}
+  ${sale.contractor_contacts?.length ? `<div class="flex"><span>Tel:</span><span>${sale.contractor_contacts.map(c => c.value || c).join(', ')}</span></div>` : ''}
+  ${sale.contractor_name || sale.contractor_contacts?.length ? `<hr class="dash"/>` : ''}
 
   ${rows}
 

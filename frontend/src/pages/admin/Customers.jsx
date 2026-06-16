@@ -755,20 +755,10 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
                     <td className="px-6 py-4 text-xs md:text-sm text-slate-500">{c.phone || '—'}</td>
                     <td className="px-6 py-4">
                       {(() => {
-                        let totalInUZS = 0;
-                        if (c.debt_balances && typeof c.debt_balances === 'object') {
-                          Object.entries(c.debt_balances).forEach(([code, amt]) => {
-                            const rate = code === 'UZS' ? 1 : (currencies.find(curr => curr.code === code)?.rate || 0);
-                            totalInUZS += Number(amt) * rate;
-                          });
-                        } else {
-                          totalInUZS = Number(c.debt_balance || 0);
-                        }
-
                         return (
                           <div className="flex flex-col item-start">
                         <div className={`text-sm font-bold inline-flex rounded-lg ${Number(c.debt_balance) > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
-                          {fmt((c.debt_balances && typeof c.debt_balances === 'object') ? (c.debt_balances.UZS || 0) : c.debt_balance)} so'm
+                          {fmt((c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).length > 0) ? (c.debt_balances.UZS || 0) : c.debt_balance)} so'm
                             </div>
                             {c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).some(curr => curr !== 'UZS' && Number(c.debt_balances[curr]) !== 0) && (
                               <div className="flex flex-wrap gap-2">
@@ -1107,7 +1097,7 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
                     <div className="font-bold text-slate-800 text-sm md:text-base truncate">{selected.name}</div>
                     {selected.phone && <div className="text-xs md:text-sm text-slate-500 mt-0.5 truncate">{selected.phone}</div>}
                     <div className="text-sm md:text-base font-bold text-red-500 mt-1">
-                      Joriy qarz: {fmt((selected.debt_balances && typeof selected.debt_balances === 'object' && selected.debt_balances.UZS !== undefined) ? selected.debt_balances.UZS : selected.debt_balance)} so'm
+                      Joriy qarz: {fmt((selected.debt_balances && typeof selected.debt_balances === 'object' && Object.keys(selected.debt_balances).length > 0) ? (selected.debt_balances.UZS || 0) : selected.debt_balance)} so'm
                       {selected.debt_balances && Object.keys(selected.debt_balances).length > 0 && (
                         <div className="flex flex-wrap gap-x-2 mt-0.5">
                           {Object.entries(selected.debt_balances).map(([curr, amt]) => (
@@ -1237,7 +1227,9 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
                           <button
                             type="button"
                             onClick={() => {
-                              const currDebt = item.currencyType === 'UZS' ? debt : (selected.debt_balances?.[item.currencyType] || 0);
+                              const currDebt = item.currencyType === 'UZS' 
+                                ? ((selected.debt_balances && Object.keys(selected.debt_balances).length > 0) ? (selected.debt_balances['UZS'] || 0) : debt) 
+                                : (Number(selected.debt_balances?.[item.currencyType]) || 0);
                               handleInputChange(index, 'payAmount', String(currDebt));
                             }}
                             className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-slate-200 border-l-0 font-bold px-3 md:px-4 h-full rounded-r-xl transition-colors whitespace-nowrap text-xs md:text-sm"
@@ -1303,8 +1295,8 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
                     <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Qarz holati</div>
                     {/* Per-currency debt and payment breakdown */}
                     {Object.entries(paidPerCurrency).map(([curr, payAmt]) => {
-                      const currDebt = curr === 'UZS'
-                        ? (selected.debt_balances?.['UZS'] ?? debt)
+                        const currDebt = curr === 'UZS'
+                        ? ((selected.debt_balances && Object.keys(selected.debt_balances).length > 0) ? (selected.debt_balances['UZS'] || 0) : debt)
                         : (Number(selected.debt_balances?.[curr]) || 0);
                       const currRemaining = Math.max(0, currDebt - payAmt);
                       const currChange = Math.max(0, payAmt - currDebt);
@@ -2025,7 +2017,7 @@ export default function Customers() {
 
   const totalAllDebt = customers.reduce((s, c) => {
     let sum = 0;
-    if (c.debt_balances && typeof c.debt_balances === 'object') {
+    if (c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).length > 0) {
       Object.entries(c.debt_balances).forEach(([code, amt]) => {
         const rate = code === 'UZS' ? 1 : (currencies.find(curr => curr.code === code)?.rate || 0);
         sum += Number(amt) * rate;
