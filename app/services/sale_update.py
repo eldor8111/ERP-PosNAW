@@ -202,17 +202,23 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                     if not new_customer.debt_balances:
                         new_customer.debt_balances = {}
                     
-                    sale_currency = "UZS"
-                    if sale.currency_id:
-                        from app.models.currency import Currency
-                        curr_obj = db.query(Currency).filter(Currency.id == sale.currency_id).first()
-                        if curr_obj:
-                            sale_currency = curr_obj.code
-                            
-                    curr_val = float(new_customer.debt_balances.get(sale_currency, 0))
-                    # Note: we need to use the raw debt without exchange rate multiplication for the specific currency
-                    raw_debt = max(Decimal("0"), total_amount - paid_amount)
-                    new_customer.debt_balances[sale_currency] = curr_val + float(raw_debt)
+                    if hasattr(data, "currency_totals") and data.currency_totals:
+                        for curr_code, curr_debt in data.currency_totals.items():
+                            curr_val = float(new_customer.debt_balances.get(curr_code, 0))
+                            new_customer.debt_balances[curr_code] = curr_val + float(curr_debt)
+                    else:
+                        sale_currency = "UZS"
+                        if sale.currency_id:
+                            from app.models.currency import Currency
+                            curr_obj = db.query(Currency).filter(Currency.id == sale.currency_id).first()
+                            if curr_obj:
+                                sale_currency = curr_obj.code
+                                
+                        curr_val = float(new_customer.debt_balances.get(sale_currency, 0))
+                        # Note: we need to use the raw debt without exchange rate multiplication for the specific currency
+                        raw_debt = max(Decimal("0"), total_amount - paid_amount)
+                        new_customer.debt_balances[sale_currency] = curr_val + float(raw_debt)
+
                     from sqlalchemy.orm.attributes import flag_modified
                     flag_modified(new_customer, "debt_balances")
 
@@ -232,13 +238,16 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
             if data.payments and len(data.payments) > 0:
                 for p in data.payments:
                     if p.amount > 0:
-                        db.add(_SP(sale_id=sale.id, payment_type=p.type.value, amount=p.amount))
+                        p_rate = Decimal(str(getattr(p, "rate", 1.0) or 1.0))
+                        p_amount_uzs = p.amount * p_rate
+                        
+                        db.add(_SP(sale_id=sale.id, payment_type=p.type.value, amount=p_amount_uzs))
                         if tx_branch_id:
                             db.add(Transaction(
                                 branch_id=tx_branch_id, company_id=current_user.company_id,
-                                type="income", amount=p.amount, payment_type=p.type.value,
+                                type="income", amount=p_amount_uzs, payment_type=p.type.value,
                                 reference_type="sale", reference_id=sale.id,
-                                description=f"Sotuv tahrirlash #{sale.number} ({p.type.value})",
+                                description=f"Sotuv tahrirlash #{sale.number} ({p.type.value})" + (f" ({p.amount} {p.currency})" if getattr(p, "currency", "UZS") != "UZS" else ""),
                                 created_at=sale.created_at,
                             ))
             elif paid_amount > 0:

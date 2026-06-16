@@ -208,20 +208,25 @@ def create_sale(
             # Sync with multi-currency debt_balances
             if not customer.debt_balances:
                 customer.debt_balances = {}
-            
-            # The actual debt amount in the sale's currency
-            actual_debt_in_currency = total_amount - data.paid_amount
-            
-            # Sale currency code
-            sale_currency = "UZS"
-            if data.currency_id:
-                from app.models.currency import Currency
-                curr_obj = db.query(Currency).filter(Currency.id == data.currency_id).first()
-                if curr_obj:
-                    sale_currency = curr_obj.code
-            
-            curr_val = float(customer.debt_balances.get(sale_currency, 0))
-            customer.debt_balances[sale_currency] = curr_val + float(actual_debt_in_currency)
+
+            if data.currency_totals:
+                for curr_code, curr_debt in data.currency_totals.items():
+                    curr_val = float(customer.debt_balances.get(curr_code, 0))
+                    customer.debt_balances[curr_code] = curr_val + float(curr_debt)
+            else:
+                # The actual debt amount in the sale's currency
+                actual_debt_in_currency = total_amount - data.paid_amount
+                
+                # Sale currency code
+                sale_currency = "UZS"
+                if data.currency_id:
+                    from app.models.currency import Currency
+                    curr_obj = db.query(Currency).filter(Currency.id == data.currency_id).first()
+                    if curr_obj:
+                        sale_currency = curr_obj.code
+                
+                curr_val = float(customer.debt_balances.get(sale_currency, 0))
+                customer.debt_balances[sale_currency] = curr_val + float(actual_debt_in_currency)
             
             from sqlalchemy.orm.attributes import flag_modified
             flag_modified(customer, "debt_balances")
@@ -279,21 +284,25 @@ def create_sale(
     if data.payments and len(data.payments) > 0:
         for p in data.payments:
             if p.amount > 0:
-                db.add(SalePayment(sale_id=sale.id, payment_type=p.type.value, amount=p.amount))
+                p_rate = Decimal(str(getattr(p, "rate", 1.0) or 1.0))
+                p_amount_uzs = p.amount * p_rate
+                
+                db.add(SalePayment(sale_id=sale.id, payment_type=p.type.value, amount=p_amount_uzs))
                 if tx_branch_id:
                     db.add(Transaction(
                         branch_id=tx_branch_id, company_id=current_user.company_id,
                         wallet_id=_cashier_wallet_id,
-                        type="income", amount=p.amount, payment_type=p.type.value,
+                        type="income", amount=p_amount_uzs, payment_type=p.type.value,
                         reference_type="sale", reference_id=sale.id,
-                        description=f"Sotuv to'lovi #{sale.number} ({p.type.value})",
+                        description=f"Sotuv to'lovi #{sale.number} ({p.type.value})" + (f" ({p.amount} {p.currency})" if getattr(p, "currency", "UZS") != "UZS" else ""),
                     ))
                 if _cashier_wallet_id and p.type.value not in ("debt", "cashback"):
                     db.add(KassaMovement(
                         wallet_id=_cashier_wallet_id, company_id=current_user.company_id,
-                        direction="in", payment_type=p.type.value, amount=p.amount,
+                        direction="in", payment_type=p.type.value, amount=p_amount_uzs,
                         reference_type="sale", reference_id=sale.id,
-                        description=f"Sotuv #{sale.number}", created_by=current_user.id,
+                        description=f"Sotuv #{sale.number}" + (f" ({p.amount} {p.currency})" if getattr(p, "currency", "UZS") != "UZS" else ""), 
+                        created_by=current_user.id,
                     ))
     elif data.paid_amount > 0:
         if data.payment_type == PaymentType.mixed:

@@ -31,6 +31,8 @@ class SaleItemCreate(BaseModel):
 class PaymentItem(BaseModel):
     type: PaymentType
     amount: Decimal
+    currency: Optional[str] = "UZS"
+    rate: Optional[Decimal] = Decimal("1.0")
 
     @field_validator("amount")
     @classmethod
@@ -74,6 +76,8 @@ class SaleCreate(BaseModel):
     debt_due_date: Optional[date] = None
     # Qarz miqdori (POS dan debt_amount ham kelishi mumkin)
     debt_amount: Optional[Decimal] = None
+    # Valyutalar kesimida qarzlar (Ulgurji sotuvdan keladi)
+    currency_totals: Optional[dict] = None
 
     @field_validator("items")
     @classmethod
@@ -165,3 +169,4 @@ class SaleUpdate(BaseModel):
     payments: Optional[List[PaymentItem]] = None
     debt_due_date: Optional[date] = None
     warehouse_id: Optional[int] = None
+    currency_totals: Optional[dict] = None
