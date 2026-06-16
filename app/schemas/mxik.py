@@ -60,3 +60,20 @@ class MxikSyncRequest(BaseModel):
     mxik_code:     str
     terminal_id:   Optional[str] = None  # None bo'lsa config dan olinadi
     force_refresh: bool = False           # True = har doim API dan yangilaydi
+
+
+class MxikReferenceUpdate(BaseModel):
+    mxik_code: str
+    mxik_name: Optional[str] = None
+    short_name: Optional[str] = None
+    lgota_id: Optional[int] = None
+    lgota_name: Optional[str] = None
+    attribute_name: Optional[str] = None
+
+
+class MxikBarcode(BaseModel):
+    barcode: str
+    mxik_code: Optional[str] = None
+    mxik_name: Optional[str] = None
+    short_name: Optional[str] = None
+    

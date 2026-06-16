@@ -30,6 +30,7 @@ class Product(Base):
     cost_price = Column(Numeric(12, 2), nullable=False, default=0)
     cost_currency = Column(String(3), nullable=False, server_default="UZS", default='UZS')
     wholesale_price = Column(Numeric(12, 2), nullable=True, default=None)
+    wholesale_currency = Column(String(3), nullable=False, server_default="UZS", default='UZS')
     sale_price = Column(Numeric(12, 2), nullable=False, default=0)
     sale_currency = Column(String(3), nullable=False, server_default="UZS", default='UZS')
     min_stock = Column(Integer, default=0)

@@ -10,7 +10,7 @@ from app.models.tovarlar_catalog import TovarlarCatalog
 from app.models.user import User, UserRole
 from app.routers.billing import require_super_admin
 from app.routers.users import create_user
-from app.schemas.mxik import MxikReferenceOut, MxikSyncRequest
+from app.schemas.mxik import MxikReferenceOut, MxikSyncRequest, MxikReferenceUpdate
 from app.services.tasnif_service import sync_mxik
 from app.config import settings
 
@@ -102,11 +102,39 @@ def get_mxik(
 def delete_mxik(
         mxik_code: str,
         db: Session = Depends(get_db),
-        current_user: User = Depends(require_roles(UserRole.super_admin),)
+        current_user: User = Depends(get_current_user),
 ):
-    q = db.query(MxikPackage).filter(MxikPackage.code == mxik_code).first()
-    if not q:
+    ref = db.query(MxikReference).filter(MxikReference.mxik_code == mxik_code).first()
+    if not ref:
         raise HTTPException(status_code=404, detail="MXIK topilmadi")
-    db.delete(q)
+    db.query(MxikPackage).filter(MxikPackage.mxik_reference_id == ref.id).delete()
+    db.delete(ref)
     db.commit()
     return None
+
+
+@router.put("/{mxik_code}", response_model=MxikReferenceUpdate, status_code=status.HTTP_202_ACCEPTED)
+def update_mxik(
+        mxik_code: str,
+        data: MxikReferenceUpdate,
+        db: Session = Depends(get_db),
+        create_user: User = Depends(require_roles(UserRole.admin, UserRole.super_admin)),
+):
+    ref = db.query(MxikReferenceUpdate).filter(MxikReferenceUpdate.mxik_code == mxik_code).first()
+    if not db:
+        raise HTTPException(status_code=404, detail="MXIK topilmadi")
+    for field, value in data.model_dump().items():
+        setattr(ref, field, value)
+    db.commit()
+    db.refresh(ref)
+    return ref
+
+
+@router.delete("/{barcode}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_by_barcode(
+        barcode: str,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(UserRole.admin, UserRole.super_admin)),
+
+):
+    ref = db.query()
