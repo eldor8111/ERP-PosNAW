@@ -8,8 +8,8 @@ from app.database import get_db
 from app.models.transfer import StockTransfer, StockTransferItem, TransferStatus
 from app.models.user import User, UserRole
 from app.models.warehouse import Warehouse
-from app.schemas.transfer import TransferCreate, TransferListOut, TransferOut, TransferItemOut
-from app.services.transfer_service import confirm_transfer, create_transfer, delete_transfer
+from app.schemas.transfer import TransferCreate, TransferListOut, TransferOut, TransferItemOut, TransferUpdate
+from app.services.transfer_service import confirm_transfer, create_transfer, delete_transfer, update_transfer
 
 router = APIRouter(prefix="/transfers", tags=["Stock Transfers"])
 
@@ -196,3 +196,17 @@ def remove_transfer(
     """Transfer'ni o'chirish va mahsulot qoldiqlarini qaytarish"""
     delete_transfer(db=db, transfer_id=transfer_id, current_user=current_user)
     return {"message": "Transfer o'chirildi va qoldiqlar qaytarildi"}
+
+
+@router.put("/{transfer_id}", response_model=TransferOut)
+def transfer_update(
+    transfer_id: int,
+    data: TransferUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director)),
+):
+    transfer = update_transfer(db, transfer_id, data, current_user.id)
+    db.commit()
+    cid = None if current_user.role == UserRole.super_admin else current_user.company_id
+    t = _load_transfer(db, transfer.id, cid)
+    return _build_transfer_out(t)

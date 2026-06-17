@@ -59,3 +59,11 @@ class TransferListOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class TransferUpdate(BaseModel):
+    from_warehouse_id: int
+    to_warehouse_id: int
+    note: Optional[str] = None
+    items: List[TransferItemCreate]
+

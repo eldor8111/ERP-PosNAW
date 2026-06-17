@@ -4,9 +4,11 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.inventory import MovementType, StockMovement
+from app.models.inventory import StockLevel
+from app.models.product import Product, ProductConversion
 from app.models.transfer import StockTransfer, StockTransferItem, TransferStatus
 from app.models.warehouse import Warehouse
-from app.services.inventory_service import deduct_stock, get_or_create_stock
+from app.services.inventory_service import get_or_create_stock
 
 
 def generate_transfer_number(db: Session) -> str:
@@ -37,7 +39,7 @@ def create_transfer(db: Session, data, user_id: int) -> StockTransfer:
     db.add(transfer)
     db.flush()
 
-    from app.models.product import Product, ProductConversion
+    from app.models.product import Product
 
     # SQLAlchemy cache muammosini oldini olish uchun local ro'yxatda saqlaymiz
     collected_items = []
@@ -69,15 +71,14 @@ def create_transfer(db: Session, data, user_id: int) -> StockTransfer:
             'prod': prod,
         })
 
-
     db.flush()
 
     # ── Auto-confirm: collected_items dan foydalanamiz (ORM cache'ga ishonmaymiz) ──
-    from app.models.product import Product, ProductConversion
+    from app.models.product import ProductConversion
     for ref in collected_items:
-        prod           = ref['prod']
-        product_id     = ref['product_id']
-        quantity       = ref['quantity']
+        prod = ref['prod']
+        product_id = ref['product_id']
+        quantity = ref['quantity']
         target_prod_id = ref['target_product_id']  # ← kalit: to'g'ri qiymat
 
         # Tarkibiy (sell) mahsulot bo'lsa — ProductConversion orqali manba mahsulotini topamiz
@@ -188,6 +189,139 @@ def confirm_transfer(db: Session, transfer_id: int, user_id: int) -> StockTransf
     transfer.status = TransferStatus.received
     transfer.confirmed_by = user_id
     transfer.confirmed_at = datetime.now(timezone.utc)
+    db.flush()
+    return transfer
+
+
+def update_transfer(db: Session, transfer_id: int, data, user_id: int) -> StockTransfer:
+    transfer = db.query(StockTransfer).filter(StockTransfer.id == transfer_id).first()
+    if not transfer:
+        raise HTTPException(status_code=404, detail="Transfer topilmadi")
+
+    if data.from_warehouse_id == data.to_warehouse_id:
+        raise HTTPException(status_code=400, detail="Manba va maqsad ombor bir xil bo'lmasligi kerak")
+
+    for wh_id in [data.from_warehouse_id, data.to_warehouse_id]:
+        wh = db.query(Warehouse).filter(Warehouse.id == wh_id, Warehouse.is_active == True).first()
+        if not wh:
+            raise HTTPException(status_code=404, detail=f"Ombor ID={wh_id} topilmadi")
+
+    # 1. Eski stock movementlarni teskari qaytarish
+    old_movements = db.query(StockMovement).filter(
+        StockMovement.reference_type == "stock_transfer",
+        StockMovement.reference_id == transfer.id,
+    ).all()
+
+    for movement in old_movements:
+        if movement.type == MovementType.TRANSFER_OUT:
+            stock = db.query(StockLevel).filter(
+                StockLevel.product_id == movement.product_id,
+                StockLevel.warehouse_id == transfer.from_warehouse_id,
+            ).first()
+            if stock:
+                stock.quantity = movement.qty_before
+        elif movement.type == MovementType.TRANSFER_IN:
+            stock = db.query(StockLevel).filter(
+                StockLevel.product_id == movement.product_id,
+                StockLevel.warehouse_id == transfer.to_warehouse_id,
+            ).first()
+            if stock:
+                stock.quantity = movement.qty_before
+        db.delete(movement)
+
+    # 2. Eski itemlarni o'chirish
+    for item in transfer.items:
+        db.delete(item)
+    db.flush()
+
+    # 3. Header yangilash
+    transfer.from_warehouse_id = data.from_warehouse_id
+    transfer.to_warehouse_id = data.to_warehouse_id
+    transfer.note = data.note
+
+    # 4. Yangi itemlar va stock movementlar
+    collected_items = []
+    for item_data in data.items:
+        prod = db.query(Product).filter(Product.id == item_data.product_id).first()
+        if not prod:
+            raise HTTPException(status_code=404, detail=f"Mahsulot ID={item_data.product_id} topilmadi")
+
+        target_product_id = getattr(item_data, 'target_product_id', None) or None
+        if target_product_id:
+            target_prod = db.query(Product).filter(Product.id == target_product_id).first()
+            if not target_prod:
+                raise HTTPException(status_code=404, detail=f"Maqsad mahsulot ID={target_product_id} topilmadi")
+
+        orm_item = StockTransferItem(
+            transfer_id=transfer.id,
+            product_id=item_data.product_id,
+            target_product_id=target_product_id,
+            quantity=item_data.quantity,
+        )
+        db.add(orm_item)
+        collected_items.append({
+            'product_id': item_data.product_id,
+            'quantity': float(item_data.quantity),
+            'target_product_id': target_product_id,
+            'prod': prod,
+        })
+
+    db.flush()
+
+    for ref in collected_items:
+        prod = ref['prod']
+        product_id = ref['product_id']
+        quantity = ref['quantity']
+        target_prod_id = ref['target_product_id']
+
+        conversion = db.query(ProductConversion).filter(
+            ProductConversion.sell_product_id == product_id
+        ).first()
+
+        if conversion:
+            src_product_id = conversion.source_product_id
+            src_qty = quantity * float(conversion.ratio)
+        else:
+            src_product_id = product_id
+            src_qty = quantity
+
+        from_stock = get_or_create_stock(db, src_product_id, transfer.from_warehouse_id)
+        if float(from_stock.quantity) < src_qty:
+            raise HTTPException(
+                status_code=400,
+                detail=f"'{prod.name}': manba omborida yetarli qoldiq yo'q "
+                       f"(mavjud: {float(from_stock.quantity):.3f}, kerak: {src_qty:.3f})",
+            )
+        qty_before_from = float(from_stock.quantity)
+        from_stock.quantity = qty_before_from - src_qty
+        db.add(StockMovement(
+            product_id=src_product_id,
+            type=MovementType.TRANSFER_OUT,
+            qty_before=qty_before_from,
+            qty_after=from_stock.quantity,
+            quantity=src_qty,
+            reference_type="stock_transfer",
+            reference_id=transfer.id,
+            user_id=user_id,
+            reason=f"Transfer #{transfer.number} chiqim (yangilandi)",
+        ))
+
+        dest_product_id = target_prod_id if target_prod_id else product_id
+        to_stock = get_or_create_stock(db, dest_product_id, transfer.to_warehouse_id)
+        qty_before_to = float(to_stock.quantity)
+        to_stock.quantity = qty_before_to + quantity
+        db.add(StockMovement(
+            product_id=dest_product_id,
+            type=MovementType.TRANSFER_IN,
+            qty_before=qty_before_to,
+            qty_after=to_stock.quantity,
+            quantity=quantity,
+            reference_type="stock_transfer",
+            reference_id=transfer.id,
+            user_id=user_id,
+            reason=f"Transfer #{transfer.number} kirim (yangilandi)",
+        ))
+
     db.flush()
     return transfer
 

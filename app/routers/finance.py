@@ -12,6 +12,8 @@ from pydantic import BaseModel  # type: ignore
 from sqlalchemy.orm.attributes import flag_modified  # type: ignore
 from decimal import Decimal
 
+from starlette import status
+
 from app.database import get_db  # type: ignore
 from app.models.moliya import ExpenseCategory, Expense, Transaction, Wallet  # type: ignore
 from app.models.customer import Customer  # type: ignore
@@ -499,7 +501,7 @@ def list_transactions(
     return q.order_by(Transaction.created_at.desc()).limit(500).all()
 
 
-@router.post("/transactions", status_code=201)
+@router.post("/transactions", status_code=status.HTTP_201_CREATED)
 def create_transaction(
     data: TransactionIn,
     db: Session = Depends(get_db),
