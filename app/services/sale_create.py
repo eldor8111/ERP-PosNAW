@@ -62,32 +62,68 @@ def create_sale(
                     data.warehouse_id = stock_row.warehouse_id
 
     # ── Mahsulotlar narxi hisoblash ───────────────────────────────────────────
+    product_ids = [item.product_id for item in data.items]
+
+    products_map = {
+        p.id: p for p in db.query(Product).filter(
+            Product.id.in_(product_ids),
+            Product.company_id == current_user.company_id,
+            Product.is_deleted == False,
+            Product.status == ProductStatus.active,
+        ).all()
+    }
+
+    customer = None
+    customer_prices_map = {}
+    if data.customer_id:
+        customer = db.query(Customer).filter(
+            Customer.id == data.customer_id,
+            Customer.company_id == current_user.company_id,
+        ).first()
+        if not customer:
+            raise HTTPException(status_code=404, detail="Mijoz topilmadi")
+        customer_prices_map = {
+            cp.product_id: cp for cp in db.query(CustomerPrice).filter(
+                CustomerPrice.customer_id == data.customer_id,
+                CustomerPrice.product_id.in_(product_ids),
+            ).all()
+        }
+
+    conversions_map = {
+        c.sell_product_id: c for c in db.query(ProductConversion).filter(
+            ProductConversion.sell_product_id.in_(product_ids),
+        ).all()
+    }
+    source_product_ids = list({c.source_product_id for c in conversions_map.values()})
+    source_products_map = {}
+    if source_product_ids:
+        source_products_map = {
+            p.id: p for p in db.query(Product).filter(
+                Product.id.in_(source_product_ids),
+                Product.is_deleted == False,
+            ).all()
+        }
+
+    currency = None
+    exchange_rate = Decimal(1.0)
+    if data.currency_id:
+        currency = db.query(Currency).filter(Currency.id == data.currency_id).first()
+        if currency:
+            exchange_rate = currency.rate
+
     sale_items_data = []
     total_amount = Decimal("0")
 
     for item_data in data.items:
-        product = db.query(Product).filter(
-            Product.id == item_data.product_id,
-            Product.company_id == current_user.company_id,
-            Product.is_deleted == False,
-            Product.status == ProductStatus.active,
-        ).first()
+        product = products_map.get(item_data.product_id)
         if not product:
             raise HTTPException(
                 status_code=404,
                 detail=f"Mahsulot ID={item_data.product_id} topilmadi yoki nofaol",
             )
 
-        _customer_price = None
-        _customer = None
-        if data.customer_id:
-            _customer_price = db.query(CustomerPrice).filter(
-                CustomerPrice.customer_id == data.customer_id,
-                CustomerPrice.product_id == item_data.product_id,
-            ).first()
-            _customer = db.query(Customer).filter(Customer.id == data.customer_id).first()
-
-        unit_price = resolve_price(item_data, product, _customer_price, _customer)
+        _customer_price = customer_prices_map.get(item_data.product_id) if data.customer_id else None
+        unit_price = resolve_price(item_data, product, _customer_price, customer)
 
         discount = item_data.discount
         if discount > unit_price * item_data.quantity:
@@ -97,15 +133,10 @@ def create_sale(
             )
         subtotal = (unit_price * item_data.quantity) - discount
 
-        conversion = db.query(ProductConversion).filter(
-            ProductConversion.sell_product_id == product.id
-        ).first()
+        conversion = conversions_map.get(product.id)
         source_product = None
         if conversion:
-            source_product = db.query(Product).filter(
-                Product.id == conversion.source_product_id,
-                Product.is_deleted == False,
-            ).first()
+            source_product = source_products_map.get(conversion.source_product_id)
             if not source_product:
                 conversion = None
 
@@ -153,23 +184,10 @@ def create_sale(
     if paid_cashback_amount > 0 and not data.customer_id:
         raise HTTPException(status_code=400, detail="Keshbekdan foydalanish uchun mijozni tanlash majburiy")
 
-    # ── Valyuta ───────────────────────────────────────────────────────────────
-    exchange_rate = Decimal(1.0)
-    if data.currency_id:
-        currency = db.query(Currency).filter(Currency.id == data.currency_id).first()
-        if currency:
-            exchange_rate = currency.rate
-
     # ── CRM / Loyallik ────────────────────────────────────────────────────────
     loyalty_earned = 0
     prev_debt_balance = 0.0
     if data.customer_id:
-        customer = db.query(Customer).filter(
-            Customer.id == data.customer_id,
-            Customer.company_id == current_user.company_id,
-        ).first()
-        if not customer:
-            raise HTTPException(status_code=404, detail="Mijoz topilmadi")
         prev_debt_balance = float(customer.debt_balance or 0)
 
         if data.loyalty_points_used > 0:
@@ -202,9 +220,9 @@ def create_sale(
             debt_amount = (total_amount - data.paid_amount) * exchange_rate
             if customer.debt_limit > 0 and (customer.debt_balance + debt_amount) > customer.debt_limit:
                 raise HTTPException(status_code=400, detail="Mijozning qarz limiti oshib ketdi")
-            
+
             customer.debt_balance += debt_amount
-            
+
             # Sync with multi-currency debt_balances
             if not customer.debt_balances:
                 customer.debt_balances = {}
@@ -214,20 +232,13 @@ def create_sale(
                     curr_val = float(customer.debt_balances.get(curr_code, 0))
                     customer.debt_balances[curr_code] = curr_val + float(curr_debt)
             else:
-                # The actual debt amount in the sale's currency
                 actual_debt_in_currency = total_amount - data.paid_amount
-                
-                # Sale currency code
-                sale_currency = "UZS"
-                if data.currency_id:
-                    from app.models.currency import Currency
-                    curr_obj = db.query(Currency).filter(Currency.id == data.currency_id).first()
-                    if curr_obj:
-                        sale_currency = curr_obj.code
-                
+                sale_currency = currency.code if currency else "UZS"
+
                 curr_val = float(customer.debt_balances.get(sale_currency, 0))
                 customer.debt_balances[sale_currency] = curr_val + float(actual_debt_in_currency)
-            
+
+
             from sqlalchemy.orm.attributes import flag_modified
             flag_modified(customer, "debt_balances")
 
@@ -475,12 +486,8 @@ def create_sale(
     db.commit()
 
     # ── Telegram notification ─────────────────────────────────────────────────
-    if getattr(data, "customer_id", None):
-        customer = db.query(Customer).filter(
-            Customer.id == data.customer_id,
-            Customer.company_id == current_user.company_id,
-        ).first()
-        if customer and getattr(customer, "tg_chat_id", None):
+    if data.customer_id and customer:
+        if getattr(customer, "tg_chat_id", None):
             company = db.query(Company).filter(Company.id == current_user.company_id).first()
             if company and getattr(company, "tg_bot_token", None):
                 _token = str(company.tg_bot_token)
@@ -604,37 +611,59 @@ def create_pending_sale(
             if wh:
                 data.warehouse_id = wh.id
 
+    _p_ids = [item.product_id for item in data.items]
+
+    _products_map = {
+        p.id: p for p in db.query(Product).filter(
+            Product.id.in_(_p_ids),
+            Product.company_id == current_user.company_id,
+            Product.is_deleted == False,
+        ).all()
+    }
+
+    _pend_customer = None
+    _pend_customer_prices = {}
+    if data.customer_id:
+        _pend_customer = db.query(Customer).filter(Customer.id == data.customer_id).first()
+        if _pend_customer:
+            _pend_customer_prices = {
+                cp.product_id: cp for cp in db.query(CustomerPrice).filter(
+                    CustomerPrice.customer_id == data.customer_id,
+                    CustomerPrice.product_id.in_(_p_ids),
+                ).all()
+            }
+
+    _pend_conversions = {
+        c.sell_product_id: c for c in db.query(ProductConversion).filter(
+            ProductConversion.sell_product_id.in_(_p_ids),
+        ).all()
+    }
+    _pend_src_ids = list({c.source_product_id for c in _pend_conversions.values()})
+    _pend_sources = {}
+    if _pend_src_ids:
+        _pend_sources = {
+            p.id: p for p in db.query(Product).filter(
+                Product.id.in_(_pend_src_ids),
+            ).all()
+        }
+
     sale_items_data = []
     total_amount = Decimal("0")
 
     for item_data in data.items:
-        product = db.query(Product).filter(
-            Product.id == item_data.product_id,
-            Product.company_id == current_user.company_id,
-            Product.is_deleted == False,
-        ).first()
+        product = _products_map.get(item_data.product_id)
         if not product:
             raise HTTPException(status_code=404, detail=f"Mahsulot ID={item_data.product_id} topilmadi")
 
-        _customer_price = None
-        _customer = None
-        if data.customer_id:
-            _customer_price = db.query(CustomerPrice).filter(
-                CustomerPrice.customer_id == data.customer_id,
-                CustomerPrice.product_id == item_data.product_id,
-            ).first()
-            _customer = db.query(Customer).filter(Customer.id == data.customer_id).first()
-
-        unit_price = resolve_price(item_data, product, _customer_price, _customer)
+        _customer_price = _pend_customer_prices.get(item_data.product_id) if data.customer_id else None
+        unit_price = resolve_price(item_data, product, _customer_price, _pend_customer)
         discount = item_data.discount
         subtotal = max(Decimal("0"), (unit_price * item_data.quantity) - discount)
 
-        conversion = db.query(ProductConversion).filter(
-            ProductConversion.sell_product_id == product.id
-        ).first()
+        conversion = _pend_conversions.get(product.id)
         cost_price = product.cost_price
         if conversion:
-            source = db.query(Product).filter(Product.id == conversion.source_product_id).first()
+            source = _pend_sources.get(conversion.source_product_id)
             if source:
                 cost_price = (source.cost_price or Decimal("0")) * conversion.ratio
 

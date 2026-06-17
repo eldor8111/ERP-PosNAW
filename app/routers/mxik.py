@@ -10,7 +10,7 @@ from app.models.tovarlar_catalog import TovarlarCatalog
 from app.models.user import User, UserRole
 from app.routers.billing import require_super_admin
 from app.routers.users import create_user
-from app.schemas.mxik import MxikReferenceOut, MxikSyncRequest, MxikReferenceUpdate
+from app.schemas.mxik import MxikReferenceOut, MxikSyncRequest, MxikReferenceUpdate, MxikBarcode
 from app.services.tasnif_service import sync_mxik
 from app.config import settings
 
@@ -102,7 +102,7 @@ def get_mxik(
 def delete_mxik(
         mxik_code: str,
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user),
+        current_user: User = Depends(require_roles(UserRole.admin, UserRole.super_admin)),
 ):
     ref = db.query(MxikReference).filter(MxikReference.mxik_code == mxik_code).first()
     if not ref:
@@ -130,11 +130,32 @@ def update_mxik(
     return ref
 
 
-@router.delete("/{barcode}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/barcode/{barcode}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_by_barcode(
         barcode: str,
         db: Session = Depends(get_db),
         current_user: User = Depends(require_roles(UserRole.admin, UserRole.super_admin)),
 
 ):
-    ref = db.query()
+    ref = db.query(TovarlarCatalog).filter(TovarlarCatalog.barcode == barcode).first()
+    if not ref:
+        raise HTTPException(status_code=404, detail="Barcode topilmadi")
+    db.delete(ref)
+    db.commit()
+    return None
+
+
+@router.put("barcode/{barcode}", response_model=MxikBarcode, status_code=status.HTTP_202_ACCEPTED)
+def update_by_barcode(
+        barcode: str,
+        data: MxikBarcode,
+        db: Session = Depends(get_db),
+        create_user: User = Depends(require_roles(UserRole.admin, UserRole.super_admin)),
+
+):
+    ref = db.query(MxikBarcode).filter(MxikBarcode.barcode == barcode).first()
+    for field, value in data.model_dump().items():
+        setattr(ref, field, value)
+    db.commit()
+    db.refresh(ref)
+    return ref

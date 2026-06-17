@@ -73,7 +73,9 @@ class MxikReferenceUpdate(BaseModel):
 
 class MxikBarcode(BaseModel):
     barcode: str
-    mxik_code: Optional[str] = None
     mxik_name: Optional[str] = None
     short_name: Optional[str] = None
-    
+    lgota_id: Optional[int] = None
+    lgota_name: Optional[str] = None
+    attribute_name: Optional[str] = None
+
