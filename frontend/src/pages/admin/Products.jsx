@@ -91,8 +91,11 @@ const emptyBulkRow = () => ({
   product_code: '',
   extra_product_codes: [],
   cost_price: '',
+  cost_price_cur: '',
   wholesale_price: '',
+  wholesale_price_cur: '',
   sale_price: '',
+  sale_price_cur: '',
   barcodes: [genBarcodeByFormat('ean8')],
   unit: 'dona',
   barcode_status: null,   // null | 'checking' | 'exists' | 'new'
@@ -1351,13 +1354,17 @@ export default function Products() {
           barcode: primary || genBarcodeByFormat('ean8'),
           extra_barcodes: extras,
           cost_price: Number(row.cost_price) || 0,
+          cost_currency: getPureCode(row.cost_price_cur),
           wholesale_price: row.wholesale_price !== '' ? Number(row.wholesale_price) : null,
+          wholesale_currency: getPureCode(row.wholesale_price_cur),
           sale_price: Number(row.sale_price) || 0,
+          sale_currency: getPureCode(row.sale_price_cur),
           unit: row.unit || 'dona',
           category_id: row.category_id ? Number(row.category_id) : null,
           initial_stock: Number(row.initial_stock) || 0,
           initial_warehouse_id: Number(row.initial_stock) > 0 && bulkWarehouseId ? Number(bulkWarehouseId) : undefined,
           status: row.status || 'active',
+          price_currency_id: row.sale_price_cur ? Number(row.sale_price_cur) : null,
         });
         created++;
       } catch (err) {
@@ -3321,7 +3328,7 @@ export default function Products() {
 
                 {/* Column headers */}
                 <div className="grid gap-3 mb-3 text-xs xl:text-sm font-extrabold text-slate-600 uppercase tracking-wide px-3"
-                  style={{ gridTemplateColumns: '34px 1fr 110px 110px 110px 110px 1fr 80px 160px 80px 40px' }}>
+                  style={{ gridTemplateColumns: '34px 1fr 110px 180px 180px 180px 1fr 80px 160px 80px 40px' }}>
                   <span>#</span>
                   <span>Mahsulot nomi *</span>
                   <span className="text-indigo-600">Kod</span>
@@ -3340,7 +3347,7 @@ export default function Products() {
                   {bulkRows.map((row, rowIdx) => (
                     <div key={row._key} className="p-4">
                       <div className="grid gap-2 lg:gap-3 items-start"
-                        style={{ gridTemplateColumns: '34px 1fr 110px 110px 110px 110px 1fr 80px 160px 80px 40px' }}>
+                        style={{ gridTemplateColumns: '34px 1fr 110px 180px 180px 180px 1fr 80px 160px 80px 40px' }}>
                         {/* # */}
                         <div className="flex items-center justify-start h-8 lg:h-10 xl:h-12 text-base font-bold text-slate-400">{rowIdx + 1}</div>
 
@@ -3407,31 +3414,76 @@ export default function Products() {
                         </div>
 
                         {/* Sale price (Chakana) — birinchi */}
-                        <input
-                          className="h-8 lg:h-10 xl:h-12 px-3 border border-emerald-300 rounded-lg text-base font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full bg-emerald-50"
-                          value={fmtPrice(row.sale_price)}
-                          onChange={e => updateBulkRow(row._key, 'sale_price', parsePrice(e.target.value))}
-                          placeholder="0"
-                          inputMode="numeric"
-                        />
+                        <div className="flex flex-col">
+                          <div className="flex rounded-lg border border-emerald-300 focus-within:ring-2 focus-within:ring-emerald-500 bg-emerald-50">
+                            <input
+                              className="flex-1 min-w-0 h-8 lg:h-10 xl:h-12 px-2 text-base font-semibold focus:outline-none bg-transparent"
+                              value={fmtPrice(row.sale_price)}
+                              onChange={e => updateBulkRow(row._key, 'sale_price', parsePrice(e.target.value))}
+                              placeholder="0"
+                              inputMode="numeric"
+                            />
+                            <CurrencyDropdown
+                              value={row.sale_price_cur}
+                              onChange={v => updateBulkRow(row._key, 'sale_price_cur', v)}
+                              currencies={currencies}
+                            />
+                          </div>
+                          {row.sale_price_cur && (() => {
+                            const cur = currencies.find(c => String(c.id) === row.sale_price_cur);
+                            return cur && row.sale_price ? (
+                              <p className="text-[10px] text-emerald-600 mt-0.5 font-bold truncate">≈ {fmt(Math.round(Number(row.sale_price) * Number(cur.rate)))}</p>
+                            ) : null;
+                          })()}
+                        </div>
 
                         {/* Wholesale (Ulgurji) — ikkinchi */}
-                        <input
-                          className="h-8 lg:h-10 xl:h-12 px-3 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
-                          value={fmtPrice(row.wholesale_price)}
-                          onChange={e => updateBulkRow(row._key, 'wholesale_price', parsePrice(e.target.value))}
-                          placeholder="—"
-                          inputMode="numeric"
-                        />
+                        <div className="flex flex-col">
+                          <div className="flex rounded-lg border border-slate-200 focus-within:ring-2 focus-within:ring-emerald-500 bg-white">
+                            <input
+                              className="flex-1 min-w-0 h-8 lg:h-10 xl:h-12 px-2 text-base focus:outline-none bg-transparent"
+                              value={fmtPrice(row.wholesale_price)}
+                              onChange={e => updateBulkRow(row._key, 'wholesale_price', parsePrice(e.target.value))}
+                              placeholder="—"
+                              inputMode="numeric"
+                            />
+                            <CurrencyDropdown
+                              value={row.wholesale_price_cur}
+                              onChange={v => updateBulkRow(row._key, 'wholesale_price_cur', v)}
+                              currencies={currencies}
+                            />
+                          </div>
+                          {row.wholesale_price_cur && (() => {
+                            const cur = currencies.find(c => String(c.id) === row.wholesale_price_cur);
+                            return cur && row.wholesale_price ? (
+                              <p className="text-[10px] text-slate-500 mt-0.5 font-bold truncate">≈ {fmt(Math.round(Number(row.wholesale_price) * Number(cur.rate)))}</p>
+                            ) : null;
+                          })()}
+                        </div>
 
                         {/* Cost price (Tan narxi) — uchinchi */}
-                        <input
-                          className="h-8 lg:h-10 xl:h-12 px-3 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
-                          value={fmtPrice(row.cost_price)}
-                          onChange={e => updateBulkRow(row._key, 'cost_price', parsePrice(e.target.value))}
-                          placeholder="0"
-                          inputMode="numeric"
-                        />
+                        <div className="flex flex-col">
+                          <div className="flex rounded-lg border border-slate-200 focus-within:ring-2 focus-within:ring-emerald-500 bg-white">
+                            <input
+                              className="flex-1 min-w-0 h-8 lg:h-10 xl:h-12 px-2 text-base focus:outline-none bg-transparent"
+                              value={fmtPrice(row.cost_price)}
+                              onChange={e => updateBulkRow(row._key, 'cost_price', parsePrice(e.target.value))}
+                              placeholder="0"
+                              inputMode="numeric"
+                            />
+                            <CurrencyDropdown
+                              value={row.cost_price_cur}
+                              onChange={v => updateBulkRow(row._key, 'cost_price_cur', v)}
+                              currencies={currencies}
+                            />
+                          </div>
+                          {row.cost_price_cur && (() => {
+                            const cur = currencies.find(c => String(c.id) === row.cost_price_cur);
+                            return cur && row.cost_price ? (
+                              <p className="text-[10px] text-slate-500 mt-0.5 font-bold truncate">≈ {fmt(Math.round(Number(row.cost_price) * Number(cur.rate)))}</p>
+                            ) : null;
+                          })()}
+                        </div>
 
                         {/* Barcodes */}
                         <div className="space-y-2">
