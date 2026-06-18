@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, BackgroundTasks
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, aliased
 from sqlalchemy import func, select
 
 from app.core.dependencies import get_current_user, require_roles
@@ -253,8 +253,9 @@ def list_sales(
     if status:
         q = q.filter(Sale.status == status)
     if search:
-        q = q.filter(Sale.number.ilike(f"%{search}%"))
-
+        CashierQ = aliased(UserModel, name='cashier_q')
+        q = q.outerjoin(CashierQ, Sale.cashier_id == CashierQ.id)
+        q = q.filter(CashierQ.name.ilike(f"%{search}%"))
     rows = q.order_by(Sale.created_at.desc()).offset(skip).limit(limit).all()
 
     return [
