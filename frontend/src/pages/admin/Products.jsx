@@ -15,11 +15,23 @@ const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8010/api').r
 // Narx inputi uchun: "60000" → "60 000", foydalanuvchi kiritayotganda formatlash
 const fmtPrice = (v) => {
   if (v === '' || v === null || v === undefined) return '';
-  const digits = String(v).replace(/\s/g, '');
-  if (!digits || isNaN(Number(digits))) return String(v).replace(/\s/g, '');
-  return Number(digits).toLocaleString('ru-RU');
+  let s = String(v).replace(/\s/g, '').replace(',', '.');
+  if (s === '.' || s === ',') return '.';
+  if (s.endsWith('.')) {
+    const intPart = s.slice(0, -1);
+    const formattedInt = intPart === '' ? '' : (Number(intPart) || 0).toLocaleString('ru-RU');
+    return formattedInt + '.';
+  }
+  const n = Number(s);
+  if (isNaN(n)) return s;
+  const parts = s.split('.');
+  const formattedInt = Number(parts[0]).toLocaleString('ru-RU');
+  if (parts.length > 1) {
+    return formattedInt + '.' + parts[1];
+  }
+  return formattedInt;
 };
-const parsePrice = (v) => String(v).replace(/\s/g, '').replace(/[^0-9.]/g, '');
+const parsePrice = (v) => String(v).replace(/\s/g, '').replace(',', '.').replace(/[^0-9.]/g, '');
 
 const fmt = (v) => {
   if (v === null || v === undefined || v === '') return '0';
@@ -2584,10 +2596,10 @@ export default function Products() {
                       </Field>
                       <Field label="Yechilish nisbati" required hint="1 dona/kg sotilganda qancha yechiladi?">
                         <input
-                          type="number" step="any" min="0.0001"
+                          type="text" inputMode="decimal"
                           className={inputCls}
                           value={form.conversion_ratio}
-                          onChange={e => setForm(f => ({ ...f, conversion_ratio: e.target.value }))}
+                          onChange={e => setForm(f => ({ ...f, conversion_ratio: e.target.value.replace(/[^0-9.]/g, '') }))}
                           placeholder="M-n: 1.0"
                         />
                       </Field>
@@ -2633,9 +2645,11 @@ export default function Products() {
                       <div>
                         <label className="block text-sm font-semibold text-slate-600 mb-1.5">{t('product.costPriceLabel')}</label>
                         <div className="flex rounded-lg border border-slate-200 focus-within:ring-2 focus-within:ring-indigo-500 bg-white shadow-sm">
-                          <input type="number" min="0" step="0.01"
+                          <input type="text" inputMode="decimal"
                             className="flex-1 min-w-0 px-3 py-3 text-base font-medium focus:outline-none bg-transparent rounded-l-lg"
-                            value={form.cost_price} onChange={e => setForm({ ...form, cost_price: e.target.value })} placeholder="0" />
+                            value={fmtPrice(form.cost_price)}
+                            onChange={e => setForm({ ...form, cost_price: parsePrice(e.target.value) })}
+                            placeholder="0" />
                           <CurrencyDropdown
                             value={form.cost_price_cur}
                             onChange={v => setForm({ ...form, cost_price_cur: v })}
@@ -2654,9 +2668,11 @@ export default function Products() {
                       <div>
                         <label className="block text-sm font-semibold text-slate-600 mb-1.5">{t('product.wholesalePriceLabel')}</label>
                         <div className="flex rounded-lg border border-slate-200 focus-within:ring-2 focus-within:ring-indigo-500 bg-white shadow-sm">
-                          <input type="number" min="0" step="0.01"
+                          <input type="text" inputMode="decimal"
                             className="flex-1 min-w-0 px-3 py-3 text-base font-medium focus:outline-none bg-transparent rounded-l-lg"
-                            value={form.wholesale_price} onChange={e => setForm({ ...form, wholesale_price: e.target.value })} placeholder="—" />
+                            value={fmtPrice(form.wholesale_price)}
+                            onChange={e => setForm({ ...form, wholesale_price: parsePrice(e.target.value) })}
+                            placeholder="—" />
                           <CurrencyDropdown
                             value={form.wholesale_price_cur}
                             onChange={v => setForm({ ...form, wholesale_price_cur: v })}
@@ -2680,9 +2696,11 @@ export default function Products() {
                       </label>
                       <div className={`flex rounded-lg border focus-within:ring-2 focus-within:ring-indigo-500 bg-white shadow-sm ${(form.sale_price === '' || form.sale_price === null) && error ? 'border-red-400 ring-1 ring-red-400' : 'border-slate-300'
                         }`}>
-                        <input type="number" min="0" step="0.01"
+                        <input type="text" inputMode="decimal"
                           className="flex-1 min-w-0 px-3 py-3 text-base font-medium text-slate-800 focus:outline-none bg-transparent rounded-l-lg"
-                          value={form.sale_price} onChange={e => setForm({ ...form, sale_price: e.target.value })} placeholder="0" />
+                          value={fmtPrice(form.sale_price)}
+                          onChange={e => setForm({ ...form, sale_price: parsePrice(e.target.value) })}
+                          placeholder="0" />
                         <CurrencyDropdown
                           value={form.sale_price_cur}
                           onChange={v => setForm({ ...form, sale_price_cur: v })}
@@ -2732,8 +2750,10 @@ export default function Products() {
                     {modal === 'add' && (
                       <>
                         <Field label={t('product.initialStock') || 'Boshlang\'ich qoldiq'}>
-                          <input type="number" min="0" step="0.01" className={`${inputCls} text-base`}
-                            value={form.initial_stock} onChange={e => setForm({ ...form, initial_stock: e.target.value })} placeholder="0" />
+                          <input type="text" inputMode="decimal" className={`${inputCls} text-base`}
+                            value={form.initial_stock}
+                            onChange={e => setForm({ ...form, initial_stock: e.target.value.replace(/[^0-9.]/g, '') })}
+                            placeholder="0" />
                         </Field>
                         <Field label="Qaysi omborga?" required={Number(form.initial_stock) > 0}>
                           <select
@@ -2751,12 +2771,15 @@ export default function Products() {
                       </>
                     )}
                     <Field label={t('product.minStockLabel')}>
-                      <input type="number" min="0" className={`${inputCls} text-base`}
-                        value={form.min_stock} onChange={e => setForm({ ...form, min_stock: e.target.value })} />
+                      <input type="text" inputMode="decimal" className={`${inputCls} text-base`}
+                        value={form.min_stock}
+                        onChange={e => setForm({ ...form, min_stock: e.target.value.replace(/[^0-9.]/g, '') })} />
                     </Field>
                     <Field label={t('product.maxStock')}>
-                      <input type="number" min="0" className={`${inputCls} text-base`}
-                        value={form.max_stock} onChange={e => setForm({ ...form, max_stock: e.target.value })} placeholder={t('product.maxStockPlaceholder')} />
+                      <input type="text" inputMode="decimal" className={`${inputCls} text-base`}
+                        value={form.max_stock}
+                        onChange={e => setForm({ ...form, max_stock: e.target.value.replace(/[^0-9.]/g, '') })}
+                        placeholder={t('product.maxStockPlaceholder')} />
                     </Field>
                     {modal !== 'add' && <div />}
                   </div>
@@ -2803,9 +2826,10 @@ export default function Products() {
                           <input
                             className={`${inputCls} flex-1 font-mono text-base ${!form.barcode?.trim() && error ? errCls : ''}`}
                             value={form.barcode}
-                            type='number'
+                            type='text'
+                            inputMode='numeric'
                             onChange={async e => {
-                              const val = e.target.value;
+                              const val = e.target.value.replace(/[^0-9]/g, '');
                               setForm(f => ({ ...f, barcode: val }));
                               if (val && val.length >= 8) { // To'g'ri bo'yi yetarli bo'lganda so'rov
                                 try {
@@ -2966,12 +2990,12 @@ export default function Products() {
                 <div className="flex gap-4 w-full">
                   <div className="sm:col-span-6 relative w-full">
                     <Field label="MXIK kod">
-                      <input type="number" value={mxikCode} onChange={(e) => setMxikCode(e.target.value)} className={inputCls} placeholder="12345678..." />
+                      <input type="text" inputMode="numeric" value={mxikCode} onChange={(e) => setMxikCode(e.target.value.replace(/[^0-9]/g, ''))} className={inputCls} placeholder="12345678..." />
                     </Field>
                   </div>
                   <div className="sm:col-span-6 w-full">
                     <Field label="O'lchov kod">
-                      <input type="number" value={barcode_input} onChange={(e) => setBarcodeInput(e.target.value)} className={inputCls} placeholder="12345678..." />
+                      <input type="text" inputMode="numeric" value={barcode_input} onChange={(e) => setBarcodeInput(e.target.value.replace(/[^0-9]/g, ''))} className={inputCls} placeholder="12345678..." />
                     </Field>
                   </div>
                 </div>
@@ -3013,8 +3037,10 @@ export default function Products() {
                 {/* Weight + Dimensions */}
                 <div className="grid grid-cols-2 gap-3">
                   <Field label={t('product.weight')}>
-                    <input type="number" min="0" step="0.001" className={inputCls}
-                      value={form.weight} onChange={e => setForm({ ...form, weight: e.target.value })} placeholder="0.000" />
+                    <input type="text" inputMode="decimal" className={inputCls}
+                      value={form.weight}
+                      onChange={e => setForm({ ...form, weight: e.target.value.replace(/[^0-9.]/g, '') })}
+                      placeholder="0.000" />
                   </Field>
                   <Field label={t('product.dimensions')}>
                     <input className={inputCls} value={form.dimensions}
@@ -3094,8 +3120,8 @@ export default function Products() {
               </select>
             </Field>
             <Field label={t('product.sortNumber')}>
-              <input type="number" min="0" className={inputCls} value={catForm.sort_order}
-                onChange={e => setCatForm({ ...catForm, sort_order: e.target.value })} />
+              <input type="text" inputMode="numeric" className={inputCls} value={catForm.sort_order}
+                onChange={e => setCatForm({ ...catForm, sort_order: e.target.value.replace(/[^0-9]/g, '') })} />
             </Field>
             {catError && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{catError}</div>}
             <div className="flex gap-3 pt-1">
@@ -3347,7 +3373,7 @@ export default function Products() {
                   {bulkRows.map((row, rowIdx) => (
                     <div key={row._key} className="p-4">
                       <div className="grid gap-2 lg:gap-3 items-start"
-                        style={{ gridTemplateColumns: '34px 1fr 110px 180px 180px 180px 1fr 80px 160px 80px 40px' }}>
+                        style={{ gridTemplateColumns: '34px 1fr 110px 200px 200px 200px 1fr 80px 160px 80px 40px' }}>
                         {/* # */}
                         <div className="flex items-center justify-start h-8 lg:h-10 xl:h-12 text-base font-bold text-slate-400">{rowIdx + 1}</div>
 
@@ -3421,7 +3447,7 @@ export default function Products() {
                               value={fmtPrice(row.sale_price)}
                               onChange={e => updateBulkRow(row._key, 'sale_price', parsePrice(e.target.value))}
                               placeholder="0"
-                              inputMode="numeric"
+                              inputMode="decimal"
                             />
                             <CurrencyDropdown
                               value={row.sale_price_cur}
@@ -3445,7 +3471,7 @@ export default function Products() {
                               value={fmtPrice(row.wholesale_price)}
                               onChange={e => updateBulkRow(row._key, 'wholesale_price', parsePrice(e.target.value))}
                               placeholder="—"
-                              inputMode="numeric"
+                              inputMode="decimal"
                             />
                             <CurrencyDropdown
                               value={row.wholesale_price_cur}
@@ -3469,7 +3495,7 @@ export default function Products() {
                               value={fmtPrice(row.cost_price)}
                               onChange={e => updateBulkRow(row._key, 'cost_price', parsePrice(e.target.value))}
                               placeholder="0"
-                              inputMode="numeric"
+                              inputMode="decimal"
                             />
                             <CurrencyDropdown
                               value={row.cost_price_cur}
@@ -3597,13 +3623,13 @@ export default function Products() {
 
                         {/* Initial stock */}
                         <div className="space-y-1">
-                          <input type="number" min="0"
+                          <input type="text" inputMode="decimal"
                             className={`h-8 lg:h-10 xl:h-12 px-3 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full ${Number(row.initial_stock) > 0 && !bulkWarehouseId
                               ? 'border-amber-400 bg-amber-50'
                               : 'border-slate-200'
                               }`}
                             value={row.initial_stock}
-                            onChange={e => updateBulkRow(row._key, 'initial_stock', e.target.value)}
+                            onChange={e => updateBulkRow(row._key, 'initial_stock', e.target.value.replace(/[^0-9.]/g, ''))}
                             placeholder="0"
                           />
                           {Number(row.initial_stock) > 0 && !bulkWarehouseId && (

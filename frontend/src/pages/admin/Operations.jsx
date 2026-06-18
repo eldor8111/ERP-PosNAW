@@ -12,7 +12,7 @@ const fmtDt = (d) => d ? new Date(d).toLocaleString('uz-UZ') : '—';
 const fmtDay = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
 const today = () => new Date().toISOString().slice(0, 10);
 
-const OptionsTable = () => {
+const OptionsTable = ({ row, onEdit, onReturn }) => {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, right: 0 });
   const ref = useRef(null);
@@ -49,7 +49,7 @@ const OptionsTable = () => {
   };
 
   return (
-    <div className="relative inline-block text-left">
+    <div className="relative inline-block text-left" onClick={e => e.stopPropagation()}>
       <button
         ref={btnRef}
         onClick={toggle}
@@ -69,11 +69,11 @@ const OptionsTable = () => {
           }}
           className="w-40 bg-white border border-slate-200 rounded-xl shadow-xl p-1.5 animate-in fade-in slide-in-from-top-1 duration-100"
         >
-          <button onClick={e => { e.stopPropagation(); setOpen(false); }} className="flex w-full items-center px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md transition-colors font-medium">
+          <button onClick={e => { e.stopPropagation(); setOpen(false); onEdit?.(row); }} className="flex cursor-pointer w-full items-center px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md transition-colors font-medium">
             Tahrirlash
           </button>
-          <button onClick={e => { e.stopPropagation(); setOpen(false); }} className="flex w-full items-center px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors font-medium">
-            O'chirish
+          <button onClick={e => { e.stopPropagation(); setOpen(false); onReturn?.(row); }} className="flex cursor-pointer w-full items-center px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors font-medium">
+            Qaytarish
           </button>
         </div>
       )}
@@ -1976,13 +1976,27 @@ function QaytarishlarTab({ products, suppliers, warehouses }) {
 /* ══════════════════════════════════════════════════════════
    TRANSFERLAR
 ══════════════════════════════════════════════════════════ */
-function TransferCreateView({ products: propProducts, warehouses, onBack, onSaved }) {
+function TransferCreateView({ products: propProducts, warehouses, onBack, onSaved, editData = null }) {
   const { t } = useLang();
   const [localProducts, setLocalProducts] = useState(propProducts || []);
   const [step, setStep] = useState(1);
 
-  const [form, setForm] = useState({ from_warehouse_id: '', to_warehouse_id: '', note: '' });
-  const [items, setItems] = useState([]);
+  const [form, setForm] = useState(editData ? {
+    from_warehouse_id: String(editData.from_warehouse_id),
+    to_warehouse_id: String(editData.to_warehouse_id),
+    note: editData.note || ''
+  } : { from_warehouse_id: '', to_warehouse_id: '', note: '' });
+
+  const [items, setItems] = useState(editData ? editData.items.map(i => ({
+    product_id: i.product_id,
+    product_name: i.product_name,
+    unit: i.unit || 'dona',
+    quantity: Number(i.quantity),
+    stock: Number(i.stock_quantity || 0),
+    target_product_id: i.target_product_id || null,
+    target_product_name: i.target_product_name || null,
+  })) : []);
+
   const [sel, setSel] = useState(null);
   const [qty, setQty] = useState('1');
   const [selTargetProd, setSelTargetProd] = useState(null); // maqsad omborda boshqa mahsulot
@@ -2038,7 +2052,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
   const save = async () => {
     setSaving(true); setErr('');
     try {
-      await api.post('/transfers', {
+      const payload = {
         from_warehouse_id: Number(form.from_warehouse_id),
         to_warehouse_id: Number(form.to_warehouse_id),
         note: form.note || null,
@@ -2047,7 +2061,16 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
           quantity: i.quantity,
           target_product_id: i.target_product_id || null,
         })),
-      });
+      };
+
+      if (editData) {
+        await api.put(`/transfers/${editData.id}`, payload);
+        toast.success("Transfer muvaffaqiyatli tahrirlandi");
+      } else {
+        await api.post('/transfers', payload);
+        toast.success("Transfer muvaffaqiyatli yaratildi");
+      }
+
       onSaved(); onBack();
     } catch (e) { setErr(e.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
   };
@@ -2065,7 +2088,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
           Orqaga
         </button>
         <div className="w-px h-6 bg-slate-200 shrink-0" />
-        <h2 className="text-base font-bold text-slate-800">Yangi Transfer</h2>
+        <h2 className="text-base font-bold text-slate-800">{editData ? `Transferni tahrirlash · ${editData.number}` : "Yangi Transfer"}</h2>
 
         {/* Step indicator */}
         <div className="flex items-center gap-0 ml-6">
@@ -2570,6 +2593,7 @@ function TransferlarTab({ products, warehouses, users = [] }) {
   const [skip, setSkip] = useState(0);
   const [f, setF] = useState({ dateFrom: today(), dateTo: today(), status: '', fromWh_id: '', toWh_id: '', user_id: '', statusQ: '', fromWhQ: '', toWhQ: '', userQ: '' });
   const [detail, setDetail] = useState(null);
+  const [editData, setEditData] = useState(null);
   const LIMIT = 20;
 
   const load = useCallback(async () => {
@@ -2593,10 +2617,45 @@ function TransferlarTab({ products, warehouses, users = [] }) {
     const r = await api.get(`/transfers/${row.id}`);
     setDetail(r.data);
   };
-  const confirm = async (id) => { try { await api.post(`/transfers/${id}/confirm`); load(); } catch { /* ignore */ } };
-  const cancel = async (id) => { try { await api.post(`/transfers/${id}/cancel`); load(); } catch { /* ignore */ } };
+  const confirm = async (id) => {
+    try {
+      await api.post(`/transfers/${id}/confirm`);
+      toast.success("Transfer tasdiqlandi");
+      load();
+    } catch { /* ignore */ }
+  };
+  const cancel = async (id) => {
+    try {
+      await api.post(`/transfers/${id}/cancel`);
+      toast.success("Transfer bekor qilindi");
+      load();
+    } catch { /* ignore */ }
+  };
+
+  const handleEdit = async (row) => {
+    try {
+      const r = await api.get(`/transfers/${row.id}`);
+      setEditData(r.data);
+      setMode('edit');
+    } catch (e) {
+      toast.error("Ma'lumotlarni yuklashda xatolik");
+    }
+  };
+
+  const handleReturn = async (row) => {
+    if (!window.confirm("Haqiqatan ham ushbu transferni ortga qaytarmoqchimisiz?")) return;
+    try {
+      // Assuming /cancel reverses the transfer as requested
+      await api.post(`/transfers/${row.id}/cancel`);
+      toast.success("Mahsulot muvaffaqiyatli ortga qaytarildi");
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Xatolik yuz berdi");
+    }
+  };
 
   if (mode === 'create') return <TransferCreateView products={products} warehouses={warehouses} onBack={() => setMode('list')} onSaved={load} />;
+  if (mode === 'edit' && editData) return <TransferCreateView products={products} warehouses={warehouses} editData={editData} onBack={() => { setMode('list'); setEditData(null); }} onSaved={load} />;
 
 
 
@@ -2606,7 +2665,7 @@ function TransferlarTab({ products, warehouses, users = [] }) {
     { k: 'to_warehouse_name', l: 'Kimga' },
     { k: 'status', l: 'Holat', r: v => <Badge meta={trMeta} val={v} /> },
     { k: 'created_at', l: 'Sana', r: v => fmtDay(v) },
-    { k: '', l: '', r: () => <OptionsTable /> },
+    { k: '', l: '', r: (v, row) => <OptionsTable row={row} onEdit={handleEdit} onReturn={handleReturn} /> },
     {
       k: 'id', l: '', r: (v, row) => row.status === 'pending' ? (
         <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>

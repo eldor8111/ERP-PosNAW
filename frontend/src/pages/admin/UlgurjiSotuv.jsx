@@ -150,15 +150,15 @@ const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, on
           </div>
           <div className="text-right">
             {(Number(selected.debt_balance) !== 0 || (selected.debt_balances && Object.values(selected.debt_balances).some(v => Number(v) !== 0))) && (
-              <div className="flex flex-col items-end gap-1">
-                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">Qarzdorlik</div>
-                <div className={`text-xs font-black px-2.5 py-1 rounded-lg border shadow-sm ${Number(selected.debt_balance) > 0 ? 'text-red-700 bg-red-50/50 border-red-100' : 'text-emerald-700 bg-emerald-50/50 border-emerald-100'}`}>
+              <div className="flex items-center gap-3">
+                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">Qarzdorlik:</div>
+                <div className={`text-xs font-black py-1 rounded-lg ${Number(selected.debt_balance) > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
                   {fmt((selected.debt_balances && typeof selected.debt_balances === 'object' && Object.keys(selected.debt_balances).length > 0) ? (selected.debt_balances.UZS || 0) : selected.debt_balance)} so'm
                 </div>
                 {selected.debt_balances && typeof selected.debt_balances === 'object' && Object.keys(selected.debt_balances).some(k => k !== 'UZS' && Number(selected.debt_balances[k]) !== 0) && (
-                  <div className="flex flex-wrap gap-1 justify-end max-w-[150px]">
+                  <div className="flex bg-white px-2 rounded flex-wrap gap-3 justify-end max-w-[150px]">
                     {Object.entries(selected.debt_balances).map(([curr, amt]) => (curr !== 'UZS' && Number(amt) !== 0) && (
-                      <div key={curr} className="inline-flex items-center gap-1 text-[10px] font-black text-white px-2 py-0.5 bg-red-500 rounded-md shadow-sm">
+                      <div key={curr} className="inline-flex items-center gap-1 text-xs font-black text-red-700 py-0.5 rounded-md">
                         {fmt(amt)} {curr === 'USD' ? '$' : curr}
                       </div>
                     ))}
@@ -352,7 +352,7 @@ const ProductSearch = forwardRef(function ProductSearch({ onSelect, placeholder,
       </div>
 
       {(results.length > 0 || (q.trim() && !loading)) && (
-        <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-[420px] overflow-y-auto">
+        <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-[380px] overflow-y-auto">
           {results.length === 0
             ? <div className="px-4 py-4 text-center text-sm text-slate-400">"{q}" — topilmadi</div>
             : results.map((p, i) => (
@@ -406,6 +406,7 @@ export default function UlgurjiSotuv() {
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [autoPrint, setAutoPrint] = useState(localStorage.getItem('ulgurji_autoPrint') !== 'false');
+  const [onlySom, setOnlySom] = useState(localStorage.getItem('ulgurji_onlySom') !== 'false');
   const [receiptWidth, setReceiptWidth] = useState(localStorage.getItem('ulgurji_receiptWidth') || '80');
   const [defaultCustomerId, setDefaultCustomerId] = useState(localStorage.getItem('ulgurji_defaultCustomer') || '');
 
@@ -449,6 +450,7 @@ export default function UlgurjiSotuv() {
     localStorage.setItem('ulgurji_autoPrint', autoPrint);
     localStorage.setItem('ulgurji_receiptWidth', receiptWidth);
     localStorage.setItem('ulgurji_defaultCustomer', defaultCustomerId);
+    localStorage.setItem('ulgurji_onlySom', String(onlySom)); // Persist the onlySom setting
     setSettingsOpen(false);
     if (!cart.length && defaultCustomerId) setCustId(defaultCustomerId);
     toast.success('Sozlamalar saqlandi');
@@ -590,8 +592,8 @@ export default function UlgurjiSotuv() {
       // Company ma'lumotlari fallback: istalgan shablonda kiritilgan bo'lsa ham ishlaydi
       const _r58 = rSettings.r58 || {};
       const _r80 = rSettings.r80 || {};
-      const _rN  = rSettings.nak || {};
-      const _CF  = ['company', 'address', 'phone', 'inn', 'logo', 'logo_size', 'footer'];
+      const _rN = rSettings.nak || {};
+      const _CF = ['company', 'address', 'phone', 'inn', 'logo', 'logo_size', 'footer'];
       const _mrgd = {};
       for (const f of _CF) { _mrgd[f] = cfgRaw[f] || _r58[f] || _r80[f] || _rN[f] || ''; }
       const tmplCfg = { ...cfgRaw, ..._mrgd };
@@ -613,9 +615,15 @@ export default function UlgurjiSotuv() {
       toast.error('Avval mijozni tanlang!');
       return;
     }
-    const price = useWholesale && p.wholesale_price ? Number(p.wholesale_price) : Number(p.sale_price || 0);
-    const currency = p.sale_currency || 'UZS';
-    const rate = getRate(currency);
+    let price = useWholesale && p.wholesale_price ? Number(p.wholesale_price) : Number(p.sale_price || 0);
+    let currency = p.sale_currency || 'UZS';
+    let rate = getRate(currency);
+
+    if (onlySom && currency !== 'UZS') {
+      price = price * rate;
+      currency = 'UZS';
+      rate = 1;
+    }
 
     setCart(prev => {
       const ex = prev.find(i => i.product_id === p.id);
@@ -629,12 +637,13 @@ export default function UlgurjiSotuv() {
         product_id: p.id, name: p.name, unit: p.unit || 'dona', qty: 1, price,
         currency, rate,
         discount_type: 'pct', discount_val: 0,
-        wholesale_price: Number(p.wholesale_price || 0), sale_price: Number(p.sale_price || 0),
+        wholesale_price: (onlySom && p.sale_currency !== 'UZS') ? Number(p.wholesale_price || 0) * getRate(p.sale_currency) : Number(p.wholesale_price || 0),
+        sale_price: (onlySom && p.sale_currency !== 'UZS') ? Number(p.sale_price || 0) * getRate(p.sale_currency) : Number(p.sale_price || 0),
         stock_quantity: Number(p.stock_quantity || 0), image_url: p.image_url,
         addedAt: Date.now(),
       }];
     });
-  }, [useWholesale, getRate]); // custIdRef orqali o'qiladi — dep sifatida kerak emas
+  }, [useWholesale, getRate, onlySom]); // Added onlySom to deps
 
   const updateItem = (idx, field, val) => setCart(prev => prev.map((it, i) => i === idx ? { ...it, [field]: val } : it));
   const removeItem = (idx) => setCart(prev => prev.filter((_, i) => i !== idx));
@@ -642,15 +651,21 @@ export default function UlgurjiSotuv() {
   // Select product into form — narxni mahsulot o'z valyutasida ko'rsatadi
   const selectFormProduct = useCallback((p) => {
     setFormProduct(p);
-    // Narxni mahsulot asl valyutasida chiqar (masalan, USD da saqlangan bo'lsa — dollar qiymatida)
-    const price = useWholesale && p.wholesale_price ? Number(p.wholesale_price) : Number(p.sale_price || 0);
+    let price = useWholesale && p.wholesale_price ? Number(p.wholesale_price) : Number(p.sale_price || 0);
+    let currency = p.sale_currency && p.sale_currency !== '' ? p.sale_currency : 'UZS';
+
+    if (onlySom && currency !== 'UZS') {
+      const rate = getRate(currency);
+      price = price * rate;
+      currency = 'UZS';
+    }
+
     setFormPrice(String(price));
-    // Select ni mahsulot valyutasiga o'rnat
-    setFormCurrency(p.sale_currency && p.sale_currency !== '' ? p.sale_currency : 'UZS');
+    setFormCurrency(currency);
     setFormQty('1');
     setFormDiscVal('');
     setTimeout(() => formQtyRef.current?.select(), 40);
-  }, [useWholesale]);
+  }, [useWholesale, onlySom, getRate]);
 
 
   // Faqat useWholesale toggle bo'lganda narxni yangilash (valyuta o'zgarmaydi)
@@ -684,7 +699,8 @@ export default function UlgurjiSotuv() {
       return [...prev, {
         product_id: formProduct.id, name: formProduct.name, unit: formProduct.unit || 'dona',
         qty, price, currency, rate, discount_type: formDiscType, discount_val: parseFloat(formDiscVal) || 0,
-        wholesale_price: Number(formProduct.wholesale_price || 0), sale_price: Number(formProduct.sale_price || 0),
+        wholesale_price: (onlySom && formProduct.sale_currency !== 'UZS') ? Number(formProduct.wholesale_price || 0) * getRate(formProduct.sale_currency) : Number(formProduct.wholesale_price || 0),
+        sale_price: (onlySom && formProduct.sale_currency !== 'UZS') ? Number(formProduct.sale_price || 0) * getRate(formProduct.sale_currency) : Number(formProduct.sale_price || 0),
         stock_quantity: Number(formProduct.stock_quantity || 0), image_url: formProduct.image_url,
         addedAt: Date.now(),
       }];
@@ -730,7 +746,7 @@ export default function UlgurjiSotuv() {
   const itemNetUZS = (it) => itemNet(it) * (it.rate || 1);
 
   const subtotal = cart.reduce((s, it) => s + itemNetUZS(it), 0);
-  
+
   // Valyuta bo'yicha jami summalarni hisoblash
   const totalsByCurrency = cart.reduce((acc, it) => {
     const cur = it.currency || 'UZS';
@@ -740,14 +756,14 @@ export default function UlgurjiSotuv() {
 
   const saleDisc = discType === 'pct' ? subtotal * (parseN(discVal) / 100) : parseN(discVal);
   const total = Math.max(0, subtotal - saleDisc);
-  
+
   const getPaidUZS = (paymentList) => {
     return paymentList.reduce((s, p) => {
       const rate = getRate(p.currency || 'UZS');
       return s + (parseN(p.amt) * rate);
     }, 0);
   };
-  
+
   const paid = getPaidUZS(payments);
   const debt = Math.max(0, total - paid);
   const change = Math.max(0, paid - total);
@@ -763,28 +779,28 @@ export default function UlgurjiSotuv() {
         return {
           product_id: it.product_id, quantity: it.qty, unit_price: uPriceUZS,
           discount: discUZS,
-          warehouse_id: it.warehouse_id || undefined, 
+          warehouse_id: it.warehouse_id || undefined,
           currency: it.currency,
           rate: it.rate,
         };
       });
       // To'lovlarni ham valyutasi bilan yuboramiz
-      const paymentsList = payments.filter(p => parseN(p.amt) > 0).map(p => ({ 
-        type: p.type, 
+      const paymentsList = payments.filter(p => parseN(p.amt) > 0).map(p => ({
+        type: p.type,
         amount: parseN(p.amt),
         currency: p.currency || 'UZS',
         rate: getRate(p.currency)
       }));
       // Haqiqiy qarzni valyutalar kesimida hisoblash
       const actualDebts = {};
-      
+
       if (overridePayType === 'debt' && pPaid === 0) {
         // To'liq qarzga berilsa (qarz tugmasi orqali)
         Object.assign(actualDebts, totalsByCurrency);
       } else {
         const remain = { ...totalsByCurrency };
         let overpaidUZS = 0;
-        
+
         // 1. To'lovlarni mos valyutadan ayiramiz
         for (const p of payments) {
           const a = parseN(p.amt);
@@ -793,7 +809,7 @@ export default function UlgurjiSotuv() {
           if (!remain[c]) remain[c] = 0;
           remain[c] -= a;
         }
-        
+
         // 2. Ortib qolgan (manfiy) to'lovlarni UZS ga o'tkazib yig'amiz
         for (const c in remain) {
           if (remain[c] < -0.001) {
@@ -801,7 +817,7 @@ export default function UlgurjiSotuv() {
             delete remain[c];
           }
         }
-        
+
         // 3. Qolgan (musbat) qarzlarni overpaid UZS dan uzamiz
         for (const c in remain) {
           if (remain[c] > 0.001 && overpaidUZS > 0.001) {
@@ -815,7 +831,7 @@ export default function UlgurjiSotuv() {
             }
           }
         }
-        
+
         // 4. Haqiqatan ham qarz bo'lib qolgan summalarni kiritamiz
         for (const c in remain) {
           if (remain[c] > 0.01) actualDebts[c] = Number(remain[c].toFixed(2));
@@ -1071,22 +1087,27 @@ export default function UlgurjiSotuv() {
 
       {/* ── HEADER ── */}
       <div className="shrink-0 bg-white border-b border-slate-200 px-3 md:px-5 py-2.5 flex items-center justify-between shadow-sm gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-md shadow-indigo-200 shrink-0">
-            <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" cls="w-4 h-4 text-white" />
-          </div>
-          <span className="font-black text-slate-800 text-base hidden sm:inline">Ulgurji Sotuv</span>
+        <div className="hidden lg:flex items-center gap-1.5 text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+          <Ic d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" cls="w-4 h-4" />
+          <span className="text-sm font-bold font-mono tracking-tight">{currentTime.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
 
         <div className="flex items-center gap-1.5 md:gap-3">
-          <div className="hidden lg:flex items-center gap-1.5 text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
-            <Ic d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" cls="w-4 h-4" />
-            <span className="text-sm font-bold font-mono tracking-tight">{currentTime.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}</span>
-          </div>
+          {[
+            { id: 'new', label: 'Yangi', icon: 'M12 4v16m8-8H4' },
+            { id: 'list', label: 'Tarixi', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+            { id: 'drafts', label: 'Arxiv', icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
+          ].map(t => (
+            <button key={t.id} onClick={() => handleTabChange(t.id)}
+              className={`flex items-center gap-0.5 md:gap-1 px-2 md:px-3.5 py-2 rounded-lg font-semibold transition-all ${tab === t.id ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+              <Ic d={t.icon} cls="w-3.5 h-3.5" />
+              <span className="text-[10px] md:text-sm">{t.label}</span>
+            </button>
+          ))}
 
           {tab === 'new' && (
             <button onClick={() => toast.info("Excel orqali yuklash tez kunda qo'shiladi")}
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors text-sm font-bold border border-emerald-100">
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors text-sm font-bold border border-emerald-100">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
               Excel
             </button>
@@ -1095,20 +1116,9 @@ export default function UlgurjiSotuv() {
           <div className="w-px h-5 bg-slate-200 mx-1 hidden md:block" />
 
           <button onClick={() => setSettingsOpen(true)}
-            className="w-9 h-9 rounded-xl text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 flex items-center justify-center transition-colors">
+            className="shrink-0 rounded-xl text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 flex items-center justify-center transition-colors">
             <Ic d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </button>
-          {[
-            { id: 'new', label: 'Yangi', icon: 'M12 4v16m8-8H4' },
-            { id: 'list', label: 'Tarixi', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
-            { id: 'drafts', label: 'Arxiv', icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
-          ].map(t => (
-            <button key={t.id} onClick={() => handleTabChange(t.id)}
-              className={`flex items-center gap-0.5 md:gap-1 px-2 md:px-3.5 py-2 rounded-xl font-semibold transition-all ${tab === t.id ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-              <Ic d={t.icon} cls="w-3.5 h-3.5" />
-              <span className="text-[10px] md:text-sm">{t.label}</span>
-            </button>
-          ))}
         </div>
       </div>
 
@@ -1141,7 +1151,7 @@ export default function UlgurjiSotuv() {
                     <div className="flex items-center gap-2">
                       {!custId && <span className="text-xs text-red-400 font-semibold">Tanlanmagan</span>}
                       <button onClick={() => custSearchRef.current?.openForm()}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-bold border border-indigo-200 transition-colors">
+                        className="flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-bold border border-indigo-200 transition-colors">
                         <span className="text-base leading-none">+</span> Yangi
                       </button>
                     </div>
@@ -1215,11 +1225,18 @@ export default function UlgurjiSotuv() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="font-bold text-slate-800 text-sm truncate">{formProduct.name}</div>
-                          <div className="text-xs text-slate-500 flex items-center gap-2">
-                            <span>{formProduct.unit || 'dona'}</span>
-                            <span className={`font-semibold ${Number(formProduct.stock_quantity) <= 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                              Ombor: {fmt(formProduct.stock_quantity)}
-                            </span>
+                          <div className="text-xs text-slate-500 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span>{formProduct.unit || 'dona'}</span>
+                              <span className={`font-semibold ${Number(formProduct.stock_quantity) <= 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                                Ombor: {fmt(formProduct.stock_quantity)}
+                              </span>
+                            </div>
+                            {formProduct.sale_currency !== 'UZS' && (
+                              <div className="text-[10px] font-black text-indigo-500 bg-white px-1.5 py-0.5 rounded border border-indigo-100 shadow-sm">
+                                Asl narxi: {fmt(useWholesale ? formProduct.wholesale_price : formProduct.sale_price)} {formProduct.sale_currency === 'USD' ? '$' : formProduct.sale_currency}
+                              </div>
+                            )}
                           </div>
                         </div>
                         <button onClick={() => setFormProduct(null)} className="text-slate-300 hover:text-red-400 shrink-0">
@@ -1251,28 +1268,67 @@ export default function UlgurjiSotuv() {
                           <div className="flex justify-between items-center">
                             <label className="text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wide block">Narx</label>
                             <div className="flex gap-1 mb-1">
-                              {formProduct.wholesale_price > 0 && <button onClick={() => { setFormPrice(String(formProduct.wholesale_price)); setFormCurrency(formProduct.sale_currency || 'UZS'); }} className="text-[9px] font-bold px-1.5 py-0.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded transition-colors" title="Ulgurji narx">U</button>}
-                              {formProduct.sale_price > 0 && <button onClick={() => { setFormPrice(String(formProduct.sale_price)); setFormCurrency(formProduct.sale_currency || 'UZS'); }} className="text-[9px] font-bold px-1.5 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded transition-colors" title="Chakana narx">C</button>}
+                              {formProduct.wholesale_price > 0 && (
+                                <button
+                                  onClick={() => {
+                                    let p = Number(formProduct.wholesale_price);
+                                    let c = formProduct.sale_currency || 'UZS';
+                                    if (onlySom && c !== 'UZS') {
+                                      p = p * getRate(c);
+                                      c = 'UZS';
+                                    }
+                                    setFormPrice(String(p));
+                                    setFormCurrency(c);
+                                  }}
+                                  className="text-[9px] font-bold px-1.5 py-0.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded transition-colors" title="Ulgurji narx">U</button>
+                              )}
+                              {formProduct.sale_price > 0 && (
+                                <button
+                                  onClick={() => {
+                                    let p = Number(formProduct.sale_price);
+                                    let c = formProduct.sale_currency || 'UZS';
+                                    if (onlySom && c !== 'UZS') {
+                                      p = p * getRate(c);
+                                      c = 'UZS';
+                                    }
+                                    setFormPrice(String(p));
+                                    setFormCurrency(c);
+                                  }}
+                                  className="text-[9px] font-bold px-1.5 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded transition-colors" title="Chakana narx">C</button>
+                              )}
                             </div>
                           </div>
                           <div className="flex items-center gap-1">
                             <div className="relative flex-1">
-                              <input ref={formPriceRef} type="number" value={formPrice}
-                                onChange={e => setFormPrice(e.target.value)}
+                              <input
+                                ref={formPriceRef}
+                                type="text"
+                                value={Number(formPrice) ? Number(formPrice).toLocaleString('ru-RU') : formPrice}
+                                onChange={e => {
+                                  // Faqat raqamlarni qoldirib, qolgan hamma belgilarni (va bo'shliqlarni) o'chirib tashlaymiz
+                                  const rawValue = e.target.value.replace(/\D/g, '');
+                                  setFormPrice(rawValue);
+                                }}
                                 onFocus={e => e.target.select()}
-                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); formDiscRef.current?.focus(); } }}
-                                className="w-full border border-white rounded-xl px-3 py-2 text-base font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    formDiscRef.current?.focus();
+                                  }
+                                }}
+                                className="w-full border border-white rounded-xl px-3 py-2 text-base font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                              />
                             </div>
                             <select
                               value={formCurrency}
                               onChange={e => {
                                 const newCode = e.target.value;
                                 if (!newCode || newCode === formCurrency) return;
-                                
+
                                 const oldRate = getRate(formCurrency);
                                 const newRate = getRate(newCode);
                                 const currentPrice = parseFloat(formPrice) || 0;
-                                
+
                                 if (currentPrice > 0) {
                                   // Narxni konvertatsiya qilish
                                   const priceInUZS = currentPrice * oldRate;
@@ -1283,7 +1339,7 @@ export default function UlgurjiSotuv() {
                                 }
                                 setFormCurrency(newCode);
                               }}
-                              className="border border-slate-200 rounded-lg px-1.5 py-2 text-sm font-black text-indigo-600 focus:outline-none bg-white">
+                              className="cursor-pointer rounded-lg px-1.5 py-2.5 text-sm font-black text-indigo-600 focus:outline-none bg-white">
                               <option value="UZS">UZS</option>
                               {currencies.filter(c => String(c.code).toUpperCase() !== 'UZS').map((item) => (
                                 <option key={item.id} value={item.code}>{item.code}</option>
@@ -1440,8 +1496,11 @@ export default function UlgurjiSotuv() {
                             </td>
                             <td className="px-2 py-2.5">
                               <div className="relative">
-                                <input type="number" value={it.price}
-                                  onChange={e => updateItem(idx, 'price', parseFloat(e.target.value) || 0)}
+                                <input type="text" value={Number(it.price) ? Number(it.price).toLocaleString('ru-RU') : it.price}
+                                  onChange={e => {
+                                    const rawValue = e.target.value.replace(/\D/g, '');
+                                    updateItem(idx, 'price', parseFloat(rawValue) || 0);
+                                  }}
                                   className="w-full text-right font-bold text-slate-800 border border-slate-200 rounded-lg py-1 pr-6 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
                                 <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold ${it.currency === 'USD' ? 'text-green-600' : 'text-slate-400'}`}>{curSym}</span>
                               </div>
@@ -1615,7 +1674,7 @@ export default function UlgurjiSotuv() {
 
               <button onClick={openPayModal}
                 disabled={cart.length === 0 || saving}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-md shadow-md transition-all disabled:opacity-40
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-black text-md shadow-md transition-all disabled:opacity-40
                   ${!custId && cart.length > 0 ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-200' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200'}`}>
                 <Ic d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" cls="w-4 h-4" />
                 <span>{!custId && cart.length > 0 ? 'Mijoz tanlang' : editingSale ? 'Yangilash' : "To'lov qilish"}</span>
@@ -1642,7 +1701,7 @@ export default function UlgurjiSotuv() {
             </select>
             <input value={filters.search} onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
               placeholder="Sotuv raqami..." className="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 w-40" />
-            <button onClick={loadSales} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5">
+            <button onClick={loadSales} className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5">
               <Ic d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" cls="w-3.5 h-3.5" />Qidirish
             </button>
           </div>
@@ -1778,14 +1837,14 @@ export default function UlgurjiSotuv() {
         const updateLine = (id, field, val) => setPayments(prev => prev.map(p => p.id === id ? { ...p, [field]: val } : p));
         const removeLine = (id) => { if (payments.length > 1) setPayments(prev => prev.filter(p => p.id !== id)); };
         const addLine = () => setPayments(prev => [...prev, { id: Date.now(), type: 'cash', amt: '', currency: 'UZS' }]);
-          const fillLine = (id) => { 
+        const fillLine = (id) => {
           const line = payments.find(p => p.id === id);
           if (!line) return;
           const totalOtherPaidUZS = getPaidUZS(payments.filter(p => p.id !== id));
           const stillNeededUZS = Math.max(0, total - totalOtherPaidUZS);
           const lineRate = getRate(line.currency);
           const neededInLineCurrency = stillNeededUZS / lineRate;
-          updateLine(id, 'amt', String(Math.round(neededInLineCurrency * 100) / 100)); 
+          updateLine(id, 'amt', String(Math.round(neededInLineCurrency * 100) / 100));
         };
         const now = new Date();
         return (
@@ -1853,7 +1912,7 @@ export default function UlgurjiSotuv() {
                                 <Ic d="M19 9l-7 7-7-7" cls="w-4 h-4" />
                               </div>
                             </div>
-                            
+
                             <div className="relative w-32">
                               <select value={line.currency || 'UZS'} onChange={e => updateLine(line.id, 'currency', e.target.value)}
                                 className="w-full h-10 pl-3 pr-8 border border-slate-200 rounded-lg text-sm font-black text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white appearance-none cursor-pointer">
@@ -1872,22 +1931,22 @@ export default function UlgurjiSotuv() {
 
                           <div className="flex items-center gap-2">
                             {isDebt
-                                ? <div className="flex-1 h-10 px-3 bg-amber-50 border border-amber-100 rounded-lg flex items-center"><span className="text-sm font-black text-amber-700">Qarzga yoziladi</span></div>
-                                : <div className="flex-1 relative">
-                                    <input type="number" value={line.amt} onChange={e => updateLine(line.id, 'amt', e.target.value)}
-                                      placeholder="0" autoFocus={idx === payments.length - 1}
-                                      className="w-full h-10 pl-3 pr-10 border border-slate-200 rounded-lg text-lg font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 min-w-0" />
-                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 capitalize">{line.currency || 'UZS'}</span>
-                                  </div>
+                              ? <div className="flex-1 h-10 px-3 bg-amber-50 border border-amber-100 rounded-lg flex items-center"><span className="text-sm font-black text-amber-700">Qarzga yoziladi</span></div>
+                              : <div className="flex-1 relative">
+                                <input type="number" value={line.amt} onChange={e => updateLine(line.id, 'amt', e.target.value)}
+                                  placeholder="0" autoFocus={idx === payments.length - 1}
+                                  className="w-full h-10 pl-3 pr-10 border border-slate-200 rounded-lg text-lg font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 min-w-0" />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 capitalize">{line.currency || 'UZS'}</span>
+                              </div>
                             }
                             {!isDebt && (
-                              <button onClick={() => fillLine(line.id)} 
+                              <button onClick={() => fillLine(line.id)}
                                 className="shrink-0 h-10 px-4 bg-slate-800 text-white text-xs font-black rounded-lg hover:bg-slate-700 transition-colors shadow-sm">
                                 QOLDIQNI TO'LDIRISH
                               </button>
                             )}
                           </div>
-                          
+
                           {line.currency && line.currency !== 'UZS' && amtInUZS > 0 && (
                             <div className="text-[10px] font-bold text-indigo-500 pl-1">
                               ≈ {fmt(amtInUZS)} so'm (Kurs: {fmt(lineRate)})
@@ -1987,12 +2046,21 @@ export default function UlgurjiSotuv() {
                 <CustomerSearch customers={customers} value={defaultCustomerId} onChange={setDefaultCustomerId} onFetch={handleNewFetchedCustomers} />
                 <p className="text-[11px] text-slate-400 mt-1">Yangi sotuv sahifasi ochilganda shu mijoz avtomatik tanlanadi.</p>
               </div>
+              <div className='flex items-center justify-between'>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800">Faqat so'mda savdo</h3>
+                  <p className="text-[12px] text-slate-500 mt-0.5">Valyutalik mahsulotlarni narxini so'mga o'girish</p>
+                </div>
+                <button onClick={() => setOnlySom(!onlySom)} className={`w-12 h-6 min-w-max cursor-pointer rounded-full p-1 transition-colors ${onlySom ? 'bg-indigo-500' : 'bg-slate-300'}`}>
+                  <div className={`w-4 h-4 bg-white rounded-full transition-transform ${onlySom ? 'translate-x-6' : 'translate-x-0'}`} />
+                </button>
+              </div>
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-bold text-slate-800">Avtomatik chek chiqarish</h3>
-                  <p className="text-[11px] text-slate-500 mt-0.5">To'lov tugashi bilan avtomatik print</p>
+                  <p className="text-[12px] text-slate-500 mt-0.5">To'lov tugashi bilan avtomatik print</p>
                 </div>
-                <button onClick={() => setAutoPrint(!autoPrint)} className={`w-12 h-6 rounded-full p-1 transition-colors ${autoPrint ? 'bg-indigo-500' : 'bg-slate-300'}`}>
+                <button onClick={() => setAutoPrint(!autoPrint)} className={`w-12 h-6 cursor-pointer rounded-full p-1 transition-colors ${autoPrint ? 'bg-indigo-500' : 'bg-slate-300'}`}>
                   <div className={`w-4 h-4 bg-white rounded-full transition-transform ${autoPrint ? 'translate-x-6' : 'translate-x-0'}`} />
                 </button>
               </div>
