@@ -597,6 +597,9 @@ function BulkStockEditModal({ selectedIds, products, warehouses, onClose, onSucc
   );
 }
 
+/* ─── Import Price Field Keys ──────────────────────── */
+const PRICE_FIELD_KEYS = ['Chakana narxi', 'Ulgurji narxi', 'Tan narxi'];
+
 /* ═══════════════════════════════════════════════════ */
 export default function Products() {
   const { t } = useLang();
@@ -1122,9 +1125,19 @@ export default function Products() {
   const [importPage, setImportPage] = useState(1);
   const [precheck, setPrecheck] = useState(null);
   const [importWarehouseId, setImportWarehouseId] = useState('');
+  // Narx ustunlari uchun valyuta tanlov: { 'Chakana narxi': currencyId, 'Ulgurji narxi': currencyId, 'Tan narxi': currencyId }
+  const [importPriceCurrencies, setImportPriceCurrencies] = useState({ 'Chakana narxi': '', 'Ulgurji narxi': '', 'Tan narxi': '' });
   const IMPORT_LIMIT = 10;
 
   const excelCols = importRows.length > 0 ? Object.keys(importRows[0]) : [];
+
+  // Narx ustunlari uchun valyuta yordamchi (PRICE_FIELD_KEYS - module darajasida)
+  const getPriceFieldCurrencyCode = (fieldKey) => {
+    const curId = importPriceCurrencies[fieldKey];
+    if (!curId) return 'UZS';
+    const cur = currencies.find(c => String(c.id) === String(curId));
+    return cur ? cur.code : 'UZS';
+  };
 
   // Build payload from colMap
   const buildPayload = () => {
@@ -1133,13 +1146,33 @@ export default function Products() {
       const obj = {};
       Object.entries(colMap).forEach(([excelCol, fieldKey]) => {
         if (fieldKey && fieldKey !== '__SKIP__') {
-          obj[fieldKey] = row[excelCol];
+          let val = row[excelCol];
+          // Narx ustunlari bo'lsa - tozalab yuboramiz
+          if (PRICE_FIELD_KEYS.includes(fieldKey)) {
+             val = String(val || "").replace(/\s/g, '').replace(',', '.').replace(/[^0-9.]/g, '');
+          }
+          obj[fieldKey] = val;
         }
       });
+      // Narx valyuta kodlarini payload ga qo'shish (faqat mapplangan maydonlar uchun)
+      Object.values(colMap).forEach(fieldKey => {
+        if (PRICE_FIELD_KEYS.includes(fieldKey)) {
+          // Faqat o'sha narx maydoni payloadda bo'lsagina valyutani qo'shamiz
+          if (obj[fieldKey] !== undefined && obj[fieldKey] !== "") {
+            obj[`__cur_${fieldKey}`] = getPriceFieldCurrencyCode(fieldKey);
+          }
+        }
+      });
+      // Identifikatsiya maydonlarini string formatiga va tozalangan holatga keltiramiz
+      if (obj['Nomi']) obj['Nomi'] = String(obj['Nomi']).trim();
+      if (obj['Barkod']) obj['Barkod'] = String(obj['Barkod']).trim();
+      if (obj['SKU']) obj['SKU'] = String(obj['SKU']).trim();
+
       obj.__row_index = (skipRows > 0 ? skipRows - 1 : 0) + idx + 2;
       return obj;
     }).filter(r => r['Nomi'] || r['Barkod'] || r['SKU']);
   };
+
 
   useEffect(() => {
     const payload = buildPayload();
@@ -1155,7 +1188,7 @@ export default function Products() {
     };
     const t = setTimeout(check, 400);
     return () => clearTimeout(t);
-  }, [colMap, skipRows, importRows, searchBySku, importOpen]);
+  }, [colMap, skipRows, importRows, searchBySku, allowUpdate, importOpen]);
 
   // Auto-map columns by matching excel header to known field label/key
   const autoMap = (rows) => {
@@ -1210,7 +1243,7 @@ export default function Products() {
 
       for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
         const chunk = payload.slice(i, i + CHUNK_SIZE);
-        const { data } = await api.post(`/products/bulk-import?allow_update=${allowUpdate}&search_by_sku=${searchBySku}${whParam}`, chunk);
+        const { data } = await api.post(`/products/bulk-import?allow_update=${allowUpdate ? 'true' : 'false'}&search_by_sku=${searchBySku ? 'true' : 'false'}${whParam}`, chunk);
         totC += data.created || 0;
         totU += data.updated || 0;
         totS += data.skipped || 0;
@@ -1232,6 +1265,7 @@ export default function Products() {
     setImportResult(null); setImportError(''); setColMap({}); setImportPage(1);
     setSkipRows(1); setSearchBySku(false); setAllowUpdate(false); setImportProgress(0);
     setImportWarehouseId('');
+    setImportPriceCurrencies({ 'Chakana narxi': '', 'Ulgurji narxi': '', 'Tan narxi': '' });
   };
   const openImport = () => {
     resetImport();
@@ -3782,23 +3816,19 @@ export default function Products() {
 
               {/* Toggles */}
               <div className="flex items-center gap-8 mt-3">
-                <label className="flex items-center gap-2 xl:gap-3 cursor-pointer">
-                  <button
-                    onClick={() => setSearchBySku(v => !v)}
-                    className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${searchBySku ? 'bg-indigo-600' : 'bg-slate-300'}`}
-                  >
+                <label className="flex items-center gap-2 xl:gap-3 cursor-pointer group">
+                  <input type="checkbox" className="hidden" checked={searchBySku} onChange={() => setSearchBySku(!searchBySku)} />
+                  <div className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${searchBySku ? 'bg-indigo-600' : 'bg-slate-300'}`}>
                     <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${searchBySku ? 'translate-x-5' : 'translate-x-1'}`} />
-                  </button>
-                  <span className="text-base text-slate-700">Mahsulotni artikul bo'yicha ham qidirish</span>
+                  </div>
+                  <span className="text-base text-slate-700 font-medium group-hover:text-indigo-600 transition-colors">Mahsulotni artikul bo'yicha ham qidirish</span>
                 </label>
-                <label className="flex items-center gap-2 xl:gap-3 cursor-pointer">
-                  <button
-                    onClick={() => setAllowUpdate(v => !v)}
-                    className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${allowUpdate ? 'bg-indigo-600' : 'bg-slate-300'}`}
-                  >
+                <label className="flex items-center gap-2 xl:gap-3 cursor-pointer group">
+                  <input type="checkbox" className="hidden" checked={allowUpdate} onChange={() => setAllowUpdate(!allowUpdate)} />
+                  <div className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${allowUpdate ? 'bg-indigo-600' : 'bg-slate-300'}`}>
                     <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${allowUpdate ? 'translate-x-5' : 'translate-x-1'}`} />
-                  </button>
-                  <span className="text-base text-slate-700">Mahsulotlarni tahrirlash</span>
+                  </div>
+                  <span className="text-base text-slate-700 font-medium group-hover:text-indigo-600 transition-colors">Mahsulotlarni tahrirlash (Update)</span>
                 </label>
               </div>
             </div>
@@ -3841,22 +3871,47 @@ export default function Products() {
                     <thead>
                       <tr className="bg-slate-100">
                         <th className="px-3 py-2.5 text-left font-bold text-slate-500 border-b border-slate-200 w-12 text-sm">#</th>
-                        {excelCols.map(col => (
-                          <th key={col} className="px-2 py-2 border-b border-slate-200 min-w-[160px]">
-                            <select
-                              value={colMap[col] || ''}
-                              onChange={e => setColMap(m => ({ ...m, [col]: e.target.value }))}
-                              className={`w-full px-2 py-2 text-sm font-semibold rounded-lg border outline-none cursor-pointer ${colMap[col] && colMap[col] !== '__SKIP__'
-                                ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
-                                : 'border-slate-200 bg-white text-slate-500'
-                                }`}
-                            >
-                              {IMPORT_FIELDS.map(f => (
-                                <option key={f.key} value={f.key}>{f.label}</option>
-                              ))}
-                            </select>
-                          </th>
-                        ))}
+                        {excelCols.map(col => {
+                          const mappedField = colMap[col] || '';
+                          const isPriceField = PRICE_FIELD_KEYS.includes(mappedField);
+                          const selCurId = isPriceField ? (importPriceCurrencies[mappedField] || '') : '';
+                          return (
+                            <th key={col} className="px-2 py-2 border-b border-slate-200 min-w-[180px]">
+                              <select
+                                value={mappedField}
+                                onChange={e => setColMap(m => ({ ...m, [col]: e.target.value }))}
+                                className={`w-full px-2 py-2 text-sm font-semibold rounded-lg border outline-none cursor-pointer ${mappedField && mappedField !== '__SKIP__'
+                                  ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                                  : 'border-slate-200 bg-white text-slate-500'
+                                  }`}
+                              >
+                                {IMPORT_FIELDS.map(f => (
+                                  <option key={f.key} value={f.key}>{f.label}</option>
+                                ))}
+                              </select>
+                              {isPriceField && (
+                                <div className="mt-1.5">
+                                  <select
+                                    value={selCurId}
+                                    onChange={e => setImportPriceCurrencies(prev => ({ ...prev, [mappedField]: e.target.value }))}
+                                    className={`w-full px-2 py-1.5 text-xs font-bold rounded-lg border outline-none cursor-pointer transition-colors ${
+                                      selCurId
+                                        ? 'border-emerald-400 bg-emerald-500 text-white'
+                                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                                    }`}
+                                  >
+                                    <option value="">UZS | 1</option>
+                                    {currencies.filter(c => !c.is_default).map(c => (
+                                      <option key={c.id} value={String(c.id)}>
+                                        {c.code} | {fmt(c.rate)}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
+                            </th>
+                          );
+                        })}
                       </tr>
                       {/* Row 2: Excel column names (original headers) */}
                       <tr className="bg-slate-700 text-white">
@@ -3873,11 +3928,39 @@ export default function Products() {
                           const absIdx = (importPage - 1) * IMPORT_LIMIT + i;
                           const isSkip = absIdx < skipRows - 1;
                           return (
-                            <tr key={i} className={`${isSkip ? 'opacity-30 bg-slate-50' : i % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'} hover:bg-indigo-50/30 transition-colors`}>
-                              <td className="px-3 py-3 text-slate-400 font-mono text-sm">{absIdx + 1}</td>
+                            <tr key={absIdx} className={`${isSkip ? 'opacity-40 bg-slate-50' : 'bg-white'} hover:bg-indigo-50/50 transition-colors group`}>
+                              <td className="px-3 py-2 text-slate-400 font-mono text-sm relative">
+                                {absIdx + 1}
+                                <button
+                                  onClick={() => {
+                                    const newRows = [...importRows];
+                                    newRows.splice(absIdx, 1);
+                                    setImportRows(newRows);
+                                  }}
+                                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden group-hover:flex w-7 h-7 bg-red-100 text-red-600 rounded-full items-center justify-center hover:bg-red-500 hover:text-white transition-all cursor-pointer shadow-sm z-10"
+                                  title="O'chirish"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                              </td>
                               {excelCols.map(col => (
-                                <td key={col} className="px-3 py-3 whitespace-nowrap text-slate-700 text-sm max-w-[200px] truncate">
-                                  {String(row[col] ?? '')}
+                                <td key={col} className={`p-0 border-x border-slate-50 min-w-[150px] ${!allowUpdate ? 'bg-slate-50/30' : ''}`}>
+                                  <input
+                                    type="text"
+                                    value={String(row[col] ?? '')}
+                                    readOnly={!allowUpdate}
+                                    onChange={(e) => {
+                                      if (!allowUpdate) return;
+                                      const newRows = [...importRows];
+                                      newRows[absIdx] = { ...newRows[absIdx], [col]: e.target.value };
+                                      setImportRows(newRows);
+                                    }}
+                                    className={`w-full px-3 py-2.5 text-sm outline-none transition-all font-medium ${
+                                      allowUpdate 
+                                        ? 'text-slate-700 bg-transparent focus:bg-white focus:ring-1 focus:ring-indigo-400 cursor-text' 
+                                        : 'text-slate-500 bg-transparent cursor-not-allowed'
+                                    }`}
+                                  />
                                 </td>
                               ))}
                             </tr>

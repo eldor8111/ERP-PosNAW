@@ -32,6 +32,10 @@ FIELD_MAP = {
     "Qoldiq":        ("_stock",           Decimal),
     "Holat":         ("status",           str),
     "Brand":         ("brand",            str),
+    # Valyuta maydonlari — frontend __cur_ prefiksi bilan yuboradi
+    "__cur_Tan narxi":     ("cost_currency",      str),
+    "__cur_Chakana narxi": ("sale_currency",      str),
+    "__cur_Ulgurji narxi": ("wholesale_currency", str),
 }
 
 STATUS_MAP = {
@@ -178,9 +182,10 @@ def bulk_import_products(
         Product.company_id == current_user.company_id,
     ).all()
 
-    name_map    = {p.name:    p for p in all_products if p.name}
-    barcode_map = {p.barcode: p for p in all_products if p.barcode}
-    sku_map     = {p.sku:     p for p in all_products if p.sku}
+    # Identifikatsiya xaritalarini yaratish (nomlardagi probellarni tozalab olamiz)
+    name_map    = {p.name.strip():    p for p in all_products if p.name}
+    barcode_map = {p.barcode.strip(): p for p in all_products if p.barcode}
+    sku_map     = {p.sku.strip():     p for p in all_products if p.sku}
 
     # Barcode uchun to'liq set (is_deleted=True bo'lganlar ham partial index ta'sir qilmaydi,
     # lekin xavfsizlik uchun faqat aktiv barcodes yetarli — partial index shunga qaratilgan)
@@ -228,20 +233,23 @@ def bulk_import_products(
                 if raw is None or str(raw).strip() == "":
                     continue
                 try:
+                    # Qiymatni probellardan tozalash (ayniqsa narxlar uchun)
+                    clean_raw = str(raw).replace(" ", "").replace("\xa0", "").strip()
+                    
                     if field == "_stock":
-                        stock_val = Decimal(str(raw))
+                        stock_val = Decimal(clean_raw)
                     elif cast == Decimal:
-                        setattr(existing, field, Decimal(str(raw)))
+                        # Vergulni nuqtaga almashtirish
+                        setattr(existing, field, Decimal(clean_raw.replace(",", ".")))
                     elif field == "status":
-                        mapped = STATUS_MAP.get(str(raw).strip().lower())
+                        mapped = STATUS_MAP.get(clean_raw.lower())
                         if mapped:
                             setattr(existing, field, mapped)
                     else:
-                        val = str(raw).strip()
-                        if val:
-                            setattr(existing, field, val)
+                        if clean_raw:
+                            setattr(existing, field, clean_raw)
                 except Exception:
-                    errors.append({"row": row_num, "name": name, "error": f"'{row_key}' qiymati noto'g'ri"})
+                    errors.append({"row": row_num, "name": name, "error": f"'{row_key}' qiymati noto'g'ri: {raw}"})
                     continue
 
             if stock_val is not None:
@@ -252,7 +260,8 @@ def bulk_import_products(
                 else:
                     existing.stock_level = StockLevel(quantity=stock_val, warehouse_id=first_wh_id)
 
-            # Har bir update ni alohida savepoint bilan saqlash
+            # Ob'ektni sessiyada ochiqchasiga belgilash va o'zgarishlarni qo'llash
+            db.add(existing)
             sp = db.begin_nested()
             try:
                 db.flush()
@@ -280,6 +289,10 @@ def bulk_import_products(
             wholesale_price = Decimal(str(wp_raw)) if wp_raw else None
             initial_stock   = Decimal(str(row.get("Qoldiq") or 0))
             min_stock_val   = Decimal(str(row.get("Min. qoldiq") or 0))
+            # Valyuta kodlari
+            cost_cur        = str(row.get("__cur_Tan narxi") or "UZS").strip().upper() or "UZS"
+            sale_cur        = str(row.get("__cur_Chakana narxi") or "UZS").strip().upper() or "UZS"
+            wholesale_cur   = str(row.get("__cur_Ulgurji narxi") or "UZS").strip().upper() or "UZS"
         except Exception:
             errors.append({"row": row_num, "name": name, "error": "Narx/qoldiq qiymatlari noto'g'ri"})
             continue
@@ -327,6 +340,9 @@ def bulk_import_products(
                 wholesale_price=wholesale_price, min_stock=min_stock_val,
                 status=status_val, brand=brand[:100] if brand else None,
                 company_id=current_user.company_id, images="[]",
+                cost_currency=cost_cur,
+                sale_currency=sale_cur,
+                wholesale_currency=wholesale_cur,
             )
             product.stock_level = StockLevel(quantity=initial_stock, warehouse_id=first_wh_id)
             db.add(product)
