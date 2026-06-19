@@ -37,7 +37,7 @@ const fmt = (v) => {
   if (v === null || v === undefined || v === '') return '0';
   const n = Number(v);
   if (isNaN(n) || n === 0) return '0';
-  return n.toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+  return n.toLocaleString('ru-RU', { maximumFractionDigits: 4 });
 };
 const genBarcode = () => Math.floor(10000000 + Math.random() * 90000000).toString();
 
@@ -1068,7 +1068,13 @@ export default function Products() {
   };
 
   /* ── derived ─────────────────────────────────────── */
-  const catName = (id) => categories.find(c => c.id === id)?.name || '—';
+  const catName = (id, prodCatName = null) => {
+    if (!id) return <span className="text-slate-300">—</span>;
+    const cat = categories.find(c => Number(c.id) === Number(id));
+    if (cat) return cat.name;
+    if (prodCatName) return prodCatName;
+    return <span className="text-slate-300">—</span>;
+  };
 
   // Price currency helpers
   const getRate = (curId) => {
@@ -1772,7 +1778,7 @@ export default function Products() {
                         <CheckIcon aria-hidden="true" className="size-4 xl:size-5" />
                       </span>
                     </ListboxOption>
-                    {categories.map((c) => (
+                    {categories.filter(c => !c.is_deleted).map((c) => (
                       <ListboxOption key={c.id} value={c.id} className="group relative py-1.5 xl:py-2.5 pr-7 xl:pr-9 pl-2 xl:pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-indigo-600 data-[focus]:text-white outline-hidden">
                         <div className="flex items-center gap-2 xl:gap-3">
                           <CircleCheck className="size-4 xl:size-5 shrink-0 text-gray-400 group-data-[focus]:text-white" />
@@ -2166,7 +2172,7 @@ export default function Products() {
                               </div>
                               {p.bin_location && <div className="text-xs text-slate-400 mt-0.5 truncate">📍 {p.bin_location}</div>}
                             </td>
-                            <td className="px-2 py-3 text-xs text-slate-600 font-medium truncate">{catName(p.category_id)}</td>
+                            <td className="px-2 py-3 text-xs text-slate-600 font-medium truncate">{catName(p.category_id, p.category_name)}</td>
                             <td className="py-3">
                               <span className="inline-flex px-2 py-1 bg-slate-100 text-slate-700 text-xs font-semibold rounded-md">{p.unit}</span>
                             </td>

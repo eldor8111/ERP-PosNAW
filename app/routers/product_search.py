@@ -205,6 +205,7 @@ def list_products_paginated(
     q = q.options(
         joinedload(Product.conversion).joinedload(ProductConversion.source_product),
         joinedload(Product.sell_conversions).joinedload(ProductConversion.sell_product),
+        joinedload(Product.category),
     )
 
     if search:
@@ -314,6 +315,7 @@ def list_products_paginated(
     items = []
     for p in products:
         item = ProductListOut.model_validate(p)
+        item.category_name = p.category.name if p.category else None
         all_stocks = stock_by_product[p.id]
 
         visible_stocks = all_stocks

@@ -24,6 +24,8 @@ from app.utils.product_filters import name_filter as _name_filter  # noqa: E402
 
 def _attach_stock(product: Product) -> ProductOut:
     out = ProductOut.model_validate(product)
+    if product.category:
+        out.category_name = product.category.name
     if product.stock_level:
         out.stock_quantity = product.stock_level.quantity
     else:

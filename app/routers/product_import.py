@@ -32,6 +32,7 @@ FIELD_MAP = {
     "Qoldiq":        ("_stock",           Decimal),
     "Holat":         ("status",           str),
     "Brand":         ("brand",            str),
+    "Kategoriya":    ("category_id",      int),
     # Valyuta maydonlari — frontend __cur_ prefiksi bilan yuboradi
     "__cur_Tan narxi":     ("cost_currency",      str),
     "__cur_Chakana narxi": ("sale_currency",      str),
@@ -182,6 +183,14 @@ def bulk_import_products(
         Product.company_id == current_user.company_id,
     ).all()
 
+    # Kategoriyalarni nomi bo'yicha map qilish
+    from app.models.category import Category
+    all_cats = db.query(Category).filter(
+        Category.company_id == current_user.company_id,
+        Category.is_deleted == False
+    ).all()
+    cat_name_map = {c.name.strip().lower(): c.id for c in all_cats}
+
     # Identifikatsiya xaritalarini yaratish (nomlardagi probellarni tozalab olamiz)
     name_map    = {p.name.strip():    p for p in all_products if p.name}
     barcode_map = {p.barcode.strip(): p for p in all_products if p.barcode}
@@ -238,6 +247,11 @@ def bulk_import_products(
                     
                     if field == "_stock":
                         stock_val = Decimal(clean_raw)
+                    elif field == "category_id":
+                        # Kategoriya nomi bo'yicha ID ni topish
+                        cat_id = cat_name_map.get(clean_raw.lower())
+                        if cat_id:
+                            setattr(existing, field, cat_id)
                     elif cast == Decimal:
                         # Vergulni nuqtaga almashtirish
                         setattr(existing, field, Decimal(clean_raw.replace(",", ".")))
@@ -289,7 +303,12 @@ def bulk_import_products(
             wholesale_price = Decimal(str(wp_raw)) if wp_raw else None
             initial_stock   = Decimal(str(row.get("Qoldiq") or 0))
             min_stock_val   = Decimal(str(row.get("Min. qoldiq") or 0))
-            # Valyuta kodlari
+            
+            # Kategoriya tanitish
+            cat_import_name = str(row.get("Kategoriya") or "").strip().lower()
+            row_category_id = cat_name_map.get(cat_import_name)
+            
+            # Valyuta kodlari (narxlar convert qilinmasligi kerak)
             cost_cur        = str(row.get("__cur_Tan narxi") or "UZS").strip().upper() or "UZS"
             sale_cur        = str(row.get("__cur_Chakana narxi") or "UZS").strip().upper() or "UZS"
             wholesale_cur   = str(row.get("__cur_Ulgurji narxi") or "UZS").strip().upper() or "UZS"
@@ -340,6 +359,7 @@ def bulk_import_products(
                 wholesale_price=wholesale_price, min_stock=min_stock_val,
                 status=status_val, brand=brand[:100] if brand else None,
                 company_id=current_user.company_id, images="[]",
+                category_id=row_category_id,
                 cost_currency=cost_cur,
                 sale_currency=sale_cur,
                 wholesale_currency=wholesale_cur,

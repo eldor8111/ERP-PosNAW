@@ -20,7 +20,7 @@ def list_categories(
     current_user: User = Depends(get_current_user),
 ):
     # Faqat ota kategoriyalar, children ichiga kiritiladi
-    q = db.query(Category).filter(Category.parent_id == None)
+    q = db.query(Category).filter(Category.parent_id == None, Category.is_deleted == False)
     q = q.filter(Category.company_id == current_user.company_id)
     return q.order_by(Category.sort_order).all()
 
@@ -30,7 +30,7 @@ def list_all_categories(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    q = db.query(Category)
+    q = db.query(Category).filter(Category.is_deleted == False)
     q = q.filter(Category.company_id == current_user.company_id)
     return q.order_by(Category.sort_order).all()
 
@@ -41,7 +41,7 @@ def get_category(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    q = db.query(Category).filter(Category.id == category_id)
+    q = db.query(Category).filter(Category.id == category_id, Category.is_deleted == False)
     q = q.filter(Category.company_id == current_user.company_id)
     cat = q.first()
     if not cat:
@@ -74,7 +74,7 @@ def update_category(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*WRITE_ROLES)),
 ):
-    q = db.query(Category).filter(Category.id == category_id)
+    q = db.query(Category).filter(Category.id == category_id, Category.is_deleted == False)
     q = q.filter(Category.company_id == current_user.company_id)
     cat = q.first()
     if not cat:
@@ -98,14 +98,15 @@ def delete_category(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*WRITE_ROLES)),
 ):
-    q = db.query(Category).filter(Category.id == category_id)
+    q = db.query(Category).filter(Category.id == category_id, Category.is_deleted == False)
     q = q.filter(Category.company_id == current_user.company_id)
     cat = q.first()
     if not cat:
         raise HTTPException(status_code=404, detail="Kategoriya topilmadi")
 
-    if cat.products:
-        raise HTTPException(status_code=400, detail="Bu kategoriyada mahsulotlar mavjud, o'chirib bo'lmaydi")
-
-    db.delete(cat)
+    # Soft delete: faqat is_deleted ni True qilamiz
+    # Lekin agar mahsuloti bo'lsa o'chirmaslik mantiqli bo'lishi mumkin (yoki soft delete bo'lgani uchun ruxsat berish)
+    # User filter qilishni so'raganiga ko'ra, soft delete qilamiz.
+    
+    cat.is_deleted = True
     db.commit()

@@ -65,6 +65,9 @@ def _run_auto_migrations(engine):
         "ALTER TABLE sales ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(14,2) DEFAULT 0;",
         "ALTER TABLE sales ADD COLUMN IF NOT EXISTS paid_cash NUMERIC(14,2) DEFAULT 0;",
         "ALTER TABLE sales ADD COLUMN IF NOT EXISTS paid_card NUMERIC(14,2) DEFAULT 0;",
+        # ── Kategoriya is_deleted ──
+        "ALTER TABLE categories ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;",
+        "CREATE INDEX IF NOT EXISTS ix_categories_is_deleted ON categories (is_deleted);",
         # ── Payme integratsiya ──
         "ALTER TABLE companies ADD COLUMN IF NOT EXISTS payme_merchant_id VARCHAR(50);",
         "ALTER TABLE companies ADD COLUMN IF NOT EXISTS payme_secret_key VARCHAR(128);",
@@ -158,7 +161,7 @@ async def lifespan(app: FastAPI):
     from app.models.bot_session import BotSession
     BotSession.__table__.create(bind=engine, checkfirst=True)
     # 1. Alembic migratsiyalar
-    _run_alembic_upgrade()
+    # _run_alembic_upgrade()
     # 2. Qo'shimcha SQL migratsiyalar (Payme va boshqalar)
     _run_auto_migrations(engine)
     scheduler_task = asyncio.create_task(start_scheduler())

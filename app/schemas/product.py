@@ -144,6 +144,7 @@ class ProductOut(BaseModel):
     brand: Optional[str] = None
     status: ProductStatus
     product_type: str = "stock"
+    category_name: Optional[str] = None
     conversion: Optional[ProductConversionOut] = None
     sell_conversions: List[ProductConversionReverseOut] = []
     created_at: datetime
@@ -214,6 +215,8 @@ class ProductListOut(BaseModel):
     unit_id: Optional[int] = None
     cost_currency: str = "UZS"
     sale_currency: str = "UZS"
+    category_id: Optional[int] = None
+    category_name: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

@@ -36,12 +36,12 @@ class Sale(Base):
     id = Column(Integer, primary_key=True, index=True)
     number = Column(String(20), unique=True, nullable=False, index=True)
     cashier_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    total_amount = Column(Numeric(14, 2), nullable=False)
-    discount_amount = Column(Numeric(14, 2), default=0)
-    paid_amount = Column(Numeric(14, 2), nullable=False)
-    paid_cash = Column(Numeric(14, 2), default=0)
-    paid_card = Column(Numeric(14, 2), default=0)
-    paid_cashback = Column(Numeric(14, 2), default=0)  # Bonus/cashback hisobidan to'langan
+    total_amount = Column(Numeric(20, 4), nullable=False)
+    discount_amount = Column(Numeric(20, 4), default=0)
+    paid_amount = Column(Numeric(20, 4), nullable=False)
+    paid_cash = Column(Numeric(20, 4), default=0)
+    paid_card = Column(Numeric(20, 4), default=0)
+    paid_cashback = Column(Numeric(20, 4), default=0)
     payment_type = Column(Enum(PaymentType), nullable=False)
     status = Column(Enum(SaleStatus), default=SaleStatus.completed)
     note = Column(Text, nullable=True)
@@ -77,10 +77,10 @@ class SaleItem(Base):
     warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=True)  # Qaysi ombordan sotildi
     unit = Column(String(20), nullable=True, default="dona")  # Mahsulot o'lchov birligi
     quantity = Column(Numeric(12, 3), nullable=False)
-    unit_price = Column(Numeric(12, 2), nullable=False)
-    cost_price = Column(Numeric(12, 2), nullable=False)
-    discount = Column(Numeric(12, 2), default=0)
-    subtotal = Column(Numeric(14, 2), nullable=False)
+    unit_price = Column(Numeric(16, 4), nullable=False)
+    cost_price = Column(Numeric(16, 4), nullable=False)
+    discount = Column(Numeric(16, 4), default=0)
+    subtotal = Column(Numeric(20, 4), nullable=False)
 
     sale = relationship("Sale", back_populates="items")
     product = relationship("Product", back_populates="sale_items")
