@@ -7,12 +7,12 @@ import { matchesSearch } from '../../utils/translit';
 import { EllipsisVertical } from 'lucide-react';
 
 /* ─── Helpers ─── */
-const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
+const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ', { maximumFractionDigits: 4 });
 const fmtDt = (d) => d ? new Date(d).toLocaleString('uz-UZ') : '—';
 const fmtDay = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
 const today = () => new Date().toISOString().slice(0, 10);
 
-const OptionsTable = ({ row, onEdit, onReturn }) => {
+const OptionsTable = ({ row, onEdit, onReturn, onDelete }) => {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, right: 0 });
   const ref = useRef(null);
@@ -72,8 +72,11 @@ const OptionsTable = ({ row, onEdit, onReturn }) => {
           <button onClick={e => { e.stopPropagation(); setOpen(false); onEdit?.(row); }} className="flex cursor-pointer w-full items-center px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md transition-colors font-medium">
             Tahrirlash
           </button>
-          <button onClick={e => { e.stopPropagation(); setOpen(false); onReturn?.(row); }} className="flex cursor-pointer w-full items-center px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors font-medium">
+          <button onClick={e => { e.stopPropagation(); setOpen(false); onReturn?.(row); }} className="flex cursor-pointer w-full items-center px-3 py-2 text-sm text-amber-600 hover:bg-amber-50 rounded-md transition-colors font-medium">
             Qaytarish
+          </button>
+          <button onClick={e => { e.stopPropagation(); setOpen(false); onDelete?.(row); }} className="flex cursor-pointer w-full items-center px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors font-medium">
+            O'chirish
           </button>
         </div>
       )}
@@ -2020,6 +2023,17 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
+  // Sync stock if we are in edit mode and products just loaded
+  useEffect(() => {
+    if (editData && localProducts.length > 0) {
+      setItems(prev => prev.map(i => {
+        if (i.stock) return i; // already has stock
+        const p = localProducts.find(lp => lp.id === i.product_id);
+        return p ? { ...i, stock: Number(p.stock_quantity || 0) } : i;
+      }));
+    }
+  }, [localProducts, editData]);
+
   const products = localProducts; // alias for all JSX below
 
   const fromWh = warehouses.find(w => String(w.id) === String(form.from_warehouse_id));
@@ -2643,11 +2657,21 @@ function TransferlarTab({ products, warehouses, users = [] }) {
   };
 
   const handleReturn = async (row) => {
-    if (!window.confirm("Haqiqatan ham ushbu transferni ortga qaytarmoqchimisiz?")) return;
+    if (!window.confirm("Haqiqatan ham ushbu transferni ortga qaytarmoqchimisiz? (Mahsulotlar manba omborga qaytadi)")) return;
     try {
-      // Assuming /cancel reverses the transfer as requested
       await api.post(`/transfers/${row.id}/cancel`);
       toast.success("Mahsulot muvaffaqiyatli ortga qaytarildi");
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Xatolik yuz berdi");
+    }
+  };
+
+  const handleDelete = async (row) => {
+    if (!window.confirm("Ushbu transferni butunlay o'chirib yubormoqchimisiz? (Barcha harakatlar bekor bo'ladi)")) return;
+    try {
+      await api.delete(`/transfers/${row.id}`);
+      toast.success("Transfer o'chirildi");
       load();
     } catch (e) {
       toast.error(e.response?.data?.detail || "Xatolik yuz berdi");
@@ -2665,7 +2689,7 @@ function TransferlarTab({ products, warehouses, users = [] }) {
     { k: 'to_warehouse_name', l: 'Kimga' },
     { k: 'status', l: 'Holat', r: v => <Badge meta={trMeta} val={v} /> },
     { k: 'created_at', l: 'Sana', r: v => fmtDay(v) },
-    { k: '', l: '', r: (v, row) => <OptionsTable row={row} onEdit={handleEdit} onReturn={handleReturn} /> },
+    { k: '', l: '', r: (v, row) => <OptionsTable row={row} onEdit={handleEdit} onReturn={handleReturn} onDelete={handleDelete} /> },
     {
       k: 'id', l: '', r: (v, row) => row.status === 'pending' ? (
         <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>

@@ -180,11 +180,18 @@ def cancel_transfer(
     t = tq.first()
     if not t:
         raise HTTPException(status_code=404, detail="Transfer topilmadi")
-    if t.status != TransferStatus.pending:
-        raise HTTPException(status_code=400, detail="Faqat kutayotgan transferni bekor qilish mumkin")
+    
+    if t.status == TransferStatus.cancelled:
+        raise HTTPException(status_code=400, detail="Transfer allaqachon bekor qilingan")
+
+    # Agar transfer allaqachon qabul qilingan bo'lsa, qoldiqlarni qaytarish kerak
+    if t.status == TransferStatus.received:
+        from app.services.transfer_service import revert_transfer_stock
+        revert_transfer_stock(db, t.id, t.from_warehouse_id, t.to_warehouse_id)
+
     t.status = TransferStatus.cancelled
     db.commit()
-    return {"message": "Transfer bekor qilindi", "number": t.number}
+    return {"message": "Transfer bekor qilindi va qoldiqlar qaytarildi", "number": t.number}
 
 
 @router.delete("/{transfer_id}")

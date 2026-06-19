@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import usePosSync from '../../hooks/usePosSync';
 import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
 
-const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
+const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ', { maximumFractionDigits: 4 });
 
 /* ── Customer combobox ── */
 function CustSearch({ customers, value, onChange, placeholder = "Mijoz izlash..." }) {

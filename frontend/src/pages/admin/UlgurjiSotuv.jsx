@@ -10,7 +10,7 @@ import ShiftOpenModal from '../../components/ShiftOpenModal';
 import { matchesSearch, searchVariants } from '../../utils/translit';
 import ProductAddModal from '../../components/ProductAddModal';
 
-const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
+const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ', { maximumFractionDigits: 4 });
 const today = () => new Date().toISOString().slice(0, 10);
 const parseN = (s) => parseFloat(String(s || '').replace(/\s/g, '')) || 0;
 

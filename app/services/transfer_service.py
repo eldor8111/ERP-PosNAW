@@ -18,6 +18,37 @@ def generate_transfer_number(db: Session) -> str:
     return f"{prefix}{count + 1:04d}"
 
 
+def revert_transfer_stock(db: Session, transfer_id: int, from_warehouse_id: int, to_warehouse_id: int):
+    """Transfer harakatlarini bekor qilish va qoldiqlarni qaytarish (nisbiy hisob-kitob bilan)"""
+    from app.models.inventory import StockMovement, MovementType, StockLevel
+    
+    movements = db.query(StockMovement).filter(
+        StockMovement.reference_type == "stock_transfer",
+        StockMovement.reference_id == transfer_id
+    ).all()
+
+    for m in movements:
+        if m.type == MovementType.TRANSFER_OUT:
+            # Chiqim bo'lgan omborga mahsulotni qaytaramiz
+            stock = db.query(StockLevel).filter(
+                StockLevel.product_id == m.product_id,
+                StockLevel.warehouse_id == from_warehouse_id
+            ).first()
+            if stock:
+                stock.quantity += m.quantity
+        elif m.type == MovementType.TRANSFER_IN:
+            # Kirim bo'lgan omboridan mahsulotni ayiramiz
+            stock = db.query(StockLevel).filter(
+                StockLevel.product_id == m.product_id,
+                StockLevel.warehouse_id == to_warehouse_id
+            ).first()
+            if stock:
+                stock.quantity -= m.quantity
+        
+        db.delete(m)
+    db.flush()
+
+
 def create_transfer(db: Session, data, user_id: int) -> StockTransfer:
     from datetime import datetime
     if data.from_warehouse_id == data.to_warehouse_id:
@@ -206,28 +237,8 @@ def update_transfer(db: Session, transfer_id: int, data, user_id: int) -> StockT
         if not wh:
             raise HTTPException(status_code=404, detail=f"Ombor ID={wh_id} topilmadi")
 
-    # 1. Eski stock movementlarni teskari qaytarish
-    old_movements = db.query(StockMovement).filter(
-        StockMovement.reference_type == "stock_transfer",
-        StockMovement.reference_id == transfer.id,
-    ).all()
-
-    for movement in old_movements:
-        if movement.type == MovementType.TRANSFER_OUT:
-            stock = db.query(StockLevel).filter(
-                StockLevel.product_id == movement.product_id,
-                StockLevel.warehouse_id == transfer.from_warehouse_id,
-            ).first()
-            if stock:
-                stock.quantity = movement.qty_before
-        elif movement.type == MovementType.TRANSFER_IN:
-            stock = db.query(StockLevel).filter(
-                StockLevel.product_id == movement.product_id,
-                StockLevel.warehouse_id == transfer.to_warehouse_id,
-            ).first()
-            if stock:
-                stock.quantity = movement.qty_before
-        db.delete(movement)
+    # 1. Eski stock movementlarni teskari qaytarish (qoldiqlarni qaytarish)
+    revert_transfer_stock(db, transfer.id, transfer.from_warehouse_id, transfer.to_warehouse_id)
 
     # 2. Eski itemlarni o'chirish
     for item in transfer.items:
@@ -337,34 +348,8 @@ def delete_transfer(db: Session, transfer_id: int, current_user) -> None:
     # Transfer itemlarini id bo'yicha map qilish (target_product_id uchun)
     item_map = {item.product_id: item for item in transfer.items}
 
-    # 1. Tarixdagi StockMovement yozuvlarini o'chirish (oldingi holatga qaytarish)
-    old_movements = db.query(StockMovement).filter(
-        StockMovement.reference_type == "stock_transfer",
-        StockMovement.reference_id == transfer.id
-    ).all()
-
-    # Har bir harakatni teskari yo'nalishda bekor qilamiz
-    for movement in old_movements:
-        if movement.type == MovementType.TRANSFER_OUT:
-            # FROM warehouse uchun — manba mahsulot qoldiqini qaytaramiz
-            stock = db.query(StockLevel).filter(
-                StockLevel.product_id == movement.product_id,
-                StockLevel.warehouse_id == transfer.from_warehouse_id
-            ).first()
-            if stock:
-                stock.quantity = movement.qty_before
-        elif movement.type == MovementType.TRANSFER_IN:
-            # TO warehouse uchun — maqsad mahsulot qoldiqini kamaytamiz
-            # (movement.product_id allaqachon dest_product_id bo'lib saqlanган)
-            stock = db.query(StockLevel).filter(
-                StockLevel.product_id == movement.product_id,
-                StockLevel.warehouse_id == transfer.to_warehouse_id
-            ).first()
-            if stock:
-                stock.quantity = movement.qty_before
-
-        # Eski harakatni o'chiramiz
-        db.delete(movement)
+    # 1. Tarixdagi StockMovement yozuvlarini o'chirish (qoldiqlarni qaytarish)
+    revert_transfer_stock(db, transfer.id, transfer.from_warehouse_id, transfer.to_warehouse_id)
 
     # 2. Transfer'ni o'chirish
     db.delete(transfer)
