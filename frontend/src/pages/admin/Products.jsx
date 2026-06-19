@@ -3389,8 +3389,8 @@ export default function Products() {
 
           {/* Table */}
           <div className="flex-1 p-5">
-            <div className="min-w-full pb-4 overflow-x-auto">
-              <div style={{ minWidth: '1550px' }}>
+            <div className="min-w-full h-[calc(100vh-100px)] pb-4 overflow-auto">
+              <div style={{ minWidth: '1550px'}}>
 
                 {/* Column headers */}
                 <div className="grid gap-3 mb-3 text-xs xl:text-sm font-extrabold text-slate-600 uppercase tracking-wide px-3"

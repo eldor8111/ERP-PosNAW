@@ -1700,7 +1700,7 @@ export default function UlgurjiSotuv() {
               <option value="cancelled">Bekor</option>
             </select>
             <input value={filters.search} onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
-              placeholder="Sotuv raqami..." className="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 w-40" />
+              placeholder="Sotuv raqami yoki mijoz ismi..." className="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 w-full max-w-100" />
             <button onClick={loadSales} className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5">
               <Ic d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" cls="w-3.5 h-3.5" />Qidirish
             </button>

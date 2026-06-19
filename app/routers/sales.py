@@ -197,7 +197,7 @@ def list_sales(
     date_to: Optional[date] = Query(None),
     date_today: Optional[bool] = Query(None, description="Faqat bugungi sotuvlar"),
     status: Optional[SaleStatus] = Query(None),
-    search: Optional[str] = Query(None, description="Sotuv raqami yoki kassir nomi bo'yicha qidiruv"),
+    search: Optional[str] = Query(None, description="Sotuv raqami yoki mijoz nomi bo'yicha qidiruv"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
@@ -253,14 +253,16 @@ def list_sales(
     if status:
         q = q.filter(Sale.status == status)
     if search:
-        cashier_ids = [
-            row.id for row in db.query(UserModel.id).filter(
-                UserModel.name.ilike(f"%{search}%"),
-                UserModel.company_id == current_user.company_id,
-            ).all()
-        ]
+        from sqlalchemy import or_
+        from app.models.customer import Customer
+
+        CustomerQ = aliased(Customer, name='customer_q')
+        q = q.outerjoin(CustomerQ, Sale.customer_id == CustomerQ.id)
         q = q.filter(
-            Sale.number.ilike(f"%{search}%") | Sale.cashier_id.in_(cashier_ids)
+            or_(
+                Sale.number.ilike(f"%{search}%"),
+                CustomerQ.name.ilike(f"%{search}%"),
+            )
         )
     rows = q.order_by(Sale.created_at.desc()).offset(skip).limit(limit).all()
 
