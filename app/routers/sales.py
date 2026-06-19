@@ -253,9 +253,15 @@ def list_sales(
     if status:
         q = q.filter(Sale.status == status)
     if search:
-        CashierQ = aliased(UserModel, name='cashier_q')
-        q = q.outerjoin(CashierQ, Sale.cashier_id == CashierQ.id)
-        q = q.filter(CashierQ.name.ilike(f"%{search}%"))
+        cashier_ids = [
+            row.id for row in db.query(UserModel.id).filter(
+                UserModel.name.ilike(f"%{search}%"),
+                UserModel.company_id == current_user.company_id,
+            ).all()
+        ]
+        q = q.filter(
+            Sale.number.ilike(f"%{search}%") | Sale.cashier_id.in_(cashier_ids)
+        )
     rows = q.order_by(Sale.created_at.desc()).offset(skip).limit(limit).all()
 
     return [
