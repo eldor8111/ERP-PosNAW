@@ -107,23 +107,23 @@ export default function ChaqqonPro() {
   return (
     <LandingLayout>
       {/* Hero Section */}
-      <section className="relative py-[100px] md:py-[120px] h-screen flex items-center overflow-hidden bg-gradient-to-br from-[#431407] via-[#7c2d12] to-[#431407]">
+      <section className="relative py-[100px] md:py-[120px] h-screen flex items-center overflow-hidden bg-gradient-to-br from-indigo-600 via-blue-800 to-indigo-600">
         <div className="inset-0 opacity-10 bg-[radial-gradient(rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:28px_28px] pointer-events-none" />
         <div className="container max-w-[1400px] mx-auto px-4 relative z-10 text-center">
-          <div className="inline-flex items-center gap-2 text-sm text-white/50 mb-6 font-medium">
+          <div className="inline-flex items-center gap-2 upper text-sm text-white/50 mb-6 font-medium">
             <span onClick={() => navigate('/')} className="cursor-pointer hover:opacity-100 opacity-60 transition-opacity">{t('cp.bc.home') || 'Bosh sahifa'}</span>
             <span className="opacity-60">›</span>
-            <span>{t('cp.bc.current') || 'Chaqqon Pro'}</span>
+            <span>{'Eviko'}</span>
           </div>
           
-          <div className="inline-block ml-4 px-5 py-2 border rounded-full text-sm font-bold mb-8 bg-orange-500/30 text-orange-200 border-orange-500/40 animate-fade-in" dangerouslySetInnerHTML={{ __html: t('cp.tag') || '🍽️ &nbsp;Restoran / Kafe POS' }} />
+          <div className="inline-block ml-4 px-5 py-2 border rounded-full text-sm font-bold mb-8 bg-blue-500/30 text-blue-200 border-blue-500/40 animate-fade-in" dangerouslySetInnerHTML={{ __html: t('cp.tag') || '🍽️ &nbsp;Restoran / Kafe POS' }} />
           
-          <h1 className="text-[44px] md:text-[72px] font-black leading-[1.08] tracking-tight text-white mb-7">
-            {t('cp.hero.title1') || 'Ovqatlanish biznesingizni'}<br />
-            <span className="bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent inline-block">{t('cp.hero.title2') || 'Chaqqon'}</span> {t('cp.hero.title3') || 'boshqaring'}
+          <h1 className="text-[44px] md:text-[72px] font-black leading-[1.08] tracking-tight text-white mb-5">
+            {t('cp.hero.title1') || 'Restoran biznesingizni'}<br />
+            <span className="bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text uppercase text-transparent inline-block">{t('cp.hero.title2')}</span> {t('cp.hero.title3')}
           </h1>
           
-          <p className="text-lg md:text-19px text-white/70 max-w-[660px] mx-auto mb-12 className-relaxed">
+          <p className="text-lg md:text-19px text-white/70 max-w-[660px] mx-auto mb-10 className-relaxed">
             {t('cp.hero.desc') || 'Restoran, kafe, fast-food va oshxonalar uchun tezkor...'}
           </p>
           
@@ -146,7 +146,7 @@ export default function ChaqqonPro() {
           
           <div className="flex gap-4 justify-center flex-wrap">
             <button 
-              className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-600 to-orange-700 text-white font-bold text-base py-4 px-8 rounded-e-xl cursor-pointer border border-orange-700 shadow-[0_10px_30px_rgba(234,88,12,0.35)] hover:-translate-y-[3px] hover:scale-[1.02] hover:shadow-[0_5px_10px_rgba(234,88,12,0.4)] transition-all duration-300 rounded-xl"
+              className="inline-flex items-center gap-2 bg-white text-blue-700 font-bold text-base py-4 px-8 rounded-e-xl cursor-pointer border border-blue-700 hover:-translate-y-[3px] hover:scale-[1.02] transition-all duration-300 rounded-xl"
               onClick={() => window.location.href = 'https://chaqqonpro.e-code.uz/login'}
             >
               {t('cp.hero.btn1') || 'Tizimni sinab ko\'rish'} <ArrowRight />
@@ -293,7 +293,7 @@ export default function ChaqqonPro() {
       </section>
 
       {/* CTA / Contact Section */}
-      <section className="py-[120px] bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0f172a] relative overflow-hidden" id="sp-contact">
+      <section className="py-[120px] bg-gradient-to-br from-blue-700 to-blue-800 relative overflow-hidden" id="sp-contact">
         {/* Background effects */}
         <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.04)_1px,transparent_1px)] [background-size:28px_28px] pointer-events-none" />
         <div className="absolute top-[-100px] left-[10%] w-[400px] h-[400px] rounded-full bg-[radial-gradient(circle,rgba(234,88,12,0.2)_0%,transparent_70%)] blur-[60px] pointer-events-none" />
@@ -308,7 +308,7 @@ export default function ChaqqonPro() {
             </div>
 
             <h2 className="text-[36px] sm:text-[5vw] md:text-[56px] font-black text-white tracking-tight mb-5 leading-[1.1]">
-              Chaqqon Pro ga ulanishga{' '}
+              EVIKO ga ulanishga{' '}
               <span className="bg-gradient-to-br from-orange-400 to-orange-600 bg-clip-text text-transparent">tayyormisiz?</span>
             </h2>
 

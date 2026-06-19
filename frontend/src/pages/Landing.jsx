@@ -216,7 +216,7 @@ export default function Landing() {
   // Sizdagi oddiy massiv (faqat string nomlar bilan)
   const serviceOptions = [
     'ERP Tizim',
-    'Chaqqon Pro (Restoran POS)',
+    'Eviko (Restoran POS)',
     'Web sayt yasash',
     'Telegram Bot',
     "Boshqa g'oya"
@@ -360,7 +360,7 @@ export default function Landing() {
 
   const leadCapture = [
     { id: 1, name: 'ERP Tizim', avatar: LaptopMinimal },
-    { id: 2, name: 'Chaqqon Pro (Restoran POS)', avatar: ChefHat },
+    { id: 2, name: 'Eviko (Restoran POS)', avatar: ChefHat },
     { id: 3, name: 'Web sayt yasash', avatar: Globe },
     { id: 4, name: 'Telegram bot', avatar: Bot },
     { id: 5, name: "Boshqa g'oya", avatar: Lamp },
@@ -594,7 +594,7 @@ export default function Landing() {
         <div className="w-max px-6 relative z-10">
           <div className="text-center mb-[70px] animate-[fadeInUp_0.8s_ease-out_both]">
             <div className="text-orange-600 bg-orange-600/10 inline-block px-3 py-1 rounded-xl font-bold mb-4">🍽️ {t('land.chaqqon.badge') || 'Yangi tizim'}</div>
-            <h2 className="text-[clamp(32px,5vw,44px)] font-extrabold tracking-[-0.04em] mb-4 text-orange-900">{t('land.chaqqon.title') || 'Chaqqon Pro'}</h2>
+            <h2 className="text-[clamp(32px,5vw,44px)] font-extrabold tracking-[-0.04em] mb-4 text-orange-900">{'Eviko'}</h2>
             <p className="text-[18px] text-orange-700 max-w-[600px] mx-auto">{t('land.chaqqon.sub') || 'Restoran POS'}</p>
           </div>
           <div
