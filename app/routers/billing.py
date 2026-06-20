@@ -110,7 +110,7 @@ def list_tariffs(
         # _: User = Depends(get_current_user_allow_expired),
 ):
     """Barcha faol tariflar (hamma foydalanuvchilar ko'ra oladi)"""
-    tariffs = db.query(Tariff).filter(Tariff.is_active == True).order_by(Tariff.sort_order).all()
+    tariffs = db.query(Tariff).order_by(Tariff.sort_order).all()
     return [_tariff_out(t) for t in tariffs]
 
 
