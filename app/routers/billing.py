@@ -107,7 +107,7 @@ def get_payment_settings(
 @router.get("/tariffs")
 def list_tariffs(
         db: Session = Depends(get_db),
-        _: User = Depends(get_current_user_allow_expired),
+        # _: User = Depends(get_current_user_allow_expired),
 ):
     """Barcha faol tariflar (hamma foydalanuvchilar ko'ra oladi)"""
     tariffs = db.query(Tariff).filter(Tariff.is_active == True).order_by(Tariff.sort_order).all()
