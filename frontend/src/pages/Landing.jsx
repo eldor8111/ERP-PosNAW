@@ -200,7 +200,7 @@ export default function Landing() {
     switch (serviceName) {
       case 'ERP Tizim':
         return LaptopMinimal;
-      case 'Chaqqon Pro (Restoran POS)':
+      case 'Eviko (Restoran POS)':
         return ChefHat;
       case 'Web sayt yasash':
         return GlobeIcon;
@@ -372,9 +372,9 @@ export default function Landing() {
   return (
     <LandingLayout>
       {/* ── Hero ── */}
-      <header className="relative pt-[100px] mt-20 pb-[120px] border-b border-black/[0.02]">
+      <header className="relative pt-[100px] mt-1 pb-[120px] border-b border-black/[0.02]">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.03)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_at_top,black_30%,transparent_80%)] z-0" />
-        <div className="max-w-[1400px] mx-auto px-6 relative z-10 grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-[60px] items-center text-center lg:text-left">
+        <div className="max-w-[1400px] mx-auto relative z-10 grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-[60px] items-center text-center lg:text-left">
           <div className="flex flex-col items-center lg:items-start">
             <div className="animate-[slideUp_0.8s_ease-out_0.1s_backwards] inline-block px-4 py-1.5 bg-blue-600/10 border border-blue-600/20 rounded-full text-[13px] font-bold text-blue-600 mb-6">
               {t('land.b2b')}
@@ -426,7 +426,7 @@ export default function Landing() {
 
       {/* ── Features Bento Grid ── */}
       <section id="features" className="py-[120px] relative">
-        <div className="max-w-[1400px] mx-auto px-6 relative z-10">
+        <div className="max-w-[1400px] mx-auto relative z-10">
           <div className="text-center mb-[70px] animate-[fadeInUp_0.8s_ease-out_both]">
             <h2 className="text-[clamp(32px,5vw,44px)] font-extrabold tracking-[-0.04em] mb-4 text-slate-900">{t('land.ecosystem')}</h2>
             <p className="text-[18px] text-slate-500 max-w-[600px] mx-auto">{t('land.arch')}</p>
@@ -580,7 +580,7 @@ export default function Landing() {
 
       {/* ── Modullar / How it works ── */}
       <section id="modules" className="py-[120px] relative bg-gradient-to-b from-slate-100 to-white border-y border-black/[0.08]">
-        <div className="max-w-[1400px] mx-auto px-6 relative z-10">
+        <div className="max-w-[1400px] mx-auto relative z-10">
           <div className="text-center mb-[70px] animate-[fadeInUp_0.8s_ease-out_both]">
             <h2 className="text-[clamp(32px,5vw,44px)] font-extrabold tracking-[-0.04em] mb-4 text-slate-900">{t('land.singleDb')}</h2>
             <p className="text-[18px] text-slate-500 max-w-[600px] mx-auto">{t('land.noPaper')}</p>
@@ -621,7 +621,7 @@ export default function Landing() {
 
       {/* ── Boshqa Xizmatlar / IT Agency ── */}
       <section className="py-[120px] relative bg-slate-50 border-t border-slate-200">
-        <div className="max-w-[1400px] mx-auto px-6 relative z-10">
+        <div className="max-w-[1400px] mx-auto relative z-10">
           <div className="text-center mb-[70px] animate-[fadeInUp_0.8s_ease-out_both]">
             <h2 className="text-[clamp(32px,5vw,44px)] font-extrabold tracking-[-0.04em] mb-4 text-slate-900">{t('land.agency.title') || 'Biz bilan faqat ERP emas...'}</h2>
             <p className="text-[18px] text-slate-500 max-w-[600px] mx-auto">{t('land.agency.sub')}</p>
@@ -680,7 +680,7 @@ export default function Landing() {
       {/* ── Lead Capture / So'rov Qoldirish ── */}
       <section id="lead-form" className="py-[140px] bg-blue-600 relative overflow-hidden">
         <div className="absolute inset-0 bg-repeat animate-[slideUp_20s_linear_infinite] opacity-40 z-0" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' opacity='0.1'%3E%3Ccircle cx='2' cy='2' r='2' fill='%23fff'/%3E%3C/svg%3E\")" }} />
-        <div className="max-w-[1400px] mx-auto px-6 relative z-10">
+        <div className="max-w-[1400px] mx-auto relative z-10">
           <div className="bg-white/10 text-white backdrop-blur-[20px] border border-white/20 rounded-[24px] shadow-[0_30px_60px_rgba(0,0,0,0.2)] relative z-[1] grid grid-cols-1 lg:grid-cols-2 gap-10 text-center lg:text-left p-[30px] lg:p-[60px]">
             <div className="flex flex-col">
               <h2 className="text-[2rem] lg:text-[2.5rem] mb-5 text-white tracking-[-0.02em] font-black">{t('land.lead.title')}</h2>

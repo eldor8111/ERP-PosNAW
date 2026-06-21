@@ -29,8 +29,8 @@ function buildNavGroups(t) {
           icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>,
         },
         {
-          name: t('nav.wholesale'),
-          path: '/admin/ulgurji-sotuv',
+          name: 'Sotuv',
+          path: '/admin/sotuv',
           roles: ROLE_GROUPS.SALES,
           icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>,
         },
@@ -229,6 +229,7 @@ export default function AdminLayout() {
       // Faqat subscription_ends_at o'rnatilgan VA muddati o'tgan bo'lsa blok
       const expired = d.subscription_ends_at !== null && d.subscription_active === false;
       setIsSubExpired(expired);
+      setOrgData(prev => ({ ...prev, code: d.org_code || prev.code }));
       if (expired && !location.pathname.includes('/admin/tariflar')) {
         navigate('/admin/tariflar', { replace: true });
       }
@@ -331,7 +332,7 @@ export default function AdminLayout() {
             const visibleLinks = group.links.filter(link => user && link.roles.includes(user.role));
             if (!visibleLinks.length) return null;
             return (
-              <div key={group.key} className="mb-1 mt-2">
+              <div key={group.key} className="">
                 {visibleLinks.map((link) => {
                   const isActive = location.pathname.startsWith(link.path);
                   const isBlocked = isSubExpired && !link.path.includes('/admin/tariflar');

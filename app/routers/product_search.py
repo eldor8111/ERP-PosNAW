@@ -197,7 +197,7 @@ def list_products_paginated(
     current_user: User = Depends(get_current_user),
 ):
     from app.models.warehouse import Warehouse
-    from sqlalchemy import case, func as f2
+    from sqlalchemy import case, func as f2, text
     from sqlalchemy.orm import joinedload
 
     q = db.query(Product).filter(Product.is_deleted == False)
@@ -251,25 +251,44 @@ def list_products_paginated(
     # Stats: jami mahsulotlar soni va qiymatlari (head panel uchun)
     # stats_q filterlardan o'tgan bo'lishi kerak, lekin limit/skip dan oldin
     stats_q = q if stock_status else q.outerjoin(stock_subq, Product.id == stock_subq.c.product_id)
-    
-    stats_row = stats_q.with_entities(
+
+    counts_row = stats_q.with_entities(
         f2.count(Product.id).label("total"),
         f2.sum(case((Product.status == ProductStatus.active, 1), else_=0)).label("active"),
         f2.sum(case((f2.coalesce(stock_subq.c.total_stock, 0) <= Product.min_stock, 1), else_=0)).label("low"),
-        f2.sum(f2.coalesce(stock_subq.c.total_stock, 0) * f2.coalesce(Product.sale_price, 0)).label("sale_value"),
-        f2.sum(f2.coalesce(stock_subq.c.total_stock, 0) * f2.coalesce(Product.wholesale_price, 0)).label("wholesale_value"),
-        f2.sum(f2.coalesce(stock_subq.c.total_stock, 0) * f2.coalesce(Product.cost_price, 0)).label("cost_value"),
     ).first()
-    if stats_row:
-        total_count  = int(stats_row.total or 0)
-        total_active = int(stats_row.active or 0)
-        out_of_stock = int(stats_row.low or 0)
-        sale_value = float(stats_row.sale_value or 0)
-        wholesale_value = float(stats_row.wholesale_value or 0)
-        cost_value = float(stats_row.cost_value or 0)
-    else:
-        total_count = total_active = out_of_stock = 0
-        sale_value = wholesale_value = cost_value = 0.0
+
+    total_count = int(counts_row.total or 0) if counts_row else 0
+    total_active = int(counts_row.active or 0) if counts_row else 0
+    out_of_stock = int(counts_row.low or 0) if counts_row else 0
+
+    # Currency grouped values (Prices sum only as requested)
+    sale_values_res = stats_q.with_entities(
+        Product.sale_currency,
+        f2.sum(f2.coalesce(Product.sale_price, 0)).label("val")
+    ).group_by(Product.sale_currency).all()
+
+    wholesale_values_res = stats_q.with_entities(
+        case(
+          (Product.wholesale_currency == 'UZS', Product.sale_currency),
+          else_=Product.wholesale_currency
+        ).label("cur"),
+        f2.sum(f2.coalesce(Product.wholesale_price, 0)).label("val")
+    ).group_by(text("cur")).all()
+
+    cost_values_res = stats_q.with_entities(
+        Product.cost_currency,
+        f2.sum(f2.coalesce(Product.cost_price, 0)).label("val")
+    ).group_by(Product.cost_currency).all()
+
+    sale_values_dict = {r[0] or "UZS": float(r[1] or 0) for r in sale_values_res}
+    wholesale_values_dict = {r[0] or "UZS": float(r[1] or 0) for r in wholesale_values_res}
+    cost_values_dict = {r[0] or "UZS": float(r[1] or 0) for r in cost_values_res}
+
+    # Backward compatibility sums (raw values)
+    sale_value = sum(sale_values_dict.values())
+    wholesale_value = sum(wholesale_values_dict.values())
+    cost_value = sum(cost_values_dict.values())
 
     # Saralash tartibi
     ALLOWED_SORT_FIELDS = ('sale_price', 'wholesale_price', 'cost_price', 'profit')
@@ -378,7 +397,10 @@ def list_products_paginated(
         "out_of_stock": out_of_stock,
         "sale_value": sale_value,
         "wholesale_value": wholesale_value,
-        "cost_value": cost_value
+        "cost_value": cost_value,
+        "sale_values": sale_values_dict,
+        "wholesale_values": wholesale_values_dict,
+        "cost_values": cost_values_dict
     }
 
 

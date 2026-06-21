@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
 import { useLang } from '../../context/LangContext';
+import { CreditCard } from 'lucide-react';
 
 const fmtMoney = (n) => Number(n || 0).toLocaleString('uz-UZ');
 
 const TG_ICON = (
   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.09 13.98l-2.95-.924c-.642-.2-.654-.642.136-.953l11.57-4.461c.537-.194 1.006.131.716.606z"/>
+    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.09 13.98l-2.95-.924c-.642-.2-.654-.642.136-.953l11.57-4.461c.537-.194 1.006.131.716.606z" />
   </svg>
 );
 const PHONE_ICON = (
@@ -31,10 +32,10 @@ export default function Tariflar() {
   // API dan keladigan sozlamalar
   const [settings, setSettings] = useState({
     card_number: '— — — —',
-    card_owner:  '...',
-    tg_username: 'loading',
-    phone:       '...',
-    phone_raw:   '',
+    card_owner: '...',
+    tg_username: '@JavokhirUbaydullayev',
+    phone: '...',
+    phone_raw: '',
   });
 
   useEffect(() => {
@@ -59,11 +60,14 @@ export default function Tariflar() {
     fetchData();
   }, [user]);
 
-  const handlePayme = async () => {
-    if (!buyModal) return;
+  const handlePayme = async (directTariff = null) => {
+    const tariffToPay = directTariff || buyModal?.tariff;
+    if (!tariffToPay) return;
+
     setTrialLoading(true);
     try {
-      const amount = Math.round(buyModal.tariff.price_per_month * months);
+      const payMonths = directTariff ? 1 : months;
+      const amount = Math.round(tariffToPay.price_per_month * payMonths);
       const res = await api.post('/payme/checkout-url', { amount });
 
       // Popup oynani markazda ochish
@@ -76,7 +80,7 @@ export default function Tariflar() {
         `width=${w},height=${h},top=${top},left=${left}`
       );
 
-      setBuyModal(null);
+      if (!directTariff) setBuyModal(null);
 
       // Popup yopilishini kutib balansni yangilaymiz
       const timer = setInterval(async () => {
@@ -129,11 +133,11 @@ export default function Tariflar() {
 
   const tgMessage = buyModal
     ? encodeURIComponent(
-        `Salom! Men ${billing?.name || user?.name || 'korxona'} uchun ${buyModal.tariff.name} tarifini ${months} oyga sotib olmoqchiman.\n` +
-        `Summa: ${fmtMoney(total)} so'm\n` +
-        `Kodni: ${billing?.org_code || '—'}\n` +
-        `Iltimos balni to'ldirib bering.`
-      )
+      `Salom! Men "${billing?.name || user?.name || 'korxona'}" uchun "${buyModal.tariff.name}" tarifini ${months} oyga sotib olmoqchiman.\n` +
+      `Summa: ${fmtMoney(total)} so'm\n` +
+      `Kod: ${billing?.org_code || '—'}\n` +
+      `Iltimos balansni to'ldirib bering.`
+    )
     : '';
 
   if (loading) {
@@ -219,98 +223,121 @@ export default function Tariflar() {
       {/* ── Tarif kartalar ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {tariffs
-          .filter(tariff => tariff.price_per_month > 0 || !billing?.subscription_ends_at || (billing?.is_trial && billing?.subscription_active))
+          .filter(tariff => Number(tariff.price_per_month) > 0 || !billing?.is_trial)
           .map(tariff => (
-          <div
-            key={tariff.id}
-            className={`relative rounded-2xl border-2 bg-gradient-to-br p-4 flex flex-col transition-all hover:shadow-md ${bgAccent(tariff.price_per_month)} ${isCurrent(tariff) ? 'ring-2 ring-offset-2 ring-indigo-400' : ''}`}
-          >
-            {isCurrent(tariff) && (
-              <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-indigo-600 text-white text-[10px] font-black rounded-full whitespace-nowrap shadow">
-                {t('tariffs.currentPlan')}
-              </span>
-            )}
-
-            <div className="mb-2">
-              <h3 className="font-black text-slate-800 text-sm">{tariff.name}</h3>
-              {tariff.description && <p className="text-[11px] text-slate-500 mt-0.5">{tariff.description}</p>}
-            </div>
-
-            <div className={`text-2xl font-black mb-2 ${priceColor(tariff.price_per_month)}`}>
-              {tariff.price_per_month > 0 ? (
-                <>{fmtMoney(tariff.price_per_month)} <span className="text-sm font-semibold text-slate-400">{t('tariffs.perMonth')}</span></>
-              ) : (
-                t('tariffs.trial')
-              )}
-            </div>
-
-            <div className="space-y-1 flex-1">
-              <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
-                <svg className="w-3 h-3 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                {t('tariffs.duration')} <span className="font-bold">{tariff.duration_days} kun</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
-                <svg className="w-3 h-3 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-                {t('tariffs.maxUsers')} <span className="font-bold">{tariff.max_users >= 9999 ? t('tariffs.unlimited') : tariff.max_users}</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
-                <svg className="w-3 h-3 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-                {t('tariffs.maxBranches')} <span className="font-bold">{tariff.max_branches >= 9999 ? t('tariffs.unlimited') : tariff.max_branches}</span>
-              </div>
-            </div>
-
-            {/* BHM ko'rsatkichi */}
-            {tariff.bhm_percent != null && tariff.price_per_month > 0 && (
-              <div className="mt-2.5 pt-2.5 border-t border-dashed border-slate-200/80">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 border border-indigo-100 rounded-lg text-[10px] text-indigo-600 font-semibold">
-                  BHMning <span className="font-black">{tariff.bhm_percent}%</span>
-                  <span className="text-indigo-400">({(tariff.bhm_percent / 100).toFixed(2)} qism)</span>
+            <div
+              key={tariff.id}
+              className={`relative rounded-2xl border-2 bg-gradient-to-br p-4 flex flex-col transition-all hover:shadow-md ${bgAccent(tariff.price_per_month)} ${isCurrent(tariff) ? 'ring-2 ring-offset-2 ring-indigo-400' : ''}`}
+            >
+              {isCurrent(tariff) && (
+                <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-indigo-600 text-white text-[10px] font-black rounded-full whitespace-nowrap shadow">
+                  {t('tariffs.currentPlan')}
                 </span>
-              </div>
-            )}
-
-            {/* Tugma */}
-            <div className="mt-3">
-              {!isCurrent(tariff) && (
-                tariff.price_per_month <= 0 ? (
-                  <button
-                    onClick={activateTrial}
-                    disabled={trialLoading}
-                    className="w-full py-2 text-white font-bold rounded-xl text-xs shadow-md transition-all bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200 disabled:opacity-60"
-                  >
-                    {trialLoading ? t('tariffs.activating') : t('tariffs.tryFree')}
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => openBuy(tariff)}
-                    className={`w-full py-2 text-white font-bold rounded-xl text-xs shadow-md transition-all ${btnColor(tariff.price_per_month)}`}
-                  >
-                    {t('tariffs.buy')}
-                  </button>
-                )
               )}
+
+              <div className="mb-2">
+                <h3 className="font-black text-slate-800 text-sm">{tariff.name}</h3>
+                {tariff.description && <p className="text-[11px] text-slate-500 mt-0.5">{tariff.description}</p>}
+              </div>
+
+              <div className={`text-[28px] font-black mb-2 ${priceColor(tariff.price_per_month)}`}>
+                {tariff.price_per_month > 0 ? (
+                  <>{fmtMoney(tariff.price_per_month)} <span className="text-sm font-semibold text-slate-400">{t('tariffs.perMonth')}</span></>
+                ) : (
+                  t('tariffs.trial')
+                )}
+              </div>
+
+              <div className="space-y-1 flex-1">
+                <div className="flex items-center gap-1.5 text-[12px] text-slate-600">
+                  <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {t('tariffs.duration')} <span className="font-bold">{tariff.duration_days} kun</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[12px] text-slate-600">
+                  <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  {t('tariffs.maxUsers')} <span className="font-bold">{tariff.max_users >= 9999 ? t('tariffs.unlimited') : tariff.max_users}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[12px] text-slate-600">
+                  <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                  {t('tariffs.maxBranches')} <span className="font-bold">{tariff.max_branches >= 9999 ? t('tariffs.unlimited') : tariff.max_branches}</span>
+                </div>
+              </div>
+
+              {/* BHM ko'rsatkichi */}
+              {tariff.bhm_percent != null && tariff.price_per_month > 0 && (
+                <div className="mt-2.5 pt-2.5 border-t border-dashed border-slate-200/80">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 border border-indigo-100 rounded-lg text-[10px] text-indigo-600 font-semibold">
+                    BHMning <span className="font-black">{tariff.bhm_percent}%</span>
+                    <span className="text-indigo-400">({(tariff.bhm_percent / 100).toFixed(2)} qism)</span>
+                  </span>
+                </div>
+              )}
+
+              <div className='flex flex-col mt-5 gap-2'>
+                {/* Harakatlar */}
+                <div className="grid grid-cols-1 gap-2">
+                  <button
+                    onClick={() => handlePayme(tariff)}
+                    disabled={trialLoading}
+                    className="flex items-center justify-center gap-2 py-2.5 bg-[#19b467] cursor-pointer hover:bg-[#16a35d] text-white font-bold rounded-lg text-xs transition-all shadow-md disabled:opacity-60"
+                  >
+                    {trialLoading ? "Kuting..." : (
+                      <>
+                        <CreditCard size={20} /> <span>Payme orqali to'lash</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-center gap-2">
+                  <div className="w-full h-px bg-slate-200"></div>
+                  <span className='text-xs text-slate-500'>Yoki</span>
+                  <div className="w-full h-px bg-slate-200"></div>
+                </div>
+
+                {/* Tugma */}
+                <div className="">
+                  {!isCurrent(tariff) && (
+                    tariff.price_per_month <= 0 ? (
+                      <button
+                        onClick={activateTrial}
+                        disabled={trialLoading}
+                        className="w-full py-2.5 text-white font-bold rounded-lg text-xs cursor-pointer shadow-md transition-all bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200 disabled:opacity-60"
+                      >
+                        {trialLoading ? t('tariffs.activating') : t('tariffs.tryFree')}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => openBuy(tariff)}
+                        className={`w-full py-2.5 text-white font-bold rounded-lg text-xs cursor-pointer shadow-md transition-all ${btnColor(tariff.price_per_month)}`}
+                      >
+                        {t('tariffs.buy')}
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
       </div>
 
       {/* ── Aloqa ── */}
       <div className="mt-5 bg-slate-50 rounded-xl px-5 py-4 border border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
         <p className="text-xs text-slate-500 font-medium">Savol yoki muammo bo'lsa biz bilan bog'laning:</p>
         <div className="flex items-center gap-2">
-          <a href={`https://t.me/${settings.tg_username}`} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-2 px-4 py-2 bg-[#2AABEE] hover:bg-[#1d9bd6] text-white rounded-xl font-bold text-xs transition-all shadow-sm">
-            {TG_ICON} @{settings.tg_username}
+          <a href={`https://t.me/JavokhirUbaydullayev`} target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-2 px-4 py-2 bg-[#2AABEE] hover:bg-[#1d9bd6] text-white rounded-md font-bold text-xs transition-all shadow-sm">
+            {TG_ICON} @JavokhirUbaydullayev
           </a>
           <a href={`tel:${settings.phone_raw}`}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition-all shadow-sm">
-            {PHONE_ICON} {settings.phone}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md font-bold text-xs transition-all shadow-sm">
+            {PHONE_ICON} +998-93-334-46-02
           </a>
         </div>
       </div>
@@ -384,33 +411,19 @@ export default function Tariflar() {
                 </ol>
               </div>
 
-              {/* Harakatlar */}
-              <div className="grid grid-cols-1 gap-3">
-                <button
-                  onClick={handlePayme}
-                  disabled={trialLoading}
-                  className="flex items-center justify-center gap-2 py-3.5 bg-[#4BDE95] hover:bg-[#3ccf87] text-white font-bold rounded-xl text-base transition-all shadow-md disabled:opacity-60"
-                >
-                  {trialLoading ? "Kuting..." : (
-                    <>💳 Payme orqali to'lash</>
-                  )}
-                </button>
-              </div>
-
               <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
                 <a
-                  href={`https://t.me/${settings.tg_username}?text=${tgMessage}`}
+                  href={`https://t.me/JavokhirUbaydullayev?text=${tgMessage}`}
                   target="_blank" rel="noopener noreferrer"
                   className="flex items-center justify-center gap-2 py-3 bg-[#2AABEE] hover:bg-[#1d9bd6] text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-blue-200"
                 >
                   {TG_ICON} Telegram
                 </a>
-                <a
-                  href={`tel:${settings.phone_raw}`}
-                  className="flex items-center justify-center gap-2 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition-all"
+                <span
+                  className="flex cursor-pointer items-center justify-center gap-2 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition-all"
                 >
-                  {PHONE_ICON} {t('tariffs.call')}
-                </a>
+                  {PHONE_ICON} +998-93-334-46-02
+                </span>
               </div>
             </div>
           </div>

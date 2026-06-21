@@ -90,7 +90,7 @@ export default function App() {
             <Route path="reports" element={<Suspense fallback={<PageLoader />}><Reports /></Suspense>} />
             <Route path="customers/:customerId" element={<Suspense fallback={<PageLoader />}><CustomerDetail /></Suspense>} />
             <Route path="customers" element={<Suspense fallback={<PageLoader />}><Customers /></Suspense>} />
-            <Route path="ulgurji-sotuv" element={<Suspense fallback={<PageLoader />}><UlgurjiSotuv /></Suspense>} />
+            <Route path="sotuv" element={<Suspense fallback={<PageLoader />}><UlgurjiSotuv /></Suspense>} />
             <Route path="pos-kassa" element={<Suspense fallback={<PageLoader />}><PosKassa /></Suspense>} />
             <Route path="pos-return" element={<Suspense fallback={<PageLoader />}><PosReturn /></Suspense>} />
             <Route path="operations" element={<Suspense fallback={<PageLoader />}><Operations /></Suspense>} />

@@ -242,24 +242,36 @@ def bulk_import_products(
                 if raw is None or str(raw).strip() == "":
                     continue
                 try:
-                    # Qiymatni probellardan tozalash (ayniqsa narxlar uchun)
-                    clean_raw = str(raw).replace(" ", "").replace("\xa0", "").strip()
-                    
-                    if field == "_stock":
-                        stock_val = Decimal(clean_raw)
+                    # Qiymatni tozalash
+                    if cast == Decimal:
+                        # Narxlar/sonlar uchun probellarni olib tashlaymiz
+                        clean_raw = str(raw).replace(" ", "").replace("\xa0", "").replace(",", ".").strip()
+                        
+                        if field == "_stock":
+                            stock_val = Decimal(clean_raw)
+                        else:
+                            setattr(existing, field, Decimal(clean_raw))
                     elif field == "category_id":
-                        # Kategoriya nomi bo'yicha ID ni topish
-                        cat_id = cat_name_map.get(clean_raw.lower())
-                        if cat_id:
+                        # Kategoriya nomi bo'yicha ID ni topish yoki yangi ochish
+                        clean_raw = str(raw).replace("\xa0", " ").strip()
+                        if clean_raw:
+                            cat_id = cat_name_map.get(clean_raw.lower())
+                            if not cat_id:
+                                # Mavjud bo'lmasa — yangi kategoriya ochamiz
+                                new_cat = Category(name=clean_raw, company_id=current_user.company_id)
+                                db.add(new_cat)
+                                db.flush()
+                                cat_id = new_cat.id
+                                cat_name_map[clean_raw.lower()] = cat_id
+                            
                             setattr(existing, field, cat_id)
-                    elif cast == Decimal:
-                        # Vergulni nuqtaga almashtirish
-                        setattr(existing, field, Decimal(clean_raw.replace(",", ".")))
                     elif field == "status":
+                        clean_raw = str(raw).replace("\xa0", " ").strip()
                         mapped = STATUS_MAP.get(clean_raw.lower())
                         if mapped:
                             setattr(existing, field, mapped)
                     else:
+                        clean_raw = str(raw).replace("\xa0", " ").strip()
                         if clean_raw:
                             setattr(existing, field, clean_raw)
                 except Exception:
@@ -305,8 +317,17 @@ def bulk_import_products(
             min_stock_val   = Decimal(str(row.get("Min. qoldiq") or 0))
             
             # Kategoriya tanitish
-            cat_import_name = str(row.get("Kategoriya") or "").strip().lower()
-            row_category_id = cat_name_map.get(cat_import_name)
+            cat_import_raw = str(row.get("Kategoriya") or "").strip()
+            row_category_id = None
+            if cat_import_raw:
+                row_category_id = cat_name_map.get(cat_import_raw.lower())
+                if not row_category_id:
+                    # Mavjud bo'lmasa — yangi kategoriya ochamiz
+                    new_cat = Category(name=cat_import_raw, company_id=current_user.company_id)
+                    db.add(new_cat)
+                    db.flush()
+                    row_category_id = new_cat.id
+                    cat_name_map[cat_import_raw.lower()] = row_category_id
             
             # Valyuta kodlari (narxlar convert qilinmasligi kerak)
             cost_cur        = str(row.get("__cur_Tan narxi") or "UZS").strip().upper() or "UZS"

@@ -404,7 +404,7 @@ export default function RegisterCompany() {
             </div>
 
             <button
-              onClick={() => window.location.href = '/admin/dashboard'}
+              onClick={() => window.location.href = '/admin/'}
               className="w-full py-4 rounded-2xl bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-base transition-all shadow-lg shadow-indigo-300 flex items-center justify-center gap-2"
             >
               {t('login.enter') || "Tizimga kirish"}

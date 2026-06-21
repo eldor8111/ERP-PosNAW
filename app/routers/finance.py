@@ -265,13 +265,15 @@ def delete_expense(
 
 # ─── Cash Balance ──────────────────────────────────────────────────────────────
 
+from app.core.dependencies import get_current_user, get_current_user_allow_expired # type: ignore
+
 @router.get("/cash-balance")
 def get_cash_balance(
     branch_id: Optional[int] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_allow_expired),
 ):
     def _base(tx_type: str):
         q = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(

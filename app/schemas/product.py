@@ -69,6 +69,7 @@ class ProductCreate(BaseModel):
     parent_code: Optional[int] = None
     unit_id: Optional[int] = None
     cost_currency: str = "UZS"
+    wholesale_currency: str = "UZS"
     sale_currency: str = "UZS"
     # Virtual Products
     product_type: str = "stock"  # 'stock' yoki 'sell'
@@ -110,6 +111,7 @@ class ProductUpdate(BaseModel):
     parent_code: Optional[int] = None
     unit_id: Optional[int] = None
     cost_currency: Optional[str] = None
+    wholesale_currency: Optional[str] = None
     sale_currency: Optional[str] = None
     # Virtual Products
     product_type: Optional[str] = None  # 'stock' yoki 'sell'
@@ -153,6 +155,7 @@ class ProductOut(BaseModel):
     parent_code: Optional[int] = None
     unit_id: Optional[int] = None
     cost_currency: str = "UZS"
+    wholesale_currency: str = "UZS"
     sale_currency: str = "UZS"
 
     model_config = {"from_attributes": True}
@@ -214,6 +217,7 @@ class ProductListOut(BaseModel):
     parent_code: Optional[int] = None
     unit_id: Optional[int] = None
     cost_currency: str = "UZS"
+    wholesale_currency: str = "UZS"
     sale_currency: str = "UZS"
     category_id: Optional[int] = None
     category_name: Optional[str] = None

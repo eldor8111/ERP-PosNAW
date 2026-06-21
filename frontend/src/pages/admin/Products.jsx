@@ -614,9 +614,9 @@ export default function Products() {
   const [totalRecords, setTotalRecords] = useState(0);
   const [totalActive, setTotalActive] = useState(0);
   const [outOfStock, setOutOfStock] = useState(0);
-  const [totalSaleValue, setTotalSaleValue] = useState(0);
-  const [totalWholesaleValue, setTotalWholesaleValue] = useState(0);
-  const [totalCostValue, setTotalCostValue] = useState(0);
+  const [saleValues, setSaleValues] = useState({});
+  const [wholesaleValues, setWholesaleValues] = useState({});
+  const [costValues, setCostValues] = useState({});
   const [deleteProgress, setDeleteProgress] = useState(null);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -710,9 +710,9 @@ export default function Products() {
         setTotalRecords(r.data.total);
         setTotalActive(r.data.total_active || 0);
         setOutOfStock(r.data.out_of_stock || 0);
-        setTotalSaleValue(r.data.sale_value || 0);
-        setTotalWholesaleValue(r.data.wholesale_value || 0);
-        setTotalCostValue(r.data.cost_value || 0);
+        setSaleValues(r.data.sale_values || {});
+        setWholesaleValues(r.data.wholesale_values || {});
+        setCostValues(r.data.cost_values || {});
         setSelectedIds([]);
       })
       .catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") })
@@ -1260,7 +1260,10 @@ export default function Products() {
       }
 
       setImportResult({ created: totC, updated: totU, skipped: totS, errors: errs });
-      if (totC > 0 || totU > 0) loadProducts();
+      if (totC > 0 || totU > 0) {
+        loadProducts();
+        loadCategories();
+      }
     } catch (err) {
       setImportError(err.response?.data?.detail || 'Server xatosi');
     } finally { setImportLoading(false); }
@@ -2347,10 +2350,19 @@ export default function Products() {
                   <span className="text-[10px] md:text-[13px] xl:text-[14px] font-bold text-slate-500 uppercase tracking-tight">Chakana qiymati</span>
                 </div>
                 <div>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-[1rem] md:text-[1.35rem] xl:text-[1.75rem] font-black text-slate-800 leading-none">{totalSaleValue < 0 ? 0 : fmt(totalSaleValue)}</span>
-                    <span className="text-xs xl:text-sm font-bold text-slate-400">UZS</span>
-                  </div>
+                  {Object.entries(saleValues).length > 0 ? (
+                    Object.entries(saleValues).map(([cur, val]) => (
+                      <div key={cur} className="flex items-baseline gap-1.5 mb-1 last:mb-0">
+                        <span className="text-[1rem] md:text-[1.35rem] xl:text-[1.75rem] font-black text-slate-800 leading-none">{val < 0 ? 0 : fmt(val)}</span>
+                        <span className="text-xs xl:text-sm font-bold text-slate-400">{cur === 'USD' ? '$' : cur}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-[1rem] md:text-[1.35rem] xl:text-[1.75rem] font-black text-slate-800 leading-none">0</span>
+                      <span className="text-xs xl:text-sm font-bold text-slate-400">UZS</span>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="absolute bottom-0 left-0 w-full h-0.5 md:h-1 bg-indigo-500/20  group-hover:h-1 md:group-hover:h-1.5 transition-all" />
@@ -2369,10 +2381,19 @@ export default function Products() {
                   <span className="text-[10px] md:text-[13px] xl:text-[14px] font-bold text-slate-500 uppercase tracking-tight">Ulgurji qiymati</span>
                 </div>
                 <div>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-[1rem] md:text-[1.35rem] xl:text-[1.75rem] font-black text-slate-800 leading-none">{totalWholesaleValue < 0 ? 0 : fmt(totalWholesaleValue)}</span>
-                    <span className="text-xs xl:text-sm font-bold text-slate-400">UZS</span>
-                  </div>
+                  {Object.entries(wholesaleValues).length > 0 ? (
+                    Object.entries(wholesaleValues).map(([cur, val]) => (
+                      <div key={cur} className="flex items-baseline gap-1.5 mb-1 last:mb-0">
+                        <span className="text-[1rem] md:text-[1.35rem] xl:text-[1.75rem] font-black text-slate-800 leading-none">{val < 0 ? 0 : fmt(val)}</span>
+                        <span className="text-xs xl:text-sm font-bold text-slate-400">{cur === 'USD' ? '$' : cur}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-[1rem] md:text-[1.35rem] xl:text-[1.75rem] font-black text-slate-800 leading-none">0</span>
+                      <span className="text-xs xl:text-sm font-bold text-slate-400">UZS</span>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="absolute bottom-0 left-0 w-full h-0.5 md:h-1 bg-emerald-500/20 group-hover:h-1 md:group-hover:h-1.5 transition-all" />
@@ -2391,10 +2412,19 @@ export default function Products() {
                   <span className="text-[10px] md:text-[13px] xl:text-[14px] font-bold text-slate-500 uppercase tracking-tight">Kirim qiymati</span>
                 </div>
                 <div>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-[1rem] md:text-[1.35rem] xl:text-[1.75rem] font-black text-slate-800 leading-none">{totalCostValue < 0 ? 0 : fmt(totalCostValue)}</span>
-                    <span className="text-xs xl:text-sm font-bold text-slate-400">UZS</span>
-                  </div>
+                  {Object.entries(costValues).length > 0 ? (
+                    Object.entries(costValues).map(([cur, val]) => (
+                      <div key={cur} className="flex items-baseline gap-1.5 mb-1 last:mb-0">
+                        <span className="text-[1rem] md:text-[1.35rem] xl:text-[1.75rem] font-black text-slate-800 leading-none">{val < 0 ? 0 : fmt(val)}</span>
+                        <span className="text-xs xl:text-sm font-bold text-slate-400">{cur === 'USD' ? '$' : cur}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-[1rem] md:text-[1.35rem] xl:text-[1.75rem] font-black text-slate-800 leading-none">0</span>
+                      <span className="text-xs xl:text-sm font-bold text-slate-400">UZS</span>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="absolute bottom-0 left-0 w-full h-0.5 md:h-1 bg-amber-500/20 g group-hover:h-1 md:oup-hover:h-1.5 transition-all" />
@@ -3338,7 +3368,6 @@ export default function Products() {
             </div>
             <div className="flex items-center flex-wrap justify-end gap-y-1 gap-x-2 xl:gap-3">
               <span className="text-[13px] xl:text-base text-slate-500 leading-none font-semibold">{bulkRows.length} ta qator</span>
-              {/* Global warehouse selector for initial stock */}
               {warehouses.length > 0 && (
                 <div className="flex items-center gap-2">
                   <label className="text-sm hidden md:block font-semibold text-slate-500 whitespace-nowrap">Ombor:</label>
@@ -3390,11 +3419,11 @@ export default function Products() {
           {/* Table */}
           <div className="flex-1 p-5">
             <div className="min-w-full h-[calc(100vh-100px)] pb-4 overflow-auto">
-              <div style={{ minWidth: '1550px'}}>
+              <div style={{ minWidth: '1700px'}}>
 
                 {/* Column headers */}
                 <div className="grid gap-3 mb-3 text-xs xl:text-sm font-extrabold text-slate-600 uppercase tracking-wide px-3"
-                  style={{ gridTemplateColumns: '34px 1fr 110px 180px 180px 180px 1fr 80px 160px 80px 40px' }}>
+                  style={{ gridTemplateColumns: '36px 1fr 100px 180px 180px 180px 1fr 80px 160px 80px 40px' }}>
                   <span>#</span>
                   <span>Mahsulot nomi *</span>
                   <span className="text-indigo-600">Kod</span>
@@ -3413,7 +3442,7 @@ export default function Products() {
                   {bulkRows.map((row, rowIdx) => (
                     <div key={row._key} className="p-4">
                       <div className="grid gap-2 lg:gap-3 items-start"
-                        style={{ gridTemplateColumns: '34px 1fr 110px 200px 200px 200px 1fr 80px 160px 80px 40px' }}>
+                        style={{ gridTemplateColumns: '34px 1fr 110px 180px 180px 180px 1fr 80px 160px 80px 40px' }}>
                         {/* # */}
                         <div className="flex items-center justify-start h-8 lg:h-10 xl:h-12 text-base font-bold text-slate-400">{rowIdx + 1}</div>
 
