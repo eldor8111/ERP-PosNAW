@@ -265,21 +265,21 @@ def list_products_paginated(
     # Currency grouped values (Prices sum only as requested)
     sale_values_res = stats_q.with_entities(
         Product.sale_currency,
-        f2.sum(f2.coalesce(Product.sale_price, 0)).label("val")
-    ).group_by(Product.sale_currency).all()
+        f2.sum(f2.coalesce(stock_subq.c.total_stock, 0) * f2.coalesce(Product.sale_price, 0)).label("val")
+    ).filter(f2.coalesce(stock_subq.c.total_stock, 0) > 0).group_by(Product.sale_currency).all()
 
     wholesale_values_res = stats_q.with_entities(
         case(
           (Product.wholesale_currency == 'UZS', Product.sale_currency),
           else_=Product.wholesale_currency
         ).label("cur"),
-        f2.sum(f2.coalesce(Product.wholesale_price, 0)).label("val")
-    ).group_by(text("cur")).all()
+        f2.sum(f2.coalesce(stock_subq.c.total_stock, 0) * f2.coalesce(Product.wholesale_price, 0)).label("val")
+    ).filter(f2.coalesce(stock_subq.c.total_stock, 0) > 0).group_by(text("cur")).all()
 
     cost_values_res = stats_q.with_entities(
         Product.cost_currency,
-        f2.sum(f2.coalesce(Product.cost_price, 0)).label("val")
-    ).group_by(Product.cost_currency).all()
+        f2.sum(f2.coalesce(stock_subq.c.total_stock, 0) * f2.coalesce(Product.cost_price, 0)).label("val")
+    ).filter(f2.coalesce(stock_subq.c.total_stock, 0) > 0).group_by(Product.cost_currency).all()
 
     sale_values_dict = {r[0] or "UZS": float(r[1] or 0) for r in sale_values_res}
     wholesale_values_dict = {r[0] or "UZS": float(r[1] or 0) for r in wholesale_values_res}
