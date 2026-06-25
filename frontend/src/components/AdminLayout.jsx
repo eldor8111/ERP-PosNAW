@@ -410,7 +410,6 @@ export default function AdminLayout() {
 
       {/* ── MAIN CONTENT ─────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden w-full relative">
-
         {/* Top Header */}
         <header className="bg-white border-b border-slate-100 px-4 md:px-6 py-2.25 flex items-center justify-between shrink-0" style={{ boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
           <div className="flex items-center gap-1 xl:gap-3">

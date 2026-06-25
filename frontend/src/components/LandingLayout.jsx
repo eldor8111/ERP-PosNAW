@@ -5,8 +5,8 @@ import ECodeLogo from './ECodeLogo'
 
 const LangIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-    <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
-    <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
+    <circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" />
+    <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
   </svg>
 )
 
@@ -31,7 +31,7 @@ export default function LandingLayout({ children }) {
 
   const navLinks = [
     { label: t('land.nav.erp') || 'ERP Tizim', path: '/' },
-    { label: 'Eviko', path: '/chaqqon-pro'},
+    { label: 'Eviko', path: '/chaqqon-pro' },
     { label: t('land.nav.websites') || 'Veb-saytlar', path: '/veb-saytlar' },
     { label: t('land.nav.bots') || 'Telegram Botlar', path: '/telegram-botlar' },
     { label: t('land.nav.custom') || 'Noyob Dasturlar', path: '/noyob-dasturlar' },
@@ -41,26 +41,24 @@ export default function LandingLayout({ children }) {
   return (
     <div className="min-h-screen relative overflow-hidden">
       {/* Navbar */}
-      <nav className={`fixed w-full top-0 z-100 backdrop-blur-xl border-b transition-all duration-300 animate-[slideUp_0.6s_ease-out_0.1s_backwards] ${
-        scrolled
-          ? 'bg-white/80 border-black/8 shadow-[0_4px_20px_rgba(0,0,0,0.03)]'
-          : 'bg-white border-transparent'
-      }`}>
+      <nav className={`fixed w-full px-5 top-0 z-100 backdrop-blur-xl border-b transition-all duration-300 animate-[slideUp_0.6s_ease-out_0.1s_backwards] ${scrolled
+        ? 'bg-white/80 border-black/8 shadow-[0_4px_20px_rgba(0,0,0,0.03)]'
+        : 'bg-white border-transparent'
+        }`}>
         <div className="max-w-[1400px] w-full mx-auto relative z-10">
-          <div className="h-20 flex items-center gap-10">
+          <div className="py-2 md:py-3 xl:py-5 flex justify-between w-full items-center gap-5 xl:gap-10">
             <span onClick={() => navigate('/')} className="cursor-pointer">
               <ECodeLogo size={36} />
-            </span> 
+            </span>
 
             {/* Desktop Nav Links */}
-            <div className="hidden lg:flex items-center gap-9 mx-auto">
+            <div className="hidden lg:flex items-center gap-6 xl:gap-9 mx-auto">
               {navLinks.map(link => (
                 <a
                   key={link.path}
                   onClick={() => navigate(link.path)}
-                  className={`cursor-pointer text-nowrap no-underline font-semibold text-[16px] transition-colors duration-200 relative py-2 group ${
-                    link.path === location.pathname ? 'text-green-700' : 'text-slate-500 hover:text-green-700'
-                  }`}
+                  className={`cursor-pointer text-nowrap no-underline font-semibold text-[14px] xl:text-[16px] transition-colors duration-200 relative py-2 group ${link.path === location.pathname ? 'text-green-700' : 'text-slate-500 hover:text-green-700'
+                    }`}
                 >
                   {link.label}
                   <span className="absolute bottom-[-4px] left-0 w-0 h-0.5 bg-green-700 rounded-sm transition-all duration-300 group-hover:w-full" />
@@ -118,8 +116,8 @@ export default function LandingLayout({ children }) {
         </div>
 
         {/* Mobile Menu */}
-        {mobileMenu && (
-          <div className="flex flex-col gap-4 bg-white px-6 py-6 border-t border-black/8 shadow-[0_10px_30px_rgba(0,0,0,0.1)] absolute top-full left-0 w-full z-90 animate-[fadeDown_0.3s_ease-out]">
+        <div className={`flex justify-between flex-col gap-4 h-[calc(100vh-50px)] bg-white px-6 py-6 border-l border-black/8 absolute transition-all duration-300 top-full w-full max-w-90 z-80 ${mobileMenu ? 'right-0' : '-right-90'}`}>
+          <div className='flex flex-col gap-4'>
             {navLinks.map(link => (
               <a
                 key={link.path}
@@ -129,6 +127,8 @@ export default function LandingLayout({ children }) {
                 {link.label}
               </a>
             ))}
+          </div>
+          <div className='flex flex-col'>
             <button
               onClick={() => window.location.href = loginUrl}
               className="py-3 rounded-xl font-bold text-[15px] mt-2 cursor-pointer border border-black/8 bg-white"
@@ -142,7 +142,7 @@ export default function LandingLayout({ children }) {
               {t('land.nav.register') || 'Boshlash'}
             </button>
           </div>
-        )}
+        </div>
       </nav>
 
       {/* Page Content */}

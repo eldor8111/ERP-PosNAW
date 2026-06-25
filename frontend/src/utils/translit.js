@@ -37,9 +37,20 @@ function latToCyr(text) {
 const RE_CYR = /[а-яёА-ЯЁқғҳўҚҒҲЎ]/u;
 const RE_LAT = /[a-zA-Z]/;
 
+/** Matnni qidiruv uchun normallashitirish (bo'shliqlar va maxsus belgilar) */
+export function normalizeSearch(text) {
+  if (!text) return '';
+  return text
+    .replace(/[\u00A0\u1680\u180E\u2000-\u200B\u202F\u205F\u3000\uFEFF]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/['`\u2018\u2019\u02BB\u02BC]/g, "'") // uzbek o' va g' uchun turli apostroflar
+    .toLowerCase()
+    .trim();
+}
+
 /** Berilgan so'zning barcha variantlarini qaytaradi (asl + transliteratsiya) */
 export function searchVariants(query) {
-  const q = (query || '').toLowerCase().trim();
+  const q = normalizeSearch(query);
   if (!q) return [];
   const set = new Set([q]);
   if (RE_CYR.test(q)) set.add(cyrToLat(q));
@@ -54,6 +65,7 @@ export function searchVariants(query) {
  */
 export function matchesSearch(haystack, query) {
   if (!haystack || !query) return false;
-  const h = haystack.toLowerCase();
-  return searchVariants(query).some(v => h.includes(v));
+  const h = normalizeSearch(haystack);
+  const q = normalizeSearch(query);
+  return searchVariants(q).some(v => h.includes(v));
 }

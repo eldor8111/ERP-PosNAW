@@ -128,7 +128,7 @@ export default function VebSaytlar() {
   return (
     <LandingLayout>
       {/* Hero Section */}
-      <section className="relative h-screen py-24 md:py-32 overflow-hidden min-h-[620px] flex items-center bg-gradient-to-br from-[#0f172a] via-[#1e1b4b] to-[#0f172a]">
+      <section className="relative py-24 md:py-32 overflow-hidden min-h-[620px] flex items-center bg-gradient-to-br from-[#0f172a] via-[#1e1b4b] to-[#0f172a]">
         {/* Background Dots */}
         <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[size:28px_28px] pointer-events-none" />
         

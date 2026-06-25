@@ -63,11 +63,11 @@ export default function TelegramBotlar() {
   return (
     <LandingLayout>
       {/* Hero Section */}
-      <section className="relative py-24 md:py-32 overflow-hidden min-h-[620px] flex items-center bg-gradient-to-br from-[#0f172a] via-[#064e3b] to-[#0f172a]">
+      <section className="relative py-24 md:py-32 flex items-center bg-gradient-to-br from-[#0f172a] via-[#064e3b] to-[#0f172a]">
         {/* Background Dots */}
         <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[size:28px_28px] pointer-events-none" />
         
-        <div className="max-w-[1400px] mt-15 h-[calc(100dvh-310px)] mx-auto px-4 w-full relative z-10 text-center">
+        <div className="max-w-[1400px] mx-auto px-4 w-full relative z-10 text-center">
           {/* Breadcrumb */}
           <div className="inline-flex items-center gap-2 text-sm text-white/50 mb-6 font-medium">
             <span onClick={() => navigate('/')} className="cursor-pointer hover:opacity-100 opacity-60 transition-opacity">{t('tg.bc.home') || 'Bosh sahifa'}</span>

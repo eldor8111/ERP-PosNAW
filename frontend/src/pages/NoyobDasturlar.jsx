@@ -126,7 +126,7 @@ export default function NoyobDasturlar() {
         {/* Background Dots */}
         <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[size:28px_28px] pointer-events-none" />
 
-        <div className="max-w-[1400px] mt-15 h-[calc(100vh-310px)] mx-auto px-4 w-full relative z-10 text-center">
+        <div className="max-w-[1400px] mx-auto px-4 w-full relative z-10 text-center">
           {/* Breadcrumb */}
           <div className="inline-flex items-center gap-2 text-sm text-white/50 mb-6 font-medium">
             <span onClick={() => navigate('/')} className="cursor-pointer hover:opacity-100 opacity-60 transition-opacity">{t('nd.bc.home') || 'Bosh sahifa'}</span>

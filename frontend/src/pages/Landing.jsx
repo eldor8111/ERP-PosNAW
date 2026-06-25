@@ -379,7 +379,7 @@ export default function Landing() {
             <div className="animate-[slideUp_0.8s_ease-out_0.1s_backwards] inline-block px-4 py-1.5 bg-blue-600/10 border border-blue-600/20 rounded-full text-[13px] font-bold text-blue-600 mb-6">
               {t('land.b2b')}
             </div>
-            <h1 className="animate-[slideUp_0.8s_ease-out_0.2s_backwards] text-[clamp(32px,9vw,48px)] lg:text-[clamp(48px,6vw,68px)] font-black leading-[1.05] tracking-[-0.04em] m-0 mb-6 text-slate-900">
+            <h1 className="animate-[slideUp_0.8s_ease-out_0.2s_backwards] text-[clamp(32px,9vw,55px)] lg:text-[clamp(48px,6vw,68px)] font-black leading-[1.05] tracking-[-0.04em] m-0 mb-6 text-slate-900">
               {t('land.erp')} <br />
               <span className="bg-linear-to-br from-emerald-600 to-blue-600 bg-clip-text text-transparent inline-block animate-[bgPan_4s_linear_infinite_alternate]">
                 {t('land.eco')}
@@ -390,7 +390,7 @@ export default function Landing() {
             </p>
             <div className="animate-[slideUp_0.8s_ease-out_0.4s_backwards] flex flex-col lg:flex-row gap-4 mb-10 w-full lg:w-auto lg:justify-start justify-center">
               <button
-                className="inline-flex items-center justify-center gap-2 bg-linear-to-br from-blue-600 to-blue-500 text-white border-none font-bold px-8 py-4 text-[16px] rounded-2xl cursor-pointer transition-all duration-[400ms] ease-[cubic-bezier(0.175,0.885,0.32,1.275)] shadow-[0_10px_30px_rgba(37,99,235,0.15)] relative overflow-hidden group hover:-translate-y-[3px] hover:scale-[1.02] hover:shadow-[0_15px_30px_rgba(37,99,235,0.3)] w-full lg:w-auto"
+                className="inline-flex mx-auto items-center w-max justify-center gap-2 bg-linear-to-br from-blue-600 to-blue-500 text-white border-none font-bold px-8 py-4 text-[16px] rounded-2xl cursor-pointer transition-all duration-[400ms] ease-[cubic-bezier(0.175,0.885,0.32,1.275)] shadow-[0_10px_30px_rgba(37,99,235,0.15)] relative overflow-hidden group hover:-translate-y-[3px] hover:scale-[1.02] hover:shadow-[0_15px_30px_rgba(37,99,235,0.3)]"
                 onClick={() => {
                   const leadSection = document.getElementById('lead-form');
                   if (leadSection) leadSection.scrollIntoView({ behavior: 'smooth' });
@@ -401,7 +401,7 @@ export default function Landing() {
             </div>
 
             <div className="animate-[slideUp_0.8s_ease-out_0.5s_backwards] text-[14px] border-t border-black/8 pt-6 pb-2.5 max-w-[480px]">
-              <div className="flex gap-[20px] flex-wrap font-semibold flex-col lg:flex-row items-center lg:items-start text-xs lg:text-sm">
+              <div className="flex gap-[20px] flex-wrap font-semibold flex-col lflex-row items-center lg:items-start text-xs lg:text-sm">
                 <div className='flex items-center gap-1.5'>
                   <span className='text-green-600 animate-pulse'><ShieldCheck size={18} /></span>
                   <span className="text-blue-600">{t('land.sec1')}</span>
@@ -515,7 +515,7 @@ export default function Landing() {
 
           <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6 bg-white rounded-3xl border border-black/5 overflow-hidden shadow-2xl shadow-black/5">
             {/* Sidebar */}
-            <div className="border-r border-black/5 flex flex-col bg-slate-50/50 p-2 gap-1">
+            <div className="border-r border-black/5 flex justify-between lg:flex-col w-full bg-slate-50/50 p-2 gap-1">
               {modules.map((mod, idx) => (
                 <button
                   key={mod.id}
@@ -526,7 +526,7 @@ export default function Landing() {
                   onClick={() => setActiveModule(idx)}
                 >
                   <span className="text-2xl shrink-0">{mod.icon}</span>
-                  <div>
+                  <div className='hidden lg:block'>
                     <div className="text-[16px] font-bold text-inherit">{mod.title}</div>
                     <div className="text-[14px] leading-5 text-inherit opacity-70 mt-0.5">{mod.subtitle}</div>
                   </div>

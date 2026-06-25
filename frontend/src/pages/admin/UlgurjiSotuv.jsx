@@ -1,7 +1,7 @@
 /**
  * UlgurjiSotuv — Ulgurji (wholesale) sotuv sahifasi
  */
-import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, memo, forwardRef, useImperativeHandle } from 'react';
 import api from '../../api/axios';
 import { buildReceiptHtml, printReceiptHtml, getReceiptSettings, saveReceiptSettings } from '../../utils/receiptBuilder';
 import { toast } from '../../utils/toast';
@@ -68,9 +68,7 @@ function Ic({ d, cls = 'w-4 h-4' }) {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d={d} />
     </svg>
   );
-}
-
-const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, onChange, onNew, onFetch, func }, fwdRef) {
+}const CustomerSearch = memo(forwardRef(function CustomerSearch({ customers, value, onChange, onNew, onFetch, onCustomerSelected }, fwdRef) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -78,35 +76,32 @@ const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, on
   const [activeIdx, setActiveIdx] = useState(0);
   const [saving, setSaving] = useState(false);
   const ref = useRef(null);
-  const customerSearchRef = useRef(null);
+  const inputRef = useRef(null);
 
-  useImperativeHandle(fwdRef, () => ({ openForm: () => { setShowForm(true); setOpen(false); } }));
-  const selected = customers.find(c => String(c.id) === String(value));
-  const filtered = (q.trim()
+  useImperativeHandle(fwdRef, () => ({ 
+    openForm: () => { setShowForm(true); setOpen(false); },
+    focus: () => inputRef.current?.focus(),
+  }));
+
+  const selected = useMemo(() => customers.find(c => String(c.id) === String(value)), [customers, value]);
+  const filtered = useMemo(() => (q.trim()
     ? customers.filter(c => matchesSearch(c.name, q) || (c.phone || '').includes(q))
     : customers
-  ).slice(0, 10);
+  ).slice(0, 30), [customers, q]);
 
+  // Tashqariga bosilganda yopish
   useEffect(() => {
-    if (selected) {
-      func(true)
-    } else {
-      func(false)
-    }
-  }, [selected])
-
-  useEffect(() => {
-    const h = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
+    const h = (e) => { if (!ref.current?.contains(e.target)) { setOpen(false); } };
     document.addEventListener('mousedown', h);
-    customerSearchRef.current?.focus();
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
+  // Mijoz qidiruvi (debounced)
   useEffect(() => {
     if (q.trim().length >= 2) {
       const timer = setTimeout(async () => {
         try {
-          const res = await api.get('/customers/', { params: { search: q.trim().replace(/['`’‘]/g, "'").toLowerCase(), limit: 50 } });
+          const res = await api.get('/customers/', { params: { search: searchVariants(q.trim()).join(' ') || q.trim(), limit: 30 } });
           const items = Array.isArray(res.data) ? res.data : (res.data?.items || []);
           if (items.length > 0 && onFetch) onFetch(items);
         } catch (err) { console.error('Fetch customers error:', err); }
@@ -131,6 +126,7 @@ const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, on
       setShowForm(false);
       setForm({ name: '', phone: '', debt_limit: '' });
       setOpen(false);
+      onCustomerSelected?.();
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Xatolik");
     } finally { setSaving(false); }
@@ -148,29 +144,38 @@ const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, on
       e.preventDefault();
       const item = filtered[activeIdx];
       if (item) {
-        onChange(item.id);
+        onChange(String(item.id));
         setQ('');
         setOpen(false);
+        onCustomerSelected?.();
       }
     } else if (e.key === 'Escape') {
       setOpen(false);
     }
   };
 
+  const selectCustomer = useCallback((c) => {
+    onChange(String(c.id));
+    setQ('');
+    setOpen(false);
+    onCustomerSelected?.();
+  }, [onChange, onCustomerSelected]);
+
   return (
     <div ref={ref} className="relative">
       <div className={`flex items-center gap-2 border-2 rounded-lg px-3 py-2.5 bg-white transition-all ${open ? 'border-indigo-500 ring-4 ring-indigo-100' : 'border-slate-200 hover:border-slate-300'}`}>
         <Ic d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" cls="w-4 h-4 text-slate-400 shrink-0" />
         <input
+          ref={inputRef}
           value={open ? q : (selected ? `${selected.name}${selected.phone ? ' · ' + selected.phone : ''}` : '')}
           onChange={e => { setQ(e.target.value); setOpen(true); setActiveIdx(0); if (!e.target.value) onChange(''); }}
           onKeyDown={handleKey}
-          onFocus={() => { setOpen(true); setActiveIdx(0); func(false); }}
-          ref={customerSearchRef}
+          onFocus={() => { setOpen(true); setActiveIdx(0); }}
+          onBlur={() => { /* relying on mousedown handler */ }}
           placeholder="Mijoz tanlang yoki qidiring..."
           className="flex-1 text-sm font-semibold text-slate-800 outline-none bg-transparent placeholder:font-normal placeholder:text-slate-400"
         />
-        {selected && <button onClick={() => { onChange(''); setQ(''); }} className="text-slate-300 hover:text-red-400"><Ic d="M6 18L18 6M6 6l12 12" cls="w-3.5 h-3.5" /></button>}
+        {selected && <button onMouseDown={() => { onChange(''); setQ(''); }} className="text-slate-300 hover:text-red-400"><Ic d="M6 18L18 6M6 6l12 12" cls="w-3.5 h-3.5" /></button>}
       </div>
 
       {selected && !open && (
@@ -210,7 +215,7 @@ const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, on
           {filtered.length === 0
             ? <div className="px-4 py-4 text-center text-sm text-slate-400">"{q}" — topilmadi</div>
             : filtered.map((c, i) => (
-              <button key={c.id} onMouseDown={() => { onChange(c.id); setQ(''); setOpen(false); func(true); }}
+              <button key={c.id} onMouseDown={() => selectCustomer(c)}
                 className={`w-full flex cursor-pointer items-center justify-between px-4 py-3 border-b border-slate-50 last:border-0 transition-colors ${i === activeIdx ? 'bg-indigo-100' : 'hover:bg-indigo-50'}`}>
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-xs font-bold">{c.name?.[0]?.toUpperCase()}</div>
@@ -291,136 +296,131 @@ const CustomerSearch = forwardRef(function CustomerSearch({ customers, value, on
       )}
     </div>
   );
-});
+}));
 
-const ProductSearch = forwardRef(function ProductSearch({ onSelect, placeholder, onOpenAdd, warehouseId, custFunc }, fwdRef) {
+const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeholder, onOpenAdd, warehouseId, disabled }, fwdRef) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
+  const [open, setOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef(null);
   const timerRef = useRef(null);
 
-  useImperativeHandle(fwdRef, () => ({ 
+  useImperativeHandle(fwdRef, () => ({
     openForm: () => onOpenAdd?.(),
-    focus: () => inputRef.current?.focus()
+    focus: () => { inputRef.current?.focus(); }
   }));
 
-  useEffect(() => {
-    if (custFunc === true) {
-      inputRef.current?.focus();
-    } else {
-      inputRef.current?.blur();
-    }
-  }, [custFunc]);
-
+  // q o'zgarganda qidirish
   useEffect(() => {
     if (!q.trim()) { setResults([]); return; }
     clearTimeout(timerRef.current);
-    // Oldingi so'rovni bekor qilamiz (AbortController)
     const abortCtrl = new AbortController();
     timerRef.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const variants = searchVariants(q);
-        // Faqat birinchi 2 ta variant — server yukini kamaytirish uchun
-        const topVariants = variants.slice(0, 2);
-        // _silent: true — har bir so'rov uchun alohida toast chiqmasin
-        const requests = topVariants.map(v =>
-          api.get('/products/pos-list', {
-            params: { search: v, limit: 50, warehouse_id: warehouseId || undefined },
-            signal: abortCtrl.signal,
-            _silent: true,
-          }).catch(err => {
-            if (err?.code === 'ERR_CANCELED') return { data: [] };
-            return { data: [] };
-          })
-        );
-        const responses = await Promise.all(requests);
+        const res = await api.get('/products/pos-list', {
+          params: { search: searchVariants(q).join(' ') || q, limit: 30, warehouse_id: warehouseId || undefined },
+          signal: abortCtrl.signal,
+          _silent: true,
+        });
         if (abortCtrl.signal.aborted) return;
-        const seen = new Set();
-        const merged = [];
-        for (const r of responses) {
-          const items = Array.isArray(r.data) ? r.data : (r.data?.items || []);
-          for (const item of items) {
-            if (!seen.has(item.id)) { seen.add(item.id); merged.push(item); }
-          }
-        }
-        setResults(merged.slice(0, 50));
+        const items = Array.isArray(res.data) ? res.data : (res.data?.items || []);
+        setResults(items.slice(0, 20));
       } catch (err) {
         if (err?.code !== 'ERR_CANCELED') setResults([]);
       } finally {
         if (!abortCtrl.signal.aborted) setLoading(false);
       }
-    }, 250);
+    }, 280);
     return () => { clearTimeout(timerRef.current); abortCtrl.abort(); };
   }, [q, warehouseId]);
 
-  const select = (p) => { onSelect(p); setQ(''); setResults([]); setActiveIdx(0); };
+  const select = useCallback((p) => { onSelect(p); setQ(''); setResults([]); setActiveIdx(0); setOpen(false); }, [onSelect]);
 
   const handleKey = (e) => {
     if (!results.length) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, results.length - 1)); }
     if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, 0)); }
     if (e.key === 'Enter' && results[activeIdx]) { e.preventDefault(); select(results[activeIdx]); }
-    if (e.key === 'Escape') { setResults([]); setQ(''); }
+    if (e.key === 'Escape') { setResults([]); setQ(''); setOpen(false); }
   };
+
+  const handleFocus = useCallback(async () => {
+    if (disabled) return;
+    setOpen(true);
+    if (!q.trim()) {
+      setLoading(true);
+      try {
+        const res = await api.get('/products/pos-list', { params: { limit: 30, warehouse_id: warehouseId || undefined }, _silent: true });
+        const items = Array.isArray(res.data) ? res.data : (res.data?.items || []);
+        setResults(items.slice(0, 30));
+      } catch { /* ignore */ }
+      finally { setLoading(false); }
+    }
+  }, [disabled, q, warehouseId]);
+
+  const handleBlur = useCallback(() => {
+    // kichik delay — mouseDown evenidan keyin blur ishlaydi
+    setTimeout(() => { setOpen(false); setResults([]); }, 150);
+  }, []);
 
   return (
     <div className="relative">
-      <div className={`flex items-center gap-2 border-2 rounded-lg px-3 py-2.5 bg-white transition-all ${q ? 'border-indigo-500 ring-4 ring-indigo-100' : 'border-slate-200 hover:border-slate-300'}`}>
+      <div className={`flex items-center gap-2 border-2 rounded-lg px-3 py-2.5 bg-white transition-all ${
+        disabled ? 'border-slate-100 bg-slate-50 opacity-60' :
+        open || q ? 'border-indigo-500 ring-4 ring-indigo-100' : 'border-slate-200 hover:border-slate-300'
+      }`}>
         {loading
           ? <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin shrink-0" />
           : <Ic d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" cls="w-4 h-4 text-slate-400 shrink-0" />
         }
         <input ref={inputRef} value={q}
+          disabled={disabled}
           onChange={e => { setQ(e.target.value); setActiveIdx(0); }}
           onKeyDown={handleKey}
-          onFocus={async () => {
-            if (!q.trim()) {
-              setLoading(true);
-              try {
-                const res = await api.get('/products/pos-list', { params: { limit: 20, warehouse_id: warehouseId || undefined }, _silent: true });
-                const items = Array.isArray(res.data) ? res.data : (res.data?.items || []);
-                setResults(items);
-              } catch { /* ignore */ }
-              finally { setLoading(false); }
-            }
-          }}
-          onBlur={() => setResults([])}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
           placeholder={placeholder || "Mahsulot nomi, SKU yoki barkod..."}
-          className="flex-1 text-sm outline-none bg-transparent placeholder:text-slate-400"
+          className="flex-1 text-sm outline-none bg-transparent placeholder:text-slate-400 disabled:cursor-not-allowed"
         />
-        {q && <button onClick={() => { setQ(''); setResults([]); inputRef.current?.focus(); }} className="text-slate-300 hover:text-red-400"><Ic d="M6 18L18 6M6 6l12 12" cls="w-3.5 h-3.5" /></button>}
+        {q && <button onMouseDown={(e) => { e.preventDefault(); setQ(''); setResults([]); inputRef.current?.focus(); }} className="text-slate-300 hover:text-red-400"><Ic d="M6 18L18 6M6 6l12 12" cls="w-3.5 h-3.5" /></button>}
       </div>
 
-      {(results.length > 0 || (q.trim() && !loading)) && custFunc && (
+      {open && !disabled && (
         <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-[380px] overflow-y-auto">
-          {results.length === 0
-            ? <div className="px-4 py-4 text-center text-sm text-slate-400">"{q}" — topilmadi</div>
-            : results.map((p, i) => (
-              <button key={p.id} onMouseDown={() => select(p)}
-                className={`w-full cursor-pointer flex items-center gap-3 px-4 py-3 border-b border-slate-50 last:border-0 transition-colors text-left ${i === activeIdx ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}>
-                <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
-                  {p.image_url ? <img src={p.image_url} alt="" className="w-full h-full object-cover" /> : <Ic d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" cls="w-4 h-4 text-slate-400" />}
+          {loading && results.length === 0 && (
+            <div className="px-4 py-8 text-center">
+              <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+              <div className="text-xs font-bold text-slate-400">Mahsulotlar yuklanmoqda...</div>
+            </div>
+          )}
+          {!loading && results.length === 0 && q.trim() && (
+            <div className="px-4 py-4 text-center text-sm text-slate-400">"{q}" — topilmadi</div>
+          )}
+          {results.length > 0 && results.map((p, i) => (
+            <button key={p.id} onMouseDown={() => select(p)}
+              className={`w-full cursor-pointer flex items-center gap-3 px-4 py-3 border-b border-slate-50 last:border-0 transition-colors text-left ${i === activeIdx ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}>
+              <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
+                {p.image_url ? <img src={p.image_url} alt="" className="w-full h-full object-cover" /> : <Ic d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" cls="w-4 h-4 text-slate-400" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-bold text-slate-800 truncate">{p.name}</div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  {p.sku && <span className="text-xs text-slate-400 font-mono">{p.sku}</span>}
+                  {p.barcode && <><span className="text-xs text-slate-300">|</span><span className="text-xs text-slate-400 font-mono">{p.barcode}</span></>}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-bold text-slate-800 truncate">{p.name}</div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    {p.sku && <span className="text-xs text-slate-400 font-mono">{p.sku}</span>}
-                    {p.barcode && <><span className="text-xs text-slate-300">|</span><span className="text-xs text-slate-400 font-mono">{p.barcode}</span></>}
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="text-sm font-black text-indigo-700">{fmt(p.wholesale_price || p.sale_price)} {p.sale_currency === 'USD' ? '$' : (p.sale_currency || 's')}</div>
-                  {p.wholesale_price && p.sale_price !== p.wholesale_price && <div className="text-xs text-slate-400 line-through">{fmt(p.sale_price)} {p.sale_currency === 'USD' ? '$' : (p.sale_currency || 's')}</div>}
-                  <div className={`text-xs font-semibold mt-0.5 ${Number(p.stock_quantity) <= 0 ? 'text-red-500' : 'text-emerald-600'}`}>{fmt(p.stock_quantity)} {p.unit || 'dona'}</div>
-                </div>
-              </button>
-            ))
-          }
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-sm font-black text-indigo-700">{fmt(p.wholesale_price || p.sale_price)} {p.sale_currency === 'USD' ? '$' : (p.sale_currency || 's')}</div>
+                {p.wholesale_price && p.sale_price !== p.wholesale_price && <div className="text-xs text-slate-400 line-through">{fmt(p.sale_price)} {p.sale_currency === 'USD' ? '$' : (p.sale_currency || 's')}</div>}
+                <div className={`text-xs font-semibold mt-0.5 ${Number(p.stock_quantity) <= 0 ? 'text-red-500' : 'text-emerald-600'}`}>{fmt(p.stock_quantity)} {p.unit || 'dona'}</div>
+              </div>
+            </button>
+          ))}
           {/* + Yangi mahsulot */}
-          <button onMouseDown={() => { setResults([]); setQ(''); onOpenAdd?.(); }}
+          <button onMouseDown={() => { setResults([]); setQ(''); setOpen(false); onOpenAdd?.(); }}
             className="w-full flex cursor-pointer items-center gap-2 px-4 py-3 text-emerald-600 hover:bg-emerald-50 font-bold text-sm border-t border-slate-100 transition-colors">
             <span className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-base leading-none">+</span>
             Yangi mahsulot qo'shish
@@ -429,21 +429,12 @@ const ProductSearch = forwardRef(function ProductSearch({ onSelect, placeholder,
       )}
     </div>
   );
-});
+}));
 
 /* ─── Asosiy komponent ──────────────────────────────────── */
 export default function UlgurjiSotuv() {
   const [customers, setCustomers] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
-  const [focusInput, setFocusInput] = useState(false)
-
-  function customerSearchInput(e) {
-    if (e === true) {
-      setFocusInput(true)
-    } else {
-      setFocusInput(false)
-    }
-  }
 
   const handleNewFetchedCustomers = useCallback((newCusts) => {
     setCustomers(prev => {
@@ -462,9 +453,16 @@ export default function UlgurjiSotuv() {
   const [receiptWidth, setReceiptWidth] = useState(localStorage.getItem('ulgurji_receiptWidth') || '80');
   const [defaultCustomerId, setDefaultCustomerId] = useState(localStorage.getItem('ulgurji_defaultCustomer') || '');
 
-  const [custId, setCustId] = useState(localStorage.getItem('ulgurji_defaultCustomer') || '');
+  const [custId, setCustId] = useState(() => sessionStorage.getItem('ulgurji_customer') || localStorage.getItem('ulgurji_defaultCustomer') || '');
   const [warehouseId, setWarehouseId] = useState('');
-  const [cart, setCart] = useState([]);
+
+  // SessionStorage dan savatni tiklash (sahifa yangilanganda ham saqlanadi)
+  const [cart, setCart] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('ulgurji_cart');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   const [note, setNote] = useState('');
   const [useWholesale, setUseWholesale] = useState(true);
   const [showPayment, setShowPayment] = useState(false);
@@ -492,11 +490,31 @@ export default function UlgurjiSotuv() {
 
   // Clock
   const [currentTime, setCurrentTime] = useState(new Date());
-  const selected = customers.find(c => String(c.id) === String(custId));
+  const selected = useMemo(() => customers.find(c => String(c.id) === String(custId)), [customers, custId]);
   useEffect(() => {
     const t = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  // Cart o'zgargan har bir holda sessionStorage ga saqlash
+  useEffect(() => {
+    try {
+      if (cart.length > 0) {
+        sessionStorage.setItem('ulgurji_cart', JSON.stringify(cart));
+      } else {
+        sessionStorage.removeItem('ulgurji_cart');
+      }
+    } catch { /* ignore */ }
+  }, [cart]);
+
+  // Mijoz o'zgarganda sessionStorage ga saqlash
+  useEffect(() => {
+    if (custId) {
+      sessionStorage.setItem('ulgurji_customer', custId);
+    } else {
+      sessionStorage.removeItem('ulgurji_customer');
+    }
+  }, [custId]);
 
   const saveSettings = () => {
     localStorage.setItem('ulgurji_autoPrint', autoPrint);
@@ -695,10 +713,10 @@ export default function UlgurjiSotuv() {
         addedAt: Date.now(),
       }];
     });
-  }, [useWholesale, getRate, onlySom]); // Added onlySom to deps
+  }, [useWholesale, getRate, onlySom]);
 
-  const updateItem = (idx, field, val) => setCart(prev => prev.map((it, i) => i === idx ? { ...it, [field]: val } : it));
-  const removeItem = (idx) => setCart(prev => prev.filter((_, i) => i !== idx));
+  const updateItem = useCallback((idx, field, val) => setCart(prev => prev.map((it, i) => i === idx ? { ...it, [field]: val } : it)), []);
+  const removeItem = useCallback((idx) => setCart(prev => prev.filter((_, i) => i !== idx)), []);
 
   // Select product into form — narxni mahsulot o'z valyutasida ko'rsatadi
   const selectFormProduct = useCallback((p) => {
@@ -777,43 +795,58 @@ export default function UlgurjiSotuv() {
   // Global barcode scanner
   useEffect(() => {
     const handle = (e) => {
-      const el = document.activeElement;
-      if (el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA') return;
       const now = Date.now(); const gap = now - scanTimeRef.current; scanTimeRef.current = now;
       if (e.key === 'Enter') {
         const buf = scanBufRef.current.trim(); scanBufRef.current = '';
-        if (buf.length < 4) return;
+        if (buf.length < 3) return;
+        
+        // Skanerlangan kodni ko'rsatish (debug va foydalanuvchi uchun)
+        toast.info(`Skanerlandi: ${buf}`, { autoClose: 1500 });
+
         const cust = customersRef.current.find(c => c.phone && (c.phone === buf || c.phone.replace(/\D/g, '') === buf.replace(/\D/g, '')));
         if (cust) { setCustIdRef.current(String(cust.id)); toast.success(`Mijoz tanlandi: ${cust.name}`); return; }
+        
         api.get(`/products/barcode/${encodeURIComponent(buf)}`)
-          .then(r => { if (r.data?.id) addToCartRef.current(r.data); })
-          .catch(() => toast.error(`Topilmadi: ${buf}`));
+          .then(r => { 
+            if (r.data?.id) {
+              addToCartRef.current(r.data);
+            } else {
+              toast.error(`Mahsulot topilmadi: ${buf}`);
+            }
+          })
+          .catch(() => {
+            const el = document.activeElement;
+            if (el?.tagName === 'INPUT' && el.value.includes(buf)) {
+              el.value = el.value.replace(buf, '').trim();
+            }
+            toast.error(`Xatolik yoki topilmadi: ${buf}`);
+          });
       } else if (e.key.length === 1) {
-        if (gap > 80) scanBufRef.current = e.key; else scanBufRef.current += e.key;
+        if (gap > 50) scanBufRef.current = e.key; else scanBufRef.current += e.key;
       }
     };
     window.addEventListener('keydown', handle, true);
     return () => window.removeEventListener('keydown', handle, true);
   }, []);
 
-  const itemNet = (it) => {
+  const itemNet = useCallback((it) => {
     const gross = it.price * it.qty;
     const disc = it.discount_type === 'pct' ? gross * (parseN(it.discount_val) / 100) : parseN(it.discount_val);
     return Math.max(0, gross - disc);
-  };
-  const itemNetUZS = (it) => itemNet(it) * (it.rate || 1);
+  }, []);
+  const itemNetUZS = useCallback((it) => itemNet(it) * (it.rate || 1), [itemNet]);
 
-  const subtotal = cart.reduce((s, it) => s + itemNetUZS(it), 0);
+  const subtotal = useMemo(() => cart.reduce((s, it) => s + itemNetUZS(it), 0), [cart, itemNetUZS]);
 
   // Valyuta bo'yicha jami summalarni hisoblash
-  const totalsByCurrency = cart.reduce((acc, it) => {
+  const totalsByCurrency = useMemo(() => cart.reduce((acc, it) => {
     const cur = it.currency || 'UZS';
     acc[cur] = (acc[cur] || 0) + itemNet(it);
     return acc;
-  }, {});
+  }, {}), [cart, itemNet]);
 
-  const saleDisc = discType === 'pct' ? subtotal * (parseN(discVal) / 100) : parseN(discVal);
-  const total = Math.max(0, subtotal - saleDisc);
+  const saleDisc = useMemo(() => discType === 'pct' ? subtotal * (parseN(discVal) / 100) : parseN(discVal), [discType, discVal, subtotal]);
+  const total = useMemo(() => Math.max(0, subtotal - saleDisc), [subtotal, saleDisc]);
 
   const getPaidUZS = (paymentList) => {
     return paymentList.reduce((s, p) => {
@@ -976,6 +1009,8 @@ export default function UlgurjiSotuv() {
       setPayNote(''); setDebtDate('');
       setShowPayment(false); setShowDebtDate(false); setPayments([]);
       setFormProduct(null); setFormPrice(''); setFormQty('1'); setFormDiscVal('');
+      sessionStorage.removeItem('ulgurji_cart'); 
+      sessionStorage.removeItem('ulgurji_customer');
     } catch (e) { toast.error(e?.response?.data?.detail || 'Saqlashda xatolik'); }
     finally { setSaving(false); }
   };
@@ -1005,6 +1040,8 @@ export default function UlgurjiSotuv() {
       localStorage.setItem('ulgurji_drafts', JSON.stringify([{ id: Date.now(), date: new Date().toISOString(), cart, custId, note, discType, discVal, total }, ...existing]));
       toast.success("Sotuv arxivga olindi!");
       setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDiscVal('');
+      sessionStorage.removeItem('ulgurji_cart');
+      sessionStorage.removeItem('ulgurji_customer');
       return;
     }
     if (actionType === 'debt') {
@@ -1066,6 +1103,8 @@ export default function UlgurjiSotuv() {
 
       setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDiscVal('');
       setFormProduct(null); setFormPrice(''); setFormQty('1'); setFormDiscVal('');
+      sessionStorage.removeItem('ulgurji_cart');
+      sessionStorage.removeItem('ulgurji_customer');
     } catch (e) {
       if (!silently) toast.error(e?.response?.data?.detail || 'Saqlashda xatolik');
     } finally {
@@ -1214,8 +1253,16 @@ export default function UlgurjiSotuv() {
                       </button>
                     </div>
                   </div>
-                  <CustomerSearch func={customerSearchInput} ref={custSearchRef} customers={customers} value={custId}
+                  <CustomerSearch onCustomerSelected={() => setTimeout(() => prodSearchRef.current?.focus(), 50)} ref={custSearchRef} customers={customers} value={custId}
                     onChange={(newId) => {
+                      if (cart.length > 0 && newId !== custId) {
+                        if (!window.confirm("Savatda mahsulotlar bor. Mijozni o'zgartirsangiz savat tozalanadi. Davom etasizmi?")) {
+                          return;
+                        }
+                        setCart([]);
+                        sessionStorage.removeItem('ulgurji_cart');
+                      }
+
                       if (newId !== custId && editingSale) {
                         setEditingSale(null);
                         sessionStorage.removeItem('ulgurji_session_sale_id');
@@ -1259,7 +1306,7 @@ export default function UlgurjiSotuv() {
                     </div>
                   </div>
 
-                  <ProductSearch custFunc={focusInput} ref={prodSearchRef} onSelect={selectFormProduct} placeholder="Mahsulot nomi, SKU, barkod..." onOpenAdd={() => setShowProdAddModal(true)} warehouseId={warehouseId} />
+                  <ProductSearch disabled={!custId} ref={prodSearchRef} onSelect={selectFormProduct} placeholder="Mahsulot nomi, SKU, barkod..." onOpenAdd={() => setShowProdAddModal(true)} warehouseId={warehouseId} />
 
                   {/* Mijoz tanlanmagan ogohlantirish */}
                   {!custId && (
@@ -1484,7 +1531,7 @@ export default function UlgurjiSotuv() {
                   {cart.length > 0 ? `${cart.length} xil · ${cart.reduce((s, i) => s + i.qty, 0).toFixed(1)} birlik` : 'Savat bo\'sh'}
                 </span>
                 {cart.length > 0 && (
-                  <button onClick={() => { if (window.confirm("Savatni tozalash?")) setCart([]); }}
+                  <button onClick={() => { if (window.confirm("Savatni tozalash?")) { setCart([]); sessionStorage.removeItem('ulgurji_cart'); sessionStorage.removeItem('ulgurji_customer'); } }}
                     className="text-xs text-red-400 hover:text-red-600 font-semibold px-2 py-1 rounded-lg hover:bg-red-50 transition-colors">
                     Hammasini o'chirish
                   </button>

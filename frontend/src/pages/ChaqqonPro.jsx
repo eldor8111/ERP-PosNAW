@@ -107,7 +107,7 @@ export default function ChaqqonPro() {
   return (
     <LandingLayout>
       {/* Hero Section */}
-      <section className="relative py-[100px] md:py-[120px] h-screen flex items-center overflow-hidden bg-gradient-to-br from-indigo-600 via-blue-800 to-indigo-600">
+      <section className="relative py-[100px] md:py-[120px] flex items-center bg-gradient-to-br from-indigo-600 via-blue-800 to-indigo-600">
         <div className="inset-0 opacity-10 bg-[radial-gradient(rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:28px_28px] pointer-events-none" />
         <div className="container max-w-[1400px] mx-auto px-4 relative z-10 text-center">
           <div className="inline-flex items-center gap-2 upper text-sm text-white/50 mb-6 font-medium">
@@ -162,8 +162,8 @@ export default function ChaqqonPro() {
       </section>
 
       {/* Portals Section */}
-      <section className="bg-white py-[60px] border-b border-pink-100">
-        <div className="container mx-auto px-4">
+      <section className="bg-white max-w-[1400px] mx-auto py-[60px] border-b border-pink-100">
+        <div className="container mx-auto">
           <div className="text-center mb-10">
             <h2 className="text-3xl font-extrabold text-slate-800 mb-4">{t('cp.portals.title') || 'Tizimga Kirish Portallari'}</h2>
             <p className="text-slate-500 max-w-2xl mx-auto">{t('cp.portals.desc') || 'Huddi bir yaxlit ekotizimdek — har kim o\'zining ishchi o\'rniga ega!'}</p>
@@ -214,7 +214,7 @@ export default function ChaqqonPro() {
 
       {/* Modules Section */}
       <section className="py-[100px] bg-slate-50" id="modullar">
-        <div className="container mx-auto px-4">
+        <div className="container max-w-[1400px] mx-auto">
           <div className="text-center mb-12">
             <div className="inline-block text-orange-600 bg-orange-600/10 font-bold px-4 py-1.5 rounded-full text-sm mb-3">{t('cp.mod.tag') || 'Maxsus Modullar'}</div>
             <h2 className="text-3xl md:text-4xl font-black text-slate-800 mb-4">{t('cp.mod.title') || 'Ovqatlanish sohasi uchun barcha yechimlar'}</h2>
