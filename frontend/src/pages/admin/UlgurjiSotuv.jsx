@@ -413,8 +413,18 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
                 </div>
               </div>
               <div className="text-right shrink-0">
-                <div className="text-sm font-black text-indigo-700">{fmt(p.wholesale_price || p.sale_price)} {p.sale_currency === 'USD' ? '$' : (p.sale_currency || 's')}</div>
-                {p.wholesale_price && p.sale_price !== p.wholesale_price && <div className="text-xs text-slate-400 line-through">{fmt(p.sale_price)} {p.sale_currency === 'USD' ? '$' : (p.sale_currency || 's')}</div>}
+                <div className="text-sm font-black text-indigo-700">
+                  {fmt(p.wholesale_price || p.sale_price)} {' '}
+                  {(() => {
+                    const cur = p.wholesale_price ? (p.wholesale_currency || p.sale_currency) : p.sale_currency;
+                    return cur === 'USD' ? '$' : (cur || 's');
+                  })()}
+                </div>
+                {p.wholesale_price && p.sale_price !== p.wholesale_price && (
+                  <div className="text-xs text-slate-400 line-through">
+                    {fmt(p.sale_price)} {p.sale_currency === 'USD' ? '$' : (p.sale_currency || 's')}
+                  </div>
+                )}
                 <div className={`text-xs font-semibold mt-0.5 ${Number(p.stock_quantity) <= 0 ? 'text-red-500' : 'text-emerald-600'}`}>{fmt(p.stock_quantity)} {p.unit || 'dona'}</div>
               </div>
             </button>
@@ -686,7 +696,7 @@ export default function UlgurjiSotuv() {
       return;
     }
     let price = useWholesale && p.wholesale_price ? Number(p.wholesale_price) : Number(p.sale_price || 0);
-    let currency = p.sale_currency || 'UZS';
+    let currency = (useWholesale && p.wholesale_price) ? (p.wholesale_currency || 'UZS') : (p.sale_currency || 'UZS');
     let rate = getRate(currency);
 
     if (onlySom && currency !== 'UZS') {
@@ -722,7 +732,7 @@ export default function UlgurjiSotuv() {
   const selectFormProduct = useCallback((p) => {
     setFormProduct(p);
     let price = useWholesale && p.wholesale_price ? Number(p.wholesale_price) : Number(p.sale_price || 0);
-    let currency = p.sale_currency && p.sale_currency !== '' ? p.sale_currency : 'UZS';
+    let currency = (useWholesale && p.wholesale_price) ? (p.wholesale_currency || p.sale_currency || 'UZS') : (p.sale_currency || 'UZS');
 
     if (onlySom && currency !== 'UZS') {
       const rate = getRate(currency);

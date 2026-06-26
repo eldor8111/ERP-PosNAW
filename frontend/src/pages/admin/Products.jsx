@@ -1155,20 +1155,23 @@ export default function Products() {
           let val = row[excelCol];
           // Narx ustunlari bo'lsa - tozalab yuboramiz
           if (PRICE_FIELD_KEYS.includes(fieldKey)) {
-             val = String(val || "").replace(/\s/g, '').replace(',', '.').replace(/[^0-9.]/g, '');
+            val = String(val || "").replace(/\s/g, '').replace(',', '.').replace(/[^0-9.]/g, '');
           }
           obj[fieldKey] = val;
         }
       });
-      // Narx valyuta kodlarini payload ga qo'shish (faqat mapplangan maydonlar uchun)
-      Object.values(colMap).forEach(fieldKey => {
-        if (PRICE_FIELD_KEYS.includes(fieldKey)) {
-          // Faqat o'sha narx maydoni payloadda bo'lsagina valyutani qo'shamiz
-          if (obj[fieldKey] !== undefined && obj[fieldKey] !== "") {
+      // Narx valyuta kodlarini payload ga qo'shish — colMap entry lari orqali
+      // (faqat obj da qiymati bor narx fieldlar uchun, har biri bir marta)
+      const addedCurFields = new Set();
+      Object.entries(colMap).forEach(([, fieldKey]) => {
+        if (PRICE_FIELD_KEYS.includes(fieldKey) && !addedCurFields.has(fieldKey)) {
+          if (obj[fieldKey] !== undefined && obj[fieldKey] !== '') {
             obj[`__cur_${fieldKey}`] = getPriceFieldCurrencyCode(fieldKey);
+            addedCurFields.add(fieldKey);
           }
         }
       });
+
       // Identifikatsiya maydonlarini string formatiga va tozalangan holatga keltiramiz
       if (obj['Nomi']) obj['Nomi'] = String(obj['Nomi']).trim();
       if (obj['Barkod']) obj['Barkod'] = String(obj['Barkod']).trim();
@@ -2185,7 +2188,7 @@ export default function Products() {
                             <td className="px-2 py-3 text-xs text-slate-500">
                               {p.wholesale_price ? (
                                 <>
-                                  {fmt(p.wholesale_price)} {p.sale_currency === 'UZS' ? "so'm" : (p.sale_currency || "so'm")}
+                                  {fmt(p.wholesale_price)} {p.wholesale_currency === 'UZS' ? "so'm" : p.wholesale_currency === "USD" ? "$" : (p.wholesale_currency || p.sale_currency || "so'm")}
                                 </>
                               ) : <span className="text-slate-300">—</span>}
                             </td>
@@ -3419,7 +3422,7 @@ export default function Products() {
           {/* Table */}
           <div className="flex-1 p-5">
             <div className="min-w-full h-[calc(100vh-100px)] pb-4 overflow-auto">
-              <div style={{ minWidth: '1700px'}}>
+              <div style={{ minWidth: '1700px' }}>
 
                 {/* Column headers */}
                 <div className="grid gap-3 mb-3 text-xs xl:text-sm font-extrabold text-slate-600 uppercase tracking-wide px-3"
@@ -3914,7 +3917,15 @@ export default function Products() {
                             <th key={col} className="px-2 py-2 border-b border-slate-200 min-w-[180px]">
                               <select
                                 value={mappedField}
-                                onChange={e => setColMap(m => ({ ...m, [col]: e.target.value }))}
+                                onChange={e => {
+                                  const oldField = colMap[col] || '';
+                                  const newField = e.target.value;
+                                  // Agar oldingi ustun narx maydoni bo'lsa va o'zgarsa — valyutasini tozalab ketamiz
+                                  if (PRICE_FIELD_KEYS.includes(oldField) && oldField !== newField) {
+                                    setImportPriceCurrencies(prev => ({ ...prev, [oldField]: '' }));
+                                  }
+                                  setColMap(m => ({ ...m, [col]: newField }));
+                                }}
                                 className={`w-full px-2 py-2 text-sm font-semibold rounded-lg border outline-none cursor-pointer ${mappedField && mappedField !== '__SKIP__'
                                   ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
                                   : 'border-slate-200 bg-white text-slate-500'
@@ -3929,11 +3940,10 @@ export default function Products() {
                                   <select
                                     value={selCurId}
                                     onChange={e => setImportPriceCurrencies(prev => ({ ...prev, [mappedField]: e.target.value }))}
-                                    className={`w-full px-2 py-1.5 text-xs font-bold rounded-lg border outline-none cursor-pointer transition-colors ${
-                                      selCurId
+                                    className={`w-full px-2 py-1.5 text-xs font-bold rounded-lg border outline-none cursor-pointer transition-colors ${selCurId
                                         ? 'border-emerald-400 bg-emerald-500 text-white'
                                         : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                                    }`}
+                                      }`}
                                   >
                                     <option value="">UZS | 1</option>
                                     {currencies.filter(c => !c.is_default).map(c => (
@@ -3990,11 +4000,10 @@ export default function Products() {
                                       newRows[absIdx] = { ...newRows[absIdx], [col]: e.target.value };
                                       setImportRows(newRows);
                                     }}
-                                    className={`w-full px-3 py-2.5 text-sm outline-none transition-all font-medium ${
-                                      allowUpdate 
-                                        ? 'text-slate-700 bg-transparent focus:bg-white focus:ring-1 focus:ring-indigo-400 cursor-text' 
+                                    className={`w-full px-3 py-2.5 text-sm outline-none transition-all font-medium ${allowUpdate
+                                        ? 'text-slate-700 bg-transparent focus:bg-white focus:ring-1 focus:ring-indigo-400 cursor-text'
                                         : 'text-slate-500 bg-transparent cursor-not-allowed'
-                                    }`}
+                                      }`}
                                   />
                                 </td>
                               ))}
