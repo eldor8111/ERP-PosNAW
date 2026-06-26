@@ -760,7 +760,8 @@ export default function Products() {
     wholesale_price_cur: getCurrencyIdByCode(p.wholesale_currency || p.sale_currency),
     sale_price_cur: getCurrencyIdByCode(p.sale_currency),
     price_currency_id: getCurrencyIdByCode(p.sale_currency),
-    initial_stock: '',
+    initial_stock: p.stock_quantity !== undefined ? String(p.stock_quantity) : '',
+    initial_warehouse_id: p.warehouse_stocks?.[0]?.warehouse_id || '',
     min_stock: p.min_stock, max_stock: p.max_stock || '',
     bin_location: p.bin_location || '',
     images: Array.isArray(p.images) ? p.images : (p.image_url ? [p.image_url] : []),
@@ -907,11 +908,11 @@ export default function Products() {
       } else if (modal === 'edit' && selected?.conversion) {
         payload.conversion = null;
       }
+      if (effectiveType !== 'sell') {
+        payload.initial_stock = form.initial_stock !== '' ? Number(form.initial_stock) : 0;
+        payload.initial_warehouse_id = form.initial_warehouse_id ? Number(form.initial_warehouse_id) : undefined;
+      }
       if (modal === 'add') {
-        if (effectiveType !== 'sell') {
-          payload.initial_stock = form.initial_stock !== '' ? Number(form.initial_stock) : 0;
-          payload.initial_warehouse_id = form.initial_warehouse_id ? Number(form.initial_warehouse_id) : undefined;
-        }
         await api.post('/products', payload);
       } else {
         await api.put(`/products/${selected.id}`, payload);
@@ -2820,9 +2821,9 @@ export default function Products() {
                 {/* Stock (Yuqoriga ko'chirildi) */}
                 {form.product_type !== 'sell' && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                    {modal === 'add' && (
+                    {(modal === 'add' || modal === 'edit') && (
                       <>
-                        <Field label={t('product.initialStock') || 'Boshlang\'ich qoldiq'}>
+                        <Field label={modal === 'add' ? (t('product.initialStock') || 'Boshlang\'ich qoldiq') : 'Joriy qoldiq'}>
                           <input type="text" inputMode="decimal" className={`${inputCls} text-base`}
                             value={form.initial_stock}
                             onChange={e => setForm({ ...form, initial_stock: e.target.value.replace(/[^0-9.]/g, '') })}
