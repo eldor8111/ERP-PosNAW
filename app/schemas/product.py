@@ -116,6 +116,8 @@ class ProductUpdate(BaseModel):
     # Virtual Products
     product_type: Optional[str] = None  # 'stock' yoki 'sell'
     conversion: Optional[ProductConversionIn] = None
+    initial_stock: Optional[Decimal] = None
+    initial_warehouse_id: Optional[int] = None
 
 
 class ProductStatusUpdate(BaseModel):

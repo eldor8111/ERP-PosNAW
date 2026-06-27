@@ -379,7 +379,32 @@ def update_product(
     fields_set = data.model_dump(exclude_unset=True)
     conversion_sent = "conversion" in fields_set
     conversion_data = data.conversion if conversion_sent else None
-    update_data = data.model_dump(exclude_none=True, exclude={"conversion"})
+    
+    initial_stock_sent = "initial_stock" in fields_set
+    initial_stock_val = data.initial_stock
+    initial_wh_id = data.initial_warehouse_id
+    
+    update_data = data.model_dump(exclude_none=True, exclude={"conversion", "initial_stock", "initial_warehouse_id"})
+
+    # Stock update logic
+    if initial_stock_sent and product.product_type == 'stock':
+        from app.models.inventory import StockLevel
+        # If warehouse not sent, try to find an existing one or use first
+        if not initial_wh_id:
+            sl_existing = db.query(StockLevel).filter(StockLevel.product_id == product_id).first()
+            if sl_existing:
+                initial_wh_id = sl_existing.warehouse_id
+            else:
+                from app.models.warehouse import Warehouse
+                wh = db.query(Warehouse).filter(Warehouse.company_id == current_user.company_id).first()
+                if wh: initial_wh_id = wh.id
+        
+        if initial_wh_id:
+            sl = db.query(StockLevel).filter(StockLevel.product_id == product_id, StockLevel.warehouse_id == initial_wh_id).first()
+            if sl:
+                sl.quantity = initial_stock_val if initial_stock_val is not None else 0
+            else:
+                db.add(StockLevel(product_id=product_id, warehouse_id=initial_wh_id, quantity=initial_stock_val or 0))
 
     # Duplicate checks (exclude current product)
     dup_q = db.query(Product).filter(Product.is_deleted == False, Product.id != product_id)
