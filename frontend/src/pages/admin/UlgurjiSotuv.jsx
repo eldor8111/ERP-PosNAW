@@ -14,6 +14,33 @@ const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ', { maximumFractionDigit
 const today = () => new Date().toISOString().slice(0, 10);
 const parseN = (s) => parseFloat(String(s || '').replace(/\s/g, '')) || 0;
 
+const fmtPrice = (v) => {
+  if (v === '' || v === null || v === undefined) return '';
+  let s = String(v).replace(/\s/g, '').replace(',', '.');
+  if (s === '.' || s === ',') return '.';
+  if (s.endsWith('.')) {
+    const intPart = s.slice(0, -1);
+    const formattedInt = intPart === '' ? '' : (Number(intPart) || 0).toLocaleString('ru-RU');
+    return formattedInt + '.';
+  }
+  const n = Number(s);
+  if (isNaN(n)) return s;
+  const parts = s.split('.');
+  const formattedInt = Number(parts[0]).toLocaleString('ru-RU');
+  if (parts.length > 1) {
+    return formattedInt + '.' + parts[1];
+  }
+  return formattedInt;
+};
+const parsePrice = (v) => {
+  let s = String(v).replace(/\s/g, '').replace(',', '.').replace(/[^0-9.]/g, '');
+  const parts = s.split('.');
+  if (parts.length > 2) {
+    return parts[0] + '.' + parts.slice(1).join('');
+  }
+  return s;
+};
+
 const PAY_ICONS = {
   cash: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="13" rx="2" /><circle cx="12" cy="12.5" r="2.5" /><path d="M6 9.5h.01M18 9.5h.01M6 15.5h.01M18 15.5h.01" /></svg>),
   card: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /><path d="M6 15h4" /></svg>),
@@ -68,7 +95,7 @@ function Ic({ d, cls = 'w-4 h-4' }) {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d={d} />
     </svg>
   );
-}const CustomerSearch = memo(forwardRef(function CustomerSearch({ customers, value, onChange, onNew, onFetch, onCustomerSelected }, fwdRef) {
+} const CustomerSearch = memo(forwardRef(function CustomerSearch({ customers, value, onChange, onNew, onFetch, onCustomerSelected }, fwdRef) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -78,7 +105,7 @@ function Ic({ d, cls = 'w-4 h-4' }) {
   const ref = useRef(null);
   const inputRef = useRef(null);
 
-  useImperativeHandle(fwdRef, () => ({ 
+  useImperativeHandle(fwdRef, () => ({
     openForm: () => { setShowForm(true); setOpen(false); },
     focus: () => inputRef.current?.focus(),
   }));
@@ -368,10 +395,9 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
 
   return (
     <div className="relative">
-      <div className={`flex items-center gap-2 border-2 rounded-lg px-3 py-2.5 bg-white transition-all ${
-        disabled ? 'border-slate-100 bg-slate-50 opacity-60' :
-        open || q ? 'border-indigo-500 ring-4 ring-indigo-100' : 'border-slate-200 hover:border-slate-300'
-      }`}>
+      <div className={`flex items-center gap-2 border-2 rounded-lg px-3 py-2.5 bg-white transition-all ${disabled ? 'border-slate-100 bg-slate-50 opacity-60' :
+          open || q ? 'border-indigo-500 ring-4 ring-indigo-100' : 'border-slate-200 hover:border-slate-300'
+        }`}>
         {loading
           ? <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin shrink-0" />
           : <Ic d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" cls="w-4 h-4 text-slate-400 shrink-0" />
@@ -809,15 +835,15 @@ export default function UlgurjiSotuv() {
       if (e.key === 'Enter') {
         const buf = scanBufRef.current.trim(); scanBufRef.current = '';
         if (buf.length < 3) return;
-        
+
         // Skanerlangan kodni ko'rsatish (debug va foydalanuvchi uchun)
         toast.info(`Skanerlandi: ${buf}`, { autoClose: 1500 });
 
         const cust = customersRef.current.find(c => c.phone && (c.phone === buf || c.phone.replace(/\D/g, '') === buf.replace(/\D/g, '')));
         if (cust) { setCustIdRef.current(String(cust.id)); toast.success(`Mijoz tanlandi: ${cust.name}`); return; }
-        
+
         api.get(`/products/barcode/${encodeURIComponent(buf)}`)
-          .then(r => { 
+          .then(r => {
             if (r.data?.id) {
               addToCartRef.current(r.data);
             } else {
@@ -1019,7 +1045,7 @@ export default function UlgurjiSotuv() {
       setPayNote(''); setDebtDate('');
       setShowPayment(false); setShowDebtDate(false); setPayments([]);
       setFormProduct(null); setFormPrice(''); setFormQty('1'); setFormDiscVal('');
-      sessionStorage.removeItem('ulgurji_cart'); 
+      sessionStorage.removeItem('ulgurji_cart');
       sessionStorage.removeItem('ulgurji_customer');
     } catch (e) { toast.error(e?.response?.data?.detail || 'Saqlashda xatolik'); }
     finally { setSaving(false); }
@@ -1416,11 +1442,9 @@ export default function UlgurjiSotuv() {
                               <input
                                 ref={formPriceRef}
                                 type="text"
-                                value={Number(formPrice) ? Number(formPrice).toLocaleString('ru-RU') : formPrice}
+                                value={fmtPrice(formPrice)}
                                 onChange={e => {
-                                  // Faqat raqamlarni qoldirib, qolgan hamma belgilarni (va bo'shliqlarni) o'chirib tashlaymiz
-                                  const rawValue = e.target.value.replace(/\D/g, '');
-                                  setFormPrice(rawValue);
+                                  setFormPrice(parsePrice(e.target.value));
                                 }}
                                 onFocus={e => e.target.select()}
                                 onKeyDown={e => {
@@ -1609,10 +1633,10 @@ export default function UlgurjiSotuv() {
                             </td>
                             <td className="px-2 py-2.5">
                               <div className="relative">
-                                <input type="text" value={Number(it.price) ? Number(it.price).toLocaleString('ru-RU') : it.price}
+                                <input type="text"
+                                  value={fmtPrice(it.price)}
                                   onChange={e => {
-                                    const rawValue = e.target.value.replace(/\D/g, '');
-                                    updateItem(idx, 'price', parseFloat(rawValue) || 0);
+                                    updateItem(idx, 'price', parsePrice(e.target.value));
                                   }}
                                   className="w-full min-w-20 text-right font-bold text-slate-800 border border-slate-200 rounded-lg py-1 pr-6 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
                                 <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold ${it.currency === 'USD' ? 'text-green-600' : 'text-slate-400'}`}>{curSym}</span>

@@ -31,7 +31,14 @@ const fmtPrice = (v) => {
   }
   return formattedInt;
 };
-const parsePrice = (v) => String(v).replace(/\s/g, '').replace(',', '.').replace(/[^0-9.]/g, '');
+const parsePrice = (v) => {
+  let s = String(v).replace(/\s/g, '').replace(',', '.').replace(/[^0-9.]/g, '');
+  const parts = s.split('.');
+  if (parts.length > 2) {
+    return parts[0] + '.' + parts.slice(1).join('');
+  }
+  return s;
+};
 
 const fmt = (v) => {
   if (v === null || v === undefined || v === '') return '0';
@@ -83,7 +90,7 @@ const emptyProduct = {
   price_currency_id: '',
   initial_stock: '',
   initial_warehouse_id: '',
-  min_stock: 0, max_stock: '',
+  min_stock: '', max_stock: '',
   bin_location: '',
   images: [],
   weight: '',
@@ -115,6 +122,7 @@ const emptyBulkRow = () => ({
   barcode_scanned: false, // skaner orqali barkod biriktirilganmi
   category_id: '',
   initial_stock: '',
+  min_stock: '',
   initial_warehouse_id: '',
   status: 'active',
 });
@@ -735,7 +743,7 @@ export default function Products() {
   useEffect(() => {
     if (activeTab === 'products') loadProducts();
     if (activeTab === 'categories') { loadCategories(); loadBinLocations(); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // esliet-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, page, filterCat, filterStatus, filterWarehouse, filterMeasure, filterStock, sortBy, sortOrder, limit]);
 
   useEffect(() => {
@@ -754,18 +762,20 @@ export default function Products() {
     extra_barcodes: Array.isArray(p.extra_barcodes) ? p.extra_barcodes : [],
     brand: p.brand || '',
     category_id: p.category_id || '', unit: p.unit,
-    cost_price: p.cost_price, wholesale_price: p.wholesale_price ?? '',
-    sale_price: p.sale_price,
+    cost_price: p.cost_price ? String(Number(p.cost_price)) : '',
+    wholesale_price: (p.wholesale_price !== null && p.wholesale_price !== undefined) ? String(Number(p.wholesale_price)) : '',
+    sale_price: p.sale_price ? String(Number(p.sale_price)) : '',
     cost_price_cur: getCurrencyIdByCode(p.cost_currency),
     wholesale_price_cur: getCurrencyIdByCode(p.wholesale_currency || p.sale_currency),
     sale_price_cur: getCurrencyIdByCode(p.sale_currency),
     price_currency_id: getCurrencyIdByCode(p.sale_currency),
-    initial_stock: p.stock_quantity !== undefined ? String(p.stock_quantity) : '',
-    initial_warehouse_id: p.warehouse_stocks?.[0]?.warehouse_id || '',
-    min_stock: p.min_stock, max_stock: p.max_stock || '',
+    initial_stock: p.stock_quantity !== undefined ? String(Number(p.stock_quantity)) : '',
+    initial_warehouse_id: p.warehouse_stocks?.[0]?.warehouse_id ? String(p.warehouse_stocks[0].warehouse_id) : '',
+    min_stock: (p.min_stock !== null && p.min_stock !== undefined) ? String(p.min_stock) : '',
+    max_stock: (p.max_stock !== null && p.max_stock !== undefined) ? String(p.max_stock) : '',
     bin_location: p.bin_location || '',
     images: Array.isArray(p.images) ? p.images : (p.image_url ? [p.image_url] : []),
-    weight: p.weight ?? '',
+    weight: p.weight !== undefined ? String(Number(p.weight)) : '',
     dimensions: p.dimensions || '',
     status: p.status,
     product_type: (p.conversion || p.product_type === 'sell') ? 'sell' : (p.product_type || 'stock'),
@@ -801,6 +811,17 @@ export default function Products() {
     setError('');
     try {
       const { data: full } = await api.get(`/products/${p.id}`);
+      // Ro'yxatdan kelgan qiymatlarni fallback sifatida ishlatamiz
+      // (batafsil endpoint ba'zan bo'sh qaytaradi)
+      if (!full.warehouse_stocks?.length && p.warehouse_stocks?.length) {
+        full.warehouse_stocks = p.warehouse_stocks;
+      }
+      if ((!full.min_stock || full.min_stock === 0) && p.min_stock) {
+        full.min_stock = p.min_stock;
+      }
+      if ((!full.max_stock || full.max_stock === 0) && p.max_stock) {
+        full.max_stock = p.max_stock;
+      }
       setSelected(full);
       setForm(fillFormFromProduct(full));
       setModal('edit');
@@ -1298,7 +1319,8 @@ export default function Products() {
     setBulkRows([emptyBulkRow()]);
     setBulkResult(null);
     setBulkError('');
-    setBulkWarehouseId(warehouses.length === 1 ? String(warehouses[0].id) : '');
+    setBulkWarehouseId(warehouses.length === 1 ?
+      String(warehouses[0].id) : '');
     setBulkAddOpen(true);
   };
 
@@ -1422,6 +1444,7 @@ export default function Products() {
           category_id: row.category_id ? Number(row.category_id) : null,
           initial_stock: Number(row.initial_stock) || 0,
           initial_warehouse_id: Number(row.initial_stock) > 0 && bulkWarehouseId ? Number(bulkWarehouseId) : undefined,
+          min_stock: Number(row.min_stock) || 0,
           status: row.status || 'active',
           price_currency_id: row.sale_price_cur ? Number(row.sale_price_cur) : null,
         });
@@ -2816,8 +2839,6 @@ export default function Products() {
                   )}
                 </div>
 
-
-
                 {/* Stock (Yuqoriga ko'chirildi) */}
                 {form.product_type !== 'sell' && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
@@ -2829,25 +2850,26 @@ export default function Products() {
                             onChange={e => setForm({ ...form, initial_stock: e.target.value.replace(/[^0-9.]/g, '') })}
                             placeholder="0" />
                         </Field>
-                        <Field label="Qaysi omborga?" required={Number(form.initial_stock) > 0}>
+                        <Field label="Qaysi omborga?" required={modal === 'add' && Number(form.initial_stock) > 0}>
                           <select
-                            className={`${inputCls} ${Number(form.initial_stock) > 0 && !form.initial_warehouse_id ? errCls : ''}`}
+                            className={`${inputCls} ${modal === 'add' && Number(form.initial_stock) > 0 && !form.initial_warehouse_id ? errCls : ''}`}
                             value={form.initial_warehouse_id}
                             onChange={e => setForm({ ...form, initial_warehouse_id: e.target.value })}
                           >
                             <option value="">Ombor tanlang</option>
                             {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                           </select>
-                          {Number(form.initial_stock) > 0 && !form.initial_warehouse_id && (
+                          {modal === 'add' && Number(form.initial_stock) > 0 && !form.initial_warehouse_id && (
                             <p className="text-xs text-red-500 mt-1">⚠ Qoldiq kiritilganda ombor majburiy</p>
                           )}
                         </Field>
                       </>
                     )}
-                    <Field label={t('product.minStockLabel')}>
+                    <Field label={t('product.minStockLabel') || "Minimal qoldiq"}>
                       <input type="text" inputMode="decimal" className={`${inputCls} text-base`}
                         value={form.min_stock}
-                        onChange={e => setForm({ ...form, min_stock: e.target.value.replace(/[^0-9.]/g, '') })} />
+                        onChange={e => setForm({ ...form, min_stock: e.target.value.replace(/[^0-9.]/g, '') })}
+                        placeholder="0" />
                     </Field>
                     <Field label={t('product.maxStock')}>
                       <input type="text" inputMode="decimal" className={`${inputCls} text-base`}
@@ -3426,8 +3448,8 @@ export default function Products() {
               <div style={{ minWidth: '1700px' }}>
 
                 {/* Column headers */}
-                <div className="grid gap-3 mb-3 text-xs xl:text-sm font-extrabold text-slate-600 uppercase tracking-wide px-3"
-                  style={{ gridTemplateColumns: '36px 1fr 100px 180px 180px 180px 1fr 80px 160px 80px 40px' }}>
+                <div className="grid gap-3 mb-1 text-xs xl:text-sm font-extrabold text-slate-600 uppercase tracking-wide px-3"
+                  style={{ gridTemplateColumns: '36px 1fr 100px 180px 180px 180px 1fr 80px 160px 80px 80px 40px' }}>
                   <span>#</span>
                   <span>Mahsulot nomi *</span>
                   <span className="text-indigo-600">Kod</span>
@@ -3438,6 +3460,7 @@ export default function Products() {
                   <span>O'lchov</span>
                   <span>Kategoriya</span>
                   <span>Qoldiq</span>
+                  <span>Min qoldiq</span>
                   <span></span>
                 </div>
 
@@ -3446,7 +3469,7 @@ export default function Products() {
                   {bulkRows.map((row, rowIdx) => (
                     <div key={row._key} className="p-4">
                       <div className="grid gap-2 lg:gap-3 items-start"
-                        style={{ gridTemplateColumns: '34px 1fr 110px 180px 180px 180px 1fr 80px 160px 80px 40px' }}>
+                        style={{ gridTemplateColumns: '34px 1fr 110px 180px 180px 180px 1fr 80px 160px 80px 80px 40px' }}>
                         {/* # */}
                         <div className="flex items-center justify-start h-8 lg:h-10 xl:h-12 text-base font-bold text-slate-400">{rowIdx + 1}</div>
 
@@ -3713,6 +3736,19 @@ export default function Products() {
                           )}
                         </div>
 
+                        <div className="space-y-1">
+                          <input type="text" inputMode="decimal"
+                            className="h-8 lg:h-10 xl:h-12 px-3 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
+                            value={row.min_stock}
+                            onChange={e => updateBulkRow(row._key, 'min_stock', e.target.value.replace(/[^0-9.]/g, ''))}
+                            placeholder="0"
+                          />
+                        </div>
+
+                        {/* <input type="text" inputMode="decimal" className={`${inputCls} text-base`}
+                          value={row.min_stock}
+                          onChange={e => updateBulkRow(row._key, 'min_stock', e.target.value.replace(/[^0-9.]/g, ''))} /> */}
+
                         {/* Remove row */}
                         <button type="button"
                           onClick={() => removeBulkRow(row._key)}
@@ -3942,8 +3978,8 @@ export default function Products() {
                                     value={selCurId}
                                     onChange={e => setImportPriceCurrencies(prev => ({ ...prev, [mappedField]: e.target.value }))}
                                     className={`w-full px-2 py-1.5 text-xs font-bold rounded-lg border outline-none cursor-pointer transition-colors ${selCurId
-                                        ? 'border-emerald-400 bg-emerald-500 text-white'
-                                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                                      ? 'border-emerald-400 bg-emerald-500 text-white'
+                                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                                       }`}
                                   >
                                     <option value="">UZS | 1</option>
@@ -4002,8 +4038,8 @@ export default function Products() {
                                       setImportRows(newRows);
                                     }}
                                     className={`w-full px-3 py-2.5 text-sm outline-none transition-all font-medium ${allowUpdate
-                                        ? 'text-slate-700 bg-transparent focus:bg-white focus:ring-1 focus:ring-indigo-400 cursor-text'
-                                        : 'text-slate-500 bg-transparent cursor-not-allowed'
+                                      ? 'text-slate-700 bg-transparent focus:bg-white focus:ring-1 focus:ring-indigo-400 cursor-text'
+                                      : 'text-slate-500 bg-transparent cursor-not-allowed'
                                       }`}
                                   />
                                 </td>
