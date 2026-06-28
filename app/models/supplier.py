@@ -17,6 +17,7 @@ class Supplier(Base):
     address = Column(Text, nullable=True)
     payment_terms = Column(Integer, default=30)  # days
     debt_balance = Column(Numeric(14, 2), default=0)
+    debt_currency = Column(String(10), nullable=False, server_default='UZS', default='UZS')
     is_active = Column(Boolean, default=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

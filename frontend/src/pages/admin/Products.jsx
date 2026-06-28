@@ -786,6 +786,8 @@ export default function Products() {
 
   const openAdd = () => {
     setForm({ ...emptyProduct, barcode: genBarcodeByFormat('ean8') });
+    setMxikCode('');
+    setBarcodeInput('');
     setError('');
     setModal('add');
   };
@@ -1330,6 +1332,7 @@ export default function Products() {
   // checkBulkBarcode va setBulkRows ni ref orqali ushlash (closure muammosini hal qiladi)
   const checkBulkBarcodeRef = useRef(null);
   const setBulkRowsRef = useRef(null);
+  const bulkBarcodeTimersRef = useRef(new Map()); // key -> timerId
 
   const updateBulkRow = (key, field, value) =>
     setBulkRows(rows => rows.map(r => r._key === key ? { ...r, [field]: value } : r));
@@ -1346,6 +1349,24 @@ export default function Products() {
       setBulkRows(rows => rows.map(r =>
         r._key === key ? { ...r, barcode_status: 'new', barcode_product: null } : r
       ));
+      // Mahsulot topilmasa MXIK bazasidan nom va mxik_code ni olamiz
+      try {
+        const mxikRes = await api.get(`/mxik/barcode/${barcode.trim()}`);
+        if (mxikRes.data && mxikRes.data.mxik_name) {
+          setBulkRows(rows => rows.map(r =>
+            r._key === key
+              ? {
+                  ...r,
+                  name: r.name?.trim() ? r.name : mxikRes.data.mxik_name,
+                  mxik_code: mxikRes.data.mxik_code || r.mxik_code || '',
+                  barcode_input: mxikRes.data.parent_code || r.barcode_input || '',
+                }
+              : r
+          ));
+        }
+      } catch {
+        // MXIK topilmasa — e'tiborsiz qoldiramiz
+      }
     }
   };
 
@@ -3449,7 +3470,7 @@ export default function Products() {
 
                 {/* Column headers */}
                 <div className="grid gap-3 mb-1 text-xs xl:text-sm font-extrabold text-slate-600 uppercase tracking-wide px-3"
-                  style={{ gridTemplateColumns: '36px 1fr 100px 180px 180px 180px 1fr 80px 160px 80px 80px 40px' }}>
+                  style={{ gridTemplateColumns: '36px 200px 110px 180px 180px 205px 240px 80px 160px 80px 90px 160px 160px' }}>
                   <span>#</span>
                   <span>Mahsulot nomi *</span>
                   <span className="text-indigo-600">Kod</span>
@@ -3461,15 +3482,17 @@ export default function Products() {
                   <span>Kategoriya</span>
                   <span>Qoldiq</span>
                   <span>Min qoldiq</span>
+                  <span>MXIK kod</span>
+                  <span>O'lchov kod</span>
                   <span></span>
                 </div>
 
                 {/* Rows */}
                 <div className="xl:space-y-3">
                   {bulkRows.map((row, rowIdx) => (
-                    <div key={row._key} className="p-4">
+                    <div key={row._key} className="px-4 py-1">
                       <div className="grid gap-2 lg:gap-3 items-start"
-                        style={{ gridTemplateColumns: '34px 1fr 110px 180px 180px 180px 1fr 80px 160px 80px 80px 40px' }}>
+                        style={{ gridTemplateColumns: '34px 1fr 110px 180px 180px 180px 1fr 80px 160px 80px 90px 160px 160px 40px' }}>
                         {/* # */}
                         <div className="flex items-center justify-start h-8 lg:h-10 xl:h-12 text-base font-bold text-slate-400">{rowIdx + 1}</div>
 
@@ -3625,12 +3648,26 @@ export default function Products() {
                                   }`}
                                 value={bc}
                                 onChange={e => {
-                                  updateBulkBarcode(row._key, bcIdx, e.target.value);
-                                  if (bcIdx === 0) updateBulkRow(row._key, 'barcode_status', null);
+                                  const val = e.target.value;
+                                  updateBulkBarcode(row._key, bcIdx, val);
+                                  if (bcIdx === 0) {
+                                    updateBulkRow(row._key, 'barcode_status', null);
+                                    // add modal-dagi kabi: 8+ raqam bo'lganda darhol tekshir
+                                    if (val.trim().length >= 8) {
+                                      clearTimeout(bulkBarcodeTimersRef.current.get(row._key));
+                                      bulkBarcodeTimersRef.current.set(
+                                        row._key,
+                                        setTimeout(() => {
+                                          checkBulkBarcodeRef.current(row._key, val.trim());
+                                        }, 400)
+                                      );
+                                    }
+                                  }
                                 }}
                                 onKeyDown={e => {
                                   if (e.key === 'Enter' && bcIdx === 0) {
                                     e.preventDefault();
+                                    clearTimeout(bulkBarcodeTimersRef.current.get(row._key));
                                     checkBulkBarcode(row._key, bc);
                                   }
                                 }}
@@ -3745,9 +3782,9 @@ export default function Products() {
                           />
                         </div>
 
-                        {/* <input type="text" inputMode="decimal" className={`${inputCls} text-base`}
-                          value={row.min_stock}
-                          onChange={e => updateBulkRow(row._key, 'min_stock', e.target.value.replace(/[^0-9.]/g, ''))} /> */}
+                        <input type="text" inputMode="numeric" value={row.mxik_code} onChange={(e) => updateBulkRow(row._key, 'mxik_code', e.target.value.replace(/[^0-9]/g, ''))} className={inputCls} placeholder="12345678..." />
+
+                        <input type="text" inputMode="numeric" value={row.barcode_input} onChange={(e) => updateBulkRow(row._key, 'barcode_input', e.target.value.replace(/[^0-9]/g, ''))} className={inputCls} placeholder="12345678..." />
 
                         {/* Remove row */}
                         <button type="button"

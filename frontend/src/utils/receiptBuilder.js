@@ -56,7 +56,65 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   const isNak = tpl === 'nak' || tpl === 'A4';
   const width = isNak ? '100%' : (narrow ? '320px' : '420px');
 
+  const useCurrency = sale.currency_code && sale.currency_code !== 'UZS';
+  const rate = Number(sale.exchange_rate) || 1.0;
+  const currCode = sale.currency_code || 'UZS';
+
+  const fmtVal = (valUZS) => {
+    const val = Number(valUZS || 0);
+    if (useCurrency) {
+      const converted = val / rate;
+      const formatted = converted < 0.01 && converted > 0
+        ? converted.toFixed(4)
+        : converted.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      if (currCode === 'USD') return `$ ${formatted}`;
+      if (currCode === 'RUB') return `₽ ${formatted}`;
+      return `${formatted} ${currCode}`;
+    }
+    return val.toLocaleString('uz-UZ') + " so'm";
+  };
+
+  const fmtCurrencyAmt = (val, code) => {
+    const v = Number(val || 0);
+    if (code === 'USD') return `$ ${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (code === 'RUB') return `₽ ${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `${v.toLocaleString('uz-UZ')} so'm`;
+  };
+
   const debt = Number(sale.total_amount) - Number(sale.paid_amount);
+  const newDebt = Number(debt || 0);
+
+  const oldDebtsList = [];
+  if (sale.before_debt_balances) {
+    for (const [curr, amt] of Object.entries(sale.before_debt_balances)) {
+      const a = Number(amt || 0);
+      if (Math.abs(a) > 0.01) {
+        oldDebtsList.push({ currency: curr, amount: a });
+      }
+    }
+  } else if (Number(sale.before_debt || 0) > 0.01) {
+    oldDebtsList.push({ currency: 'UZS', amount: Number(sale.before_debt) });
+  }
+
+  const finalDebtsList = [];
+  const finalBalancesDict = {};
+  if (sale.before_debt_balances) {
+    for (const [curr, amt] of Object.entries(sale.before_debt_balances)) {
+      finalBalancesDict[curr] = Number(amt || 0);
+    }
+  } else {
+    finalBalancesDict['UZS'] = Number(sale.before_debt || 0);
+  }
+
+  const newDebtInSaleCurrency = useCurrency ? (newDebt / rate) : newDebt;
+  finalBalancesDict[currCode] = (finalBalancesDict[currCode] || 0) + newDebtInSaleCurrency;
+
+  for (const [curr, amt] of Object.entries(finalBalancesDict)) {
+    if (Math.abs(amt) > 0.01) {
+      finalDebtsList.push({ currency: curr, amount: amt });
+    }
+  }
+
   const change = Math.max(0, Number(sale.paid_amount) - Number(sale.total_amount));
 
   if (isNak) {
@@ -102,13 +160,13 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
           case 'show_measurement':     val = i.measurement_name || i.unit || ''; break;
           case 'show_warehouse':       val = i.warehouse_name || ''; break;
           case 'show_sku':             val = i.sku || ''; break;
-          case 'show_price':           val = up.toLocaleString('uz-UZ'); break;
-          case 'show_discount':        val = disc > 0 ? `-${disc.toLocaleString('uz-UZ')}` : ''; break;
-          case 'show_price_with_discount': val = (up - disc/qty).toLocaleString('uz-UZ'); break;
-          case 'show_net_price':       val = sub.toLocaleString('uz-UZ'); break;
-          case 'show_currency':        val = i.currency_name || "so'm"; break;
+          case 'show_price':           val = useCurrency ? (up / rate).toFixed(4).replace(/\.?0+$/, '') : up.toLocaleString('uz-UZ'); break;
+          case 'show_discount':        val = disc > 0 ? (useCurrency ? `-${(disc / rate).toFixed(4).replace(/\.?0+$/, '')}` : `-${disc.toLocaleString('uz-UZ')}`) : ''; break;
+          case 'show_price_with_discount': val = useCurrency ? ((up - disc/qty) / rate).toFixed(4).replace(/\.?0+$/, '') : (up - disc/qty).toLocaleString('uz-UZ'); break;
+          case 'show_net_price':       val = useCurrency ? (sub / rate).toFixed(4).replace(/\.?0+$/, '') : sub.toLocaleString('uz-UZ'); break;
+          case 'show_currency':        val = currCode; break;
           case 'item_qty':             val = qty; break;
-          case 'item_total':           val = sub.toLocaleString('uz-UZ'); break;
+          case 'item_total':           val = useCurrency ? (sub / rate).toFixed(4).replace(/\.?0+$/, '') : sub.toLocaleString('uz-UZ'); break;
         }
         return `<td style="text-align:${col.align}">${val}</td>`;
       }).join('');
@@ -130,20 +188,20 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
     // Totals section
     const totalsHtml = sh('show_totals') ? `
       <table class="totals">
-        <tr><td>JAMI:</td><td><b>${Number(sale.total_amount).toLocaleString('uz-UZ')} so'm</b></td></tr>
+        <tr><td>JAMI:</td><td><b>${fmtVal(sale.total_amount)}</b></td></tr>
         ${sh('show_total_national') && sale.total_national ? `<tr><td>Milliy valyutada:</td><td>${sale.total_national}</td></tr>` : ''}
         ${sh('show_total_quantity') && sale.total_quantity ? `<tr><td>Jami miqdor:</td><td>${sale.total_quantity}</td></tr>` : ''}
-        ${sh('show_exact_discounts') && Number(sale.discount_amount) > 0 ? `<tr><td>Chegirma:</td><td>-${Number(sale.discount_amount).toLocaleString('uz-UZ')} so'm</td></tr>` : ''}
+        ${sh('show_exact_discounts') && Number(sale.discount_amount) > 0 ? `<tr><td>Chegirma:</td><td>-${fmtVal(sale.discount_amount)}</td></tr>` : ''}
         ${sh('show_percent_discount') && sale.percent_discount ? `<tr><td>% Chegirma:</td><td>${sale.percent_discount}%</td></tr>` : ''}
         ${sh('show_payment_amounts') ? (
           sale.payment_types_array
-            ? sale.payment_types_array.map(pt => `<tr><td>To'lov (${pt.type}):</td><td>${Number(pt.amount).toLocaleString('uz-UZ')} so'm</td></tr>`).join('')
-            : `<tr><td>To'langan:</td><td>${Number(sale.paid_amount || 0).toLocaleString('uz-UZ')} so'm</td></tr>`
+            ? sale.payment_types_array.map(pt => `<tr><td>To'lov (${pt.type}):</td><td>${fmtVal(pt.amount)}</td></tr>`).join('')
+            : `<tr><td>To'langan:</td><td>${fmtVal(sale.paid_amount)}</td></tr>`
         ) : ''}
-        ${sh('show_contractor_debts') && debt > 0 ? `<tr><td style="color:red">Qarz:</td><td style="color:red">${Number(debt).toLocaleString('uz-UZ')} so'm</td></tr>` : ''}
-        ${sh('show_before_debts') && sale.before_debt ? `<tr><td>Oldingi qarz:</td><td>${Number(sale.before_debt).toLocaleString('uz-UZ')} so'm</td></tr>` : ''}
-        ${sh('show_last_payment') && sale.last_payment ? `<tr><td>Oxirgi to'lov:</td><td>${Number(sale.last_payment).toLocaleString('uz-UZ')} so'm</td></tr>` : ''}
-        ${change > 0 ? `<tr><td style="color:green">Qaytim:</td><td style="color:green">${Number(change).toLocaleString('uz-UZ')} so'm</td></tr>` : ''}
+        ${sh('show_contractor_debts') && debt > 0 ? `<tr><td style="color:red">Qarz:</td><td style="color:red">${fmtVal(debt)}</td></tr>` : ''}
+        ${sh('show_before_debts') && oldDebtsList.length > 0 ? `<tr><td>Oldingi qarz:</td><td>${oldDebtStr}</td></tr>` : ''}
+        ${sh('show_last_payment') && sale.last_payment ? `<tr><td>Oxirgi to'lov:</td><td>${fmtVal(sale.last_payment)}</td></tr>` : ''}
+        ${change > 0 ? `<tr><td style="color:green">Qaytim:</td><td style="color:green">${fmtVal(change)}</td></tr>` : ''}
       </table>` : '';
 
     // Signatures
@@ -186,7 +244,7 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   <table>
     <thead><tr>${headerRow}</tr></thead>
     <tbody>${itemRows}</tbody>
-    <tfoot><tr><td colspan="${totalColspan}" style="text-align:right;font-weight:bold">JAMI:</td><td style="text-align:right;font-weight:bold">${Number(sale.total_amount).toLocaleString('uz-UZ')}</td></tr></tfoot>
+    <tfoot><tr><td colspan="${totalColspan}" style="text-align:right;font-weight:bold">JAMI:</td><td style="text-align:right;font-weight:bold">${fmtVal(sale.total_amount)}</td></tr></tfoot>
   </table>
   ${totalsHtml}
   ${noteHtml}
@@ -203,9 +261,6 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
 
   const fsMid = narrow ? '12px' : '14px';
 
-  const oldDebt = Number(sale.before_debt || 0);
-  const newDebt = Number(debt || 0);
-  const jamiQarz = oldDebt + newDebt;
   const xilMaxsulot = sale.items?.length || 0;
   
   const paidAmount = sale.payment_types_array 
@@ -222,29 +277,42 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
     const up = Number(i.unit_price);
     const disc = Number(i.discount || (i.discount_type==='pct'?(up*qty*(i.discount_val/100)):i.discount_val) || 0);
     const sub = Number(i.subtotal || (up * qty - disc));
+
+    const printUp = useCurrency ? (up / rate).toFixed(4).replace(/\.?0+$/, '') : up.toLocaleString('uz-UZ');
+    const printSub = useCurrency ? (sub / rate).toFixed(4).replace(/\.?0+$/, '') : sub.toLocaleString('uz-UZ');
+    const displaySym = useCurrency ? (currCode === 'USD' ? '$' : (currCode === 'RUB' ? '₽' : currCode)) : "so'm";
+
     return `
       <div>${idx + 1}. ${i.product_name || i.product?.name || `ID=${i.product_id}`}</div>
       <div class="flex">
-        <span>${qty} x ${up.toLocaleString('uz-UZ')}</span>
-        <span>${sub.toLocaleString('uz-UZ')}</span>
+        <span>${qty} x ${printUp} ${useCurrency ? displaySym : ''}</span>
+        <span>${printSub} ${displaySym}</span>
       </div>
       <hr class="dash"/>
     `;
   }).join('');
 
-  const debtSectionHtml = (oldDebt > 0 || newDebt > 0 || sale.contractor_name) ? `
+  const oldDebtStr = oldDebtsList.length > 0
+    ? oldDebtsList.map(d => fmtCurrencyAmt(d.amount, d.currency)).join(', ')
+    : fmtCurrencyAmt(0, 'UZS');
+  
+  const finalDebtStr = finalDebtsList.length > 0
+    ? finalDebtsList.map(d => fmtCurrencyAmt(d.amount, d.currency)).join(', ')
+    : fmtCurrencyAmt(0, 'UZS');
+
+  const debtSectionHtml = (oldDebtsList.length > 0 || newDebt > 0 || sale.contractor_name) ? `
   <div class="flex">
     <span>Oldingi qarz:</span>
-    <span>${oldDebt.toLocaleString('uz-UZ')} so'm</span>
+    <span style="text-align:right">${oldDebtStr}</span>
   </div>
   <div class="flex">
     <span>Qarzga:</span>
-    <span>${newDebt.toLocaleString('uz-UZ')} so'm</span>
+    <span style="text-align:right">${fmtVal(newDebt)}</span>
   </div>
   <hr/>
   <div class="flex">
     <span>Jami qarz:</span>
-    <span>${jamiQarz.toLocaleString('uz-UZ')} so'm</span>
+    <span style="text-align:right">${finalDebtStr}</span>
   </div>` : '';
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Chek ${sale.number || sale.id}</title>
@@ -291,19 +359,19 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   
   <div class="flex">
     <span>JAMI:</span>
-    <span>${Number(sale.total_amount).toLocaleString('uz-UZ')} so'm</span>
+    <span>${fmtVal(sale.total_amount)}</span>
   </div>
   <hr class="dash"/>
 
   ${sale.payment_types_array && sale.payment_types_array.length > 0
-    ? sale.payment_types_array.map(pt => `<div class="flex"><span>To'lov (${pt.type}):</span><span>${Number(pt.amount).toLocaleString('uz-UZ')} so'm</span></div>`).join('') 
-    : `<div class="flex"><span>To'lov:</span><span>${paidAmount.toLocaleString('uz-UZ')} so'm</span></div>`
+    ? sale.payment_types_array.map(pt => `<div class="flex"><span>To'lov (${pt.type}):</span><span>${fmtVal(pt.amount)}</span></div>`).join('') 
+    : `<div class="flex"><span>To'lov:</span><span>${fmtVal(paidAmount)}</span></div>`
   }
   <hr class="dash"/>
 
   ${debtSectionHtml}
   
-  ${change > 0 ? `<div class="flex"><span>Qaytim:</span><span>${Number(change).toLocaleString('uz-UZ')} so'm</span></div><hr class="dash"/>` : ''}
+  ${change > 0 ? `<div class="flex"><span>Qaytim:</span><span>${fmtVal(change)}</span></div><hr class="dash"/>` : ''}
 
   <div class="center" style="margin-top:15px;">${cfg.footer || 'Xaridingiz uchun raxmat!'}</div>
 </body></html>`;

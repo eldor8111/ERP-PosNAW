@@ -1659,7 +1659,7 @@ function KirimlarTab({ products, warehouses, suppliers }) {
 
 /* ===================== TA'MINOTCHILAR TAB ===================== */
 const emptySupplier = {
-  name: '', inn: '', phone: '', email: '', debt_balance: ''
+  name: '', inn: '', phone: '', email: '', debt_balance: '', debt_currency: 'UZS'
 };
 function StarRating({ value }) {
   const { t } = useLang();
@@ -1684,6 +1684,7 @@ function SuppliersTab() {
   const [payType, setPayType] = useState('cash');
   const [payInfo, setPayInfo] = useState('');
   const [wallets, setWallets] = useState([]);
+  const [currencies, setCurrencies] = useState([]);
   const [err, setErr] = useState('');
   const inp = 'w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white';
 
@@ -1803,16 +1804,18 @@ function SuppliersTab() {
   useEffect(()=>{
     load();
     api.get('/finance/wallets').then(r => { setWallets(r.data); if(r.data.length>0) setPayWallet(String(r.data[0].id)); }).catch(()=>{});
+    api.get('/currencies/').then(r => setCurrencies(r.data)).catch(()=>{});
   },[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{const t=setTimeout(()=>load(search),400);return()=>clearTimeout(t);},[search]);
   const close=()=>{setModal(null);setSel(null);setErr('');};
-  const openEdit=(s)=>{setForm({name:s.name,inn:s.inn||'',phone:s.phone||'',email:s.email||'',debt_balance:String(s.debt_balance||'0')});setSel(s);setErr('');setModal('form');};
+  const openEdit=(s)=>{setForm({name:s.name,inn:s.inn||'',phone:s.phone||'',email:s.email||'',debt_balance:String(s.debt_balance||'0'),debt_currency:s.debt_currency||'UZS'});setSel(s);setErr('');setModal('form');};
   const handleSave=async(e)=>{
     e.preventDefault();setSaving(true);setErr('');
     try{
       const p={name:form.name,inn:form.inn||null,phone:form.phone||null,email:form.email||null};
       if(form.debt_balance !== '' && form.debt_balance !== null) p.debt_balance=Number(form.debt_balance);
+      p.debt_currency = form.debt_currency || 'UZS';
       if(sel)await api.patch(`/suppliers/${sel.id}`,p);else await api.post('/suppliers',p);close();load();
     }catch(ex){setErr(ex.response?.data?.detail||'Xatolik');}finally{setSaving(false);}};
   const handlePayDebt=async(e)=>{
@@ -1876,7 +1879,11 @@ function SuppliersTab() {
                 <td className="px-5 py-4 text-sm font-mono text-slate-600">{s.inn||'\u2014'}</td>
                 <td className="px-5 py-4 text-sm text-slate-500">{s.phone||'\u2014'}</td>
                 <td className="px-5 py-4"><StarRating value={s.rating}/></td>
-                <td className="px-5 py-4 text-sm font-semibold">{s.debt_balance > 0 ? <span className="text-red-500">{fmt(s.debt_balance)} so'm</span> : <span className="text-emerald-500">0 so'm</span>}</td>
+                <td className="px-5 py-4 text-sm font-semibold">
+                  {s.debt_balance > 0
+                    ? <span className="text-red-500">{fmt(s.debt_balance)} <span className="text-xs font-bold">{s.debt_currency || 'UZS'}</span></span>
+                    : <span className="text-emerald-500">0 so'm</span>}
+                </td>
                 <td className="px-5 py-4"><div className="flex items-center gap-1">
                   {Number(s.debt_balance)>0&&(
                     <button onClick={()=>{setSel(s);setPayAmt(String(Math.round(s.debt_balance)));if(wallets.length>0)setPayWallet(String(wallets[0].id));setPayType('cash');setPayInfo('');setErr('');setModal('pay');}} title="Qarz to'lash" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors">
@@ -1908,9 +1915,28 @@ function SuppliersTab() {
                 <div className="col-span-2"><label className="block text-xs font-semibold text-slate-600 mb-1.5">Email</label><input type="email" className={inp} value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></div>
                 <div className="col-span-2">
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                    {sel ? "Qarz miqdori (so'm)" : "Boshlang'ich qarz (so'm)"}
+                    {sel ? "Qarz miqdori" : "Boshlang'ich qarz"}
                   </label>
-                  <input type="number" min="0" className={inp} value={form.debt_balance} onChange={e=>setForm({...form,debt_balance:e.target.value})} placeholder="Masalan: 500000"/>
+                  <div className="flex rounded-xl overflow-hidden border border-slate-200 focus-within:ring-2 focus-within:ring-indigo-500">
+                    <input
+                      type="number" min="0"
+                      className="flex-1 px-3 py-2.5 text-sm focus:outline-none bg-white"
+                      value={form.debt_balance}
+                      onChange={e=>setForm({...form,debt_balance:e.target.value})}
+                      placeholder="0"
+                    />
+                    {/* Valyuta tanlash */}
+                    <select
+                      value={form.debt_currency}
+                      onChange={e=>setForm({...form,debt_currency:e.target.value})}
+                      className="shrink-0 border-l border-slate-200 px-3 py-2 text-sm font-semibold bg-slate-50 focus:outline-none text-slate-700 cursor-pointer hover:bg-slate-100 transition-colors"
+                    >
+                      <option value="UZS">UZS (so'm)</option>
+                      {currencies.filter(c=>!c.is_default).map(c=>(
+                        <option key={c.id} value={c.code}>{c.code} ({c.symbol || c.code})</option>
+                      ))}
+                    </select>
+                  </div>
                   <p className="text-xs text-slate-400 mt-1">
                     {sel
                       ? `Joriy qarz: ${Number(sel.debt_balance||0).toLocaleString('uz-UZ')} so'm — yangi qiymat kiriting`

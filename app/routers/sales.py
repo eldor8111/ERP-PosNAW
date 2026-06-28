@@ -85,6 +85,8 @@ def _build_sale_out(sale: Sale) -> SaleOut:
         payments=payments,
         created_at=sale.created_at,
         debt_due_date=getattr(sale, 'debt_due_date', None),
+        currency_code=sale.currency.code if getattr(sale, 'currency', None) else "UZS",
+        exchange_rate=getattr(sale, 'exchange_rate', 1.0) or 1.0,
     )
 
 

@@ -130,6 +130,8 @@ class SaleOut(BaseModel):
     created_at: datetime
     debt_due_date: Optional[date] = None
     warehouse_id: Optional[int] = None
+    currency_code: Optional[str] = "UZS"
+    exchange_rate: Optional[Decimal] = Decimal("1.0")
 
     model_config = {"from_attributes": True}
 

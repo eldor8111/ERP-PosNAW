@@ -893,7 +893,6 @@ export default function UlgurjiSotuv() {
 
   const paid = getPaidUZS(payments);
   const debt = Math.max(0, total - paid);
-  const change = Math.max(0, paid - total);
 
   const submitSale = async (overridePayType, pPaid = 0, pCash = 0, pCard = 0) => {
     if (!cart.length) return toast.error('Savat bo\'sh!');
@@ -965,6 +964,14 @@ export default function UlgurjiSotuv() {
         }
       }
 
+      // Find the primary currency of the sale
+      const primaryItem = cart.find(it => it.currency && it.currency !== 'UZS');
+      const primaryPayment = payments.find(p => p.currency && p.currency !== 'UZS');
+      const primaryCurrencyCode = primaryItem ? primaryItem.currency : (primaryPayment ? primaryPayment.currency : 'UZS');
+      
+      const primaryCurrencyObj = currencies.find(c => String(c.code).toUpperCase() === String(primaryCurrencyCode).toUpperCase());
+      const currencyId = primaryCurrencyObj ? primaryCurrencyObj.id : undefined;
+
       const payload = {
         items, payment_type: overridePayType, paid_amount: pPaid, paid_cash: pCash, paid_card: pCard,
         discount_amount: saleDisc, note: note || payNote || undefined,
@@ -972,7 +979,8 @@ export default function UlgurjiSotuv() {
         warehouse_id: warehouseId ? Number(warehouseId) : undefined,
         debt_due_date: overridePayType === 'debt' && debtDate ? debtDate : undefined,
         payments: paymentsList.length > 0 ? paymentsList : undefined,
-        currency_totals: Object.keys(actualDebts).length > 0 ? actualDebts : undefined
+        currency_totals: Object.keys(actualDebts).length > 0 ? actualDebts : undefined,
+        currency_id: currencyId
       };
 
       let res;
@@ -1006,16 +1014,20 @@ export default function UlgurjiSotuv() {
           const cfg = { ...cfgRaw, ...merged };
           // Tanlangan mijozni aniqlaymiz
           const selectedCust = customers.find(c => String(c.id) === String(custId));
-          // To'lov turlarini ro'yxat sifatida tayyorlaymiz
           const payTypesArr = payments.filter(p => parseN(p.amt) > 0).map(p => ({
             type: p.type, amount: parseN(p.amt) * (getRate(p.currency || 'UZS'))
           }));
+          const currentCurrencyCode = res.data.currency_code || primaryCurrencyCode || "UZS";
+          const currentExchangeRate = res.data.exchange_rate || getRate(primaryCurrencyCode) || 1.0;
+
           printReceiptHtml(buildReceiptHtml({
             number: res.data.number, id: res.data.id, created_at: res.data.created_at,
             cashier_name: res.data.cashier_name,
             total_amount: res.data.total_amount,
             paid_amount: res.data.paid_amount,
             discount_amount: saleDisc,
+            currency_code: currentCurrencyCode,
+            exchange_rate: currentExchangeRate,
             // Mijoz ma'lumotlari
             contractor_name: selectedCust ? selectedCust.name : undefined,
             contractor_contacts: selectedCust?.phone ? [{ value: selectedCust.phone }] : [],
@@ -1023,10 +1035,18 @@ export default function UlgurjiSotuv() {
             payment_types_array: payTypesArr.length > 0 ? payTypesArr : undefined,
             // Izoh
             note: note || payNote || undefined,
-            // Qarz ma'lumotlari
-            before_debt: selectedCust
-              ? ((selectedCust.debt_balances && Object.keys(selectedCust.debt_balances).length > 0) ? (selectedCust.debt_balances.UZS || 0) : Number(selectedCust.debt_balance || 0))
-              : 0,
+            // Qarz ma'lumotlari in UZS (so the receipt builder divides it back correctly)
+            before_debt: (() => {
+              if (!selectedCust) return 0;
+              if (selectedCust.debt_balances && selectedCust.debt_balances[currentCurrencyCode] !== undefined) {
+                return Number(selectedCust.debt_balances[currentCurrencyCode]) * currentExchangeRate;
+              }
+              if (selectedCust.debt_balances && selectedCust.debt_balances.UZS !== undefined) {
+                return Number(selectedCust.debt_balances.UZS);
+              }
+              return Number(selectedCust.debt_balance || 0);
+            })(),
+            before_debt_balances: selectedCust ? (selectedCust.debt_balances || { UZS: Number(selectedCust.debt_balance || 0) }) : null,
             items: cart.map(it => ({
               product_name: it.name,
               quantity: it.qty,
@@ -1036,7 +1056,7 @@ export default function UlgurjiSotuv() {
                 : parseN(it.discount_val) * (it.rate || 1),
               subtotal: itemNetUZS(it),
               unit: it.unit,
-              currency_name: it.currency === 'USD' ? "$ (UZS)" : (it.currency === 'RUB' ? "₽ (UZS)" : "so'm"),
+              currency_name: it.currency || 'UZS',
             })),
           }, tpl, cfg));
         } catch (err) { console.error('Auto-print error:', err); }
@@ -1090,7 +1110,9 @@ export default function UlgurjiSotuv() {
     if (!cart.length) return;
     if (!custId) return toast.error('Mijoz tanlanmagan!');
     if (!hasShift) { setShowShiftModal(true); return; }
-    setPayments([{ id: Date.now(), type: 'cash', amt: '' }]);
+    const nonSomItem = cart.find(item => item.currency && item.currency !== 'UZS');
+    const defaultPayCurrency = nonSomItem ? nonSomItem.currency : 'UZS';
+    setPayments([{ id: Date.now(), type: 'cash', amt: '', currency: defaultPayCurrency }]);
     setShowPayment(true);
   };
 
@@ -1971,7 +1993,17 @@ export default function UlgurjiSotuv() {
       {showPayment && (() => {
         const closeModal = () => { setShowPayment(false); setShowDebtDate(false); setPayments([]); };
         const remaining = Math.max(0, total - paid);
-        const updateLine = (id, field, val) => setPayments(prev => prev.map(p => p.id === id ? { ...p, [field]: val } : p));
+        const updateLine = (id, fieldOrObj, val) => {
+          setPayments(prev => prev.map(p => {
+            if (p.id === id) {
+              if (typeof fieldOrObj === 'object') {
+                return { ...p, ...fieldOrObj };
+              }
+              return { ...p, [fieldOrObj]: val };
+            }
+            return p;
+          }));
+        };
         const removeLine = (id) => { if (payments.length > 1) setPayments(prev => prev.filter(p => p.id !== id)); };
         const addLine = () => setPayments(prev => [...prev, { id: Date.now(), type: 'cash', amt: '', currency: 'UZS' }]);
         const fillLine = (id) => {
@@ -1981,7 +2013,10 @@ export default function UlgurjiSotuv() {
           const stillNeededUZS = Math.max(0, total - totalOtherPaidUZS);
           const lineRate = getRate(line.currency);
           const neededInLineCurrency = stillNeededUZS / lineRate;
-          updateLine(id, 'amt', String(Math.round(neededInLineCurrency * 100) / 100));
+          const formattedAmt = line.currency === 'UZS' || !line.currency
+            ? String(Math.round(neededInLineCurrency))
+            : String(Number(neededInLineCurrency.toFixed(4)));
+          updateLine(id, 'amt', formattedAmt);
         };
         const now = new Date();
         return (
@@ -2051,7 +2086,23 @@ export default function UlgurjiSotuv() {
                             </div>
 
                             <div className="relative w-32">
-                              <select value={line.currency || 'UZS'} onChange={e => updateLine(line.id, 'currency', e.target.value)}
+                              <select value={line.currency || 'UZS'} onChange={e => {
+                                const newCode = e.target.value;
+                                const oldCode = line.currency || 'UZS';
+                                const oldRate = getRate(oldCode);
+                                const newRate = getRate(newCode);
+                                const currentAmt = parseFloat(line.amt) || 0;
+                                if (currentAmt > 0) {
+                                  const amtInUZS = currentAmt * oldRate;
+                                  const converted = amtInUZS / newRate;
+                                  const formatted = newCode === 'UZS' 
+                                    ? String(Math.round(converted)) 
+                                    : String(Number(converted.toFixed(4)));
+                                  updateLine(line.id, { currency: newCode, amt: formatted });
+                                } else {
+                                  updateLine(line.id, 'currency', newCode);
+                                }
+                              }}
                                 className="w-full h-10 pl-3 pr-8 border border-slate-200 rounded-lg text-sm font-black text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white appearance-none cursor-pointer">
                                 <option value="UZS">UZS</option>
                                 {currencies.filter(c => c.code !== 'UZS').map(c => <option key={c.id} value={c.code}>{c.code}</option>)}
@@ -2121,18 +2172,131 @@ export default function UlgurjiSotuv() {
                       ))}
                     </div>
                   </div>
-                  {[
-                    { label: 'Umumiy summa (UZS)', val: fmt(total) + ' s', cls: 'text-slate-800 font-bold' },
-                    saleDisc > 0 && { label: 'Chegirma (UZS)', val: '−' + fmt(saleDisc) + ' s', cls: 'text-amber-600 font-semibold' },
-                    { label: "Jami to'lov (UZS)", val: fmt(paid) + ' s', cls: 'text-emerald-600 font-black' },
-                    remaining > 0 && { label: 'Qarzga qoladi (UZS)', val: fmt(remaining) + ' s', cls: 'text-red-600 font-black' },
-                    change > 0 && { label: 'Qaytim (UZS)', val: fmt(change) + ' s', cls: 'text-blue-600 font-black' },
-                  ].filter(Boolean).map((r, i) => (
-                    <div key={i} className="flex justify-between items-center px-4 py-2.5 text-sm">
-                      <span className="text-slate-500">{r.label}</span>
-                      <span className={r.cls}>{r.val}</span>
-                    </div>
-                  ))}
+                  {(() => {
+                    const activeCurrencies = Array.from(new Set([
+                      ...Object.keys(totalsByCurrency),
+                      ...payments.map(p => p.currency || 'UZS')
+                    ])).filter(Boolean);
+
+                    const remain = { ...totalsByCurrency };
+                    for (const p of payments) {
+                      const a = parseN(p.amt);
+                      if (a <= 0 || p.type === 'debt') continue;
+                      const c = p.currency || 'UZS';
+                      if (!remain[c]) remain[c] = 0;
+                      remain[c] -= a;
+                    }
+
+                    let overpaidUZS = 0;
+                    for (const c in remain) {
+                      if (remain[c] < -0.001) {
+                        overpaidUZS += Math.abs(remain[c]) * getRate(c);
+                        delete remain[c];
+                      }
+                    }
+
+                    for (const c in remain) {
+                      if (remain[c] > 0.001 && overpaidUZS > 0.001) {
+                        const needUZS = remain[c] * getRate(c);
+                        if (overpaidUZS >= needUZS) {
+                          overpaidUZS -= needUZS;
+                          delete remain[c];
+                        } else {
+                          remain[c] -= overpaidUZS / getRate(c);
+                          overpaidUZS = 0;
+                        }
+                      }
+                    }
+
+                    const debts = {};
+                    for (const c in remain) {
+                      if (remain[c] > 0.001) {
+                        debts[c] = remain[c];
+                      }
+                    }
+
+                    const rows = [];
+                    
+                    rows.push({
+                      label: 'Umumiy summa (UZS)',
+                      val: fmt(total) + ' s',
+                      cls: 'text-slate-800 font-bold'
+                    });
+                    if (saleDisc > 0) {
+                      rows.push({
+                        label: 'Chegirma (UZS)',
+                        val: '−' + fmt(saleDisc) + ' s',
+                        cls: 'text-amber-600 font-semibold'
+                      });
+                    }
+                    rows.push({
+                      label: "Jami to'lov (UZS)",
+                      val: fmt(paid) + ' s',
+                      cls: 'text-emerald-600 font-black'
+                    });
+
+                    activeCurrencies.forEach(c => {
+                      if (c === 'UZS') return;
+                      const rate = getRate(c);
+                      const totalInC = total / rate;
+                      const paidInC = payments.filter(p => (p.currency || 'UZS') === c).reduce((sum, p) => sum + (parseFloat(p.amt) || 0), 0);
+                      const sym = c === 'USD' ? '$' : (c === 'RUB' ? '₽' : c);
+                      
+                      rows.push({
+                        label: `Umumiy summa (${c})`,
+                        val: sym + ' ' + (totalInC < 0.01 ? totalInC.toFixed(4) : totalInC.toFixed(2)),
+                        cls: 'text-slate-700 font-bold border-t border-slate-100 pt-1.5'
+                      });
+                      rows.push({
+                        label: `Jami to'lov (${c})`,
+                        val: sym + ' ' + (paidInC < 0.01 ? paidInC.toFixed(4) : paidInC.toFixed(2)),
+                        cls: 'text-emerald-600 font-black'
+                      });
+                    });
+
+                    const allDebtCurrs = Array.from(new Set(['UZS', ...Object.keys(debts)]));
+                    let listedDebt = false;
+                    allDebtCurrs.forEach(c => {
+                      const dVal = debts[c] || 0;
+                      if (dVal > 0.009) {
+                        listedDebt = true;
+                        const sym = c === 'USD' ? '$' : (c === 'RUB' ? '₽' : (c === 'UZS' ? ' s' : ' ' + c));
+                        const formattedVal = c === 'UZS' 
+                          ? fmt(dVal) + sym 
+                          : sym + ' ' + (dVal < 0.01 ? dVal.toFixed(4) : dVal.toFixed(2));
+                        rows.push({
+                          label: `Qarzga qoladi (${c})`,
+                          val: formattedVal,
+                          cls: 'text-red-600 font-black'
+                        });
+                      }
+                    });
+
+                    const remainingUZS = Math.max(0, total - paid);
+                    if (remainingUZS > 0 && !listedDebt) {
+                      rows.push({
+                        label: 'Qarzga qoladi (UZS)',
+                        val: fmt(remainingUZS) + ' s',
+                        cls: 'text-red-600 font-black'
+                      });
+                    }
+
+                    const changeUZS = Math.max(0, paid - total);
+                    if (changeUZS > 0) {
+                      rows.push({
+                        label: 'Qaytim (UZS)',
+                        val: fmt(changeUZS) + ' s',
+                        cls: 'text-blue-600 font-black'
+                      });
+                    }
+
+                    return rows.map((r, i) => (
+                      <div key={i} className="flex justify-between items-center px-4 py-2.5 text-sm">
+                        <span className="text-slate-500">{r.label}</span>
+                        <span className={r.cls}>{r.val}</span>
+                      </div>
+                    ));
+                  })()}
                 </div>
               </div>
 
