@@ -1486,20 +1486,20 @@ export default function Products() {
       let txtContent = "";
 
       filteredData.forEach(prod => {
-        // 1. Tarozidagi tartib raqami (Sizning APIdagi ID raqamingiz, 5 xonali qilingan)
-        const plu = String(prod.id).padStart(5, '0');
+        // 1. PLU: kiritilgan SKU (artikul) ishlatiladi, yo'q bo'lsa ID 5 xonali qilinadi
+        const plu = prod.sku && prod.sku.trim() ? prod.sku.trim() : String(prod.id).padStart(5, '0');
 
         // 2. Mahsulot nomi (ichidagi ';' belgilari tozalanadi)
         const name = prod.name ? prod.name.replace(/;/g, ' ') : 'Nomsiz';
 
-        // 3. Mahsulot turi yoki guruhi (Siz aytgandek APIdan olinyapti)
-        const group = prod.product_type ? prod.product_type.replace(/;/g, ' ') : 'Umumiy';
+        // 3. Guruh — bo'sh qoldiriladi
+        const group = '';
 
         // 4. Chakana sotish narxi (Yaxlitlangan butun son)
         const price = prod.sale_price ? Math.round(parseFloat(prod.sale_price)) : 0;
 
         // 5. Haqiqiy shtrix-kod (Sizning APIdagi 'barcode' maydoningiz)
-        const barcode = prod.barcode ? prod.barcode : plu;
+        const barcode = plu
 
         // Saytingizda yo'q maydonlar o'rniga o'zgarmas '0' va standart sana qo'yiladi (Majburiy)
         const tara = 0;

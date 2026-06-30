@@ -7,7 +7,7 @@ import { buildReceiptHtml, printReceiptHtml, getReceiptSettings, saveReceiptSett
 import { toast } from '../../utils/toast';
 import { useActiveShift } from '../../hooks/useActiveShift';
 import ShiftOpenModal from '../../components/ShiftOpenModal';
-import { matchesSearch, searchVariants } from '../../utils/translit';
+import { matchesSearch } from '../../utils/translit';
 import ProductAddModal from '../../components/ProductAddModal';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ', { maximumFractionDigits: 4 });
@@ -128,7 +128,7 @@ function Ic({ d, cls = 'w-4 h-4' }) {
     if (q.trim().length >= 2) {
       const timer = setTimeout(async () => {
         try {
-          const res = await api.get('/customers/', { params: { search: searchVariants(q.trim()).join(' ') || q.trim(), limit: 30 } });
+          const res = await api.get('/customers/', { params: { search: q.trim(), limit: 30 } });
           const items = Array.isArray(res.data) ? res.data : (res.data?.items || []);
           if (items.length > 0 && onFetch) onFetch(items);
         } catch (err) { console.error('Fetch customers error:', err); }
@@ -348,7 +348,7 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
       setLoading(true);
       try {
         const res = await api.get('/products/pos-list', {
-          params: { search: searchVariants(q).join(' ') || q, limit: 30, warehouse_id: warehouseId || undefined },
+          params: { search: q.trim(), limit: 30, warehouse_id: warehouseId || undefined },
           signal: abortCtrl.signal,
           _silent: true,
         });
