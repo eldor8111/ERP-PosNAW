@@ -3465,12 +3465,11 @@ export default function Products() {
 
           {/* Table */}
           <div className="flex-1 p-5">
-            <div className="min-w-full h-[calc(100vh-100px)] pb-4 overflow-auto">
-              <div style={{ minWidth: '1700px' }}>
-
+            <div className="min-w-full h-[calc(100vh-100px)] pb-4 overflow-y-auto overflow-x-clip">
+              <div style={{ minWidth: '1700px', overflowX: 'auto', paddingBottom: '18px' }}>
                 {/* Column headers */}
                 <div className="grid gap-3 mb-1 text-xs xl:text-sm font-extrabold text-slate-600 uppercase tracking-wide px-3"
-                  style={{ gridTemplateColumns: '36px 200px 110px 180px 180px 205px 240px 80px 160px 80px 90px 160px 160px' }}>
+                  style={{ gridTemplateColumns: '38px 200px 110px 180px 180px 205px 250px 80px 160px 80px 90px 160px 160px 155px' }}>
                   <span>#</span>
                   <span>Mahsulot nomi *</span>
                   <span className="text-indigo-600">Kod</span>
@@ -3482,6 +3481,7 @@ export default function Products() {
                   <span>Kategoriya</span>
                   <span>Qoldiq</span>
                   <span>Min qoldiq</span>
+                  <span>{`Sku (Artikul)`}</span>
                   <span>MXIK kod</span>
                   <span>O'lchov kod</span>
                   <span></span>
@@ -3492,7 +3492,7 @@ export default function Products() {
                   {bulkRows.map((row, rowIdx) => (
                     <div key={row._key} className="px-4 py-1">
                       <div className="grid gap-2 lg:gap-3 items-start"
-                        style={{ gridTemplateColumns: '34px 1fr 110px 180px 180px 180px 1fr 80px 160px 80px 90px 160px 160px 40px' }}>
+                        style={{ gridTemplateColumns: '34px 1fr 110px 180px 180px 180px 270px 80px 160px 80px 95px 160px 160px 160px 40px' }}>
                         {/* # */}
                         <div className="flex items-center justify-start h-8 lg:h-10 xl:h-12 text-base font-bold text-slate-400">{rowIdx + 1}</div>
 
@@ -3782,9 +3782,11 @@ export default function Products() {
                           />
                         </div>
 
+                        <input type="text" inputMode="numeric" value={row.sku} onChange={(e) => updateBulkRow(row._key, 'sku', e.target.value.replace(/[^0-9]/g, ''))} className={inputCls} placeholder="ixtiyoriy" />
+
                         <input type="text" inputMode="numeric" value={row.mxik_code} onChange={(e) => updateBulkRow(row._key, 'mxik_code', e.target.value.replace(/[^0-9]/g, ''))} className={inputCls} placeholder="12345678..." />
 
-                        <input type="text" inputMode="numeric" value={row.barcode_input} onChange={(e) => updateBulkRow(row._key, 'barcode_input', e.target.value.replace(/[^0-9]/g, ''))} className={inputCls} placeholder="12345678..." />
+                        <input type="text" inputMode="numeric" value={row.barcode_input} onChange={(e) => updateBulkRow(row._key, 'barcode_input', e.target.value.replace(/[^0-9]/g, ''))} className={inputCls} placeholder="..." />
 
                         {/* Remove row */}
                         <button type="button"
