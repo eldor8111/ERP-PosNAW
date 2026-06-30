@@ -3465,11 +3465,11 @@ export default function Products() {
 
           {/* Table */}
           <div className="flex-1 p-5">
-            <div className="min-w-full h-[calc(100vh-100px)] pb-4 overflow-y-auto overflow-x-clip">
-              <div style={{ minWidth: '1700px', overflowX: 'auto', paddingBottom: '18px' }}>
+            <div className="pb-4 overflow-y-auto overflow-x-clip">
+              <div style={{ minWidth: '700px', overflowX: 'auto', paddingBottom: '18px' }}>
                 {/* Column headers */}
                 <div className="grid gap-3 mb-1 text-xs xl:text-sm font-extrabold text-slate-600 uppercase tracking-wide px-3"
-                  style={{ gridTemplateColumns: '38px 200px 110px 180px 180px 205px 250px 80px 160px 80px 90px 160px 160px 155px' }}>
+                  style={{ gridTemplateColumns: '38px 200px 110px 180px 180px 205px 250px 80px 155px 105px 105px 160px 160px 160px' }}>
                   <span>#</span>
                   <span>Mahsulot nomi *</span>
                   <span className="text-indigo-600">Kod</span>
@@ -3492,7 +3492,7 @@ export default function Products() {
                   {bulkRows.map((row, rowIdx) => (
                     <div key={row._key} className="px-4 py-1">
                       <div className="grid gap-2 lg:gap-3 items-start"
-                        style={{ gridTemplateColumns: '34px 1fr 110px 180px 180px 180px 270px 80px 160px 80px 95px 160px 160px 160px 40px' }}>
+                        style={{ gridTemplateColumns: '34px 1fr 110px 180px 180px 180px 270px 80px 160px 105px 105px 160px 160px 160px 90px' }}>
                         {/* # */}
                         <div className="flex items-center justify-start h-8 lg:h-10 xl:h-12 text-base font-bold text-slate-400">{rowIdx + 1}</div>
 
@@ -3803,7 +3803,7 @@ export default function Products() {
                 </div>
 
                 {/* Manual add */}
-                <div className="mt-4 flex items-center gap-2 xl:gap-3">
+                <div className="mt-5 sticky left-0 bottom-0 flex items-center gap-2 xl:gap-3">
                   <button
                     type="button"
                     onClick={() => setBulkRows(rows => [...rows, emptyBulkRow()])}
