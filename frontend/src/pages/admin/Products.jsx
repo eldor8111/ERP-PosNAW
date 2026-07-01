@@ -1356,11 +1356,11 @@ export default function Products() {
           setBulkRows(rows => rows.map(r =>
             r._key === key
               ? {
-                  ...r,
-                  name: r.name?.trim() ? r.name : mxikRes.data.mxik_name,
-                  mxik_code: mxikRes.data.mxik_code || r.mxik_code || '',
-                  barcode_input: mxikRes.data.parent_code || r.barcode_input || '',
-                }
+                ...r,
+                name: r.name?.trim() ? r.name : mxikRes.data.mxik_name,
+                mxik_code: mxikRes.data.mxik_code || r.mxik_code || '',
+                barcode_input: mxikRes.data.parent_code || r.barcode_input || '',
+              }
               : r
           ));
         }
@@ -3465,32 +3465,32 @@ export default function Products() {
 
           {/* Table */}
           <div className="flex-1 p-5">
-            <div className="pb-4 overflow-y-auto overflow-x-clip">
+            <div className="pb-4 overflow-x-clip">
               <div style={{ minWidth: '700px', overflowX: 'auto', paddingBottom: '18px' }}>
-                {/* Column headers */}
-                <div className="grid gap-3 mb-1 text-xs xl:text-sm font-extrabold text-slate-600 uppercase tracking-wide px-3"
-                  style={{ gridTemplateColumns: '38px 200px 110px 180px 180px 205px 250px 80px 155px 105px 105px 160px 160px 160px' }}>
-                  <span>#</span>
-                  <span>Mahsulot nomi *</span>
-                  <span className="text-indigo-600">Kod</span>
-                  <span>Chakana *</span>
-                  <span>Ulgurji</span>
-                  <span>Tan narxi</span>
-                  <span>Shtrix kodlar</span>
-                  <span>O'lchov</span>
-                  <span>Kategoriya</span>
-                  <span>Qoldiq</span>
-                  <span>Min qoldiq</span>
-                  <span>{`Sku (Artikul)`}</span>
-                  <span>MXIK kod</span>
-                  <span>O'lchov kod</span>
-                  <span></span>
-                </div>
-
                 {/* Rows */}
-                <div className="xl:space-y-3">
+                <div className="xl:space-y-3 max-h-[calc(100vh-200px)] overflow-y-auto">
+                  {/* Column headers */}
+                  <div className="grid gap-3 mb-1 text-xs xl:text-sm font-extrabold text-slate-600 uppercase tracking-wide px-3"
+                    style={{ gridTemplateColumns: '38px 200px 110px 180px 180px 205px 250px 80px 155px 105px 105px 160px 160px 160px' }}>
+                    <span>#</span>
+                    <span>Mahsulot nomi *</span>
+                    <span className="text-indigo-600">Kod</span>
+                    <span>Chakana *</span>
+                    <span>Ulgurji</span>
+                    <span>Tan narxi</span>
+                    <span>Shtrix kodlar</span>
+                    <span>O'lchov</span>
+                    <span>Kategoriya</span>
+                    <span>Qoldiq</span>
+                    <span>Min qoldiq</span>
+                    <span>{`Sku (Artikul)`}</span>
+                    <span>MXIK kod</span>
+                    <span>O'lchov kod</span>
+                    <span></span>
+                  </div>
+
                   {bulkRows.map((row, rowIdx) => (
-                    <div key={row._key} className="px-4 py-1">
+                    <div key={row._key} className="px-4 py-1 pb-5">
                       <div className="grid gap-2 lg:gap-3 items-start"
                         style={{ gridTemplateColumns: '34px 1fr 110px 180px 180px 180px 270px 80px 160px 105px 105px 160px 160px 160px 90px' }}>
                         {/* # */}

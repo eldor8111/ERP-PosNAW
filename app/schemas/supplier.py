@@ -13,6 +13,7 @@ class SupplierCreate(BaseModel):
     payment_terms: int = 30
     debt_balance: Optional[Decimal] = Decimal("0")  # Boshlang'ich qarz
     debt_currency: Optional[str] = "UZS"  # Qarz valyutasi: UZS, USD, RUB ...
+    debt_balances: Optional[dict] = None
     # Bank
     bank_name: Optional[str] = None
     bank_account: Optional[str] = None
@@ -46,6 +47,7 @@ class SupplierUpdate(BaseModel):
     # Qarz balans (admin tomonidan to'g'ridan-to'g'ri o'zgartirish)
     debt_balance: Optional[Decimal] = None
     debt_currency: Optional[str] = None
+    debt_balances: Optional[dict] = None
 
 
 class SupplierOut(BaseModel):
@@ -58,6 +60,7 @@ class SupplierOut(BaseModel):
     payment_terms: int
     debt_balance: Decimal
     debt_currency: str = "UZS"
+    debt_balances: Optional[dict] = {}
     is_active: bool
     created_at: datetime
     # Bank

@@ -1,19 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
+import { Banknote, CreditCard, Gem, HandCoins, Landmark, PiggyBank } from 'lucide-react';
 
 const fmt = v => Number(v || 0).toLocaleString('uz-UZ');
 const fmtDate = d => d ? new Date(d).toLocaleString('uz-UZ') : '—';
 
 const PT_CONFIG = {
-  cash:    { label: 'Naqd',    icon: '💵', bg: 'bg-emerald-500/15', border: 'border-emerald-500/30', text: 'text-emerald-400', dot: 'bg-emerald-400' },
-  card:    { label: 'Karta',   icon: '💳', bg: 'bg-blue-500/15',    border: 'border-blue-500/30',    text: 'text-blue-400',    dot: 'bg-blue-400'    },
-  uzcard:  { label: 'UzCard',  icon: '🟡', bg: 'bg-amber-500/15',   border: 'border-amber-500/30',   text: 'text-amber-400',   dot: 'bg-amber-400'   },
-  humo:    { label: 'Humo',    icon: '🔵', bg: 'bg-indigo-500/15',  border: 'border-indigo-500/30',  text: 'text-indigo-400',  dot: 'bg-indigo-400'  },
-  click:   { label: 'Click',   icon: '📱', bg: 'bg-yellow-500/15',  border: 'border-yellow-500/30',  text: 'text-yellow-400',  dot: 'bg-yellow-400'  },
-  payme:   { label: 'Payme',   icon: '🔴', bg: 'bg-red-500/15',     border: 'border-red-500/30',     text: 'text-red-400',     dot: 'bg-red-400'     },
-  uzum:    { label: 'Uzum',    icon: '🟠', bg: 'bg-orange-500/15',  border: 'border-orange-500/30',  text: 'text-orange-400',  dot: 'bg-orange-400'  },
-  keshbek: { label: 'Keshbek', icon: '🎁', bg: 'bg-purple-500/15',  border: 'border-purple-500/30',  text: 'text-purple-400',  dot: 'bg-purple-400'  },
+  cash:    { label: 'Naqd',    icon: <Banknote className='w-5 h-5 text-emerald-500' />, bg: 'bg-emerald-500/15', border: 'border-emerald-500/30', text: 'text-emerald-400', dot: 'bg-emerald-400' },
+  card:    { label: 'Karta',   icon: <CreditCard className='w-5 h-5 text-blue-500' />, bg: 'bg-blue-500/15',    border: 'border-blue-500/30',    text: 'text-blue-400',    dot: 'bg-blue-400'    },
+  uzcard:  { label: 'UzCard',  icon: <CreditCard className='w-5 h-5 text-amber-500' />, bg: 'bg-amber-500/15',   border: 'border-amber-500/30',   text: 'text-amber-400',   dot: 'bg-amber-400'   },
+  humo:    { label: 'Humo',    icon: <CreditCard className='w-5 h-5 text-indigo-500' />, bg: 'bg-indigo-500/15',  border: 'border-indigo-500/30',  text: 'text-indigo-400',  dot: 'bg-indigo-400'  },
+  click:   { label: 'Click',   icon: <CreditCard className='w-5 h-5 text-yellow-500' />, bg: 'bg-yellow-500/15',  border: 'border-yellow-500/30',  text: 'text-yellow-400',  dot: 'bg-yellow-400'  },
+  payme:   { label: 'Payme',   icon: <CreditCard className='w-5 h-5 text-red-500' />, bg: 'bg-red-500/15',     border: 'border-red-500/30',     text: 'text-red-400',     dot: 'bg-red-400'     },
+  uzum:    { label: 'Uzum',    icon: <CreditCard className='w-5 h-5 text-orange-500' />, bg: 'bg-orange-500/15',  border: 'border-orange-500/30',  text: 'text-orange-400',  dot: 'bg-orange-400'  },
+  keshbek: { label: 'Keshbek', icon: <HandCoins className='w-5 h-5 text-purple-500' />, bg: 'bg-purple-500/15',  border: 'border-purple-500/30',  text: 'text-purple-400',  dot: 'bg-purple-400'  },
 };
 const PT_LABELS = Object.fromEntries(Object.entries(PT_CONFIG).map(([k,v])=>[k, v.icon+' '+v.label]));
 const PT_KEYS = Object.keys(PT_CONFIG);
@@ -106,7 +107,7 @@ function KassaCard({ kassa, onRefresh }) {
     } finally { setSaving(false); }
   };
 
-  const typeIcon = { cash:'💵', card:'💳', bank:'🏦' };
+  const typeIcon = { cash:<HandCoins className='w-5 h-5 text-white' />, card:<CreditCard className='w-5 h-5 text-white' />, bank:<Banknote className='w-5 h-5 text-white' /> };
   const typeColor = { cash:'from-emerald-600 to-emerald-800', card:'from-indigo-600 to-indigo-800', bank:'from-blue-600 to-blue-800' };
   const gradFrom = typeColor[kassa.type] || 'from-slate-700 to-slate-900';
 
@@ -356,8 +357,8 @@ function ExpenseCategoriesTab() {
 
 /* ── Main Page ── */
 const TABS = [
-  { id: 'kassalar', label: '💰 Kassalar' },
-  { id: 'categories', label: '📂 Xarajat turlari' },
+  { id: 'kassalar', label: 'Kassalar' },
+  { id: 'categories', label: 'Xarajat turlari' },
 ];
 
 export default function Kassa() {
@@ -390,10 +391,9 @@ export default function Kassa() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-            <span className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-xl flex items-center justify-center text-white text-lg shadow-md">💰</span>
             Kassa boshqaruvi
           </h1>
-          <p className="text-slate-400 text-sm mt-1 ml-11">Barcha kassalar va to'lov turlari</p>
+          <p className="text-slate-400 text-sm">Barcha kassalar va to'lov turlari</p>
         </div>
         {tab === 'kassalar' && (
           <button onClick={() => setShowNew(true)} className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white text-sm font-bold rounded-xl shadow-md hover:shadow-indigo-200 transition-all">
@@ -407,9 +407,9 @@ export default function Kassa() {
       {tab === 'kassalar' && kassalar.length > 0 && (
         <div className="grid grid-cols-3 gap-4">
           {[
-            { label:'Jami balans',    value: fmt(totalBalance)+" so'm", icon:'💎', bg:'bg-indigo-50',  border:'border-indigo-100', text:'text-indigo-600'  },
-            { label:'Ochiq kassalar', value: totalOpen+' ta',            icon:'⚡', bg:'bg-emerald-50', border:'border-emerald-100', text:'text-emerald-600' },
-            { label:'Jami kassalar',  value: kassalar.length+' ta',      icon:'🏦', bg:'bg-slate-50',   border:'border-slate-200',  text:'text-slate-700'   },
+            { label:'Jami balans',    value: fmt(totalBalance)+" so'm", icon: <Banknote className='w-5 h-5 text-indigo-600' />, bg:'bg-indigo-50',  border:'border-indigo-100', text:'text-indigo-600'  },
+            { label:'Ochiq kassalar', value: totalOpen+' ta',            icon: <Gem className='w-5 h-5 text-emerald-600' />, bg:'bg-emerald-50', border:'border-emerald-100', text:'text-emerald-600' },
+            { label:'Jami kassalar',  value: kassalar.length+' ta',      icon: <Landmark className='w-5 h-5 text-slate-600' />, bg:'bg-slate-50',   border:'border-slate-200',  text:'text-slate-700'   },
           ].map(c=>(
             <div key={c.label} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-center gap-4 hover:shadow-md transition-shadow">
               <div className={`w-11 h-11 rounded-xl ${c.bg} border ${c.border} flex items-center justify-center text-xl`}>{c.icon}</div>
@@ -426,7 +426,7 @@ export default function Kassa() {
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`px-5 py-2 text-sm font-bold rounded-lg transition-all ${tab===t.id ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+            className={`px-5 py-2 text-sm cursor-pointer font-bold rounded-lg transition-all ${tab===t.id ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
             {t.label}
           </button>
         ))}

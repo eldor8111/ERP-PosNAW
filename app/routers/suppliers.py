@@ -1,8 +1,10 @@
 from typing import List, Optional
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query  # type: ignore
 from pydantic import BaseModel
 from sqlalchemy.orm import Session  # type: ignore
+from sqlalchemy.orm.attributes import flag_modified  # type: ignore
 
 from app.core.audit import log_action  # type: ignore
 from app.core.dependencies import get_current_user, require_roles  # type: ignore
@@ -48,6 +50,8 @@ def create_supplier(
     try:
         supplier_data = data.model_dump()
         supplier_data["company_id"] = current_user.company_id
+        if supplier_data.get("debt_balances") is None:
+            supplier_data["debt_balances"] = {}
         supplier = Supplier(**supplier_data)
         db.add(supplier)
         db.flush()
@@ -96,7 +100,11 @@ def update_supplier(
         raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
     old = {"name": supplier.name}
     for field, value in data.model_dump(exclude_none=True).items():
+        if field == "debt_balances" and value is None:
+            value = {}
         setattr(supplier, field, value)
+    if "debt_balances" in data.model_dump(exclude_none=True):
+        flag_modified(supplier, "debt_balances")
     log_action(
         db,
         action="UPDATE",

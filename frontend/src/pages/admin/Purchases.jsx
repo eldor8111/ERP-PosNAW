@@ -1659,7 +1659,9 @@ function KirimlarTab({ products, warehouses, suppliers }) {
 
 /* ===================== TA'MINOTCHILAR TAB ===================== */
 const emptySupplier = {
-  name: '', inn: '', phone: '', email: '', debt_balance: '', debt_currency: 'UZS'
+  name: '', inn: '', phone: '', email: '',
+  // Multi-currency debt entries: [{ currency: 'UZS', amount: '' }, ...]
+  debtEntries: [{ currency: 'UZS', amount: '' }]
 };
 function StarRating({ value }) {
   const { t } = useLang();
@@ -1809,15 +1811,52 @@ function SuppliersTab() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{const t=setTimeout(()=>load(search),400);return()=>clearTimeout(t);},[search]);
   const close=()=>{setModal(null);setSel(null);setErr('');};
-  const openEdit=(s)=>{setForm({name:s.name,inn:s.inn||'',phone:s.phone||'',email:s.email||'',debt_balance:String(s.debt_balance||'0'),debt_currency:s.debt_currency||'UZS'});setSel(s);setErr('');setModal('form');};
+  // All currency codes from backend
+  const allCurrencyCodes = currencies.length > 0
+    ? currencies.map(c => c.code)
+    : ['UZS'];
+  // Convert supplier debt_balances dict -> debtEntries array
+  const buildDebtEntries = (s) => {
+    const balances = s.debt_balances && typeof s.debt_balances === 'object' ? s.debt_balances : {};
+    const entries = Object.entries(balances)
+      .filter(([, amt]) => Number(amt) !== 0)
+      .map(([currency, amount]) => ({ currency, amount: String(amount) }));
+    // If no entries but has legacy debt_balance, add it
+    if (entries.length === 0 && Number(s.debt_balance) !== 0) {
+      entries.push({ currency: s.debt_currency || 'UZS', amount: String(s.debt_balance) });
+    }
+    // Always show at least 1 row
+    if (entries.length === 0) {
+      entries.push({ currency: allCurrencyCodes[0] || 'UZS', amount: '' });
+    }
+    return entries;
+  };
+  const openEdit=(s)=>{setForm({name:s.name,inn:s.inn||'',phone:s.phone||'',email:s.email||'',debtEntries:buildDebtEntries(s)});setSel(s);setErr('');setModal('form');};
   const handleSave=async(e)=>{
     e.preventDefault();setSaving(true);setErr('');
     try{
       const p={name:form.name,inn:form.inn||null,phone:form.phone||null,email:form.email||null};
-      if(form.debt_balance !== '' && form.debt_balance !== null) p.debt_balance=Number(form.debt_balance);
-      p.debt_currency = form.debt_currency || 'UZS';
+      // Build debt_balances dict from debtEntries
+      const debtBalances = {};
+      (form.debtEntries||[]).forEach(entry => {
+        if (entry.currency && entry.amount !== '' && Number(entry.amount) >= 0) {
+          debtBalances[entry.currency] = Number(entry.amount);
+        }
+      });
+      if (Object.keys(debtBalances).length > 0) {
+        p.debt_balances = debtBalances;
+        // Also set primary debt_balance / debt_currency for legacy compatibility
+        const mainEntry = form.debtEntries.find(e => e.currency === 'UZS') || form.debtEntries[0];
+        if (mainEntry) {
+          p.debt_balance = Number(mainEntry.amount) || 0;
+          p.debt_currency = mainEntry.currency;
+        }
+      } else {
+        p.debt_balance = 0;
+        p.debt_balances = {};
+      }
       if(sel)await api.patch(`/suppliers/${sel.id}`,p);else await api.post('/suppliers',p);close();load();
-    }catch(ex){setErr(ex.response?.data?.detail||'Xatolik');}finally{setSaving(false);}};
+    }catch(ex){setErr(ex.response?.data?.detail||'Xatolik');}finally{setSaving(false);};};
   const handlePayDebt=async(e)=>{
     e.preventDefault();setSaving(true);setErr('');
     try{
@@ -1865,27 +1904,66 @@ function SuppliersTab() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>{t('common.new')}
         </button>
       </div>
-      <div className="flex items-center justify-between px-4 py-3 bg-white border border-slate-100 rounded-xl shadow-sm">
+      <div className="flex items-center justify-between px-4 py-3 bg-white border border-slate-100 rounded-xl shadow-sm flex-wrap gap-2">
         <span className="text-sm font-medium text-slate-500">{t('purchase.totalSupplierDebt')}</span>
-        <span className="text-lg font-bold text-red-500">{fmt(list.reduce((sum, s) => sum + Number(s.debt_balance || 0), 0))} so'm</span>
+        <div className="flex flex-wrap items-center gap-3">
+          {(() => {
+            const totals = {};
+            list.forEach(s => {
+              const debtMap = (s.debt_balances && typeof s.debt_balances === 'object')
+                ? Object.entries(s.debt_balances)
+                : (Number(s.debt_balance) > 0 ? [[s.debt_currency || 'UZS', s.debt_balance]] : []);
+              
+              debtMap.forEach(([cur, amt]) => {
+                const val = Number(amt) || 0;
+                if (val > 0) {
+                  totals[cur] = (totals[cur] || 0) + val;
+                }
+              });
+            });
+            const totalEntries = Object.entries(totals).filter(([, v]) => v > 0);
+            if (totalEntries.length === 0) {
+              return <span className="text-lg font-bold text-emerald-500">0 UZS</span>;
+            }
+            return totalEntries.map(([cur, amt]) => (
+              <span key={cur} className="text-lg font-black text-red-500">
+                {fmt(amt)} <span className="text-xs font-bold text-slate-400">{cur}</span>
+              </span>
+            ));
+          })()}
+        </div>
       </div>
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <table className="min-w-full">
           <thead><tr className="bg-slate-50 border-b border-slate-100">{[t('purchase.supplier'),'INN',t('common.phone'),t('purchase.colRating'),t('common.debt'),''].map(h=><th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>)}</tr></thead>
           <tbody className="divide-y divide-slate-50">
-            {list.map(s=>(
+            {list.map(s=>{
+              // Build multi-currency debt display
+              const debtMap = (s.debt_balances && typeof s.debt_balances === 'object')
+                ? Object.entries(s.debt_balances).filter(([,v]) => Number(v) > 0)
+                : (Number(s.debt_balance) > 0 ? [[s.debt_currency || 'UZS', s.debt_balance]] : []);
+              const hasDebt = debtMap.length > 0;
+              return (
               <tr key={s.id} className="hover:bg-slate-50">
                 <td className="px-5 py-4"><div className="flex items-center gap-2.5"><AvatarS name={s.name}/><div><div className="text-sm font-semibold text-slate-800">{s.name}</div>{s.email&&<div className="text-xs text-slate-400">{s.email}</div>}</div></div></td>
                 <td className="px-5 py-4 text-sm font-mono text-slate-600">{s.inn||'\u2014'}</td>
                 <td className="px-5 py-4 text-sm text-slate-500">{s.phone||'\u2014'}</td>
                 <td className="px-5 py-4"><StarRating value={s.rating}/></td>
-                <td className="px-5 py-4 text-sm font-semibold">
-                  {s.debt_balance > 0
-                    ? <span className="text-red-500">{fmt(s.debt_balance)} <span className="text-xs font-bold">{s.debt_currency || 'UZS'}</span></span>
-                    : <span className="text-emerald-500">0 so'm</span>}
+                <td className="px-5 py-4">
+                  {hasDebt ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {debtMap.map(([cur, amt]) => (
+                        <span key={cur} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-red-50 text-red-600 border border-red-100">
+                          {fmt(amt)} <span className="text-red-400">{cur}</span>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-xs font-medium text-emerald-500 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">Qarz yo'q</span>
+                  )}
                 </td>
                 <td className="px-5 py-4"><div className="flex items-center gap-1">
-                  {Number(s.debt_balance)>0&&(
+                  {hasDebt&&(
                     <button onClick={()=>{setSel(s);setPayAmt(String(Math.round(s.debt_balance)));if(wallets.length>0)setPayWallet(String(wallets[0].id));setPayType('cash');setPayInfo('');setErr('');setModal('pay');}} title="Qarz to'lash" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
                       Qarz to'lash
@@ -1895,8 +1973,9 @@ function SuppliersTab() {
                   <button onClick={()=>del(s.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
                 </div></td>
               </tr>
-            ))}
-            {list.length===0&&<tr><td colSpan={5} className="px-5 py-12 text-center text-slate-400 text-sm">{t('purchase.noSuppliers')}</td></tr>}
+              );
+            })}
+            {list.length===0&&<tr><td colSpan={6} className="px-5 py-12 text-center text-slate-400 text-sm">{t('purchase.noSuppliers')}</td></tr>}
           </tbody>
         </table>
       </div>
@@ -1913,34 +1992,80 @@ function SuppliersTab() {
                 <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">INN</label><input className={inp} value={form.inn} onChange={e=>setForm({...form,inn:e.target.value})}/></div>
                 <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('admin.dict.phone') || 'Telefon'}</label><input className={inp} value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/></div>
                 <div className="col-span-2"><label className="block text-xs font-semibold text-slate-600 mb-1.5">Email</label><input type="email" className={inp} value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></div>
+
+                {/* ── Multi-currency debt section ── */}
                 <div className="col-span-2">
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                    {sel ? "Qarz miqdori" : "Boshlang'ich qarz"}
-                  </label>
-                  <div className="flex rounded-xl overflow-hidden border border-slate-200 focus-within:ring-2 focus-within:ring-indigo-500">
-                    <input
-                      type="number" min="0"
-                      className="flex-1 px-3 py-2.5 text-sm focus:outline-none bg-white"
-                      value={form.debt_balance}
-                      onChange={e=>setForm({...form,debt_balance:e.target.value})}
-                      placeholder="0"
-                    />
-                    {/* Valyuta tanlash */}
-                    <select
-                      value={form.debt_currency}
-                      onChange={e=>setForm({...form,debt_currency:e.target.value})}
-                      className="shrink-0 border-l border-slate-200 px-3 py-2 text-sm font-semibold bg-slate-50 focus:outline-none text-slate-700 cursor-pointer hover:bg-slate-100 transition-colors"
-                    >
-                      <option value="UZS">UZS (so'm)</option>
-                      {currencies.filter(c=>!c.is_default).map(c=>(
-                        <option key={c.id} value={c.code}>{c.code} ({c.symbol || c.code})</option>
-                      ))}
-                    </select>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-semibold text-slate-600">
+                      {sel ? 'Qarz (valyuta bo\u02bcyicha)' : 'Boshlang\u02bcich qarz'}
+                    </label>
+                    {/* + tugmasi: faqat hali qo'shilmagan valyuta bo'lsa */}
+                    {(() => {
+                      const usedCurrencies = (form.debtEntries||[]).map(e => e.currency);
+                      const availCurrencies = allCurrencyCodes.filter(c => !usedCurrencies.includes(c));
+                      return availCurrencies.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextCur = availCurrencies[0];
+                            setForm(f => ({ ...f, debtEntries: [...(f.debtEntries||[]), { currency: nextCur, amount: '' }] }));
+                          }}
+                          className="inline-flex items-center gap-1 px-3 py-1 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4"/></svg>
+                          Valyuta
+                        </button>
+                      ) : null;
+                    })()}
                   </div>
-                  <p className="text-xs text-slate-400 mt-1">
+
+                  {/* Debt entries list */}
+                  <div className="space-y-2">
+                    {(form.debtEntries||[]).map((entry, idx) => {
+                      const usedCurrencies = (form.debtEntries||[]).map((e,i) => i !== idx ? e.currency : null).filter(Boolean);
+                      const availForThisRow = allCurrencyCodes.filter(c => !usedCurrencies.includes(c));
+                      return (
+                        <div key={idx} className="flex items-center gap-2">
+                          {/* Valyuta select */}
+                          <select
+                            value={entry.currency}
+                            onChange={e => setForm(f => ({
+                              ...f,
+                              debtEntries: f.debtEntries.map((en,i) => i===idx ? {...en, currency: e.target.value} : en)
+                            }))}
+                            className="shrink-0 w-24 px-2 py-2 border border-slate-200 rounded-lg text-sm font-bold bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 text-slate-700"
+                          >
+                            {availForThisRow.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                          {/* Miqdor input */}
+                          <input
+                            type="number" min="0"
+                            className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                            value={entry.amount}
+                            onChange={e => setForm(f => ({
+                              ...f,
+                              debtEntries: f.debtEntries.map((en,i) => i===idx ? {...en, amount: e.target.value} : en)
+                            }))}
+                            placeholder="0"
+                          />
+                          {/* Remove: faqat 2+ row bo'lsagina ko'rsatish */}
+                          {(form.debtEntries||[]).length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setForm(f => ({ ...f, debtEntries: f.debtEntries.filter((_,i) => i!==idx) }))}
+                              className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1.5">
                     {sel
-                      ? `Joriy qarz: ${Number(sel.debt_balance||0).toLocaleString('uz-UZ')} so'm — yangi qiymat kiriting`
-                      : "Ta'minotchi avval ham qarzda bo'lsa kiriting"}
+                      ? "Qarz valyutalar bo'yicha — o'zgartiring yoki + Valyuta orqali qo'shing"
+                      : "Boshlang'ich qarzni kiriting, kerak bo'lsa + Valyuta orqali boshqa valyuta ham qo'shing"}
                   </p>
                 </div>
               </div>

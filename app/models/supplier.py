@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, Float, Integer, Numeric, String, Text, ForeignKey  # type: ignore
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, Numeric, String, Text, ForeignKey, JSON  # type: ignore
 from sqlalchemy.orm import relationship  # type: ignore
 
 from app.database import Base  # type: ignore
@@ -18,6 +18,7 @@ class Supplier(Base):
     payment_terms = Column(Integer, default=30)  # days
     debt_balance = Column(Numeric(14, 2), default=0)
     debt_currency = Column(String(10), nullable=False, server_default='UZS', default='UZS')
+    debt_balances = Column(JSON, nullable=False, server_default='{}')
     is_active = Column(Boolean, default=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

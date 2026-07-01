@@ -71,6 +71,23 @@ class CustomerOut(BaseModel):
     class Config:
         from_attributes = True
 
+    @classmethod
+    def from_orm_normalized(cls, cust):
+        """
+        Eski debt_balance/debt_currency bilan yangi debt_balances ni birlashtiradi.
+        Agar debt_balances bo'sh bo'lsa, debt_balance dan avtomatik to'ldiradi.
+        """
+        obj = cls.model_validate(cust)
+        balances = dict(cust.debt_balances or {})
+
+        # Eski ma'lumotlarni ko'chirish: debt_balances bo'sh, lekin debt_balance > 0
+        if not balances and float(cust.debt_balance or 0) > 0:
+            currency = (cust.debt_currency or "UZS").strip().upper() or "UZS"
+            balances[currency] = float(cust.debt_balance)
+
+        obj.debt_balances = balances
+        return obj
+
 
 class PaginatedCustomersOut(BaseModel):
     items: list[CustomerOut]
@@ -104,7 +121,8 @@ def list_customers(
         q = q.filter(
             name_phone_search_filter(Customer.name, Customer.phone, search)
         )
-    return q.order_by(Customer.name).offset(skip).limit(limit).all()
+    items = q.order_by(Customer.name).offset(skip).limit(limit).all()
+    return [CustomerOut.from_orm_normalized(c) for c in items]
 
 
 @router.get("/paginated", response_model=PaginatedCustomersOut)
@@ -151,24 +169,43 @@ def list_customers_paginated(
         q = q.order_by(Customer.name)
 
     items = q.offset(skip).limit(limit).all()
-    
+
     return {
-        "items": items,
+        "items": [CustomerOut.from_orm_normalized(c) for c in items],
         "total": total
     }
 
 
 @router.post("", status_code=201)
 def create_customer(data: CustomerIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from app.models.currency import Currency as CurrencyModel
     customer_data = data.model_dump()
     customer_data["company_id"] = current_user.company_id
-    if customer_data.get("debt_balances") is None:
-        customer_data["debt_balances"] = {}
+
+    # debt_balances ni normalize qilish
+    balances = customer_data.get("debt_balances") or {}
+    if not balances and float(customer_data.get("debt_balance") or 0) > 0:
+        currency = (customer_data.get("debt_currency") or "UZS").strip().upper() or "UZS"
+        balances = {currency: float(customer_data["debt_balance"])}
+    customer_data["debt_balances"] = balances
+
+    # debt_balance ni debt_balances dan hisoblash (UZS ekvivalent)
+    total_uzs = Decimal("0")
+    for curr, amt in balances.items():
+        if curr == "UZS":
+            total_uzs += Decimal(str(amt))
+        else:
+            curr_obj = db.query(CurrencyModel).filter(CurrencyModel.code == curr).first()
+            rate = Decimal(str(curr_obj.rate)) if curr_obj else Decimal("1")
+            total_uzs += Decimal(str(amt)) * rate
+    customer_data["debt_balance"] = total_uzs
+    customer_data["debt_currency"] = "UZS"
+
     customer = Customer(**customer_data)
     db.add(customer)
     db.commit()
     db.refresh(customer)
-    return customer
+    return CustomerOut.from_orm_normalized(customer)
 
 
 @router.get("/{customer_id}")
@@ -183,18 +220,40 @@ def get_customer(customer_id: int, db: Session = Depends(get_db), current_user: 
 
 @router.put("/{customer_id}")
 def update_customer(customer_id: int, data: CustomerIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from app.models.currency import Currency as CurrencyModel
     q = db.query(Customer).filter(Customer.id == customer_id)
     q = q.filter(Customer.company_id == current_user.company_id)
     cust = q.first()
     if not cust:
         raise HTTPException(status_code=404, detail="Customer not found")
-    for key, val in data.model_dump().items():
-        if key == "debt_balances" and val is None:
-            val = {}
+
+    update_data = data.model_dump()
+
+    # debt_balances ni normalize qilish
+    balances = update_data.get("debt_balances") or {}
+    if not balances and float(update_data.get("debt_balance") or 0) > 0:
+        currency = (update_data.get("debt_currency") or "UZS").strip().upper() or "UZS"
+        balances = {currency: float(update_data["debt_balance"])}
+    update_data["debt_balances"] = balances
+
+    # debt_balance ni debt_balances dan hisoblash (UZS ekvivalent)
+    total_uzs = Decimal("0")
+    for curr, amt in balances.items():
+        if curr == "UZS":
+            total_uzs += Decimal(str(amt))
+        else:
+            curr_obj = db.query(CurrencyModel).filter(CurrencyModel.code == curr).first()
+            rate = Decimal(str(curr_obj.rate)) if curr_obj else Decimal("1")
+            total_uzs += Decimal(str(amt)) * rate
+    update_data["debt_balance"] = total_uzs
+    update_data["debt_currency"] = "UZS"
+
+    for key, val in update_data.items():
         setattr(cust, key, val)
+    flag_modified(cust, "debt_balances")
     db.commit()
     db.refresh(cust)
-    return cust
+    return CustomerOut.from_orm_normalized(cust)
 
 
 @router.get("/{customer_id}/stats")
@@ -214,6 +273,12 @@ def get_customer_stats(customer_id: int, db: Session = Depends(get_db), current_
     completed = [s for s in all_sales if s.status != SaleStatus.refunded and s.status != SaleStatus.cancelled]
     returned = [s for s in all_sales if s.status == SaleStatus.refunded]
 
+    # debt_balances ni normalize qilish (eski debt_balance ni ham hisobga olish)
+    balances = dict(cust.debt_balances or {})
+    if not balances and float(cust.debt_balance or 0) > 0:
+        currency = (cust.debt_currency or "UZS").strip().upper() or "UZS"
+        balances[currency] = float(cust.debt_balance)
+
     return {
         "id": cust.id,
         "name": cust.name,
@@ -226,8 +291,8 @@ def get_customer_stats(customer_id: int, db: Session = Depends(get_db), current_
         "cashback_percent": float(cust.cashback_percent or 0),
         "bonus_balance": float(cust.bonus_balance or 0),
         "total_spent": float(cust.total_spent or 0),
-        "debt_currency": cust.debt_currency or "UZS",
-        "debt_balances": cust.debt_balances or {},
+        "debt_currency": "UZS",
+        "debt_balances": balances,
         "total_sales_count": len(completed),
         "total_sales_amount": sum(float(s.total_amount) for s in completed),
         "total_paid_amount": sum(float(s.paid_amount) for s in completed),
