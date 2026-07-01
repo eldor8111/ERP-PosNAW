@@ -565,14 +565,25 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
         <div className="flex items-center gap-2">
           <button
             onClick={() => {
-              const ws = XLSX.utils.json_to_sheet(customers.map(c => ({
-                'Ism': c.name,
-                'Telefon': c.phone || '—',
-                'Qarz (so\'m)': Number(c.debt_balance || 0),
-                'Kredit limiti': Number(c.debt_limit || 0),
-                'Bonus ball': c.loyalty_points || 0,
-                'Keshbek %': c.cashback_percent || 0,
-              })));
+              const ws = XLSX.utils.json_to_sheet(customers.map(c => {
+                let debtInUzs = 0;
+                if (c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).length > 0) {
+                  Object.entries(c.debt_balances).forEach(([curr, amt]) => {
+                    const rate = curr === 'UZS' ? 1 : (currencies.find(cur => cur.code === curr)?.rate || 1);
+                    debtInUzs += (Number(amt) || 0) * rate;
+                  });
+                } else {
+                  debtInUzs = Number(c.debt_balance || 0);
+                }
+                return {
+                  'Ism': c.name,
+                  'Telefon': c.phone || '—',
+                  'Qarz (so\'m)': Number(debtInUzs),
+                  'Kredit limiti': Number(c.debt_limit || 0),
+                  'Bonus ball': c.loyalty_points || 0,
+                  'Keshbek %': c.cashback_percent || 0,
+                };
+              }));
               const wb = XLSX.utils.book_new();
               XLSX.utils.book_append_sheet(wb, ws, 'Mijozlar');
               saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `mijozlar_${new Date().toISOString().slice(0, 10)}.xlsx`);
