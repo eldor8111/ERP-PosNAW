@@ -4,7 +4,7 @@ Customers API: CRM module for managing customers, debt and loyalty.
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
-from pydantic import BaseModel, field_validator  # type: ignore
+from pydantic import BaseModel, field_validator, model_validator  # type: ignore
 from app.utils.translit import name_phone_search_filter  # type: ignore
 from decimal import Decimal
 from sqlalchemy.orm.attributes import flag_modified  # type: ignore
@@ -71,27 +71,76 @@ class CustomerOut(BaseModel):
     class Config:
         from_attributes = True
 
+    @model_validator(mode="before")
     @classmethod
-    def from_orm_normalized(cls, cust):
-        """
-        Eski debt_balance/debt_currency bilan yangi debt_balances ni birlashtiradi.
-        Agar debt_balances bo'sh bo'lsa, debt_balance dan avtomatik to'ldiradi.
-        """
-        obj = cls.model_validate(cust)
-        balances = dict(cust.debt_balances or {})
-
-        # Eski ma'lumotlarni ko'chirish: debt_balances bo'sh, lekin debt_balance > 0
-        if not balances and float(cust.debt_balance or 0) > 0:
-            currency = (cust.debt_currency or "UZS").strip().upper() or "UZS"
-            balances[currency] = float(cust.debt_balance)
-
-        obj.debt_balances = balances
-        return obj
+    def normalize_debts(cls, data):
+        is_dict = isinstance(data, dict)
+        
+        # Attribute yoki Dict qiymatini olish
+        if is_dict:
+            debt_currency = data.get("debt_currency") or "UZS"
+            debt_balance = data.get("debt_balance") or 0
+            debt_balances = data.get("debt_balances")
+        else:
+            debt_currency = getattr(data, "debt_currency", "UZS") or "UZS"
+            debt_balance = getattr(data, "debt_balance", 0) or 0
+            debt_balances = getattr(data, "debt_balances", None)
+            
+        currency = str(debt_currency).strip().upper() or "UZS"
+        
+        if debt_balances is None:
+            balances = {}
+        else:
+            balances = dict(debt_balances)
+            
+        # Agar debt_balances bo'sh bo'lib, jami debt_balance musbat bo'lsa
+        if not balances and float(debt_balance) > 0:
+            balances[currency] = float(debt_balance)
+            
+        if is_dict:
+            data["debt_balances"] = balances
+            data["debt_currency"] = "UZS"
+        else:
+            # ORM obyekt bo'lsa, xavfsiz va tez ishlashi uchun barcha kerakli fieldlar bilan yangi dict qaytaramiz
+            data_dict = {
+                "id": getattr(data, "id", None),
+                "name": getattr(data, "name", None),
+                "phone": getattr(data, "phone", None),
+                "debt_balance": getattr(data, "debt_balance", Decimal("0")),
+                "debt_currency": "UZS",
+                "debt_balances": balances,
+                "debt_limit": getattr(data, "debt_limit", Decimal("0")),
+                "loyalty_points": getattr(data, "loyalty_points", 0),
+                "card_number": getattr(data, "card_number", None),
+                "cashback_percent": getattr(data, "cashback_percent", Decimal("0")),
+                "bonus_balance": getattr(data, "bonus_balance", Decimal("0")),
+                "total_spent": getattr(data, "total_spent", Decimal("0")),
+                "company_id": getattr(data, "company_id", None),
+                "price_type": getattr(data, "price_type", "sale"),
+                "discount_percent": getattr(data, "discount_percent", Decimal("0")),
+            }
+            return data_dict
+            
+        return data
 
 
 class PaginatedCustomersOut(BaseModel):
     items: list[CustomerOut]
     total: int
+
+
+def _calc_debt_in_uzs(balances: dict, db: Session) -> Decimal:
+    """debt_balances dict va joriy kurslardan UZS ekvivalentini hisoblaydi."""
+    from app.models.currency import Currency as CurrencyModel
+    total = Decimal("0")
+    for curr, amt in (balances or {}).items():
+        if curr == "UZS":
+            total += Decimal(str(amt))
+        else:
+            curr_obj = db.query(CurrencyModel).filter(CurrencyModel.code == curr).first()
+            rate = Decimal(str(curr_obj.rate)) if curr_obj else Decimal("1")
+            total += Decimal(str(amt)) * rate
+    return total
 
 
 class DebtUpdate(BaseModel):
@@ -107,7 +156,29 @@ class PointsAdjust(BaseModel):
     reason: Optional[str] = None
 
 
-@router.get("")
+@router.post("/recalc-debts")
+def recalc_all_debts(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Barcha mijozlarning debt_balance ni debt_balances + joriy kurs asosida qayta hisoblaydi.
+    Bu endpoint faqat bir martalik fix uchun yoki kurs o'zgarganda chaqiriladi."""
+    customers = db.query(Customer).filter(
+        Customer.company_id == current_user.company_id
+    ).all()
+    updated = 0
+    for cust in customers:
+        balances = dict(cust.debt_balances or {})
+        if not balances:
+            continue
+        new_balance = _calc_debt_in_uzs(balances, db)
+        cust.debt_balance = new_balance
+        updated += 1
+    db.commit()
+    return {"message": f"{updated} ta mijoz qarzi qayta hisoblandi", "updated": updated}
+
+
+@router.get("", response_model=list[CustomerOut])
 def list_customers(
     search: Optional[str] = None,
     skip: int = Query(0, ge=0),
@@ -122,7 +193,7 @@ def list_customers(
             name_phone_search_filter(Customer.name, Customer.phone, search)
         )
     items = q.order_by(Customer.name).offset(skip).limit(limit).all()
-    return [CustomerOut.from_orm_normalized(c) for c in items]
+    return items
 
 
 @router.get("/paginated", response_model=PaginatedCustomersOut)
@@ -171,12 +242,12 @@ def list_customers_paginated(
     items = q.offset(skip).limit(limit).all()
 
     return {
-        "items": [CustomerOut.from_orm_normalized(c) for c in items],
+        "items": items,
         "total": total
     }
 
 
-@router.post("", status_code=201)
+@router.post("", status_code=201, response_model=CustomerOut)
 def create_customer(data: CustomerIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     from app.models.currency import Currency as CurrencyModel
     customer_data = data.model_dump()
@@ -205,10 +276,10 @@ def create_customer(data: CustomerIn, db: Session = Depends(get_db), current_use
     db.add(customer)
     db.commit()
     db.refresh(customer)
-    return CustomerOut.from_orm_normalized(customer)
+    return customer
 
 
-@router.get("/{customer_id}")
+@router.get("/{customer_id}", response_model=CustomerOut)
 def get_customer(customer_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     q = db.query(Customer).filter(Customer.id == customer_id)
     q = q.filter(Customer.company_id == current_user.company_id)
@@ -218,7 +289,7 @@ def get_customer(customer_id: int, db: Session = Depends(get_db), current_user: 
     return cust
 
 
-@router.put("/{customer_id}")
+@router.put("/{customer_id}", response_model=CustomerOut)
 def update_customer(customer_id: int, data: CustomerIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     from app.models.currency import Currency as CurrencyModel
     q = db.query(Customer).filter(Customer.id == customer_id)
@@ -253,7 +324,7 @@ def update_customer(customer_id: int, data: CustomerIn, db: Session = Depends(ge
     flag_modified(cust, "debt_balances")
     db.commit()
     db.refresh(cust)
-    return CustomerOut.from_orm_normalized(cust)
+    return cust
 
 
 @router.get("/{customer_id}/stats")
@@ -356,6 +427,13 @@ def pay_debt(customer_id: int, data: DebtUpdate, db: Session = Depends(get_db), 
     # Ensure debt_balances is initialised before any reads
     if not cust.debt_balances:
         cust.debt_balances = {}
+
+    # --- LEGACY MIGRATION ---
+    # Eski akkountlarda debt_balances bo'sh bo'ladi, debt_balance eski field'da.
+    # Agar debt_balances bo'sh bo'lsa, avval uni debt_balance dan to'ldiramiz.
+    if not cust.debt_balances and float(cust.debt_balance or 0) > 0:
+        legacy_currency = (cust.debt_currency or "UZS").strip().upper() or "UZS"
+        cust.debt_balances = {legacy_currency: float(cust.debt_balance)}
 
     # Update the currency-specific balance in debt_balances JSON
     curr_val = Decimal(str(cust.debt_balances.get(currency, 0)))
