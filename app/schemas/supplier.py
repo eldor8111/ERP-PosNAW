@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional
-from pydantic import BaseModel  # type: ignore
+from pydantic import BaseModel, model_validator  # type: ignore
 
 
 class SupplierCreate(BaseModel):
@@ -75,3 +75,52 @@ class SupplierOut(BaseModel):
     notes: Optional[str] = None
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_debts(cls, data):
+        is_dict = isinstance(data, dict)
+        
+        # Attribute yoki Dict qiymatini olish
+        if is_dict:
+            debt_currency = data.get("debt_currency") or "UZS"
+            debt_balance = data.get("debt_balance") or 0
+            debt_balances = data.get("debt_balances")
+        else:
+            debt_currency = getattr(data, "debt_currency", "UZS") or "UZS"
+            debt_balance = getattr(data, "debt_balance", 0) or 0
+            debt_balances = getattr(data, "debt_balances", None)
+            
+        currency = str(debt_currency).strip().upper() or "UZS"
+        
+        if debt_balances is None:
+            balances = {}
+        else:
+            balances = dict(debt_balances)
+            
+        # Agar debt_balances bo'sh bo'lib, jami debt_balance musbat bo'lsa
+        if not balances and float(debt_balance) > 0:
+            balances[currency] = float(debt_balance)
+            
+        if is_dict:
+            data["debt_balances"] = balances
+            data["debt_currency"] = currency
+        else:
+            # Pydantic from_attributes works with a custom dict
+            fields = [
+                "id", "name", "inn", "phone", "email", "address", "payment_terms",
+                "debt_balance", "debt_currency", "debt_balances", "is_active", "created_at",
+                "bank_name", "bank_account", "bank_mfo", "contract_number", "contract_date",
+                "rating", "notes"
+            ]
+            data_dict = {}
+            for f in fields:
+                if f == "debt_balances":
+                    data_dict["debt_balances"] = balances
+                elif f == "debt_currency":
+                    data_dict["debt_currency"] = currency
+                else:
+                    data_dict[f] = getattr(data, f, None)
+            return data_dict
+            
+        return data

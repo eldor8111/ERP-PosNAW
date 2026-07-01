@@ -143,6 +143,9 @@ def _run_auto_migrations(engine):
         "CREATE INDEX IF NOT EXISTS ix_kassa_movements_wallet ON kassa_movements(wallet_id);",
         "CREATE INDEX IF NOT EXISTS ix_kassa_movements_created ON kassa_movements(created_at);",
         # NOTE: user_wallets va sales.wallet_id — alembic migration orqali boshqariladi
+        # ── Suppliers new columns/dependencies ──
+        "ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS debt_currency VARCHAR(10) NOT NULL DEFAULT 'UZS';",
+        "ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS debt_balances JSON NOT NULL DEFAULT '{}';",
     ]
     _sa_text = __import__('sqlalchemy').text
     for sql in migrations:
