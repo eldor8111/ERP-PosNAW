@@ -94,8 +94,9 @@ export default function CustomerDetail() {
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadingTab, setLoadingTab] = useState(false)
-  const [income, setIncome] = useState([])
   const [salesData, setSalesData] = useState([])
+  const [currencies, setCurrencies] = useState([])
+  const [income, setIncome] = useState([])
 
   useEffect(() => {
     api.get(`/customers/${customerId}/stats`)
@@ -105,6 +106,7 @@ export default function CustomerDetail() {
 
     api.get('/finance/payments/income').then(r => setIncome(r.data.items))
     api.get(`/sales`).then(r => setSalesData(r.data))
+    api.get('/currencies').then(r => setCurrencies(r.data)).catch(() => {})
   }, [customerId, navigate])
 
   const loadSales = useCallback(async () => {
@@ -142,6 +144,18 @@ export default function CustomerDetail() {
   }
 
   if (!stats) return null
+  
+  const dynamicBalance = (() => {
+    if (stats.debt_balances && Object.keys(stats.debt_balances).length > 0) {
+      let uzs = 0;
+      Object.entries(stats.debt_balances).forEach(([curr, amt]) => {
+        const rate = curr === 'UZS' ? 1 : (currencies.find(c => c.code === curr)?.rate || 1);
+        uzs += (Number(amt) || 0) * rate;
+      });
+      return uzs;
+    }
+    return Number(stats.debt_balance || 0);
+  })();
 
   const customerName = stats.name
   const initial = customerName?.charAt(0)?.toUpperCase()
@@ -272,7 +286,7 @@ export default function CustomerDetail() {
                   <StatCard
                     color="red"
                     label="Qarzdorlik"
-                    value={`${fmt(stats.debt_balance)} so'm`}
+                    value={`${fmt(dynamicBalance)} so'm`}
                     sub={
                       stats.debt_balances && Object.keys(stats.debt_balances).length > 0 ? (
                         <div className="flex gap-x-3 flex-wrap mt-1">
@@ -339,7 +353,7 @@ export default function CustomerDetail() {
 
           {/* AKT SVERKA TAB */}
           {tab === 'akt' && (
-            <AktSverka stats={stats} sales={sales} returns={returns} loading={loadingTab} />
+            <AktSverka stats={{ ...stats, debt_balance: dynamicBalance }} sales={sales} returns={returns} loading={loadingTab} />
           )}
 
           {tab === 'kirim_tolovlar' && (
