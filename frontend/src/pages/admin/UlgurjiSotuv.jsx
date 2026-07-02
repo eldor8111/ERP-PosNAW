@@ -9,6 +9,7 @@ import { useActiveShift } from '../../hooks/useActiveShift';
 import ShiftOpenModal from '../../components/ShiftOpenModal';
 import { matchesSearch } from '../../utils/translit';
 import ProductAddModal from '../../components/ProductAddModal';
+import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ', { maximumFractionDigits: 4 });
 const today = () => new Date().toISOString().slice(0, 10);
@@ -215,21 +216,16 @@ function Ic({ d, cls = 'w-4 h-4' }) {
             </div>
           </div>
           <div className="text-right">
-            {(Number(selected.debt_balance) !== 0 || (selected.debt_balances && Object.values(selected.debt_balances).some(v => Number(v) !== 0))) && (
+            {hasAnyDebt(selected) && (
               <div className="flex items-center gap-3">
                 <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">Qarzdorlik:</div>
-                <div className={`text-xs font-black py-1 rounded-lg ${Number(selected.debt_balance) > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
-                  {fmt((selected.debt_balances && typeof selected.debt_balances === 'object' && Object.keys(selected.debt_balances).length > 0) ? (selected.debt_balances.UZS || 0) : selected.debt_balance)} so'm
+                <div className="flex flex-col items-end gap-0.5">
+                  {getDebtEntries(selected).map(({ currency, amount }) => (
+                    <div key={currency} className="text-xs font-black text-red-700">
+                      {fmt(amount)} {currency === 'USD' ? '$' : currency}
+                    </div>
+                  ))}
                 </div>
-                {selected.debt_balances && typeof selected.debt_balances === 'object' && Object.keys(selected.debt_balances).some(k => k !== 'UZS' && Number(selected.debt_balances[k]) !== 0) && (
-                  <div className="flex bg-white px-2 rounded flex-wrap gap-3 justify-end max-w-[150px]">
-                    {Object.entries(selected.debt_balances).map(([curr, amt]) => (curr !== 'UZS' && Number(amt) !== 0) && (
-                      <div key={curr} className="inline-flex items-center gap-1 text-xs font-black text-red-700 py-0.5 rounded-md">
-                        {fmt(amt)} {curr === 'USD' ? '$' : curr}
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             )}
             {Number(selected.loyalty_points) > 0 && <div className="text-xs text-emerald-600 font-bold mt-1 inline-flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">🏆 {fmt(selected.loyalty_points)} b</div>}
@@ -252,20 +248,13 @@ function Ic({ d, cls = 'w-4 h-4' }) {
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  {(Number(c.debt_balance) !== 0 || (c.debt_balances && Object.values(c.debt_balances).some(v => Number(v) !== 0))) && (
+                  {hasAnyDebt(c) && (
                     <div className="flex flex-col items-end gap-1">
-                      <div className={`text-xs font-black ${Number(c.debt_balance) > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                        {fmt((c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).length > 0) ? (c.debt_balances.UZS || 0) : c.debt_balance)} so'm
-                      </div>
-                      {c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).some(k => k !== 'UZS' && Number(c.debt_balances[k]) !== 0) && (
-                        <div className="flex flex-wrap gap-1 justify-end max-w-[120px]">
-                          {Object.entries(c.debt_balances).map(([curr, amt]) => (curr !== 'UZS' && Number(amt) !== 0) && (
-                            <span key={curr} className="text-[9px] font-black text-red-500 bg-red-50 px-1 py-0.5 rounded border border-red-100">
-                              {fmt(amt)} {curr === 'USD' ? '$' : curr}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                      {getDebtEntries(c).map(({ currency, amount }) => (
+                        <span key={currency} className="text-xs font-black text-red-600">
+                          {fmt(amount)} {currency === 'USD' ? '$' : currency}
+                        </span>
+                      ))}
                     </div>
                   )}
                   {Number(c.debt_limit) > 0 && <div className="text-[10px] text-slate-400 font-medium tracking-tight mt-0.5">limit: {fmt(c.debt_limit)}</div>}

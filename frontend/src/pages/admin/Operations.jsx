@@ -5,6 +5,7 @@ import InventoryCountsPage from './InventoryCounts';
 import toast from 'react-hot-toast';
 import { matchesSearch } from '../../utils/translit';
 import { EllipsisVertical } from 'lucide-react';
+import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
 
 /* ─── Helpers ─── */
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ', { maximumFractionDigits: 4 });
@@ -408,8 +409,10 @@ function CustSearch({ customers, value, onChange, placeholder = 'Ism yoki telefo
                 <div className="text-sm font-medium text-slate-800">{c.name}</div>
                 {c.phone && <div className="text-xs text-slate-400">{c.phone}</div>}
               </div>
-              {c.debt_balance > 0 && (
-                <span className="text-xs text-red-500 font-medium ml-2">Qarz: {fmt(c.debt_balance)}</span>
+              {hasAnyDebt(c) && (
+                <span className="text-xs text-red-500 font-medium ml-2">
+                  Qarz: {getDebtEntries(c).map(({ currency, amount }) => `${fmt(amount)} ${currency}`).join(' + ')}
+                </span>
               )}
             </button>
           ))}

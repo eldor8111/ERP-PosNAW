@@ -4,6 +4,7 @@ import { useLang } from '../../context/LangContext';
 import { useNavigate } from 'react-router-dom';
 import usePosSync from '../../hooks/usePosSync';
 import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
+import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ', { maximumFractionDigits: 4 });
 
@@ -43,8 +44,19 @@ const [q, setQ] = useState('');
         <div className="absolute top-full mt-2 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 overflow-hidden max-h-64 overflow-y-auto">
           {filtered.length === 0 ? <div className="px-4 py-3 text-sm text-slate-500 text-center font-medium">Topilmadi</div> : filtered.map(c => (
             <button key={c.id} onMouseDown={() => select(c)} className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-slate-50 last:border-0 flex items-center justify-between transition-colors">
-              <div><div className="text-sm font-bold text-slate-800">{c.name}</div>{c.phone && <div className="text-xs text-slate-500 font-medium">{c.phone}</div>}</div>
-              {c.debt_balance > 0 && <span className="text-xs text-red-600 font-bold bg-red-50 px-2.5 py-1 rounded-lg">Qarz: {fmt(c.debt_balance)}</span>}
+              <div>
+                <div className="text-sm font-bold text-slate-800">{c.name}</div>
+                {c.phone && <div className="text-xs text-slate-500 font-medium">{c.phone}</div>}
+              </div>
+              {hasAnyDebt(c) && (
+                <div className="flex flex-col items-end gap-1">
+                  {getDebtEntries(c).map(({ currency, amount }) => (
+                    <span key={currency} className="text-xs text-red-600 font-bold bg-red-50 px-2.5 py-1 rounded-lg">
+                      Qarz: {fmt(amount)} {currency}
+                    </span>
+                  ))}
+                </div>
+              )}
             </button>
           ))}
         </div>
@@ -427,14 +439,14 @@ const navigate = useNavigate();
                 </div>
                 {/* Debt */}
                 <div className={`rounded-2xl p-4 flex items-center justify-between ${
-                  Number(cust.debt_balance) > 0 ? 'bg-red-900/40 border border-red-700' : 'bg-emerald-900/30 border border-emerald-700'
+                  hasAnyDebt(cust) ? 'bg-red-900/40 border border-red-700' : 'bg-emerald-900/30 border border-emerald-700'
                 }`}>
                   <span className="text-slate-300 font-semibold text-sm">Joriy qarz</span>
-                  <span className={`font-black text-lg ${
-                    Number(cust.debt_balance) > 0 ? 'text-red-400' : 'text-emerald-400'
-                  }`}>
-                    {Number(cust.debt_balance) > 0 ? `${fmt(cust.debt_balance)} UZS` : '✅ Qarzsiz'}
-                  </span>
+                  <div className="flex flex-col items-end gap-1">
+                    {hasAnyDebt(cust) ? getDebtEntries(cust).map(({ currency, amount }) => (
+                      <span key={currency} className="font-black text-lg text-red-400">{fmt(amount)} {currency}</span>
+                    )) : <span className="font-black text-lg text-emerald-400">✅ Qarzsiz</span>}
+                  </div>
                 </div>
                 {/* Extra info */}
                 {cust.address && (

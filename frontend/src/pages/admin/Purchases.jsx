@@ -6,14 +6,14 @@ import api from '../../api/axios';
 import { matchesSearch, searchVariants } from '../../utils/translit';
 import toast from 'react-hot-toast';
 import { CircleArrowDown, Flame, PackageCheck, ShoppingCart, SquareArrowDown } from 'lucide-react';
-const fmt    = (v) => Number(v || 0).toLocaleString('uz-UZ');
+const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const fmtDay = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
-const fmtDt  = (d) => d ? new Date(d).toLocaleString('uz-UZ') : '—';
+const fmtDt = (d) => d ? new Date(d).toLocaleString('uz-UZ') : '—';
 const saleMeta = {
   completed: { l: 'Tugallandi', c: 'bg-emerald-100 text-emerald-700' },
-  refunded:  { l: 'Qaytarildi', c: 'bg-red-100 text-red-600' },
+  refunded: { l: 'Qaytarildi', c: 'bg-red-100 text-red-600' },
   partial_refund: { l: 'Qisman qaytarish', c: 'bg-amber-100 text-amber-700' },
-  cancelled: { l: 'Bekor',     c: 'bg-red-100 text-red-500' },
+  cancelled: { l: 'Bekor', c: 'bg-red-100 text-red-500' },
 };
 const payMeta = {
   cash: { l: 'Naqd', c: 'bg-emerald-100 text-emerald-700' },
@@ -25,11 +25,11 @@ const payMeta = {
 const ic = 'border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white transition-colors hover:border-slate-300';
 
 const poMeta = {
-  draft:     { lKey: 'purchase.statusDraft',    c: 'bg-slate-100 text-slate-600' },
-  sent:      { lKey: 'purchase.statusOrdered',  c: 'bg-blue-100 text-blue-700' },
-  partial:   { lKey: 'purchase.statusPartial',  c: 'bg-amber-100 text-amber-700' },
-  received:  { lKey: 'purchase.statusReceived', c: 'bg-emerald-100 text-emerald-700' },
-  cancelled: { lKey: 'common.cancel',           c: 'bg-red-100 text-red-500' },
+  draft: { lKey: 'purchase.statusDraft', c: 'bg-slate-100 text-slate-600' },
+  sent: { lKey: 'purchase.statusOrdered', c: 'bg-blue-100 text-blue-700' },
+  partial: { lKey: 'purchase.statusPartial', c: 'bg-amber-100 text-amber-700' },
+  received: { lKey: 'purchase.statusReceived', c: 'bg-emerald-100 text-emerald-700' },
+  cancelled: { lKey: 'common.cancel', c: 'bg-red-100 text-red-500' },
 };
 
 function Badge({ meta, val }) {
@@ -42,10 +42,10 @@ function Btn({ v = 'primary', sm, children, ...p }) {
   const { t } = useLang();
   const cl = {
     primary: 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shadow-indigo-200',
-    green:   'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-200',
-    red:     'bg-red-500 hover:bg-red-600 text-white shadow-sm shadow-red-200',
-    ghost:   'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200',
-    amber:   'bg-amber-500 hover:bg-amber-600 text-white shadow-sm shadow-amber-200',
+    green: 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-200',
+    red: 'bg-red-500 hover:bg-red-600 text-white shadow-sm shadow-red-200',
+    ghost: 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200',
+    amber: 'bg-amber-500 hover:bg-amber-600 text-white shadow-sm shadow-amber-200',
   }[v];
   return <button className={`${sm ? 'px-3 py-1.5 text-xs' : 'px-4 py-2.5 text-sm'} rounded-xl font-semibold transition-all ${cl} disabled:opacity-50 disabled:cursor-not-allowed`} {...p}>{children}</button>;
 }
@@ -164,22 +164,22 @@ function Tbl({ cols, rows, onRow, loading, skip = 0, limit, onChange }) {
 /* ─── Product search dropdown ─── */
 function ProdSearch({ products, onSelect, inputRef, placeholder = 'Mahsulot qidiring...' }) {
   const { t } = useLang();
-  const [q, setQ]       = useState('');
+  const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const [navIdx, setNavIdx] = useState(-1);
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
-  const ref             = useRef(null);
-  const timerRef        = useRef(null);
+  const ref = useRef(null);
+  const timerRef = useRef(null);
 
   useEffect(() => {
     if (!q.trim()) { setResults([]); return; }
-    
+
     // 1. Tezkor lokal qidiruv
     const localMatches = products.filter(p =>
-        matchesSearch(p.name, q) ||
-        matchesSearch(p.sku, q) ||
-        (p.barcode && p.barcode.includes(q))
+      matchesSearch(p.name, q) ||
+      matchesSearch(p.sku, q) ||
+      (p.barcode && p.barcode.includes(q))
     ).slice(0, 15);
     setResults(localMatches);
 
@@ -196,12 +196,12 @@ function ProdSearch({ products, onSelect, inputRef, placeholder = 'Mahsulot qidi
         for (const r of resps) {
           const items = Array.isArray(r.data) ? r.data : (r.data?.items || []);
           for (const item of items) {
-             if (!seen.has(item.id)) { seen.add(item.id); merged.push(item); }
+            if (!seen.has(item.id)) { seen.add(item.id); merged.push(item); }
           }
         }
         setResults(merged.slice(0, 15));
       } catch (err) {
-         // ignore
+        // ignore
       } finally { setLoading(false); }
     }, 250);
     return () => clearTimeout(timerRef.current);
@@ -274,16 +274,16 @@ function ProdSearch({ products, onSelect, inputRef, placeholder = 'Mahsulot qidi
 /* ─── Supplier search combobox ─── */
 function SupSearch({ suppliers, value, onChange, placeholder = "Ta'minotchi tanlang..." }) {
   const { t } = useLang();
-  const [q, setQ]       = useState('');
+  const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
-  const ref             = useRef(null);
-  const selected        = suppliers.find(s => String(s.id) === String(value));
+  const ref = useRef(null);
+  const selected = suppliers.find(s => String(s.id) === String(value));
 
   const filtered = q.trim()
     ? suppliers.filter(s =>
-        matchesSearch(s.name, q) ||
-        (s.phone && s.phone.includes(q))
-      ).slice(0, 12)
+      matchesSearch(s.name, q) ||
+      (s.phone && s.phone.includes(q))
+    ).slice(0, 12)
     : suppliers.slice(0, 12);
 
   useEffect(() => {
@@ -331,16 +331,16 @@ function SupSearch({ suppliers, value, onChange, placeholder = "Ta'minotchi tanl
 /* ─── Customer search combobox ─── */
 function CustSearch({ customers, value, onChange, placeholder = 'Ism yoki telefon...' }) {
   const { t } = useLang();
-  const [q, setQ]       = useState('');
+  const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
-  const ref             = useRef(null);
-  const selected        = customers.find(c => c.id === value);
+  const ref = useRef(null);
+  const selected = customers.find(c => c.id === value);
 
   const filtered = q.trim()
     ? customers.filter(c =>
-        matchesSearch(c.name, q) ||
-        (c.phone && c.phone.includes(q))
-      ).slice(0, 12)
+      matchesSearch(c.name, q) ||
+      (c.phone && c.phone.includes(q))
+    ).slice(0, 12)
     : customers.slice(0, 12);
 
   useEffect(() => {
@@ -407,10 +407,10 @@ function PayModal({ total, onPay, onClose }) {
   const [paid, setPaid] = useState(String(total));
   const change = Number(paid) - total;
   const PAY_OPTS = [
-    { v: 'cash',  l: 'Naqd pul',  icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
-    { v: 'card',  l: 'Karta',     icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg> },
-    { v: 'debt',  l: 'Qarzga',    icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
-    { v: 'mixed', l: 'Aralash',   icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg> },
+    { v: 'cash', l: 'Naqd pul', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
+    { v: 'card', l: 'Karta', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg> },
+    { v: 'debt', l: 'Qarzga', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+    { v: 'mixed', l: 'Aralash', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg> },
   ];
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -432,11 +432,10 @@ function PayModal({ total, onPay, onClose }) {
           <div className="grid grid-cols-2 gap-2">
             {PAY_OPTS.map(({ v, l, icon }) => (
               <button key={v} onClick={() => setType(v)}
-                className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold border transition-all ${
-                  type === v
+                className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold border transition-all ${type === v
                     ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200'
                     : 'bg-white border-slate-200 text-slate-700 hover:border-indigo-300 hover:bg-indigo-50'
-                }`}>
+                  }`}>
                 {icon} {l}
               </button>
             ))}
@@ -474,20 +473,20 @@ function PayModal({ total, onPay, onClose }) {
 ══════════════════════════════════════════════════════════ */
 function SaleCreateView({ products, customers, onBack, onSaved }) {
   const { t } = useLang();
-  const [cart, setCart]       = useState([]);
-  const [custId, setCust]     = useState('');
+  const [cart, setCart] = useState([]);
+  const [custId, setCust] = useState('');
   const [wholesale, setWhole] = useState(false);
-  const [note, setNote]       = useState('');
-  const [saving, setSaving]   = useState(false);
-  const [err, setErr]         = useState('');
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
   const [showPay, setShowPay] = useState(false);
-  const [prodQ, setProdQ]     = useState('');
+  const [prodQ, setProdQ] = useState('');
   // quick-add modal
-  const [qaItem, setQaItem]   = useState(null); // { product, qty, price }
+  const [qaItem, setQaItem] = useState(null); // { product, qty, price }
 
   const getPrice = useCallback((p) =>
     wholesale && p.wholesale_price ? Number(p.wholesale_price) : Number(p.sale_price),
-  [wholesale]);
+    [wholesale]);
 
   // When wholesale toggles, update all cart prices
   useEffect(() => {
@@ -502,8 +501,8 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
   const filteredProducts = products.filter(p => {
     if (!prodQ.trim()) return true;
     return matchesSearch(p.name, prodQ) ||
-           matchesSearch(p.sku, prodQ) ||
-           (p.barcode && p.barcode.includes(prodQ.trim()));
+      matchesSearch(p.sku, prodQ) ||
+      (p.barcode && p.barcode.includes(prodQ.trim()));
   });
 
   const addToCart = (product, qty, price, discount = 0) => {
@@ -526,11 +525,11 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
     // Darrov navigatsiya — API background da ishlaydi
     const promise = api.post('/sales', {
       items: cart.map(c => ({ product_id: c.product.id, quantity: c.qty, unit_price: c.price, discount: c.discount })),
-      payment_type:    payType,
-      paid_amount:     paidAmount,
+      payment_type: payType,
+      paid_amount: paidAmount,
       discount_amount: 0,
-      note:            note || null,
-      customer_id:     custId ? Number(custId) : null,
+      note: note || null,
+      customer_id: custId ? Number(custId) : null,
     });
 
     onBack(); // Darrov ro'yxatga qaytish
@@ -558,11 +557,10 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
           </div>
           {/* Wholesale */}
           <button onClick={() => setWhole(w => !w)}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold border transition-all shrink-0 ${
-              wholesale
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold border transition-all shrink-0 ${wholesale
                 ? 'bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-200'
                 : 'bg-white text-slate-600 border-slate-200 hover:border-amber-400 hover:text-amber-600'
-            }`}>
+              }`}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
             </svg>
@@ -616,14 +614,12 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
               return (
                 <button key={p.id}
                   onClick={() => setQaItem({ product: p, qty: 1, price: displayPrice, discount: 0 })}
-                  className={`w-full text-left px-3 py-2.5 rounded-xl border transition-all flex items-center gap-3 group ${
-                    inCart
+                  className={`w-full text-left px-3 py-2.5 rounded-xl border transition-all flex items-center gap-3 group ${inCart
                       ? 'bg-indigo-50 border-indigo-200'
                       : 'border-transparent hover:bg-slate-50 hover:border-slate-200'
-                  }`}>
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 ${
-                    inCart ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-600'
-                  }`}>
+                    }`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 ${inCart ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-600'
+                    }`}>
                     {inCart ? inCart.qty : p.name.slice(0, 2).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -735,7 +731,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
           {/* Cart totals */}
           {cart.length > 0 && (
             <div className="border-t border-slate-200 px-4 py-3 bg-slate-50 flex items-center justify-between shrink-0">
-              <span className="text-sm text-slate-500">{cart.length} xil, {cart.reduce((s,c) => s + c.qty, 0)} ta mahsulot</span>
+              <span className="text-sm text-slate-500">{cart.length} xil, {cart.reduce((s, c) => s + c.qty, 0)} ta mahsulot</span>
               <div className="text-right">
                 <span className="text-xs text-slate-400 mr-2">{t('admin.dict.total_colon') || 'Jami:'}</span>
                 <span className="text-xl font-bold text-indigo-600">{fmt(subtotal)} so'm</span>
@@ -776,7 +772,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
             <div className="flex items-start gap-3 mb-4">
               <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center text-sm font-bold shrink-0">
-                {qaItem.product.name.slice(0,2).toUpperCase()}
+                {qaItem.product.name.slice(0, 2).toUpperCase()}
               </div>
               <div>
                 <div className="font-bold text-slate-800">{qaItem.product.name}</div>
@@ -855,7 +851,7 @@ function SaleDetailView({ saleId, onBack }) {
       />
       <div className="p-6 overflow-y-auto flex-1">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-          {[['Kassir', sale.cashier_name],['Sana', fmtDt(sale.created_at)],['To\'lov', <Badge meta={payMeta} val={sale.payment_type} />],['Holat', <Badge meta={saleMeta} val={sale.status} />]].map(([k,v]) => (
+          {[['Kassir', sale.cashier_name], ['Sana', fmtDt(sale.created_at)], ['To\'lov', <Badge meta={payMeta} val={sale.payment_type} />], ['Holat', <Badge meta={saleMeta} val={sale.status} />]].map(([k, v]) => (
             <div key={k} className="bg-slate-50 rounded-xl p-3">
               <div className="text-xs text-slate-500 mb-1">{k}</div>
               <div className="font-semibold">{v}</div>
@@ -908,17 +904,17 @@ function SaleDetailView({ saleId, onBack }) {
 function KirimCreateView({ onBack, onSaved, editPo = null }) {
   const { t } = useLang();
   // Fetch our own data — don't depend on parent props (avoids race condition)
-  const [products,   setProds]  = useState([]);
-  const [warehouses, setWhs]    = useState([]);
-  const [suppliers,  setSups]   = useState([]);
-  const [wallets,    setWallets]= useState([]);
+  const [products, setProds] = useState([]);
+  const [warehouses, setWhs] = useState([]);
+  const [suppliers, setSups] = useState([]);
+  const [wallets, setWallets] = useState([]);
 
   useEffect(() => {
-    api.get('/products/',           { params:{ limit:1000, status:'active' } })
-       .then(r => setProds(Array.isArray(r.data) ? r.data : (r.data.items||[]))).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/products/', { params: { limit: 1000, status: 'active' } })
+      .then(r => setProds(Array.isArray(r.data) ? r.data : (r.data.items || []))).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
     api.get('/inventory/warehouses').then(r => setWhs(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
-    api.get('/suppliers',           { params:{ limit:100 } }).then(r => setSups(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
-    api.get('/finance/wallets').then(r => { setWallets(r.data); if(r.data.length > 0) setPayForm(p=>({...p, wallet_id: r.data[0].id})); }).catch(console.error);
+    api.get('/suppliers', { params: { limit: 100 } }).then(r => setSups(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/finance/wallets').then(r => { setWallets(r.data); if (r.data.length > 0) setPayForm(p => ({ ...p, wallet_id: r.data[0].id })); }).catch(console.error);
   }, []);
 
   // Pre-populate from editPo when data is loaded
@@ -945,31 +941,31 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
         qty_ordered: Number(item.qty_ordered),
       })));
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editPo, warehouses, suppliers]);
 
   // PO form
-  const [poForm, setPoForm]       = useState({ supplier_id:'', warehouse_id:'', note:'', expected_date:'' });
-  const [poItems, setPoItems]     = useState([]);
-  
+  const [poForm, setPoForm] = useState({ supplier_id: '', warehouse_id: '', note: '', expected_date: '' });
+  const [poItems, setPoItems] = useState([]);
+
   // Auto-update price flags
-  const [autoRetail, setAutoRet]     = useState(false);
-  const [autoWholesale, setAutoWho]  = useState(false);
+  const [autoRetail, setAutoRet] = useState(false);
+  const [autoWholesale, setAutoWho] = useState(false);
   // USD exchange rate
-  const [usdRate, setUsdRate]        = useState('12700');
-  const [saving, setSaving]          = useState(false);
-  const [err, setErr]                = useState('');
+  const [usdRate, setUsdRate] = useState('12700');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
 
   // Left panel: selected product + input fields
-  const searchRef               = useRef(null);
-  const qtyRef                  = useRef(null);
-  const [sel, setSel]           = useState(null);
-  const [qty, setQty]           = useState('');
-  const [cost, setCost]         = useState('');
+  const searchRef = useRef(null);
+  const qtyRef = useRef(null);
+  const [sel, setSel] = useState(null);
+  const [qty, setQty] = useState('');
+  const [cost, setCost] = useState('');
   const [newSalePrice, setNewSalePrice] = useState('');
   const [newWholesalePrice, setNewWholesalePrice] = useState('');
   const [discType, setDiscType] = useState('pct');  // 'pct' | 'amt'
-  const [discVal, setDiscVal]   = useState('0');
+  const [discVal, setDiscVal] = useState('0');
   const [currency, setCurrency] = useState('UZS');  // 'UZS' | 'USD'
 
   const selectProduct = (p) => {
@@ -999,7 +995,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
       new_sale_price: newSalePrice ? Number(newSalePrice) : null,
       new_wholesale_price: newWholesalePrice ? Number(newWholesalePrice) : null,
     };
-    
+
     setPoItems(prev => {
       const ex = prev.find(x => x.product_id === sel.id);
       if (ex) return prev.map(x => x.product_id === sel.id ? { ...x, qty_ordered: x.qty_ordered + Number(qty) } : x);
@@ -1009,10 +1005,10 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
     setTimeout(() => { if (searchRef.current) searchRef.current.focus(); }, 10);
   };
 
-  const updPoItem = (i, field, val) => setPoItems(prev => prev.map((x, idx) => idx === i ? { ...x, [field]: val, net_cost: calcNet(field==='unit_cost'?val:x.unit_cost, field==='discount_type'?val:x.discount_type, field==='discount_val'?val:x.discount_val, field==='currency'?val:x.currency) } : x));
+  const updPoItem = (i, field, val) => setPoItems(prev => prev.map((x, idx) => idx === i ? { ...x, [field]: val, net_cost: calcNet(field === 'unit_cost' ? val : x.unit_cost, field === 'discount_type' ? val : x.discount_type, field === 'discount_val' ? val : x.discount_val, field === 'currency' ? val : x.currency) } : x));
 
   const activeItems = poItems;
-  const totalNet = activeItems.reduce((s, i) => s + i.qty_ordered * (i.net_cost||0), 0);
+  const totalNet = activeItems.reduce((s, i) => s + i.qty_ordered * (i.net_cost || 0), 0);
   const hasCurrency = activeItems.some(i => i.currency === 'USD');
 
   const [showPay, setShowPay] = useState(false);
@@ -1075,20 +1071,20 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
           <SupSearch
             suppliers={suppliers}
             value={poForm.supplier_id}
-            onChange={v => setPoForm(f=>({...f,supplier_id:v}))}
+            onChange={v => setPoForm(f => ({ ...f, supplier_id: v }))}
             placeholder={t('purchase.selectSupplier')}
           />
         </div>
         {/* Warehouse */}
         <select
           value={poForm.warehouse_id}
-          onChange={e => setPoForm(f=>({...f,warehouse_id:e.target.value}))}
+          onChange={e => setPoForm(f => ({ ...f, warehouse_id: e.target.value }))}
           className={`${ic} min-w-40`}>
           <option value="">{t('purchase.selectWarehouse')}</option>
           {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
         </select>
-        <input type="date" value={poForm.expected_date} onChange={e => setPoForm(f=>({...f,expected_date:e.target.value}))} className={ic} />
-        
+        <input type="date" value={poForm.expected_date} onChange={e => setPoForm(f => ({ ...f, expected_date: e.target.value }))} className={ic} />
+
         {/* USD exchange rate — shown when any item uses USD */}
         {(hasCurrency || currency === 'USD') && (
           <div className="flex items-center gap-2">
@@ -1099,7 +1095,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
           </div>
         )}
         <input placeholder={t('admin.dict.comment') || 'Izoh'} value={poForm.note}
-          onChange={e => setPoForm(f=>({...f,note:e.target.value}))}
+          onChange={e => setPoForm(f => ({ ...f, note: e.target.value }))}
           className={`${ic} flex-1 min-w-32`} />
       </div>
 
@@ -1116,12 +1112,12 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
               {/* Product info */}
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm font-bold shrink-0 shadow-sm">
-                  {sel.name.slice(0,2).toUpperCase()}
+                  {sel.name.slice(0, 2).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-slate-800 text-base truncate">{sel.name}</div>
                   <div className="text-sm text-slate-600 mt-1">
-                    {t('purchase.stockLabel')} <strong>{fmt(sel.stock_quantity)}</strong> {sel.unit||'dona'}
+                    {t('purchase.stockLabel')} <strong>{fmt(sel.stock_quantity)}</strong> {sel.unit || 'dona'}
                     <span className="mx-2 text-slate-300">|</span>
                     {t('purchase.retailLabel')} <strong className="text-indigo-600">{fmt(sel.sale_price)}</strong>
                   </div>
@@ -1135,9 +1131,9 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                   <input type="number" min="0" value={cost} onChange={e => setCost(e.target.value)}
                     className="flex-1 min-w-0 px-4 py-3 text-base font-semibold focus:outline-none bg-transparent" />
                   <div className="flex border-l border-slate-200">
-                    {['UZS','USD'].map(c => (
+                    {['UZS', 'USD'].map(c => (
                       <button key={c} type="button" onClick={() => setCurrency(c)}
-                        className={`px-4 py-3 text-sm font-bold transition-colors ${currency===c?'bg-indigo-600 text-white':'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>
+                        className={`px-4 py-3 text-sm font-bold transition-colors ${currency === c ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>
                         {c}
                       </button>
                     ))}
@@ -1154,11 +1150,11 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                   <div className="grid grid-cols-2 gap-3 mt-3">
                     <div>
                       <label className="text-xs font-bold text-amber-700/70 mb-1.5 block">{t('purchase.newRetailPrice')}</label>
-                      <input type="number" value={newSalePrice} onChange={e=>setNewSalePrice(e.target.value)} className={`${ic} w-full text-sm py-2 font-semibold`} placeholder={Math.round(sel.sale_price||0)} />
+                      <input type="number" value={newSalePrice} onChange={e => setNewSalePrice(e.target.value)} className={`${ic} w-full text-sm py-2 font-semibold`} placeholder={Math.round(sel.sale_price || 0)} />
                     </div>
                     <div>
                       <label className="text-xs font-bold text-amber-700/70 mb-1.5 block">{t('purchase.newWholesalePrice')}</label>
-                      <input type="number" value={newWholesalePrice} onChange={e=>setNewWholesalePrice(e.target.value)} className={`${ic} w-full text-sm py-2 font-semibold`} placeholder={Math.round(sel.wholesale_price||0)} />
+                      <input type="number" value={newWholesalePrice} onChange={e => setNewWholesalePrice(e.target.value)} className={`${ic} w-full text-sm py-2 font-semibold`} placeholder={Math.round(sel.wholesale_price || 0)} />
                     </div>
                   </div>
                 </div>
@@ -1171,9 +1167,9 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                   <input type="number" min="0" value={discVal} onChange={e => setDiscVal(e.target.value)}
                     className="flex-1 min-w-0 px-3 py-2 text-sm focus:outline-none bg-transparent" />
                   <div className="flex border-l border-slate-200">
-                    {[['pct','%'],['amt','so\'m']].map(([v,l]) => (
+                    {[['pct', '%'], ['amt', 'so\'m']].map(([v, l]) => (
                       <button key={v} type="button" onClick={() => setDiscType(v)}
-                        className={`px-2.5 py-2 text-xs font-bold transition-colors ${discType===v?'bg-amber-500 text-white':'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>
+                        className={`px-2.5 py-2 text-xs font-bold transition-colors ${discType === v ? 'bg-amber-500 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>
                         {l}
                       </button>
                     ))}
@@ -1201,7 +1197,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                       }
                     }}
                     className={`flex-1 ${ic} text-center font-bold`} />
-                  <span className="text-sm text-slate-500 font-medium shrink-0">{sel.unit||'dona'}</span>
+                  <span className="text-sm text-slate-500 font-medium shrink-0">{sel.unit || 'dona'}</span>
                 </div>
               </Lbl>
 
@@ -1262,7 +1258,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                   const updFn = updPoItem;
                   return (
                     <tr key={i} className="hover:bg-slate-50 group">
-                      <td className="px-3 py-2.5 text-slate-400 text-xs">{i+1}</td>
+                      <td className="px-3 py-2.5 text-slate-400 text-xs">{i + 1}</td>
                       <td className="px-3 py-2.5">
                         <div className="font-medium text-sm">{it.product_name}</div>
                         <div className="text-xs text-slate-400">{it.unit}</div>
@@ -1277,8 +1273,8 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                           <input type="number" min="0" value={it.unit_cost}
                             onChange={e => updFn(i, 'unit_cost', e.target.value)}
                             className="w-24 text-right border border-slate-200 rounded-lg px-1.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                          <button onClick={() => updFn(i, 'currency', it.currency==='UZS'?'USD':'UZS')}
-                            className={`text-[10px] font-bold px-1.5 py-1 rounded-md transition-colors ${it.currency==='USD'?'bg-emerald-100 text-emerald-700':'bg-slate-100 text-slate-500'}`}>
+                          <button onClick={() => updFn(i, 'currency', it.currency === 'UZS' ? 'USD' : 'UZS')}
+                            className={`text-[10px] font-bold px-1.5 py-1 rounded-md transition-colors ${it.currency === 'USD' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
                             {it.currency}
                           </button>
                         </div>
@@ -1288,9 +1284,9 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                           <input type="number" min="0" value={it.discount_val}
                             onChange={e => updFn(i, 'discount_val', e.target.value)}
                             className="w-14 text-center border border-slate-200 rounded-lg px-1 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                          <button onClick={() => updFn(i, 'discount_type', it.discount_type==='pct'?'amt':'pct')}
-                            className={`text-[10px] font-bold px-1.5 py-1 rounded-md min-w-[28px] transition-colors ${it.discount_type==='pct'?'bg-amber-100 text-amber-700':'bg-violet-100 text-violet-700'}`}>
-                            {it.discount_type==='pct'?'%':'so\'m'}
+                          <button onClick={() => updFn(i, 'discount_type', it.discount_type === 'pct' ? 'amt' : 'pct')}
+                            className={`text-[10px] font-bold px-1.5 py-1 rounded-md min-w-[28px] transition-colors ${it.discount_type === 'pct' ? 'bg-amber-100 text-amber-700' : 'bg-violet-100 text-violet-700'}`}>
+                            {it.discount_type === 'pct' ? '%' : 'so\'m'}
                           </button>
                         </div>
                         {Number(it.discount_val) > 0 && <div className="text-[10px] text-amber-600 mt-0.5">–{discPct}%</div>}
@@ -1302,7 +1298,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                         {fmt(Math.round(it.net_cost * qty_n))}
                       </td>
                       <td className="pr-2">
-                        <button onClick={() => setPoItems(p=>p.filter((_,idx)=>idx!==i))}
+                        <button onClick={() => setPoItems(p => p.filter((_, idx) => idx !== i))}
                           className="p-1.5 text-slate-300 hover:text-red-500 rounded opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
                       </td>
                     </tr>
@@ -1320,12 +1316,12 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
         <div className="flex items-center gap-3">
           <span className="text-xs text-slate-400 font-semibold uppercase tracking-wide">{t('purchase.updatePricesLabel')}</span>
           <button onClick={() => setAutoRet(v => !v)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${autoRetail?'bg-indigo-600 text-white border-indigo-600':'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'}`}>
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${autoRetail ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'}`}>
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 012-2z" /></svg>
             {t('purchase.retail')}
           </button>
           <button onClick={() => setAutoWho(v => !v)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${autoWholesale?'bg-amber-500 text-white border-amber-500':'bg-white text-slate-600 border-slate-200 hover:border-amber-300'}`}>
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${autoWholesale ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-600 border-slate-200 hover:border-amber-300'}`}>
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 012-2z" /></svg>
             {t('purchase.wholesale')}
           </button>
@@ -1337,9 +1333,9 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
           <Btn v="secondary" onClick={() => savePo('sent')} disabled={saving}>{t('purchase.saveNoPayment')}</Btn>
           <Btn v="amber" onClick={() => savePo('received')} disabled={saving}>Qabul qilish (Qarzga)</Btn>
           <Btn onClick={() => {
-            if (!poForm.supplier_id || !poForm.warehouse_id || !poItems.length) { 
-              setErr("Barcha majburiy maydonlarni (Ta'minotchi, Ombor, Mahsulotlar) to'ldiring!"); 
-              return; 
+            if (!poForm.supplier_id || !poForm.warehouse_id || !poItems.length) {
+              setErr("Barcha majburiy maydonlarni (Ta'minotchi, Ombor, Mahsulotlar) to'ldiring!");
+              return;
             }
             setErr('');
             setShowPay(true);
@@ -1366,14 +1362,14 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                   <div className="flex items-center gap-4 text-sm font-semibold text-slate-700">
                     {t('purchase.discount')}
                     <label className="flex items-center gap-1.5 cursor-pointer text-slate-500 font-medium hover:text-slate-700 transition-colors">
-                      <input type="radio" checked={payForm.discType==='amt'} onChange={()=>setPayForm(p=>({...p,discType:'amt'}))} className="w-4 h-4 text-blue-600" /> {t('purchase.noDiscountLabel')}
+                      <input type="radio" checked={payForm.discType === 'amt'} onChange={() => setPayForm(p => ({ ...p, discType: 'amt' }))} className="w-4 h-4 text-blue-600" /> {t('purchase.noDiscountLabel')}
                     </label>
                     <label className="flex items-center gap-1.5 cursor-pointer text-slate-500 font-medium hover:text-slate-700 transition-colors">
-                      <input type="radio" checked={payForm.discType==='pct'} onChange={()=>setPayForm(p=>({...p,discType:'pct'}))} className="w-4 h-4 text-blue-600" /> %
+                      <input type="radio" checked={payForm.discType === 'pct'} onChange={() => setPayForm(p => ({ ...p, discType: 'pct' }))} className="w-4 h-4 text-blue-600" /> %
                     </label>
                   </div>
                   <div className="flex h-11">
-                    <input type="number" value={payForm.discVal} onChange={e=>setPayForm(p=>({...p,discVal:e.target.value}))} className={`${ic} flex-1 rounded-r-none border-r-0 text-base font-medium`} placeholder="0" />
+                    <input type="number" value={payForm.discVal} onChange={e => setPayForm(p => ({ ...p, discVal: e.target.value }))} className={`${ic} flex-1 rounded-r-none border-r-0 text-base font-medium`} placeholder="0" />
                     <div className="bg-slate-50 px-4 flex items-center border border-slate-200 text-slate-500 text-sm font-semibold rounded-r-xl">UZS | 1</div>
                   </div>
                 </div>
@@ -1381,7 +1377,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                 {/* Kassa */}
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-600">{t('finance.wallet') || 'Kassa/Hisob'}</label>
-                  <select value={payForm.wallet_id} onChange={e=>setPayForm(p=>({...p,wallet_id:e.target.value}))} className={`${ic} w-full h-11 bg-white text-base`}>
+                  <select value={payForm.wallet_id} onChange={e => setPayForm(p => ({ ...p, wallet_id: e.target.value }))} className={`${ic} w-full h-11 bg-white text-base`}>
                     <option value="">Tanlang...</option>
                     {wallets.map(w => <option key={w.id} value={w.id}>{w.name} ({fmt(w.balance)})</option>)}
                   </select>
@@ -1396,9 +1392,9 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                   <div className="bg-slate-50 px-5 flex items-center border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 h-full shadow-sm">{t('purchase.cash')}</div>
                   {/* Input group */}
                   <div className="flex flex-1 items-center h-full rounded-xl focus-within:ring-2 focus-within:ring-indigo-500 overflow-hidden shadow-sm">
-                    <input type="number" min="0" value={payForm.cash} onChange={e=>setPayForm(p=>({...p,cash:e.target.value}))} className="flex-1 w-full h-full border border-slate-200 border-r-0 rounded-l-xl px-4 text-base font-medium outline-none" placeholder="0" />
+                    <input type="number" min="0" value={payForm.cash} onChange={e => setPayForm(p => ({ ...p, cash: e.target.value }))} className="flex-1 w-full h-full border border-slate-200 border-r-0 rounded-l-xl px-4 text-base font-medium outline-none" placeholder="0" />
                     <div className="bg-white px-4 flex items-center border border-slate-200 border-x-0 text-indigo-600 text-sm font-bold h-full">UZS | 1</div>
-                    <button onClick={() => setPayForm(p=>({...p, cash: String(Math.round(finalTotal))}))} className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 border-l-0 font-semibold px-6 h-full rounded-r-xl transition-colors whitespace-nowrap">
+                    <button onClick={() => setPayForm(p => ({ ...p, cash: String(Math.round(finalTotal)) }))} className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 border-l-0 font-semibold px-6 h-full rounded-r-xl transition-colors whitespace-nowrap">
                       {t('purchase.totalBtn')}
                     </button>
                   </div>
@@ -1407,7 +1403,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
 
               {/* Malumot */}
               <div className="space-y-2">
-                <textarea rows="3" value={payForm.info} onChange={e=>setPayForm(p=>({...p,info:e.target.value}))} className={`${ic} resize-none w-full text-sm leading-relaxed`} placeholder={t('purchase.infoPlaceholder')}></textarea>
+                <textarea rows="3" value={payForm.info} onChange={e => setPayForm(p => ({ ...p, info: e.target.value }))} className={`${ic} resize-none w-full text-sm leading-relaxed`} placeholder={t('purchase.infoPlaceholder')}></textarea>
               </div>
 
               {/* Summary blocks aligned to right */}
@@ -1443,7 +1439,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
               <button disabled={saving} onClick={() => savePo('received', { paid: paid - change, info: payForm.info, wallet_id: payForm.wallet_id })} className="px-8 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-colors shadow-sm shadow-blue-200 disabled:opacity-50 flex items-center gap-2">
                 {saving ? '...' : (
                   <>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                     {t('purchase.receiveAndSave')}
                   </>
                 )}
@@ -1462,17 +1458,17 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
 // eslint-disable-next-line no-unused-vars
 function KirimlarTab({ products, warehouses, suppliers }) {
   const { t } = useLang();
-  const [mode, setMode]       = useState('list');
-  const [pos, setPos]         = useState([]);
+  const [mode, setMode] = useState('list');
+  const [pos, setPos] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [skip, setSkip]       = useState(0);
-  const [stFilter, setStFil]  = useState('');
+  const [skip, setSkip] = useState(0);
+  const [stFilter, setStFil] = useState('');
   const [branchFilter, setBranchFilter] = useState('');
   const [branches, setBranches] = useState([]);
-  const [detail, setDetail]   = useState(null);
-  const [recModal, setRec]    = useState(null);
-  const [recSaving, setRS]    = useState(false);
-  const [editPo, setEditPo]   = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [recModal, setRec] = useState(null);
+  const [recSaving, setRS] = useState(false);
+  const [editPo, setEditPo] = useState(null);
   const LIMIT = 20;
 
   useEffect(() => {
@@ -1512,7 +1508,7 @@ function KirimlarTab({ products, warehouses, suppliers }) {
     try {
       const r = await api.get(`/purchase-orders/${row.id}`);
       setEditPo(r.data);
-    } catch(e) { toast.error(e.response?.data?.detail || 'Xatolik'); }
+    } catch (e) { toast.error(e.response?.data?.detail || 'Xatolik'); }
   };
 
   const handleDeletePo = async (row) => {
@@ -1521,41 +1517,43 @@ function KirimlarTab({ products, warehouses, suppliers }) {
       await api.delete(`/purchase-orders/${row.id}`);
       toast.success('Buyurtma o\'chirildi');
       load();
-    } catch(e) { toast.error(e.response?.data?.detail || 'Xatolik'); }
+    } catch (e) { toast.error(e.response?.data?.detail || 'Xatolik'); }
   };
 
   if (editPo) return <KirimCreateView editPo={editPo} onBack={() => setEditPo(null)} onSaved={() => { setEditPo(null); load(); }} />;
   if (mode === 'create') return <KirimCreateView onBack={() => setMode('list')} onSaved={load} />;
 
   const cols = [
-    { k:'number',         l:t('purchase.colNumber') || 'Raqam' },
-    { k:'supplier_name',  l:t('purchase.supplier') || "Ta'minotchi" },
-    { k:'warehouse_name', l:t('purchase.colWarehouse') || 'Ombor' },
-    { k:'status',         l:t('purchase.filterStatus') || 'Holat', r: v => <Badge meta={poMeta} val={v} /> },
-    { k:'total_amount',   l:t('purchase.colTotal') || "Jami (so'm)", r: v => fmt(v) },
-    { k:'paid_amount',    l:"To'langan", r: v => <span className="text-emerald-600 font-semibold">{fmt(v)}</span> },
-    { k:'debt',           l:"Qarzga", r: (_, row) => { const d = Number(row.total_amount) - Number(row.paid_amount || 0) - Number(row.discount_amount || 0); return d > 0 ? <span className="text-red-500 font-semibold">{fmt(d)}</span> : '—'; } },
-    { k:'created_at',     l:t('purchase.colDate') || 'Sana', r: v => fmtDay(v) },
-    { k:'id', l:'', r: (v,row) => (
-      <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-        {['draft','sent'].includes(row.status) && (
-          <button onClick={() => handleEdit(row)}
-            className="text-xs px-2 py-1 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 font-medium whitespace-nowrap">
-            ✏️ Tahrirlash
+    { k: 'number', l: t('purchase.colNumber') || 'Raqam' },
+    { k: 'supplier_name', l: t('purchase.supplier') || "Ta'minotchi" },
+    { k: 'warehouse_name', l: t('purchase.colWarehouse') || 'Ombor' },
+    { k: 'status', l: t('purchase.filterStatus') || 'Holat', r: v => <Badge meta={poMeta} val={v} /> },
+    { k: 'total_amount', l: t('purchase.colTotal') || "Jami (so'm)", r: v => fmt(v) },
+    { k: 'paid_amount', l: "To'langan", r: v => <span className="text-emerald-600 font-semibold">{fmt(v)}</span> },
+    { k: 'debt', l: "Qarzga", r: (_, row) => { const d = Number(row.total_amount) - Number(row.paid_amount || 0) - Number(row.discount_amount || 0); return d > 0 ? <span className="text-red-500 font-semibold">{fmt(d)}</span> : '—'; } },
+    { k: 'created_at', l: t('purchase.colDate') || 'Sana', r: v => fmtDay(v) },
+    {
+      k: 'id', l: '', r: (v, row) => (
+        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+          {['draft', 'sent'].includes(row.status) && (
+            <button onClick={() => handleEdit(row)}
+              className="text-xs px-2 py-1 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 font-medium whitespace-nowrap">
+              ✏️ Tahrirlash
+            </button>
+          )}
+          {['draft', 'sent', 'partial'].includes(row.status) && (
+            <button onClick={() => openDetail(row)}
+              className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 font-medium whitespace-nowrap">
+              {t('purchase.receive')}
+            </button>
+          )}
+          <button onClick={() => handleDeletePo(row)}
+            className="text-xs px-2 py-1 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 font-medium whitespace-nowrap">
+            🗑️
           </button>
-        )}
-        {['draft','sent','partial'].includes(row.status) && (
-          <button onClick={() => openDetail(row)}
-            className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 font-medium whitespace-nowrap">
-            {t('purchase.receive')}
-          </button>
-        )}
-        <button onClick={() => handleDeletePo(row)}
-          className="text-xs px-2 py-1 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 font-medium whitespace-nowrap">
-          🗑️
-        </button>
-      </div>
-    ) },
+        </div>
+      )
+    },
   ];
 
   return (
@@ -1565,7 +1563,7 @@ function KirimlarTab({ products, warehouses, suppliers }) {
           <Lbl t={t('purchase.filterStatus')}>
             <select value={stFilter} onChange={e => setStFil(e.target.value)} className={ic}>
               <option value="">{t('admin.dict.all2') || t('purchase.allBranches')}</option>
-              {Object.entries(poMeta).map(([v,m]) => <option key={v} value={v}>{m.lKey ? t(m.lKey) : m.l}</option>)}
+              {Object.entries(poMeta).map(([v, m]) => <option key={v} value={v}>{m.lKey ? t(m.lKey) : m.l}</option>)}
             </select>
           </Lbl>
           {branches.length > 0 && (
@@ -1597,7 +1595,7 @@ function KirimlarTab({ products, warehouses, suppliers }) {
             </div>
             <div className="p-6 overflow-y-auto flex-1 space-y-4">
               <div className="grid grid-cols-4 gap-3 text-sm">
-                {[[t('purchase.supplier'),detail.supplier_name],[t('purchase.colWarehouse'),detail.warehouse_name],[t('purchase.filterStatus'),<Badge meta={poMeta} val={detail.status}/>],[t('purchase.colDate'),fmtDay(detail.created_at)]].map(([k,v])=>(
+                {[[t('purchase.supplier'), detail.supplier_name], [t('purchase.colWarehouse'), detail.warehouse_name], [t('purchase.filterStatus'), <Badge meta={poMeta} val={detail.status} />], [t('purchase.colDate'), fmtDay(detail.created_at)]].map(([k, v]) => (
                   <div key={k} className="bg-slate-50 rounded-xl p-3"><div className="text-xs text-slate-500 mb-1">{k}</div><div className="font-semibold">{v}</div></div>
                 ))}
               </div>
@@ -1616,7 +1614,7 @@ function KirimlarTab({ products, warehouses, suppliers }) {
                       <td className="px-4 py-3 text-center">{item.qty_ordered}</td>
                       <td className="px-4 py-3 text-center text-emerald-600 font-semibold">{item.qty_received}</td>
                       <td className="px-4 py-3 text-right">{fmt(item.unit_cost)}</td>
-                      <td className="px-4 py-3 text-right font-semibold">{fmt(Number(item.qty_ordered)*Number(item.unit_cost))}</td>
+                      <td className="px-4 py-3 text-right font-semibold">{fmt(Number(item.qty_ordered) * Number(item.unit_cost))}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1624,7 +1622,7 @@ function KirimlarTab({ products, warehouses, suppliers }) {
             </div>
             <div className="flex justify-end gap-3 px-6 py-4 border-t">
               <Btn v="ghost" onClick={() => setDetail(null)}>{t('admin.dict.close') || 'Yopish'}</Btn>
-              {['draft','ordered','partial'].includes(detail.status) && (
+              {['draft', 'ordered', 'partial'].includes(detail.status) && (
                 <Btn v="green" onClick={() => { setRec(detail); setDetail(null); }}>Qabul qilish</Btn>
               )}
             </div>
@@ -1637,16 +1635,16 @@ function KirimlarTab({ products, warehouses, suppliers }) {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
             <h3 className="text-lg font-bold mb-4">Qabul qilish · {recModal.number}</h3>
             <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden mb-4">
-              {recModal.items?.filter(i => Number(i.qty_ordered)>Number(i.qty_received)).map(item => (
+              {recModal.items?.filter(i => Number(i.qty_ordered) > Number(i.qty_received)).map(item => (
                 <div key={item.id} className="flex justify-between px-4 py-3">
                   <span className="font-medium text-sm">{item.product_name}</span>
-                  <span className="text-indigo-600 font-semibold">+{Number(item.qty_ordered)-Number(item.qty_received)}</span>
+                  <span className="text-indigo-600 font-semibold">+{Number(item.qty_ordered) - Number(item.qty_received)}</span>
                 </div>
               ))}
             </div>
             <div className="flex gap-3">
               <Btn v="ghost" onClick={() => setRec(null)} className="flex-1">{t('common.cancel')}</Btn>
-              <Btn v="green" onClick={receivePo} disabled={recSaving} className="flex-1">{recSaving?'...':'Tasdiqlash'}</Btn>
+              <Btn v="green" onClick={receivePo} disabled={recSaving} className="flex-1">{recSaving ? '...' : 'Tasdiqlash'}</Btn>
             </div>
           </div>
         </div>
@@ -1665,12 +1663,12 @@ const emptySupplier = {
 };
 function StarRating({ value }) {
   const { t } = useLang();
-  return <div className="flex gap-0.5">{[1,2,3,4,5].map(s=><span key={s} className={`text-base ${(value||0)>=s?'text-amber-400':'text-slate-200'}`}>{'★'}</span>)}</div>;
+  return <div className="flex gap-0.5">{[1, 2, 3, 4, 5].map(s => <span key={s} className={`text-base ${(value || 0) >= s ? 'text-amber-400' : 'text-slate-200'}`}>{'★'}</span>)}</div>;
 }
 function AvatarS({ name }) {
   const { t } = useLang();
-  const cols=['bg-indigo-100 text-indigo-600','bg-emerald-100 text-emerald-600','bg-violet-100 text-violet-600','bg-rose-100 text-rose-600','bg-amber-100 text-amber-600'];
-  const c=cols[(name?.charCodeAt(0)||0)%cols.length];
+  const cols = ['bg-indigo-100 text-indigo-600', 'bg-emerald-100 text-emerald-600', 'bg-violet-100 text-violet-600', 'bg-rose-100 text-rose-600', 'bg-amber-100 text-amber-600'];
+  const c = cols[(name?.charCodeAt(0) || 0) % cols.length];
   return <div className={`w-8 h-8 ${c} rounded-full flex items-center justify-center font-bold shrink-0 text-sm`}>{name?.charAt(0).toUpperCase()}</div>;
 }
 function SuppliersTab() {
@@ -1703,15 +1701,15 @@ function SuppliersTab() {
   const [allowUpdate, setAllowUpdate] = useState(false);
 
   const IMPORT_FIELDS = [
-    { key: '',                label: "— Tanlang —" },
-    { key: 'Nomi',            label: "Ta'minotchi nomi *" },
-    { key: 'INN',             label: "INN" },
-    { key: 'Telefon',         label: "Telefon" },
-    { key: 'Email',           label: "Email" },
-    { key: 'Manzil',          label: "Manzil" },
+    { key: '', label: "— Tanlang —" },
+    { key: 'Nomi', label: "Ta'minotchi nomi *" },
+    { key: 'INN', label: "INN" },
+    { key: 'Telefon', label: "Telefon" },
+    { key: 'Email', label: "Email" },
+    { key: 'Manzil', label: "Manzil" },
     { key: "To'lov muddati (kun)", label: "To'lov muddati (kun)" },
-    { key: 'Qarz',            label: "Qarz" },
-    { key: '__SKIP__',        label: "— O'tkazib yuborish —" },
+    { key: 'Qarz', label: "Qarz" },
+    { key: '__SKIP__', label: "— O'tkazib yuborish —" },
   ];
 
   const resetImport = () => {
@@ -1783,7 +1781,7 @@ function SuppliersTab() {
       let totC = 0, totU = 0, totS = 0;
       let errs = [];
       const CHUNK_SIZE = 1000;
-      
+
       for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
         const chunk = payload.slice(i, i + CHUNK_SIZE);
         const { data } = await api.post(`/suppliers/bulk-import?allow_update=${allowUpdate}`, chunk);
@@ -1793,7 +1791,7 @@ function SuppliersTab() {
         if (data.errors) errs = [...errs, ...data.errors];
         setImportProgress(Math.round(((i + chunk.length) / payload.length) * 100));
       }
-      
+
       setImportResult({ created: totC, updated: totU, skipped: totS, errors: errs });
       if (totC > 0 || totU > 0) load();
     } catch (err) {
@@ -1801,16 +1799,16 @@ function SuppliersTab() {
     } finally { setImportLoading(false); }
   };
 
-  const load = (q=search) => api.get(`/suppliers${q?'?search='+encodeURIComponent(q):''}`).then(r=>setList(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+  const load = (q = search) => api.get(`/suppliers${q ? '?search=' + encodeURIComponent(q) : ''}`).then(r => setList(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(()=>{
+  useEffect(() => {
     load();
-    api.get('/finance/wallets').then(r => { setWallets(r.data); if(r.data.length>0) setPayWallet(String(r.data[0].id)); }).catch(()=>{});
-    api.get('/currencies/').then(r => setCurrencies(r.data)).catch(()=>{});
-  },[]);
+    api.get('/finance/wallets').then(r => { setWallets(r.data); if (r.data.length > 0) setPayWallet(String(r.data[0].id)); }).catch(() => { });
+    api.get('/currencies/').then(r => setCurrencies(r.data)).catch(() => { });
+  }, []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(()=>{const t=setTimeout(()=>load(search),400);return()=>clearTimeout(t);},[search]);
-  const close=()=>{setModal(null);setSel(null);setErr('');};
+  useEffect(() => { const t = setTimeout(() => load(search), 400); return () => clearTimeout(t); }, [search]);
+  const close = () => { setModal(null); setSel(null); setErr(''); };
   // All currency codes from backend
   const allCurrencyCodes = currencies.length > 0
     ? currencies.map(c => c.code)
@@ -1831,14 +1829,14 @@ function SuppliersTab() {
     }
     return entries;
   };
-  const openEdit=(s)=>{setForm({name:s.name,inn:s.inn||'',phone:s.phone||'',email:s.email||'',debtEntries:buildDebtEntries(s)});setSel(s);setErr('');setModal('form');};
-  const handleSave=async(e)=>{
-    e.preventDefault();setSaving(true);setErr('');
-    try{
-      const p={name:form.name,inn:form.inn||null,phone:form.phone||null,email:form.email||null};
+  const openEdit = (s) => { setForm({ name: s.name, inn: s.inn || '', phone: s.phone || '', email: s.email || '', debtEntries: buildDebtEntries(s) }); setSel(s); setErr(''); setModal('form'); };
+  const handleSave = async (e) => {
+    e.preventDefault(); setSaving(true); setErr('');
+    try {
+      const p = { name: form.name, inn: form.inn || null, phone: form.phone || null, email: form.email || null };
       // Build debt_balances dict from debtEntries
       const debtBalances = {};
-      (form.debtEntries||[]).forEach(entry => {
+      (form.debtEntries || []).forEach(entry => {
         if (entry.currency && entry.amount !== '' && Number(entry.amount) >= 0) {
           debtBalances[entry.currency] = Number(entry.amount);
         }
@@ -1855,29 +1853,30 @@ function SuppliersTab() {
         p.debt_balance = 0;
         p.debt_balances = {};
       }
-      if(sel)await api.patch(`/suppliers/${sel.id}`,p);else await api.post('/suppliers',p);close();load();
-    }catch(ex){setErr(ex.response?.data?.detail||'Xatolik');}finally{setSaving(false);};};
-  const handlePayDebt=async(e)=>{
-    e.preventDefault();setSaving(true);setErr('');
-    try{
-      const payload = {
-        amount:Number(payAmt),
-        reason:payInfo||"Qarz to'lovi",
-        payment_type:payType
-      };
-      if(payWallet) payload.wallet_id = Number(payWallet);
-      await api.post(`/suppliers/${sel.id}/pay-debt`,payload);close();load();
-    }
-    catch(ex){setErr(ex.response?.data?.detail||'Xatolik');}finally{setSaving(false);};
+      if (sel) await api.patch(`/suppliers/${sel.id}`, p); else await api.post('/suppliers', p); close(); load();
+    } catch (ex) { setErr(ex.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); };
   };
-  const del=async(id)=>{if(!confirm("O'chirilsinmi?"))return;await api.delete(`/suppliers/${id}`);load();};
+  const handlePayDebt = async (e) => {
+    e.preventDefault(); setSaving(true); setErr('');
+    try {
+      const payload = {
+        amount: Number(payAmt),
+        reason: payInfo || "Qarz to'lovi",
+        payment_type: payType
+      };
+      if (payWallet) payload.wallet_id = Number(payWallet);
+      await api.post(`/suppliers/${sel.id}/pay-debt`, payload); close(); load();
+    }
+    catch (ex) { setErr(ex.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); };
+  };
+  const del = async (id) => { if (!confirm("O'chirilsinmi?")) return; await api.delete(`/suppliers/${id}`); load(); };
 
-  return(
+  return (
     <div className="space-y-4">
       <div className="flex gap-3">
-        <div className="relative flex-1"><svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-          <input className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder={t('purchase.searchSupplier')} value={search} onChange={e=>setSearch(e.target.value)}/></div>
-        
+        <div className="relative flex-1"><svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+          <input className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder={t('purchase.searchSupplier')} value={search} onChange={e => setSearch(e.target.value)} /></div>
+
         <button
           onClick={() => {
             const ws = XLSX.utils.json_to_sheet(list.map(s => ({
@@ -1885,23 +1884,23 @@ function SuppliersTab() {
             })));
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Ta'minotchilar");
-            saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `taminotchilar_${new Date().toISOString().slice(0,10)}.xlsx`);
+            saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `taminotchilar_${new Date().toISOString().slice(0, 10)}.xlsx`);
           }}
           className="px-4 py-2 text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl flex items-center gap-2 transition-colors"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
           {t('purchase.exportExcel')}
         </button>
         <button
           onClick={openImport}
           className="px-4 py-2 text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-2 transition-colors"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
           {t('purchase.importExcel')}
         </button>
 
-        <button onClick={()=>{setForm(emptySupplier);setSel(null);setErr('');setModal('form');}} className="px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold rounded-xl flex items-center gap-2">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>{t('common.new')}
+        <button onClick={() => { setForm(emptySupplier); setSel(null); setErr(''); setModal('form'); }} className="px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold rounded-xl flex items-center gap-2">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>{t('common.new')}
         </button>
       </div>
       <div className="flex items-center justify-between px-4 py-3 bg-white border border-slate-100 rounded-xl shadow-sm flex-wrap gap-2">
@@ -1913,7 +1912,7 @@ function SuppliersTab() {
               const debtMap = (s.debt_balances && typeof s.debt_balances === 'object')
                 ? Object.entries(s.debt_balances)
                 : (Number(s.debt_balance) > 0 ? [[s.debt_currency || 'UZS', s.debt_balance]] : []);
-              
+
               debtMap.forEach(([cur, amt]) => {
                 const val = Number(amt) || 0;
                 if (val > 0) {
@@ -1935,63 +1934,63 @@ function SuppliersTab() {
       </div>
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <table className="min-w-full">
-          <thead><tr className="bg-slate-50 border-b border-slate-100">{[t('purchase.supplier'),'INN',t('common.phone'),t('purchase.colRating'),t('common.debt'),''].map(h=><th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>)}</tr></thead>
+          <thead><tr className="bg-slate-50 border-b border-slate-100">{[t('purchase.supplier'), 'INN', t('common.phone'), t('purchase.colRating'), t('common.debt'), ''].map(h => <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>)}</tr></thead>
           <tbody className="divide-y divide-slate-50">
-            {list.map(s=>{
+            {list.map(s => {
               // Build multi-currency debt display
               const debtMap = (s.debt_balances && typeof s.debt_balances === 'object')
-                ? Object.entries(s.debt_balances).filter(([,v]) => Number(v) > 0)
+                ? Object.entries(s.debt_balances).filter(([, v]) => Number(v) > 0)
                 : (Number(s.debt_balance) > 0 ? [[s.debt_currency || 'UZS', s.debt_balance]] : []);
               const hasDebt = debtMap.length > 0;
               return (
-              <tr key={s.id} className="hover:bg-slate-50">
-                <td className="px-5 py-4"><div className="flex items-center gap-2.5"><AvatarS name={s.name}/><div><div className="text-sm font-semibold text-slate-800">{s.name}</div>{s.email&&<div className="text-xs text-slate-400">{s.email}</div>}</div></div></td>
-                <td className="px-5 py-4 text-sm font-mono text-slate-600">{s.inn||'\u2014'}</td>
-                <td className="px-5 py-4 text-sm text-slate-500">{s.phone||'\u2014'}</td>
-                <td className="px-5 py-4"><StarRating value={s.rating}/></td>
-                <td className="px-5 py-4">
-                  {hasDebt ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {debtMap.map(([cur, amt]) => (
-                        <span key={cur} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-red-50 text-red-600 border border-red-100">
-                          {fmt(amt)} <span className="text-red-400">{cur}</span>
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="text-xs font-medium text-emerald-500 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">Qarz yo'q</span>
-                  )}
-                </td>
-                <td className="px-5 py-4"><div className="flex items-center gap-1">
-                  {hasDebt&&(
-                    <button onClick={()=>{setSel(s);setPayAmt(String(Math.round(s.debt_balance)));if(wallets.length>0)setPayWallet(String(wallets[0].id));setPayType('cash');setPayInfo('');setErr('');setModal('pay');}} title="Qarz to'lash" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
-                      Qarz to'lash
-                    </button>
-                  )}
-                  <button onClick={()=>openEdit(s)} className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
-                  <button onClick={()=>del(s.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
-                </div></td>
-              </tr>
+                <tr key={s.id} className="hover:bg-slate-50">
+                  <td className="px-5 py-4"><div className="flex items-center gap-2.5"><AvatarS name={s.name} /><div><div className="text-sm font-semibold text-slate-800">{s.name}</div>{s.email && <div className="text-xs text-slate-400">{s.email}</div>}</div></div></td>
+                  <td className="px-5 py-4 text-sm font-mono text-slate-600">{s.inn || '\u2014'}</td>
+                  <td className="px-5 py-4 text-sm text-slate-500">{s.phone || '\u2014'}</td>
+                  <td className="px-5 py-4"><StarRating value={s.rating} /></td>
+                  <td className="px-5 py-4">
+                    {hasDebt ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {debtMap.map(([cur, amt]) => (
+                          <span key={cur} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-red-50 text-red-600 border border-red-100">
+                            {fmt(amt)} <span className="text-red-400">{cur}</span>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-xs font-medium text-emerald-500 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">Qarz yo'q</span>
+                    )}
+                  </td>
+                  <td className="px-5 py-4"><div className="flex items-center gap-1">
+                    {hasDebt && (
+                      <button onClick={() => { setSel(s); setPayAmt(String(Math.round(s.debt_balance))); if (wallets.length > 0) setPayWallet(String(wallets[0].id)); setPayType('cash'); setPayInfo(''); setErr(''); setModal('pay'); }} title="Qarz to'lash" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                        Qarz to'lash
+                      </button>
+                    )}
+                    <button onClick={() => openEdit(s)} className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></button>
+                    <button onClick={() => del(s.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                  </div></td>
+                </tr>
               );
             })}
-            {list.length===0&&<tr><td colSpan={6} className="px-5 py-12 text-center text-slate-400 text-sm">{t('purchase.noSuppliers')}</td></tr>}
+            {list.length === 0 && <tr><td colSpan={6} className="px-5 py-12 text-center text-slate-400 text-sm">{t('purchase.noSuppliers')}</td></tr>}
           </tbody>
         </table>
       </div>
-      {modal==='form'&&(
+      {modal === 'form' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col" onClick={e=>e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-100 shrink-0">
-              <h3 className="text-lg font-bold text-slate-800">{sel?"Tahrirlash":"Yangi ta'minotchi"}</h3>
-              <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+              <h3 className="text-lg font-bold text-slate-800">{sel ? "Tahrirlash" : "Yangi ta'minotchi"}</h3>
+              <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
             </div>
             <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2"><label className="block text-xs font-semibold text-slate-600 mb-1.5">Nomi *</label><input required className={inp} value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Kompaniya nomi"/></div>
-                <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">INN</label><input className={inp} value={form.inn} onChange={e=>setForm({...form,inn:e.target.value})}/></div>
-                <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('admin.dict.phone') || 'Telefon'}</label><input className={inp} value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/></div>
-                <div className="col-span-2"><label className="block text-xs font-semibold text-slate-600 mb-1.5">Email</label><input type="email" className={inp} value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></div>
+                <div className="col-span-2"><label className="block text-xs font-semibold text-slate-600 mb-1.5">Nomi *</label><input required className={inp} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Kompaniya nomi" /></div>
+                <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">INN</label><input className={inp} value={form.inn} onChange={e => setForm({ ...form, inn: e.target.value })} /></div>
+                <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('admin.dict.phone') || 'Telefon'}</label><input className={inp} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></div>
+                <div className="col-span-2"><label className="block text-xs font-semibold text-slate-600 mb-1.5">Email</label><input type="email" className={inp} value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
 
                 {/* ── Multi-currency debt section ── */}
                 <div className="col-span-2">
@@ -2001,18 +2000,18 @@ function SuppliersTab() {
                     </label>
                     {/* + tugmasi: faqat hali qo'shilmagan valyuta bo'lsa */}
                     {(() => {
-                      const usedCurrencies = (form.debtEntries||[]).map(e => e.currency);
+                      const usedCurrencies = (form.debtEntries || []).map(e => e.currency);
                       const availCurrencies = allCurrencyCodes.filter(c => !usedCurrencies.includes(c));
                       return availCurrencies.length > 0 ? (
                         <button
                           type="button"
                           onClick={() => {
                             const nextCur = availCurrencies[0];
-                            setForm(f => ({ ...f, debtEntries: [...(f.debtEntries||[]), { currency: nextCur, amount: '' }] }));
+                            setForm(f => ({ ...f, debtEntries: [...(f.debtEntries || []), { currency: nextCur, amount: '' }] }));
                           }}
                           className="inline-flex items-center gap-1 px-3 py-1 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors"
                         >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4"/></svg>
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
                           Valyuta
                         </button>
                       ) : null;
@@ -2021,8 +2020,8 @@ function SuppliersTab() {
 
                   {/* Debt entries list */}
                   <div className="space-y-2">
-                    {(form.debtEntries||[]).map((entry, idx) => {
-                      const usedCurrencies = (form.debtEntries||[]).map((e,i) => i !== idx ? e.currency : null).filter(Boolean);
+                    {(form.debtEntries || []).map((entry, idx) => {
+                      const usedCurrencies = (form.debtEntries || []).map((e, i) => i !== idx ? e.currency : null).filter(Boolean);
                       const availForThisRow = allCurrencyCodes.filter(c => !usedCurrencies.includes(c));
                       return (
                         <div key={idx} className="flex items-center gap-2">
@@ -2031,7 +2030,7 @@ function SuppliersTab() {
                             value={entry.currency}
                             onChange={e => setForm(f => ({
                               ...f,
-                              debtEntries: f.debtEntries.map((en,i) => i===idx ? {...en, currency: e.target.value} : en)
+                              debtEntries: f.debtEntries.map((en, i) => i === idx ? { ...en, currency: e.target.value } : en)
                             }))}
                             className="shrink-0 w-24 px-2 py-2 border border-slate-200 rounded-lg text-sm font-bold bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 text-slate-700"
                           >
@@ -2044,18 +2043,18 @@ function SuppliersTab() {
                             value={entry.amount}
                             onChange={e => setForm(f => ({
                               ...f,
-                              debtEntries: f.debtEntries.map((en,i) => i===idx ? {...en, amount: e.target.value} : en)
+                              debtEntries: f.debtEntries.map((en, i) => i === idx ? { ...en, amount: e.target.value } : en)
                             }))}
                             placeholder="0"
                           />
                           {/* Remove: faqat 2+ row bo'lsagina ko'rsatish */}
-                          {(form.debtEntries||[]).length > 1 && (
+                          {(form.debtEntries || []).length > 1 && (
                             <button
                               type="button"
-                              onClick={() => setForm(f => ({ ...f, debtEntries: f.debtEntries.filter((_,i) => i!==idx) }))}
+                              onClick={() => setForm(f => ({ ...f, debtEntries: f.debtEntries.filter((_, i) => i !== idx) }))}
                               className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                             >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                           )}
                         </div>
@@ -2069,80 +2068,80 @@ function SuppliersTab() {
                   </p>
                 </div>
               </div>
-              {err&&<div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}
+              {err && <div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}
             </form>
             <div className="p-6 border-t border-slate-100 flex gap-3 shrink-0">
               <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm font-medium rounded-xl hover:bg-slate-50">{t('common.cancel')}</button>
-              <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving?'Saqlanmoqda...':'Saqlash'}</button>
+              <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving ? 'Saqlanmoqda...' : 'Saqlash'}</button>
             </div>
           </div>
         </div>
       )}
 
       {/* Qarz to'lash Modal — Kassadan to'lov dizayni */}
-      {modal==='pay'&&sel&&(()=>{
-        const debt = Number(sel.debt_balance)||0;
-        const paid = Math.max(0,Number(payAmt)||0);
-        const remaining = Math.max(0,debt-paid);
-        const change = Math.max(0,paid-debt);
-        const PAY_TYPES=[
-          {key:'cash',    label:'Naqd'},
-          {key:'card',    label:'Karta'},
-          {key:'uzcard',  label:'Uzcard'},
-          {key:'humo',    label:'Humo'},
-          {key:'transfer',label:"Bank o'tkazmasi"},
-          {key:'click',   label:'Click'},
-          {key:'payme',   label:'Payme'},
+      {modal === 'pay' && sel && (() => {
+        const debt = Number(sel.debt_balance) || 0;
+        const paid = Math.max(0, Number(payAmt) || 0);
+        const remaining = Math.max(0, debt - paid);
+        const change = Math.max(0, paid - debt);
+        const PAY_TYPES = [
+          { key: 'cash', label: 'Naqd' },
+          { key: 'card', label: 'Karta' },
+          { key: 'uzcard', label: 'Uzcard' },
+          { key: 'humo', label: 'Humo' },
+          { key: 'transfer', label: "Bank o'tkazmasi" },
+          { key: 'click', label: 'Click' },
+          { key: 'payme', label: 'Payme' },
         ];
-        return(
+        return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm" onClick={close}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col" onClick={e=>e.stopPropagation()}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
               {/* Header */}
               <div className="flex items-center justify-between px-7 py-5 border-b border-slate-100">
                 <div>
                   <h3 className="text-xl font-bold text-slate-800 tracking-tight">Kassadan to'lov</h3>
-                  <p className="text-sm text-blue-500 font-medium mt-0.5">{new Date().toLocaleString('uz-UZ').replace(',','')}</p>
+                  <p className="text-sm text-blue-500 font-medium mt-0.5">{new Date().toLocaleString('uz-UZ').replace(',', '')}</p>
                 </div>
                 <button onClick={close} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 transition-colors">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
 
               {/* Body */}
-              <div className="p-7 overflow-y-auto space-y-7">
+              <div className="px-7 py-4 overflow-y-auto space-y-6">
                 {/* Supplier Info Card */}
-                <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
                   <div className="w-12 h-12 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
-                    <svg className="w-6 h-6 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1"/></svg>
+                    <svg className="w-6 h-6 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1" /></svg>
                   </div>
                   <div>
                     <div className="font-bold text-slate-800 text-base">{sel.name}</div>
-                    {sel.phone&&<div className="text-sm text-slate-500 mt-0.5">{sel.phone}</div>}
-                    <div className="text-base font-bold text-red-500 mt-1">Joriy qarz: {fmt(debt)} so'm</div>
+                    {sel.phone && <div className="text-xs text-slate-500">{sel.phone}</div>}
+                    <div className="text-[14px] font-bold text-red-500">Joriy qarz: {fmt(debt)} so'm</div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
                   {/* Kassa tanlash */}
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold text-slate-700">Kassa / Hisob</label>
-                    <select value={payWallet} onChange={e=>setPayWallet(e.target.value)}
-                      className="w-full h-12 px-4 border border-slate-200 rounded-xl bg-white text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <label className="text-[14px] font-semibold text-slate-700">Kassa / Hisob</label>
+                    <select value={payWallet} onChange={e => setPayWallet(e.target.value)}
+                      className="w-full h-12 px-4 border border-slate-200 cursor-pointer rounded-lg bg-white text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none">
                       <option value="">(Asosiy kassa)</option>
-                      {wallets.map(w=><option key={w.id} value={w.id}>{w.name} — {fmt(w.balance)} so'm</option>)}
+                      {wallets.map(w => <option key={w.id} value={w.id}>{w.name} — {fmt(w.balance)} so'm</option>)}
                     </select>
                   </div>
 
                   {/* To'lov miqdori */}
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold text-slate-700">To'lov miqdori *</label>
+                    <label className="text-[14px] font-semibold text-slate-700">To'lov miqdori *</label>
                     <div className="flex h-12">
-                      <input type="number" min="1" autoFocus value={payAmt} onChange={e=>setPayAmt(e.target.value)}
-                        className="flex-1 h-full border border-slate-200 border-r-0 rounded-l-xl px-4 text-base font-medium outline-none focus:ring-2 focus:ring-indigo-500"
-                        placeholder="0"/>
+                      <input type="number" min="1" autoFocus value={payAmt} onChange={e => setPayAmt(e.target.value)}
+                        className="flex-1 h-full border border-slate-200 border-r-0 rounded-l-lg px-4 text-base font-medium outline-none focus:ring-2 focus:ring-indigo-500"
+                        placeholder="0" />
                       <div className="px-3 flex items-center border-y border-slate-200 text-indigo-600 text-sm font-bold bg-white">UZS</div>
-                      <button type="button" onClick={()=>setPayAmt(String(Math.round(debt)))}
-                        className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-slate-200 border-l-0 font-semibold px-4 h-full rounded-r-xl transition-colors whitespace-nowrap text-sm">
+                      <button type="button" onClick={() => setPayAmt(String(Math.round(debt)))}
+                        className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-slate-200 border-l-0 cursor-pointer font-semibold px-4 h-full rounded-r-lg transition-colors whitespace-nowrap text-sm">
                         Barchasi
                       </button>
                     </div>
@@ -2153,13 +2152,12 @@ function SuppliersTab() {
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-700">To'lov turi</label>
                   <div className="flex flex-wrap gap-2">
-                    {PAY_TYPES.map(pt=>(
-                      <button key={pt.key} type="button" onClick={()=>setPayType(pt.key)}
-                        className={`px-5 py-2.5 rounded-xl text-sm font-semibold border transition-all ${
-                          payType===pt.key
-                            ?'bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-200'
-                            :'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
-                        }`}>
+                    {PAY_TYPES.map(pt => (
+                      <button key={pt.key} type="button" onClick={() => setPayType(pt.key)}
+                        className={`px-5 py-1.5 cursor-pointer rounded-md text-sm font-semibold border transition-all ${payType === pt.key
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-200'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                          }`}>
                         {pt.label}
                       </button>
                     ))}
@@ -2169,30 +2167,30 @@ function SuppliersTab() {
                 {/* Izoh */}
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-700">Izoh</label>
-                  <textarea rows={3} value={payInfo} onChange={e=>setPayInfo(e.target.value)}
+                  <textarea rows={3} value={payInfo} onChange={e => setPayInfo(e.target.value)}
                     className="w-full p-4 border border-slate-200 rounded-xl text-sm leading-relaxed focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
-                    placeholder="Ixtiyoriy..."/>
+                    placeholder="Ixtiyoriy..." />
                 </div>
 
-                {err&&<div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{err}</div>}
+                {err && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{err}</div>}
 
                 {/* Summary */}
-                <div className="flex justify-end">
-                  <div className="w-72 space-y-2 bg-slate-50 rounded-xl p-4 border border-slate-100">
-                    <div className="flex justify-between text-base">
+                <div className="flex justify-end w-full">
+                  <div className="w-full space-y-2 bg-slate-50 rounded-xl p-4 border border-slate-100">
+                    <div className="flex justify-between text-[14px]">
                       <span className="text-slate-500">Umumiy summa:</span>
                       <span className="font-bold text-emerald-600">{fmt(debt)}</span>
                     </div>
-                    <div className="flex justify-between text-base">
+                    <div className="flex justify-between text-[14px]">
                       <span className="text-slate-500">To'lov:</span>
                       <span className="font-bold text-blue-600">{fmt(paid)} uzs</span>
                     </div>
-                    <div className="border-t border-slate-200 my-1"/>
-                    <div className="flex justify-between text-base">
+                    <div className="border-t border-slate-200 my-1" />
+                    <div className="flex justify-between text-[14px]">
                       <span className="text-slate-500">Qarzga:</span>
-                      <span className={`font-bold ${remaining>0?'text-red-500':'text-emerald-600'}`}>{fmt(remaining)}</span>
+                      <span className={`font-bold ${remaining > 0 ? 'text-red-500' : 'text-emerald-600'}`}>{fmt(remaining)}</span>
                     </div>
-                    <div className="flex justify-between text-base">
+                    <div className="flex justify-between text-[14px]">
                       <span className="text-slate-500">Qaytim:</span>
                       <span className="font-bold text-slate-600">{fmt(change)}</span>
                     </div>
@@ -2202,17 +2200,17 @@ function SuppliersTab() {
 
               {/* Footer */}
               <div className="flex items-center justify-between gap-3 px-7 py-5 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
-                <div className="text-sm text-slate-500">
+                <div className="text-[13px] text-slate-500">
                   Ta'minotchi qoldiq qarzi: <span className="font-bold text-slate-800">{fmt(remaining)} UZS</span>
                 </div>
                 <div className="flex gap-3">
-                  <button onClick={close} className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-600 font-semibold bg-white hover:bg-slate-50 transition-colors">Bekor qilish</button>
-                  <button disabled={saving||!payAmt||Number(payAmt)<=0} onClick={handlePayDebt}
-                    className="px-8 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-colors shadow-md shadow-blue-200 disabled:opacity-50 flex items-center gap-2">
-                    {saving?(
-                      <span className="flex items-center gap-2"><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Saqlanmoqda...</span>
-                    ):(
-                      <><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>✓ Qabul va Saqlash</>
+                  <button onClick={close} className="px-4 py-1.5 rounded-lg border border-slate-300 text-slate-600 font-semibold bg-white hover:bg-slate-50 transition-colors">Bekor qilish</button>
+                  <button disabled={saving || !payAmt || Number(payAmt) <= 0} onClick={handlePayDebt}
+                    className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition-colors shadow-md shadow-blue-200 disabled:opacity-50 flex items-center gap-2">
+                    {saving ? (
+                      <span className="flex items-center gap-2"><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>Saqlanmoqda...</span>
+                    ) : (
+                      <span className="flex items-center gap-2 cursor-pointer"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>Qabul va Saqlash</span>
                     )}
                   </button>
                 </div>
@@ -2237,7 +2235,7 @@ function SuppliersTab() {
                 Shablon
               </button>
               <label className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 text-sm font-semibold rounded-lg border border-slate-200 cursor-pointer">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                 Fayl tanlash
                 <input type="file" accept=".xlsx,.xls" className="hidden" onChange={e => { if (e.target.files[0]) parseExcel(e.target.files[0]); }} />
               </label>
@@ -2246,7 +2244,7 @@ function SuppliersTab() {
                 disabled={!buildPayload().length || importLoading || !(Object.values(colMap).includes('Nomi') || (allowUpdate && Object.values(colMap).includes('INN')))}
                 className="inline-flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors border border-transparent"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
                 {importLoading ? `Saqlanmoqda... ${importProgress}%` : 'Saqlash'}
               </button>
             </div>
@@ -2399,12 +2397,12 @@ function PurchaseOrdersTab() {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
       {loading ? (
-        <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"/></div>
+        <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div>
       ) : (
         <table className="min-w-full">
-          <thead><tr className="bg-slate-50 border-b border-slate-100">{[t('purchase.colNumber'),t('purchase.supplier'),t('purchase.colWarehouse'),t('purchase.colTotal'),t('purchase.filterStatus')].map(h=><th key={h} className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
+          <thead><tr className="bg-slate-50 border-b border-slate-100">{[t('purchase.colNumber'), t('purchase.supplier'), t('purchase.colWarehouse'), t('purchase.colTotal'), t('purchase.filterStatus')].map(h => <th key={h} className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
           <tbody className="divide-y divide-slate-50">
-            {pos.map(p=>(
+            {pos.map(p => (
               <tr key={p.id} className="hover:bg-slate-50">
                 <td className="px-6 py-4 text-sm font-mono font-semibold text-indigo-600">{p.number}</td>
                 <td className="px-6 py-4 text-sm text-slate-700 font-medium">{p.supplier_name}</td>
@@ -2413,7 +2411,7 @@ function PurchaseOrdersTab() {
                 <td className="px-6 py-4"><Badge meta={poMeta} val={p.status} /></td>
               </tr>
             ))}
-            {pos.length===0&&<tr><td colSpan={5} className="px-6 py-16 text-center text-slate-400 text-sm">{t('purchase.noOrders')}</td></tr>}
+            {pos.length === 0 && <tr><td colSpan={5} className="px-6 py-16 text-center text-slate-400 text-sm">{t('purchase.noOrders')}</td></tr>}
           </tbody>
         </table>
       )}
@@ -2423,9 +2421,9 @@ function PurchaseOrdersTab() {
 
 /* ===================== MAIN ===================== */
 const TABS_IDS = [
-  { id: 'kirimlar',  key: 'purchase.tabKirimlar',  icon: <CircleArrowDown size={18} className='text-indigo-500' /> },
+  { id: 'kirimlar', key: 'purchase.tabKirimlar', icon: <CircleArrowDown size={18} className='text-indigo-500' /> },
   { id: 'suppliers', key: 'purchase.tabSuppliers', icon: <PackageCheck size={18} className='text-green-500' /> },
-  { id: 'orders',    key: 'purchase.tabOrders',    icon: <ShoppingCart size={18} className='text-yellow-500' /> },
+  { id: 'orders', key: 'purchase.tabOrders', icon: <ShoppingCart size={18} className='text-yellow-500' /> },
 ];
 
 export default function Purchases() {
@@ -2436,9 +2434,9 @@ export default function Purchases() {
   const [suppliers, setSuppliers] = useState([]);
 
   useEffect(() => {
-    api.get('/products/', { params:{ limit:300 } }).then(r => setProducts(r.data.items||r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/products/', { params: { limit: 300 } }).then(r => setProducts(r.data.items || r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
     api.get('/inventory/warehouses').then(r => setWarehouses(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
-    api.get('/suppliers', { params:{ limit:100 } }).then(r => setSuppliers(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/suppliers', { params: { limit: 100 } }).then(r => setSuppliers(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, []);
 
   return (
@@ -2448,16 +2446,16 @@ export default function Purchases() {
         <p className="text-slate-500 text-sm mt-0.5">{t('purchase.pageSubtitle')}</p>
       </div>
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
-        {TABS_IDS.map(tab_=>(
-          <button key={tab_.id} onClick={()=>setTab(tab_.id)}
-            className={`px-5 py-2 text-sm cursor-pointer font-semibold rounded-lg transition-all flex items-center gap-2 ${tab===tab_.id?'bg-white text-slate-800 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>
+        {TABS_IDS.map(tab_ => (
+          <button key={tab_.id} onClick={() => setTab(tab_.id)}
+            className={`px-5 py-2 text-sm cursor-pointer font-semibold rounded-lg transition-all flex items-center gap-2 ${tab === tab_.id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
             <span>{tab_.icon}</span>{t(tab_.key)}
           </button>
         ))}
       </div>
-      {tab==='kirimlar'  && <KirimlarTab products={products} warehouses={warehouses} suppliers={suppliers}/>}
-      {tab==='suppliers' && <SuppliersTab/>}
-      {tab==='orders'    && <PurchaseOrdersTab/>}
+      {tab === 'kirimlar' && <KirimlarTab products={products} warehouses={warehouses} suppliers={suppliers} />}
+      {tab === 'suppliers' && <SuppliersTab />}
+      {tab === 'orders' && <PurchaseOrdersTab />}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import api from '../../api/axios';
 import { matchesSearch } from '../../utils/translit';
 import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
 import toast from 'react-hot-toast';
+import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 
@@ -45,7 +46,15 @@ const [q, setQ] = useState('');
           {filtered.length === 0 ? <div className="px-4 py-3 text-sm text-slate-500 text-center font-medium">Topilmadi</div> : filtered.map(c => (
             <button key={c.id} onMouseDown={() => select(c)} className="w-full text-left px-4 py-3 hover:bg-rose-50 border-b border-slate-50 last:border-0 flex items-center justify-between transition-colors">
               <div><div className="text-sm font-bold text-slate-800">{c.name}</div>{c.phone && <div className="text-xs text-slate-500 font-medium">{c.phone}</div>}</div>
-              {c.debt_balance > 0 && <span className="text-xs text-red-600 font-bold bg-red-50 px-2.5 py-1 rounded-lg">Qarz: {fmt(c.debt_balance)}</span>}
+              {hasAnyDebt(c) && (
+                <div className="flex flex-col items-end gap-1">
+                  {getDebtEntries(c).map(({ currency, amount }) => (
+                    <span key={currency} className="text-xs text-red-600 font-bold bg-red-50 px-2.5 py-1 rounded-lg">
+                      Qarz: {fmt(amount)} {currency}
+                    </span>
+                  ))}
+                </div>
+              )}
             </button>
           ))}
         </div>

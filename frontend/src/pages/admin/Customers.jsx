@@ -4,6 +4,7 @@ import { matchesSearch } from '../../utils/translit';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import api from '../../api/axios';
+import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
 import { useLang } from '../../context/LangContext';
 import toast from 'react-hot-toast';
 import { ChevronDown, CreditCard, Users, ListOrdered, ChevronsUpDown, CheckIcon, AlertTriangle, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, EllipsisVertical, History, Star, Banknote, Layers, CircleCheck, Plus, Minus } from 'lucide-react';
@@ -61,9 +62,9 @@ function CustSearch({ customers, value, onChange, onAfterSelect }) {
           {filtered.length === 0 ? <div className="px-4 py-3 text-sm text-slate-400">Topilmadi</div> : filtered.map(c => (
             <button key={c.id} onMouseDown={() => select(c)} className="w-full text-left px-4 py-2.5 hover:bg-indigo-50 border-b border-slate-50 last:border-0 flex items-center justify-between">
               <div><div className="text-sm font-medium text-slate-800">{c.name}</div>{c.phone && <div className="text-xs text-slate-400">{c.phone}</div>}</div>
-              {c.debt_balances && typeof c.debt_balances === 'object' && Object.values(c.debt_balances).some(v => Number(v) > 0) && (
+              {hasAnyDebt(c) && (
                 <span className="text-xs text-red-500 font-medium ml-2">
-                  Qarz: {Object.entries(c.debt_balances).filter(([, v]) => Number(v) > 0).map(([cur, v]) => `${fmt(v)} ${cur}`).join(' + ')}
+                  Qarz: {getDebtEntries(c).map(({ currency, amount }) => `${fmt(amount)} ${currency}`).join(' + ')}
                 </span>
               )}
             </button>
@@ -513,13 +514,7 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
 
   const totalDebt = totalAllDebt;
 
-  const debtors = customers.filter(c => {
-    const balances = c.debt_balances;
-    if (balances && typeof balances === 'object' && Object.keys(balances).length > 0) {
-      return Object.values(balances).some(v => Number(v) > 0);
-    }
-    return Number(c.debt_balance) > 0;
-  }).length;
+  const debtors = customers.filter(c => hasAnyDebt(c)).length;
 
   // 1. Boshlang'ich state endi oddiy sonlar emas, ob'ektlar massivi bo'ladi:
   const [payDebtLength, setPayDebtLength] = useState([
@@ -776,16 +771,15 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
                     <td className="px-6 py-4 text-xs md:text-sm text-slate-500">{c.phone || '—'}</td>
                     <td className="px-6 py-4">
                       {(() => {
-                        const balances = c.debt_balances && typeof c.debt_balances === 'object' ? c.debt_balances : {};
-                        const hasDebt = Object.values(balances).some(v => Number(v) > 0);
-                        if (!hasDebt) {
+                        const entries = getDebtEntries(c);
+                        if (entries.length === 0) {
                           return <span className="text-sm font-bold text-emerald-700">0 so'm</span>;
                         }
                         return (
                           <div className="flex flex-col gap-1">
-                            {Object.entries(balances).map(([curr, amt]) => Number(amt) > 0 && (
-                              <span key={curr} className="text-sm font-bold text-red-700 whitespace-nowrap">
-                                {fmt(amt)} {curr}
+                            {entries.map(({ currency, amount }) => (
+                              <span key={currency} className="text-sm font-bold text-red-700 whitespace-nowrap">
+                                {fmt(amount)} {currency}
                               </span>
                             ))}
                           </div>
