@@ -3,10 +3,13 @@ from typing import Optional
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.audit import log_action
 from app.models.batch import Batch
+from app.models.customer import Customer
 from app.models.customer_prices import CustomerPrice
+from app.models.currency import Currency
 from app.models.moliya import Transaction
 from app.models.product import Product, ProductConversion
 from app.models.sale import Sale, SaleItem, SaleStatus, PaymentType
@@ -69,9 +72,16 @@ def create_return_sale(
 
     total_amount = max(Decimal("0"), total_amount - data.discount_amount)
 
+    # Valyuta va kurs aniqlash
+    currency = None
+    exchange_rate = Decimal("1")
+    if data.currency_id:
+        currency = db.query(Currency).filter(Currency.id == data.currency_id).first()
+        if currency:
+            exchange_rate = currency.rate
+
     # Mijoz qarzi qaytarish
     if data.customer_id:
-        from app.models.customer import Customer
         customer = db.query(Customer).filter(
             Customer.id == data.customer_id,
             Customer.company_id == current_user.company_id,
@@ -79,8 +89,25 @@ def create_return_sale(
         if not customer:
             raise HTTPException(status_code=404, detail="Mijoz topilmadi")
         if data.paid_amount < total_amount:
-            debt_amount = total_amount - data.paid_amount
+            debt_amount = (total_amount - data.paid_amount) * exchange_rate
             customer.debt_balance = max(Decimal("0"), customer.debt_balance - debt_amount)
+
+            # Sync with multi-currency debt_balances
+            if not customer.debt_balances:
+                customer.debt_balances = {}
+
+            if data.currency_totals:
+                for curr_code, curr_debt in data.currency_totals.items():
+                    curr_val = float(customer.debt_balances.get(curr_code, 0))
+                    customer.debt_balances[curr_code] = max(0, curr_val - float(curr_debt))
+            else:
+                actual_debt_in_currency = total_amount - data.paid_amount
+                sale_currency = currency.code if currency else "UZS"
+
+                curr_val = float(customer.debt_balances.get(sale_currency, 0))
+                customer.debt_balances[sale_currency] = max(0, curr_val - float(actual_debt_in_currency))
+
+            flag_modified(customer, "debt_balances")
 
     sale = Sale(
         number=generate_return_number(db),
@@ -97,7 +124,7 @@ def create_return_sale(
         status=SaleStatus.refunded,
         note="Vazvrat: " + (data.note or ""),
         currency_id=data.currency_id,
-        exchange_rate=1,
+        exchange_rate=exchange_rate,
         loyalty_points_earned=0,
         loyalty_points_used=0,
     )
