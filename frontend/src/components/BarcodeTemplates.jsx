@@ -475,7 +475,7 @@ export default function BarcodePrintModal({ product, onClose }) {
     date: new Date().toLocaleDateString('uz-UZ'),
   };
 
-  /* Save current template customization */
+  /* Save current template customization — persists ALL settings */
   const handleSave = () => {
     if (!saveName.trim()) return;
     const newTpl = {
@@ -483,13 +483,67 @@ export default function BarcodePrintModal({ product, onClose }) {
       id: `saved-${Date.now()}`,
       name: saveName.trim(),
       description: `${selectedTpl.size} mm — saqlangan shablon`,
-      _fontSize: fontSize,
+      // persist all customisation options
+      _opts: {
+        fontSize,
+        productNameSize,
+        productPriceSize,
+        productCurrencySize,
+        productSkuSize,
+        barcodeSize,
+        companyName,
+        currencyVal,
+        showCompanyName,
+        showProductName,
+        showPrice,
+        showBarcode,
+        showSku,
+        showDate,
+        companyNamePos,
+        productNamePos,
+        productPricePos,
+        productSkuPos,
+      },
     };
     const updated = [...savedTemplates, newTpl];
     setSavedTemplates(updated);
     localStorage.setItem(LS_KEY, JSON.stringify(updated));
     setSaveModalOpen(false);
     setSaveName('');
+  };
+
+  /* Delete a saved template by id */
+  const handleDeleteSaved = (id, e) => {
+    e.stopPropagation();
+    const updated = savedTemplates.filter(t => t.id !== id);
+    setSavedTemplates(updated);
+    localStorage.setItem(LS_KEY, JSON.stringify(updated));
+  };
+
+  /* Load a saved template — restore ALL its settings */
+  const handleLoadSaved = (id) => {
+    const tpl = savedTemplates.find(t => t.id === id);
+    if (!tpl) return;
+    setSelectedTpl(tpl);
+    const o = tpl._opts || {};
+    if (o.fontSize !== undefined)          setFontSize(o.fontSize);
+    if (o.productNameSize !== undefined)   setProductNameSize(o.productNameSize);
+    if (o.productPriceSize !== undefined)  setProductPriceSize(o.productPriceSize);
+    if (o.productCurrencySize !== undefined) setProductCurrencySize(o.productCurrencySize);
+    if (o.productSkuSize !== undefined)    setProductSkuSize(o.productSkuSize);
+    if (o.barcodeSize !== undefined)       setBarcodeSize(o.barcodeSize);
+    if (o.companyName !== undefined)       setCompanyName(o.companyName);
+    if (o.currencyVal !== undefined)       setCurrencyVal(o.currencyVal);
+    if (o.showCompanyName !== undefined)   setShowCompanyName(o.showCompanyName);
+    if (o.showProductName !== undefined)   setShowProductName(o.showProductName);
+    if (o.showPrice !== undefined)         setShowPrice(o.showPrice);
+    if (o.showBarcode !== undefined)       setShowBarcode(o.showBarcode);
+    if (o.showSku !== undefined)           setShowSku(o.showSku);
+    if (o.showDate !== undefined)          setShowDate(o.showDate);
+    if (o.companyNamePos !== undefined)    setCompanyNamePos(o.companyNamePos);
+    if (o.productNamePos !== undefined)    setProductNamePos(o.productNamePos);
+    if (o.productPricePos !== undefined)   setProductPricePos(o.productPricePos);
+    if (o.productSkuPos !== undefined)     setProductSkuPos(o.productSkuPos);
   };
 
   /* Print — uses a hidden iframe so no new tab is opened */
@@ -596,13 +650,69 @@ export default function BarcodePrintModal({ product, onClose }) {
             </p>
           </div>
           <div className="flex items-center gap-2">
+
+            {/* ── Saved templates selector ── */}
+            {savedTemplates.length > 0 && (
+              <div className="relative flex items-center gap-1 bg-amber-50 border border-amber-200 rounded-xl px-1 py-1">
+                <svg className="w-4 h-4 text-amber-500 ml-1 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                </svg>
+                <div className="relative">
+                  <select
+                    defaultValue=""
+                    onChange={e => { if (e.target.value) handleLoadSaved(e.target.value); e.target.value = ''; }}
+                    className="pl-2 pr-6 py-1.5 text-sm font-semibold text-amber-700 bg-transparent border-0 outline-none cursor-pointer appearance-none"
+                    title="Saqlangan shablonni yuklash"
+                  >
+                    <option value="" disabled>Saqlangan shablonlar</option>
+                    {savedTemplates.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                  <svg className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+                {/* Per-option delete buttons rendered as a floating panel — handled inline via select onChange; individual deletes shown below */}
+              </div>
+            )}
+
+            {/* Saved templates delete list (compact chips) */}
+            {savedTemplates.length > 0 && (
+              <div className="flex flex-wrap gap-1 max-w-xs">
+                {savedTemplates.map(t => (
+                  <span
+                    key={t.id}
+                    className="inline-flex items-center gap-1 text-xs font-medium bg-amber-50 border border-amber-200 text-amber-700 px-2 py-0.5 rounded-full"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleLoadSaved(t.id)}
+                      className="hover:underline max-w-[90px] truncate cursor-pointer"
+                      title={`"${t.name}" shablonini yuklash`}
+                    >
+                      {t.name}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={e => handleDeleteSaved(t.id, e)}
+                      className="ml-0.5 text-amber-400 hover:text-red-500 transition-colors cursor-pointer leading-none"
+                      title="O'chirish"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
             <button
               onClick={() => setSaveModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-xl transition-colors"
-              title="Tanlangan shablonni saqlash"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-xl transition-colors border border-amber-200"
+              title="Joriy sozlamalarni shablon sifatida saqlash"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
               </svg>
               Saqlash
             </button>
