@@ -109,6 +109,32 @@ const BUILT_IN_TEMPLATES = [
     colors: { bg: '#f8fafc', text: '#0f172a', accent: '#0369a1' },
   },
 
+  // ── 60×30 mm ──────────────────────────────────────────────
+  {
+    id: 'b-60x30-premium', size: '60×30', w: 60, h: 30,
+    name: 'Premium (60×30)',
+    description: 'Brend + nomi + narx + barcode',
+    variant: 'premium',
+    show: { name: true, brand: true, price: true, sku: false, barcode: true },
+    colors: { bg: '#fff', text: '#000', accent: '#7c3aed' },
+  },
+  {
+    id: 'b-60x30-warehouse', size: '60×30', w: 60, h: 30,
+    name: 'Ombor (60×30)',
+    description: 'Katta barcode + nomi + SKU',
+    variant: 'warehouse',
+    show: { name: true, brand: false, price: false, sku: true, barcode: true },
+    colors: { bg: '#fff', text: '#000', accent: '#000' },
+  },
+  {
+    id: 'b-60x30-full', size: '60×30', w: 60, h: 30,
+    name: 'To\'liq (60×30)',
+    description: 'Hamma malumotlar + katta barcode',
+    variant: 'full',
+    show: { name: true, brand: true, price: true, sku: true, barcode: true },
+    colors: { bg: '#fff', text: '#000', accent: '#059669' },
+  },
+
   // ── 60×40 mm ──────────────────────────────────────────────
   {
     id: 'b-60x40-premium', size: '60×40', w: 60, h: 40,
@@ -136,13 +162,14 @@ const BUILT_IN_TEMPLATES = [
   },
 ];
 
-const SIZE_GROUPS = ['30×20', '40×30', '50×30', '50×40', '60×40'];
+const SIZE_GROUPS = ['30×20', '40×30', '50×30', '50×40', '60×30', '60×40'];
 
 function buildLabelHTML(tpl, product, opts = {}) {
   const { w, h, colors } = tpl;
 
   // Extract option states or default fallback options
   const showCompanyName = opts.showCompanyName !== undefined ? opts.showCompanyName : true;
+  const showProductName = opts.showProductName !== undefined ? opts.showProductName : true;
   const showPrice = opts.showPrice !== undefined ? opts.showPrice : true;
   const showBarcode = opts.showBarcode !== undefined ? opts.showBarcode : true;
   const showSku = opts.showSku !== undefined ? opts.showSku : true;
@@ -205,7 +232,9 @@ function buildLabelHTML(tpl, product, opts = {}) {
     ? `<div style="font-size:${companyNameSize}px; font-weight:700; text-align:center; word-break:break-word; width:100%; line-height:1.1;">${companyNameText}</div>`
     : '';
 
-  const productNameHtml = `<div style="font-size:${productNameSize}px; font-weight:700; text-align:center; line-height:1.2; width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${name}</div>`;
+  const productNameHtml = showProductName
+    ? `<div style="font-size:${productNameSize}px; font-weight:700; text-align:center; line-height:1.2; width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${name}</div>`
+    : '';
 
   const priceHtml = showPrice
     ? `<div style="font-size:${productPriceSize}px; font-weight:900; color:${colors.accent || colors.text || '#000'}; display:inline-flex; align-items:baseline; justify-content:center; width:100%;">
@@ -223,7 +252,7 @@ function buildLabelHTML(tpl, product, opts = {}) {
     : '';
 
   const barcodeHtml = (showBarcode && barcode)
-    ? `<svg class="bc" data-val="${barcode}" data-linecolor="${colors.text || '#000'}" data-height="${barcodeSize * 2.4}" data-fontsize="${barcodeSize * 0.7}" style="width:100%; max-height:${h * 0.55}mm; margin:0.5mm 0;"></svg>`
+    ? `<svg class="bc" data-val="${barcode}" data-linecolor="${colors.text || '#000'}" data-height="${barcodeSize * 2.4}" data-fontsize="${barcodeSize * 0.7}" data-barwidth="${(barcodeSize * 0.1).toFixed(2)}" style="width:100%; max-height:${h * 0.55}mm; margin:0.5mm 0;"></svg>`
     : '';
 
   const upElements = [];
@@ -275,10 +304,11 @@ function renderBarcodes(container) {
     const lineColor = el.dataset.linecolor || '#000';
     const bh = Number(el.dataset.height || 28);
     const fs = Number(el.dataset.fontsize || 7);
+    const bw = Number(el.dataset.barwidth || 1.1);
     try {
       window.JsBarcode(el, val, {
         format: 'CODE128',
-        width: 1.1,
+        width: bw,
         height: bh,
         displayValue: true,
         fontSize: fs,
@@ -391,6 +421,7 @@ export default function BarcodePrintModal({ product, onClose }) {
   const [currencyVal, setCurrencyVal] = useState(() => (product.sale_currency || "UZS").toUpperCase());
 
   const [showCompanyName, setShowCompanyName] = useState(true);
+  const [showProductName, setShowProductName] = useState(true);
   const [showPrice, setShowPrice] = useState(true);
   const [showBarcode, setShowBarcode] = useState(true);
   const [showSku, setShowSku] = useState(true);
@@ -432,6 +463,7 @@ export default function BarcodePrintModal({ product, onClose }) {
     barcodeSize,
     productSkuSize,
     showCompanyName,
+    showProductName,
     showPrice,
     showBarcode,
     showSku,
@@ -672,13 +704,13 @@ export default function BarcodePrintModal({ product, onClose }) {
                   <input
                     type="range"
                     min="6"
-                    max="22"
+                    max="30"
                     value={productNameSize}
                     onChange={e => setProductNameSize(+e.target.value)}
                     className="w-full accent-blue-600"
                   />
                   <div className="flex justify-between text-xs text-slate-400">
-                    <span>6</span><span>22</span>
+                    <span>6</span><span>30</span>
                   </div>
                 </div>
 
@@ -688,13 +720,13 @@ export default function BarcodePrintModal({ product, onClose }) {
                   <input
                     type="range"
                     min="6"
-                    max="22"
+                    max="30"
                     value={productPriceSize}
                     onChange={e => setProductPriceSize(+e.target.value)}
                     className="w-full accent-blue-600"
                   />
                   <div className="flex justify-between text-xs text-slate-400">
-                    <span>6</span><span>22</span>
+                    <span>6</span><span>30</span>
                   </div>
                 </div>
 
@@ -720,13 +752,13 @@ export default function BarcodePrintModal({ product, onClose }) {
                   <input
                     type="range"
                     min="10"
-                    max="22"
+                    max="30"
                     value={barcodeSize}
                     onChange={e => setBarcodeSize(+e.target.value)}
                     className="w-full accent-blue-600"
                   />
                   <div className="flex justify-between text-xs text-slate-400">
-                    <span>10</span><span>22</span>
+                    <span>10</span><span>30</span>
                   </div>
                 </div>
 
@@ -736,13 +768,13 @@ export default function BarcodePrintModal({ product, onClose }) {
                   <input
                     type="range"
                     min="6"
-                    max="22"
+                    max="30"
                     value={productSkuSize}
                     onChange={e => setProductSkuSize(+e.target.value)}
                     className="w-full accent-blue-600"
                   />
                   <div className="flex justify-between text-xs text-slate-400">
-                    <span>6</span><span>22</span>
+                    <span>6</span><span>30</span>
                   </div>
                 </div>
               </div>
@@ -792,6 +824,21 @@ export default function BarcodePrintModal({ product, onClose }) {
                     </label>
                   </div>
                   <span>Korxona nomini ko'rsatish</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative inline-block w-11 h-5">
+                    <input
+                      checked={showProductName}
+                      onChange={e => setShowProductName(e.target.checked)}
+                      id="switch-show-product-name"
+                      type="checkbox"
+                      className="peer appearance-none w-11 h-5 bg-slate-100 rounded-full checked:bg-blue-600 cursor-pointer transition-colors duration-300"
+                    />
+                    <label htmlFor="switch-show-product-name" className="absolute top-0 left-0 w-5 h-5 bg-white rounded-full border border-slate-300 shadow-sm transition-transform duration-300 peer-checked:translate-x-6 peer-checked:border-blue-600 cursor-pointer">
+                    </label>
+                  </div>
+                  <span>Mahsulot nomini ko'rsatish</span>
                 </div>
 
                 <div className="flex items-center gap-2">
