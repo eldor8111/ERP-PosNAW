@@ -677,6 +677,8 @@ export default function Products() {
   const [mxikCode, setMxikCode] = useState();
   const [barcode_input, setBarcodeInput] = useState();
 
+  const [apiData, setApiData] = useState([]);
+
   // function handleMxikCodeChange(e) {
   //   api.get(`/tasnif-api/mxik/get-by-mxik?mxikCode=${e}`).then(r => setMxikData(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   // }
@@ -1480,8 +1482,14 @@ export default function Products() {
     if (created > 0) loadProducts();
   };
 
-  const exportToShtrixM = (apiData) => {
+  const exportToShtrixM = async () => {
     try {
+      const apiData = await api.get('/products/')
+        .then(r => {
+          return r.data
+        })
+        .catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") })
+
       const filteredData = apiData.filter(prod => prod.unit === "kg");
       let txtContent = "";
 
@@ -1608,7 +1616,7 @@ export default function Products() {
           <div className='flex gap-2 flex-wrap'>
             <button
               onClick={activeTab === 'products' ? openAdd : activeTab === 'categories' ? openAddCat : openAddBl}
-              className="inline-flex leading-none cursor-pointer items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-xl shadow-sm transition-colors"
+              className="inline-flex leading-none cursor-pointer items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-lg shadow-sm transition-colors"
             >
               <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -1620,7 +1628,7 @@ export default function Products() {
               <>
                 <button
                   onClick={openBulkAdd}
-                  className="cursor-pointer leading-none inline-flex items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-xl transition-colors shadow-sm"
+                  className="cursor-pointer leading-none inline-flex items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-lg transition-colors shadow-sm"
                 >
                   <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -1629,7 +1637,7 @@ export default function Products() {
                 </button>
                 <button
                   onClick={openImport}
-                  className="cursor-pointer leading-none inline-flex items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-violet-50 hover:bg-violet-100 text-violet-700 text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-xl transition-colors border border-violet-200"
+                  className="cursor-pointer leading-none inline-flex items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-violet-50 hover:bg-violet-100 text-violet-700 text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-lg transition-colors border border-violet-200"
                 >
                   <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -1746,7 +1754,7 @@ export default function Products() {
                     XLSX.utils.book_append_sheet(wb, ws, 'Mahsulotlar');
                     saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx', cellStyles: true })]), `mahsulotlar_${new Date().toISOString().slice(0, 10)}.xlsx`);
                   }}
-                  className="leading-none cursor-pointer inline-flex items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-xl transition-colors border border-emerald-200"
+                  className="leading-none cursor-pointer inline-flex items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-lg transition-colors border border-emerald-200"
                 >
                   <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -1756,7 +1764,7 @@ export default function Products() {
 
                 <button
                   onClick={() => exportToShtrixM(products)}
-                  className="cursor-pointer leading-none inline-flex items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-mist-600 hover:bg-mist-500 text-white text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-xl transition-colors border border-mist-200"
+                  className="cursor-pointer leading-none inline-flex items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-mist-600 hover:bg-mist-500 text-white text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-lg transition-colors border border-mist-200"
                 >
                   <Binary className='w-5 h-5' /> Yuklab Olish
                 </button>

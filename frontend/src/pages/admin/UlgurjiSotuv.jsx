@@ -385,7 +385,7 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
   return (
     <div className="relative">
       <div className={`flex items-center gap-2 border-2 rounded-lg px-3 py-2.5 bg-white transition-all ${disabled ? 'border-slate-100 bg-slate-50 opacity-60' :
-          open || q ? 'border-indigo-500 ring-4 ring-indigo-100' : 'border-slate-200 hover:border-slate-300'
+        open || q ? 'border-indigo-500 ring-4 ring-indigo-100' : 'border-slate-200 hover:border-slate-300'
         }`}>
         {loading
           ? <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin shrink-0" />
@@ -957,7 +957,7 @@ export default function UlgurjiSotuv() {
       const primaryItem = cart.find(it => it.currency && it.currency !== 'UZS');
       const primaryPayment = payments.find(p => p.currency && p.currency !== 'UZS');
       const primaryCurrencyCode = primaryItem ? primaryItem.currency : (primaryPayment ? primaryPayment.currency : 'UZS');
-      
+
       const primaryCurrencyObj = currencies.find(c => String(c.code).toUpperCase() === String(primaryCurrencyCode).toUpperCase());
       const currencyId = primaryCurrencyObj ? primaryCurrencyObj.id : undefined;
 
@@ -2084,8 +2084,8 @@ export default function UlgurjiSotuv() {
                                 if (currentAmt > 0) {
                                   const amtInUZS = currentAmt * oldRate;
                                   const converted = amtInUZS / newRate;
-                                  const formatted = newCode === 'UZS' 
-                                    ? String(Math.round(converted)) 
+                                  const formatted = newCode === 'UZS'
+                                    ? String(Math.round(converted))
                                     : String(Number(converted.toFixed(4)));
                                   updateLine(line.id, { currency: newCode, amt: formatted });
                                 } else {
@@ -2205,7 +2205,7 @@ export default function UlgurjiSotuv() {
                     }
 
                     const rows = [];
-                    
+
                     rows.push({
                       label: 'Umumiy summa (UZS)',
                       val: fmt(total) + ' s',
@@ -2230,7 +2230,7 @@ export default function UlgurjiSotuv() {
                       const totalInC = total / rate;
                       const paidInC = payments.filter(p => (p.currency || 'UZS') === c).reduce((sum, p) => sum + (parseFloat(p.amt) || 0), 0);
                       const sym = c === 'USD' ? '$' : (c === 'RUB' ? '₽' : c);
-                      
+
                       rows.push({
                         label: `Umumiy summa (${c})`,
                         val: sym + ' ' + (totalInC < 0.01 ? totalInC.toFixed(4) : totalInC.toFixed(2)),
@@ -2250,8 +2250,8 @@ export default function UlgurjiSotuv() {
                       if (dVal > 0.009) {
                         listedDebt = true;
                         const sym = c === 'USD' ? '$' : (c === 'RUB' ? '₽' : (c === 'UZS' ? ' s' : ' ' + c));
-                        const formattedVal = c === 'UZS' 
-                          ? fmt(dVal) + sym 
+                        const formattedVal = c === 'UZS'
+                          ? fmt(dVal) + sym
                           : sym + ' ' + (dVal < 0.01 ? dVal.toFixed(4) : dVal.toFixed(2));
                         rows.push({
                           label: `Qarzga qoladi (${c})`,

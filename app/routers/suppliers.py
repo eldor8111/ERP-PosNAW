@@ -24,6 +24,8 @@ class SupplierDebtPayment(BaseModel):
     reason: str = "Qarz to'lovi"
     wallet_id: Optional[int] = None
     payment_type: Optional[str] = "cash"
+    currency: Optional[str] = "UZS"
+
 
 
 @router.get("", response_model=List[SupplierOut])
@@ -252,7 +254,36 @@ def pay_supplier_debt(
         raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
     if data.amount <= 0:
         raise HTTPException(status_code=400, detail="To'lov miqdori musbat bo'lishi kerak")
-    supplier.debt_balance = float(supplier.debt_balance or 0) - data.amount
+    
+    currency = data.currency or "UZS"
+
+    # Ensure debt_balances is initialised before any reads
+    if not supplier.debt_balances:
+        supplier.debt_balances = {}
+
+    # --- LEGACY MIGRATION ---
+    if not supplier.debt_balances and float(supplier.debt_balance or 0) > 0:
+        legacy_currency = (supplier.debt_currency or "UZS").strip().upper() or "UZS"
+        supplier.debt_balances = {legacy_currency: float(supplier.debt_balance)}
+
+    # Update the currency-specific balance in debt_balances JSON
+    from decimal import Decimal
+    from sqlalchemy.orm.attributes import flag_modified
+    curr_val = Decimal(str(supplier.debt_balances.get(currency, 0)))
+    supplier.debt_balances[currency] = float(max(Decimal("0"), curr_val - Decimal(str(data.amount))))
+    flag_modified(supplier, "debt_balances")
+
+    # Update aggregate debt_balance (always in UZS)
+    from app.models.currency import Currency as CurrencyModel
+    exchange_rate = Decimal("1")
+    if currency != "UZS":
+        curr_obj = db.query(CurrencyModel).filter(CurrencyModel.code == currency).first()
+        if curr_obj:
+            exchange_rate = Decimal(str(curr_obj.rate))
+
+    amount_in_uzs = Decimal(str(data.amount)) * exchange_rate
+    supplier.debt_balance = max(Decimal("0"), Decimal(str(supplier.debt_balance or 0)) - amount_in_uzs)
+
 
     from app.models.moliya import Transaction, Wallet, KassaMovement
     from app.models.branch import Branch as _Branch

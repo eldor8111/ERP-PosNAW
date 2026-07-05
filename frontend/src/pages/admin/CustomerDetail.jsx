@@ -106,7 +106,7 @@ export default function CustomerDetail() {
 
     api.get('/finance/payments/income').then(r => setIncome(r.data.items))
     api.get(`/sales`).then(r => setSalesData(r.data))
-    api.get('/currencies').then(r => setCurrencies(r.data)).catch(() => {})
+    api.get('/currencies').then(r => setCurrencies(r.data)).catch(() => { })
   }, [customerId, navigate])
 
   const loadSales = useCallback(async () => {
@@ -144,7 +144,7 @@ export default function CustomerDetail() {
   }
 
   if (!stats) return null
-  
+
   const dynamicBalance = (() => {
     if (stats.debt_balances && Object.keys(stats.debt_balances).length > 0) {
       let uzs = 0;

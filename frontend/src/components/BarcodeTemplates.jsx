@@ -10,19 +10,16 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import api from '../api/axios';
 
-/* ── Constants ───────────────────────────────── */
 const LS_KEY = 'barcode_saved_templates';
 
-const MM_TO_PX = 3.7795; // approximate, for screen preview only
+const MM_TO_PX = 3.7795;
 
 function mmToPx(mm) {
   return Math.round(mm * MM_TO_PX);
 }
 
-/* ── Built-in template definitions ───────────── */
-// Each template: { id, name, w, h, variant, description }
-// variant determines JS render function
 const BUILT_IN_TEMPLATES = [
   // ── 30×20 mm ──────────────────────────────────────────────
   {
@@ -141,94 +138,130 @@ const BUILT_IN_TEMPLATES = [
 
 const SIZE_GROUPS = ['30×20', '40×30', '50×30', '50×40', '60×40'];
 
-/* ── Generate HTML for a single label ──────── */
 function buildLabelHTML(tpl, product, opts = {}) {
-  const { fontSize = 8, date = '' } = opts;
-  const { w, h, colors, show, variant } = tpl;
+  const { w, h, colors } = tpl;
+
+  // Extract option states or default fallback options
+  const showCompanyName = opts.showCompanyName !== undefined ? opts.showCompanyName : true;
+  const showPrice = opts.showPrice !== undefined ? opts.showPrice : true;
+  const showBarcode = opts.showBarcode !== undefined ? opts.showBarcode : true;
+  const showSku = opts.showSku !== undefined ? opts.showSku : true;
+  const showDate = opts.showDate !== undefined ? opts.showDate : true;
+
+  const companyNamePos = opts.companyNamePos || 'up';
+  const productNamePos = opts.productNamePos || 'up';
+  const productPricePos = opts.productPricePos || 'down';
+  const productSkuPos = opts.productSkuPos || 'up';
+
+  const companyNameSize = opts.fontSize || 8;
+  const productNameSize = opts.productNameSize || 8;
+  const productPriceSize = opts.productPriceSize || 8;
+  const productCurrencySize = opts.productCurrencySize || 6;
+  const productSkuSize = opts.productSkuSize || 6;
+  const barcodeSize = opts.barcodeSize || 10;
+  const dateVal = opts.date || '';
+
+  // Get and convert pricing
+  const currencies = opts.currencies || [];
+  const selectedCurrencyCode = (opts.currencyVal || product.sale_currency || "UZS").toUpperCase();
+  const productCurrencyCode = (product.sale_currency || "UZS").toUpperCase();
+
+  const origCur = currencies.find(c => c.code?.toUpperCase() === productCurrencyCode);
+  const origRate = origCur ? Number(origCur.rate) : 1;
+
+  const targetCur = currencies.find(c => c.code?.toUpperCase() === selectedCurrencyCode);
+  const targetRate = targetCur ? Number(targetCur.rate) : 1;
+
+  const priceInBase = Number(product.sale_price || 0) * (origRate || 1);
+  const convertedPriceValue = priceInBase / (targetRate || 1);
+
+  // Format currency display:
+  const currencyDisp = selectedCurrencyCode === 'UZS' ? "" : selectedCurrencyCode;
+
+  // If the converted value is a positive fraction under 0.1, we increase decimal precision up to 5 digits so it won't display as 0.
+  const maxDigits = (convertedPriceValue > 0 && convertedPriceValue < 0.1) ? 5 : 2;
+
+  const price = Number(convertedPriceValue).toLocaleString('uz-UZ', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: maxDigits
+  });
+
   const name = product.name || '';
-  const brand = product.brand || '';
-  const price = Number(product.sale_price || 0).toLocaleString('uz-UZ');
   const sku = product.sku || '';
   const barcode = product.barcode || '';
+  const companyNameText = opts.companyName || '';
 
   const base = `
     width:${w}mm; height:${h}mm;
-    background:${colors.bg}; color:${colors.text};
+    background:${colors.bg || '#fff'}; color:${colors.text || '#000'};
     display:inline-flex; flex-direction:column; align-items:center; justify-content:space-between;
     padding:1mm 1.5mm; box-sizing:border-box;
     border:0.3mm solid #ccc; page-break-inside:avoid; overflow:hidden;
     font-family:Arial,sans-serif; -webkit-print-color-adjust:exact; print-color-adjust:exact;
   `;
 
-  let inner = '';
+  // Dynamic content building blocks
+  const companyHtml = (showCompanyName && companyNameText)
+    ? `<div style="font-size:${companyNameSize}px; font-weight:700; text-align:center; word-break:break-word; width:100%; line-height:1.1;">${companyNameText}</div>`
+    : '';
 
-  if (variant === 'warehouse') {
-    inner = `
-      ${show.name ? `<div style="font-size:${fontSize + 1}px;font-weight:700;text-align:center;word-break:break-word;width:100%">${name}</div>` : ''}
-      ${show.sku ? `<div style="font-size:${fontSize - 1}px;color:#666">${sku}</div>` : ''}
-      ${show.barcode ? `<svg class="bc" data-val="${barcode}" style="width:100%;max-height:${h * 0.6}mm"></svg>` : ''}
-    `;
-  } else if (variant === 'price-big') {
-    inner = `
-      ${show.name ? `<div style="font-size:${fontSize}px;font-weight:600;text-align:center;line-height:1.1;width:100%;overflow:hidden">${name}</div>` : ''}
-      ${show.barcode ? `<svg class="bc" data-val="${barcode}" style="width:100%"></svg>` : ''}
-      ${show.price ? `<div style="font-size:${fontSize + 5}px;font-weight:900;color:${colors.accent};letter-spacing:-0.5px;line-height:1">${price}</div>
-      <div style="font-size:${fontSize - 1}px;color:#999">so'm</div>` : ''}
-    `;
-  } else if (variant === 'dark') {
-    inner = `
-      ${show.name ? `<div style="font-size:${fontSize}px;font-weight:700;text-align:center;color:${colors.text};width:100%">${name}</div>` : ''}
-      ${show.barcode ? `<svg class="bc" data-val="${barcode}" style="width:100%" data-linecolor="${colors.text}" data-fontcolor="${colors.text}"></svg>` : ''}
-      ${show.price ? `<div style="font-size:${fontSize + 3}px;font-weight:900;color:${colors.accent}">${price} <span style="font-size:${fontSize - 1}px;font-weight:400">so'm</span></div>` : ''}
-    `;
-  } else if (variant === 'branded') {
-    inner = `
-      ${show.brand && brand ? `<div style="font-size:${fontSize - 1}px;font-weight:700;color:${colors.accent};text-transform:uppercase;letter-spacing:0.5px">${brand}</div>` : ''}
-      ${show.name ? `<div style="font-size:${fontSize}px;font-weight:600;text-align:center;width:100%;overflow:hidden">${name}</div>` : ''}
-      ${show.barcode ? `<svg class="bc" data-val="${barcode}" style="width:100%"></svg>` : ''}
-      ${show.price ? `<div style="font-size:${fontSize + 2}px;font-weight:800;color:${colors.accent}">${price} <span style="font-size:${fontSize - 1}px;font-weight:400;color:#666">so'm</span></div>` : ''}
-    `;
-  } else if (variant === 'with-sku') {
-    inner = `
-      ${show.name ? `<div style="font-size:${fontSize}px;font-weight:700;text-align:center;width:100%">${name}</div>` : ''}
-      ${show.sku ? `<div style="font-size:${fontSize - 2}px;color:${colors.accent};font-family:monospace">${sku}</div>` : ''}
-      ${show.barcode ? `<svg class="bc" data-val="${barcode}" style="width:100%"></svg>` : ''}
-      ${show.price ? `<div style="font-size:${fontSize + 2}px;font-weight:800">${price} <span style="font-size:${fontSize - 1}px;color:#777">so'm</span></div>` : ''}
-    `;
-  } else if (variant === 'full') {
-    inner = `
-      ${show.brand && brand ? `<div style="font-size:${fontSize - 1}px;font-weight:700;color:${colors.accent};text-transform:uppercase">${brand}</div>` : ''}
-      ${show.name ? `<div style="font-size:${fontSize}px;font-weight:700;text-align:center;width:100%;line-height:1.2">${name}</div>` : ''}
-      ${show.sku ? `<div style="font-size:${fontSize - 2}px;color:#999;font-family:monospace">${sku}</div>` : ''}
-      ${show.barcode ? `<svg class="bc" data-val="${barcode}" style="width:100%"></svg>` : ''}
-      ${show.price ? `<div style="font-size:${fontSize + 3}px;font-weight:900;color:${colors.accent}">${price} <span style="font-size:${fontSize - 1}px;font-weight:400;color:#666">so'm</span></div>` : ''}
-    `;
-  } else if (variant === 'retail') {
-    inner = `
-      ${show.name ? `<div style="font-size:${fontSize}px;font-weight:600;text-align:center;width:100%">${name}</div>` : ''}
-      ${show.price ? `<div style="font-size:${fontSize + 6}px;font-weight:900;color:${colors.accent};line-height:1">
-        ${price}<span style="font-size:${fontSize}px;font-weight:500"> so'm</span>
-      </div>` : ''}
-      ${show.barcode ? `<svg class="bc" data-val="${barcode}" style="width:100%"></svg>` : ''}
-      ${date ? `<div style="font-size:${fontSize - 2}px;color:#aaa">${date}</div>` : ''}
-    `;
-  } else if (variant === 'premium') {
-    inner = `
-      <div style="width:100%;border-bottom:0.5mm solid ${colors.accent};padding-bottom:0.5mm;margin-bottom:0.5mm">
-        ${show.brand && brand ? `<div style="font-size:${fontSize - 1}px;font-weight:700;color:${colors.accent};text-transform:uppercase;letter-spacing:0.5px">${brand}</div>` : ''}
-        ${show.name ? `<div style="font-size:${fontSize}px;font-weight:700;line-height:1.2">${name}</div>` : ''}
-      </div>
-      ${show.barcode ? `<svg class="bc" data-val="${barcode}" style="width:100%"></svg>` : ''}
-      ${show.price ? `<div style="font-size:${fontSize + 4}px;font-weight:900;color:${colors.accent}">${price} <span style="font-size:${fontSize - 1}px;font-weight:400;color:#999">so'm</span></div>` : ''}
-    `;
-  } else {
-    // classic
-    inner = `
-      ${show.name ? `<div style="font-size:${fontSize}px;font-weight:700;text-align:center;width:100%;line-height:1.2;overflow:hidden">${name}</div>` : ''}
-      ${show.barcode ? `<svg class="bc" data-val="${barcode}" style="width:100%"></svg>` : ''}
-      ${show.price ? `<div style="font-size:${fontSize + 2}px;font-weight:800">${price} <span style="font-size:${fontSize - 1}px;color:#777;font-weight:400">so'm</span></div>` : ''}
-    `;
+  const productNameHtml = `<div style="font-size:${productNameSize}px; font-weight:700; text-align:center; line-height:1.2; width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${name}</div>`;
+
+  const priceHtml = showPrice
+    ? `<div style="font-size:${productPriceSize}px; font-weight:900; color:${colors.accent || colors.text || '#000'}; display:inline-flex; align-items:baseline; justify-content:center; width:100%;">
+         ${price}
+         <span style="font-size:${productCurrencySize}px; font-weight:500; color:#666; margin-left:1.5px; opacity:0.85;">${currencyDisp}</span>
+       </div>`
+    : '';
+
+  const skuHtml = (showSku && sku)
+    ? `<div style="font-size:${productSkuSize}px; color:#555; font-family:monospace; text-align:center; width:100%; line-height:1.1;">${sku}</div>`
+    : '';
+
+  const dateHtml = (showDate && dateVal)
+    ? `<div style="font-size:6px; color:#888; text-align:center; width:100%; line-height:1;">${dateVal}</div>`
+    : '';
+
+  const barcodeHtml = (showBarcode && barcode)
+    ? `<svg class="bc" data-val="${barcode}" data-linecolor="${colors.text || '#000'}" data-height="${barcodeSize * 2.4}" data-fontsize="${barcodeSize * 0.7}" style="width:100%; max-height:${h * 0.55}mm; margin:0.5mm 0;"></svg>`
+    : '';
+
+  const upElements = [];
+  const downElements = [];
+
+  if (companyHtml) {
+    if (companyNamePos === 'up') upElements.push(companyHtml);
+    else downElements.push(companyHtml);
   }
+
+  if (productNameHtml) {
+    if (productNamePos === 'up') upElements.push(productNameHtml);
+    else downElements.push(productNameHtml);
+  }
+
+  if (skuHtml) {
+    if (productSkuPos === 'up') upElements.push(skuHtml);
+    else downElements.push(skuHtml);
+  }
+
+  if (priceHtml) {
+    if (productPricePos === 'up') upElements.push(priceHtml);
+    else downElements.push(priceHtml);
+  }
+
+  if (dateHtml) {
+    downElements.push(dateHtml);
+  }
+
+  const inner = `
+    <div style="width:100%; display:flex; flex-direction:column; align-items:center; gap:0.4mm; overflow:hidden;">
+      ${upElements.join('')}
+    </div>
+    ${barcodeHtml}
+    <div style="width:100%; display:flex; flex-direction:column; align-items:center; gap:0.4mm; overflow:hidden;">
+      ${downElements.join('')}
+    </div>
+  `;
 
   return `<div style="${base}">${inner}</div>`;
 }
@@ -240,13 +273,15 @@ function renderBarcodes(container) {
     const val = el.dataset.val;
     if (!val) return;
     const lineColor = el.dataset.linecolor || '#000';
+    const bh = Number(el.dataset.height || 28);
+    const fs = Number(el.dataset.fontsize || 7);
     try {
       window.JsBarcode(el, val, {
         format: 'CODE128',
-        width: 1.2,
-        height: 28,
+        width: 1.1,
+        height: bh,
         displayValue: true,
-        fontSize: 7,
+        fontSize: fs,
         margin: 1,
         lineColor,
         fontOptions: '',
@@ -263,7 +298,7 @@ function renderBarcodes(container) {
 /* ── LabelPreview component ─────────────────── */
 // Renders the label at actual mm size then scales to 'scale' factor.
 // Uses a fixed-size outer div so it never overflows its container.
-function LabelPreview({ tpl, product, scale = 1, fontSize = 8 }) {
+function LabelPreview({ tpl, product, scale = 1, options = {} }) {
   const ref = useRef(null);
   const wPx = mmToPx(tpl.w);
   const hPx = mmToPx(tpl.h);
@@ -272,7 +307,7 @@ function LabelPreview({ tpl, product, scale = 1, fontSize = 8 }) {
     if (ref.current) renderBarcodes(ref.current);
   });
 
-  const html = buildLabelHTML(tpl, product, { fontSize });
+  const html = buildLabelHTML(tpl, product, options);
 
   return (
     // Outer div: reserves exactly the scaled pixel space
@@ -304,15 +339,13 @@ function TemplateCard({ tpl, product, selected, onSelect, isSaved }) {
   return (
     <button
       onClick={() => onSelect(tpl)}
-      className={`flex flex-col items-start gap-2 p-3 rounded-xl border-2 text-left transition-all w-full ${
-        selected ? 'border-indigo-500 bg-indigo-50 shadow-md' : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
-      }`}
+      className={`flex flex-col items-start gap-2 p-3 rounded-xl border-2 text-left transition-all w-full ${selected ? 'border-indigo-500 bg-indigo-50 shadow-md' : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
+        }`}
     >
       {/* badge */}
       <div className="flex items-center gap-1.5 w-full">
-        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-          isSaved ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
-        }`}>
+        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isSaved ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
+          }`}>
           {tpl.size} mm
         </span>
         {isSaved && <span className="text-xs text-amber-500">⭐ Saqlangan</span>}
@@ -327,7 +360,7 @@ function TemplateCard({ tpl, product, selected, onSelect, isSaved }) {
         className="overflow-hidden rounded bg-white border border-slate-200"
         style={{ width: THUMB_W, height: thumbH }}
       >
-        <LabelPreview tpl={tpl} product={product} scale={scale} fontSize={7} />
+        <LabelPreview tpl={tpl} product={product} scale={scale} options={{ fontSize: 7 }} />
       </div>
     </button>
   );
@@ -337,29 +370,78 @@ function TemplateCard({ tpl, product, selected, onSelect, isSaved }) {
    Main export: BarcodePrintModal
 ══════════════════════════════════════════════ */
 export default function BarcodePrintModal({ product, onClose }) {
-  const [sizeFilter, setSizeFilter] = useState('all');
   const [selectedTpl, setSelectedTpl] = useState(BUILT_IN_TEMPLATES[3]); // 50×30 default
   const [qty, setQty] = useState(1);
+
   const [fontSize, setFontSize] = useState(8);
+  const [productNameSize, setProductNameSize] = useState(8);
+  const [productPriceSize, setProductPriceSize] = useState(8);
+  const [productCurrencySize, setProductCurrencySize] = useState(6);
+  const [productSkuSize, setProductSkuSize] = useState(6);
+  const [barcodeSize, setBarcodeSize] = useState(10);
+
+  const [companyName, setCompanyName] = useState("");
+
   const [savedTemplates, setSavedTemplates] = useState(() => {
     try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch { return []; }
   });
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [saveName, setSaveName] = useState('');
+  const [currencies, setCurrencies] = useState([]);
+  const [currencyVal, setCurrencyVal] = useState(() => (product.sale_currency || "UZS").toUpperCase());
+
+  const [showCompanyName, setShowCompanyName] = useState(true);
+  const [showPrice, setShowPrice] = useState(true);
+  const [showBarcode, setShowBarcode] = useState(true);
+  const [showSku, setShowSku] = useState(true);
+  const [showDate, setShowDate] = useState(true);
+
+  const [companyNamePos, setCompanyNamePos] = useState("up");
+  const [productNamePos, setProductNamePos] = useState("up");
+  const [productPricePos, setProductPricePos] = useState("down");
+  const [productSkuPos, setProductSkuPos] = useState("up");
 
   // Load JsBarcode CDN
   useEffect(() => {
+    api.get('/currencies').then(res => {
+      setCurrencies(res.data);
+      // Ensure the initial product sale currency exists in currency list, otherwise default.
+      const hasOriginal = res.data.some(c => c.code?.toUpperCase() === (product.sale_currency || "UZS").toUpperCase());
+      if (!hasOriginal && res.data.length > 0) {
+        // Find default or first currency
+        const defCur = res.data.find(c => c.is_default) || res.data[0];
+        setCurrencyVal(defCur.code.toUpperCase());
+      }
+    });
+
     if (window.JsBarcode) return;
     const s = document.createElement('script');
     s.src = 'https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js';
     s.async = true;
     document.head.appendChild(s);
-  }, []);
+  }, [product.sale_currency]);
 
-  const allTemplates = [...BUILT_IN_TEMPLATES, ...savedTemplates];
-  const filteredTemplates = sizeFilter === 'all'
-    ? allTemplates
-    : allTemplates.filter(t => t.size === sizeFilter);
+  const previewOptions = {
+    companyName,
+    currencyVal,
+    currencies,
+    fontSize,
+    productNameSize,
+    productPriceSize,
+    productCurrencySize,
+    barcodeSize,
+    productSkuSize,
+    showCompanyName,
+    showPrice,
+    showBarcode,
+    showSku,
+    showDate,
+    companyNamePos,
+    productNamePos,
+    productPricePos,
+    productSkuPos,
+    date: new Date().toLocaleDateString('uz-UZ'),
+  };
 
   /* Save current template customization */
   const handleSave = () => {
@@ -378,16 +460,10 @@ export default function BarcodePrintModal({ product, onClose }) {
     setSaveName('');
   };
 
-  const handleDeleteSaved = (id) => {
-    const updated = savedTemplates.filter(t => t.id !== id);
-    setSavedTemplates(updated);
-    localStorage.setItem(LS_KEY, JSON.stringify(updated));
-  };
-
   /* Print — uses a hidden iframe so no new tab is opened */
   const handlePrint = () => {
     const { w, h } = selectedTpl;
-    const singleLabel = buildLabelHTML(selectedTpl, product, { fontSize });
+    const singleLabel = buildLabelHTML(selectedTpl, product, previewOptions);
     const labelItems = Array.from({ length: qty }, (_, i) =>
       `<div class="lbl-wrap${i < qty - 1 ? ' page-break' : ''}">${singleLabel}</div>`
     ).join('');
@@ -403,73 +479,87 @@ export default function BarcodePrintModal({ product, onClose }) {
 
     const doc = iframe.contentWindow.document;
     doc.open();
-    doc.write(`<!DOCTYPE html>
-<html><head><title>Chop: ${product.name}</title>
-<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></scr` + `ipt>
-<style>
-  @page {
-    margin: 0;
-    size: ${w}mm ${h}mm;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    padding: 0;
-    background: #fff;
-    font-family: Arial, sans-serif;
-  }
-  .lbl-wrap {
-    display: block;
-    width: ${w}mm;
-    height: ${h}mm;
-    overflow: hidden;
-  }
-  .lbl-wrap > div {
-    border: none !important;
-  }
-  .page-break {
-    page-break-after: always;
-  }
-</style>
-</head>
-<body>
-${labelItems}
-<script>
-  window.onload = function() {
-    document.querySelectorAll('svg.bc').forEach(function(el) {
-      var v = el.dataset.val; if (!v) return;
-      var lc = el.dataset.linecolor || '#000';
-      try {
-        JsBarcode(el, v, {format:'CODE128', width:1.2, height:28, displayValue:true, fontSize:7, margin:1, lineColor:lc});
-      } catch(e) {}
-    });
-    setTimeout(function() {
-      window.focus();
-      window.print();
-    }, 500);
-  };
-</scr` + `ipt>
-</body></html>`);
+    doc.write(`
+      <!DOCTYPE html>
+        <html>
+          <head><title>Chop: ${product.name}</title>
+            <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></scr` + `ipt>
+            <style>
+              @page {
+                margin: 0;
+                size: ${w}mm ${h}mm;
+              }
+              * { box-sizing: border-box; }
+              body {
+                margin: 0;
+                padding: 0;
+                background: #fff;
+                font-family: Arial, sans-serif;
+              }
+              .lbl-wrap {
+                display: block;
+                width: ${w}mm;
+                height: ${h}mm;
+                overflow: hidden;
+              }
+              .lbl-wrap > div {
+                border: none !important;
+              }
+              .page-break {
+                page-break-after: always;
+              }
+            </style>
+          </head>
+          <body>
+            ${labelItems}
+            <script>
+              window.onload = function() {
+                document.querySelectorAll('svg.bc').forEach(function(el) {
+                  var v = el.dataset.val; if (!v) return;
+                  var lc = el.dataset.linecolor || '#000';
+                  var bh = Number(el.dataset.height || 28);
+                  var fs = Number(el.dataset.fontsize || 7);
+                  try {
+                    JsBarcode(el, v, {
+                      format: 'CODE128',
+                      width: 1.1,
+                      height: bh,
+                      displayValue: true,
+                      fontSize: fs,
+                      margin: 1,
+                      lineColor: lc,
+                      fontOptions: '',
+                      font: 'Arial',
+                      textAlign: 'center',
+                      textPosition: 'bottom'
+                    });
+                  } catch(e) {}
+                });
+                setTimeout(function() {
+                  window.focus();
+                  window.print();
+                }, 500);
+              };
+            </script>
+          </body>
+        </html>`);
     doc.close();
   };
 
-  const isSavedTpl = (id) => savedTemplates.some(t => t.id === id);
-
   return (
     <div
-      className="fixed inset-0 z-70 flex items-center justify-center p-3 bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
+      className="fixed inset-0 z-70 flex items-center w-full h-full justify-center"
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-        style={{ width: '92vw', maxWidth: 1100, height: '92vh' }}
+        className="bg-white flex flex-col overflow-hidden"
+        style={{ width: '100%', maxWidth: '100%', height: '100%' }}
         onClick={e => e.stopPropagation()}
       >
         {/* ── Header ── */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
+        <div className="flex items-center justify-between px-6 py-3 border-b border-slate-100 shrink-0">
           <div>
-            <h3 className="text-lg font-bold text-slate-800">Shtrix-kod shablonlari</h3>
-            <p className="text-xs text-slate-400 mt-0.5 truncate max-w-sm">
+            <h3 className="text-lg font-bold text-slate-800">Shtrix-kod</h3>
+            <p className="text-xs text-slate-400 truncate max-w-sm">
               {product.name} · <span className="font-mono">{product.barcode}</span>
             </p>
           </div>
@@ -494,82 +584,185 @@ ${labelItems}
 
         {/* ── Body: 3 columns ── */}
         <div className="flex flex-1 overflow-hidden">
-
-          {/* LEFT: Template selector */}
-          <div className="w-72 shrink-0 border-r border-slate-100 flex flex-col overflow-hidden">
-            {/* Size filter */}
-            <div className="p-3 border-b border-slate-100 shrink-0">
-              <div className="text-xs font-semibold text-slate-500 uppercase mb-2">O'lcham</div>
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  onClick={() => setSizeFilter('all')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
-                    sizeFilter === 'all' ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >Barchasi</button>
-                {SIZE_GROUPS.map(s => (
-                  <button key={s}
-                    onClick={() => setSizeFilter(s)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
-                      sizeFilter === s ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >{s}</button>
-                ))}
-              </div>
+          {/* LEFT: Settings */}
+          <div className="min-w-70 max-w-170 w-full border-r border-slate-100 flex flex-col overflow-hidden">
+            <div className="p-4 border-b border-slate-100 shrink-0">
+              <div className="text-xs font-semibold text-slate-500 uppercase">Sozlamalar</div>
             </div>
-
-            {/* Template list */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-2">
-              {filteredTemplates.map(tpl => (
-                <div key={tpl.id} className="relative">
-                  <TemplateCard
-                    tpl={tpl}
-                    product={product}
-                    selected={selectedTpl?.id === tpl.id}
-                    onSelect={setSelectedTpl}
-                    isSaved={isSavedTpl(tpl.id)}
-                  />
-                  {isSavedTpl(tpl.id) && (
-                    <button
-                      onClick={() => handleDeleteSaved(tpl.id)}
-                      className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center bg-red-100 hover:bg-red-200 text-red-500 rounded-full text-xs transition-colors"
-                      title="O'chirish"
-                    >×</button>
-                  )}
+            <div className='overflow-y-auto pb-10'>
+              <div className="px-3 py-1 mt-2 shrink-0">
+                <div className="text-xs font-semibold text-slate-500 uppercase mb-1">O'lcham</div>
+                <div className="flex flex-wrap gap-1.5">
+                  <select
+                    value={selectedTpl?.size || '50×30'}
+                    onChange={(e) => {
+                      const selectedSize = e.target.value;
+                      const found = BUILT_IN_TEMPLATES.find(t => t.size === selectedSize);
+                      if (found) {
+                        setSelectedTpl(found);
+                      } else {
+                        const [w, h] = selectedSize.split('×').map(Number);
+                        setSelectedTpl({
+                          id: `custom-${selectedSize}`,
+                          name: selectedSize,
+                          size: selectedSize,
+                          w,
+                          h,
+                          colors: { bg: '#fff', text: '#000', accent: '#000' }
+                        });
+                      }
+                    }}
+                    className="px-4 py-3 w-full rounded-lg text-sm font-semibold transition-colors cursor-pointer border border-slate-300 outline-0"
+                  >
+                    {SIZE_GROUPS.map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
                 </div>
-              ))}
-              {filteredTemplates.length === 0 && (
-                <div className="text-center py-8 text-slate-400 text-xs">Shablon topilmadi</div>
-              )}
+              </div>
+
+              <div className="px-3 py-2 shrink-0">
+                <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Valyuta</div>
+                <div className="flex flex-wrap gap-1.5">
+                  <select
+                    value={currencyVal}
+                    onChange={(e) => setCurrencyVal(e.target.value)}
+                    className="px-4 py-3 w-full rounded-lg text-sm font-semibold transition-colors cursor-pointer border border-slate-300 outline-0"
+                  >
+                    {currencies.map(s => (
+                      <option key={s.id || s.code || String(s)} value={s.code || s}>{s.code || s}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="px-3 py-2 border-b border-slate-100 shrink-0">
+                <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Korxona nomi</div>
+                <div className="">
+                  <input
+                    type="text"
+                    placeholder="Korxona nomi"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    className="px-4 py-3 w-full rounded-lg text-sm transition-colors border border-slate-300 outline-0"
+                  />
+                </div>
+              </div>
+
+              <div className="p-4 flex flex-col gap-3">
+                {/* Korxona nomi */}
+                <div>
+                  <div className="text-sm font-medium text-slate-600 mb-1">Korxona nomi: {fontSize}px</div>
+                  <input
+                    type="range"
+                    min="6"
+                    max="22"
+                    value={fontSize}
+                    onChange={e => setFontSize(+e.target.value)}
+                    className="w-full accent-blue-600"
+                  />
+                  <div className="flex justify-between text-xs text-slate-400">
+                    <span>6</span><span>22</span>
+                  </div>
+                </div>
+
+                {/* Maxsulot nomi */}
+                <div>
+                  <div className="text-sm font-medium text-slate-600 mb-1">Maxsulot nomi: {productNameSize}px</div>
+                  <input
+                    type="range"
+                    min="6"
+                    max="22"
+                    value={productNameSize}
+                    onChange={e => setProductNameSize(+e.target.value)}
+                    className="w-full accent-blue-600"
+                  />
+                  <div className="flex justify-between text-xs text-slate-400">
+                    <span>6</span><span>22</span>
+                  </div>
+                </div>
+
+                {/* Narxi */}
+                <div>
+                  <div className="text-sm font-medium text-slate-600 mb-1">Narxi: {productPriceSize}px</div>
+                  <input
+                    type="range"
+                    min="6"
+                    max="22"
+                    value={productPriceSize}
+                    onChange={e => setProductPriceSize(+e.target.value)}
+                    className="w-full accent-blue-600"
+                  />
+                  <div className="flex justify-between text-xs text-slate-400">
+                    <span>6</span><span>22</span>
+                  </div>
+                </div>
+
+                {/* Valyuta */}
+                <div>
+                  <div className="text-sm font-medium text-slate-600 mb-1">Valyuta: {productCurrencySize}px</div>
+                  <input
+                    type="range"
+                    min="4"
+                    max="22"
+                    value={productCurrencySize}
+                    onChange={e => setProductCurrencySize(+e.target.value)}
+                    className="w-full accent-blue-600"
+                  />
+                  <div className="flex justify-between text-xs text-slate-400">
+                    <span>4</span><span>22</span>
+                  </div>
+                </div>
+
+                {/* Shtrix */}
+                <div>
+                  <div className="text-sm font-medium text-slate-600 mb-1">Shtrix: {barcodeSize}px</div>
+                  <input
+                    type="range"
+                    min="10"
+                    max="22"
+                    value={barcodeSize}
+                    onChange={e => setBarcodeSize(+e.target.value)}
+                    className="w-full accent-blue-600"
+                  />
+                  <div className="flex justify-between text-xs text-slate-400">
+                    <span>10</span><span>22</span>
+                  </div>
+                </div>
+
+                {/* Artikul */}
+                <div>
+                  <div className="text-sm font-medium text-slate-600 mb-1">Artikul: {productSkuSize}px</div>
+                  <input
+                    type="range"
+                    min="6"
+                    max="22"
+                    value={productSkuSize}
+                    onChange={e => setProductSkuSize(+e.target.value)}
+                    className="w-full accent-blue-600"
+                  />
+                  <div className="flex justify-between text-xs text-slate-400">
+                    <span>6</span><span>22</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
           {/* CENTER: Preview */}
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 min-w-100 flex flex-col overflow-hidden">
             <div className="p-4 border-b border-slate-100 shrink-0">
               <div className="text-xs font-semibold text-slate-500 uppercase">Ko'rinish</div>
             </div>
             <div className="flex-1 overflow-auto p-6 bg-slate-50 flex items-start justify-center">
               {selectedTpl ? (
-                <div className="flex flex-col items-center gap-5 py-4">
-                  {/* Main preview — label at 3× */}
+                <div className="flex">
                   <div>
-                    <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 text-center">Katta ko'rinish</div>
-                    <div className="bg-white shadow-md rounded-xl p-5 inline-flex items-center justify-center">
-                      <LabelPreview tpl={selectedTpl} product={product} scale={3} fontSize={fontSize} />
+                    <div className="bg-white shadow-md inline-flex items-center justify-center">
+                      <LabelPreview tpl={selectedTpl} product={product} scale={2} options={previewOptions} />
                     </div>
                     <div className="text-xs text-slate-400 mt-2 text-center">
                       {selectedTpl.w}×{selectedTpl.h} mm · {selectedTpl.name}
-                    </div>
-                  </div>
-
-                  {/* Chop preview — 4 labels at 1.5× */}
-                  <div className="w-full">
-                    <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 text-center">Chop ko'rinishi (4 ta)</div>
-                    <div className="bg-white rounded-xl p-4 shadow-sm border border-dashed border-slate-200 flex flex-wrap gap-3 justify-center">
-                      {[0, 1, 2, 3].map(i => (
-                        <LabelPreview key={i} tpl={selectedTpl} product={product} scale={1.5} fontSize={fontSize} />
-                      ))}
                     </div>
                   </div>
                 </div>
@@ -580,72 +773,183 @@ ${labelItems}
           </div>
 
           {/* RIGHT: Controls */}
-          <div className="w-56 shrink-0 border-l border-slate-100 flex flex-col overflow-hidden">
+          <div className="max-w-90 min-w-80 w-full border-l border-slate-100 flex flex-col overflow-hidden">
             <div className="p-4 border-b border-slate-100 shrink-0">
               <div className="text-xs font-semibold text-slate-500 uppercase">Sozlamalar</div>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-5">
-
-              {/* Font size */}
-              <div>
-                <div className="text-xs font-semibold text-slate-600 mb-2">Shrift: {fontSize}px</div>
-                <input type="range" min="6" max="12" value={fontSize}
-                  onChange={e => setFontSize(+e.target.value)}
-                  className="w-full accent-indigo-500" />
-                <div className="flex justify-between text-xs text-slate-400 mt-0.5">
-                  <span>6</span><span>12</span>
-                </div>
-              </div>
-
-              {/* Quantity */}
-              <div>
-                <div className="text-xs font-semibold text-slate-600 mb-2">Nusxalar soni</div>
+            <div className="flex-1 flex flex-col overflow-y-auto">
+              <div className="space-y-5 border-b p-4 border-b-slate-100">
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setQty(q => Math.max(1, q - 1))}
-                    className="w-8 h-8 bg-slate-100 hover:bg-slate-200 rounded-lg font-bold text-slate-700 flex items-center justify-center">−</button>
-                  <input
-                    type="number" min="1" max="500" value={qty}
-                    onChange={e => setQty(Math.max(1, Math.min(500, +e.target.value)))}
-                    className="flex-1 text-center border border-slate-200 rounded-lg py-1.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <button onClick={() => setQty(q => Math.min(500, q + 1))}
-                    className="w-8 h-8 bg-slate-100 hover:bg-slate-200 rounded-lg font-bold text-slate-700 flex items-center justify-center">+</button>
+                  <div className="relative inline-block w-11 h-5">
+                    <input
+                      checked={showCompanyName}
+                      onChange={e => setShowCompanyName(e.target.checked)}
+                      id="switch-show-company"
+                      type="checkbox"
+                      className="peer appearance-none w-11 h-5 bg-slate-100 rounded-full checked:bg-blue-600 cursor-pointer transition-colors duration-300"
+                    />
+                    <label htmlFor="switch-show-company" className="absolute top-0 left-0 w-5 h-5 bg-white rounded-full border border-slate-300 shadow-sm transition-transform duration-300 peer-checked:translate-x-6 peer-checked:border-blue-600 cursor-pointer">
+                    </label>
+                  </div>
+                  <span>Korxona nomini ko'rsatish</span>
                 </div>
-                <div className="flex gap-1.5 mt-2 flex-wrap">
-                  {[1, 5, 10, 20, 50, 100].map(n => (
-                    <button key={n} onClick={() => setQty(n)}
-                      className={`px-2 py-0.5 rounded text-xs font-semibold border transition-colors ${
-                        qty === n ? 'border-indigo-500 bg-indigo-50 text-indigo-600' : 'border-slate-200 text-slate-500 hover:border-indigo-300'
-                      }`}>{n}</button>
-                  ))}
+
+                <div className="flex items-center gap-2">
+                  <div className="relative inline-block w-11 h-5">
+                    <input
+                      checked={showPrice}
+                      onChange={e => setShowPrice(e.target.checked)}
+                      id="switch-show-price"
+                      type="checkbox"
+                      className="peer appearance-none w-11 h-5 bg-slate-100 rounded-full checked:bg-blue-600 cursor-pointer transition-colors duration-300"
+                    />
+                    <label htmlFor="switch-show-price" className="absolute top-0 left-0 w-5 h-5 bg-white rounded-full border border-slate-300 shadow-sm transition-transform duration-300 peer-checked:translate-x-6 peer-checked:border-blue-600 cursor-pointer">
+                    </label>
+                  </div>
+                  <span>Mahsulot narxini ko'rsatish</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative inline-block w-11 h-5">
+                    <input
+                      checked={showBarcode}
+                      onChange={e => setShowBarcode(e.target.checked)}
+                      id="switch-show-barcode"
+                      type="checkbox"
+                      className="peer appearance-none w-11 h-5 bg-slate-100 rounded-full checked:bg-blue-600 cursor-pointer transition-colors duration-300"
+                    />
+                    <label htmlFor="switch-show-barcode" className="absolute top-0 left-0 w-5 h-5 bg-white rounded-full border border-slate-300 shadow-sm transition-transform duration-300 peer-checked:translate-x-6 peer-checked:border-blue-600 cursor-pointer">
+                    </label>
+                  </div>
+                  <span>Shtrix kodni ko'rsatish</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative inline-block w-11 h-5">
+                    <input
+                      checked={showSku}
+                      onChange={e => setShowSku(e.target.checked)}
+                      id="switch-show-sku"
+                      type="checkbox"
+                      className="peer appearance-none w-11 h-5 bg-slate-100 rounded-full checked:bg-blue-600 cursor-pointer transition-colors duration-300"
+                    />
+                    <label htmlFor="switch-show-sku" className="absolute top-0 left-0 w-5 h-5 bg-white rounded-full border border-slate-300 shadow-sm transition-transform duration-300 peer-checked:translate-x-6 peer-checked:border-blue-600 cursor-pointer">
+                    </label>
+                  </div>
+                  <span>Mahsulot artikulini ko'rsatish</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative inline-block w-11 h-5">
+                    <input
+                      checked={showDate}
+                      onChange={e => setShowDate(e.target.checked)}
+                      id="switch-show-date"
+                      type="checkbox"
+                      className="peer appearance-none w-11 h-5 bg-slate-100 rounded-full checked:bg-blue-600 cursor-pointer transition-colors duration-300"
+                    />
+                    <label htmlFor="switch-show-date" className="absolute top-0 left-0 w-5 h-5 bg-white rounded-full border border-slate-300 shadow-sm transition-transform duration-300 peer-checked:translate-x-6 peer-checked:border-blue-600 cursor-pointer">
+                    </label>
+                  </div>
+                  <span>Sanani ko'rsatish</span>
                 </div>
               </div>
 
-              {/* Template info */}
-              {selectedTpl && (
-                <div className="p-3 bg-slate-50 rounded-xl space-y-1 text-xs text-slate-600">
-                  <div className="font-semibold text-slate-700">{selectedTpl.name}</div>
-                  <div>{selectedTpl.w}×{selectedTpl.h} mm</div>
-                  <div className="text-slate-400">{selectedTpl.description}</div>
+              <div className="flex flex-col gap-4 p-4 border-b border-b-slate-100">
+                <div className="flex justify-between items-center">
+                  <span>Mahsulot nomi:</span>
+                  <select
+                    value={productNamePos}
+                    onChange={e => setProductNamePos(e.target.value)}
+                    className="py-2 px-3 border border-slate-200 outline-0 cursor-pointer rounded"
+                  >
+                    <option value="up">tepada</option>
+                    <option value="down">pastda</option>
+                  </select>
                 </div>
-              )}
+
+                <div className="flex justify-between items-center">
+                  <span>Mahsulot narxi:</span>
+                  <select
+                    value={productPricePos}
+                    onChange={e => setProductPricePos(e.target.value)}
+                    className="py-2 px-3 border border-slate-200 outline-0 cursor-pointer rounded"
+                  >
+                    <option value="up">tepada</option>
+                    <option value="down">pastda</option>
+                  </select>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <span>Korxona nomi:</span>
+                  <select
+                    value={companyNamePos}
+                    onChange={e => setCompanyNamePos(e.target.value)}
+                    className="py-2 px-3 border border-slate-200 outline-0 cursor-pointer rounded"
+                  >
+                    <option value="up">tepada</option>
+                    <option value="down">pastda</option>
+                  </select>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <span>Artikul:</span>
+                  <select
+                    value={productSkuPos}
+                    onChange={e => setProductSkuPos(e.target.value)}
+                    className="py-2 px-3 border border-slate-200 outline-0 cursor-pointer rounded"
+                  >
+                    <option value="up">tepada</option>
+                    <option value="down">pastda</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
             {/* Print button */}
             <div className="p-4 border-t border-slate-100 space-y-2 shrink-0">
+              {/* Quantity */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setQty(q => Math.max(1, q - 1))}
+                  className="w-10 h-10 bg-slate-100 cursor-pointer hover:bg-slate-200 rounded-md font-bold text-slate-700 flex items-center justify-center"
+                >
+                  −
+                </button>
+                <input
+                  type="number"
+                  min="1"
+                  max="500"
+                  value={qty}
+                  onChange={e => setQty(Math.max(1, Math.min(500, +e.target.value)))}
+                  className="flex-1 text-center border border-slate-200 rounded-md py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setQty(q => Math.min(500, q + 1))}
+                  className="w-10 h-10 bg-slate-100 cursor-pointer hover:bg-slate-200 rounded-md font-bold text-slate-700 flex items-center justify-center"
+                >
+                  +
+                </button>
+              </div>
+
               <button
+                type="button"
                 onClick={handlePrint}
                 disabled={!selectedTpl}
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-md cursor-pointer transition-colors flex items-center justify-center gap-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-                    d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                 </svg>
                 {qty} ta chop et
               </button>
-              <button onClick={onClose}
-                className="w-full py-2 border border-slate-200 text-slate-600 font-semibold text-sm rounded-xl hover:bg-slate-50 transition-colors">
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full py-2 border border-slate-300 text-slate-600 font-semibold text-sm rounded-md hover:bg-slate-100 cursor-pointer transition-colors"
+              >
                 Yopish
               </button>
             </div>
@@ -655,7 +959,7 @@ ${labelItems}
 
       {/* ── Save Template Modal ── */}
       {saveModalOpen && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/40">
+        <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/40" style={{ zIndex: 80 }}>
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
             <h4 className="text-base font-bold text-slate-800 mb-1">Shablonni saqlash</h4>
             <p className="text-xs text-slate-400 mb-4">"{selectedTpl?.name}" asosida yangi shablon</p>
@@ -668,10 +972,19 @@ ${labelItems}
               onKeyDown={e => e.key === 'Enter' && handleSave()}
             />
             <div className="flex gap-3">
-              <button onClick={() => setSaveModalOpen(false)}
-                className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-semibold rounded-xl hover:bg-slate-50">Bekor</button>
-              <button onClick={handleSave} disabled={!saveName.trim()}
-                className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold rounded-xl transition-colors">
+              <button
+                type="button"
+                onClick={() => setSaveModalOpen(false)}
+                className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-semibold rounded-xl hover:bg-slate-50"
+              >
+                Bekor
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={!saveName.trim()}
+                className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold rounded-xl transition-colors"
+              >
                 ⭐ Saqlash
               </button>
             </div>

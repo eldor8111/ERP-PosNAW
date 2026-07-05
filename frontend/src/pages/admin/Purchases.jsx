@@ -5,7 +5,8 @@ import { saveAs } from 'file-saver';
 import api from '../../api/axios';
 import { matchesSearch, searchVariants } from '../../utils/translit';
 import toast from 'react-hot-toast';
-import { CircleArrowDown, Flame, PackageCheck, ShoppingCart, SquareArrowDown } from 'lucide-react';
+import { CircleArrowDown, Flame, PackageCheck, ShoppingCart, SquareArrowDown, Plus, Minus } from 'lucide-react';
+import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const fmtDay = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
 const fmtDt = (d) => d ? new Date(d).toLocaleString('uz-UZ') : '—';
@@ -433,8 +434,8 @@ function PayModal({ total, onPay, onClose }) {
             {PAY_OPTS.map(({ v, l, icon }) => (
               <button key={v} onClick={() => setType(v)}
                 className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold border transition-all ${type === v
-                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200'
-                    : 'bg-white border-slate-200 text-slate-700 hover:border-indigo-300 hover:bg-indigo-50'
+                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200'
+                  : 'bg-white border-slate-200 text-slate-700 hover:border-indigo-300 hover:bg-indigo-50'
                   }`}>
                 {icon} {l}
               </button>
@@ -558,8 +559,8 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
           {/* Wholesale */}
           <button onClick={() => setWhole(w => !w)}
             className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold border transition-all shrink-0 ${wholesale
-                ? 'bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-200'
-                : 'bg-white text-slate-600 border-slate-200 hover:border-amber-400 hover:text-amber-600'
+              ? 'bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-200'
+              : 'bg-white text-slate-600 border-slate-200 hover:border-amber-400 hover:text-amber-600'
               }`}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -615,8 +616,8 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                 <button key={p.id}
                   onClick={() => setQaItem({ product: p, qty: 1, price: displayPrice, discount: 0 })}
                   className={`w-full text-left px-3 py-2.5 rounded-xl border transition-all flex items-center gap-3 group ${inCart
-                      ? 'bg-indigo-50 border-indigo-200'
-                      : 'border-transparent hover:bg-slate-50 hover:border-slate-200'
+                    ? 'bg-indigo-50 border-indigo-200'
+                    : 'border-transparent hover:bg-slate-50 hover:border-slate-200'
                     }`}>
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 ${inCart ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-600'
                     }`}>
@@ -908,6 +909,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
   const [warehouses, setWhs] = useState([]);
   const [suppliers, setSups] = useState([]);
   const [wallets, setWallets] = useState([]);
+  const [currencies, setCurrencies] = useState([{ code: 'UZS', rate: 1 }]);
 
   useEffect(() => {
     api.get('/products/', { params: { limit: 1000, status: 'active' } })
@@ -915,7 +917,20 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
     api.get('/inventory/warehouses').then(r => setWhs(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
     api.get('/suppliers', { params: { limit: 100 } }).then(r => setSups(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
     api.get('/finance/wallets').then(r => { setWallets(r.data); if (r.data.length > 0) setPayForm(p => ({ ...p, wallet_id: r.data[0].id })); }).catch(console.error);
+    api.get('/currencies/active').then(r => {
+      const list = Array.isArray(r.data) ? r.data : [];
+      // Ensure UZS is always present with rate=1
+      if (!list.find(c => c.code === 'UZS')) list.unshift({ code: 'UZS', rate: 1 });
+      setCurrencies(list);
+    }).catch(() => {});
   }, []);
+
+  // Helper: get exchange rate for a currency code
+  const getRateFor = (code) => {
+    const c = currencies.find(c => c.code === code);
+    return c ? Number(c.rate || 1) : 1;
+  };
+
 
   // Pre-populate from editPo when data is loaded
   useEffect(() => {
@@ -951,8 +966,6 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
   // Auto-update price flags
   const [autoRetail, setAutoRet] = useState(false);
   const [autoWholesale, setAutoWho] = useState(false);
-  // USD exchange rate
-  const [usdRate, setUsdRate] = useState('12700');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
 
@@ -966,7 +979,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
   const [newWholesalePrice, setNewWholesalePrice] = useState('');
   const [discType, setDiscType] = useState('pct');  // 'pct' | 'amt'
   const [discVal, setDiscVal] = useState('0');
-  const [currency, setCurrency] = useState('UZS');  // 'UZS' | 'USD'
+  const [currency, setCurrency] = useState('UZS');
 
   const selectProduct = (p) => {
     setSel(p);
@@ -977,14 +990,16 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
     setTimeout(() => { if (qtyRef.current) qtyRef.current.focus(); }, 10);
   };
 
-  // Net cost per unit in UZS
+  // Net cost per unit in UZS using real currency rate
   const calcNet = (rawCost, dType, dVal, cur) => {
     const c = Number(rawCost) || 0;
     const d = Number(dVal) || 0;
     const net = dType === 'pct' ? c * (1 - d / 100) : c - d;
-    return cur === 'USD' ? net * (Number(usdRate) || 12700) : net;
+    const rate = getRateFor(cur);
+    return cur === 'UZS' ? net : net * rate;
   };
   const selNet = calcNet(cost, discType, discVal, currency);
+
 
   const addItem = () => {
     if (!sel || !qty) return;
@@ -1005,7 +1020,18 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
     setTimeout(() => { if (searchRef.current) searchRef.current.focus(); }, 10);
   };
 
-  const updPoItem = (i, field, val) => setPoItems(prev => prev.map((x, idx) => idx === i ? { ...x, [field]: val, net_cost: calcNet(field === 'unit_cost' ? val : x.unit_cost, field === 'discount_type' ? val : x.discount_type, field === 'discount_val' ? val : x.discount_val, field === 'currency' ? val : x.currency) } : x));
+  const updPoItem = (i, field, val) => setPoItems(prev => prev.map((x, idx) => {
+    if (idx !== i) return x;
+    const updated = { ...x, [field]: val };
+    updated.net_cost = calcNet(
+      field === 'unit_cost' ? val : x.unit_cost,
+      field === 'discount_type' ? val : x.discount_type,
+      field === 'discount_val' ? val : x.discount_val,
+      field === 'currency' ? val : x.currency
+    );
+    return updated;
+  }));
+
 
   const activeItems = poItems;
   const totalNet = activeItems.reduce((s, i) => s + i.qty_ordered * (i.net_cost || 0), 0);
@@ -1085,15 +1111,17 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
         </select>
         <input type="date" value={poForm.expected_date} onChange={e => setPoForm(f => ({ ...f, expected_date: e.target.value }))} className={ic} />
 
-        {/* USD exchange rate — shown when any item uses USD */}
-        {(hasCurrency || currency === 'USD') && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 font-semibold">1 USD =</span>
-            <input type="number" value={usdRate} onChange={e => setUsdRate(e.target.value)}
-              className={`${ic} w-28`} placeholder={t('purchase.exchangeRate')} />
-            <span className="text-xs text-slate-500">so'm</span>
+        {/* Currency rates info — shown when non-UZS currencies are in use */}
+        {(hasCurrency || (currency && currency !== 'UZS')) && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {currencies.filter(c => c.code !== 'UZS').map(c => (
+              <span key={c.code} className="text-xs text-slate-500 font-semibold bg-slate-100 px-2 py-1 rounded-lg">
+                1 {c.code} = {fmt(c.rate)} so'm
+              </span>
+            ))}
           </div>
         )}
+
         <input placeholder={t('admin.dict.comment') || 'Izoh'} value={poForm.note}
           onChange={e => setPoForm(f => ({ ...f, note: e.target.value }))}
           className={`${ic} flex-1 min-w-32`} />
@@ -1127,19 +1155,52 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
               {/* Cost price + currency */}
               <div>
                 <label className="text-sm font-bold text-slate-600 uppercase tracking-wide mb-2 block">{t('purchase.costPrice')}</label>
-                <div className="flex rounded-xl border border-slate-200 bg-white focus-within:ring-2 focus-within:ring-indigo-500 overflow-hidden shadow-sm">
+                <div className="flex rounded-xl border border-slate-200 bg-white focus-within:ring-2 focus-within:ring-indigo-500 shadow-sm">
                   <input type="number" min="0" value={cost} onChange={e => setCost(e.target.value)}
-                    className="flex-1 min-w-0 px-4 py-3 text-base font-semibold focus:outline-none bg-transparent" />
-                  <div className="flex border-l border-slate-200">
-                    {['UZS', 'USD'].map(c => (
-                      <button key={c} type="button" onClick={() => setCurrency(c)}
-                        className={`px-4 py-3 text-sm font-bold transition-colors ${currency === c ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>
-                        {c}
-                      </button>
-                    ))}
-                  </div>
+                    className="flex-1 min-w-0 px-4 py-3 text-base font-semibold focus:outline-none bg-transparent rounded-l-xl" />
+                  {/* Currency Listbox — outside overflow-hidden so dropdown is not clipped */}
+                  <Listbox value={currency} onChange={val => {
+                    if (cost && Number(cost) > 0) {
+                      const oldRate = getRateFor(currency);
+                      const newRate = getRateFor(val);
+                      const inUzs = Number(cost) * oldRate;
+                      setCost(String(Math.round((inUzs / newRate) * 100) / 100));
+                    }
+                    setCurrency(val);
+                  }}>
+                    <div className="relative border-l border-slate-200">
+                      <ListboxButton className="h-full min-w-[90px] rounded-r-xl cursor-pointer flex items-center gap-1.5 pl-3 pr-7 bg-slate-50 hover:bg-slate-100 text-indigo-600 font-bold text-sm outline-none transition-colors">
+                        <span>{currency}</span>
+                        <span className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none text-slate-400">
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="size-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 15 12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" /></svg>
+                        </span>
+                      </ListboxButton>
+                      <ListboxOptions className="absolute z-[100] right-0 top-[calc(100%+4px)] w-44 overflow-auto rounded-xl bg-white border border-slate-200 shadow-2xl outline-none p-1">
+                        {currencies.map(c => (
+                          <ListboxOption key={c.code} value={c.code}
+                            className="group flex items-center justify-between gap-2 py-2 px-3 select-none cursor-pointer rounded-lg text-slate-800 data-focus:bg-slate-100 outline-none transition-colors">
+                            <span className="font-semibold text-sm group-data-selected:text-indigo-600">{c.code}</span>
+                            {c.code !== 'UZS' && (
+                              <span className="text-[10px] font-medium text-slate-500">{fmt(c.rate)} so'm</span>
+                            )}
+                            <span className="ml-auto text-indigo-600 opacity-0 group-data-selected:opacity-100 transition-opacity">
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="size-4"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                            </span>
+                          </ListboxOption>
+                        ))}
+                      </ListboxOptions>
+                    </div>
+                  </Listbox>
                 </div>
+                {currency !== 'UZS' && (
+                  <div className="mt-1.5 text-xs text-slate-400 flex items-center gap-1">
+                    <span>1 {currency} = <span className="font-semibold text-slate-500">{fmt(getRateFor(currency))} UZS</span></span>
+                    {cost && Number(cost) > 0 && <span className="mx-1 text-slate-300">→</span>}
+                    {cost && Number(cost) > 0 && <span className="text-indigo-600 font-semibold">{fmt(Math.round(selNet))} UZS</span>}
+                  </div>
+                )}
               </div>
+
 
               {/* Dynamic Price Update Prompt */}
               {sel && cost && Number(cost) !== Number(sel.cost_price || 0) && (
@@ -1339,7 +1400,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
             }
             setErr('');
             setShowPay(true);
-          }} disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-200">{t('admin.dict.payment') || 'To\'lov'}</Btn>
+          }} disabled={saving}>{t('admin.dict.payment') || 'To\'lov'}</Btn>
         </div>
       </div>
 
@@ -1679,14 +1740,31 @@ function SuppliersTab() {
   const [sel, setSel] = useState(null);
   const [form, setForm] = useState(emptySupplier);
   const [saving, setSaving] = useState(false);
-  const [payAmt, setPayAmt] = useState('');
   const [payWallet, setPayWallet] = useState('');
-  const [payType, setPayType] = useState('cash');
   const [payInfo, setPayInfo] = useState('');
   const [wallets, setWallets] = useState([]);
   const [currencies, setCurrencies] = useState([]);
   const [err, setErr] = useState('');
   const inp = 'w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white';
+
+  // Multi-row pay state (matches Customers.jsx pattern)
+  const [payRows, setPayRows] = useState([{ id: Date.now(), payType: '', payAmount: '', currencyType: 'UZS' }]);
+
+  const addPayRow = () => {
+    if (payRows.length < 4) {
+      setPayRows(prev => [...prev, { id: Date.now() + Math.random(), payType: '', payAmount: '', currencyType: 'UZS' }]);
+    }
+  };
+  const removePayRow = (idx) => {
+    if (payRows.length > 1) {
+      setPayRows(prev => prev.filter((_, i) => i !== idx));
+    } else {
+      setPayRows([{ id: Date.now(), payType: '', payAmount: '', currencyType: 'UZS' }]);
+    }
+  };
+  const updatePayRow = (idx, field, value) => {
+    setPayRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
+  };
 
   const [importOpen, setImportOpen] = useState(false);
   const [importFile, setImportFile] = useState(null);
@@ -1804,7 +1882,7 @@ function SuppliersTab() {
   useEffect(() => {
     load();
     api.get('/finance/wallets').then(r => { setWallets(r.data); if (r.data.length > 0) setPayWallet(String(r.data[0].id)); }).catch(() => { });
-    api.get('/currencies/').then(r => setCurrencies(r.data)).catch(() => { });
+    api.get('/currencies/active').then(r => setCurrencies(r.data)).catch(() => { });
   }, []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { const t = setTimeout(() => load(search), 400); return () => clearTimeout(t); }, [search]);
@@ -1859,13 +1937,18 @@ function SuppliersTab() {
   const handlePayDebt = async (e) => {
     e.preventDefault(); setSaving(true); setErr('');
     try {
-      const payload = {
-        amount: Number(payAmt),
-        reason: payInfo || "Qarz to'lovi",
-        payment_type: payType
-      };
-      if (payWallet) payload.wallet_id = Number(payWallet);
-      await api.post(`/suppliers/${sel.id}/pay-debt`, payload); close(); load();
+      const valid = payRows.filter(r => r.payAmount && Number(r.payAmount) > 0 && r.payType);
+      if (valid.length === 0) { setErr("Kamida bitta to'lov turi va miqdorini kiriting"); setSaving(false); return; }
+      for (const row of valid) {
+        await api.post(`/suppliers/${sel.id}/pay-debt`, {
+          amount: Number(row.payAmount),
+          currency: row.currencyType || 'UZS',
+          payment_type: row.payType,
+          reason: payInfo || "Qarz to'lovi",
+          wallet_id: payWallet ? Number(payWallet) : null,
+        });
+      }
+      close(); load();
     }
     catch (ex) { setErr(ex.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); };
   };
@@ -1961,16 +2044,31 @@ function SuppliersTab() {
                       <span className="text-xs font-medium text-emerald-500 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">Qarz yo'q</span>
                     )}
                   </td>
-                  <td className="px-5 py-4"><div className="flex items-center gap-1">
-                    {hasDebt && (
-                      <button onClick={() => { setSel(s); setPayAmt(String(Math.round(s.debt_balance))); if (wallets.length > 0) setPayWallet(String(wallets[0].id)); setPayType('cash'); setPayInfo(''); setErr(''); setModal('pay'); }} title="Qarz to'lash" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
-                        Qarz to'lash
-                      </button>
-                    )}
-                    <button onClick={() => openEdit(s)} className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></button>
-                    <button onClick={() => del(s.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
-                  </div></td>
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-1">
+                      {hasDebt && (
+                        <button onClick={() => {
+                          setSel(s);
+                          // Pre-fill first row with first real debt currency
+                          const dMap = (s.debt_balances && typeof s.debt_balances === 'object')
+                            ? Object.entries(s.debt_balances).filter(([, v]) => Number(v) > 0)
+                            : (Number(s.debt_balance) > 0 ? [['UZS', s.debt_balance]] : []);
+                          const firstCur = dMap[0]?.[0] || 'UZS';
+                          const firstAmt = dMap[0]?.[1] !== undefined ? String(dMap[0][1]) : '';
+                          setPayRows([{ id: Date.now(), payType: '', payAmount: firstAmt, currencyType: firstCur }]);
+                          if (wallets.length > 0) setPayWallet(String(wallets[0].id));
+                          setPayInfo('');
+                          setErr('');
+                          setModal('pay');
+                        }} title="Qarz to'lash" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                          Qarz to'lash
+                        </button>
+                      )}
+                      <button onClick={() => openEdit(s)} className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></button>
+                      <button onClick={() => del(s.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                    </div>
+                  </td>
                 </tr>
               );
             })}
@@ -2078,12 +2176,9 @@ function SuppliersTab() {
         </div>
       )}
 
-      {/* Qarz to'lash Modal — Kassadan to'lov dizayni */}
+      {/* Qarz to'lash Modal — Multi-valyuta */}
       {modal === 'pay' && sel && (() => {
         const debt = Number(sel.debt_balance) || 0;
-        const paid = Math.max(0, Number(payAmt) || 0);
-        const remaining = Math.max(0, debt - paid);
-        const change = Math.max(0, paid - debt);
         const PAY_TYPES = [
           { key: 'cash', label: 'Naqd' },
           { key: 'card', label: 'Karta' },
@@ -2093,14 +2188,37 @@ function SuppliersTab() {
           { key: 'click', label: 'Click' },
           { key: 'payme', label: 'Payme' },
         ];
+
+        // Per-currency totals being paid
+        const paidPerCurrency = payRows.reduce((acc, row) => {
+          const c = row.currencyType || 'UZS';
+          acc[c] = (acc[c] || 0) + (Number(row.payAmount) || 0);
+          return acc;
+        }, {});
+
+        // Total paid in UZS for aggregate remaining
+        const totalPaidUzs = payRows.reduce((sum, row) => {
+          const cur = currencies.find(c => c.code === row.currencyType) || { rate: 1 };
+          return sum + (Number(row.payAmount) || 0) * Number(cur.rate || 1);
+        }, 0);
+        const remaining = Math.max(0, debt - totalPaidUzs);
+
+        // Helper: get debt for a specific currency
+        const getDebtForCur = (cur) => {
+          if (sel.debt_balances && typeof sel.debt_balances === 'object' && Object.keys(sel.debt_balances).length > 0) {
+            return Number(sel.debt_balances[cur] || 0);
+          }
+          return cur === 'UZS' ? debt : 0;
+        };
+
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm" onClick={close}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-4 bg-slate-900/70 backdrop-blur-sm" onClick={close}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
               {/* Header */}
-              <div className="flex items-center justify-between px-7 py-5 border-b border-slate-100">
+              <div className="flex items-center justify-between px-5 md:px-7 py-4 md:py-5 border-b border-slate-100 shrink-0">
                 <div>
-                  <h3 className="text-xl font-bold text-slate-800 tracking-tight">Kassadan to'lov</h3>
-                  <p className="text-sm text-blue-500 font-medium mt-0.5">{new Date().toLocaleString('uz-UZ').replace(',', '')}</p>
+                  <h3 className="text-lg md:text-xl font-bold text-slate-800 tracking-tight">Kassadan to'lov</h3>
+                  <p className="text-xs md:text-sm text-blue-500 font-medium mt-0.5">{new Date().toLocaleString('uz-UZ').replace(',', '')}</p>
                 </div>
                 <button onClick={close} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 transition-colors">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -2108,109 +2226,235 @@ function SuppliersTab() {
               </div>
 
               {/* Body */}
-              <div className="px-7 py-4 overflow-y-auto space-y-6">
+              <div className="px-5 md:px-7 py-4 overflow-y-auto space-y-5">
                 {/* Supplier Info Card */}
                 <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <div className="w-12 h-12 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
+                  <div className="w-11 h-11 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
                     <svg className="w-6 h-6 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1" /></svg>
                   </div>
-                  <div>
-                    <div className="font-bold text-slate-800 text-base">{sel.name}</div>
-                    {sel.phone && <div className="text-xs text-slate-500">{sel.phone}</div>}
-                    <div className="text-[14px] font-bold text-red-500">Joriy qarz: {fmt(debt)} so'm</div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  {/* Kassa tanlash */}
-                  <div className="space-y-2">
-                    <label className="text-[14px] font-semibold text-slate-700">Kassa / Hisob</label>
-                    <select value={payWallet} onChange={e => setPayWallet(e.target.value)}
-                      className="w-full h-12 px-4 border border-slate-200 cursor-pointer rounded-lg bg-white text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none">
-                      <option value="">(Asosiy kassa)</option>
-                      {wallets.map(w => <option key={w.id} value={w.id}>{w.name} — {fmt(w.balance)} so'm</option>)}
-                    </select>
-                  </div>
-
-                  {/* To'lov miqdori */}
-                  <div className="space-y-2">
-                    <label className="text-[14px] font-semibold text-slate-700">To'lov miqdori *</label>
-                    <div className="flex h-12">
-                      <input type="number" min="1" autoFocus value={payAmt} onChange={e => setPayAmt(e.target.value)}
-                        className="flex-1 h-full border border-slate-200 border-r-0 rounded-l-lg px-4 text-base font-medium outline-none focus:ring-2 focus:ring-indigo-500"
-                        placeholder="0" />
-                      <div className="px-3 flex items-center border-y border-slate-200 text-indigo-600 text-sm font-bold bg-white">UZS</div>
-                      <button type="button" onClick={() => setPayAmt(String(Math.round(debt)))}
-                        className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-slate-200 border-l-0 cursor-pointer font-semibold px-4 h-full rounded-r-lg transition-colors whitespace-nowrap text-sm">
-                        Barchasi
-                      </button>
+                  <div className="min-w-0">
+                    <div className="font-bold text-slate-800 text-sm md:text-base truncate">{sel.name}</div>
+                    {sel.phone && <div className="text-xs text-slate-500 mt-0.5">{sel.phone}</div>}
+                    <div className="text-sm font-bold text-red-500 mt-1">
+                      Joriy qarz:
+                      {sel.debt_balances && typeof sel.debt_balances === 'object' && Object.keys(sel.debt_balances).filter(k => Number(sel.debt_balances[k]) > 0).length > 0
+                        ? Object.entries(sel.debt_balances).filter(([, v]) => Number(v) > 0).map(([cur, amt]) => (
+                            <span key={cur} className="ml-2 inline-block">{fmt(amt)} {cur}</span>
+                          ))
+                        : <span className="ml-2">{fmt(debt)} UZS</span>
+                      }
                     </div>
                   </div>
                 </div>
 
-                {/* To'lov turi — button style */}
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">To'lov turi</label>
-                  <div className="flex flex-wrap gap-2">
-                    {PAY_TYPES.map(pt => (
-                      <button key={pt.key} type="button" onClick={() => setPayType(pt.key)}
-                        className={`px-5 py-1.5 cursor-pointer rounded-md text-sm font-semibold border transition-all ${payType === pt.key
-                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-200'
-                          : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
-                          }`}>
-                        {pt.label}
+                {/* Kassa tanlash */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-slate-700">Kassa / Hisob</label>
+                  <select value={payWallet} onChange={e => setPayWallet(e.target.value)}
+                    className="w-full h-11 md:h-12 px-4 border border-slate-200 cursor-pointer rounded-xl bg-white text-sm font-medium focus:border-indigo-500 outline-none transition-all">
+                    <option value="">Asosiy kassa</option>
+                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name} — {fmt(w.balance)} so'm</option>)}
+                  </select>
+                </div>
+
+                {/* Multi-row payment inputs */}
+                <div className="flex flex-col gap-2">
+                  {payRows.map((row, index) => (
+                    <div key={row.id} className="flex w-full items-end gap-2">
+
+                      {/* To'lov turi (Listbox) */}
+                      <div className="flex-1 min-w-[130px] space-y-1.5">
+                        {index === 0 && <label className="text-sm font-semibold text-slate-700">To'lov turi *</label>}
+                        <Listbox value={row.payType} onChange={val => updatePayRow(index, 'payType', val)}>
+                          <div className="relative">
+                            <ListboxButton className="w-full cursor-pointer flex items-center pl-3 pr-8 py-3 justify-between rounded-xl border border-slate-200 text-sm bg-white text-slate-900 outline-none focus:border-indigo-500 transition-colors shadow-xs text-left font-medium h-11 md:h-12">
+                              <span className="block truncate">{PAY_TYPES.find(pt => pt.key === row.payType)?.label || 'Tanlang...'}</span>
+                              <span className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none text-slate-400">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="size-4"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 15 12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" /></svg>
+                              </span>
+                            </ListboxButton>
+                            <ListboxOptions className="absolute z-30 mt-1 max-h-60 w-full overflow-auto rounded-xl outline-none bg-white text-sm border border-slate-200 shadow-lg p-1">
+                              {PAY_TYPES.map(pt => (
+                                <ListboxOption key={pt.key} value={pt.key}
+                                  className="group relative py-2 px-3 select-none cursor-pointer rounded-lg text-slate-800 data-[focus]:bg-indigo-600 data-[focus]:text-white outline-none transition-colors">
+                                  <div className="flex items-center justify-between">
+                                    <span className="block truncate font-normal group-data-[selected]:font-semibold">{pt.label}</span>
+                                    <span className="text-indigo-600 group-data-[focus]:text-white group-not-data-[selected]:hidden">
+                                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="size-4"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                                    </span>
+                                  </div>
+                                </ListboxOption>
+                              ))}
+                            </ListboxOptions>
+                          </div>
+                        </Listbox>
+                      </div>
+
+                      {/* To'lov miqdori + valyuta */}
+                      <div className="flex-1 space-y-1.5">
+                        {index === 0 && <label className="text-sm font-semibold text-slate-700">To'lov miqdori *</label>}
+                        <div className="flex h-11 md:h-12">
+                          <input
+                            type="number"
+                            value={row.payAmount}
+                            onChange={e => updatePayRow(index, 'payAmount', e.target.value)}
+                            className="flex-1 min-w-0 h-full border border-slate-200 rounded-l-xl px-3 text-sm font-medium outline-none focus:border-indigo-500 transition-all"
+                            placeholder="0"
+                            autoFocus={index === 0}
+                          />
+                          {/* Valyuta Listbox */}
+                          <Listbox value={row.currencyType || 'UZS'} onChange={val => {
+                            const prevCode = row.currencyType || 'UZS';
+                            const prevRate = Number(currencies.find(c => c.code === prevCode)?.rate || 1);
+                            const newRate = Number(currencies.find(c => c.code === val)?.rate || 1);
+                            const currentAmt = Number(row.payAmount) || 0;
+                            const directDebt = getDebtForCur(val);
+
+                            let newAmount;
+                            if (directDebt > 0 && val !== prevCode) {
+                              // New currency has its own explicit debt — show it
+                              newAmount = directDebt;
+                            } else if (currentAmt > 0) {
+                              // Convert entered amount via rates: prev→UZS→new
+                              const inUzs = currentAmt * prevRate;
+                              newAmount = Math.round((inUzs / newRate) * 100) / 100;
+                            } else {
+                              newAmount = '';
+                            }
+                            updatePayRow(index, 'currencyType', val);
+                            if (newAmount !== '') updatePayRow(index, 'payAmount', String(newAmount));
+                          }}>
+                            <div className="relative">
+                              <ListboxButton className="w-full min-w-[80px] cursor-pointer flex items-center pl-3 pr-7 py-3 justify-between border-l-0 border border-slate-200 text-sm bg-white text-indigo-600 font-bold outline-none transition-colors shadow-xs text-left h-11 md:h-12">
+                                <span className="block truncate">{row.currencyType || 'UZS'}</span>
+                                <span className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none text-slate-400">
+                                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="size-4"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 15 12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" /></svg>
+                                </span>
+                              </ListboxButton>
+                              <ListboxOptions className="absolute z-30 mt-1 max-h-60 right-0 w-28 overflow-auto rounded-xl outline-none bg-white text-sm border border-slate-200 shadow-lg p-1">
+                                {currencies.map(c => (
+                                  <ListboxOption key={c.code} value={c.code}
+                                    className="group relative py-2 px-3 select-none cursor-pointer rounded-lg text-slate-800 data-[focus]:bg-indigo-600 data-[focus]:text-white outline-none transition-colors">
+                                    <div className="flex items-center justify-between">
+                                      <span className="block truncate font-normal group-data-[selected]:font-semibold">{c.code}</span>
+                                      <span className="text-indigo-600 group-data-[focus]:text-white group-not-data-[selected]:hidden">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="size-4"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                                      </span>
+                                    </div>
+                                  </ListboxOption>
+                                ))}
+                              </ListboxOptions>
+                            </div>
+                          </Listbox>
+                          {/* Barchasi button */}
+                          <button type="button"
+                            onClick={() => {
+                              const d = getDebtForCur(row.currencyType || 'UZS');
+                              updatePayRow(index, 'payAmount', String(d > 0 ? d : (Number(debt) || 0)));
+                            }}
+                            className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-slate-200 border-l-0 font-bold px-3 h-full rounded-r-xl transition-colors whitespace-nowrap text-xs">
+                            Hammasi
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* O'chirish tugmasi */}
+                      <button type="button" onClick={() => removePayRow(index)}
+                        className="cursor-pointer p-3 bg-red-50 hover:bg-red-100 text-red-500 rounded-xl h-11 md:h-12 flex items-center justify-center shrink-0 self-end">
+                        <Minus className="size-4" />
                       </button>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
+
+                  {/* Qator qo'shish */}
+                  <button type="button" onClick={addPayRow}
+                    className="cursor-pointer flex ml-auto items-center gap-1 hover:bg-indigo-50 w-max px-2 py-0.5 rounded-xl">
+                    <Plus className="size-5 text-indigo-600" />
+                    <span className="text-sm font-semibold text-indigo-600">to'lov qo'shish</span>
+                  </button>
                 </div>
 
                 {/* Izoh */}
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <label className="text-sm font-semibold text-slate-700">Izoh</label>
-                  <textarea rows={3} value={payInfo} onChange={e => setPayInfo(e.target.value)}
-                    className="w-full p-4 border border-slate-200 rounded-xl text-sm leading-relaxed focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                  <textarea rows={2} value={payInfo} onChange={e => setPayInfo(e.target.value)}
+                    className="w-full p-3 border border-slate-200 rounded-xl text-sm leading-relaxed focus:ring-2 focus:ring-indigo-500 outline-none resize-none transition-all"
                     placeholder="Ixtiyoriy..." />
                 </div>
 
                 {err && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{err}</div>}
 
-                {/* Summary */}
-                <div className="flex justify-end w-full">
-                  <div className="w-full space-y-2 bg-slate-50 rounded-xl p-4 border border-slate-100">
-                    <div className="flex justify-between text-[14px]">
-                      <span className="text-slate-500">Umumiy summa:</span>
-                      <span className="font-bold text-emerald-600">{fmt(debt)}</span>
-                    </div>
-                    <div className="flex justify-between text-[14px]">
-                      <span className="text-slate-500">To'lov:</span>
-                      <span className="font-bold text-blue-600">{fmt(paid)} uzs</span>
-                    </div>
-                    <div className="border-t border-slate-200 my-1" />
-                    <div className="flex justify-between text-[14px]">
-                      <span className="text-slate-500">Qarzga:</span>
-                      <span className={`font-bold ${remaining > 0 ? 'text-red-500' : 'text-emerald-600'}`}>{fmt(remaining)}</span>
-                    </div>
-                    <div className="flex justify-between text-[14px]">
-                      <span className="text-slate-500">Qaytim:</span>
-                      <span className="font-bold text-slate-600">{fmt(change)}</span>
-                    </div>
+                {/* Per-currency summary */}
+                <div className="flex justify-end">
+                  <div className="w-full md:w-auto min-w-64 space-y-2 bg-indigo-50/50 rounded-xl p-4 border border-indigo-100/50">
+                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Qarz holati</div>
+                    {Object.entries(paidPerCurrency).map(([cur, payAmt]) => {
+                      const currDebt = getDebtForCur(cur);
+                      const currRemaining = Math.max(0, currDebt - payAmt);
+                      const currChange = Math.max(0, payAmt - currDebt);
+                      return (
+                        <div key={cur} className="space-y-1 pb-2 border-b border-indigo-100/50 last:border-0">
+                          <div className="flex justify-between text-xs items-center">
+                            <span className="text-slate-500 font-medium">{cur} qarzi:</span>
+                            <span className="font-bold text-slate-700">{fmt(currDebt)} {cur}</span>
+                          </div>
+                          <div className="flex justify-between text-xs items-center">
+                            <span className="text-slate-500 font-medium">To'lov:</span>
+                            <span className="font-bold text-blue-600">{fmt(payAmt)} {cur}</span>
+                          </div>
+                          <div className="flex justify-between text-xs items-center">
+                            <span className="text-slate-600 font-semibold">Qoldi:</span>
+                            <span className={`font-bold ${currRemaining > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                              {fmt(currRemaining)} {cur}
+                            </span>
+                          </div>
+                          {currChange > 0 && (
+                            <div className="flex justify-between text-xs items-center">
+                              <span className="text-amber-600 font-bold">Qaytim:</span>
+                              <span className="font-bold text-amber-600">{fmt(currChange)} {cur}</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {Object.keys(paidPerCurrency).length > 0 && (
+                      <div className="flex justify-between text-xs items-center pt-1">
+                        <span className="text-slate-400 font-medium">Jami qoldi (UZS):</span>
+                        <span className={`font-semibold ${remaining > 0 ? 'text-red-400' : 'text-emerald-500'}`}>{fmt(remaining)} UZS</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
               {/* Footer */}
-              <div className="flex items-center justify-between gap-3 px-7 py-5 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
-                <div className="text-[13px] text-slate-500">
-                  Ta'minotchi qoldiq qarzi: <span className="font-bold text-slate-800">{fmt(remaining)} UZS</span>
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 md:px-7 py-4 md:py-5 border-t border-slate-100 bg-slate-50 rounded-b-2xl shrink-0">
+                <div className="text-xs md:text-sm text-slate-500 text-center sm:text-left">
+                  <span className="font-semibold text-slate-600">To'lovdan keyin qoladi:</span>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                    {sel.debt_balances && Object.entries(sel.debt_balances).map(([cur, amt]) => {
+                      const willPay = paidPerCurrency[cur] || 0;
+                      const afterPay = Math.max(0, Number(amt) - willPay);
+                      return (
+                        <span key={cur} className={`font-bold ${afterPay > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                          {fmt(afterPay)} {cur}
+                        </span>
+                      );
+                    })}
+                    {(!sel.debt_balances || Object.keys(sel.debt_balances).length === 0) && (
+                      <span className={`font-bold ${remaining > 0 ? 'text-red-600' : 'text-emerald-600'}`}>{fmt(remaining)} UZS</span>
+                    )}
+                  </div>
                 </div>
-                <div className="flex gap-3">
-                  <button onClick={close} className="px-4 py-1.5 rounded-lg border border-slate-300 text-slate-600 font-semibold bg-white hover:bg-slate-50 transition-colors">Bekor qilish</button>
-                  <button disabled={saving || !payAmt || Number(payAmt) <= 0} onClick={handlePayDebt}
-                    className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition-colors shadow-md shadow-blue-200 disabled:opacity-50 flex items-center gap-2">
+                <div className="flex gap-2 md:gap-3 w-full sm:w-auto">
+                  <button onClick={close} className="flex-1 sm:flex-none px-4 md:px-6 py-2 md:py-2.5 rounded-xl border border-slate-300 text-slate-600 text-sm font-bold bg-white hover:bg-slate-50 transition-all">Bekor qilish</button>
+                  <button disabled={saving || !payRows.some(r => r.payAmount && Number(r.payAmount) > 0 && r.payType)}
+                    onClick={handlePayDebt}
+                    className="flex-1 cursor-pointer sm:flex-none px-6 md:px-8 py-2 md:py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2 text-sm">
                     {saving ? (
                       <span className="flex items-center gap-2"><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>Saqlanmoqda...</span>
                     ) : (
-                      <span className="flex items-center gap-2 cursor-pointer"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>Qabul va Saqlash</span>
+                      <><svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>Saqlash</>
                     )}
                   </button>
                 </div>

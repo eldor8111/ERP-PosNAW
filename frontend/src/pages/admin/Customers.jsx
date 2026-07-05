@@ -2030,8 +2030,8 @@ export default function Customers() {
         const data = r.data;
         setCustomers(data);
       }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
-      
-    api.get('/currencies').then(r => setCurrencies(r.data)).catch(() => {});
+
+    api.get('/currencies').then(r => setCurrencies(r.data)).catch(() => { });
   }, []);
 
   const totalAllDebt = customers.reduce((s, c) => {
