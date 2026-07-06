@@ -21,6 +21,15 @@ class Settings(BaseSettings):
     # Tasnif / MXIK
     DEFAULT_TERMINAL_ID: str = ""
     TASNIF_BASE_URL: str = "https://tasnif.soliq.uz/api/cl-api"
+    # Eskiz.uz
+    ESKIZ_EMAIL: str = ""
+    ESKIZ_PASSWORD: str = ""
+    ESKIZ_FROM: str = "4546"
+    ESKIZ_BASE_URL: str = "https://notify.eskiz.uz/api"
+    # --- Hippo Communicator (fiskalizatsiya) ---
+    HIPPO_COMMUNICATOR_URL: str = "http://127.0.0.1:8081"
+    HIPPO_API_PREFIX: str = "/api"
+    HIPPO_TIMEOUT: int = 30
 
     class Config:
         env_file = ".env"

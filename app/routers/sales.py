@@ -3,11 +3,12 @@ from decimal import Decimal
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, BackgroundTasks
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload, aliased
-from sqlalchemy import func, select
 
 from app.core.dependencies import get_current_user, require_roles
 from app.database import get_db
+from app.models.customer import Customer
 from app.models.sale import Sale, SaleItem, SaleStatus
 from app.models.user import User, UserRole
 from app.schemas.sale import SaleCreate, SaleItemOut, SaleListOut, SaleOut, SaleUpdate
@@ -98,16 +99,16 @@ def get_debug_log():
             return {"log": f.read()}
     return {"log": "Log fayl topilmadi yoki bo'sh"}
 
+
 @router.post("/", response_model=SaleListOut)
 def make_sale(
-    data: SaleCreate,
-    request: Request,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*POS_ROLES)),
+        data: SaleCreate,
+        request: Request,
+        background_tasks: BackgroundTasks,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*POS_ROLES)),
 ):
     """POS — yangi sotuv amalga oshirish"""
-    import json
     with open("pos_sale_debug.log", "a", encoding="utf-8") as f:
         f.write(f"\\n--- NEW SALE FROM POS (user {current_user.name}) ---\\n")
         f.write(data.model_dump_json(indent=2) + "\\n")
@@ -136,10 +137,10 @@ def make_sale(
 
 @router.post("/pending", response_model=SaleListOut)
 def make_pending_sale(
-    data: SaleCreate,
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*POS_ROLES)),
+        data: SaleCreate,
+        request: Request,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*POS_ROLES)),
 ):
     """Ulgurji sotuv — to'lovsiz (pending) holatda saqlash. Stock tegilmaydi."""
     ip = request.client.host if request.client else None
@@ -164,10 +165,10 @@ def make_pending_sale(
 
 @router.post("/return", response_model=SaleListOut)
 def make_return_sale(
-    data: SaleCreate,
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*POS_ROLES)),
+        data: SaleCreate,
+        request: Request,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*POS_ROLES)),
 ):
     """POS — qaytarish (vazvrat) amalga oshirish"""
     ip = request.client.host if request.client else None
@@ -192,20 +193,19 @@ def make_return_sale(
 
 @router.get("/", response_model=List[SaleListOut])
 def list_sales(
-    cashier_id: Optional[int] = Query(None),
-    branch_id: Optional[int] = Query(None),
-    customer_id: Optional[int] = Query(None),
-    date_from: Optional[date] = Query(None),
-    date_to: Optional[date] = Query(None),
-    date_today: Optional[bool] = Query(None, description="Faqat bugungi sotuvlar"),
-    status: Optional[SaleStatus] = Query(None),
-    search: Optional[str] = Query(None, description="Sotuv raqami yoki mijoz nomi bo'yicha qidiruv"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=200),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*POS_ROLES, UserRole.accountant)),
+        cashier_id: Optional[int] = Query(None),
+        branch_id: Optional[int] = Query(None),
+        customer_id: Optional[int] = Query(None),
+        date_from: Optional[date] = Query(None),
+        date_to: Optional[date] = Query(None),
+        date_today: Optional[bool] = Query(None, description="Faqat bugungi sotuvlar"),
+        status: Optional[SaleStatus] = Query(None),
+        search: Optional[str] = Query(None, description="Sotuv raqami yoki mijoz nomi bo'yicha qidiruv"),
+        skip: int = Query(0, ge=0),
+        limit: int = Query(50, ge=1, le=200),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*POS_ROLES, UserRole.accountant)),
 ):
-    from app.models.user import User as UserModel
     from app.models.warehouse import Warehouse
     from sqlalchemy import func, select
     # items_count subquery — one SQL COUNT per sale, no joinedloading all items
@@ -255,9 +255,6 @@ def list_sales(
     if status:
         q = q.filter(Sale.status == status)
     if search:
-        from sqlalchemy import or_
-        from app.models.customer import Customer
-
         CustomerQ = aliased(Customer, name='customer_q')
         q = q.outerjoin(CustomerQ, Sale.customer_id == CustomerQ.id)
         q = q.filter(
@@ -292,9 +289,9 @@ def list_sales(
 
 @router.get("/{sale_id}", response_model=SaleOut)
 def get_sale(
-    sale_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+        sale_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
 ):
     sale = _load_sale(db, sale_id, current_user)
     if not sale:
@@ -304,9 +301,9 @@ def get_sale(
 
 @router.get("/{sale_id}/receipt")
 def get_receipt(
-    sale_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+        sale_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
 ):
     """Chek ma'lumotlarini olish"""
     sale = _load_sale(db, sale_id, current_user)
@@ -337,10 +334,10 @@ def get_receipt(
 
 @router.put("/{sale_id}", response_model=SaleOut)
 def edit_sale(
-    sale_id: int,
-    data: SaleUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*POS_ROLES)),
+        sale_id: int,
+        data: SaleUpdate,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*POS_ROLES)),
 ):
     """Sotuvni tahrirlash: holat, izoh, to'lov miqdori"""
     sale = update_sale(db=db, sale_id=sale_id, data=data, current_user=current_user)
@@ -350,9 +347,9 @@ def edit_sale(
 
 @router.delete("/{sale_id}")
 def remove_sale(
-    sale_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager)),
+        sale_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager)),
 ):
     """Sotuvni o'chirish va mahsulot qoldiqlarini qaytarish"""
     delete_sale(db=db, sale_id=sale_id, current_user=current_user)
@@ -375,10 +372,10 @@ class RefundIn(_BaseModel):
 
 @router.post("/{sale_id}/refund")
 def refund_sale(
-    sale_id: int,
-    data: RefundIn,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*POS_ROLES)),
+        sale_id: int,
+        data: RefundIn,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*POS_ROLES)),
 ):
     """Sotuvdan mahsulotlarni qaytarish va ombor qoldiqlarini tiklash"""
     sale = _load_sale(db, sale_id, current_user)

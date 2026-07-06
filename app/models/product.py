@@ -2,7 +2,7 @@ import enum
 from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, Index, text, \
-    SmallInteger
+    SmallInteger, JSON
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -56,11 +56,12 @@ class Product(Base):
     customer_prices = relationship("CustomerPrice", back_populates="product", cascade="all, delete-orphan")
 
     # MXIK / Fiskal
-    mxik_code = Column(String(20), nullable=True, index=True)
+    mxik_code = Column(String(20), nullable=True, index=True) # mxik_code
     mxik_reference_id = Column(Integer, ForeignKey("mxik_references.id"), nullable=True, index=True)
     package_code = Column(Integer, nullable=True)  # operator tanlagan paket kodi
     parent_code = Column(Integer, nullable=True)
     unit_id = Column(Integer, nullable=True)
+    labels = Column(JSON, nullable=True)
 
     # QQS — mxik_reference dan ko'chirib saqlanadi (tez kirish uchun)
     vat_rate_type = Column(Enum(VatRateType), nullable=True)

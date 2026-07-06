@@ -25,3 +25,4 @@ from .payme_transaction import PaymeTransaction  # type: ignore
 from .customer_prices import CustomerPrice  # type: ignore
 from .mxik import MxikReference, MxikPackage, VatRateType  # type: ignore
 from .tovarlar_catalog import TovarlarCatalog  # type: ignore
+from .sms_log import SMSLog

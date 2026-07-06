@@ -23,6 +23,8 @@ from app.routers import mxik as mxik_router  # type: ignore
 from app.routers import billing  # type: ignore
 from app.routers import payme as payme_router  # type: ignore
 from app.routers import kassa  # type: ignore
+from app.routers import sms as sms_router  # type: ignore
+from app.routers import hippo as hippo_router  # type: ignore
 from app.models import company  # noqa: F401 — ensure Alembic detects Company model
 from app.models import agent  # noqa: F401 — ensure Alembic detects Agent model
 from app.models import billing as billing_models  # noqa: F401 — ensure Alembic detects Tariff, BalanceLog
@@ -30,6 +32,10 @@ from app.models import bot_session  # noqa: F401 — ensure bot_sessions table e
 from app.models import payme_transaction  # noqa: F401 — ensure payme_transactions table exists
 from dotenv import load_dotenv
 from app.services.scheduler import start_scheduler
+########################################
+from app.routers.hippo import hippo_app
+
+
 
 load_dotenv()
 
@@ -260,7 +266,11 @@ app.include_router(lead.router, prefix=API_PREFIX)
 app.include_router(payme_router.router, prefix=API_PREFIX)
 app.include_router(kassa.router, prefix=API_PREFIX)
 app.include_router(mxik_router.router, prefix=API_PREFIX)
+app.include_router(sms_router.router, prefix=API_PREFIX)
+app.include_router(hippo_router.router, prefix=API_PREFIX)
 
+
+app.mount("/hippo", hippo_app)
 # Serve uploaded static files
 import os
 os.makedirs("static/uploads/products", exist_ok=True)
