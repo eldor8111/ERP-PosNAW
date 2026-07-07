@@ -67,16 +67,29 @@ def upgrade() -> None:
     op.execute("ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
     op.execute("UPDATE suppliers SET created_at = NOW() WHERE created_at IS NULL")
     op.execute("ALTER TABLE suppliers ALTER COLUMN created_at SET NOT NULL")
+    
+    # Add created_at column to balance_logs table
+    op.execute("ALTER TABLE balance_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
+    op.execute("UPDATE balance_logs SET created_at = NOW() WHERE created_at IS NULL")
+    op.execute("ALTER TABLE balance_logs ALTER COLUMN created_at SET NOT NULL")
+    
+    # Add updated_at column to balance_logs table
+    op.execute("ALTER TABLE balance_logs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE")
+    op.execute("UPDATE balance_logs SET updated_at = NOW() WHERE updated_at IS NULL")
+    op.execute("ALTER TABLE balance_logs ALTER COLUMN updated_at SET NOT NULL")
 
 
 def downgrade() -> None:
-    op.drop_column('suppliers', 'created_at')
-    op.drop_column('customer_prices', 'created_at')
-    op.drop_column('tariffs', 'created_at')
-    op.drop_column('categories', 'created_at')
-    op.drop_column('users', 'created_at')
-    op.drop_column('purchase_orders', 'created_at')
-    op.drop_column('products', 'created_at')
-    op.drop_column('branches', 'created_at')
-    op.drop_column('wallets', 'created_at')
-    op.drop_column('customers', 'created_at')
+    # Drop columns using IF NOT EXISTS logic via execute
+    op.execute("ALTER TABLE balance_logs DROP COLUMN IF EXISTS updated_at")
+    op.execute("ALTER TABLE balance_logs DROP COLUMN IF EXISTS created_at")
+    op.execute("ALTER TABLE suppliers DROP COLUMN IF EXISTS created_at")
+    op.execute("ALTER TABLE customer_prices DROP COLUMN IF EXISTS created_at")
+    op.execute("ALTER TABLE tariffs DROP COLUMN IF EXISTS created_at")
+    op.execute("ALTER TABLE categories DROP COLUMN IF EXISTS created_at")
+    op.execute("ALTER TABLE users DROP COLUMN IF EXISTS created_at")
+    op.execute("ALTER TABLE purchase_orders DROP COLUMN IF EXISTS created_at")
+    op.execute("ALTER TABLE products DROP COLUMN IF EXISTS created_at")
+    op.execute("ALTER TABLE branches DROP COLUMN IF EXISTS created_at")
+    op.execute("ALTER TABLE wallets DROP COLUMN IF EXISTS created_at")
+    op.execute("ALTER TABLE customers DROP COLUMN IF EXISTS created_at")
