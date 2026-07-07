@@ -77,10 +77,22 @@ def upgrade() -> None:
     op.execute("ALTER TABLE balance_logs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE")
     op.execute("UPDATE balance_logs SET updated_at = NOW() WHERE updated_at IS NULL")
     op.execute("ALTER TABLE balance_logs ALTER COLUMN updated_at SET NOT NULL")
+    
+    # Add created_at column to stock_levels table
+    op.execute("ALTER TABLE stock_levels ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
+    op.execute("UPDATE stock_levels SET created_at = NOW() WHERE created_at IS NULL")
+    op.execute("ALTER TABLE stock_levels ALTER COLUMN created_at SET NOT NULL")
+    
+    # Add updated_at column to stock_levels table
+    op.execute("ALTER TABLE stock_levels ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE")
+    op.execute("UPDATE stock_levels SET updated_at = NOW() WHERE updated_at IS NULL")
+    op.execute("ALTER TABLE stock_levels ALTER COLUMN updated_at SET NOT NULL")
 
 
 def downgrade() -> None:
     # Drop columns using IF NOT EXISTS logic via execute
+    op.execute("ALTER TABLE stock_levels DROP COLUMN IF EXISTS updated_at")
+    op.execute("ALTER TABLE stock_levels DROP COLUMN IF EXISTS created_at")
     op.execute("ALTER TABLE balance_logs DROP COLUMN IF EXISTS updated_at")
     op.execute("ALTER TABLE balance_logs DROP COLUMN IF EXISTS created_at")
     op.execute("ALTER TABLE suppliers DROP COLUMN IF EXISTS created_at")
