@@ -14,6 +14,8 @@ from app.models.customer import Customer  # type: ignore
 from app.models.customer_prices import CustomerPrice  # type: ignore
 from app.core.dependencies import get_current_user  # type: ignore
 from app.models.user import User, UserRole  # type: ignore
+from app.models.moliya import Wallet  # type: ignore
+from app.models.currency import Currency  # type: ignore
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
@@ -29,7 +31,7 @@ class CustomerIn(BaseModel):
     card_number: Optional[str] = None
     cashback_percent: Optional[Decimal] = Decimal("0")
     price_type: Optional[str] = "sale"  # sale, wholesale, cost
-    
+
     @field_validator("card_number")
     @classmethod
     def card_valid(cls, v):
@@ -75,7 +77,7 @@ class CustomerOut(BaseModel):
     @classmethod
     def normalize_debts(cls, data):
         is_dict = isinstance(data, dict)
-        
+
         # Attribute yoki Dict qiymatini olish
         if is_dict:
             debt_currency = data.get("debt_currency") or "UZS"
@@ -85,18 +87,18 @@ class CustomerOut(BaseModel):
             debt_currency = getattr(data, "debt_currency", "UZS") or "UZS"
             debt_balance = getattr(data, "debt_balance", 0) or 0
             debt_balances = getattr(data, "debt_balances", None)
-            
+
         currency = str(debt_currency).strip().upper() or "UZS"
-        
+
         if debt_balances is None:
             balances = {}
         else:
             balances = dict(debt_balances)
-            
+
         # Agar debt_balances bo'sh bo'lib, jami debt_balance musbat bo'lsa
         if not balances and float(debt_balance) > 0:
             balances[currency] = float(debt_balance)
-            
+
         if is_dict:
             data["debt_balances"] = balances
             data["debt_currency"] = "UZS"
@@ -120,7 +122,7 @@ class CustomerOut(BaseModel):
                 "discount_percent": getattr(data, "discount_percent", Decimal("0")),
             }
             return data_dict
-            
+
         return data
 
 
@@ -152,14 +154,14 @@ class DebtUpdate(BaseModel):
 
 
 class PointsAdjust(BaseModel):
-    delta: int          # musbat = qo'shish, manfiy = ayirish
+    delta: int  # musbat = qo'shish, manfiy = ayirish
     reason: Optional[str] = None
 
 
 @router.post("/recalc-debts")
 def recalc_all_debts(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
 ):
     """Barcha mijozlarning debt_balance ni debt_balances + joriy kurs asosida qayta hisoblaydi.
     Bu endpoint faqat bir martalik fix uchun yoki kurs o'zgarganda chaqiriladi."""
@@ -180,11 +182,11 @@ def recalc_all_debts(
 
 @router.get("", response_model=list[CustomerOut])
 def list_customers(
-    search: Optional[str] = None,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+        search: Optional[str] = None,
+        skip: int = Query(0, ge=0),
+        limit: int = Query(100, ge=1, le=500),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
 ):
     q = db.query(Customer)
     q = q.filter(Customer.company_id == current_user.company_id)
@@ -198,16 +200,16 @@ def list_customers(
 
 @router.get("/paginated", response_model=PaginatedCustomersOut)
 def list_customers_paginated(
-    search: Optional[str] = None,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=500),
-    sort_by: Optional[str] = Query(None), # debt_balance, name, id
-    sort_order: Optional[str] = Query("asc"), # asc, desc
-    min_debt: Optional[Decimal] = Query(None),
-    max_debt: Optional[Decimal] = Query(None),
-    exact_debt: Optional[Decimal] = Query(None),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+        search: Optional[str] = None,
+        skip: int = Query(0, ge=0),
+        limit: int = Query(50, ge=1, le=500),
+        sort_by: Optional[str] = Query(None),  # debt_balance, name, id
+        sort_order: Optional[str] = Query("asc"),  # asc, desc
+        min_debt: Optional[Decimal] = Query(None),
+        max_debt: Optional[Decimal] = Query(None),
+        exact_debt: Optional[Decimal] = Query(None),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
 ):
     q = db.query(Customer)
     q = q.filter(Customer.company_id == current_user.company_id)
@@ -215,7 +217,7 @@ def list_customers_paginated(
         q = q.filter(
             name_phone_search_filter(Customer.name, Customer.phone, search)
         )
-    
+
     if exact_debt is not None:
         q = q.filter(Customer.debt_balance == exact_debt)
     else:
@@ -223,7 +225,7 @@ def list_customers_paginated(
             q = q.filter(Customer.debt_balance >= min_debt)
         if max_debt is not None:
             q = q.filter(Customer.debt_balance <= max_debt)
-    
+
     total = q.count()
 
     # Sorting
@@ -290,7 +292,8 @@ def get_customer(customer_id: int, db: Session = Depends(get_db), current_user: 
 
 
 @router.put("/{customer_id}", response_model=CustomerOut)
-def update_customer(customer_id: int, data: CustomerIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def update_customer(customer_id: int, data: CustomerIn, db: Session = Depends(get_db),
+                    current_user: User = Depends(get_current_user)):
     from app.models.currency import Currency as CurrencyModel
     q = db.query(Customer).filter(Customer.id == customer_id)
     q = q.filter(Customer.company_id == current_user.company_id)
@@ -373,7 +376,8 @@ def get_customer_stats(customer_id: int, db: Session = Depends(get_db), current_
 
 
 @router.get("/{customer_id}/history")
-def get_customer_history(customer_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_customer_history(customer_id: int, db: Session = Depends(get_db),
+                         current_user: User = Depends(get_current_user)):
     q = db.query(Customer).filter(Customer.id == customer_id)
     q = q.filter(Customer.company_id == current_user.company_id)
     cust = q.first()
@@ -410,9 +414,65 @@ def get_customer_history(customer_id: int, db: Session = Depends(get_db), curren
 
     return sorted(history, key=lambda x: x["date"], reverse=True)
 
+@router.get("/{customer_id}/pay-debt")
+def pay_debt_get(customer_id: int, db: Session = Depends(get_db),
+                 current_user: User = Depends(get_current_user)):
+    """Mijoz qarz to'lovi uchun kerakli ma'lumotlarni qaytaradi."""
+    q = db.query(Customer).filter(Customer.id == customer_id)
+    q = q.filter(Customer.company_id == current_user.company_id)
+    cust = q.first()
+    if not cust:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    # Ensure debt_balances is initialized
+    if not cust.debt_balances:
+        cust.debt_balances = {}
+        if float(cust.debt_balance or 0) > 0:
+            legacy_currency = (cust.debt_currency or "UZS").strip().upper() or "UZS"
+            cust.debt_balances = {legacy_currency: float(cust.debt_balance)}
+
+    # Get available wallets for the company
+    wallets = db.query(Wallet).filter(
+        Wallet.company_id == current_user.company_id,
+        Wallet.is_active == True,
+        Wallet.is_open == True
+    ).all()
+
+    # Get available currencies
+    currencies = db.query(Currency).all()
+
+    return {
+        "customer": {
+            "id": cust.id,
+            "name": cust.name,
+            "phone": cust.phone,
+            "debt_balance": float(cust.debt_balance or 0),
+            "debt_balances": cust.debt_balances,
+            "debt_limit": float(cust.debt_limit or 0),
+        },
+        "wallets": [
+            {
+                "id": w.id,
+                "name": w.name,
+                "type": w.type,
+                "balance": float(w.balance),
+            }
+            for w in wallets
+        ],
+        "currencies": [
+            {
+                "code": c.code,
+                "name": c.name,
+                "rate": float(c.rate),
+            }
+            for c in currencies
+        ],
+    }
+
 
 @router.post("/{customer_id}/pay-debt")
-def pay_debt(customer_id: int, data: DebtUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def pay_debt(customer_id: int, data: DebtUpdate, db: Session = Depends(get_db),
+             current_user: User = Depends(get_current_user)):
     from app.models.currency import Currency as CurrencyModel
     from app.models.moliya import Transaction, Wallet, KassaMovement
     from sqlalchemy.orm.attributes import flag_modified
@@ -488,13 +548,11 @@ def pay_debt(customer_id: int, data: DebtUpdate, db: Session = Depends(get_db), 
     }
 
 
-
-
 @router.get("/{customer_id}/cashback")
 def get_customer_cashback(
-    customer_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+        customer_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
 ):
     """POS uchun: mijozning keshbek va bonus balans ma'lumotlari (yengil endpoint)."""
     cust = db.query(Customer).filter(
@@ -517,10 +575,10 @@ def get_customer_cashback(
 
 @router.post("/{customer_id}/adjust-points")
 def adjust_loyalty_points(
-    customer_id: int,
-    data: PointsAdjust,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+        customer_id: int,
+        data: PointsAdjust,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
 ):
     """Loyallik ballarini qo'shish yoki ayirish"""
     q = db.query(Customer).filter(Customer.id == customer_id)
@@ -543,21 +601,21 @@ def adjust_loyalty_points(
 
 @router.post("/bulk-import")
 def bulk_import_customers(
-    rows: list[dict],
-    allow_update: bool = Query(False),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+        rows: list[dict],
+        allow_update: bool = Query(False),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
 ):
     """Excel fayldan mijozlarni yuklash yoki yangilash."""
     FIELD_MAP = {
-        "Ism":             ("name",             str),
-        "Telefon":         ("phone",            str),
-        "Qarz":            ("debt_balance",     Decimal),
-        "Kredit limit":    ("debt_limit",       Decimal),
-        "Sodiqlik ballari":("loyalty_points",   int),
-        "Karta raqami":    ("card_number",      str),
-        "Cashback":        ("cashback_percent", Decimal),
-        "Bonus":           ("bonus_balance",    Decimal),
+        "Ism": ("name", str),
+        "Telefon": ("phone", str),
+        "Qarz": ("debt_balance", Decimal),
+        "Kredit limit": ("debt_limit", Decimal),
+        "Sodiqlik ballari": ("loyalty_points", int),
+        "Karta raqami": ("card_number", str),
+        "Cashback": ("cashback_percent", Decimal),
+        "Bonus": ("bonus_balance", Decimal),
     }
 
     created = 0
@@ -633,7 +691,7 @@ def bulk_import_customers(
         check_card = kwargs.get("card_number")
         if check_card and dup_q_base.filter(Customer.card_number == check_card).first():
             kwargs.pop("card_number")
-            
+
         check_phone = kwargs.get("phone")
         if check_phone and dup_q_base.filter(Customer.phone == check_phone).first():
             kwargs.pop("phone")
@@ -645,6 +703,7 @@ def bulk_import_customers(
 
     db.commit()
     return {"created": created, "updated": updated, "skipped": len(errors), "errors": errors}
+
 
 @router.delete("/{customer_id}", status_code=204)
 def delete_customer(customer_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -668,9 +727,9 @@ class CustomerPriceIn(BaseModel):
 
 @router.get("/{customer_id}/prices")
 def list_customer_prices(
-    customer_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+        customer_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
 ):
     cust = db.query(Customer).filter(
         Customer.id == customer_id,
@@ -686,10 +745,10 @@ def list_customer_prices(
 
 @router.post("/{customer_id}/prices", status_code=201)
 def set_customer_price(
-    customer_id: int,
-    data: CustomerPriceIn,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+        customer_id: int,
+        data: CustomerPriceIn,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
 ):
     cust = db.query(Customer).filter(
         Customer.id == customer_id,
@@ -721,10 +780,10 @@ def set_customer_price(
 
 @router.delete("/{customer_id}/prices/{product_id}", status_code=204)
 def delete_customer_price(
-    customer_id: int,
-    product_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+        customer_id: int,
+        product_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
 ):
     cp = db.query(CustomerPrice).filter(
         CustomerPrice.customer_id == customer_id,

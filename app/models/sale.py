@@ -8,18 +8,18 @@ from app.database import Base  # type: ignore
 
 
 class PaymentType(str, enum.Enum):
-    cash     = "cash"
-    card     = "card"
-    uzcard   = "uzcard"
-    humo     = "humo"
-    bank     = "bank"
-    click    = "click"
-    payme    = "payme"
-    visa     = "visa"
-    uzum     = "uzum"
-    debt     = "debt"
-    mixed    = "mixed"
-    cashback = "cashback"   # Mijoz bonus_balance hisobidan to'lov
+    cash = "cash"
+    card = "card"
+    uzcard = "uzcard"
+    humo = "humo"
+    bank = "bank"
+    click = "click"
+    payme = "payme"
+    visa = "visa"
+    uzum = "uzum"
+    debt = "debt"
+    mixed = "mixed"
+    cashback = "cashback"  # Mijoz bonus_balance hisobidan to'lov
 
 
 class SaleStatus(str, enum.Enum):
@@ -104,6 +104,7 @@ class SaleItemBatch(Base):
 
     sale_item = relationship("SaleItem", back_populates="batches")
     batch = relationship("Batch")
+
 
 class SalePayment(Base):
     __tablename__ = "sale_payments"
