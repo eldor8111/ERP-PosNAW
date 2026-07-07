@@ -21,6 +21,8 @@ class Company(Base):
     balance = Column(Numeric(18, 2), default=0, nullable=False)
     agent_id = Column(Integer, ForeignKey("agents.id"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
     receipt_templates = Column(JSON, default=lambda: {"r58": {}, "r80": {}, "nak": {}})
 
     # ── Billing ──────────────────────────────────────────────

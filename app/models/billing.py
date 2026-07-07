@@ -22,6 +22,8 @@ class Tariff(Base):
     sort_order = Column(Integer, default=0)
     bhm_percent = Column(Float, nullable=True)  # BHM ning necha foizini tashkil qiladi
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
 
 
 class BalanceLog(Base):
@@ -38,3 +40,5 @@ class BalanceLog(Base):
 
     company = relationship("Company", foreign_keys=[company_id])
     created_by = relationship("User", foreign_keys=[created_by_id])
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))

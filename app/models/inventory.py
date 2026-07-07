@@ -26,7 +26,9 @@ class StockLevel(Base):
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False, index=True)
     warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=True, index=True)
     quantity = Column(Numeric(12, 3), default=0)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
 
     product = relationship("Product", back_populates="stock_level")
     warehouse = relationship("Warehouse", back_populates="stock_levels")
