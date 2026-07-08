@@ -1,7 +1,7 @@
 """
 Customers API: CRM module for managing customers, debt and loyalty.
 """
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
 from pydantic import BaseModel, field_validator, model_validator  # type: ignore
@@ -31,6 +31,7 @@ class CustomerIn(BaseModel):
     card_number: Optional[str] = None
     cashback_percent: Optional[Decimal] = Decimal("0")
     price_type: Optional[str] = "sale"  # sale, wholesale, cost
+
 
     @field_validator("card_number")
     @classmethod
@@ -69,6 +70,7 @@ class CustomerOut(BaseModel):
     company_id: Optional[int] = None
     price_type: Optional[str] = "sale"
     discount_percent: Optional[Decimal] = Decimal("0")
+    debt_edited: List[Dict[str, Any]] = []
 
     class Config:
         from_attributes = True
@@ -129,6 +131,7 @@ class CustomerOut(BaseModel):
 class PaginatedCustomersOut(BaseModel):
     items: list[CustomerOut]
     total: int
+    debt_edited: List[Dict[str, Any]] = []
 
 
 def _calc_debt_in_uzs(balances: dict, db: Session) -> Decimal:

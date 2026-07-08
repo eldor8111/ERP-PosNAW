@@ -34,6 +34,8 @@ class Customer(Base):
     bonus_balance = Column(Numeric(14, 2), default=0)
     total_spent = Column(Numeric(14, 2), default=0)
 
+    debt_edited = Column(JSON, nullable=False, server_default='[]', default=list)
+
     __table_args__ = (
         UniqueConstraint('company_id', 'phone', name='uq_company_customer_phone'),
         UniqueConstraint('company_id', 'tg_chat_id', name='uq_company_customer_tg_chat_id'),
