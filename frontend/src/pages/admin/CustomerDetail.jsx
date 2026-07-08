@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ListOrdered, ChevronsUpDown, CheckIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ListOrdered, ChevronsUpDown, CheckIcon, X, RotateCcw } from 'lucide-react';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ')
 const fmtDate = (d) => d ? new Date(d).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
@@ -98,6 +98,8 @@ export default function CustomerDetail() {
   const [currencies, setCurrencies] = useState([])
   const [income, setIncome] = useState([])
 
+  const [debtSales, setDebtSales] = useState([]);
+
   useEffect(() => {
     api.get(`/customers/${customerId}/stats`)
       .then(r => setStats(r.data))
@@ -132,7 +134,7 @@ export default function CustomerDetail() {
 
   useEffect(() => {
     if (tab === 'sotuvlar' || tab === 'qaytarishlar' || tab === 'akt') loadSales()
-    if (tab === 'operatsiyalar') loadHistory()
+    if (tab === 'operatsiyalar' || tab === 'akt') loadHistory()
   }, [tab, loadSales, loadHistory])
 
   if (loading) {
@@ -353,7 +355,7 @@ export default function CustomerDetail() {
 
           {/* AKT SVERKA TAB */}
           {tab === 'akt' && (
-            <AktSverka stats={{ ...stats, debt_balance: dynamicBalance }} sales={sales} returns={returns} loading={loadingTab} />
+            <AktSverka stats={{ ...stats, debt_balance: dynamicBalance }} sales={sales} history={history} loading={loadingTab} />
           )}
 
           {tab === 'kirim_tolovlar' && (
@@ -618,111 +620,318 @@ function SalesTable({ rows, stats, salesData, loading, emptyText = "Sotuvlar yo'
     </div>
   )
 }
+// ────────────────────────────────────────────────────────────
+// Har bir operatsiya turi uchun rang va belgilar
+// ────────────────────────────────────────────────────────────
+const OP_ICON = {
+  sale: (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+    </svg>
+  ),
+  payment: (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  ),
+  debt_edit: (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+    </svg>
+  ),
+}
+const OP_COLOR = {
+  sale: 'bg-indigo-100 text-indigo-600',
+  payment: 'bg-emerald-100 text-emerald-600',
+  debt_edit: 'bg-amber-100 text-amber-600',
+}
+const OP_LABEL = {
+  sale: 'Sotuv',
+  payment: "Qarz to'lovi",
+  debt_edit: 'Qarz tahriri',
+}
+
 function OperationsTable({ rows, loading }) {
-  const { t } = useLang();
   if (loading) return <LoadingSpinner />
   if (!rows.length) return <Empty text="Operatsiyalar yo'q" />
+
+  const getCurrencyCode = (c) => {
+    if (!c) return 'UZS'
+    if (typeof c === 'object') return c.code || 'UZS'
+    return c
+  }
+
   return (
     <div className="space-y-2">
-      {rows.map((r, i) => (
-        <div key={i} className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${r.type === 'sale' ? 'bg-indigo-100 text-indigo-600' : 'bg-emerald-100 text-emerald-600'}`}>
-            {r.type === 'sale' ? (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-              </svg>
-            ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            )}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-slate-700">
-              {r.type === 'sale' ? 'Sotuv' : "To'lov qabul qilindi"}
+      {rows.map((r, i) => {
+        const opType = r.op_type || r.type || 'sale'
+        const currCode = getCurrencyCode(r.currency)
+        const curr = currCode === 'USD' ? '$' : (currCode || "so'm")
+        return (
+          <div key={i} className="flex items-start gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors">
+            {/* Ikon */}
+            <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${OP_COLOR[opType] || 'bg-slate-100 text-slate-500'}`}>
+              {OP_ICON[opType] || OP_ICON.sale}
             </div>
-            <div className="text-xs text-slate-400">{fmtDate(r.date)}</div>
-          </div>
-          <div className="text-right">
-            <div className={`text-sm font-bold ${r.type === 'sale' ? 'text-indigo-600' : 'text-emerald-600'}`}>
-              {r.type === 'sale' ? '-' : '+'}{fmt(r.amount)} {r.currency === 'USD' ? '$' : (r.currency || "so'm")}
+
+            {/* Matn */}
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-slate-700">
+                {OP_LABEL[opType] || opType}
+                {r.sale_number ? <span className="ml-1 text-xs text-slate-400">#{r.sale_number}</span> : null}
+              </div>
+              <div className="text-xs text-slate-400 mt-0.5">{fmtDate(r.date)}</div>
             </div>
-            {r.type === 'sale' && r.debt > 0 && (
-              <div className="text-xs text-red-500">Qarz: {fmt(r.debt)} {r.currency === 'USD' ? '$' : (r.currency || "so'm")}</div>
-            )}
+
+            {/* Raqamlar */}
+            <div className="text-right shrink-0">
+              {opType === 'sale' && (
+                <div className="text-sm font-bold text-indigo-600">
+                  {fmt(r.amount)} {curr}
+                </div>
+              )}
+              {opType === 'payment' && (
+                <div className="text-sm font-bold text-emerald-600">
+                  +{fmt(r.amount)} {curr}
+                </div>
+              )}
+              {opType === 'debt_edit' && (
+                <div className="text-sm font-bold text-amber-600">
+                  {fmt(r.amount)} {curr}
+                </div>
+              )}
+              {opType === 'sale' && (
+                <div className="flex gap-2 mt-0.5 justify-end">
+                  <span className="text-[11px] text-emerald-600">To'landi: {fmt(r.paid)} {curr}</span>
+                  {(r.debt > 0) && (
+                    <span className="text-[11px] text-red-500">Qarz: {fmt(r.debt)} {curr}</span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
 
-function AktSverka({ stats, sales, returns, loading }) {
-  const { t } = useLang();
+function AktSverka({ stats, sales, loading, history }) {
   if (loading) return <LoadingSpinner />
 
-  const totalSales = sales.reduce((s, r) => s + Number(r.total_amount), 0)
-  const totalPaid = sales.reduce((s, r) => s + Number(r.paid_amount), 0)
-  const totalReturns = returns.reduce((s, r) => s + Number(r.total_amount), 0)
-  const balance = stats.debt_balance
+  const fmtDate2 = (dateString) => {
+    if (!dateString) return '—'
+    const date = new Date(dateString)
+    const p = (n) => String(n).padStart(2, '0')
+    return `${p(date.getDate())}.${p(date.getMonth() + 1)}.${date.getFullYear()} ${p(date.getHours())}:${p(date.getMinutes())}:${p(date.getSeconds())}`
+  }
 
-  const rows = [
-    { label: 'Jami sotuvlar summasi', debit: totalSales, credit: 0, color: 'text-slate-800' },
-    { label: "To'langan summasi (naqd + karta)", debit: 0, credit: totalPaid, color: 'text-emerald-600' },
-    { label: 'Qaytarishlar summasi', debit: 0, credit: totalReturns, color: 'text-amber-600' },
-  ]
+  const mappedBalances = Object.entries(stats.debt_balances || {}).map(([currency, amount]) => ({ currency, amount }))
+
+  // ── Birlashtirilgan timeline yasash ──────────────────────────────────────────
+  // (1) Sotuvlar
+  const saleEvents = sales.map(s => ({
+    key: `sale-${s.id}`,
+    date: s.created_at,
+    label: 'Sotuv',
+    sublabel: s.payment_type ? PAY_LABELS[s.payment_type] || s.payment_type : '',
+    amount: Number(s.total_amount || 0),
+    paid: Number(s.paid_amount || 0),
+    // Qarzga sotuv: to'lanmagan qism qarz bo'ladi
+    debtChange: +Math.max(0, Number(s.total_amount || 0) - Number(s.paid_amount || 0)),
+    cashier: s.cashier_name || '',
+    currency: s.currency || 'UZS',
+    rowType: 'sale',
+    saleNumber: s.number || '',
+  }))
+
+  // (2) Qarz to'lovlari (history ichidan payment turlar)
+  const paymentEvents = (history || []).filter(h => h.op_type === 'payment' || h.type === 'payment').map(h => ({
+    key: `pay-${h.date}`,
+    date: h.date,
+    label: "Qarz to'lovi",
+    sublabel: h.payment_type || '',
+    amount: Number(h.amount || 0),
+    paid: Number(h.amount || 0),
+    // To'lov qarzni kamaytiradi
+    debtChange: -Number(h.amount || 0),
+    cashier: h.cashier || '',
+    currency: h.currency || 'UZS',
+    rowType: 'payment',
+    description: h.description || '',
+  }))
+
+  // (3) Qarz tahrirlari
+  const editEvents = (history || []).filter(h => h.op_type === 'debt_edit' || h.type === 'debt_edit').map(h => ({
+    key: `edit-${h.date}`,
+    date: h.date,
+    label: 'Qarz tahriri',
+    sublabel: '',
+    amount: Number(h.amount || 0),
+    paid: 0,
+    debtChange: Number(h.debt || 0),  // musbat: qarz ortdi, manfiy: qarz kamaydi
+    cashier: h.cashier || '',
+    currency: h.currency || 'UZS',
+    rowType: 'debt_edit',
+    description: h.description || '',
+  }))
+
+  // Eski tartib (eng eski birinchi)
+  const allEvents = [...saleEvents, ...paymentEvents, ...editEvents]
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+
+  // ── Running balance hisoblash ─────────────────────────────────────────────
+  // Boshlang'ich qarz: debt_balances dagi eng birinchi valyuta miqdori
+  const initialDebt = mappedBalances.reduce((sum, b) => sum + Number(b.amount || 0), 0)
+
+  const displayRows = allEvents.reduce((acc, ev) => {
+    const prevDebt = acc.length > 0 ? acc[acc.length - 1].finalDebt : initialDebt
+    const finalDebt = Math.max(0, prevDebt + ev.debtChange)
+    acc.push({ ...ev, prevDebt, finalDebt })
+    return acc
+  }, [])
+
+  const finalBalance = displayRows.length > 0 ? displayRows[displayRows.length - 1].finalDebt : initialDebt
+  const totalPaid = saleEvents.reduce((s, e) => s + e.paid, 0)
+  const totalPayments = paymentEvents.reduce((s, e) => s + e.amount, 0)
+
+  const rowBg = {
+    sale: '',
+    payment: 'bg-emerald-50',
+    debt_edit: 'bg-amber-50',
+  }
+  const rowLabel = {
+    sale: 'text-indigo-700',
+    payment: 'text-emerald-700',
+    debt_edit: 'text-amber-700',
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="bg-slate-50 rounded-xl p-5">
-        <h3 className="text-sm font-semibold text-slate-600 mb-4">Akt Sverka — {stats.name}</h3>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-200">
-              <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider pb-2">Operatsiya</th>
-              <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-2 pr-4">{`Debet (${stats.debt_currency === 'USD' ? '$' : "so'm"})`}</th>
-              <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider pb-2">{`Kredit (${stats.debt_currency === 'USD' ? '$' : "so'm"})`}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {rows.map((r, i) => (
-              <tr key={i}>
-                <td className="py-2.5 text-slate-700">{r.label}</td>
-                <td className="py-2.5 text-right pr-4 font-medium text-slate-800">
-                  {r.debit > 0 ? fmt(r.debit) : '—'}
-                </td>
-                <td className="py-2.5 text-right font-medium">
-                  {r.credit > 0 ? <span className="text-emerald-600">{fmt(r.credit)}</span> : '—'}
-                </td>
-              </tr>
+    <div className="space-y-3">
+      {/* Sarlavha */}
+      <div className='flex flex-wrap items-center gap-3'>
+        <h3 className="text-sm font-semibold text-slate-700">Akt Sverka — {stats.name}</h3>
+        {mappedBalances.length > 0 && (
+          <div className='text-sm border border-slate-200 px-3 py-1 rounded flex gap-3 font-medium text-slate-600'>
+            Qarzdorlik:
+            {mappedBalances.map((item) => (
+              <span key={item.currency}>
+                <span className='text-red-600'>{fmt(item.amount)}</span>{' '}
+                <span className='text-indigo-500 text-xs'>{item.currency}</span>
+              </span>
             ))}
-          </tbody>
-          <tfoot>
-            <tr className="border-t-2 border-slate-300">
-              <td className="pt-3 font-bold text-slate-700">Yakuniy Qoldiq (Qarzdorlik)</td>
-              <td />
-              <td className={`pt-3 text-right font-bold text-lg ${balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                {fmt(balance)} {stats.debt_currency === 'USD' ? '$' : (stats.debt_currency || "so'm")}
-              </td>
-            </tr>
-          </tfoot>
-        </table>
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-3 gap-4 text-center">
-        <div className="bg-indigo-50 rounded-xl p-4">
-          <div className="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-1">Jami Sotuv</div>
-          <div className="text-lg font-bold text-indigo-700">{fmt(totalSales)} {stats.debt_currency === 'USD' ? '$' : "so'm"}</div>
+      <div className="flex gap-2 border-b border-slate-200 pb-3">
+        <div className="border border-slate-200 flex items-center gap-2 px-3 min-w-50 rounded">
+          <span className='text-slate-700'>dan:</span>
+          <input type="date" className='outline-0 border-l border-slate-200 pl-2 py-1' />
         </div>
-        <div className="bg-emerald-50 rounded-xl p-4">
-          <div className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-1">To'langan</div>
-          <div className="text-lg font-bold text-emerald-700">{fmt(totalPaid)} {stats.debt_currency === 'USD' ? '$' : "so'm"}</div>
+
+        <div className="border border-slate-200 flex items-center gap-2 px-3 min-w-50 rounded">
+          <span className='text-slate-700'>gacha:</span>
+          <input type="date" className='outline-0 border-l border-slate-200 pl-2 py-1' />
         </div>
-        <div className={`rounded-xl p-4 ${balance > 0 ? 'bg-red-50' : 'bg-slate-50'}`}>
-          <div className={`text-xs font-semibold uppercase tracking-wider mb-1 ${balance > 0 ? 'text-red-400' : 'text-slate-400'}`}>Qoldiq Qarz</div>
-          <div className={`text-lg font-bold ${balance > 0 ? 'text-red-700' : 'text-slate-500'}`}>{fmt(balance)} {stats.debt_currency === 'USD' ? '$' : (stats.debt_currency || "so'm")}</div>
+
+        <div className="border border-slate-200 flex items-center gap-2 px-3 min-w-55 rounded">
+          <span className='text-slate-700'>Tartib:</span>
+          <select className='outline-0 w-full cursor-pointer border-l border-slate-200 pl-2 py-1'>
+            <option value="all">Eski birinchi</option>
+            <option value="all">Yangi birinchi</option>
+          </select>
         </div>
+
+        <div className="border border-slate-200 flex items-center gap-2 px-3 min-w-60 rounded">
+          <span className='text-slate-700'>Operatsiya:</span>
+          <select className='outline-0 w-full cursor-pointer border-l border-slate-200 pl-2 py-1'>
+            <option value="all">Barchasi</option>
+            <option value="all">Sotuv</option>
+            <option value="all">Qarz to'lovi</option>
+            <option value="all">Qarz tahriri</option>
+          </select>
+        </div>
+
+        <div className="border border-slate-200 flex items-center gap-2 px-3 min-w-50 rounded">
+          <span className='text-slate-700'>Kassir:</span>
+          <select className='outline-0 w-full cursor-pointer border-l border-slate-200 pl-2 py-1'>
+            <option value="all">Barchasi</option>
+            {sales.map((user) => (
+              <option key={user.id} value={user.id}>{user.cashier_name}</option>
+            ))}
+          </select>
+        </div>
+
+        <button className='border ml-auto border-slate-200 text-slate-700 px-3 py-1 flex gap-1.5 items-center rounded cursor-pointer'>
+          <RotateCcw size={18} />
+          <span>Filterni tozalash</span>
+        </button>
       </div>
+
+      {/* Jadval */}
+      {displayRows.length === 0 ? (
+        <Empty text="Operatsiyalar yo'q" />
+      ) : (
+        <div className='overflow-x-auto'>
+          <table className='w-full min-w-[980px] text-sm'>
+            <thead>
+              <tr>
+                {['#', 'Operatsiya', "To'lov turi", 'Oldingi qarz', 'Qarzning oshishi', "Qarzning kamayishi", 'Yakuniy qarz', "To'langan", 'Kassir', 'Sana'].map((h, i) => (
+                  <th key={i} className='font-normal uppercase text-slate-700 p-2 border border-slate-200'>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className='divide-y divide-slate-100'>
+              {displayRows.map((row, i) => {
+                const curr = row.currency === 'USD' ? '$' : (row.currency || "so'm")
+                const debtIncrease = row.debtChange > 0 ? row.debtChange : 0
+                const debtDecrease = row.debtChange < 0 ? Math.abs(row.debtChange) : 0
+
+                return (
+                  <tr key={row.key} className={`text-center text-slate-700`}>
+                    <td className='p-2 border border-slate-200'>{i + 1}</td>
+                    <td className={`p-2 border border-slate-200 font-medium`}>
+                      {row.label}
+                    </td>
+                    <td className='p-2 border capitalize border-slate-200'>
+                      {row.sublabel || '—'}
+                    </td>
+                    {/* Oldingi qarz */}
+                    <td className='p-2 border border-slate-200'>
+                      {fmt(row.prevDebt)} {curr}
+                    </td>
+                    {/* Qarzning oshishi (qizil) */}
+                    <td className='p-2 border border-slate-200'>
+                      {debtIncrease > 0
+                        ? <span className=''>{fmt(debtIncrease)} {curr}</span>
+                        : ""}
+                    </td>
+                    {/* Qarzning kamayishi (yashil) */}
+                    <td className='p-2 border border-slate-200'>
+                      {debtDecrease > 0
+                        ? <span className=''>{fmt(debtDecrease)} {curr}</span>
+                        : ""}
+                    </td>
+                    {/* Yakuniy qarz */}
+                    <td className='p-2 border border-slate-200'>
+                      <span>
+                        {fmt(row.finalDebt)} {curr}
+                      </span>
+                    </td>
+                    {/* To'langan */}
+                    <td className='p-2 border border-slate-200'>
+                      {row.paid > 0 ? `${fmt(row.paid)} ${curr}` : ""}
+                    </td>
+                    <td className='p-2 border border-slate-200 text-slate-500'>{row.cashier || ''}</td>
+                    <td className='p-2 border border-slate-200 text-slate-500 whitespace-nowrap'>{fmtDate2(row.date)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

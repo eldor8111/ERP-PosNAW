@@ -386,30 +386,76 @@ def get_customer_history(customer_id: int, db: Session = Depends(get_db),
 
     from app.models.sale import Sale  # type: ignore
     from app.models.moliya import Transaction  # type: ignore
+    from app.models.user import User as UserModel  # type: ignore
 
+    # 1) Barcha sotuvlar
     sales = db.query(Sale).filter(
         Sale.customer_id == customer_id,
         Sale.company_id == current_user.company_id
-    ).order_by(Sale.created_at.desc()).limit(10).all()
+    ).order_by(Sale.created_at.desc()).all()
+
+    # 2) Qarz to'lovlari (customer_payment transaktsiyalari)
     payments = db.query(Transaction).filter(
-        Transaction.reference_type == 'customer_payment',
-        Transaction.reference_id == customer_id
+        Transaction.reference_type == "customer_payment",
+        Transaction.reference_id == customer_id,
+        Transaction.company_id == current_user.company_id,
+    ).order_by(Transaction.created_at.desc()).all()
+
+    # 3) Qarz tahrirlanishi (update_customer chaqirilganda reference_type='debt_edit')
+    debt_edits = db.query(Transaction).filter(
+        Transaction.reference_type == "debt_edit",
+        Transaction.reference_id == customer_id,
+        Transaction.company_id == current_user.company_id,
     ).order_by(Transaction.created_at.desc()).all()
 
     history = []
+
     for s in sales:
+        total = float(s.total_amount or 0)
+        paid = float(s.paid_amount or 0)
+        debt_added = max(0.0, total - paid)
         history.append({
-            "type": "sale",
+            "op_type": "sale",                       # sotuv
             "date": s.created_at.isoformat(),
-            "amount": float(s.total_amount),
-            "paid": float(s.paid_amount),
-            "debt": float(s.total_amount - s.paid_amount),
+            "amount": total,
+            "paid": paid,
+            "debt": debt_added,
+            "currency": getattr(s, "currency", "UZS") or "UZS",
+            "payment_type": getattr(s, "payment_type", ""),
+            "cashier": getattr(s, "cashier_name", ""),
+            "sale_number": getattr(s, "number", ""),
+            "description": f"Sotuv #{getattr(s, 'number', '')}",
+            # eski maydonlarni ham saqlash (OperationsTable mosligi uchun)
+            "type": "sale",
         })
+
     for p in payments:
         history.append({
-            "type": "payment",
+            "op_type": "payment",                    # qarz to'lovi
             "date": p.created_at.isoformat(),
-            "amount": float(p.amount),
+            "amount": float(p.amount or 0),
+            "paid": float(p.amount or 0),
+            "debt": 0,
+            "currency": "UZS",
+            "payment_type": p.payment_type or "cash",
+            "cashier": "",
+            "description": p.description or "Qarz to'lovi",
+            # eski maydon
+            "type": "payment",
+        })
+
+    for e in debt_edits:
+        history.append({
+            "op_type": "debt_edit",                  # qarz tahriri
+            "date": e.created_at.isoformat(),
+            "amount": float(e.amount or 0),
+            "paid": 0,
+            "debt": float(e.amount or 0) if e.type == "expense" else -float(e.amount or 0),
+            "currency": "UZS",
+            "payment_type": "",
+            "cashier": "",
+            "description": e.description or "Qarz tahriri",
+            "type": "debt_edit",
         })
 
     return sorted(history, key=lambda x: x["date"], reverse=True)

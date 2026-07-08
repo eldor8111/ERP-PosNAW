@@ -6,7 +6,7 @@ import usePosSync from '../../hooks/usePosSync';
 import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
 import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
 
-const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ', { maximumFractionDigits: 4 });
+const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
 /* ── Customer combobox ── */
 function CustSearch({ customers, value, onChange, placeholder = "Mijoz izlash..." }) {
