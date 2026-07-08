@@ -284,6 +284,13 @@ def create_customer(data: CustomerIn, db: Session = Depends(get_db), current_use
     return customer
 
 
+@router.post("/{customer_id}")
+def post_customer(customer_id: int, db: Session = Depends(get_db), current_user: User= Depends(get_current_user) ):
+    q = db.query(Customer).filter(Customer.id == customer_id)
+    q = q.filter(Customer.company_id == current_user.company_id)
+    if not q.filter():
+        ...
+
 @router.get("/{customer_id}", response_model=CustomerOut)
 def get_customer(customer_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     q = db.query(Customer).filter(Customer.id == customer_id)
