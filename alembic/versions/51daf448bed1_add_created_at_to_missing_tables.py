@@ -17,135 +17,38 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+TABLES_CREATED_AT = [
+    'customers', 'wallets', 'branches', 'products', 'purchase_orders',
+    'users', 'categories', 'tariffs', 'customer_prices', 'suppliers',
+    'balance_logs', 'stock_levels', 'stock_movements', 'inventory_counts',
+    'kassa_sessions', 'expenses', 'incomes', 'wallet_movements',
+    'bot_sessions', 'sales', 'bin_locations', 'api_keys',
+]
+
+TABLES_UPDATED_AT = ['balance_logs', 'stock_levels', 'kassa_sessions']
+
+
 def upgrade() -> None:
-    # Add created_at column to customers table
-    op.execute("ALTER TABLE customers ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE customers SET created_at = NOW() WHERE created_at IS NULL")
-    op.execute("ALTER TABLE customers ALTER COLUMN created_at SET NOT NULL")
-    
-    # Add created_at column to wallets table
-    op.execute("ALTER TABLE wallets ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE wallets SET created_at = NOW() WHERE created_at IS NULL")
-    op.execute("ALTER TABLE wallets ALTER COLUMN created_at SET NOT NULL")
-    
-    # Add created_at column to branches table
-    op.execute("ALTER TABLE branches ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE branches SET created_at = NOW() WHERE created_at IS NULL")
-    op.execute("ALTER TABLE branches ALTER COLUMN created_at SET NOT NULL")
-    
-    # Add created_at column to products table
-    op.execute("ALTER TABLE products ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE products SET created_at = NOW() WHERE created_at IS NULL")
-    op.execute("ALTER TABLE products ALTER COLUMN created_at SET NOT NULL")
-    
-    # Add created_at column to purchase_orders table
-    op.execute("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE purchase_orders SET created_at = NOW() WHERE created_at IS NULL")
-    op.execute("ALTER TABLE purchase_orders ALTER COLUMN created_at SET NOT NULL")
-    
-    # Add created_at column to users table
-    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE users SET created_at = NOW() WHERE created_at IS NULL")
-    op.execute("ALTER TABLE users ALTER COLUMN created_at SET NOT NULL")
-    
-    # Add created_at column to categories table
-    op.execute("ALTER TABLE categories ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE categories SET created_at = NOW() WHERE created_at IS NULL")
-    op.execute("ALTER TABLE categories ALTER COLUMN created_at SET NOT NULL")
-    
-    # Add created_at column to tariffs table
-    op.execute("ALTER TABLE tariffs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE tariffs SET created_at = NOW() WHERE created_at IS NULL")
-    op.execute("ALTER TABLE tariffs ALTER COLUMN created_at SET NOT NULL")
-    
-    # Add created_at column to customer_prices table
-    op.execute("ALTER TABLE customer_prices ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE customer_prices SET created_at = NOW() WHERE created_at IS NULL")
-    op.execute("ALTER TABLE customer_prices ALTER COLUMN created_at SET NOT NULL")
-    
-    # Add created_at column to suppliers table
-    op.execute("ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE suppliers SET created_at = NOW() WHERE created_at IS NULL")
-    op.execute("ALTER TABLE suppliers ALTER COLUMN created_at SET NOT NULL")
-    
-    # Add created_at column to balance_logs table
-    op.execute("ALTER TABLE balance_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE balance_logs SET created_at = NOW() WHERE created_at IS NULL")
-    op.execute("ALTER TABLE balance_logs ALTER COLUMN created_at SET NOT NULL")
-    
-    # Add updated_at column to balance_logs table
-    op.execute("ALTER TABLE balance_logs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE balance_logs SET updated_at = NOW() WHERE updated_at IS NULL")
-    op.execute("ALTER TABLE balance_logs ALTER COLUMN updated_at SET NOT NULL")
-    
-    # Add created_at column to stock_levels table
-    op.execute("ALTER TABLE stock_levels ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE stock_levels SET created_at = NOW() WHERE created_at IS NULL")
-    op.execute("ALTER TABLE stock_levels ALTER COLUMN created_at SET NOT NULL")
-    
-    # Add updated_at column to stock_levels table
-    op.execute("ALTER TABLE stock_levels ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE stock_levels SET updated_at = NOW() WHERE updated_at IS NULL")
-    op.execute("ALTER TABLE stock_levels ALTER COLUMN updated_at SET NOT NULL")
-    
-    # Add created_at column to stock_movements table
-    op.execute("ALTER TABLE stock_movements ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE stock_movements SET created_at = NOW() WHERE created_at IS NULL")
-    op.execute("ALTER TABLE stock_movements ALTER COLUMN created_at SET NOT NULL")
-    
-    # Add created_at column to inventory_counts table
-    op.execute("ALTER TABLE inventory_counts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE inventory_counts SET created_at = NOW() WHERE created_at IS NULL")
-    op.execute("ALTER TABLE inventory_counts ALTER COLUMN created_at SET NOT NULL")
-    
-    # Add created_at column to kassa_sessions table
-    op.execute("ALTER TABLE kassa_sessions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE kassa_sessions SET created_at = NOW() WHERE created_at IS NULL")
-    op.execute("ALTER TABLE kassa_sessions ALTER COLUMN created_at SET NOT NULL")
-    
-    # Add updated_at column to kassa_sessions table
-    op.execute("ALTER TABLE kassa_sessions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE kassa_sessions SET updated_at = NOW() WHERE updated_at IS NULL")
-    op.execute("ALTER TABLE kassa_sessions ALTER COLUMN updated_at SET NOT NULL")
-    
-    # Add created_at column to expenses table
-    op.execute("ALTER TABLE expenses ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE expenses SET created_at = NOW() WHERE created_at IS NULL")
-    op.execute("ALTER TABLE expenses ALTER COLUMN created_at SET NOT NULL")
-    
-    # Add created_at column to incomes table
-    op.execute("ALTER TABLE incomes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE incomes SET created_at = NOW() WHERE created_at IS NULL")
-    op.execute("ALTER TABLE incomes ALTER COLUMN created_at SET NOT NULL")
-    
-    # Add created_at column to wallet_movements table
-    op.execute("ALTER TABLE wallet_movements ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE wallet_movements SET created_at = NOW() WHERE created_at IS NULL")
-    op.execute("ALTER TABLE wallet_movements ALTER COLUMN created_at SET NOT NULL")
-    
-    # Add created_at column to bot_sessions table
-    op.execute("ALTER TABLE bot_sessions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE bot_sessions SET created_at = NOW() WHERE created_at IS NULL")
-    op.execute("ALTER TABLE bot_sessions ALTER COLUMN created_at SET NOT NULL")
-    
-    # Add created_at column to sales table
-    op.execute("ALTER TABLE sales ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE sales SET created_at = NOW() WHERE created_at IS NULL")
-    op.execute("ALTER TABLE sales ALTER COLUMN created_at SET NOT NULL")
-    
-    # Add created_at column to bin_locations table
-    op.execute("ALTER TABLE bin_locations ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE bin_locations SET created_at = NOW() WHERE created_at IS NULL")
-    op.execute("ALTER TABLE bin_locations ALTER COLUMN created_at SET NOT NULL")
-    
-    # Add created_at column to api_keys table
-    op.execute("ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
-    op.execute("UPDATE api_keys SET created_at = NOW() WHERE created_at IS NULL")
-    op.execute("ALTER TABLE api_keys ALTER COLUMN created_at SET NOT NULL")
+    conn = op.get_bind()
+
+    for table in TABLES_CREATED_AT:
+        exists = conn.execute(sa.text(f"SELECT to_regclass('{table}')")).scalar()
+        if not exists:
+            continue
+        op.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE")
+        op.execute(f"UPDATE {table} SET created_at = NOW() WHERE created_at IS NULL")
+        op.execute(f"ALTER TABLE {table} ALTER COLUMN created_at SET NOT NULL")
+
+    for table in TABLES_UPDATED_AT:
+        exists = conn.execute(sa.text(f"SELECT to_regclass('{table}')")).scalar()
+        if not exists:
+            continue
+        op.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE")
+        op.execute(f"UPDATE {table} SET updated_at = NOW() WHERE updated_at IS NULL")
+        op.execute(f"ALTER TABLE {table} ALTER COLUMN updated_at SET NOT NULL")
 
 
 def downgrade() -> None:
-    # Drop columns using IF NOT EXISTS logic via execute
     op.execute("ALTER TABLE api_keys DROP COLUMN IF EXISTS created_at")
     op.execute("ALTER TABLE bin_locations DROP COLUMN IF EXISTS created_at")
     op.execute("ALTER TABLE sales DROP COLUMN IF EXISTS created_at")
