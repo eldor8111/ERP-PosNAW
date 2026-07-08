@@ -31,7 +31,7 @@ class CustomerIn(BaseModel):
     card_number: Optional[str] = None
     cashback_percent: Optional[Decimal] = Decimal("0")
     price_type: Optional[str] = "sale"  # sale, wholesale, cost
-    debt_edited: List[Dict[str, Any]] = []
+
 
     @field_validator("card_number")
     @classmethod
@@ -70,6 +70,7 @@ class CustomerOut(BaseModel):
     company_id: Optional[int] = None
     price_type: Optional[str] = "sale"
     discount_percent: Optional[Decimal] = Decimal("0")
+    debt_edited: List[Dict[str, Any]] = []
 
     class Config:
         from_attributes = True
@@ -130,6 +131,7 @@ class CustomerOut(BaseModel):
 class PaginatedCustomersOut(BaseModel):
     items: list[CustomerOut]
     total: int
+    debt_edited: List[Dict[str, Any]] = []
 
 
 def _calc_debt_in_uzs(balances: dict, db: Session) -> Decimal:
