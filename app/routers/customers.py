@@ -32,7 +32,6 @@ class CustomerIn(BaseModel):
     cashback_percent: Optional[Decimal] = Decimal("0")
     price_type: Optional[str] = "sale"  # sale, wholesale, cost
 
-
     @field_validator("card_number")
     @classmethod
     def card_valid(cls, v):
@@ -284,21 +283,28 @@ def create_customer(data: CustomerIn, db: Session = Depends(get_db), current_use
     return customer
 
 
-@router.post("/{customer_id}")
-def post_customer(customer_id: int, db: Session = Depends(get_db), current_user: User= Depends(get_current_user) ):
-    q = db.query(Customer).filter(Customer.id == customer_id)
-    q = q.filter(Customer.company_id == current_user.company_id)
-    if not q.filter():
-        ...
+@router.post("/{customer_id}", response_model=CustomerOut)
+def post_customer(
+        customer_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    # 1. Mijozni ID va foydalanuvchining kompaniyasi bo'yicha bazadan qidiramiz
+    customer = db.query(Customer).filter(
+        Customer.id == customer_id,
+        Customer.company_id == current_user.company_id
+    ).first()
 
-@router.get("/{customer_id}", response_model=CustomerOut)
-def get_customer(customer_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    q = db.query(Customer).filter(Customer.id == customer_id)
-    q = q.filter(Customer.company_id == current_user.company_id)
-    cust = q.first()
-    if not cust:
-        raise HTTPException(status_code=404, detail="Customer not found")
-    return cust
+    # 2. Agar bunday mijoz topilmasa, 404 xatolik qaytaramiz
+    if not customer:
+        raise HTTPException(
+            status_code=404,
+            detail="Mijoz topilmadi yoki sizning kompaniyangizga tegishli emas."
+        )
+
+    # 3. Topilgan mijoz obyektini qaytaramiz.
+    # CustomerOut modelidagi @model_validator(mode="before") buni avtomat ravishda normalize qiladi.
+    return customer
 
 
 @router.put("/{customer_id}", response_model=CustomerOut)
@@ -423,6 +429,7 @@ def get_customer_history(customer_id: int, db: Session = Depends(get_db),
         })
 
     return sorted(history, key=lambda x: x["date"], reverse=True)
+
 
 @router.get("/{customer_id}/pay-debt")
 def pay_debt_get(customer_id: int, db: Session = Depends(get_db),
