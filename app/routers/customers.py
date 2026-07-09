@@ -1,6 +1,7 @@
 """
 Customers API: CRM module for managing customers, debt and loyalty.
 """
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
@@ -122,6 +123,7 @@ class CustomerOut(BaseModel):
                 "company_id": getattr(data, "company_id", None),
                 "price_type": getattr(data, "price_type", "sale"),
                 "discount_percent": getattr(data, "discount_percent", Decimal("0")),
+                "debt_edited": list(getattr(data, "debt_edited", None) or []),
             }
             return data_dict
 
@@ -146,6 +148,27 @@ def _calc_debt_in_uzs(balances: dict, db: Session) -> Decimal:
             rate = Decimal(str(curr_obj.rate)) if curr_obj else Decimal("1")
             total += Decimal(str(amt)) * rate
     return total
+
+
+def _normalize_customer_balances(balances: Optional[dict], debt_balance: Decimal, debt_currency: str) -> dict:
+    """Mijozning valyuta bo'yicha qarzlarini yagona formatga keltiradi."""
+    result = {str(k).strip().upper(): float(v) for k, v in dict(balances or {}).items()}
+    if not result and float(debt_balance or 0) > 0:
+        currency = str(debt_currency or "UZS").strip().upper() or "UZS"
+        result = {currency: float(debt_balance)}
+    return result
+
+
+def _append_debt_edit(cust: Customer, edited_from: dict, edited_to: dict) -> None:
+    """Qarz tahriri tarixiga yangi yozuv qo'shadi."""
+    history = list(cust.debt_edited or [])
+    history.append({
+        "edited_from": edited_from,
+        "edited_to": edited_to,
+        "edited_at": datetime.now(timezone.utc).isoformat(),
+    })
+    cust.debt_edited = history
+    flag_modified(cust, "debt_edited")
 
 
 class DebtUpdate(BaseModel):
@@ -325,6 +348,19 @@ def update_customer(customer_id: int, data: CustomerIn, db: Session = Depends(ge
     update_data["debt_balance"] = total_uzs
     update_data["debt_currency"] = "UZS"
 
+    old_balances = _normalize_customer_balances(
+        cust.debt_balances,
+        cust.debt_balance or Decimal("0"),
+        cust.debt_currency or "UZS",
+    )
+    new_balances = _normalize_customer_balances(
+        balances,
+        total_uzs,
+        update_data.get("debt_currency") or "UZS",
+    )
+    if old_balances != new_balances:
+        _append_debt_edit(cust, old_balances, new_balances)
+
     for key, val in update_data.items():
         setattr(cust, key, val)
     flag_modified(cust, "debt_balances")
@@ -459,6 +495,27 @@ def get_customer_history(customer_id: int, db: Session = Depends(get_db),
             "cashier": "",
             "description": e.description or "Qarz tahriri",
             "type": "debt_edit",
+        })
+
+    for edit in (cust.debt_edited or []):
+        from_bal = edit.get("edited_from") or {}
+        to_bal = edit.get("edited_to") or {}
+        from_total = float(_calc_debt_in_uzs(from_bal, db))
+        to_total = float(_calc_debt_in_uzs(to_bal, db))
+        debt_change = to_total - from_total
+        history.append({
+            "op_type": "debt_edit",
+            "date": edit.get("edited_at"),
+            "amount": abs(debt_change),
+            "paid": 0,
+            "debt": debt_change,
+            "currency": "UZS",
+            "payment_type": "",
+            "cashier": "",
+            "description": "Qarz tahriri",
+            "type": "debt_edit",
+            "edited_from": from_bal,
+            "edited_to": to_bal,
         })
 
     return sorted(history, key=lambda x: x["date"], reverse=True)

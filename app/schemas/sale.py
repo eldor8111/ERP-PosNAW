@@ -78,6 +78,7 @@ class SaleCreate(BaseModel):
     debt_amount: Optional[Decimal] = None
     # Valyutalar kesimida qarzlar (Ulgurji sotuvdan keladi)
     currency_totals: Optional[dict] = None
+    wallet_id: Optional[int] = None
 
     @field_validator("items")
     @classmethod

@@ -99,22 +99,31 @@ export default function CustomerDetail() {
   const [income, setIncome] = useState([])
 
   const [debtSales, setDebtSales] = useState([]);
+  const [returnModal, setReturnModal] = useState(false);
+  const [warehouses, setWarehouses] = useState([]);
+  const [wallets, setWallets] = useState([]);
 
   useEffect(() => {
-    api.get(`/customers/${customerId}/stats`)
+    api.get(`/customers/${customerId}/stats`, { _suppressToast: true })
       .then(r => setStats(r.data))
       .catch(() => navigate('/admin/customers'))
       .finally(() => setLoading(false))
 
-    api.get('/finance/payments/income').then(r => setIncome(r.data.items))
-    api.get(`/sales`).then(r => setSalesData(r.data))
-    api.get('/currencies').then(r => setCurrencies(r.data)).catch(() => { })
+    api.get('/finance/payments/income', { _suppressToast: true })
+      .then(r => setIncome(r.data.items))
+      .catch(() => setIncome([]))
+    api.get('/sales/', { params: { customer_id: customerId, limit: 200 }, _suppressToast: true })
+      .then(r => setSalesData(r.data))
+      .catch(() => setSalesData([]))
+    api.get('/currencies', { _suppressToast: true }).then(r => setCurrencies(r.data)).catch(() => { })
+    api.get('/inventory/warehouses', { _suppressToast: true }).then(r => setWarehouses(r.data)).catch(() => {})
+    api.get('/finance/wallets', { _suppressToast: true }).then(r => setWallets(r.data)).catch(() => {})
   }, [customerId, navigate])
 
   const loadSales = useCallback(async () => {
     setLoadingTab(true)
     try {
-      const { data } = await api.get(`/sales/?customer_id=${customerId}&limit=200`)
+      const { data } = await api.get(`/sales/`, { params: { customer_id: customerId, limit: 200 }, _suppressToast: true })
       setSales(data.filter(s => s.status !== 'refunded' && s.status !== 'cancelled'))
       setReturns(data.filter(s => s.status === 'refunded' || s.status === 'partial_refund'))
     } finally {
@@ -125,7 +134,7 @@ export default function CustomerDetail() {
   const loadHistory = useCallback(async () => {
     setLoadingTab(true)
     try {
-      const { data } = await api.get(`/customers/${customerId}/history`)
+      const { data } = await api.get(`/customers/${customerId}/history`, { _suppressToast: true })
       setHistory(data)
     } finally {
       setLoadingTab(false)
@@ -345,7 +354,29 @@ export default function CustomerDetail() {
 
           {/* QAYTARISHLAR TAB */}
           {tab === 'qaytarishlar' && (
-            <SalesTable rows={returns} loading={loadingTab} emptyText="Bu mijozdan qaytarishlar yo'q" />
+            <div>
+              <div className="flex justify-end mb-4">
+                <button
+                  onClick={() => setReturnModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold text-sm shadow-sm transition-all active:scale-95"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                  </svg>
+                  Yangi qaytarish
+                </button>
+              </div>
+              <ReturnsTable rows={returns} loading={loadingTab} />
+              {returnModal && (
+                <CustomerReturnModal
+                  customerId={customerId}
+                  warehouses={warehouses}
+                  wallets={wallets}
+                  onClose={() => setReturnModal(false)}
+                  onSuccess={() => { setReturnModal(false); loadSales(); }}
+                />
+              )}
+            </div>
           )}
 
           {/* OPERATSIYALAR TAB */}
@@ -717,6 +748,12 @@ function OperationsTable({ rows, loading }) {
 }
 
 function AktSverka({ stats, sales, loading, history }) {
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
+  const [sortOrder, setSortOrder] = useState('asc')
+  const [operationType, setOperationType] = useState('all')
+  const [selectedCashier, setSelectedCashier] = useState('all')
+
   if (loading) return <LoadingSpinner />
 
   const fmtDate2 = (dateString) => {
@@ -780,18 +817,65 @@ function AktSverka({ stats, sales, loading, history }) {
   const allEvents = [...saleEvents, ...paymentEvents, ...editEvents]
     .sort((a, b) => new Date(a.date) - new Date(b.date))
 
-  // ── Running balance hisoblash ─────────────────────────────────────────────
-  // Boshlang'ich qarz: debt_balances dagi eng birinchi valyuta miqdori
-  const initialDebt = mappedBalances.reduce((sum, b) => sum + Number(b.amount || 0), 0)
+  // Kassirlarni dinamik yig'ish (faqat mavjud kassirlar)
+  const cashiers = Array.from(new Set(allEvents.map(e => e.cashier).filter(Boolean)))
 
-  const displayRows = allEvents.reduce((acc, ev) => {
+  // ── Running balance hisoblash ─────────────────────────────────────────────
+  // Joriy qarz allaqachon barcha operatsiyalarni o'z ichiga oladi.
+  // Boshlang'ich qarz = joriy qarz − barcha operatsiyalar yig'indisi.
+  const currentDebt = mappedBalances.reduce((sum, b) => sum + Number(b.amount || 0), 0)
+  const totalDebtChange = allEvents.reduce((sum, ev) => sum + ev.debtChange, 0)
+  const initialDebt = Math.max(0, currentDebt - totalDebtChange)
+
+  const allEventsWithBalance = allEvents.reduce((acc, ev) => {
     const prevDebt = acc.length > 0 ? acc[acc.length - 1].finalDebt : initialDebt
     const finalDebt = Math.max(0, prevDebt + ev.debtChange)
     acc.push({ ...ev, prevDebt, finalDebt })
     return acc
   }, [])
 
-  const finalBalance = displayRows.length > 0 ? displayRows[displayRows.length - 1].finalDebt : initialDebt
+  // Filtrlar
+  const filteredRows = allEventsWithBalance.filter(ev => {
+    // 1. Sana bo'yicha filter
+    if (fromDate || toDate) {
+      const itemDate = new Date(ev.date)
+      if (fromDate) {
+        const from = new Date(fromDate)
+        from.setHours(0, 0, 0, 0)
+        if (itemDate < from) return false
+      }
+      if (toDate) {
+        const to = new Date(toDate)
+        to.setHours(23, 59, 59, 999)
+        if (itemDate > to) return false
+      }
+    }
+
+    // 2. Operatsiya turi bo'yicha filter
+    if (operationType !== 'all') {
+      if (ev.rowType !== operationType) return false
+    }
+
+    // 3. Kassir bo'yicha filter
+    if (selectedCashier !== 'all') {
+      if (ev.cashier !== selectedCashier) return false
+    }
+
+    return true
+  })
+
+  // Tartib bo'yicha saralash
+  const displayRows = [...filteredRows].sort((a, b) => {
+    const dateA = new Date(a.date).getTime()
+    const dateB = new Date(b.date).getTime()
+    if (sortOrder === 'desc') {
+      return dateB - dateA
+    } else {
+      return dateA - dateB
+    }
+  })
+
+  const finalBalance = allEventsWithBalance.length > 0 ? allEventsWithBalance[allEventsWithBalance.length - 1].finalDebt : currentDebt
   const totalPaid = saleEvents.reduce((s, e) => s + e.paid, 0)
   const totalPayments = paymentEvents.reduce((s, e) => s + e.amount, 0)
 
@@ -824,46 +908,77 @@ function AktSverka({ stats, sales, loading, history }) {
         )}
       </div>
 
-      <div className="flex gap-2 border-b border-slate-200 pb-3">
+      <div className="flex gap-2 border-b flex-wrap border-slate-200 pb-3">
         <div className="border border-slate-200 flex items-center gap-2 px-3 min-w-50 rounded">
           <span className='text-slate-700'>dan:</span>
-          <input type="date" className='outline-0 border-l border-slate-200 pl-2 py-1' />
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            className='outline-0 border-l border-slate-200 pl-2 py-1'
+          />
         </div>
 
         <div className="border border-slate-200 flex items-center gap-2 px-3 min-w-50 rounded">
           <span className='text-slate-700'>gacha:</span>
-          <input type="date" className='outline-0 border-l border-slate-200 pl-2 py-1' />
+          <input
+            type="date"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            className='outline-0 border-l border-slate-200 pl-2 py-1'
+          />
         </div>
 
         <div className="border border-slate-200 flex items-center gap-2 px-3 min-w-55 rounded">
           <span className='text-slate-700'>Tartib:</span>
-          <select className='outline-0 w-full cursor-pointer border-l border-slate-200 pl-2 py-1'>
-            <option value="all">Eski birinchi</option>
-            <option value="all">Yangi birinchi</option>
+          <select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value)}
+            className='outline-0 w-full cursor-pointer border-l border-slate-200 pl-2 py-1'
+          >
+            <option value="asc">Eski birinchi</option>
+            <option value="desc">Yangi birinchi</option>
           </select>
         </div>
 
         <div className="border border-slate-200 flex items-center gap-2 px-3 min-w-60 rounded">
           <span className='text-slate-700'>Operatsiya:</span>
-          <select className='outline-0 w-full cursor-pointer border-l border-slate-200 pl-2 py-1'>
+          <select
+            value={operationType}
+            onChange={(e) => setOperationType(e.target.value)}
+            className='outline-0 w-full cursor-pointer border-l border-slate-200 pl-2 py-1'
+          >
             <option value="all">Barchasi</option>
-            <option value="all">Sotuv</option>
-            <option value="all">Qarz to'lovi</option>
-            <option value="all">Qarz tahriri</option>
+            <option value="sale">Sotuv</option>
+            <option value="payment">Qarz to'lovi</option>
+            <option value="debt_edit">Qarz tahriri</option>
           </select>
         </div>
 
         <div className="border border-slate-200 flex items-center gap-2 px-3 min-w-50 rounded">
           <span className='text-slate-700'>Kassir:</span>
-          <select className='outline-0 w-full cursor-pointer border-l border-slate-200 pl-2 py-1'>
+          <select
+            value={selectedCashier}
+            onChange={(e) => setSelectedCashier(e.target.value)}
+            className='outline-0 w-full cursor-pointer border-l border-slate-200 pl-2 py-1'
+          >
             <option value="all">Barchasi</option>
-            {sales.map((user) => (
-              <option key={user.id} value={user.id}>{user.cashier_name}</option>
+            {cashiers.map((cashierName) => (
+              <option key={cashierName} value={cashierName}>{cashierName}</option>
             ))}
           </select>
         </div>
 
-        <button className='border ml-auto border-slate-200 text-slate-700 px-3 py-1 flex gap-1.5 items-center rounded cursor-pointer'>
+        <button
+          onClick={() => {
+            setFromDate('')
+            setToDate('')
+            setSortOrder('asc')
+            setOperationType('all')
+            setSelectedCashier('all')
+          }}
+          className='border ml-auto border-slate-200 text-slate-700 px-3 py-1 flex gap-1.5 items-center rounded cursor-pointer'
+        >
           <RotateCcw size={18} />
           <span>Filterni tozalash</span>
         </button>
@@ -1049,6 +1164,345 @@ function KirimTolovlar({ stats, income, loading, openEdit, handleDelete }) {
       </div>
     </div>
   );
+}
+
+// ────────────────────────────────────────────────────────────
+// Qaytarishlar jadvali (CustomerDetail qaytarishlar tab)
+// ────────────────────────────────────────────────────────────
+function ReturnsTable({ rows, loading }) {
+  if (loading) return <LoadingSpinner />
+  if (!rows.length) return (
+    <div className="flex flex-col items-center justify-center h-48 text-slate-400 gap-2">
+      <svg className="w-12 h-12 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+      </svg>
+      <p className="text-sm">Bu mijozdan qaytarishlar yo'q</p>
+    </div>
+  )
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="min-w-[700px] w-full text-sm">
+          <thead className="bg-slate-50 border-b border-slate-100">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Raqam</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">To'lov turi</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Jami</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Qaytarilgan</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Sana</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Holat</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {rows.map(s => (
+              <tr key={s.id} className="hover:bg-slate-50 transition-colors">
+                <td className="px-4 py-3 font-mono text-xs text-slate-600">{s.number}</td>
+                <td className="px-4 py-3">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${PAY_STYLES[s.payment_type] || 'bg-slate-100 text-slate-600'}`}>
+                    {PAY_LABELS[s.payment_type] || s.payment_type}
+                  </span>
+                </td>
+                <td className="px-4 py-3 font-semibold text-slate-800">{fmt(s.total_amount)} so'm</td>
+                <td className="px-4 py-3 text-emerald-600 font-medium">{fmt(s.paid_amount)} so'm</td>
+                <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{fmtDate(s.created_at)}</td>
+                <td className="px-4 py-3">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_STYLES[s.status] || ''}`}>
+                    {STATUS_LABELS[s.status] || s.status}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// ────────────────────────────────────────────────────────────
+// Mijozdan qaytarish modali
+// ────────────────────────────────────────────────────────────
+function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSuccess }) {
+  const [products, setProducts] = useState([])
+  const [prodSearch, setProdSearch] = useState('')
+  const [selProd, setSelProd] = useState(null)
+  const [qty, setQty] = useState('1')
+  const [price, setPrice] = useState('')
+  const [items, setItems] = useState([])
+  const [warehouseId, setWarehouseId] = useState('')
+  const [paymentType, setPaymentType] = useState('debt')
+  const [walletId, setWalletId] = useState('')
+  const [paidCash, setPaidCash] = useState('')
+  const [paidCard, setPaidCard] = useState('')
+  const [note, setNote] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+
+  // Mahsulotlarni yuklash
+  useEffect(() => {
+    api.get('/products/', { params: { limit: 5000 } })
+      .then(r => setProducts(Array.isArray(r.data) ? r.data : (r.data.items || [])))
+      .catch(() => {})
+  }, [])
+
+  const filtered = prodSearch.length >= 1
+    ? products.filter(p =>
+      p.name.toLowerCase().includes(prodSearch.toLowerCase()) ||
+      (p.sku && p.sku.toLowerCase().includes(prodSearch.toLowerCase()))
+    ).slice(0, 20)
+    : []
+
+  const selectProduct = (p) => {
+    setSelProd(p)
+    setPrice(p.sale_price ? String(p.sale_price) : '')
+    setProdSearch('')
+  }
+
+  const addItem = () => {
+    if (!selProd) { setErr('Mahsulot tanlang'); return }
+    if (!qty || Number(qty) <= 0) { setErr('Miqdorni kiriting'); return }
+    if (!price || Number(price) < 0) { setErr('Narxni kiriting'); return }
+    setItems(prev => {
+      const ex = prev.find(i => i.product_id === selProd.id && i.price === Number(price))
+      if (ex) return prev.map(i => i.product_id === selProd.id && i.price === Number(price) ? { ...i, qty: i.qty + Number(qty) } : i)
+      return [...prev, { product_id: selProd.id, name: selProd.name, unit: selProd.unit || 'dona', qty: Number(qty), price: Number(price) }]
+    })
+    setSelProd(null); setQty('1'); setPrice(''); setErr('')
+  }
+
+  const totalAmount = items.reduce((s, i) => s + i.qty * i.price, 0)
+
+  const save = async () => {
+    if (!items.length) { setErr("Mahsulot qo'shing"); return }
+    if (!warehouseId) { setErr('Omborni tanlang'); return }
+    if (paymentType !== 'debt' && !walletId) { setErr('Kassani tanlang'); return }
+
+    let paidAmount = 0
+    let pCash = 0
+    let pCard = 0
+    if (paymentType === 'cash') { paidAmount = totalAmount; pCash = totalAmount }
+    else if (paymentType === 'card') { paidAmount = totalAmount; pCard = totalAmount }
+    else if (paymentType === 'mixed') {
+      pCash = Number(paidCash) || 0
+      pCard = Number(paidCard) || 0
+      paidAmount = pCash + pCard
+      if (paidAmount > totalAmount) { setErr("Qaytarilgan summa umumiy summadan ko'p"); return }
+    }
+
+    setSaving(true); setErr('')
+    try {
+      await api.post('/sales/return', {
+        items: items.map(i => ({ product_id: i.product_id, quantity: i.qty, unit_price: i.price, discount: 0 })),
+        payment_type: paymentType,
+        paid_amount: paidAmount,
+        paid_cash: pCash,
+        paid_card: pCard,
+        discount_amount: 0,
+        customer_id: Number(customerId),
+        warehouse_id: Number(warehouseId),
+        wallet_id: walletId ? Number(walletId) : null,
+        note: note,
+      })
+      onSuccess()
+    } catch (e) {
+      setErr(e.response?.data?.detail || 'Xatolik yuz berdi')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div>
+            <h2 className="text-lg font-bold text-slate-800">Mijozdan qaytarish</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Mahsulotlarni qo'shing va qaytarish turini tanlang</p>
+          </div>
+          <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          {/* Ombor tanlash */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Ombor *</label>
+            <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)}
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
+              <option value="">Omborni tanlang...</option>
+              {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+            </select>
+          </div>
+
+          {/* Mahsulot qidirish */}
+          <div className="relative">
+            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Mahsulot qidirish</label>
+            <input
+              type="text"
+              value={prodSearch}
+              onChange={e => setProdSearch(e.target.value)}
+              placeholder="Nomi yoki SKU bo'yicha..."
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            />
+            {filtered.length > 0 && (
+              <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                {filtered.map(p => (
+                  <button key={p.id} onClick={() => selectProduct(p)}
+                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-indigo-50 flex items-center justify-between gap-2">
+                    <span className="font-medium text-slate-800">{p.name}</span>
+                    <span className="text-xs text-slate-400 shrink-0">{fmt(p.sale_price)} so'm</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {selProd && (
+            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 flex items-end gap-3">
+              <div className="flex-1">
+                <div className="text-sm font-semibold text-slate-700">{selProd.name}</div>
+                <div className="text-xs text-slate-400 mt-0.5">Joriy qoldiq: {fmt(selProd.stock_quantity || 0)} {selProd.unit || 'dona'}</div>
+              </div>
+              <div className="flex gap-2 items-end">
+                <div>
+                  <label className="text-xs text-slate-500 block mb-1">Miqdor</label>
+                  <input type="number" min="0.001" step="any" value={qty} onChange={e => setQty(e.target.value)}
+                    className="w-20 border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 block mb-1">Narx (so'm)</label>
+                  <input type="number" min="0" step="any" value={price} onChange={e => setPrice(e.target.value)}
+                    className="w-32 border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+                </div>
+                <button onClick={addItem}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors">
+                  Qo'sh
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Items jadvali */}
+          {items.length > 0 && (
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs text-slate-500">Mahsulot</th>
+                    <th className="px-3 py-2 text-center text-xs text-slate-500">Soni</th>
+                    <th className="px-3 py-2 text-right text-xs text-slate-500">Narx</th>
+                    <th className="px-3 py-2 text-right text-xs text-slate-500">Jami</th>
+                    <th className="w-8"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {items.map((it, i) => (
+                    <tr key={i}>
+                      <td className="px-3 py-2 font-medium">{it.name}</td>
+                      <td className="px-3 py-2 text-center">{it.qty} {it.unit}</td>
+                      <td className="px-3 py-2 text-right">{fmt(it.price)}</td>
+                      <td className="px-3 py-2 text-right font-bold text-indigo-700">{fmt(it.qty * it.price)}</td>
+                      <td className="px-2 py-2">
+                        <button onClick={() => setItems(p => p.filter((_, idx) => idx !== i))}
+                          className="text-slate-300 hover:text-red-500 transition-colors">✕</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-slate-50">
+                  <tr>
+                    <td colSpan={3} className="px-3 py-2 text-xs text-slate-500 font-semibold">Jami qaytarilayotgan:</td>
+                    <td className="px-3 py-2 text-right font-bold text-indigo-700">{fmt(totalAmount)} so'm</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+
+          {/* Qaytarish turi */}
+          {items.length > 0 && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Qaytarish turi</label>
+                <select value={paymentType} onChange={e => setPaymentType(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
+                  <option value="debt">Qarzdan chegirish</option>
+                  <option value="cash">Naqd pul qaytarish</option>
+                  <option value="card">Plastik kartaga qaytarish</option>
+                  <option value="mixed">Aralash qaytarish</option>
+                </select>
+              </div>
+
+              {paymentType === 'mixed' && (
+                <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Naqd</label>
+                    <input type="number" min="0" value={paidCash} onChange={e => setPaidCash(e.target.value)}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Karta</label>
+                    <input type="number" min="0" value={paidCard} onChange={e => setPaidCard(e.target.value)}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" placeholder="0" />
+                  </div>
+                </div>
+              )}
+
+              {paymentType !== 'debt' && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Kassadan chiqim *</label>
+                  <select value={walletId} onChange={e => setWalletId(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
+                    <option value="">Kassani tanlang...</option>
+                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name} ({fmt(w.balance)} so'm)</option>)}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Izoh (ixtiyoriy)</label>
+                <input type="text" value={note} onChange={e => setNote(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  placeholder="Qaytarish sababi..." />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl flex items-center justify-between">
+          <div>
+            {err && <span className="text-red-500 text-sm font-medium">{err}</span>}
+          </div>
+          <div className="flex gap-3">
+            <button onClick={onClose}
+              className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+              Bekor qilish
+            </button>
+            <button onClick={save} disabled={saving || !items.length}
+              className="px-5 py-2 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all active:scale-95 flex items-center gap-2">
+              {saving ? (
+                <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" /> Saqlanmoqda...</>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                  </svg>
+                  Qaytarishni saqlash
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function LoadingSpinner() {

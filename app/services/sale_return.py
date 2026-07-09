@@ -10,7 +10,7 @@ from app.models.batch import Batch
 from app.models.customer import Customer
 from app.models.customer_prices import CustomerPrice
 from app.models.currency import Currency
-from app.models.moliya import Transaction
+from app.models.moliya import Transaction, KassaMovement, Wallet
 from app.models.product import Product, ProductConversion
 from app.models.sale import Sale, SaleItem, SaleStatus, PaymentType
 from app.models.user import User
@@ -134,23 +134,50 @@ def create_return_sale(
     # Pul qaytarilsa — expense tranzaksiya
     if data.paid_amount > 0:
         tx_branch_id = resolve_branch_id(db, current_user, data.warehouse_id)
+        wallet = None
+        if data.wallet_id:
+            wallet = db.query(Wallet).filter(
+                Wallet.id == data.wallet_id,
+                Wallet.company_id == current_user.company_id
+            ).first()
+            if wallet:
+                wallet.balance = Decimal(str(wallet.balance or 0)) - Decimal(str(data.paid_amount))
+
         if tx_branch_id:
             if data.payment_type == PaymentType.mixed:
                 for _pt, _amt in [("cash", data.paid_cash), ("card", data.paid_card)]:
                     if _amt > 0:
                         db.add(Transaction(
                             branch_id=tx_branch_id, company_id=current_user.company_id,
+                            wallet_id=data.wallet_id,
                             type="expense", amount=_amt, reference_type="sale_refund",
-                            reference_id=sale.id,
+                            reference_id=sale.id, payment_type=_pt,
                             description=f"Vazvrat to'lovi #{sale.number} (Aralash/{_pt})",
                         ))
+                        if wallet and _pt not in ("debt", "cashback"):
+                            db.add(KassaMovement(
+                                wallet_id=wallet.id, company_id=current_user.company_id,
+                                direction="out", payment_type=_pt, amount=_amt,
+                                reference_type="sale_refund", reference_id=sale.id,
+                                description=f"Vazvrat #{sale.number} (Aralash/{_pt})",
+                                created_by=current_user.id,
+                            ))
             else:
                 db.add(Transaction(
                     branch_id=tx_branch_id, company_id=current_user.company_id,
-                    type="expense", amount=data.paid_amount,
+                    wallet_id=data.wallet_id,
+                    type="expense", amount=data.paid_amount, payment_type=data.payment_type.value,
                     reference_type="sale_refund", reference_id=sale.id,
                     description=f"Vazvrat to'lovi #{sale.number}",
                 ))
+                if wallet and data.payment_type.value not in ("debt", "cashback"):
+                    db.add(KassaMovement(
+                        wallet_id=wallet.id, company_id=current_user.company_id,
+                        direction="out", payment_type=data.payment_type.value, amount=data.paid_amount,
+                        reference_type="sale_refund", reference_id=sale.id,
+                        description=f"Vazvrat #{sale.number}",
+                        created_by=current_user.id,
+                    ))
 
     # Stock oshirish + SaleItem yozish
     for item_d in sale_items_data:
