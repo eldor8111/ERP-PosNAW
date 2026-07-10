@@ -993,7 +993,7 @@ function AktSverka({ stats, sales, loading, history }) {
             <thead>
               <tr>
                 {['#', 'Operatsiya', "To'lov turi", 'Oldingi qarz', 'Qarzning oshishi', "Qarzning kamayishi", 'Yakuniy qarz', "To'langan", 'Kassir', 'Sana'].map((h, i) => (
-                  <th key={i} className='font-normal uppercase text-slate-700 p-2 border border-slate-200'>{h}</th>
+                  <th key={i} className='font-semibold uppercase text-slate-700 p-2 border border-slate-200'>{h}</th>
                 ))}
               </tr>
             </thead>

@@ -173,18 +173,21 @@ function buildLabelHTML(tpl, product, opts = {}) {
   const showPrice = opts.showPrice !== undefined ? opts.showPrice : true;
   const showBarcode = opts.showBarcode !== undefined ? opts.showBarcode : true;
   const showSku = opts.showSku !== undefined ? opts.showSku : true;
+  const showCode = opts.showCode !== undefined ? opts.showCode : true;
   const showDate = opts.showDate !== undefined ? opts.showDate : true;
 
   const companyNamePos = opts.companyNamePos || 'up';
   const productNamePos = opts.productNamePos || 'up';
   const productPricePos = opts.productPricePos || 'down';
   const productSkuPos = opts.productSkuPos || 'up';
+  const productCodePos = opts.productCodePos || 'up';
 
   const companyNameSize = opts.fontSize || 8;
   const productNameSize = opts.productNameSize || 8;
   const productPriceSize = opts.productPriceSize || 8;
   const productCurrencySize = opts.productCurrencySize || 6;
   const productSkuSize = opts.productSkuSize || 6;
+  const productCodeSize = opts.productCodeSize || 6;
   const barcodeSize = opts.barcodeSize || 10;
   const dateVal = opts.date || '';
 
@@ -215,6 +218,7 @@ function buildLabelHTML(tpl, product, opts = {}) {
 
   const name = product.name || '';
   const sku = product.sku || '';
+  const productCode = product.product_code || '';
   const barcode = product.barcode || '';
   const companyNameText = opts.companyName || '';
 
@@ -247,6 +251,10 @@ function buildLabelHTML(tpl, product, opts = {}) {
     ? `<div style="font-size:${productSkuSize}px; color:#555; font-family:monospace; text-align:center; width:100%; line-height:1.1;">${sku}</div>`
     : '';
 
+  const codeHtml = (showCode && productCode)
+    ? `<div style="font-size:${productCodeSize}px; color:#000; font-family:monospace; text-align:center; width:100%; line-height:1.1;">${productCode}</div>`
+    : '';
+
   const dateHtml = (showDate && dateVal)
     ? `<div style="font-size:6px; color:#888; text-align:center; width:100%; line-height:1;">${dateVal}</div>`
     : '';
@@ -257,6 +265,11 @@ function buildLabelHTML(tpl, product, opts = {}) {
 
   const upElements = [];
   const downElements = [];
+
+  // Detect if code is the ONLY visible element (auto-center)
+  const otherHtmlPresent = companyHtml || productNameHtml || skuHtml || priceHtml || dateHtml || barcodeHtml;
+  const codeIsAlone = codeHtml && !otherHtmlPresent;
+  const codeIsCenter = productCodePos === 'middle' || codeIsAlone;
 
   if (companyHtml) {
     if (companyNamePos === 'up') upElements.push(companyHtml);
@@ -273,6 +286,11 @@ function buildLabelHTML(tpl, product, opts = {}) {
     else downElements.push(skuHtml);
   }
 
+  if (codeHtml && !codeIsCenter) {
+    if (productCodePos === 'up') upElements.push(codeHtml);
+    else downElements.push(codeHtml);
+  }
+
   if (priceHtml) {
     if (productPricePos === 'up') upElements.push(priceHtml);
     else downElements.push(priceHtml);
@@ -282,10 +300,16 @@ function buildLabelHTML(tpl, product, opts = {}) {
     downElements.push(dateHtml);
   }
 
+  // Center code element (shown between up/barcode/down sections)
+  const centerCodeHtml = codeIsCenter
+    ? `<div style="flex:1; width:100%; display:flex; align-items:center; justify-content:center;">${codeHtml}</div>`
+    : '';
+
   const inner = `
     <div style="width:100%; display:flex; flex-direction:column; align-items:center; gap:0.4mm; overflow:hidden;">
       ${upElements.join('')}
     </div>
+    ${centerCodeHtml}
     ${barcodeHtml}
     <div style="width:100%; display:flex; flex-direction:column; align-items:center; gap:0.4mm; overflow:hidden;">
       ${downElements.join('')}
@@ -408,6 +432,7 @@ export default function BarcodePrintModal({ product, onClose }) {
   const [productPriceSize, setProductPriceSize] = useState(8);
   const [productCurrencySize, setProductCurrencySize] = useState(6);
   const [productSkuSize, setProductSkuSize] = useState(6);
+  const [productCodeSize, setProductCodeSize] = useState(6);
   const [barcodeSize, setBarcodeSize] = useState(10);
 
   const [companyName, setCompanyName] = useState("");
@@ -425,12 +450,14 @@ export default function BarcodePrintModal({ product, onClose }) {
   const [showPrice, setShowPrice] = useState(true);
   const [showBarcode, setShowBarcode] = useState(true);
   const [showSku, setShowSku] = useState(true);
+  const [showCode, setShowCode] = useState(true);
   const [showDate, setShowDate] = useState(true);
 
   const [companyNamePos, setCompanyNamePos] = useState("up");
   const [productNamePos, setProductNamePos] = useState("up");
   const [productPricePos, setProductPricePos] = useState("down");
   const [productSkuPos, setProductSkuPos] = useState("up");
+  const [productCodePos, setProductCodePos] = useState("up");
 
   // Load JsBarcode CDN
   useEffect(() => {
@@ -462,16 +489,19 @@ export default function BarcodePrintModal({ product, onClose }) {
     productCurrencySize,
     barcodeSize,
     productSkuSize,
+    productCodeSize,
     showCompanyName,
     showProductName,
     showPrice,
     showBarcode,
     showSku,
+    showCode,
     showDate,
     companyNamePos,
     productNamePos,
     productPricePos,
     productSkuPos,
+    productCodePos,
     date: new Date().toLocaleDateString('uz-UZ'),
   };
 
@@ -490,6 +520,7 @@ export default function BarcodePrintModal({ product, onClose }) {
         productPriceSize,
         productCurrencySize,
         productSkuSize,
+        productCodeSize,
         barcodeSize,
         companyName,
         currencyVal,
@@ -498,11 +529,13 @@ export default function BarcodePrintModal({ product, onClose }) {
         showPrice,
         showBarcode,
         showSku,
+        showCode,
         showDate,
         companyNamePos,
         productNamePos,
         productPricePos,
         productSkuPos,
+        productCodePos,
       },
     };
     const updated = [...savedTemplates, newTpl];
@@ -526,24 +559,27 @@ export default function BarcodePrintModal({ product, onClose }) {
     if (!tpl) return;
     setSelectedTpl(tpl);
     const o = tpl._opts || {};
-    if (o.fontSize !== undefined)          setFontSize(o.fontSize);
-    if (o.productNameSize !== undefined)   setProductNameSize(o.productNameSize);
-    if (o.productPriceSize !== undefined)  setProductPriceSize(o.productPriceSize);
+    if (o.fontSize !== undefined) setFontSize(o.fontSize);
+    if (o.productNameSize !== undefined) setProductNameSize(o.productNameSize);
+    if (o.productPriceSize !== undefined) setProductPriceSize(o.productPriceSize);
     if (o.productCurrencySize !== undefined) setProductCurrencySize(o.productCurrencySize);
-    if (o.productSkuSize !== undefined)    setProductSkuSize(o.productSkuSize);
-    if (o.barcodeSize !== undefined)       setBarcodeSize(o.barcodeSize);
-    if (o.companyName !== undefined)       setCompanyName(o.companyName);
-    if (o.currencyVal !== undefined)       setCurrencyVal(o.currencyVal);
-    if (o.showCompanyName !== undefined)   setShowCompanyName(o.showCompanyName);
-    if (o.showProductName !== undefined)   setShowProductName(o.showProductName);
-    if (o.showPrice !== undefined)         setShowPrice(o.showPrice);
-    if (o.showBarcode !== undefined)       setShowBarcode(o.showBarcode);
-    if (o.showSku !== undefined)           setShowSku(o.showSku);
-    if (o.showDate !== undefined)          setShowDate(o.showDate);
-    if (o.companyNamePos !== undefined)    setCompanyNamePos(o.companyNamePos);
-    if (o.productNamePos !== undefined)    setProductNamePos(o.productNamePos);
-    if (o.productPricePos !== undefined)   setProductPricePos(o.productPricePos);
-    if (o.productSkuPos !== undefined)     setProductSkuPos(o.productSkuPos);
+    if (o.productSkuSize !== undefined) setProductSkuSize(o.productSkuSize);
+    if (o.productCodeSize !== undefined) setProductCodeSize(o.productCodeSize);
+    if (o.barcodeSize !== undefined) setBarcodeSize(o.barcodeSize);
+    if (o.companyName !== undefined) setCompanyName(o.companyName);
+    if (o.currencyVal !== undefined) setCurrencyVal(o.currencyVal);
+    if (o.showCompanyName !== undefined) setShowCompanyName(o.showCompanyName);
+    if (o.showProductName !== undefined) setShowProductName(o.showProductName);
+    if (o.showPrice !== undefined) setShowPrice(o.showPrice);
+    if (o.showBarcode !== undefined) setShowBarcode(o.showBarcode);
+    if (o.showSku !== undefined) setShowSku(o.showSku);
+    if (o.showCode !== undefined) setShowCode(o.showCode);
+    if (o.showDate !== undefined) setShowDate(o.showDate);
+    if (o.companyNamePos !== undefined) setCompanyNamePos(o.companyNamePos);
+    if (o.productNamePos !== undefined) setProductNamePos(o.productNamePos);
+    if (o.productPricePos !== undefined) setProductPricePos(o.productPricePos);
+    if (o.productSkuPos !== undefined) setProductSkuPos(o.productSkuPos);
+    if (o.productCodePos !== undefined) setProductCodePos(o.productCodePos);
   };
 
   /* Print — uses a hidden iframe so no new tab is opened */
@@ -824,19 +860,35 @@ export default function BarcodePrintModal({ product, onClose }) {
                   </div>
                 </div>
 
+                {/* Kod */}
+                <div>
+                  <div className="text-sm font-medium text-slate-600 mb-1">Mahsulot kodi: {productCodeSize}px</div>
+                  <input
+                    type="range"
+                    min="6"
+                    max="65"
+                    value={productCodeSize}
+                    onChange={e => setProductCodeSize(+e.target.value)}
+                    className="w-full accent-blue-600"
+                  />
+                  <div className="flex justify-between text-xs text-slate-400">
+                    <span>6</span><span>65</span>
+                  </div>
+                </div>
+
                 {/* Narxi */}
                 <div>
                   <div className="text-sm font-medium text-slate-600 mb-1">Narxi: {productPriceSize}px</div>
                   <input
                     type="range"
                     min="6"
-                    max="30"
+                    max="65"
                     value={productPriceSize}
                     onChange={e => setProductPriceSize(+e.target.value)}
                     className="w-full accent-blue-600"
                   />
                   <div className="flex justify-between text-xs text-slate-400">
-                    <span>6</span><span>30</span>
+                    <span>6</span><span>65</span>
                   </div>
                 </div>
 
@@ -999,6 +1051,21 @@ export default function BarcodePrintModal({ product, onClose }) {
                 <div className="flex items-center gap-2">
                   <div className="relative inline-block w-11 h-5">
                     <input
+                      checked={showCode}
+                      onChange={e => setShowCode(e.target.checked)}
+                      id="switch-show-code"
+                      type="checkbox"
+                      className="peer appearance-none w-11 h-5 bg-slate-100 rounded-full checked:bg-blue-600 cursor-pointer transition-colors duration-300"
+                    />
+                    <label htmlFor="switch-show-code" className="absolute top-0 left-0 w-5 h-5 bg-white rounded-full border border-slate-300 shadow-sm transition-transform duration-300 peer-checked:translate-x-6 peer-checked:border-blue-600 cursor-pointer">
+                    </label>
+                  </div>
+                  <span>Mahsulot kodini ko'rsatish</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative inline-block w-11 h-5">
+                    <input
                       checked={showDate}
                       onChange={e => setShowDate(e.target.checked)}
                       id="switch-show-date"
@@ -1057,6 +1124,19 @@ export default function BarcodePrintModal({ product, onClose }) {
                     className="py-2 px-3 border border-slate-200 outline-0 cursor-pointer rounded"
                   >
                     <option value="up">tepada</option>
+                    <option value="down">pastda</option>
+                  </select>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <span>Mahsulot kodi:</span>
+                  <select
+                    value={productCodePos}
+                    onChange={e => setProductCodePos(e.target.value)}
+                    className="py-2 px-3 border border-slate-200 outline-0 cursor-pointer rounded"
+                  >
+                    <option value="up">tepada</option>
+                    <option value="middle">o'rtada</option>
                     <option value="down">pastda</option>
                   </select>
                 </div>

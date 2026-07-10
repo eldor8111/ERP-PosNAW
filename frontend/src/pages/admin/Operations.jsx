@@ -2112,7 +2112,7 @@ function QaytarishlarTab({ products, suppliers, warehouses, customers }) {
                       </button>
                       <button onClick={() => handleDeleteReturn(r.id)} className="flex items-center gap-1 px-3 py-1 text-xs rounded-sm font-semibold border transition-all cursor-pointer border-red-300 text-red-600">
                         <Trash size={16} />
-                        O'chirish
+                        Qaytarish
                       </button>
                     </div>
                   </td>
