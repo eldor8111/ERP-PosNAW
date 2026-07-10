@@ -117,12 +117,12 @@ def upgrade() -> None:
     # --- eski cleanup (idempotent) ---
     if _tbl(conn, 'bot_sessions'):
         if _idx(conn, 'ix_bot_sessions_chat_id'):
-            op.drop_index(op.f('ix_bot_sessions_chat_id'), table_name='bot_sessions')
-        op.drop_table('bot_sessions')
+            op.execute("DROP INDEX IF EXISTS ix_bot_sessions_chat_id")
+        op.execute("DROP TABLE IF EXISTS bot_sessions")
     if _tbl(conn, 'user_wallets'):
         if _idx(conn, 'ix_user_wallets_user'):
-            op.drop_index(op.f('ix_user_wallets_user'), table_name='user_wallets')
-        op.drop_table('user_wallets')
+            op.execute("DROP INDEX IF EXISTS ix_user_wallets_user")
+        op.execute("DROP TABLE IF EXISTS user_wallets")
     for col in ['payme_merchant_id', 'payme_is_test', 'payme_secret_key']:
         if _col(conn, 'companies', col):
             op.drop_column('companies', col)
@@ -139,8 +139,8 @@ def upgrade() -> None:
             op.drop_index(op.f(idx), table_name=tbl)
     if _col(conn, 'sales', 'wallet_id'):
         if _fk(conn, 'sales', 'sales_wallet_id_fkey'):
-            op.drop_constraint(op.f('sales_wallet_id_fkey'), 'sales', type_='foreignkey')
-        op.drop_column('sales', 'wallet_id')
+            op.execute("ALTER TABLE sales DROP CONSTRAINT IF EXISTS sales_wallet_id_fkey")
+        op.execute("ALTER TABLE sales DROP COLUMN IF EXISTS wallet_id")
 
 
 def downgrade() -> None:
@@ -148,13 +148,13 @@ def downgrade() -> None:
     op.add_column('sales', sa.Column('wallet_id', sa.INTEGER(), autoincrement=False, nullable=True))
     op.create_foreign_key(op.f('sales_wallet_id_fkey'), 'sales', 'wallets', ['wallet_id'], ['id'])
     op.drop_constraint(None, 'products', type_='foreignkey')
-    op.drop_index(op.f('ix_products_mxik_reference_id'), table_name='products')
-    op.drop_column('products', 'vat_checked_at')
-    op.drop_column('products', 'vat_lgota_name')
-    op.drop_column('products', 'vat_lgota_id')
-    op.drop_column('products', 'vat_rate_type')
-    op.drop_column('products', 'package_code')
-    op.drop_column('products', 'mxik_reference_id')
+    op.execute("DROP INDEX IF EXISTS ix_products_mxik_reference_id")
+    op.execute("ALTER TABLE products DROP COLUMN IF EXISTS vat_checked_at")
+    op.execute("ALTER TABLE products DROP COLUMN IF EXISTS vat_lgota_name")
+    op.execute("ALTER TABLE products DROP COLUMN IF EXISTS vat_lgota_id")
+    op.execute("ALTER TABLE products DROP COLUMN IF EXISTS vat_rate_type")
+    op.execute("ALTER TABLE products DROP COLUMN IF EXISTS package_code")
+    op.execute("ALTER TABLE products DROP COLUMN IF EXISTS mxik_reference_id")
     op.create_index(op.f('ix_payme_txn_payme_id'), 'payme_transactions', ['payme_id'], unique=True)
     op.create_index(op.f('ix_payme_txn_company'), 'payme_transactions', ['company_id'], unique=False)
     op.create_index(op.f('ix_kassa_sessions_wallet'), 'kassa_sessions', ['wallet_id'], unique=False)
@@ -186,12 +186,12 @@ def downgrade() -> None:
     sa.PrimaryKeyConstraint('id', name=op.f('bot_sessions_pkey'))
     )
     op.create_index(op.f('ix_bot_sessions_chat_id'), 'bot_sessions', ['chat_id'], unique=False)
-    op.drop_index(op.f('ix_mxik_packages_mxik_reference_id'), table_name='mxik_packages')
-    op.drop_index(op.f('ix_mxik_packages_id'), table_name='mxik_packages')
-    op.drop_index(op.f('ix_mxik_packages_code'), table_name='mxik_packages')
-    op.drop_index('ix_mxik_package_ref_code', table_name='mxik_packages')
-    op.drop_table('mxik_packages')
-    op.drop_index(op.f('ix_mxik_references_mxik_code'), table_name='mxik_references')
-    op.drop_index(op.f('ix_mxik_references_id'), table_name='mxik_references')
-    op.drop_table('mxik_references')
+    op.execute("DROP INDEX IF EXISTS ix_mxik_packages_mxik_reference_id")
+    op.execute("DROP INDEX IF EXISTS ix_mxik_packages_id")
+    op.execute("DROP INDEX IF EXISTS ix_mxik_packages_code")
+    op.execute("DROP INDEX IF EXISTS ix_mxik_package_ref_code")
+    op.execute("DROP TABLE IF EXISTS mxik_packages")
+    op.execute("DROP INDEX IF EXISTS ix_mxik_references_mxik_code")
+    op.execute("DROP INDEX IF EXISTS ix_mxik_references_id")
+    op.execute("DROP TABLE IF EXISTS mxik_references")
     # ### end Alembic commands ###

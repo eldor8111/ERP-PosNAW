@@ -81,7 +81,7 @@ def downgrade() -> None:
     op.add_column('companies', sa.Column('payme_secret_key', sa.VARCHAR(length=128), autoincrement=False, nullable=True))
     op.add_column('companies', sa.Column('payme_merchant_id', sa.VARCHAR(length=50), autoincrement=False, nullable=True))
     op.add_column('companies', sa.Column('payme_is_test', sa.BOOLEAN(), server_default=sa.text('true'), autoincrement=False, nullable=True))
-    op.drop_column('companies', 'purchased_at')
+    op.execute("ALTER TABLE companies DROP COLUMN IF EXISTS purchased_at")
     op.create_table('bot_sessions',
     sa.Column('id', sa.INTEGER(), autoincrement=True, nullable=False),
     sa.Column('chat_id', sa.VARCHAR(length=50), autoincrement=False, nullable=False),

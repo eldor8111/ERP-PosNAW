@@ -19,4 +19,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_column('users', 'tg_chat_id')
+    op.execute("ALTER TABLE users DROP COLUMN IF EXISTS tg_chat_id")

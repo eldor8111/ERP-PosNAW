@@ -57,13 +57,13 @@ def upgrade() -> None:
 
     if _table_exists(conn, 'bot_sessions'):
         if _idx_exists(conn, 'ix_bot_sessions_chat_id'):
-            op.drop_index(op.f('ix_bot_sessions_chat_id'), table_name='bot_sessions')
-        op.drop_table('bot_sessions')
+            op.execute("DROP INDEX IF EXISTS ix_bot_sessions_chat_id")
+        op.execute("DROP TABLE IF EXISTS bot_sessions")
 
     if _table_exists(conn, 'user_wallets'):
         if _idx_exists(conn, 'ix_user_wallets_user'):
-            op.drop_index(op.f('ix_user_wallets_user'), table_name='user_wallets')
-        op.drop_table('user_wallets')
+            op.execute("DROP INDEX IF EXISTS ix_user_wallets_user")
+        op.execute("DROP TABLE IF EXISTS user_wallets")
 
     for col in ['payme_merchant_id', 'payme_is_test', 'payme_secret_key']:
         if _col_exists(conn, 'companies', col):
@@ -83,8 +83,8 @@ def upgrade() -> None:
 
     if _col_exists(conn, 'sales', 'wallet_id'):
         if _fk_exists(conn, 'sales', 'sales_wallet_id_fkey'):
-            op.drop_constraint(op.f('sales_wallet_id_fkey'), 'sales', type_='foreignkey')
-        op.drop_column('sales', 'wallet_id')
+            op.execute("ALTER TABLE sales DROP CONSTRAINT IF EXISTS sales_wallet_id_fkey")
+        op.execute("ALTER TABLE sales DROP COLUMN IF EXISTS wallet_id")
 
 
 def downgrade() -> None:
@@ -122,6 +122,6 @@ def downgrade() -> None:
     sa.PrimaryKeyConstraint('id', name=op.f('bot_sessions_pkey'))
     )
     op.create_index(op.f('ix_bot_sessions_chat_id'), 'bot_sessions', ['chat_id'], unique=False)
-    op.drop_index(op.f('ix_customer_prices_id'), table_name='customer_prices')
-    op.drop_table('customer_prices')
+    op.execute("DROP INDEX IF EXISTS ix_customer_prices_id")
+    op.execute("DROP TABLE IF EXISTS customer_prices")
     # ### end Alembic commands ###

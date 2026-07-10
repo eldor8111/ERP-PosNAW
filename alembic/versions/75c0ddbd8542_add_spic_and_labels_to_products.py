@@ -33,9 +33,9 @@ def upgrade() -> None:
                existing_type=sa.NUMERIC(precision=12, scale=2),
                type_=sa.Numeric(precision=16, scale=4),
                existing_nullable=False)
-    op.drop_index(op.f('ix_products_mxik_code'), table_name='products')
+    op.execute("DROP INDEX IF EXISTS ix_products_mxik_code")
     op.create_index(op.f('ix_products_spic'), 'products', ['spic'], unique=False)
-    op.drop_column('products', 'mxik_code')
+    op.execute("ALTER TABLE products DROP COLUMN IF EXISTS mxik_code")
     op.alter_column('sale_items', 'unit_price',
                existing_type=sa.NUMERIC(precision=12, scale=2),
                type_=sa.Numeric(precision=16, scale=4),
@@ -136,7 +136,7 @@ def downgrade() -> None:
                type_=sa.NUMERIC(precision=12, scale=2),
                existing_nullable=False)
     op.add_column('products', sa.Column('mxik_code', sa.VARCHAR(length=20), autoincrement=False, nullable=True))
-    op.drop_index(op.f('ix_products_spic'), table_name='products')
+    op.execute("DROP INDEX IF EXISTS ix_products_spic")
     op.create_index(op.f('ix_products_mxik_code'), 'products', ['mxik_code'], unique=False)
     op.alter_column('products', 'sale_price',
                existing_type=sa.Numeric(precision=16, scale=4),
@@ -150,6 +150,6 @@ def downgrade() -> None:
                existing_type=sa.Numeric(precision=16, scale=4),
                type_=sa.NUMERIC(precision=12, scale=2),
                existing_nullable=False)
-    op.drop_column('products', 'labels')
-    op.drop_column('products', 'spic')
+    op.execute("ALTER TABLE products DROP COLUMN IF EXISTS labels")
+    op.execute("ALTER TABLE products DROP COLUMN IF EXISTS spic")
     # ### end Alembic commands ###

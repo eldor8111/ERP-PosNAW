@@ -43,20 +43,20 @@ def upgrade() -> None:
 
     if _table_exists(conn, 'bot_sessions'):
         if _index_exists(conn, 'ix_bot_sessions_chat_id'):
-            op.drop_index(op.f('ix_bot_sessions_chat_id'), table_name='bot_sessions')
-        op.drop_table('bot_sessions')
+            op.execute("DROP INDEX IF EXISTS ix_bot_sessions_chat_id")
+        op.execute("DROP TABLE IF EXISTS bot_sessions")
 
     if _table_exists(conn, 'user_wallets'):
         if _index_exists(conn, 'ix_user_wallets_user'):
-            op.drop_index(op.f('ix_user_wallets_user'), table_name='user_wallets')
-        op.drop_table('user_wallets')
+            op.execute("DROP INDEX IF EXISTS ix_user_wallets_user")
+        op.execute("DROP TABLE IF EXISTS user_wallets")
 
     if _column_exists(conn, 'companies', 'payme_secret_key'):
-        op.drop_column('companies', 'payme_secret_key')
+        op.execute("ALTER TABLE companies DROP COLUMN IF EXISTS payme_secret_key")
     if _column_exists(conn, 'companies', 'payme_is_test'):
-        op.drop_column('companies', 'payme_is_test')
+        op.execute("ALTER TABLE companies DROP COLUMN IF EXISTS payme_is_test")
     if _column_exists(conn, 'companies', 'payme_merchant_id'):
-        op.drop_column('companies', 'payme_merchant_id')
+        op.execute("ALTER TABLE companies DROP COLUMN IF EXISTS payme_merchant_id")
 
     for idx, tbl in [
         ('ix_kassa_movements_company', 'kassa_movements'),
@@ -83,8 +83,8 @@ def upgrade() -> None:
 
     if _column_exists(conn, 'sales', 'wallet_id'):
         if _fk_exists(conn, 'sales', 'sales_wallet_id_fkey'):
-            op.drop_constraint(op.f('sales_wallet_id_fkey'), 'sales', type_='foreignkey')
-        op.drop_column('sales', 'wallet_id')
+            op.execute("ALTER TABLE sales DROP CONSTRAINT IF EXISTS sales_wallet_id_fkey")
+        op.execute("ALTER TABLE sales DROP COLUMN IF EXISTS wallet_id")
 
 
 def downgrade() -> None:
@@ -92,10 +92,10 @@ def downgrade() -> None:
     op.add_column('sales', sa.Column('wallet_id', sa.INTEGER(), autoincrement=False, nullable=True))
     op.create_foreign_key(op.f('sales_wallet_id_fkey'), 'sales', 'wallets', ['wallet_id'], ['id'])
     op.drop_constraint(None, 'sale_items', type_='foreignkey')
-    op.drop_column('sale_items', 'unit')
-    op.drop_column('sale_items', 'warehouse_id')
+    op.execute("ALTER TABLE sale_items DROP COLUMN IF EXISTS unit")
+    op.execute("ALTER TABLE sale_items DROP COLUMN IF EXISTS warehouse_id")
     op.drop_constraint(None, 'products', type_='foreignkey')
-    op.drop_column('products', 'customer_id')
+    op.execute("ALTER TABLE products DROP COLUMN IF EXISTS customer_id")
     op.create_index(op.f('ix_payme_txn_payme_id'), 'payme_transactions', ['payme_id'], unique=True)
     op.create_index(op.f('ix_payme_txn_company'), 'payme_transactions', ['company_id'], unique=False)
     op.create_index(op.f('ix_kassa_sessions_wallet'), 'kassa_sessions', ['wallet_id'], unique=False)

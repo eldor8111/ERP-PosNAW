@@ -25,9 +25,9 @@ def upgrade() -> None:
     # customers constraint/index o'zgarishi
     existing_uq = [c['name'] for c in inspector.get_unique_constraints('customers')]
     if 'customers_card_number_key' in existing_uq:
-        op.drop_constraint(op.f('customers_card_number_key'), 'customers', type_='unique')
+        op.execute("ALTER TABLE customers DROP CONSTRAINT IF EXISTS customers_card_number_key")
     if 'customers_tg_chat_id_key' in existing_uq:
-        op.drop_constraint(op.f('customers_tg_chat_id_key'), 'customers', type_='unique')
+        op.execute("ALTER TABLE customers DROP CONSTRAINT IF EXISTS customers_tg_chat_id_key")
     existing_idx = [i['name'] for i in inspector.get_indexes('customers')]
     cust_cols = [c['name'] for c in inspector.get_columns('customers')]
     if 'card_number' in cust_cols and 'ix_customers_card_number' not in existing_idx:
@@ -39,16 +39,16 @@ def upgrade() -> None:
     if 'sale_item_batches' in tables:
         sib_idx = [i['name'] for i in inspector.get_indexes('sale_item_batches')]
         if 'ix_sale_item_batches_batch_id' in sib_idx:
-            op.drop_index(op.f('ix_sale_item_batches_batch_id'), table_name='sale_item_batches')
+            op.execute("DROP INDEX IF EXISTS ix_sale_item_batches_batch_id")
         if 'ix_sale_item_batches_sale_item_id' in sib_idx:
-            op.drop_index(op.f('ix_sale_item_batches_sale_item_id'), table_name='sale_item_batches')
+            op.execute("DROP INDEX IF EXISTS ix_sale_item_batches_sale_item_id")
         if 'ix_sale_item_batches_id' not in sib_idx:
             op.create_index(op.f('ix_sale_item_batches_id'), 'sale_item_batches', ['id'], unique=False)
         sib_fk = [f['name'] for f in inspector.get_foreign_keys('sale_item_batches')]
         if 'sale_item_batches_batch_id_fkey' in sib_fk:
-            op.drop_constraint(op.f('sale_item_batches_batch_id_fkey'), 'sale_item_batches', type_='foreignkey')
+            op.execute("ALTER TABLE sale_item_batches DROP CONSTRAINT IF EXISTS sale_item_batches_batch_id_fkey")
         if 'sale_item_batches_sale_item_id_fkey' in sib_fk:
-            op.drop_constraint(op.f('sale_item_batches_sale_item_id_fkey'), 'sale_item_batches', type_='foreignkey')
+            op.execute("ALTER TABLE sale_item_batches DROP CONSTRAINT IF EXISTS sale_item_batches_sale_item_id_fkey")
         op.create_foreign_key(None, 'sale_item_batches', 'sale_items', ['sale_item_id'], ['id'])
         op.create_foreign_key(None, 'sale_item_batches', 'batches', ['batch_id'], ['id'])
 
@@ -59,11 +59,11 @@ def downgrade() -> None:
     op.drop_constraint(None, 'sale_item_batches', type_='foreignkey')
     op.create_foreign_key(op.f('sale_item_batches_sale_item_id_fkey'), 'sale_item_batches', 'sale_items', ['sale_item_id'], ['id'], ondelete='CASCADE')
     op.create_foreign_key(op.f('sale_item_batches_batch_id_fkey'), 'sale_item_batches', 'batches', ['batch_id'], ['id'], ondelete='CASCADE')
-    op.drop_index(op.f('ix_sale_item_batches_id'), table_name='sale_item_batches')
+    op.execute("DROP INDEX IF EXISTS ix_sale_item_batches_id")
     op.create_index(op.f('ix_sale_item_batches_sale_item_id'), 'sale_item_batches', ['sale_item_id'], unique=False)
     op.create_index(op.f('ix_sale_item_batches_batch_id'), 'sale_item_batches', ['batch_id'], unique=False)
-    op.drop_index(op.f('ix_customers_tg_chat_id'), table_name='customers')
-    op.drop_index(op.f('ix_customers_card_number'), table_name='customers')
+    op.execute("DROP INDEX IF EXISTS ix_customers_tg_chat_id")
+    op.execute("DROP INDEX IF EXISTS ix_customers_card_number")
     op.create_unique_constraint(op.f('customers_tg_chat_id_key'), 'customers', ['tg_chat_id'], postgresql_nulls_not_distinct=False)
     op.create_unique_constraint(op.f('customers_card_number_key'), 'customers', ['card_number'], postgresql_nulls_not_distinct=False)
     # ### end Alembic commands ###

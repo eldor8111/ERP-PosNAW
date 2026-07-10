@@ -31,4 +31,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_table('sms_logs')
+    op.execute("DROP TABLE IF EXISTS sms_logs")

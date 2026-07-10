@@ -34,5 +34,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index(op.f('ix_currency_rates_id'), table_name='currency_rates')
-    op.drop_table('currency_rates')
+    op.execute("DROP INDEX IF EXISTS ix_currency_rates_id")
+    op.execute("DROP TABLE IF EXISTS currency_rates")

@@ -33,4 +33,4 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_column('stock_transfer_items', 'target_product_id')
+    op.execute("ALTER TABLE stock_transfer_items DROP COLUMN IF EXISTS target_product_id")

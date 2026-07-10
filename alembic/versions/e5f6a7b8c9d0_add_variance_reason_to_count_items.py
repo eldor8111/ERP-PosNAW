@@ -22,4 +22,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_column('inventory_count_items', 'variance_reason')
+    op.execute("ALTER TABLE inventory_count_items DROP COLUMN IF EXISTS variance_reason")

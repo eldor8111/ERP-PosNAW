@@ -46,5 +46,5 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_column('sale_items', 'unit')
-    op.drop_column('sale_items', 'warehouse_id')
+    op.execute("ALTER TABLE sale_items DROP COLUMN IF EXISTS unit")
+    op.execute("ALTER TABLE sale_items DROP COLUMN IF EXISTS warehouse_id")

@@ -22,9 +22,9 @@ def upgrade():
 
     # 1. Drop old constraints faqat mavjud bo'lsa
     if 'uq_products_barcode_active' in existing_idx:
-        op.drop_index('uq_products_barcode_active', table_name='products')
+        op.execute("DROP INDEX IF EXISTS uq_products_barcode_active")
     if 'uq_products_sku_active' in existing_idx:
-        op.drop_index('uq_products_sku_active', table_name='products')
+        op.execute("DROP INDEX IF EXISTS uq_products_sku_active")
 
     # 2. Create new constraints (with company_id)
     op.create_index('uq_products_barcode_active', 'products', ['company_id', 'barcode'], unique=True, postgresql_where=sa.text("is_deleted = false"), if_not_exists=True)
@@ -33,8 +33,8 @@ def upgrade():
 
 def downgrade():
     # 1. Drop new constraints
-    op.drop_index('uq_products_barcode_active', table_name='products')
-    op.drop_index('uq_products_sku_active', table_name='products')
+    op.execute("DROP INDEX IF EXISTS uq_products_barcode_active")
+    op.execute("DROP INDEX IF EXISTS uq_products_sku_active")
     
     # 2. Re-create old constraints (global)
     op.create_index('uq_products_barcode_active', 'products', ['barcode'], unique=True, postgresql_where=sa.text("is_deleted = false"))

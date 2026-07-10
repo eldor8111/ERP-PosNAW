@@ -19,4 +19,4 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_column('products', 'extra_barcodes')
+    op.execute("ALTER TABLE products DROP COLUMN IF EXISTS extra_barcodes")
