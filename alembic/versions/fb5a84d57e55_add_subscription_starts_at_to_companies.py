@@ -28,4 +28,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_column('companies', 'subscription_starts_at')
+    op.execute("ALTER TABLE companies DROP COLUMN IF EXISTS subscription_starts_at")

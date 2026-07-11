@@ -52,6 +52,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index('ix_tovarlar_catalog_mxik_code', table_name='tovarlar_catalog')
-    op.drop_index('ix_tovarlar_catalog_barcode',   table_name='tovarlar_catalog')
-    op.drop_table('tovarlar_catalog')
+    op.execute("DROP INDEX IF EXISTS ix_tovarlar_catalog_mxik_code")
+    op.execute("DROP INDEX IF EXISTS ix_tovarlar_catalog_barcode")
+    op.execute("DROP TABLE IF EXISTS tovarlar_catalog")

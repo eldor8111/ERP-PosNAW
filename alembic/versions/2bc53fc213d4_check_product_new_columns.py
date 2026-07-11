@@ -22,5 +22,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_column('products', 'sale_currency')
-    op.drop_column('products', 'cost_currency')
+    op.execute("ALTER TABLE products DROP COLUMN IF EXISTS sale_currency")
+    op.execute("ALTER TABLE products DROP COLUMN IF EXISTS cost_currency")

@@ -53,9 +53,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index(op.f('ix_inventory_count_items_id'), table_name='inventory_count_items')
-    op.drop_table('inventory_count_items')
-    op.drop_index(op.f('ix_inventory_counts_number'), table_name='inventory_counts')
-    op.drop_index(op.f('ix_inventory_counts_id'), table_name='inventory_counts')
-    op.drop_table('inventory_counts')
+    op.execute("DROP INDEX IF EXISTS ix_inventory_count_items_id")
+    op.execute("DROP TABLE IF EXISTS inventory_count_items")
+    op.execute("DROP INDEX IF EXISTS ix_inventory_counts_number")
+    op.execute("DROP INDEX IF EXISTS ix_inventory_counts_id")
+    op.execute("DROP TABLE IF EXISTS inventory_counts")
     op.execute("DROP TYPE IF EXISTS countstatus")

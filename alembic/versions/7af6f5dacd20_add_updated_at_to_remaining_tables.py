@@ -70,13 +70,13 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_column('suppliers', 'updated_at')
-    op.drop_column('customer_prices', 'updated_at')
-    op.drop_column('tariffs', 'updated_at')
-    op.drop_column('categories', 'updated_at')
-    op.drop_column('users', 'updated_at')
-    op.drop_column('purchase_orders', 'updated_at')
-    op.drop_column('products', 'updated_at')
-    op.drop_column('branches', 'updated_at')
-    op.drop_column('wallets', 'updated_at')
-    op.drop_column('customers', 'updated_at')
+    op.execute("ALTER TABLE suppliers DROP COLUMN IF EXISTS updated_at")
+    op.execute("ALTER TABLE customer_prices DROP COLUMN IF EXISTS updated_at")
+    op.execute("ALTER TABLE tariffs DROP COLUMN IF EXISTS updated_at")
+    op.execute("ALTER TABLE categories DROP COLUMN IF EXISTS updated_at")
+    op.execute("ALTER TABLE users DROP COLUMN IF EXISTS updated_at")
+    op.execute("ALTER TABLE purchase_orders DROP COLUMN IF EXISTS updated_at")
+    op.execute("ALTER TABLE products DROP COLUMN IF EXISTS updated_at")
+    op.execute("ALTER TABLE branches DROP COLUMN IF EXISTS updated_at")
+    op.execute("ALTER TABLE wallets DROP COLUMN IF EXISTS updated_at")
+    op.execute("ALTER TABLE customers DROP COLUMN IF EXISTS updated_at")

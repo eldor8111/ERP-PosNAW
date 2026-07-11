@@ -28,4 +28,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_column('companies', 'purchased_at')
+    op.execute("ALTER TABLE companies DROP COLUMN IF EXISTS purchased_at")

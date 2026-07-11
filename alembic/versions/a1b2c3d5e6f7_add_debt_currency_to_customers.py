@@ -40,5 +40,5 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_column('customers', 'debt_balances')
-    op.drop_column('customers', 'debt_currency')
+    op.execute("ALTER TABLE customers DROP COLUMN IF EXISTS debt_balances")
+    op.execute("ALTER TABLE customers DROP COLUMN IF EXISTS debt_currency")

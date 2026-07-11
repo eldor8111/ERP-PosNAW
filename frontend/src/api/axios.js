@@ -180,9 +180,9 @@ api.interceptors.response.use(
       }
       return Promise.reject(error)
     }
-    if (status === 400) { toast.error(detail || "Noto'g'ri ma'lumot kiritildi"); return Promise.reject(error) }
-    if (status === 403) { toast.warn("Sizda bu amalni bajarish huquqi yo'q"); return Promise.reject(error) }
-    if (status === 404) { toast.warn(detail || "Ma'lumot topilmadi"); return Promise.reject(error) }
+    if (status === 400 && !config._suppressToast) { toast.error(detail || "Noto'g'ri ma'lumot kiritildi"); return Promise.reject(error) }
+    if (status === 403 && !config._suppressToast) { toast.warn("Sizda bu amalni bajarish huquqi yo'q"); return Promise.reject(error) }
+    if (status === 404 && !config._suppressToast) { toast.warn(detail || "Ma'lumot topilmadi"); return Promise.reject(error) }
     if (status === 422) {
       const msg = error.response?.data?.detail?.[0]?.msg || "Maydonlarni to'g'ri to'ldiring"
       toast.error(msg); return Promise.reject(error)

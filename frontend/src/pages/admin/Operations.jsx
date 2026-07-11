@@ -4,11 +4,11 @@ import api from '../../api/axios';
 import InventoryCountsPage from './InventoryCounts';
 import toast from 'react-hot-toast';
 import { matchesSearch } from '../../utils/translit';
-import { EllipsisVertical } from 'lucide-react';
+import { EllipsisVertical, Pen, Trash } from 'lucide-react';
 import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
 
 /* ─── Helpers ─── */
-const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ', { maximumFractionDigits: 4 });
+const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 const fmtDt = (d) => d ? new Date(d).toLocaleString('uz-UZ') : '—';
 const fmtDay = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
 const today = () => new Date().toISOString().slice(0, 10);
@@ -1688,7 +1688,7 @@ function KirimlarTab({ products, warehouses, suppliers, users }) {
 /* ══════════════════════════════════════════════════════════
    QAYTARISHLAR — split panel create view
 ══════════════════════════════════════════════════════════ */
-function QaytarishCreateView({ products, type, onBack, suppliers, warehouses }) {
+function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, customers, editData, onEditSaved }) {
   const { t } = useLang();
   const isCustomer = type === 'customer';
   const [items, setItems] = useState([]);
@@ -1697,14 +1697,12 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses }) 
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
 
-  const [form, setForm] = useState({ supplier_id: '', warehouse_id: '', received_amount: '', wallet_id: '' });
+  const [form, setForm] = useState({ supplier_id: '', customer_id: '', warehouse_id: '', received_amount: '', wallet_id: '', payment_type: 'debt', paid_cash: '', paid_card: '' });
   const [wallets, setWallets] = useState([]);
 
   useEffect(() => {
-    if (!isCustomer) {
-      api.get('/moliya/wallets').then(r => setWallets(r.data)).catch(console.error);
-    }
-  }, [isCustomer]);
+    api.get('/moliya/wallets').then(r => setWallets(r.data)).catch(console.error);
+  }, []);
 
   const [sel, setSel] = useState(null);
   const [qty, setQty] = useState('1');
@@ -1712,18 +1710,22 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses }) 
 
   // Update cost when product is selected
   useEffect(() => {
-    if (sel && !isCustomer) {
-      setCost(sel.unit_cost || '');
+    if (sel) {
+      if (isCustomer) {
+        setCost(sel.sale_price || '');
+      } else {
+        setCost(sel.unit_cost || '');
+      }
     }
   }, [sel, isCustomer]);
 
   const addItem = () => {
     if (!sel || !qty) return;
-    if (!isCustomer && !cost) { setErr("Qaytarish narxini kiriting"); return; }
+    if (!cost) { setErr("Qaytarish narxini kiriting"); return; }
 
     setItems(prev => {
-      const ex = prev.find(i => i.product_id === sel.id && (!isCustomer ? i.cost === Number(cost) : true));
-      if (ex) return prev.map(i => i.product_id === sel.id && (!isCustomer ? i.cost === Number(cost) : true) ? { ...i, qty: Number(i.qty) + Number(qty) } : i);
+      const ex = prev.find(i => i.product_id === sel.id && i.cost === Number(cost));
+      if (ex) return prev.map(i => i.product_id === sel.id && i.cost === Number(cost) ? { ...i, qty: Number(i.qty) + Number(qty) } : i);
       return [...prev, { product_id: sel.id, product_name: sel.name, unit: sel.unit || 'dona', qty: Number(qty), cost: Number(cost), current: Number(sel.stock_quantity || 0) }];
     });
     setSel(null); setQty('1'); setCost(''); setErr('');
@@ -1731,16 +1733,60 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses }) 
 
   const save = async () => {
     if (!items.length) { setErr("Mahsulot qo'shing"); return; }
-    if (!isCustomer && !form.supplier_id) { setErr("Ta'minotchini tanlang"); return; }
-    if (!isCustomer && Number(form.received_amount) > 0 && !form.wallet_id) { setErr("Kassani tanlang"); return; }
+    if (isCustomer) {
+      if (!form.customer_id) { setErr("Mijozni tanlang"); return; }
+      if (!form.warehouse_id) { setErr("Omborni tanlang"); return; }
+      if (form.payment_type !== 'debt' && !form.wallet_id) { setErr("Kassani tanlang"); return; }
+    } else {
+      if (!form.supplier_id) { setErr("Ta'minotchini tanlang"); return; }
+      if (Number(form.received_amount) > 0 && !form.wallet_id) { setErr("Kassani tanlang"); return; }
+    }
 
     setSaving(true); setErr(''); setMsg('');
     try {
       if (isCustomer) {
-        await api.post('/inventory/receive', {
-          items: items.map(i => ({ product_id: i.product_id, quantity: i.qty, reason: `Mijozdan qaytarish${note ? ': ' + note : ''}` })),
-        });
-        setMsg(`${items.length} ta mahsulot qaytarildi`);
+        const totalAmount = items.reduce((s, i) => s + (i.qty * i.cost), 0);
+        let paidAmount = 0;
+        let paidCash = 0;
+        let paidCard = 0;
+
+        if (form.payment_type === 'cash') {
+          paidAmount = totalAmount;
+          paidCash = totalAmount;
+        } else if (form.payment_type === 'card') {
+          paidAmount = totalAmount;
+          paidCard = totalAmount;
+        } else if (form.payment_type === 'mixed') {
+          paidCash = Number(form.paid_cash) || 0;
+          paidCard = Number(form.paid_card) || 0;
+          paidAmount = paidCash + paidCard;
+          if (paidAmount > totalAmount) {
+            setErr("Qaytarilgan summa umumiy summadan ko'p bo'lishi mumkin emas");
+            setSaving(false);
+            return;
+          }
+        }
+
+        const payload = {
+          items: items.map(i => ({
+            product_id: i.product_id,
+            quantity: i.qty,
+            unit_price: i.cost,
+            discount: 0
+          })),
+          payment_type: form.payment_type,
+          paid_amount: paidAmount,
+          paid_cash: paidCash,
+          paid_card: paidCard,
+          discount_amount: 0,
+          customer_id: Number(form.customer_id),
+          warehouse_id: Number(form.warehouse_id),
+          wallet_id: form.wallet_id ? Number(form.wallet_id) : null,
+          note: note
+        };
+
+        const res = await api.post('/sales/return', payload);
+        setMsg(res.data?.number ? `Vazvrat muvaffaqiyatli saqlandi: #${res.data.number}` : `Muvaffaqiyatli qaytarildi`);
       } else {
         const payload = {
           supplier_id: Number(form.supplier_id),
@@ -1754,7 +1800,7 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses }) 
         setMsg(res.data?.message || `Muvaffaqiyatli qaytarildi`);
       }
 
-      setItems([]); setNote(''); setForm({ supplier_id: '', warehouse_id: '', received_amount: '', wallet_id: '' });
+      setItems([]); setNote(''); setForm({ supplier_id: '', customer_id: '', warehouse_id: '', received_amount: '', wallet_id: '', payment_type: 'debt', paid_cash: '', paid_card: '' });
     } catch (e) { setErr(e.response?.data?.detail || 'Xatolik yuz berdi'); } finally { setSaving(false); }
   };
 
@@ -1762,12 +1808,29 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses }) 
     <div className="fixed inset-0 z-40 bg-slate-50 flex flex-col">
       <CreateHeader title={isCustomer ? (t('ops.returnFromCustomer') || 'Mijozdan qaytarish') : (t('ops.returnToSupplier') || "Ta'minotchiga qaytarish")} onBack={onBack} />
       <div className="flex items-center gap-3 px-6 py-3.5 border-b border-slate-100 bg-white shadow-sm shrink-0">
-        <input placeholder={isCustomer ? (t('ops.customerNameOpt') || "Mijoz ismi (ixtiyoriy)") : (t('ops.noteOpt') || "Izoh (ixtiyoriy)")} value={note} onChange={e => setNote(e.target.value)} className={`${ic} w-72`} />
+        <input placeholder={isCustomer ? (t('ops.customerNameOpt') || "Mijoz ismi / Izoh (ixtiyoriy)") : (t('ops.noteOpt') || "Izoh (ixtiyoriy)")} value={note} onChange={e => setNote(e.target.value)} className={`${ic} w-72`} />
         <span className="text-xs text-slate-400 font-medium ml-auto">{new Date().toLocaleString('uz-UZ')}</span>
       </div>
       <div className="flex flex-1 overflow-hidden">
         <div className="w-[450px] border-r border-slate-100 p-5 flex flex-col gap-4 overflow-y-auto shrink-0 bg-white shadow-sm">
-          {!isCustomer && (
+          {isCustomer ? (
+            <>
+              <Lbl t="Mijoz *">
+                <CustSearch
+                  customers={customers || []}
+                  value={form.customer_id}
+                  onChange={val => setForm(f => ({ ...f, customer_id: val }))}
+                  placeholder="Mijozni tanlang..."
+                />
+              </Lbl>
+              <Lbl t="Ombor *">
+                <select value={form.warehouse_id} onChange={e => setForm({ ...form, warehouse_id: e.target.value })} className={ic}>
+                  <option value="">Tanlang...</option>
+                  {warehouses?.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                </select>
+              </Lbl>
+            </>
+          ) : (
             <>
               <Lbl t="Ta'minotchi *">
                 <select value={form.supplier_id} onChange={e => setForm({ ...form, supplier_id: e.target.value })} className={ic}>
@@ -1804,11 +1867,9 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses }) 
                     <input type="number" min="0.001" step="any" value={qty} onChange={e => setQty(e.target.value)} className={`flex-1 ${ic} text-center font-bold`} />
                   </div>
                 </Lbl>
-                {!isCustomer && (
-                  <Lbl t="Qaytarish narxi">
-                    <input type="number" min="0" step="any" value={cost} onChange={e => setCost(e.target.value)} className={`w-full ${ic}`} placeholder="Tan narxi..." />
-                  </Lbl>
-                )}
+                <Lbl t="Qaytarish narxi">
+                  <input type="number" min="0" step="any" value={cost} onChange={e => setCost(e.target.value)} className={`w-full ${ic}`} placeholder="Narxi..." />
+                </Lbl>
               </div>
             </div>
           ) : (
@@ -1824,6 +1885,44 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses }) 
             <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             {t('ops.addToList') || "Ro'yxatga qo'shish"}
           </button>
+
+          {isCustomer && items.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-slate-200 space-y-3">
+              <div className="text-sm font-bold text-slate-700 flex justify-between">
+                <span>Jami qaytarilayotgan summa:</span>
+                <span className="text-indigo-700">{fmt(items.reduce((s, i) => s + (i.qty * i.cost), 0))}</span>
+              </div>
+
+              <Lbl t="Qaytarish turi">
+                <select value={form.payment_type} onChange={e => setForm({ ...form, payment_type: e.target.value })} className={ic}>
+                  <option value="debt">Qarzdan chegirish</option>
+                  <option value="cash">Naqd pul qaytarish</option>
+                  <option value="card">Plastik kartaga qaytarish</option>
+                  <option value="mixed">Aralash qaytarish</option>
+                </select>
+              </Lbl>
+
+              {form.payment_type === 'mixed' && (
+                <div className="grid grid-cols-2 gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                  <Lbl t="Naqd qaytarilgan">
+                    <input type="number" min="0" step="any" value={form.paid_cash} onChange={e => setForm({ ...form, paid_cash: e.target.value })} className={ic} placeholder="Summa..." />
+                  </Lbl>
+                  <Lbl t="Karta orqali qaytarilgan">
+                    <input type="number" min="0" step="any" value={form.paid_card} onChange={e => setForm({ ...form, paid_card: e.target.value })} className={ic} placeholder="Summa..." />
+                  </Lbl>
+                </div>
+              )}
+
+              {form.payment_type !== 'debt' && (
+                <Lbl t="Qaysi kassadan chiqim qilish">
+                  <select value={form.wallet_id} onChange={e => setForm({ ...form, wallet_id: e.target.value })} className={ic}>
+                    <option value="">Tanlang...</option>
+                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name} ({fmt(w.balance)})</option>)}
+                  </select>
+                </Lbl>
+              )}
+            </div>
+          )}
 
           {!isCustomer && items.length > 0 && (
             <div className="mt-4 pt-4 border-t border-slate-200 space-y-3">
@@ -1859,8 +1958,8 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses }) 
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500">№</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t('common.name') || 'Nomi'}</th>
                   <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t('common.quantity') || 'Soni'}</th>
-                  {!isCustomer && <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Narx</th>}
-                  {!isCustomer && <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Jami</th>}
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Narx</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Jami</th>
                   <th className="w-10"></th>
                 </tr>
               </thead>
@@ -1875,8 +1974,8 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses }) 
                         <span className="text-slate-500 text-xs">{it.unit}</span>
                       </div>
                     </td>
-                    {!isCustomer && <td className="px-4 py-3 text-right text-slate-600">{fmt(it.cost)}</td>}
-                    {!isCustomer && <td className="px-4 py-3 text-right font-bold text-indigo-700">{fmt(it.qty * it.cost)}</td>}
+                    <td className="px-4 py-3 text-right text-slate-600">{fmt(it.cost)}</td>
+                    <td className="px-4 py-3 text-right font-bold text-indigo-700">{fmt(it.qty * it.cost)}</td>
                     <td className="pr-3">
                       <button onClick={() => setItems(p => p.filter((_, idx) => idx !== i))} className="p-1.5 text-slate-300 hover:text-red-500 rounded">✕</button>
                     </td>
@@ -1901,12 +2000,48 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses }) 
   );
 }
 
-function QaytarishlarTab({ products, suppliers, warehouses }) {
+function QaytarishlarTab({ products, suppliers, warehouses, customers }) {
   const { t } = useLang();
   const [mode, setMode] = useState('list');
   const [sub, setSub] = useState('customer');
   const [returns, setReturns] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  const [editReturnId, setEditReturnId] = useState(null);
+  const [editReturnData, setEditReturnData] = useState(null);
+
+  const openReturnDetail = async (returnId) => {
+    try {
+      const res = await api.get(`/inventory/movements/${returnId}`);
+      setEditReturnData(res.data);
+      setEditReturnId(returnId);
+    } catch (err) {
+      console.error("Failed to fetch return details:", err);
+      toast.error("Qaytaruv ma'lumotlarini olishda xatolik");
+    }
+  };
+
+  const handleEditReturn = (returnId) => {
+    openReturnDetail(returnId);
+    setMode("create");
+  };
+
+  const handleDeleteReturn = async (returnId) => {
+    if (!window.confirm("Qaytaruvni o'chirishga ishonchingiz komilmi?")) return;
+    try {
+      await api.delete(`/inventory/movements/${returnId}`);
+      toast.success("Qaytaruv muvaffaqiyatli o'chirildi");
+      // Refresh the list
+      if (mode === "list") {
+        const params = { reference_type: sub === "supplier" ? "return_to_supplier" : "return_from_customer" };
+        const res = await api.get("/inventory/movements", { params });
+        setReturns(res.data);
+      }
+    } catch (err) {
+      console.error("Failed to delete return:", err);
+      toast.error("Qaytaruvni o'chirishda xatolik yuz berdi");
+    }
+  };
 
   useEffect(() => {
     if (mode === 'list') {
@@ -1919,7 +2054,7 @@ function QaytarishlarTab({ products, suppliers, warehouses }) {
   }, [mode, sub]);
 
   if (mode === 'create') return (
-    <QaytarishCreateView products={products} type={sub} onBack={() => setMode('list')} suppliers={suppliers} warehouses={warehouses} />
+    <QaytarishCreateView products={products} type={sub} onBack={() => setMode('list')} suppliers={suppliers} warehouses={warehouses} customers={customers} />
   );
 
   return (
@@ -1959,6 +2094,7 @@ function QaytarishlarTab({ products, suppliers, warehouses }) {
                 <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Mahsulot</th>
                 <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Soni</th>
                 <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Izoh</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Amallar</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -1968,6 +2104,18 @@ function QaytarishlarTab({ products, suppliers, warehouses }) {
                   <td className="px-5 py-3.5 font-semibold">{r.product_name}</td>
                   <td className="px-5 py-3.5 text-center text-red-500 font-bold">{fmt(r.quantity)}</td>
                   <td className="px-5 py-3.5 text-slate-500 text-xs">{r.reason}</td>
+                  <td className="px-5 py-4 text-slate-700 text-sm">
+                    <div className="flex gap-2">
+                      <button onClick={() => handleEditReturn(r.id)} className="flex items-center gap-1 px-3 py-1 text-xs rounded-sm font-semibold border transition-all cursor-pointer border-indigo-300 text-indigo-600">
+                        <Pen size={16} />
+                        Tahrirlash
+                      </button>
+                      <button onClick={() => handleDeleteReturn(r.id)} className="flex items-center gap-1 px-3 py-1 text-xs rounded-sm font-semibold border transition-all cursor-pointer border-red-300 text-red-600">
+                        <Trash size={16} />
+                        Qaytarish
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -3483,7 +3631,7 @@ export default function Operations() {
 
       {tab === 'sales' && <SalesTab products={products} customers={customers} branches={branches} users={users} />}
       {tab === 'kirimlar' && <KirimlarTab products={products} warehouses={warehouses} suppliers={suppliers} users={users} branches={branches} />}
-      {tab === 'qaytarishlar' && <QaytarishlarTab products={products} suppliers={suppliers} warehouses={warehouses} />}
+      {tab === 'qaytarishlar' && <QaytarishlarTab products={products} suppliers={suppliers} warehouses={warehouses} customers={customers} />}
       {tab === 'transferlar' && <TransferlarTab products={products} warehouses={warehouses} users={users} />}
       {tab === 'reviziyalar' && <ReviziyalarTab warehouses={warehouses} />}
       {tab === 'chiqimlar' && <ChiqimlarTab products={products} users={users} warehouses={warehouses} />}

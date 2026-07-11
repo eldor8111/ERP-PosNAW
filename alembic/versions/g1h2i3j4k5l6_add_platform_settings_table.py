@@ -29,6 +29,6 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_index('ix_platform_settings_key', table_name='platform_settings')
-    op.drop_index('ix_platform_settings_id', table_name='platform_settings')
-    op.drop_table('platform_settings')
+    op.execute("DROP INDEX IF EXISTS ix_platform_settings_key")
+    op.execute("DROP INDEX IF EXISTS ix_platform_settings_id")
+    op.execute("DROP TABLE IF EXISTS platform_settings")

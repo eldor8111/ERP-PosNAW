@@ -35,20 +35,20 @@ def upgrade() -> None:
 
     if _tbl(conn, 'bot_sessions'):
         if _idx(conn, 'ix_bot_sessions_chat_id'):
-            op.drop_index(op.f('ix_bot_sessions_chat_id'), table_name='bot_sessions')
-        op.drop_table('bot_sessions')
+            op.execute("DROP INDEX IF EXISTS ix_bot_sessions_chat_id")
+        op.execute("DROP TABLE IF EXISTS bot_sessions")
 
     if _tbl(conn, 'user_wallets'):
         if _idx(conn, 'ix_user_wallets_user'):
-            op.drop_index(op.f('ix_user_wallets_user'), table_name='user_wallets')
-        op.drop_table('user_wallets')
+            op.execute("DROP INDEX IF EXISTS ix_user_wallets_user")
+        op.execute("DROP TABLE IF EXISTS user_wallets")
 
     for col in ['payme_secret_key', 'payme_merchant_id', 'payme_is_test']:
         if _col(conn, 'companies', col):
             op.drop_column('companies', col)
 
     if _idx(conn, 'ix_customer_prices_company_id'):
-        op.drop_index(op.f('ix_customer_prices_company_id'), table_name='customer_prices')
+        op.execute("DROP INDEX IF EXISTS ix_customer_prices_company_id")
 
     if not _col(conn, 'customers', 'price_type'):
         op.add_column('customers', sa.Column('price_type', sa.String(length=20), nullable=True))
@@ -67,8 +67,8 @@ def upgrade() -> None:
 
     if _col(conn, 'sales', 'wallet_id'):
         if _fk(conn, 'sales', 'sales_wallet_id_fkey'):
-            op.drop_constraint(op.f('sales_wallet_id_fkey'), 'sales', type_='foreignkey')
-        op.drop_column('sales', 'wallet_id')
+            op.execute("ALTER TABLE sales DROP CONSTRAINT IF EXISTS sales_wallet_id_fkey")
+        op.execute("ALTER TABLE sales DROP COLUMN IF EXISTS wallet_id")
 
 
 def downgrade() -> None:
@@ -82,7 +82,7 @@ def downgrade() -> None:
     op.create_index(op.f('ix_kassa_movements_wallet'), 'kassa_movements', ['wallet_id'], unique=False)
     op.create_index(op.f('ix_kassa_movements_created'), 'kassa_movements', ['created_at'], unique=False)
     op.create_index(op.f('ix_kassa_movements_company'), 'kassa_movements', ['company_id'], unique=False)
-    op.drop_column('customers', 'price_type')
+    op.execute("ALTER TABLE customers DROP COLUMN IF EXISTS price_type")
     op.create_index(op.f('ix_customer_prices_company_id'), 'customer_prices', ['company_id'], unique=False)
     op.add_column('companies', sa.Column('payme_is_test', sa.BOOLEAN(), server_default=sa.text('true'), autoincrement=False, nullable=True))
     op.add_column('companies', sa.Column('payme_merchant_id', sa.VARCHAR(length=50), autoincrement=False, nullable=True))

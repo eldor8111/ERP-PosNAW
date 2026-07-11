@@ -11,7 +11,7 @@ import { matchesSearch } from '../../utils/translit';
 import ProductAddModal from '../../components/ProductAddModal';
 import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
 
-const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ', { maximumFractionDigits: 4 });
+const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 const today = () => new Date().toISOString().slice(0, 10);
 const parseN = (s) => parseFloat(String(s || '').replace(/\s/g, '')) || 0;
 

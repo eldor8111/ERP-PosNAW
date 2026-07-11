@@ -26,4 +26,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_column('tovarlar_catalog', 'attribute_name')
+    op.execute("ALTER TABLE tovarlar_catalog DROP COLUMN IF EXISTS attribute_name")

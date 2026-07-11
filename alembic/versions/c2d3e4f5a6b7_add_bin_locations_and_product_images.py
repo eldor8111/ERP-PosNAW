@@ -33,7 +33,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_column('products', 'images')
-    op.drop_index('ix_bin_locations_code', table_name='bin_locations')
-    op.drop_index('ix_bin_locations_id', table_name='bin_locations')
-    op.drop_table('bin_locations')
+    op.execute("ALTER TABLE products DROP COLUMN IF EXISTS images")
+    op.execute("DROP INDEX IF EXISTS ix_bin_locations_code")
+    op.execute("DROP INDEX IF EXISTS ix_bin_locations_id")
+    op.execute("DROP TABLE IF EXISTS bin_locations")

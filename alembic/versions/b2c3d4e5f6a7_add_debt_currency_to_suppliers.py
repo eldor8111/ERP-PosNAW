@@ -31,4 +31,4 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_column('suppliers', 'debt_currency')
+    op.execute("ALTER TABLE suppliers DROP COLUMN IF EXISTS debt_currency")

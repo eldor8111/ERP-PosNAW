@@ -53,7 +53,7 @@ def downgrade() -> None:
     op.add_column('purchase_orders', sa.Column('discount_amount', sa.NUMERIC(precision=14, scale=2), server_default=sa.text('0'), autoincrement=False, nullable=True))
     op.add_column('purchase_orders', sa.Column('paid_amount', sa.NUMERIC(precision=14, scale=2), server_default=sa.text('0'), autoincrement=False, nullable=True))
     op.add_column('purchase_orders', sa.Column('payment_type', sa.VARCHAR(length=20), server_default=sa.text("'cash'::character varying"), autoincrement=False, nullable=True))
-    op.drop_column('companies', 'balance')
+    op.execute("ALTER TABLE companies DROP COLUMN IF EXISTS balance")
     op.create_table('stock_transfers',
     sa.Column('id', sa.INTEGER(), autoincrement=True, nullable=False),
     sa.Column('number', sa.VARCHAR(length=30), autoincrement=False, nullable=False),

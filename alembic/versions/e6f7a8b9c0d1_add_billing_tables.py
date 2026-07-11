@@ -60,8 +60,8 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_column('companies', 'is_trial')
-    op.drop_column('companies', 'subscription_ends_at')
-    op.drop_column('companies', 'tariff_id')
-    op.drop_table('balance_logs')
-    op.drop_table('tariffs')
+    op.execute("ALTER TABLE companies DROP COLUMN IF EXISTS is_trial")
+    op.execute("ALTER TABLE companies DROP COLUMN IF EXISTS subscription_ends_at")
+    op.execute("ALTER TABLE companies DROP COLUMN IF EXISTS tariff_id")
+    op.execute("DROP TABLE IF EXISTS balance_logs")
+    op.execute("DROP TABLE IF EXISTS tariffs")

@@ -278,10 +278,10 @@ def upgrade() -> None:
     # --- Drop platform_settings if exists ---
     if _table_exists('platform_settings'):
         if _index_exists('ix_platform_settings_id', 'platform_settings'):
-            op.drop_index(op.f('ix_platform_settings_id'), table_name='platform_settings')
+            op.execute("DROP INDEX IF EXISTS ix_platform_settings_id")
         if _index_exists('ix_platform_settings_key', 'platform_settings'):
-            op.drop_index(op.f('ix_platform_settings_key'), table_name='platform_settings')
-        op.drop_table('platform_settings')
+            op.execute("DROP INDEX IF EXISTS ix_platform_settings_key")
+        op.execute("DROP TABLE IF EXISTS platform_settings")
 
     # --- balance_logs index ---
     if _table_exists('balance_logs'):
@@ -313,9 +313,9 @@ def upgrade() -> None:
             op.add_column('customers', sa.Column('total_spent', sa.Numeric(precision=14, scale=2), nullable=True))
 
         if _index_exists('ix_customers_company_id', 'customers'):
-            op.drop_index(op.f('ix_customers_company_id'), table_name='customers')
+            op.execute("DROP INDEX IF EXISTS ix_customers_company_id")
         if _index_exists('ix_customers_phone', 'customers'):
-            op.drop_index(op.f('ix_customers_phone'), table_name='customers')
+            op.execute("DROP INDEX IF EXISTS ix_customers_phone")
 
         if not _index_exists('ix_customers_phone', 'customers'):
             op.create_index(op.f('ix_customers_phone'), 'customers', ['phone'], unique=False)
@@ -336,9 +336,9 @@ def upgrade() -> None:
         if not _column_exists('expenses', 'wallet_id'):
             op.add_column('expenses', sa.Column('wallet_id', sa.Integer(), nullable=True))
         if _index_exists('ix_expenses_company_id', 'expenses'):
-            op.drop_index(op.f('ix_expenses_company_id'), table_name='expenses')
+            op.execute("DROP INDEX IF EXISTS ix_expenses_company_id")
         if _index_exists('ix_expenses_created_at', 'expenses'):
-            op.drop_index(op.f('ix_expenses_created_at'), table_name='expenses')
+            op.execute("DROP INDEX IF EXISTS ix_expenses_created_at")
 
         if _table_exists('wallets') and _column_exists('expenses', 'wallet_id') and not _constraint_exists('expenses_wallet_id_fkey', 'expenses'):
             # The constraint name might be auto-generated, we assume it's created or we skip if not sure. Let's just create it.
@@ -373,9 +373,9 @@ def upgrade() -> None:
     # --- sale_items indexes ---
     if _table_exists('sale_items'):
         if _index_exists('ix_sale_items_product_id', 'sale_items'):
-            op.drop_index(op.f('ix_sale_items_product_id'), table_name='sale_items')
+            op.execute("DROP INDEX IF EXISTS ix_sale_items_product_id")
         if _index_exists('ix_sale_items_sale_id', 'sale_items'):
-            op.drop_index(op.f('ix_sale_items_sale_id'), table_name='sale_items')
+            op.execute("DROP INDEX IF EXISTS ix_sale_items_sale_id")
         if not _index_exists('ix_sale_item_product_id', 'sale_items'):
             op.create_index('ix_sale_item_product_id', 'sale_items', ['product_id'], unique=False)
         if not _index_exists('ix_sale_item_sale_id', 'sale_items'):
@@ -386,7 +386,7 @@ def upgrade() -> None:
         if not _index_exists('ix_sale_payments_id', 'sale_payments'):
             op.create_index(op.f('ix_sale_payments_id'), 'sale_payments', ['id'], unique=False)
         if _constraint_exists('sale_payments_sale_id_fkey', 'sale_payments'):
-            op.drop_constraint('sale_payments_sale_id_fkey', 'sale_payments', type_='foreignkey')
+            op.execute("ALTER TABLE sale_payments DROP CONSTRAINT IF EXISTS sale_payments_sale_id_fkey")
         if not _constraint_exists('sale_payments_sale_id_fkey', 'sale_payments'):
             pass # op.create_foreign_key(None, 'sale_payments', 'sales', ['sale_id'], ['id'])
 
@@ -406,7 +406,7 @@ def upgrade() -> None:
         if not _column_exists('stock_levels', 'warehouse_id'):
             op.add_column('stock_levels', sa.Column('warehouse_id', sa.Integer(), nullable=True))
         if _constraint_exists('stock_levels_product_id_key', 'stock_levels'):
-            op.drop_constraint('stock_levels_product_id_key', 'stock_levels', type_='unique')
+            op.execute("ALTER TABLE stock_levels DROP CONSTRAINT IF EXISTS stock_levels_product_id_key")
         if not _index_exists('ix_stock_levels_warehouse_id', 'stock_levels'):
             op.create_index(op.f('ix_stock_levels_warehouse_id'), 'stock_levels', ['warehouse_id'], unique=False)
         if not _constraint_exists('uq_stock_product_warehouse', 'stock_levels'):

@@ -22,7 +22,7 @@ def upgrade() -> None:
     inspector = sa.inspect(bind)
     uq_names = [c['name'] for c in inspector.get_unique_constraints('currencies')]
     if 'currencies_code_key' in uq_names:
-        op.drop_constraint(op.f('currencies_code_key'), 'currencies', type_='unique')
+        op.execute("ALTER TABLE currencies DROP CONSTRAINT IF EXISTS currencies_code_key")
 
 
 def downgrade() -> None:

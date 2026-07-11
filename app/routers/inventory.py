@@ -125,7 +125,10 @@ def get_movements(
     if type:
         q = q.filter(StockMovement.type == type)
     if reference_type:
-        q = q.filter(StockMovement.reference_type == reference_type)
+        if reference_type == "return_from_customer":
+            q = q.filter(StockMovement.reference_type.in_(["return_from_customer", "sale_refund"]))
+        else:
+            q = q.filter(StockMovement.reference_type == reference_type)
     if search:
         q = q.filter(
             (Product.name.ilike(f"%{search}%")) |
@@ -172,7 +175,7 @@ def get_movements(
                     {"id": m.reference_id}
                 ).fetchone()
                 return row[0] if row else None
-            elif rt in ("return_from_customer", "customer_return"):
+            elif rt in ("return_from_customer", "customer_return", "sale_refund"):
                 row = db.execute(
                     sa_text("SELECT c.name FROM sales sa LEFT JOIN customers c ON sa.customer_id=c.id WHERE sa.id=:id"),
                     {"id": m.reference_id}

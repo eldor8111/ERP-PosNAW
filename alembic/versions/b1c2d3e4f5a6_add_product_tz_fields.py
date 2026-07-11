@@ -24,7 +24,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_column('products', 'dimensions')
-    op.drop_column('products', 'weight')
-    op.drop_column('products', 'image_url')
-    op.drop_column('products', 'bin_location')
+    op.execute("ALTER TABLE products DROP COLUMN IF EXISTS dimensions")
+    op.execute("ALTER TABLE products DROP COLUMN IF EXISTS weight")
+    op.execute("ALTER TABLE products DROP COLUMN IF EXISTS image_url")
+    op.execute("ALTER TABLE products DROP COLUMN IF EXISTS bin_location")
