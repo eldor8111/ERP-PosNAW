@@ -71,6 +71,14 @@ class StockMovementOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
+class StockMovementUpdate(BaseModel):
+    quantity: Optional[Decimal] = None
+    reason: Optional[str] = None
+    reference_type: Optional[str] = None
+    reference_id: Optional[int] = None
+
+    model_config = {"from_attributes": True}
+
 
 class ChiqimBatchItem(BaseModel):
     product_id: int
@@ -135,4 +143,3 @@ class SupplierReturnRequest(BaseModel):
     received_amount: Decimal = Decimal("0")
     wallet_id: Optional[int] = None
     note: Optional[str] = None
-

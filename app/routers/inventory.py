@@ -1,9 +1,11 @@
+from datetime import datetime as dt
 from decimal import Decimal
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session, joinedload
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy import func
+from sqlalchemy import text as sa_text
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.dependencies import get_current_user, require_roles
 from app.database import get_db
@@ -19,12 +21,12 @@ from app.schemas.inventory import (
     ChiqimBatchRequest,
     ChiqimDocumentOut,
     ChiqimDetailOut,
-    SupplierReturnRequest
+    SupplierReturnRequest, StockMovementUpdate
 )
 from app.services.inventory_service import (
-    adjust_stock, 
-    receive_stock, 
-    create_chiqim_batch, 
+    adjust_stock,
+    receive_stock,
+    create_chiqim_batch,
     delete_chiqim_batch
 )
 
@@ -35,12 +37,12 @@ WAREHOUSE_ROLES = (UserRole.admin, UserRole.director, UserRole.warehouse, UserRo
 
 @router.get("/stock", response_model=List[StockLevelOut])
 def get_stock_levels(
-    low_stock_only: bool = Query(False, description="Faqat kam qoldiqlilarni ko'rsatish"),
-    search: Optional[str] = Query(None),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*WAREHOUSE_ROLES)),
+        low_stock_only: bool = Query(False, description="Faqat kam qoldiqlilarni ko'rsatish"),
+        search: Optional[str] = Query(None),
+        skip: int = Query(0, ge=0),
+        limit: int = Query(100, ge=1, le=500),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*WAREHOUSE_ROLES)),
 ):
     q = (
         db.query(StockLevel)
@@ -81,36 +83,35 @@ def get_stock_levels(
 
 @router.get("/low-stock-count")
 def get_low_stock_count(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*WAREHOUSE_ROLES)),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*WAREHOUSE_ROLES)),
 ):
     count = (
-        db.query(func.count(StockLevel.id))
-        .join(Product, StockLevel.product_id == Product.id)
-        .filter(
-            Product.is_deleted == False,
-            Product.company_id == current_user.company_id,
-            StockLevel.quantity <= Product.min_stock,
-        )
-        .scalar() or 0
+            db.query(func.count(StockLevel.id))
+            .join(Product, StockLevel.product_id == Product.id)
+            .filter(
+                Product.is_deleted == False,
+                Product.company_id == current_user.company_id,
+                StockLevel.quantity <= Product.min_stock,
+            )
+            .scalar() or 0
     )
     return {"count": count}
 
 
 @router.get("/movements", response_model=List[StockMovementOut])
 def get_movements(
-    product_id: Optional[int] = Query(None),
-    type: Optional[MovementType] = Query(None),
-    reference_type: Optional[str] = Query(None),
-    search: Optional[str] = Query(None, description="Mahsulot nomi yoki SKU"),
-    date_from: Optional[str] = Query(None, description="YYYY-MM-DD"),
-    date_to: Optional[str] = Query(None, description="YYYY-MM-DD"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*WAREHOUSE_ROLES)),
+        product_id: Optional[int] = Query(None),
+        type: Optional[MovementType] = Query(None),
+        reference_type: Optional[str] = Query(None),
+        search: Optional[str] = Query(None, description="Mahsulot nomi yoki SKU"),
+        date_from: Optional[str] = Query(None, description="YYYY-MM-DD"),
+        date_to: Optional[str] = Query(None, description="YYYY-MM-DD"),
+        skip: int = Query(0, ge=0),
+        limit: int = Query(100, ge=1, le=500),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*WAREHOUSE_ROLES)),
 ):
-    from datetime import date as date_type, timedelta, datetime as dt
     q = (
         db.query(StockMovement)
         .join(Product, Product.id == StockMovement.product_id)
@@ -146,7 +147,7 @@ def get_movements(
     movements = q.offset(skip).limit(limit).all()
 
     # ── Kontragent nomlarini yig'ish ──────────────────────────────────────
-    from sqlalchemy import text as sa_text
+
     def _get_contragent(m: StockMovement) -> Optional[str]:
         if not m.reference_id:
             return None
@@ -154,7 +155,8 @@ def get_movements(
         try:
             if rt == "purchase_order":
                 row = db.execute(
-                    sa_text("SELECT s.name FROM purchase_orders po JOIN suppliers s ON po.supplier_id=s.id WHERE po.id=:id"),
+                    sa_text(
+                        "SELECT s.name FROM purchase_orders po JOIN suppliers s ON po.supplier_id=s.id WHERE po.id=:id"),
                     {"id": m.reference_id}
                 ).fetchone()
                 return row[0] if row else None
@@ -202,11 +204,35 @@ def get_movements(
     ]
 
 
+@router.put("/{movement_id}/movements", response_model=StockMovementOut)
+def update_movement(
+        movement_id: int,
+        movement_data: StockMovementUpdate,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*WAREHOUSE_ROLES))
+):
+    movement = (
+        db.query(StockMovement).join(Product, Product.id == StockMovement.product_id).filter(StockMovement.id == movement_id, Product.company_id == current_user.company_id).first()
+    )
+    if not movement:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ombor harakati topilmadi"
+        )
+    update_dict = movement_data.model_dump(exclude_unset=True)
+    for  key, value in update_dict.items():
+        setattr(movement, key, value)
+
+    db.commit()
+    db.refresh(movement)
+
+    return movement
+
 @router.post("/receive")
 def receive_goods(
-    data: StockReceiveRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*WAREHOUSE_ROLES)),
+        data: StockReceiveRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*WAREHOUSE_ROLES)),
 ):
     movements = []
     for item in data.items:
@@ -228,9 +254,9 @@ def receive_goods(
 
 @router.post("/return-to-supplier")
 def return_to_supplier(
-    data: SupplierReturnRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*WAREHOUSE_ROLES)),
+        data: SupplierReturnRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*WAREHOUSE_ROLES)),
 ):
     from app.models.supplier import Supplier
     from app.services.inventory_service import deduct_stock
@@ -241,11 +267,11 @@ def return_to_supplier(
         raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
 
     total_return_value = Decimal("0")
-    
+
     for item in data.items:
         if item.quantity <= 0:
             continue
-            
+
         deduct_stock(
             db=db,
             product_id=item.product_id,
@@ -278,7 +304,7 @@ def return_to_supplier(
             )
             db.add(tx)
             wallet.balance = float(wallet.balance) + float(data.received_amount)
-            
+
             # Agar naqd pul qaytib olingan bo'lsa, qarzimiz yana ko'payadi, chunki pulni oldik
             # Umuman olganda, Vazvrat (-) = Qarz kamayadi. Pul olsak (+) = Qarz yana oshadi, chunki tovar o'rniga pul berdi.
             supplier.debt_balance = float(supplier.debt_balance) + float(data.received_amount)
@@ -292,26 +318,28 @@ def return_to_supplier(
 
 @router.post("/chiqims")
 def create_chiqim(
-    data: ChiqimBatchRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager)),
+        data: ChiqimBatchRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager)),
 ):
-    ref_id = create_chiqim_batch(db, data.items, current_user.id, company_id=current_user.company_id, warehouse_id=data.warehouse_id)
+    ref_id = create_chiqim_batch(db, data.items, current_user.id, company_id=current_user.company_id,
+                                 warehouse_id=data.warehouse_id)
     db.commit()
     return {"message": "Chiqim muvaffaqiyatli saqlandi", "reference_id": ref_id}
 
 
 from datetime import date, datetime, timedelta
 
+
 @router.get("/chiqims", response_model=List[ChiqimDocumentOut])
 def get_chiqims(
-    user_id: Optional[int] = Query(None),
-    date_from: Optional[date] = Query(None),
-    date_to: Optional[date] = Query(None),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=200),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*WAREHOUSE_ROLES)),
+        user_id: Optional[int] = Query(None),
+        date_from: Optional[date] = Query(None),
+        date_to: Optional[date] = Query(None),
+        skip: int = Query(0, ge=0),
+        limit: int = Query(50, ge=1, le=200),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*WAREHOUSE_ROLES)),
 ):
     q = (
         db.query(StockMovement)
@@ -325,7 +353,7 @@ def get_chiqims(
         q = q.filter(StockMovement.created_at >= datetime.combine(date_from, datetime.min.time()))
     if date_to:
         q = q.filter(StockMovement.created_at < datetime.combine(date_to + timedelta(days=1), datetime.min.time()))
-        
+
     movements = q.order_by(StockMovement.created_at.desc()).all()
 
     # Group by reference_id
@@ -343,11 +371,11 @@ def get_chiqims(
                 "item_count": 0,
                 "user_name": m.user.name if m.user else None
             }
-        
+
         g = groups[rid]
         g["total_qty"] += max(Decimal("0"), m.quantity)  # quantity holds the diff
         g["item_count"] += 1
-        
+
         # Parse reason to extract type logic
         # format was: "TYPE | Hujjat: DOC | reason" or similar
         rparts = [p.strip() for p in (m.reason or "").split("|")]
@@ -372,15 +400,15 @@ def get_chiqims(
             item_count=g["item_count"],
             user_name=g["user_name"]
         ))
-    
-    return grouped[skip : skip + limit]
+
+    return grouped[skip: skip + limit]
 
 
 @router.get("/chiqims/{id}", response_model=List[ChiqimDetailOut])
 def get_chiqim_details(
-    id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*WAREHOUSE_ROLES)),
+        id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*WAREHOUSE_ROLES)),
 ):
     movements = (
         db.query(StockMovement)
@@ -421,9 +449,9 @@ def get_chiqim_details(
 
 @router.delete("/chiqims/{id}")
 def delete_chiqim(
-    id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director)),
+        id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(UserRole.admin, UserRole.director)),
 ):
     # Verify owner company
     m = db.query(StockMovement).join(Product).filter(
@@ -443,9 +471,9 @@ def delete_chiqim(
 
 @router.post("/adjust")
 def adjust_stock_level(
-    data: StockAdjustRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager)),
+        data: StockAdjustRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager)),
 ):
     m = adjust_stock(
         db=db,
@@ -465,8 +493,8 @@ def adjust_stock_level(
 
 @router.get("/warehouses")
 def list_warehouses(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
 ):
     wq = db.query(Warehouse).filter(Warehouse.is_active == True)
     wq = wq.filter(Warehouse.company_id == current_user.company_id)
