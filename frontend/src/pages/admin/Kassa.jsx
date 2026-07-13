@@ -315,13 +315,13 @@ function ExpenseCategoriesTab() {
   const [form, setForm] = useState({ name: '', description: '' });
   const [saving, setSaving] = useState(false);
 
-  const load = () => api.get('/kassa/expense-categories/list').then(r => setList(r.data)).catch(() => {});
+  const load = () => api.get('/categories').then(r => setList(r.data)).catch(() => {});
   useEffect(() => { load(); }, []);
 
   const save = async (e) => {
     e.preventDefault(); setSaving(true);
     try {
-      await api.post('/kassa/categories', form);
+      await api.post('/categories', form);
       setForm({ name: '', description: '' }); load(); toast.success("Qo'shildi");
     } catch(ex) { toast.error(ex.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
   };

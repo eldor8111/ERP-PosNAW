@@ -423,6 +423,68 @@ def activate_subscription(
     }
 
 
+@router.post("/my-company/subscribe")
+def subscribe_my_company(
+        data: SubscribeRequest,
+        db: Session = Depends(get_db),
+        user: User = Depends(get_current_user_allow_expired),
+):
+    """Foydalanuvchi o'z korxonasi uchun balansdan obunani faollashtiradi"""
+    if not user.company_id:
+        raise HTTPException(status_code=404, detail="Korxona topilmadi")
+
+    c = db.query(Company).filter(Company.id == user.company_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Korxona topilmadi")
+
+    tariff = db.query(Tariff).filter(Tariff.id == data.tariff_id, Tariff.is_active == True).first()
+    if not tariff:
+        raise HTTPException(status_code=404, detail="Tarif topilmadi")
+
+    total_price = float(tariff.price_per_month) * data.months
+    current_balance = float(c.balance or 0)
+
+    if current_balance < total_price:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Balans yetarli emas. Kerak: {total_price:,.0f} s, Balans: {current_balance:,.0f} s"
+        )
+
+    now = datetime.now(timezone.utc)
+    current_end = c.subscription_ends_at
+    if current_end and current_end.tzinfo is None:
+        current_end = current_end.replace(tzinfo=timezone.utc)
+
+    base = current_end if (current_end and current_end > now) else now
+    extra_days = tariff.duration_days * data.months
+
+    # Balansdan chiqarish
+    c.balance = current_balance - total_price
+    c.tariff_id = tariff.id
+    c.is_trial = False
+    c.purchased_at = now
+    c.subscription_starts_at = base
+    c.subscription_ends_at = base + timedelta(days=extra_days)
+
+    log = BalanceLog(
+        company_id=c.id,
+        amount=-total_price,
+        log_type="subscription",
+        note=f"Tarif: {tariff.name} × {data.months} oy",
+        created_by_id=user.id,
+        created_at=now,
+    )
+    db.add(log)
+    db.commit()
+    db.refresh(c)
+    return {
+        **_company_billing_out(c),
+        "message": f"Obuna {c.subscription_ends_at.strftime('%d.%m.%Y')} gacha uzaytirildi",
+        "charged": total_price,
+    }
+
+
+
 # ─── Balans tarixi ────────────────────────────────────────────────────────────
 
 @router.get("/companies/{company_id}/logs")

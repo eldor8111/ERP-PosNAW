@@ -23,11 +23,12 @@ export default function Tariflar() {
   const [tariffs, setTariffs] = useState([]);
   const [billing, setBilling] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [buyModal, setBuyModal] = useState(null);
-  const [months, setMonths] = useState(1);
   const [copied, setCopied] = useState(false);
   const [trialLoading, setTrialLoading] = useState(false);
   const [toast, setToast] = useState(null);
+  const [logs, setLogs] = useState([]);
+
+  console.log(logs)
 
   // API dan keladigan sozlamalar
   const [settings, setSettings] = useState({
@@ -41,12 +42,14 @@ export default function Tariflar() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [t, s] = await Promise.all([
+        const [t, s, l] = await Promise.all([
           api.get('/billing/tariffs'),
           api.get('/billing/settings'),
+          api.get(`/billing/companies/${user.company_id}/logs`),
         ]);
         setTariffs(t.data);
         setSettings(s.data);
+        setLogs(l.data);
         try {
           const b = await api.get('/billing/my-company');
           setBilling(b.data);
@@ -61,12 +64,12 @@ export default function Tariflar() {
   }, [user]);
 
   const handlePayme = async (directTariff = null) => {
-    const tariffToPay = directTariff || buyModal?.tariff;
+    const tariffToPay = directTariff;
     if (!tariffToPay) return;
 
     setTrialLoading(true);
     try {
-      const payMonths = directTariff ? 1 : months;
+      const payMonths = 1;
       const amount = Math.round(tariffToPay.price_per_month * payMonths);
       const res = await api.post('/payme/checkout-url', { amount });
 
@@ -79,8 +82,6 @@ export default function Tariflar() {
         'payme_checkout',
         `width=${w},height=${h},top=${top},left=${left}`
       );
-
-      if (!directTariff) setBuyModal(null);
 
       // Popup yopilishini kutib balansni yangilaymiz
       const timer = setInterval(async () => {
@@ -108,10 +109,53 @@ export default function Tariflar() {
     });
   };
 
-  const openBuy = (t) => {
-    setMonths(1);
-    setBuyModal({ tariff: t });
+
+
+  const handleBuyTariff = async (tariff) => {
+    setTrialLoading(true);
+    try {
+      // 1. Fetch latest company billing to ensure balance is up-to-date
+      const bRes = await api.get('/billing/my-company');
+      const latestBilling = bRes.data;
+      setBilling(latestBilling);
+
+      const balance = latestBilling.balance || 0;
+      const price = tariff.price_per_month || 0;
+
+      // 2. Perform balance checks
+      if (balance <= 0) {
+        setToast({ msg: "Balansda pul yo'q", ok: false });
+        return;
+      }
+      if (balance < price) {
+        setToast({ msg: "Balansda pul yetarli emas", ok: false });
+        return;
+      }
+
+      // 3. Prompt for confirmation
+      const confirmed = window.confirm(
+        `"${tariff.name}" tarifini 1 oyga faollashtirishni tasdiqlaysizmi?\nSumma: ${fmtMoney(price)} so'm`
+      );
+      if (!confirmed) return;
+
+      // 4. Activate subscription
+      const res = await api.post('/billing/my-company/subscribe', {
+        tariff_id: tariff.id,
+        months: 1
+      });
+      setToast({ msg: res.data.message || "Obuna muvaffaqiyatli faollashtirildi!", ok: true });
+
+      // Refresh billing info
+      const updatedBilling = await api.get('/billing/my-company');
+      setBilling(updatedBilling.data);
+    } catch (e) {
+      setToast({ msg: e.response?.data?.detail || "Xatolik yuz berdi", ok: false });
+    } finally {
+      setTrialLoading(false);
+      setTimeout(() => setToast(null), 4000);
+    }
   };
+
 
   const activateTrial = async () => {
     setTrialLoading(true);
@@ -129,16 +173,6 @@ export default function Tariflar() {
     }
   };
 
-  const total = buyModal ? Math.round(buyModal.tariff.price_per_month * months) : 0;
-
-  const tgMessage = buyModal
-    ? encodeURIComponent(
-      `Salom! Men "${billing?.name || user?.name || 'korxona'}" uchun "${buyModal.tariff.name}" tarifini ${months} oyga sotib olmoqchiman.\n` +
-      `Summa: ${fmtMoney(total)} so'm\n` +
-      `Kod: ${billing?.org_code || '—'}\n` +
-      `Iltimos balansni to'ldirib bering.`
-    )
-    : '';
 
   if (loading) {
     return (
@@ -314,8 +348,9 @@ export default function Tariflar() {
                       </button>
                     ) : (
                       <button
-                        onClick={() => openBuy(tariff)}
-                        className={`w-full py-2.5 text-white font-bold rounded-lg text-xs cursor-pointer shadow-md transition-all ${btnColor(tariff.price_per_month)}`}
+                        onClick={() => handleBuyTariff(tariff)}
+                        disabled={trialLoading}
+                        className={`w-full py-2.5 text-white font-bold rounded-lg text-xs cursor-pointer shadow-md transition-all ${btnColor(tariff.price_per_month)} disabled:opacity-60`}
                       >
                         {t('tariffs.buy')}
                       </button>
@@ -341,94 +376,6 @@ export default function Tariflar() {
           </a>
         </div>
       </div>
-
-      {/* ─── Sotib olish modali ─── */}
-      {buyModal && (
-        <div className="fixed inset-0 z-300 flex items-center justify-center bg-black/50 p-4" onClick={() => setBuyModal(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-
-            {/* Header */}
-            <div className={`rounded-t-2xl px-6 py-4 bg-linear-to-r ${buyModal.tariff.price_per_month <= 150000 ? 'from-blue-600 to-sky-500' : buyModal.tariff.price_per_month <= 300000 ? 'from-indigo-600 to-violet-500' : 'from-purple-600 to-pink-500'}`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-white/70 text-xs font-semibold uppercase tracking-wider">Tarif</div>
-                  <div className="text-white font-black text-xl">{buyModal.tariff.name}</div>
-                </div>
-                <button onClick={() => setBuyModal(null)} className="text-white/70 hover:text-white">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <div className="p-6 space-y-5">
-              {/* Muddat tanlash */}
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">{t('tariffs.durationMonths')}</label>
-                <div className="grid grid-cols-5 gap-2">
-                  {[1, 2, 3, 6, 12].map(m => (
-                    <button key={m} onClick={() => setMonths(m)}
-                      className={`py-2 rounded-xl text-sm font-bold border-2 transition-all ${months === m ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
-                      {m}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Jami summa */}
-              <div className="bg-slate-50 rounded-xl p-4 flex items-center justify-between">
-                <div className="text-sm text-slate-500">
-                  {fmtMoney(buyModal.tariff.price_per_month)} × {months} oy
-                </div>
-                <div className="text-2xl font-black text-slate-800">
-                  {fmtMoney(total)} <span className="text-base font-semibold text-slate-400">so'm</span>
-                </div>
-              </div>
-
-              {/* Karta raqami */}
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">{t('tariffs.cardNumber')}</label>
-                <div className="bg-linear-to-r from-slate-800 to-slate-700 rounded-xl p-4 flex items-center justify-between">
-                  <div>
-                    <div className="text-white font-mono text-lg font-bold tracking-widest">{settings.card_number}</div>
-                    <div className="text-slate-400 text-xs mt-0.5">{settings.card_owner}</div>
-                  </div>
-                  <button onClick={copyCard}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${copied ? 'bg-emerald-500 text-white' : 'bg-white/10 hover:bg-white/20 text-white'}`}>
-                    {copied ? `✓ ${t('tariffs.copied')}` : t('tariffs.copy')}
-                  </button>
-                </div>
-              </div>
-
-              {/* Yo'riqnoma */}
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                <div className="text-xs font-bold text-amber-700 mb-2">{t('tariffs.paymentInstructions')}</div>
-                <ol className="space-y-1.5 text-xs text-amber-800">
-                  <li className="flex gap-2"><span className="font-black w-4">1.</span>Quyidagi Payme tugmasi orqali to'lovni tasdiqlang</li>
-                  <li className="flex gap-2"><span className="font-black w-4">2.</span>Yoki yuqoridagi kartaga <span className="font-bold">{fmtMoney(total)} so'm</span> o'tkazib Telegramga yozing</li>
-                  <li className="flex gap-2"><span className="font-black w-4">3.</span>Balans to'ldirilgach, o'zingiz obuna faollashtirasiz</li>
-                </ol>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
-                <a
-                  href={`https://t.me/JavokhirUbaydullayev?text=${tgMessage}`}
-                  target="_blank" rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 py-3 bg-[#2AABEE] hover:bg-[#1d9bd6] text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-blue-200"
-                >
-                  {TG_ICON} Telegram
-                </a>
-                <span
-                  className="flex cursor-pointer items-center justify-center gap-2 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition-all"
-                >
-                  {PHONE_ICON} +998-93-334-46-02
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Toast Notification */}
       {toast && (

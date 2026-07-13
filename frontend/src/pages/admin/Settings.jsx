@@ -3,6 +3,8 @@ import api from '../../api/axios';
 import { useLang } from '../../context/LangContext';
 import toast from 'react-hot-toast';
 import { saveReceiptSettings } from '../../utils/receiptBuilder';
+import { Zap } from 'lucide-react';
+import axios from 'axios';
 
 // ── Valyutalar tab ────────────────────────────────────────────────────────────
 function CurrenciesTab() {
@@ -1752,6 +1754,21 @@ function BranchesTab() {
   );
 }
 
+function FiskalTab() {
+  async function getSettings() {
+    const res = await axios.get('/hippo/settings')
+    console.log(res.data)
+  }
+  useEffect(() => {
+    getSettings()
+  }, [])
+  return (
+    <div>
+      
+    </div>
+  );
+}
+
 // ── Main Settings page ────────────────────────────────────────────────────────
 export default function Settings() {
   const { t } = useLang();
@@ -1764,6 +1781,7 @@ export default function Settings() {
     { id: 'chek', label: t('settings.tab.receipt'), icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg> },
     { id: 'tgbot', label: t('settings.tab.telegram'), icon: <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a5.962 5.962 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.699 1.201-1.22 1.28-.106.016-.215.023-.324.023-.329 0-.655-.078-.962-.23-.09-.045-2.072-1.373-2.91-2.133-.255-.23-.55-.664-.047-1.12.13-.12 2.4-2.2 4.414-4.043.203-.186.417-.384.417-.61 0-.306-.275-.417-.463-.384l-.536.09-5.694 3.447c-.382.235-.905.39-1.424.39-.17 0-.339-.022-.505-.065L4.053 12.55c-.71-.225-.71-.708.15-1.047 2.768-1.196 9.2-3.953 11.233-4.279.172-.027.35-.042.508-.042z" /></svg> },
     { id: 'parol', label: t('settings.tab.password'), icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg> },
+    { id: 'fiskal', label: 'Fiskal', icon: <Zap size={16} /> },
   ];
 
   return (
@@ -1789,6 +1807,7 @@ export default function Settings() {
       {tab === 'chek' && <ReceiptTab />}
       {tab === 'tgbot' && <TelegramBotTab />}
       {tab === 'parol' && <PasswordTab />}
+      {tab === 'fiskal' && <FiskalTab />}
     </div>
   );
 }
