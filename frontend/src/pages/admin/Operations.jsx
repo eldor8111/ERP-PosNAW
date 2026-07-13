@@ -1046,7 +1046,7 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
   const [wallets, setWallets] = useState([]);
 
   useEffect(() => {
-    api.get('/moliya/wallets').then(r => setWallets(r.data)).catch(console.error);
+    api.get('/finance/wallets').then(r => setWallets(r.data)).catch(console.error);
   }, []);
   // Manual form
   const [manSupId, setManSupId] = useState('');
@@ -1701,7 +1701,7 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, cu
   const [wallets, setWallets] = useState([]);
 
   useEffect(() => {
-    api.get('/moliya/wallets').then(r => setWallets(r.data)).catch(console.error);
+    api.get('/finance/wallets').then(r => setWallets(r.data)).catch(console.error);
   }, []);
 
   const [sel, setSel] = useState(null);
@@ -2010,36 +2010,33 @@ function QaytarishlarTab({ products, suppliers, warehouses, customers }) {
   const [editReturnId, setEditReturnId] = useState(null);
   const [editReturnData, setEditReturnData] = useState(null);
 
-  const openReturnDetail = async (returnId) => {
+  const handleEditReturn = async (returnId) => {
     try {
       const res = await api.get(`/inventory/movements/${returnId}`);
       setEditReturnData(res.data);
       setEditReturnId(returnId);
+      setMode("create");
     } catch (err) {
       console.error("Failed to fetch return details:", err);
       toast.error("Qaytaruv ma'lumotlarini olishda xatolik");
     }
   };
 
-  const handleEditReturn = (returnId) => {
-    openReturnDetail(returnId);
-    setMode("create");
-  };
-
   const handleDeleteReturn = async (returnId) => {
-    if (!window.confirm("Qaytaruvni o'chirishga ishonchingiz komilmi?")) return;
+    if (!window.confirm("Bu qaytaruv operatsiyasini bekor qilishni tasdiqlaysizmi? Stock qoldiqlari qaytariladi.")) return;
     try {
       await api.delete(`/inventory/movements/${returnId}`);
-      toast.success("Qaytaruv muvaffaqiyatli o'chirildi");
-      // Refresh the list
-      if (mode === "list") {
-        const params = { reference_type: sub === "supplier" ? "return_to_supplier" : "return_from_customer" };
-        const res = await api.get("/inventory/movements", { params });
-        setReturns(res.data);
-      }
+      toast.success("Qaytaruv bekor qilindi va stok qoldiqlari tiklandi");
+      // Ro'yxatni yangilash
+      setLoading(true);
+      const params = { reference_type: sub === "supplier" ? "return_to_supplier" : "return_from_customer" };
+      const res = await api.get("/inventory/movements", { params });
+      setReturns(res.data);
     } catch (err) {
-      console.error("Failed to delete return:", err);
-      toast.error("Qaytaruvni o'chirishda xatolik yuz berdi");
+      console.error("Failed to reverse return:", err);
+      toast.error(err.response?.data?.detail || "Qaytaruvni bekor qilishda xatolik yuz berdi");
+    } finally {
+      setLoading(false);
     }
   };
 

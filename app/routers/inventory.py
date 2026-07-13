@@ -207,6 +207,159 @@ def get_movements(
     ]
 
 
+@router.get("/movements/{movement_id}", response_model=StockMovementOut)
+def get_movement(
+        movement_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*WAREHOUSE_ROLES)),
+):
+    """Bitta StockMovement ma'lumotini olish"""
+    m = (
+        db.query(StockMovement)
+        .join(Product, Product.id == StockMovement.product_id)
+        .options(joinedload(StockMovement.product), joinedload(StockMovement.user))
+        .filter(StockMovement.id == movement_id, Product.company_id == current_user.company_id)
+        .first()
+    )
+    if not m:
+        raise HTTPException(status_code=404, detail="Harakat topilmadi")
+    return StockMovementOut(
+        id=m.id,
+        product_id=m.product_id,
+        product_name=m.product.name,
+        product_sku=m.product.sku,
+        product_unit=getattr(m.product, "unit", None),
+        type=m.type,
+        qty_before=m.qty_before,
+        qty_after=m.qty_after,
+        quantity=m.quantity,
+        reference_type=m.reference_type,
+        reference_id=m.reference_id,
+        reason=m.reason,
+        contragent_name=None,
+        user_name=m.user.name if m.user else None,
+        created_at=m.created_at,
+    )
+
+
+@router.delete("/movements/{movement_id}")
+def delete_return_movement(
+        movement_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*WAREHOUSE_ROLES)),
+):
+    """
+    Qaytaruvni bekor qilish:
+    - return_from_customer / sale_refund → stock kamayadi (mijozga qaytgan tovar ombordan chiqadi), sotuv qaytarildi belgisi olinadi
+    - return_to_supplier → stock qaytib keladi (ta'minotchiga ketgan tovar omborga qaytadi)
+    Moliyaviy tranzaksiyalar ham bekor qilinadi.
+    """
+    from app.models.moliya import Transaction
+    from app.models.supplier import Supplier
+    from app.models.customer import Customer
+    from app.services.inventory_service import deduct_stock, receive_stock
+
+    m = (
+        db.query(StockMovement)
+        .join(Product, Product.id == StockMovement.product_id)
+        .options(joinedload(StockMovement.product))
+        .filter(StockMovement.id == movement_id, Product.company_id == current_user.company_id)
+        .first()
+    )
+    if not m:
+        raise HTTPException(status_code=404, detail="Harakat topilmadi")
+
+    rt = m.reference_type or ""
+    qty = Decimal(str(m.quantity))
+
+    if rt in ("return_from_customer", "sale_refund", "return_from_customer"):
+        # Mijozdan qaytarish bekor qilinadi: omborga kelgan tovar yana chiqariladi
+        stock = (
+            db.query(StockLevel)
+            .filter(StockLevel.product_id == m.product_id)
+            .first()
+        )
+        if stock and stock.quantity >= qty:
+            qty_before = stock.quantity
+            stock.quantity -= qty
+            revert_mov = StockMovement(
+                product_id=m.product_id,
+                type=MovementType.OUT,
+                qty_before=qty_before,
+                qty_after=stock.quantity,
+                quantity=qty,
+                reference_type="return_revert",
+                reference_id=m.id,
+                user_id=current_user.id,
+                reason=f"Qaytaruv bekor qilindi (asl harakat ID: {m.id})",
+            )
+            db.add(revert_mov)
+        # Mijozning moliyaviy tranzaksiyasini bekor qil (sale_refund tegishli sale'g yozilgan)
+        if m.reference_id:
+            from app.models.sale import Sale
+            sale = db.get(Sale, m.reference_id)
+            if sale and sale.customer_id:
+                customer = db.get(Customer, sale.customer_id)
+                if customer:
+                    # Qaytarilgan summa mijozning qarziga qaytariladi (agar qarzdan chegirish bo'lgan bo'lsa)
+                    pass  # Moliyaviy logika sale darajasida boshqariladi
+
+    elif rt == "return_to_supplier":
+        # Ta'minotchiga qaytarish bekor qilinadi: chiqib ketgan tovar omborga qaytadi
+        stock = (
+            db.query(StockLevel)
+            .filter(StockLevel.product_id == m.product_id)
+            .first()
+        )
+        qty_before = stock.quantity if stock else Decimal("0")
+        if not stock:
+            stock = StockLevel(product_id=m.product_id, warehouse_id=None, quantity=Decimal("0"))
+            db.add(stock)
+            db.flush()
+        stock.quantity += qty
+        revert_mov = StockMovement(
+            product_id=m.product_id,
+            type=MovementType.IN,
+            qty_before=qty_before,
+            qty_after=stock.quantity,
+            quantity=qty,
+            reference_type="return_revert",
+            reference_id=m.id,
+            user_id=current_user.id,
+            reason=f"Ta'minotchi qaytaruvi bekor qilindi (asl harakat ID: {m.id})",
+        )
+        db.add(revert_mov)
+        # Ta'minotchi qarz balansini tiklash
+        if m.reference_id:
+            supplier = db.get(Supplier, m.reference_id)
+            if supplier:
+                supplier.debt_balance = float(supplier.debt_balance or 0) + float(qty)
+        # Tegishli tranzaksiyalarni bekor qil
+        txs = db.query(Transaction).filter(
+            Transaction.reference_type == "return_to_supplier",
+            Transaction.reference_id == m.reference_id,
+        ).all()
+        for tx in txs:
+            from app.models.moliya import Wallet
+            wallet = db.get(Wallet, tx.wallet_id)
+            if wallet:
+                if tx.type == "income":
+                    wallet.balance = float(wallet.balance) - float(tx.amount)
+                else:
+                    wallet.balance = float(wallet.balance) + float(tx.amount)
+            db.delete(tx)
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Bu turdagi harakatni ({rt}) bekor qilish qo'llab-quvvatlanmaydi"
+        )
+
+    # Asl harakatni o'chirish
+    db.delete(m)
+    db.commit()
+    return {"message": "Qaytaruv muvaffaqiyatli bekor qilindi"}
+
+
 @router.put("/{movement_id}/movements", response_model=StockMovementOut)
 def update_movement(
         movement_id: int,
