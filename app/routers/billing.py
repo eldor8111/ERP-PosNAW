@@ -47,6 +47,13 @@ def require_super_admin(user: User = Depends(get_current_user)) -> User:
     return user
 
 
+def require_admin_or_super(user: User = Depends(get_current_user)) -> User:
+    """Super Admin yoki Admin rolini talab qiladi"""
+    if user.role not in (UserRole.super_admin, UserRole.admin):
+        raise HTTPException(status_code=403, detail="Faqat Admin yoki Super Admin uchun")
+    return user
+
+
 def _tariff_out(t: Tariff) -> dict:
     return {
         "id": t.id,
@@ -487,13 +494,47 @@ def subscribe_my_company(
 
 # ─── Balans tarixi ────────────────────────────────────────────────────────────
 
+@router.get("/my-company/logs")
+def get_my_company_logs(
+        limit: int = 50,
+        db: Session = Depends(get_db),
+        user: User = Depends(require_admin_or_super),
+):
+    """Admin o'z kompaniyasining balans tarixini ko'radi"""
+    if not user.company_id:
+        raise HTTPException(status_code=404, detail="Korxona topilmadi")
+    logs = (
+        db.query(BalanceLog)
+        .filter(BalanceLog.company_id == user.company_id)
+        .order_by(BalanceLog.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "id": lg.id,
+            "amount": float(lg.amount),
+            "log_type": lg.log_type,
+            "note": lg.note,
+            "created_by": lg.created_by.name if lg.created_by else None,
+            "created_at": lg.created_at.isoformat() if lg.created_at else None,
+        }
+        for lg in logs
+    ]
+
+
 @router.get("/companies/{company_id}/logs")
 def get_balance_logs(
         company_id: int,
         limit: int = 50,
         db: Session = Depends(get_db),
-        _: User = Depends(require_super_admin),
+        user: User = Depends(require_admin_or_super),
 ):
+    """Super Admin — istalgan kompaniya; Admin — faqat o'z kompaniyasi"""
+    # Admin faqat o'z kompaniyasini ko'ra oladi
+    if user.role == UserRole.admin and user.company_id != company_id:
+        raise HTTPException(status_code=403, detail="Faqat o'z kompaniyangizni ko'ra olasiz")
+
     logs = (
         db.query(BalanceLog)
         .filter(BalanceLog.company_id == company_id)
