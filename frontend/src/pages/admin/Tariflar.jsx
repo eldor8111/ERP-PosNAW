@@ -335,25 +335,13 @@ export default function Tariflar() {
 
                 {/* Tugma */}
                 <div className="">
-                  {!isCurrent(tariff) && (
-                    tariff.price_per_month <= 0 ? (
-                      <button
-                        onClick={activateTrial}
-                        disabled={trialLoading}
-                        className="w-full py-2.5 text-white font-bold rounded-lg text-xs cursor-pointer shadow-md transition-all bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200 disabled:opacity-60"
-                      >
-                        {trialLoading ? t('tariffs.activating') : t('tariffs.tryFree')}
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleBuyTariff(tariff)}
-                        disabled={trialLoading}
-                        className={`w-full py-2.5 text-white font-bold rounded-lg text-xs cursor-pointer shadow-md transition-all ${btnColor(tariff.price_per_month)} disabled:opacity-60`}
-                      >
-                        {t('tariffs.buy')}
-                      </button>
-                    )
-                  )}
+                  <button
+                    onClick={() => handleBuyTariff(tariff)}
+                    disabled={trialLoading}
+                    className={`w-full py-2.5 text-white font-bold rounded-lg text-xs cursor-pointer shadow-md transition-all ${btnColor(tariff.price_per_month)} disabled:opacity-60`}
+                  >
+                    {isCurrent(tariff) ? "Aktiv" : t('tariffs.buy')}
+                  </button>
                 </div>
               </div>
             </div>
@@ -373,7 +361,7 @@ export default function Tariflar() {
                   <th scope="col" className="pl-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
                   <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Sana</th>
                   <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Miqdor</th>
-                  <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Izoh</th>
+                  <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Tarif</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -388,9 +376,9 @@ export default function Tariflar() {
                       </td>
                       <td className="px-6 py-4 text-gray-600 font-medium">
                         {new Date(item.created_at).toLocaleDateString('uz-UZ', {
-                          year: 'numeric',
-                          month: 'long',
                           day: 'numeric',
+                          month: 'numeric',
+                          year: 'numeric',
                           hour: '2-digit',
                           minute: '2-digit'
                         })}
@@ -401,7 +389,7 @@ export default function Tariflar() {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-600 group-hover:bg-violet-100 group-hover:text-violet-700 transition-colors">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium bg-gray-100 text-gray-600 group-hover:bg-violet-100 group-hover:text-violet-700 transition-colors">
                           {item.note}
                         </span>
                       </td>
