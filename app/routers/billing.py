@@ -462,6 +462,13 @@ def subscribe_my_company(
     if current_end and current_end.tzinfo is None:
         current_end = current_end.replace(tzinfo=timezone.utc)
 
+    if current_end and current_end > now and not c.is_trial:
+        if c.tariff_id and c.tariff_id != tariff.id:
+            raise HTTPException(
+                status_code=400,
+                detail="Sizda allaqachon faol tarif mavjud. Amaldagi tarif tugamaguncha boshqa tarifni sotib ololmaysiz."
+            )
+
     base = current_end if (current_end and current_end > now) else now
     extra_days = tariff.duration_days * data.months
 

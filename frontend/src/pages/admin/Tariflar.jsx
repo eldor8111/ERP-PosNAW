@@ -27,6 +27,7 @@ export default function Tariflar() {
   const [trialLoading, setTrialLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [logs, setLogs] = useState([]);
+  const [companyLogs, setCompanyLogs] = useState([]);
 
   // API dan keladigan sozlamalar
   const [settings, setSettings] = useState({
@@ -40,14 +41,16 @@ export default function Tariflar() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [t, s, l] = await Promise.all([
+        const [t, s, l, h] = await Promise.all([
           api.get('/billing/tariffs'),
           api.get('/billing/settings'),
           api.get(`/billing/companies/${user.company_id}/logs`),
+          api.get(`/billing/my-company/logs`),
         ]);
         setTariffs(t.data);
         setSettings(s.data);
         setLogs(l.data);
+        setCompanyLogs(h.data);
         try {
           const b = await api.get('/billing/my-company');
           setBilling(b.data);
@@ -62,6 +65,7 @@ export default function Tariflar() {
   }, [user]);
 
   console.log(logs)
+  console.log(companyLogs)
 
   const handlePayme = async (directTariff = null) => {
     const tariffToPay = directTariff;
@@ -121,6 +125,10 @@ export default function Tariflar() {
       const price = tariff.price_per_month || 0;
 
       // 2. Perform balance checks
+      if (latestBilling.subscription_active && !latestBilling.is_trial && latestBilling.tariff_id !== tariff.id) {
+        setToast({ msg: "Sizda allaqachon faol tarif mavjud. Amaldagi tarif tugamaguncha boshqa tarifni sotib ololmaysiz.", ok: false });
+        return;
+      }
       if (balance <= 0) {
         setToast({ msg: "Balansda pul yo'q", ok: false });
         return;
@@ -201,6 +209,7 @@ export default function Tariflar() {
   };
 
   const isCurrent = (tariff) => billing?.tariff_id == tariff.id;
+  const hasActiveSub = billing?.subscription_active && !billing?.is_trial;
 
   const hasBhm = tariffs.some(tr => tr.bhm_percent != null && tr.price_per_month > 0);
 
@@ -337,7 +346,7 @@ export default function Tariflar() {
                 <div className="">
                   <button
                     onClick={() => handleBuyTariff(tariff)}
-                    disabled={trialLoading || isCurrent(tariff)}
+                    disabled={trialLoading || isCurrent(tariff) || (hasActiveSub && !isCurrent(tariff))}
                     className={`w-full py-2.5 text-white font-bold rounded-lg text-xs cursor-pointer shadow-md transition-all ${btnColor(tariff.price_per_month)} disabled:opacity-60`}
                   >
                     {isCurrent(tariff) ? "Aktiv" : t('tariffs.buy')}
