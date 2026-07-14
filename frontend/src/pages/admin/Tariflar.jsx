@@ -61,6 +61,8 @@ export default function Tariflar() {
     fetchData();
   }, [user]);
 
+  console.log(logs)
+
   const handlePayme = async (directTariff = null) => {
     const tariffToPay = directTariff;
     if (!tariffToPay) return;
