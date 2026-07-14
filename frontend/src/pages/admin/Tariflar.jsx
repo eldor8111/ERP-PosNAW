@@ -386,7 +386,7 @@ export default function Tariflar() {
                       {index + 1}
                     </td>
                     <td className="px-6 py-4 text-gray-600">
-                      {item.created_at}
+                      {item.created_at.toLocaleString()}
                     </td>
                     <td className="px-6 py-4 font-semibold text-gray-800">
                       {item.amount}
