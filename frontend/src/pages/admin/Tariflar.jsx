@@ -109,8 +109,6 @@ export default function Tariflar() {
     });
   };
 
-
-
   const handleBuyTariff = async (tariff) => {
     setTrialLoading(true);
     try {
@@ -362,8 +360,56 @@ export default function Tariflar() {
           ))}
       </div>
 
+      {/* history */}
+
+      <div className="my-5">
+        <h2 className="text-xl font-bold text-gray-800 mb-4">Obunalar tarixi</h2>
+
+        <div className="overflow-x-auto bg-white rounded-xl border border-gray-200 shadow-sm">
+          <table className="min-w-full text-left text-sm whitespace-nowrap">
+            <thead className="uppercase tracking-wider border-b border-gray-200 bg-gray-50 text-gray-500 font-medium">
+              <tr>
+                <th scope="col" className="px-5 py-2 text-[13px]">#</th>
+                <th scope="col" className="px-6 py-2 text-[13px]">Sana</th>
+                <th scope="col" className="px-6 py-2 text-[13px]">Miqdor</th>
+                <th scope="col" className="px-6 py-2 text-[13px]">Izoh</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {logs && logs.length > 0 ? (
+                logs.map((item, index) => (
+                  <tr
+                    key={item.id}
+                    className="hover:bg-gray-50 transition-colors duration-200"
+                  >
+                    <td className="px-5 py-4 font-medium text-gray-900">
+                      {index + 1}
+                    </td>
+                    <td className="px-6 py-4 text-gray-600">
+                      {item.created_at}
+                    </td>
+                    <td className="px-6 py-4 font-semibold text-gray-800">
+                      {item.amount}
+                    </td>
+                    <td className="px-6 py-4 text-gray-600">
+                      {item.note}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                    Hozircha obunalar tarixi yo'q
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* ── Aloqa ── */}
-      <div className="mt-5 bg-slate-50 rounded-xl px-5 py-4 border border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div className="bg-slate-50 rounded-xl py-4 border border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
         <p className="text-xs text-slate-500 font-medium">Savol yoki muammo bo'lsa biz bilan bog'laning:</p>
         <div className="flex items-center gap-2">
           <a href={`https://t.me/JavokhirUbaydullayev`} target="_blank" rel="noopener noreferrer"
