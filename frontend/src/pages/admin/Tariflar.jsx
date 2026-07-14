@@ -389,7 +389,7 @@ export default function Tariflar() {
                       <td className="px-6 py-4 text-gray-600 font-medium">
                         {new Date(item.created_at).toLocaleDateString('uz-UZ', {
                           year: 'numeric',
-                          month: 'short',
+                          month: 'long',
                           day: 'numeric',
                           hour: '2-digit',
                           minute: '2-digit'
