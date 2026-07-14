@@ -362,49 +362,69 @@ export default function Tariflar() {
 
       {/* history */}
 
-      <div className="my-5">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Obunalar tarixi</h2>
+      <div className="mt-10 mb-8">
+        <h2 className="text-2xl font-bold text-gray-900 mb-6 tracking-tight">Obunalar tarixi</h2>
 
-        <div className="overflow-x-auto bg-white rounded-xl border border-gray-200 shadow-sm">
-          <table className="min-w-full text-left text-sm whitespace-nowrap">
-            <thead className="uppercase tracking-wider border-b border-gray-200 bg-gray-50 text-gray-500 font-medium">
-              <tr>
-                <th scope="col" className="px-5 py-2 text-[13px]">#</th>
-                <th scope="col" className="px-6 py-2 text-[13px]">Sana</th>
-                <th scope="col" className="px-6 py-2 text-[13px]">Miqdor</th>
-                <th scope="col" className="px-6 py-2 text-[13px]">Izoh</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {logs && logs.length > 0 ? (
-                logs.map((item, index) => (
-                  <tr
-                    key={item.id}
-                    className="hover:bg-gray-50 transition-colors duration-200"
-                  >
-                    <td className="px-5 py-4 font-medium text-gray-900">
-                      {index + 1}
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">
-                      {item.created_at.toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 font-semibold text-gray-800">
-                      {item.amount}
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">
-                      {item.note}
+        <div className="overflow-hidden bg-white rounded-2xl border border-gray-200 shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm whitespace-nowrap">
+              <thead className="bg-gray-50/80 border-b border-gray-200">
+                <tr>
+                  <th scope="col" className="pl-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
+                  <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Sana</th>
+                  <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Miqdor</th>
+                  <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Izoh</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {logs && logs.length > 0 ? (
+                  logs.map((item, index) => (
+                    <tr
+                      key={item.id}
+                      className="group hover:bg-violet-50/40 transition-all duration-300"
+                    >
+                      <td className="pl-6 py-4 font-medium text-gray-400 group-hover:text-violet-600 transition-colors">
+                        {(index + 1).toString().padStart(2, '0')}
+                      </td>
+                      <td className="px-6 py-4 text-gray-600 font-medium">
+                        {new Date(item.created_at).toLocaleDateString('uz-UZ', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="font-bold text-gray-900 group-hover:text-violet-700 transition-colors">
+                          {Number(item.amount).toLocaleString()} UZS
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-600 group-hover:bg-violet-100 group-hover:text-violet-700 transition-colors">
+                          {item.note}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-14 text-center">
+                      <div className="flex flex-col items-center justify-center space-y-3">
+                        <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center">
+                          {/* Bo'sh holat uchun hujjat ikonkasi */}
+                          <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                          </svg>
+                        </div>
+                        <p className="text-gray-500 font-medium text-sm">Hozircha obunalar tarixi yo'q</p>
+                      </div>
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
-                    Hozircha obunalar tarixi yo'q
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
