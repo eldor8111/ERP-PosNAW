@@ -200,7 +200,7 @@ export default function Tariflar() {
     return 'bg-purple-600 hover:bg-purple-700 shadow-purple-200';
   };
 
-  const isCurrent = (tariff) => billing?.tariff_id === tariff.id;
+  const isCurrent = (tariff) => billing?.tariff_id == tariff.id;
 
   const hasBhm = tariffs.some(tr => tr.bhm_percent != null && tr.price_per_month > 0);
 
@@ -255,7 +255,7 @@ export default function Tariflar() {
       {/* ── Tarif kartalar ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {tariffs
-          .filter(tariff => Number(tariff.price_per_month) > 0 || !billing?.is_trial)
+          .filter(tariff => Number(tariff.price_per_month) > 0 || !billing?.is_trial || isCurrent(tariff))
           .map(tariff => (
             <div
               key={tariff.id}
@@ -337,7 +337,7 @@ export default function Tariflar() {
                 <div className="">
                   <button
                     onClick={() => handleBuyTariff(tariff)}
-                    disabled={trialLoading}
+                    disabled={trialLoading || isCurrent(tariff)}
                     className={`w-full py-2.5 text-white font-bold rounded-lg text-xs cursor-pointer shadow-md transition-all ${btnColor(tariff.price_per_month)} disabled:opacity-60`}
                   >
                     {isCurrent(tariff) ? "Aktiv" : t('tariffs.buy')}
