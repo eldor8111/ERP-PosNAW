@@ -28,8 +28,6 @@ export default function Tariflar() {
   const [toast, setToast] = useState(null);
   const [logs, setLogs] = useState([]);
 
-  console.log(logs)
-
   // API dan keladigan sozlamalar
   const [settings, setSettings] = useState({
     card_number: '— — — —',

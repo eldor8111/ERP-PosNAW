@@ -1,4 +1,15 @@
-from sqlalchemy import create_engine
+import os
+import time
+
+# Set default timezone to Asia/Tashkent for the Python process
+os.environ['TZ'] = 'Asia/Tashkent'
+try:
+    time.tzset()
+except AttributeError:
+    # time.tzset is unix-only
+    pass
+
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from app.config import settings
@@ -18,6 +29,20 @@ engine = create_engine(
     execution_options={"no_parameters": False},
 )
 
+@event.listens_for(engine, "connect")
+def set_timezone(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    try:
+        cursor.execute("SET TIME ZONE 'Asia/Tashkent';")
+        dbapi_connection.commit()
+    except Exception:
+        try:
+            dbapi_connection.rollback()
+        except Exception:
+            pass
+    finally:
+        cursor.close()
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
@@ -29,3 +54,4 @@ def get_db():
         yield db
     finally:
         db.close()
+

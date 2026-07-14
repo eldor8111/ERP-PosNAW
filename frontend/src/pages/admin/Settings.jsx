@@ -1759,9 +1759,11 @@ function FiskalTab() {
     const res = await axios.get('/hippo/settings')
     console.log(res.data)
   }
+  
   useEffect(() => {
     getSettings()
   }, [])
+
   return (
     <div>
       
@@ -1769,7 +1771,7 @@ function FiskalTab() {
   );
 }
 
-// ── Main Settings page ────────────────────────────────────────────────────────
+// ── Main Settings page ───
 export default function Settings() {
   const { t } = useLang();
   const [tab, setTab] = useState('valyuta');
