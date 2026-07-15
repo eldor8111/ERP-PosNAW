@@ -153,7 +153,7 @@ def _normalize_customer_balances(balances: Optional[dict], debt_balance: Decimal
     """Mijozning valyuta bo'yicha qarzlarini yagona formatga keltiradi."""
     result = {str(k).strip().upper(): float(v) for k, v in dict(balances or {}).items()}
     if not result and float(debt_balance or 0) > 0:
-        currency = str(debt_currency or "UZS").strip().upper() or "UZS"
+        currency = (debt_currency or "UZS").strip().upper() or "UZS"
         result = {currency: float(debt_balance)}
     return result
 
@@ -754,6 +754,16 @@ def bulk_import_customers(
             errors.append({"row": row_num, "error": "Mijoz ismi yoki telefoni majburiy"})
             continue
 
+        qarz_raw = row.get("Qarz")
+        qarz_val = None
+        if qarz_raw is not None and str(qarz_raw).strip() != "":
+            try:
+                clean_qarz = str(qarz_raw).replace(" ", "").replace("\xa0", "").replace(",", ".").strip()
+                qarz_val = Decimal(clean_qarz)
+            except Exception:
+                errors.append({"row": row_num, "name": name, "error": f"'Joriy qarz' qiymati noto'g'ri: {qarz_raw}"})
+                continue
+
         existing = None
         if phone:
             existing = dup_q_base.filter(Customer.phone == phone).first()
@@ -771,6 +781,8 @@ def bulk_import_customers(
                 continue
 
             for row_key, (field, cast) in FIELD_MAP.items():
+                if field == "debt_balance":
+                    continue
                 raw = row.get(row_key)
                 if raw is None or str(raw).strip() == "":
                     continue
@@ -785,6 +797,37 @@ def bulk_import_customers(
                     errors.append({"row": row_num, "name": name, "error": f"'{row_key}' qiymati xato: {raw}"})
                     continue
 
+            if qarz_val is not None:
+                currency = str(row.get("__cur_Qarz") or "UZS").strip().upper()
+                debt_balances = {currency: float(qarz_val)}
+
+                from app.models.currency import Currency as CurrencyModel
+                total_uzs = Decimal("0")
+                if currency == "UZS":
+                    total_uzs = qarz_val
+                else:
+                    curr_obj = db.query(CurrencyModel).filter(CurrencyModel.code == currency).first()
+                    rate = Decimal(str(curr_obj.rate)) if curr_obj else Decimal("1")
+                    total_uzs = qarz_val * rate
+
+                old_balances = _normalize_customer_balances(
+                    existing.debt_balances,
+                    existing.debt_balance or Decimal("0"),
+                    existing.debt_currency or "UZS",
+                )
+                new_balances = _normalize_customer_balances(
+                    debt_balances,
+                    total_uzs,
+                    "UZS"
+                )
+                if old_balances != new_balances:
+                    _append_debt_edit(existing, old_balances, new_balances)
+
+                existing.debt_balances = debt_balances
+                existing.debt_balance = total_uzs
+                existing.debt_currency = "UZS"
+                flag_modified(existing, "debt_balances")
+
             updated += 1
             continue
 
@@ -794,7 +837,8 @@ def bulk_import_customers(
 
         kwargs = {"name": name, "company_id": current_user.company_id}
         for row_key, (field, cast) in FIELD_MAP.items():
-            if field == "name": continue
+            if field in ("name", "debt_balance"):
+                continue
             raw = row.get(row_key)
             if raw is not None and str(raw).strip() != "":
                 try:
@@ -806,6 +850,27 @@ def bulk_import_customers(
                     kwargs[field] = val
                 except:
                     pass
+
+        if qarz_val is not None:
+            currency = str(row.get("__cur_Qarz") or "UZS").strip().upper()
+            debt_balances = {currency: float(qarz_val)}
+
+            from app.models.currency import Currency as CurrencyModel
+            total_uzs = Decimal("0")
+            if currency == "UZS":
+                total_uzs = qarz_val
+            else:
+                curr_obj = db.query(CurrencyModel).filter(CurrencyModel.code == currency).first()
+                rate = Decimal(str(curr_obj.rate)) if curr_obj else Decimal("1")
+                total_uzs = qarz_val * rate
+
+            kwargs["debt_balances"] = debt_balances
+            kwargs["debt_balance"] = total_uzs
+            kwargs["debt_currency"] = "UZS"
+        else:
+            kwargs["debt_balances"] = {}
+            kwargs["debt_balance"] = Decimal("0")
+            kwargs["debt_currency"] = "UZS"
 
         # check card/phone to avoid integrity errors
         check_card = kwargs.get("card_number")

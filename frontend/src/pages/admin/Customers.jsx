@@ -222,7 +222,10 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
   const [importPage, setImportPage] = useState(1);
   const [skipRows, setSkipRows] = useState(1);
   const [allowUpdate, setAllowUpdate] = useState(false);
+  const [importDebtCurrency, setImportDebtCurrency] = useState('');
   const [currencies, setCurrencies] = useState([]);
+
+  const IMPORT_LIMIT = 50;
 
   const IMPORT_FIELDS = [
     { key: '', label: '— Tanlang —' },
@@ -241,8 +244,15 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
     setImportOpen(false); setImportRows([]); setImportFile(null);
     setImportResult(null); setImportError(''); setColMap({}); setImportPage(1);
     setSkipRows(1); setAllowUpdate(false); setImportProgress(0);
+    setImportDebtCurrency('');
   };
   const openImport = () => { resetImport(); setImportOpen(true); };
+
+  const getDebtCurrencyCode = () => {
+    if (!importDebtCurrency) return 'UZS';
+    const cur = currencies.find(c => String(c.id) === String(importDebtCurrency));
+    return cur ? cur.code : 'UZS';
+  };
 
   const autoMap = (rows) => {
     if (!rows.length) return;
@@ -279,9 +289,16 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
       const obj = {};
       Object.entries(colMap).forEach(([excelCol, fieldKey]) => {
         if (fieldKey && fieldKey !== '__SKIP__') {
-          obj[fieldKey] = row[excelCol];
+          let val = row[excelCol];
+          if (['Qarz', 'Kredit limit', 'Cashback', 'Bonus'].includes(fieldKey)) {
+            val = String(val || "").replace(/\s/g, '').replace(',', '.').replace(/[^0-9.-]/g, '');
+          }
+          obj[fieldKey] = val;
         }
       });
+      if (obj['Qarz'] !== undefined && obj['Qarz'] !== '') {
+        obj['__cur_Qarz'] = getDebtCurrencyCode();
+      }
       obj.__row_index = (skipRows > 0 ? skipRows - 1 : 0) + idx + 2;
       return obj;
     }).filter(r => r['Ism'] || r['Telefon'] || r['Karta raqami']);
@@ -1602,15 +1619,15 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
                 <p className="text-lg font-medium">Boshlash uchun Excel fayl yuklang</p>
               </div>
             ) : (
-              <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex-1 flex flex-col overflow-hidden animate-fadeIn">
                 {/* Options Toolbar */}
                 <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shadow-sm bg-white shrink-0">
                   <div className="flex items-center gap-6">
-                    <label className="flex items-center gap-2 cursor-pointer group">
+                    <label className="flex items-center gap-2 cursor-pointer group" onClick={() => setAllowUpdate(a => !a)}>
                       <div className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${allowUpdate ? 'bg-indigo-600' : 'bg-slate-200'}`}>
                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${allowUpdate ? 'translate-x-6' : 'translate-x-1'}`} />
                       </div>
-                      <span className="text-sm font-semibold text-slate-700 group-hover:text-indigo-600 transition-colors">Mijozlarni tahrirlash</span>
+                      <span className="text-sm font-semibold text-slate-700 group-hover:text-indigo-600 transition-colors">Mijozlarni yangilash (agar mavjud bo'lsa)</span>
                     </label>
                   </div>
                   <div className="flex items-center gap-4">
@@ -1624,68 +1641,172 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
                 </div>
 
                 <div className="flex-1 flex flex-col overflow-hidden">
-                  <div className="px-6 py-2.5 flex items-center justify-between border-b border-slate-100 shrink-0">
+                  <div className="px-6 py-2.5 flex items-center justify-between border-b border-slate-100 shrink-0 bg-white">
                     <span className="text-sm text-slate-600 font-medium">
                       Yuklanayotgan mijozlar soni: <strong>{buildPayload().length} ta</strong>
                     </span>
                     {!(Object.values(colMap).includes('Ism') || (allowUpdate && (Object.values(colMap).includes('Telefon') || Object.values(colMap).includes('Karta raqami')))) && (
-                      <span className="text-sm font-semibold text-red-500">
+                      <span className="text-sm font-semibold text-red-500 animate-pulse">
                         * {allowUpdate ? 'Ism, Telefon yoki Karta raqami' : 'Ism'} ustunini tanlash majburiy
                       </span>
                     )}
                   </div>
 
                   <div className="flex-1 overflow-auto">
-                    <table className="min-w-full text-sm border-collapse">
-                      <thead>
-                        <tr className="bg-slate-100">
-                          <th className="px-3 py-2.5 text-left font-bold text-slate-500 border-b border-slate-200 text-sm">#</th>
-                          {Object.keys(importRows[0] || {}).map(col => (
-                            <th key={col} className="px-2 py-2 border-b border-slate-200 min-w-[160px]">
-                              <select
-                                value={colMap[col] || ''}
-                                onChange={e => setColMap(m => ({ ...m, [col]: e.target.value }))}
-                                className="w-full bg-white border border-slate-300 px-2 py-1.5 rounded-lg text-sm font-semibold text-slate-700 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                              >
-                                {IMPORT_FIELDS.map(f => (
-                                  <option key={f.key} value={f.key}>{f.label}</option>
-                                ))}
-                              </select>
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {importRows.slice(0, importPage * 50).map((row, i) => {
-                          const skipped = i < skipRows;
-                          return (
-                            <tr key={i} className={`hover:bg-slate-50/50 ${skipped ? 'opacity-40 bg-slate-50' : ''}`}>
-                              <td className="px-3 py-2 text-slate-400 font-medium border-r border-slate-100 bg-slate-50">{i + 1} {skipped && <span className="text-[10px] text-amber-500 block leading-none">Skip</span>}</td>
-                              {Object.keys(importRows[0] || {}).map((col, j) => (
-                                <td key={j} className="px-3 py-2 border-r border-slate-100 text-slate-700 truncate max-w-[200px]" title={row[col]}>
-                                  {row[col] || <span className="text-slate-300">—</span>}
-                                </td>
-                              ))}
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                    {importRows.length > importPage * 50 && (
-                      <div className="py-4 text-center">
-                        <button onClick={() => setImportPage(p => p + 1)} className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium hover:bg-slate-50">
-                          Yana ko'rsatish
-                        </button>
-                      </div>
+                    {importRows.length > 0 && (
+                      <table className="min-w-full text-sm border-collapse bg-white">
+                        <thead className="sticky top-0 z-10 bg-slate-50 shadow-sm animate-fadeIn">
+                          {/* Row 1: Mappings & Currencies */}
+                          <tr className="bg-slate-100">
+                            <th className="px-3 py-2.5 text-left font-bold text-slate-500 border-b border-slate-200 w-12 text-sm bg-slate-100">#</th>
+                            {Object.keys(importRows[0]).map(col => {
+                              const mappedField = colMap[col] || '';
+                              const isDebtField = mappedField === 'Qarz';
+                              const selCurId = isDebtField ? (importDebtCurrency || '') : '';
+                              return (
+                                <th key={col} className="px-2 py-2 border-b border-slate-200 min-w-[180px] bg-slate-100 text-left">
+                                  <select
+                                    value={mappedField}
+                                    onChange={e => {
+                                      const oldField = colMap[col] || '';
+                                      const newField = e.target.value;
+                                      if (oldField === 'Qarz' && newField !== 'Qarz') {
+                                        setImportDebtCurrency('');
+                                      }
+                                      setColMap(m => ({ ...m, [col]: newField }));
+                                    }}
+                                    className={`w-full px-2 py-1.5 text-xs font-bold rounded-lg border outline-none cursor-pointer transition-colors ${mappedField && mappedField !== '__SKIP__'
+                                      ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                                      : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
+                                      }`}
+                                  >
+                                    {IMPORT_FIELDS.map(f => (
+                                      <option key={f.key} value={f.key}>{f.label}</option>
+                                    ))}
+                                  </select>
+                                  {isDebtField && (
+                                    <div className="mt-1.5">
+                                      <select
+                                        value={selCurId}
+                                        onChange={e => setImportDebtCurrency(e.target.value)}
+                                        className={`w-full px-2 py-1.5 text-xs font-bold rounded-lg border outline-none cursor-pointer transition-colors ${selCurId
+                                          ? 'border-emerald-400 bg-emerald-500 text-white'
+                                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                                          }`}
+                                      >
+                                        <option value="">UZS | 1</option>
+                                        {currencies.filter(c => !c.is_default).map(c => (
+                                          <option key={c.id} value={String(c.id)}>
+                                            {c.code} | {fmt(c.rate)}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  )}
+                                </th>
+                              );
+                            })}
+                          </tr>
+                          {/* Row 2: Excel Headers */}
+                          <tr className="bg-slate-700 text-white">
+                            <th className="px-3 py-2.5 text-center text-sm font-bold w-12 bg-slate-700">№</th>
+                            {Object.keys(importRows[0]).map(col => (
+                              <th key={col} className="px-3 py-2.5 text-left text-sm font-semibold whitespace-nowrap bg-slate-700">{col}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 bg-white">
+                          {importRows
+                            .slice((importPage - 1) * IMPORT_LIMIT, importPage * IMPORT_LIMIT)
+                            .map((row, i) => {
+                              const absIdx = (importPage - 1) * IMPORT_LIMIT + i;
+                              const skipped = absIdx < skipRows;
+                              return (
+                                <tr key={absIdx} className={`hover:bg-slate-50/50 transition-colors ${skipped ? 'opacity-40 bg-slate-50' : ''}`}>
+                                  <td className="px-3 py-2 text-slate-400 font-bold border-r border-slate-100 bg-slate-50/80 text-center select-none w-12">
+                                    {absIdx + 1}
+                                    {skipped && <span className="text-[10px] text-amber-500 block leading-none font-semibold">Skip</span>}
+                                  </td>
+                                  {Object.keys(importRows[0]).map(col => (
+                                    <td key={col} className={`p-0 border-x border-slate-100 min-w-[150px] ${skipped ? 'bg-slate-100/50' : ''}`}>
+                                      <input
+                                        type="text"
+                                        value={String(row[col] ?? '')}
+                                        onChange={(e) => {
+                                          const newRows = [...importRows];
+                                          newRows[absIdx] = { ...newRows[absIdx], [col]: e.target.value };
+                                          setImportRows(newRows);
+                                        }}
+                                        className="w-full px-3 py-2 text-sm outline-none transition-all font-medium text-slate-700 bg-transparent focus:bg-indigo-50/30 focus:shadow-inner"
+                                      />
+                                    </td>
+                                  ))}
+                                </tr>
+                              );
+                            })}
+                        </tbody>
+                      </table>
                     )}
                   </div>
+
+                  {/* Pagination Controls */}
+                  {importRows.length > 0 && (
+                    <div className="px-6 py-3 border-t border-slate-100 flex items-center justify-between bg-white shrink-0 shadow-inner">
+                      <span className="text-sm text-slate-500">
+                        {importRows.length} ta ma'lumotdan {Math.min((importPage - 1) * IMPORT_LIMIT + 1, importRows.length)} dan {Math.min(importPage * IMPORT_LIMIT, importRows.length)} gacha ko'rsatildi
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setImportPage(p => Math.max(1, p - 1))}
+                          disabled={importPage === 1}
+                          className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors"
+                        >Oldingi</button>
+                        {Array.from({ length: Math.ceil(importRows.length / IMPORT_LIMIT) }, (_, i) => i + 1).slice(
+                          Math.max(0, importPage - 3), Math.min(Math.ceil(importRows.length / IMPORT_LIMIT), importPage + 2)
+                        ).map(p => (
+                          <button
+                            key={p}
+                            onClick={() => setImportPage(p)}
+                            className={`w-9 h-9 rounded-lg text-sm font-semibold transition-colors ${p === importPage ? 'bg-indigo-600 text-white font-bold' : 'border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                          >{p}</button>
+                        ))}
+                        <button
+                          onClick={() => setImportPage(p => Math.min(Math.ceil(importRows.length / IMPORT_LIMIT), p + 1))}
+                          disabled={importPage >= Math.ceil(importRows.length / IMPORT_LIMIT)}
+                          className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors"
+                        >Keyingi</button>
+                        <span className="text-sm text-slate-400 ml-2">Limit:</span>
+                        <span className="px-2 py-1 border border-slate-200 rounded-lg text-sm font-bold text-slate-600">{IMPORT_LIMIT}</span>
+                      </div>
+                    </div>
+                  )}
+
                 </div>
+              </div>
+            )}
+
+            {/* Progress bar */}
+            {importLoading && (
+              <div className="px-6 py-4 border-t border-slate-100 bg-white shrink-0 animate-fadeIn">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-slate-600">Yuklanmoqda...</span>
+                  <span className="text-sm font-bold text-indigo-600">{importProgress}%</span>
+                </div>
+                <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
+                  <div
+                    className="bg-indigo-500 h-3 rounded-full transition-all duration-300"
+                    style={{ width: `${importProgress}%` }}
+                  />
+                </div>
+                <p className="text-xs text-slate-400 mt-1.5">
+                  {Math.round(buildPayload().length * importProgress / 100).toLocaleString()} / {buildPayload().length.toLocaleString()} ta mijoz
+                </p>
               </div>
             )}
 
             {/* Result panel */}
             {importResult && (
-              <div className="px-6 py-4 bg-white border-t border-slate-100">
+              <div className="px-6 py-4 bg-white border-t border-slate-100 animate-fadeIn">
                 <div className="flex items-center gap-4 flex-wrap">
                   <div className="px-5 py-3 bg-emerald-50 rounded-xl text-center min-w-[120px]">
                     <div className="text-3xl font-black text-emerald-600">{importResult.created}</div>
@@ -1705,7 +1826,7 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
                     {importResult.errors?.length > 0 && (
                       <div className="space-y-1 max-h-32 overflow-y-auto">
                         {importResult.errors.map((e, i) => (
-                          <div key={i} className="flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg text-sm">
+                          <div key={i} className="flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg text-sm bg-destructive/10 animate-shake">
                             <span className="font-bold text-amber-600 shrink-0">#{e.row}</span>
                             <span className="text-amber-700">{e.name && <span className="font-semibold">{e.name}: </span>}{e.error}</span>
                           </div>
@@ -1717,7 +1838,7 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
               </div>
             )}
             {importError && (
-              <div className="mx-6 mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{importError}</div>
+              <div className="mx-6 mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl animate-shake">{importError}</div>
             )}
           </div>
         </div>
