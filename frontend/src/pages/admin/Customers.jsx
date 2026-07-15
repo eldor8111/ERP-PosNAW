@@ -165,7 +165,7 @@ function RowMenu({ onEdit, onDelete, onPay, onPoints, onHistory, hasDebt }) {
   );
 }
 
-export function SotuvMijozlar({ totalAllDebt = 0 }) {
+export function SotuvMijozlar({ stats, reloadStats }) {
   const navigate = useNavigate();
   const { t } = useLang();
   const [customers, setCustomers] = useState([]);
@@ -335,7 +335,7 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
       }
 
       setImportResult({ created: totC, updated: totU, skipped: totS, errors: errs });
-      if (totC > 0 || totU > 0) load();
+      if (totC > 0 || totU > 0) { load(); reloadStats?.(); }
     } catch (err) {
       setImportError(err.response?.data?.detail || 'Server xatosi');
     } finally { setImportLoading(false); }
@@ -459,7 +459,7 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
       };
       if (modal === 'add') await api.post('/customers', payload);
       else await api.put(`/customers/${selected.id}`, payload);
-      closeModal(); load();
+      closeModal(); load(); reloadStats?.();
     } catch (err) {
       const detail = err.response?.data?.detail;
       if (Array.isArray(detail)) {
@@ -496,7 +496,7 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
         });
       }
 
-      closeModal(); load();
+      closeModal(); load(); reloadStats?.();
     } catch (err) {
       const detail = err.response?.data?.detail;
       if (Array.isArray(detail)) {
@@ -517,7 +517,7 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
         delta: Number(pointsDelta),
         reason: 'Manual adjustment',
       });
-      closeModal(); load();
+      closeModal(); load(); reloadStats?.();
     } catch (err) {
       setError(err.response?.data?.detail || 'Xatolik yuz berdi');
     } finally { setSaving(false); }
@@ -526,12 +526,12 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
   const deleteCustomer = async (id) => {
     if (!confirm(t('customer.deleteConfirm'))) return;
     await api.delete(`/customers/${id}`);
-    load();
+    load(); reloadStats?.();
   };
 
-  const totalDebt = totalAllDebt;
+  const totalDebt = stats?.total_debt || 0;
 
-  const debtors = customers.filter(c => hasAnyDebt(c)).length;
+  const debtors = stats?.total_debtors || 0;
 
   // 1. Boshlang'ich state endi oddiy sonlar emas, ob'ektlar massivi bo'ladi:
   const [payDebtLength, setPayDebtLength] = useState([
@@ -648,7 +648,7 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
           </div>
           <div className='flex flex-col gap-1'>
             <div className="text-[10px] lg:text-xs leading-none font-semibold text-slate-400 uppercase tracking-wider">{t('customer.totalCustomers')}</div>
-            <div className="text-[16px] leading-none lg:text-xl font-bold text-indigo-600 mt-0.5">{customers.length.toLocaleString()}</div>
+            <div className="text-[16px] leading-none lg:text-xl font-bold text-indigo-600 mt-0.5">{(stats?.total_customers || 0).toLocaleString()}</div>
           </div>
         </div>
         <div className="bg-white rounded-lg lg:rounded-2xl shadow-sm border border-slate-100 p-2.25 lg:p-3 xl:p-5 flex items-center gap-4">
@@ -876,7 +876,7 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
             </div>
 
             <div className='flex gap-1 md:gap-3 text-right md:text-left items-center flex-col md:flex-row'>
-              <span className='hidden md:block'>Umumiy qarz: <strong className="text-red-500">{fmt(totalAllDebt)} so'm</strong></span>
+              <span className='hidden md:block'>Umumiy qarz: <strong className="text-red-500">{fmt(totalDebt)} so'm</strong></span>
 
               {/* 5. LIMIT (PAGINATION) LISTBOX */}
               <div className="z-30 ml-auto md:ml-0">
@@ -1173,7 +1173,7 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 15 12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" />
                                 </svg>
                               </span>
-      ``                      </ListboxButton>
+                              </ListboxButton>
 
                             <ListboxOptions className="absolute z-30 mt-1 max-h-60 w-full overflow-auto rounded-md outline-none bg-white text-[14px] xl:text-[16px] border border-slate-200 shadow-lg p-1">
                               {PAY_TYPES.map((pt) => (
@@ -1291,23 +1291,6 @@ export function SotuvMijozlar({ totalAllDebt = 0 }) {
                     <span className='text-xs md:text-sm font-semibold text-indigo-600'>to'lov qo'shish</span>
                   </button>
                 </div>
-
-                {/* To'lov turi — button style */}
-                {/* <div className="space-y-2 md:space-y-3">
-                  <label className="text-xs md:text-sm font-semibold text-slate-700">To'lov turi</label>
-                  <div className="flex flex-wrap gap-2">
-                    {PAY_TYPES.map(pt => (
-                      <button key={pt.key} type="button"
-                        onClick={() => setPayType(pt.key)}
-                        className={`px-3 md:px-5 py-1.5 md:py-2.5 rounded-lg md:rounded-xl text-xs md:text-sm font-semibold border transition-all ${payType === pt.key
-                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-200'
-                          : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
-                          }`}>
-                        {pt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div> */}
 
                 {/* Izoh */}
                 <div className="space-y-1.5 md:space-y-2">
@@ -1865,7 +1848,7 @@ const parseAmt = (s) => {
   return parseFloat(thousandsDot ? clean.replace('.', '') : clean) || 0;
 };
 
-function TolovTab({ customers, totalAllDebt = 0 }) {
+function TolovTab({ customers, stats, reloadStats }) {
   const [debtors, setDebtors] = useState([]);
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(false);
@@ -1899,7 +1882,7 @@ function TolovTab({ customers, totalAllDebt = 0 }) {
     : [...debtors];
 
   filtered.sort((a, b) => Number(b.debt_balance) - Number(a.debt_balance));
-  const totalDebt = totalAllDebt;
+  const totalDebt = stats?.total_debt || 0;
 
   const openModal = (c = null) => {
     setSel(c);
@@ -1927,6 +1910,7 @@ function TolovTab({ customers, totalAllDebt = 0 }) {
       toast.success("To'lov qabul qilindi!");
       close();
       load();
+      reloadStats?.();
     } catch (e) {
       setErr(e.response?.data?.detail || 'Xatolik');
     } finally {
@@ -1943,7 +1927,7 @@ function TolovTab({ customers, totalAllDebt = 0 }) {
           </div>
           <div className='flex flex-col gap-1'>
             <div className="text-[10px] lg:text-xs leading-none font-semibold text-slate-400 uppercase tracking-wider">Qarzdorlar</div>
-            <div className="text-[16px] leading-none lg:text-xl font-bold text-red-500 mt-0.5">{customers.length.toLocaleString()}</div>
+            <div className="text-[16px] leading-none lg:text-xl font-bold text-red-500 mt-0.5">{(stats?.total_debtors || 0).toLocaleString()}</div>
           </div>
         </div>
         <div className="bg-white rounded-lg w-full lg:rounded-2xl shadow-sm border border-slate-100 p-2.25 lg:p-3 xl:p-5 flex items-center gap-4">
@@ -2144,8 +2128,16 @@ export default function Customers() {
   ];
   const [customers, setCustomers] = useState([]);
   const [currencies, setCurrencies] = useState([]);
+  const [stats, setStats] = useState({ total_customers: 0, total_debt: 0, total_debtors: 0 });
+
+  const loadStats = useCallback(() => {
+    api.get('/customers/summary-stats')
+      .then(r => setStats(r.data))
+      .catch((err) => { console.error("Stats loading error:", err); });
+  }, []);
 
   useEffect(() => {
+    loadStats();
     api.get('/customers', { params: { limit: 300 }, _silent: true })
       .then(r => {
         const data = r.data;
@@ -2153,7 +2145,7 @@ export default function Customers() {
       }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
 
     api.get('/currencies').then(r => setCurrencies(r.data)).catch(() => { });
-  }, []);
+  }, [loadStats]);
 
   const totalAllDebt = customers.reduce((s, c) => {
     let custTotal = 0;
@@ -2181,8 +2173,8 @@ export default function Customers() {
         </div>
       </div>
 
-      {tab === 'tolov' && <TolovTab customers={customers} totalAllDebt={totalAllDebt} />}
-      {tab === 'mijozlar' && <SotuvMijozlar totalAllDebt={totalAllDebt} />}
+      {tab === 'tolov' && <TolovTab customers={customers} totalAllDebt={totalAllDebt} stats={stats} reloadStats={loadStats} />}
+      {tab === 'mijozlar' && <SotuvMijozlar stats={stats} reloadStats={loadStats} />}
     </div>
   );
 }

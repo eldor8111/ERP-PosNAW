@@ -4,6 +4,7 @@ Customers API: CRM module for managing customers, debt and loyalty.
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query  # type: ignore
+from sqlalchemy import func  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
 from pydantic import BaseModel, field_validator, model_validator  # type: ignore
 from app.utils.translit import name_phone_search_filter  # type: ignore
@@ -221,6 +222,22 @@ def list_customers(
         )
     items = q.order_by(Customer.name).offset(skip).limit(limit).all()
     return items
+
+
+@router.get("/summary-stats")
+def get_customers_summary_stats(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    """Mijozlar bo'yicha umumiy statistik ma'lumotlarni qaytaradi."""
+    total_customers = db.query(Customer).filter(Customer.company_id == current_user.company_id).count()
+    total_debt = db.query(func.sum(Customer.debt_balance)).filter(Customer.company_id == current_user.company_id).scalar() or Decimal("0")
+    total_debtors = db.query(Customer).filter(Customer.company_id == current_user.company_id, Customer.debt_balance > 0).count()
+    return {
+        "total_customers": total_customers,
+        "total_debt": total_debt,
+        "total_debtors": total_debtors,
+    }
 
 
 @router.get("/paginated", response_model=PaginatedCustomersOut)
