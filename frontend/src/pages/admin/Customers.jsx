@@ -165,6 +165,36 @@ function RowMenu({ onEdit, onDelete, onPay, onPoints, onHistory, hasDebt }) {
   );
 }
 
+const parseExcelNumeric = (val) => {
+  if (val === undefined || val === null || val === '') return '';
+  let s = String(val).trim().replace(/\s/g, '').replace(/\u00a0/g, ''); // remove spaces
+  if (s.includes('.') && s.includes(',')) {
+    if (s.indexOf(',') < s.indexOf('.')) {
+      s = s.replace(/,/g, ''); // English format: 123,456.78 -> 123456.78
+    } else {
+      s = s.replace(/\./g, '').replace(',', '.'); // Russian/German format: 123.456,78 -> 123456.78
+    }
+  } else if (s.includes(',')) {
+    const commaCount = (s.match(/,/g) || []).length;
+    if (commaCount > 1) {
+      s = s.replace(/,/g, ''); // 1,234,567 -> 1234567
+    } else {
+      const parts = s.split(',');
+      if (parts[1].length === 3) {
+        s = s.replace(',', ''); // thousands sep: 123,456 -> 123456
+      } else {
+        s = s.replace(',', '.'); // decimal: 123,45 -> 123.45
+      }
+    }
+  } else if (s.includes('.')) {
+    const dotCount = (s.match(/\./g) || []).length;
+    if (dotCount > 1) {
+      s = s.replace(/\./g, ''); // 1.234.567 -> 1234567
+    }
+  }
+  return s;
+};
+
 export function SotuvMijozlar({ stats, reloadStats }) {
   const navigate = useNavigate();
   const { t } = useLang();
@@ -290,8 +320,8 @@ export function SotuvMijozlar({ stats, reloadStats }) {
       Object.entries(colMap).forEach(([excelCol, fieldKey]) => {
         if (fieldKey && fieldKey !== '__SKIP__') {
           let val = row[excelCol];
-          if (['Qarz', 'Kredit limit', 'Cashback', 'Bonus'].includes(fieldKey)) {
-            val = String(val || "").replace(/\s/g, '').replace(',', '.').replace(/[^0-9.-]/g, '');
+          if (['Qarz', 'Kredit limit', 'Cashback', 'Bonus', 'Sodiqlik ballari'].includes(fieldKey)) {
+            val = parseExcelNumeric(val);
           }
           obj[fieldKey] = val;
         }
@@ -1173,7 +1203,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 15 12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" />
                                 </svg>
                               </span>
-                            </ListboxButton>
+                              </ListboxButton>
 
                             <ListboxOptions className="absolute z-30 mt-1 max-h-60 w-full overflow-auto rounded-md outline-none bg-white text-[14px] xl:text-[16px] border border-slate-200 shadow-lg p-1">
                               {PAY_TYPES.map((pt) => (
@@ -2133,10 +2163,7 @@ export default function Customers() {
   const loadStats = useCallback(() => {
     api.get('/customers/summary-stats')
       .then(r => setStats(r.data))
-      .catch((err) => {
-        console.error("Stats loading error:", err?.response?.status, err?.message);
-        toast.error("Statistika yuklanishida xatolik: " + (err?.response?.data?.detail || err?.message || 'noma\'lum'));
-      });
+      .catch((err) => { console.error("Stats loading error:", err); });
   }, []);
 
   useEffect(() => {
