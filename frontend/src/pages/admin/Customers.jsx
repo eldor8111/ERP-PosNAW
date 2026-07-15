@@ -1173,7 +1173,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 15 12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" />
                                 </svg>
                               </span>
-                              </ListboxButton>
+                            </ListboxButton>
 
                             <ListboxOptions className="absolute z-30 mt-1 max-h-60 w-full overflow-auto rounded-md outline-none bg-white text-[14px] xl:text-[16px] border border-slate-200 shadow-lg p-1">
                               {PAY_TYPES.map((pt) => (
@@ -2133,7 +2133,10 @@ export default function Customers() {
   const loadStats = useCallback(() => {
     api.get('/customers/summary-stats')
       .then(r => setStats(r.data))
-      .catch((err) => { console.error("Stats loading error:", err); });
+      .catch((err) => {
+        console.error("Stats loading error:", err?.response?.status, err?.message);
+        toast.error("Statistika yuklanishida xatolik: " + (err?.response?.data?.detail || err?.message || 'noma\'lum'));
+      });
   }, []);
 
   useEffect(() => {

@@ -229,13 +229,48 @@ def get_customers_summary_stats(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
 ):
-    """Mijozlar bo'yicha umumiy statistik ma'lumotlarni qaytaradi."""
-    total_customers = db.query(Customer).filter(Customer.company_id == current_user.company_id).count()
-    total_debt = db.query(func.sum(Customer.debt_balance)).filter(Customer.company_id == current_user.company_id).scalar() or Decimal("0")
-    total_debtors = db.query(Customer).filter(Customer.company_id == current_user.company_id, Customer.debt_balance > 0).count()
+    """Mijozlar bo'yicha umumiy statistik ma'lumotlarni qaytaradi.
+    debt_balances JSON va debt_balance ni bir xil (modal qo'shish kabi) hisoblaydi."""
+    from app.models.currency import Currency as CurrencyModel
+
+    # Barcha valyutalarni oldindan yuklash (har bir mijoz uchun alohida query emas)
+    currencies_map: dict = {
+        c.code: Decimal(str(c.rate))
+        for c in db.query(CurrencyModel).all()
+    }
+    currencies_map.setdefault("UZS", Decimal("1"))
+
+    # Faqat kerakli ustunlarni tanlash (tezlik uchun)
+    rows = db.query(
+        Customer.debt_balance,
+        Customer.debt_balances,
+        Customer.debt_currency,
+    ).filter(Customer.company_id == current_user.company_id).all()
+
+    total_customers = len(rows)
+    total_debt = Decimal("0")
+    total_debtors = 0
+
+    for row in rows:
+        balances = row.debt_balances or {}
+        # debt_balances bo'sh bo'lmasa — undan hisobla (modal kabi)
+        if balances and any(float(v or 0) > 0 for v in balances.values()):
+            debt_uzs = sum(
+                (Decimal(str(amt)) * currencies_map.get(str(curr).strip().upper(), Decimal("1"))
+                 for curr, amt in balances.items()),
+                Decimal("0")
+            )
+        else:
+            # Eski yoki debt_balances bo'sh bo'lgan mijozlar uchun debt_balance ni ishlatamiz
+            debt_uzs = Decimal(str(row.debt_balance or 0))
+
+        total_debt += debt_uzs
+        if debt_uzs > 0:
+            total_debtors += 1
+
     return {
         "total_customers": total_customers,
-        "total_debt": total_debt,
+        "total_debt": float(total_debt),
         "total_debtors": total_debtors,
     }
 
