@@ -829,6 +829,7 @@ export default function Products() {
       setSelected(full);
       setForm(fillFormFromProduct(full));
       setMxikCode(full.mxik_code || '');
+      setBarcodeInput(full.parent_code || '');
       setModal('edit');
     } catch (err) {
       toast.error(err.response?.data?.detail || err.message || 'Mahsulot ma\'lumotlarini yuklashda xatolik');
@@ -877,7 +878,11 @@ export default function Products() {
   /* ── save ────────────────────────────────────────── */
   const parseError = (err) => {
     const detail = err.response?.data?.detail;
-    if (!detail) return "Server bilan bog'lanishda xatolik";
+    const data = err.response?.data;
+    const status = err.response?.status;
+    if (!err.response) return `Server bilan bog'lanishda xatolik: ${err.message}`;
+    if (!detail && data) return `Xatolik (${status}): ${typeof data === 'string' ? data : JSON.stringify(data)}`;
+    if (!detail) return `Server xatolik (${status})`;
     if (Array.isArray(detail)) return detail.map(d => d.msg || JSON.stringify(d)).join(' | ');
     return String(detail);
   };
@@ -905,6 +910,7 @@ export default function Products() {
         product_code: form.product_code?.trim() || null,
         extra_product_codes: (form.extra_product_codes || []).filter(c => c.trim()),
         mxik_code: mxikCode?.trim() || null,
+        parent_code: barcode_input && !isNaN(Number(barcode_input)) ? Number(barcode_input) : null,
         barcode: form.barcode.trim(),
         extra_barcodes: (form.extra_barcodes || []).filter(b => b.trim()),
         brand: form.brand?.trim() || null,
@@ -950,6 +956,7 @@ export default function Products() {
       closeModal();
       loadProducts();
     } catch (err) {
+      console.error('Product save error:', err.response?.status, err.response?.data);
       setError(parseError(err));
     } finally { setSaving(false); }
   };
@@ -1458,6 +1465,7 @@ export default function Products() {
           product_code: (row.extra_product_codes || []).filter(c => c.trim())[0] || null,
           extra_product_codes: (row.extra_product_codes || []).filter(c => c.trim()).slice(1),
           mxik_code: row.mxik_code?.trim() || null,
+          parent_code: row.barcode_input && !isNaN(Number(row.barcode_input)) ? Number(row.barcode_input) : null,
           barcode: primary || genBarcodeByFormat('ean8'),
           extra_barcodes: extras,
           cost_price: Number(row.cost_price) || 0,
