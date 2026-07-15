@@ -70,7 +70,7 @@ def _tariff_out(t: Tariff) -> dict:
     }
 
 
-def _company_billing_out(c: Company) -> dict:
+def _company_billing_out(c: Company, db: Session = None) -> dict:
     now = datetime.now(timezone.utc)
     sub_ends = c.subscription_ends_at
     # timezone-aware qilish
@@ -79,6 +79,17 @@ def _company_billing_out(c: Company) -> dict:
 
     is_active_sub = sub_ends is not None and sub_ends > now
     days_left = max(0, (sub_ends - now).days) if is_active_sub else 0
+
+    latest_top_up_amount = None
+    latest_top_up_date = None
+    if db:
+        last_log = db.query(BalanceLog).filter(
+            BalanceLog.company_id == c.id,
+            BalanceLog.log_type == "top_up"
+        ).order_by(BalanceLog.created_at.desc()).first()
+        if last_log:
+            latest_top_up_amount = float(last_log.amount)
+            latest_top_up_date = last_log.created_at.isoformat() if last_log.created_at else None
 
     return {
         "id": c.id,
@@ -95,6 +106,8 @@ def _company_billing_out(c: Company) -> dict:
         "days_left": days_left,
         "created_at": c.created_at.isoformat() if c.created_at else None,
         "purchased_at": c.purchased_at.isoformat() if c.purchased_at else None,
+        "latest_top_up_amount": latest_top_up_amount,
+        "latest_top_up_date": latest_top_up_date,
     }
 
 
@@ -211,7 +224,7 @@ def get_my_company_billing(
     c = db.query(Company).filter(Company.id == user.company_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Korxona topilmadi")
-    return _company_billing_out(c)
+    return _company_billing_out(c, db)
 
 
 # ─── Korxonalar billing ma'lumotlari ─────────────────────────────────────────
@@ -223,7 +236,7 @@ def list_companies_billing(
 ):
     """Barcha korxonalar billing holati"""
     companies = db.query(Company).order_by(Company.id).all()
-    return [_company_billing_out(c) for c in companies]
+    return [_company_billing_out(c, db) for c in companies]
 
 
 @router.get("/companies/{company_id}")
@@ -235,7 +248,7 @@ def get_company_billing(
     c = db.query(Company).filter(Company.id == company_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Korxona topilmadi")
-    return _company_billing_out(c)
+    return _company_billing_out(c, db)
 
 
 # ─── 7 Kunlik Sinov (Trial) ───────────────────────────────────────────────────
@@ -273,7 +286,7 @@ def activate_trial(
     db.commit()
     db.refresh(c)
     return {
-        **_company_billing_out(c),
+        **_company_billing_out(c, db),
         "message": f"7 kunlik sinov {c.subscription_ends_at.strftime('%d.%m.%Y')} gacha berildi",
     }
 
@@ -317,7 +330,7 @@ def activate_my_trial(
     db.commit()
     db.refresh(c)
     return {
-        **_company_billing_out(c),
+        **_company_billing_out(c, db),
         "message": f"7 kunlik sinov {c.subscription_ends_at.strftime('%d.%m.%Y')} gacha faollashtirildi!",
     }
 
@@ -359,7 +372,7 @@ def top_up_balance(
     db.commit()
     db.refresh(c)
     return {
-        **_company_billing_out(c),
+        **_company_billing_out(c, db),
         "message": f"Balans +{data.amount:,.0f} so'm qo'shildi",
     }
 
@@ -424,7 +437,7 @@ def activate_subscription(
     db.commit()
     db.refresh(c)
     return {
-        **_company_billing_out(c),
+        **_company_billing_out(c, db),
         "message": f"Obuna {c.subscription_ends_at.strftime('%d.%m.%Y')} gacha uzaytirildi",
         "charged": total_price,
     }
@@ -492,7 +505,7 @@ def subscribe_my_company(
     db.commit()
     db.refresh(c)
     return {
-        **_company_billing_out(c),
+        **_company_billing_out(c, db),
         "message": f"Obuna {c.subscription_ends_at.strftime('%d.%m.%Y')} gacha uzaytirildi",
         "charged": total_price,
     }
@@ -501,18 +514,50 @@ def subscribe_my_company(
 
 # ─── Balans tarixi ────────────────────────────────────────────────────────────
 
-@router.get("/my-company/logs")
-def get_my_company_logs(
-        limit: int = 50,
+@router.get("/my-company/latest-top-up")
+def get_my_company_latest_top_up(
         db: Session = Depends(get_db),
-        user: User = Depends(require_admin_or_super),
+        user: User = Depends(get_current_user_allow_expired),
 ):
-    """Admin o'z kompaniyasining balans tarixini ko'radi"""
+    """Kompaniyaning oxirgi balans to'ldirilganligi (top_up) haqida ma'lumot olish"""
     if not user.company_id:
         raise HTTPException(status_code=404, detail="Korxona topilmadi")
+    
+    log = (
+        db.query(BalanceLog)
+        .filter(BalanceLog.company_id == user.company_id, BalanceLog.log_type == "top_up")
+        .order_by(BalanceLog.created_at.desc())
+        .first()
+    )
+    if not log:
+        return {"has_top_up": False, "latest_top_up": None}
+        
+    return {
+        "has_top_up": True,
+        "latest_top_up": {
+            "id": log.id,
+            "amount": float(log.amount),
+            "log_type": log.log_type,
+            "note": log.note,
+            "created_by": log.created_by.name if log.created_by else None,
+            "created_at": log.created_at.isoformat() if log.created_at else None,
+        }
+    }
+
+
+@router.get("/my-company/top-up-history")
+def get_my_company_top_up_history(
+        limit: int = 50,
+        db: Session = Depends(get_db),
+        user: User = Depends(get_current_user_allow_expired),
+):
+    """Kompaniyaning balans to'ldirish (top_up) tarixini olish"""
+    if not user.company_id:
+        raise HTTPException(status_code=404, detail="Korxona topilmadi")
+    
     logs = (
         db.query(BalanceLog)
-        .filter(BalanceLog.company_id == user.company_id)
+        .filter(BalanceLog.company_id == user.company_id, BalanceLog.log_type == "top_up")
         .order_by(BalanceLog.created_at.desc())
         .limit(limit)
         .all()
@@ -530,10 +575,40 @@ def get_my_company_logs(
     ]
 
 
+@router.get("/my-company/logs")
+def get_my_company_logs(
+        limit: int = 50,
+        log_type: Optional[str] = None,
+        db: Session = Depends(get_db),
+        user: User = Depends(require_admin_or_super),
+):
+    """Admin o'z kompaniyasining balans tarixini ko'radi"""
+    if not user.company_id:
+        raise HTTPException(status_code=404, detail="Korxona topilmadi")
+    
+    query = db.query(BalanceLog).filter(BalanceLog.company_id == user.company_id)
+    if log_type:
+        query = query.filter(BalanceLog.log_type == log_type)
+        
+    logs = query.order_by(BalanceLog.created_at.desc()).limit(limit).all()
+    return [
+        {
+            "id": lg.id,
+            "amount": float(lg.amount),
+            "log_type": lg.log_type,
+            "note": lg.note,
+            "created_by": lg.created_by.name if lg.created_by else None,
+            "created_at": lg.created_at.isoformat() if lg.created_at else None,
+        }
+        for lg in logs
+    ]
+
+
 @router.get("/companies/{company_id}/logs")
 def get_balance_logs(
         company_id: int,
         limit: int = 50,
+        log_type: str = None,
         db: Session = Depends(get_db),
         user: User = Depends(require_admin_or_super),
 ):
@@ -542,13 +617,13 @@ def get_balance_logs(
     if user.role == UserRole.admin and user.company_id != company_id:
         raise HTTPException(status_code=403, detail="Faqat o'z kompaniyangizni ko'ra olasiz")
 
-    logs = (
-        db.query(BalanceLog)
-        .filter(BalanceLog.company_id == company_id)
-        .order_by(BalanceLog.created_at.desc())
-        .limit(limit)
-        .all()
-    )
+    query = db.query(BalanceLog).filter(BalanceLog.company_id == company_id)
+    
+    # Filter by log_type (top_up, subscription, trial, refund)
+    if log_type:
+        query = query.filter(BalanceLog.log_type == log_type)
+    
+    logs = query.order_by(BalanceLog.created_at.desc()).limit(limit).all()
     return [
         {
             "id": lg.id,
