@@ -1,5 +1,5 @@
 import enum
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -25,26 +25,28 @@ class FiscalStatus(int, enum.Enum):
 # CHek qatorlari
 
 class ReceiptItemModel(BaseModel):
-    name: str = Field(..., description="Maxsulot name")
-    mxik_code: Optional[str] = Field(None, description="MXIK code")
-    package_code: Optional[int] = Field(None, description="Sotuvchi talgan paket kodi")
-    barcode: Optional[str] = None
-    price: int = Field(..., description="Maxsulot narxi so'mda")
-    quantity: int = Field(..., gt=0, description="Sanoq")
-    vat_percent: Optional[float] = Field(12, description="QQS foizi")
-    discount: Optional[int] = Field(0, description="Qator bo'uyicha chigirma, so'mda")
-    unit: Optional[str] = Field("dona", description="Maxsulot birligi")
+    name: str = Field(..., description="Mahsulot nomi")
+    barcode: Optional[str] = Field("", description="Shtrix-kod")
+    labels: Optional[List[str]] = Field(default_factory=list, description="Markirovka belgilari")
+    spic: Optional[str] = Field(None, description="IKPU/SPIC kodi")
+    package_code: Optional[str] = Field(None, description="Qadoq kodi (IKPU)")
+    quantity: int = Field(..., gt=0, description="Miqdor (dona)")
+    price: int = Field(..., description="Dona narxi, so'mda")
+    discount: Optional[int] = Field(0, description="Mahsulot chegirmasi, so'mda")
+    vat_percent: Optional[int] = Field(12, description="QQS foizi, masalan 12")
 
 
 # CHek (Receipt)
 
 class ReceiptRequestModel(BaseModel):
+    time: Optional[str] = Field(None,
+                                description="YYYY-MM-DD HH:MM:SS. Server qabul qiladi, lekin o'z vaqtini ishlatadi")
+    receivedCash: Optional[int] = Field(0, description="Naqd qabul qilingan so'mma, so'mda")
+    received_card: Optional[int] = Field(0, description="Karta orqali qabul qilingan so'mma, so'mda")
+    discount: Optional[int] = Field(0, description="Chek darajasidagi chegirma, so'mda (itemlarga taqsimlanadi)")
     type: ReceiptType = ReceiptType.sale
     operation: OperationType = OperationType.sale
-    received_cash: Optional[int] = Field(0, description="Naqd qabul qilingan so'mma")
-    received_card: Optional[int] = Field(0, description="Karta orqali qabul qilingan so'mma")
-    time: Optional[str] = Field(None,
-                                description="YYYY-MM-DD HH:MM:SS. Server yuboriladi, lekin server o'z vaqtini ishlatadi")
+    items: Optional[List[ReceiptItemModel]] = Field(default_factory=list, description="Chek qatorlari")
 
 
 class RegisterReceiptRequest(BaseModel):
