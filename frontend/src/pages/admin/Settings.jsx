@@ -1759,7 +1759,7 @@ function FiskalTab() {
     const res = await axios.get('/hippo/settings')
     console.log(res.data)
   }
-  
+
   useEffect(() => {
     getSettings()
   }, [])

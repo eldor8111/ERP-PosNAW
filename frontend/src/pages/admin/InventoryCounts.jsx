@@ -1027,6 +1027,20 @@ const [counts,       setCounts]       = useState([]);
     } finally { setDeleting(null); }
   };
 
+  const [reverting, setReverting] = useState(null);
+  const handleRevert = async (e, c) => {
+    e.stopPropagation();
+    if (!window.confirm(`"${c.number}" yakunlangan revizyasini qoralamaga qaytarmoqchimisiz?\nOmbor qoldiqlari orqaga tiklanadi.`)) return;
+    setReverting(c.id);
+    try {
+      await api.post(`/inventory-counts/${c.id}/revert`);
+      toast.success('Revizya qoralamaga qaytarildi — endi tahrirlash mumkin');
+      await load();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Revert xatolik');
+    } finally { setReverting(null); }
+  };
+
   useEffect(() => { load(); }, [load]);
 
   return (

@@ -828,6 +828,7 @@ export default function Products() {
       }
       setSelected(full);
       setForm(fillFormFromProduct(full));
+      setMxikCode(full.mxik_code || '');
       setModal('edit');
     } catch (err) {
       toast.error(err.response?.data?.detail || err.message || 'Mahsulot ma\'lumotlarini yuklashda xatolik');
@@ -903,6 +904,7 @@ export default function Products() {
         sku: form.sku?.trim() || undefined,
         product_code: form.product_code?.trim() || null,
         extra_product_codes: (form.extra_product_codes || []).filter(c => c.trim()),
+        mxik_code: mxikCode?.trim() || null,
         barcode: form.barcode.trim(),
         extra_barcodes: (form.extra_barcodes || []).filter(b => b.trim()),
         brand: form.brand?.trim() || null,
@@ -1455,6 +1457,7 @@ export default function Products() {
           sku: row.sku?.trim() || undefined,
           product_code: (row.extra_product_codes || []).filter(c => c.trim())[0] || null,
           extra_product_codes: (row.extra_product_codes || []).filter(c => c.trim()).slice(1),
+          mxik_code: row.mxik_code?.trim() || null,
           barcode: primary || genBarcodeByFormat('ean8'),
           extra_barcodes: extras,
           cost_price: Number(row.cost_price) || 0,
