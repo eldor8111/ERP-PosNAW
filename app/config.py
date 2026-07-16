@@ -5,13 +5,14 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 720
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     ENV: str = "production"
     CORS_ORIGINS: str = ""
     # Telegram OTP bot
     OTP_BOT_TOKEN: str = ""
     OTP_BOT_USERNAME: str = "EcodeSmsuzbot"
+    ADMIN_BOT_TOKEN: str = ""
     # Server public URL (webhook uchun, masalan: https://savdo.e-code.uz)
     SERVER_URL: str = ""
     # Payme Merchant API

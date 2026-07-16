@@ -326,14 +326,30 @@ class TopUpRequest(BaseModel):
 
 
 @router.post("/top-up")
-def top_up_balance(data: TopUpRequest, db: Session = Depends(get_db), _: User = Depends(require_super_admin)):
+def top_up_balance(data: TopUpRequest, db: Session = Depends(get_db), admin: User = Depends(require_super_admin)):
     if data.amount <= 0:
         raise HTTPException(status_code=400, detail="Miqdor 0 dan katta bo'lishi kerak")
     company = db.query(Company).filter(Company.org_code == data.org_code.strip().upper()).first()
     if not company:
         raise HTTPException(status_code=404, detail="Tashkilot topilmadi")
+    
+    from datetime import datetime, timezone
+    from app.models.billing import BalanceLog
+    
+    now = datetime.now(timezone.utc)
     company.balance = float(company.balance or 0) + data.amount
+    
+    log = BalanceLog(
+        company_id=company.id,
+        amount=data.amount,
+        log_type="top_up",
+        note=f"Balans to'ldirildi (Super Admin): +{data.amount:,.0f} so'm",
+        created_by_id=admin.id,
+        created_at=now,
+    )
+    db.add(log)
     db.commit()
+    
     return {
         "company_name": company.name,
         "org_code": company.org_code,

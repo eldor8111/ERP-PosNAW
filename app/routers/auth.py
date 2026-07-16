@@ -40,8 +40,8 @@ _phone_to_chat_id: dict = {}
 # Polling offset
 _polling_offset: list = [0]  # list ishlatiladi mutable bo'lishi uchun
 
-
 from app.config import settings
+
 
 def _get_otp_bot_token() -> str:
     return settings.OTP_BOT_TOKEN
@@ -77,6 +77,7 @@ async def _send_telegram_otp(chat_id: str, otp: str, user_name: str = "") -> boo
 
 def _generate_otp() -> str:
     return str(random.randint(100000, 999999))
+
 
 def _get_bot_username(token: str) -> str:
     """Bot username ni sinxron ravishda oladi."""
@@ -355,7 +356,8 @@ def verify_otp(data: VerifyOtpRequest):
     session_data = decode_token(data.otp_session)
 
     if not session_data or session_data.get("type") != "otp_session":
-        raise HTTPException(status_code=400, detail="OTP sessiyasi noto'g'ri yoki muddati o'tgan. Qaytadan yuborish tugmasini bosing.")
+        raise HTTPException(status_code=400,
+                            detail="OTP sessiyasi noto'g'ri yoki muddati o'tgan. Qaytadan yuborish tugmasini bosing.")
 
     if session_data.get("phone") != normalized:
         raise HTTPException(status_code=400, detail="OTP sessiyasi bu telefon uchun emas.")
@@ -551,7 +553,8 @@ def _process_login_success(user: User, db: Session, request: Request, is_otp: bo
                    user_id=user.id, ip_address=request.client.host if request.client else None)
         db.commit()
         # Vaqtinchalik token
-        temp_token = create_access_token({"user_id": user.id, "type": "temp_login"}, expires_delta=timedelta(minutes=15))
+        temp_token = create_access_token({"user_id": user.id, "type": "temp_login"},
+                                         expires_delta=timedelta(minutes=15))
         return TokenResponse(
             needs_company_selection=True,
             companies=comps,
@@ -564,7 +567,8 @@ def _process_login_success(user: User, db: Session, request: Request, is_otp: bo
         company_id = companies[0].company_id
         role = companies[0].role
     else:
-        company_id = user.company_id
+        # Super admin uchun company_id None bo'lishi mumkin
+        company_id = user.company_id if user.company_id else None
         role = user.role
 
     role_val = role.value if hasattr(role, 'value') else str(role)
@@ -670,7 +674,8 @@ def login_verify_otp(request: Request, data: LoginOtpVerifyRequest, db: Session 
     session_data = decode_token(data.otp_session)
 
     if not session_data or session_data.get("type") != "otp_session" or session_data.get("purpose") != "login":
-        raise HTTPException(status_code=400, detail="OTP sessiyasi noto'g'ri yoki muddati o'tgan. Qaytadan urinib ko'ring.")
+        raise HTTPException(status_code=400,
+                            detail="OTP sessiyasi noto'g'ri yoki muddati o'tgan. Qaytadan urinib ko'ring.")
 
     if session_data.get("phone") != normalized:
         raise HTTPException(status_code=400, detail="OTP sessiyasi bu telefon uchun emas.")
@@ -690,6 +695,7 @@ class SelectCompanyRequest(BaseModel):
     temp_token: str
     company_id: int
 
+
 @router.post("/select-company", response_model=TokenResponse)
 def select_company(request: Request, data: SelectCompanyRequest, db: Session = Depends(get_db)):
     """Ko'p korxonali foydalanuvchi korxonani tanlaganda token berish"""
@@ -697,19 +703,19 @@ def select_company(request: Request, data: SelectCompanyRequest, db: Session = D
     token_data = decode_token(data.temp_token)
     if not token_data or token_data.get("type") != "temp_login":
         raise HTTPException(status_code=400, detail="Sessiya yaroqsiz yoki eskirgan. Iltimos qayta login qiling")
-    
+
     user_id = token_data.get("user_id")
     user = db.query(User).filter(User.id == user_id, User.status == UserStatus.active).first()
     if not user:
         raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
-    
+
     from app.models.user_company import UserCompany
     uc = db.query(UserCompany).filter(
-        UserCompany.user_id == user.id, 
+        UserCompany.user_id == user.id,
         UserCompany.company_id == data.company_id,
         UserCompany.is_active == True
     ).first()
-    
+
     if not uc:
         raise HTTPException(status_code=403, detail="Siz bu korxonaga biriktirilmagansiz")
 
@@ -728,7 +734,6 @@ def select_company(request: Request, data: SelectCompanyRequest, db: Session = D
         refresh_token=refresh_token,
         user=user_out
     )
-
 
 
 @router.post("/refresh", response_model=TokenResponse)

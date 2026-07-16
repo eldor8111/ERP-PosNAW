@@ -18,6 +18,7 @@ from app.routers import (
     finance, customers, shifts, dashboard_mobile, currencies, api_keys,
     warehouses, branches, super_admin, companies, dashboard
 )
+from app.admin_tg_bot.bot_routers import admin_router
 from app.routers import bin_locations, uploads, agents, telegram, lead  # type: ignore
 from app.routers import mxik as mxik_router  # type: ignore
 from app.routers import billing  # type: ignore
@@ -152,6 +153,18 @@ def _run_auto_migrations(engine):
         # ── Suppliers new columns/dependencies ──
         "ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS debt_currency VARCHAR(10) NOT NULL DEFAULT 'UZS';",
         "ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS debt_balances JSON NOT NULL DEFAULT '{}';",
+        # ── CompanyBot bot_type ──
+        """CREATE TABLE IF NOT EXISTS company_bots (
+            id SERIAL PRIMARY KEY,
+            company_id INTEGER NOT NULL REFERENCES companies(id) UNIQUE,
+            bot_token VARCHAR(100) NOT NULL UNIQUE,
+            bot_username VARCHAR(100),
+            bot_type VARCHAR(20) NOT NULL DEFAULT 'company',
+            is_active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        );""",
+        "CREATE INDEX IF NOT EXISTS ix_company_bots_company_id ON company_bots(company_id);",
     ]
     _sa_text = __import__('sqlalchemy').text
     for sql in migrations:
@@ -268,6 +281,7 @@ app.include_router(kassa.router, prefix=API_PREFIX)
 app.include_router(mxik_router.router, prefix=API_PREFIX)
 app.include_router(sms_router.router, prefix=API_PREFIX)
 app.include_router(hippo_router.router, prefix=API_PREFIX)
+app.include_router(admin_router, prefix=API_PREFIX)
 
 
 app.mount("/hippo", hippo_app)

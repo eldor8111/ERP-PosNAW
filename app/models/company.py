@@ -24,7 +24,7 @@ class Company(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
     receipt_templates = Column(JSON, default=lambda: {"r58": {}, "r80": {}, "nak": {}})
-
+    # bot = relationship("CompanyBot", back_populates="company", uselist=False)
     # ── Billing ──────────────────────────────────────────────
     tariff_id = Column(Integer, ForeignKey("tariffs.id"), nullable=True)
     subscription_starts_at = Column(DateTime, nullable=True)  # obuna boshlanish vaqti
