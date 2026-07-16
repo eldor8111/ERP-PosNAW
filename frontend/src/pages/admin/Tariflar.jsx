@@ -199,7 +199,7 @@ function SubscriptionHistoryTab({ logs }) {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {logs && logs.length > 0 ? (
-                logs.map((item, index) => (
+                logs.filter(item => item.log_type === 'subscription').map((item, index) => (
                   <tr
                     key={item.id}
                     className="group hover:bg-violet-50/40 transition-all duration-300"
@@ -251,8 +251,7 @@ function SubscriptionHistoryTab({ logs }) {
   )
 }
 
-function BillingHistoryTab({ topUpHistory }) {
-  console.log(topUpHistory)
+function BillingHistoryTab({ logs }) {
   return (
     <div className="mt-10 mb-8">
       <h2 className="text-2xl font-bold text-gray-900 mb-6 tracking-tight">Balans tarixi</h2>
@@ -270,8 +269,8 @@ function BillingHistoryTab({ topUpHistory }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {topUpHistory && topUpHistory.length > 0 ? (
-                topUpHistory.map((item, index) => (
+              {logs && logs.length > 0 ? (
+                logs.filter(item => item.log_type === 'top_up').map((item, index) => (
                   <tr
                     key={item?.id}
                     className="group hover:bg-violet-50/40 transition-all duration-300"
@@ -339,7 +338,6 @@ export default function Tariflar() {
   const [toast, setToast] = useState(null);
   const [logs, setLogs] = useState([]);
   const [tabs, setTabs] = useState('tariflar');
-  const [topUpHistory, setTopUpHistory] = useState([]);
 
   // API dan keladigan sozlamalar
   const [settings, setSettings] = useState({
@@ -353,16 +351,14 @@ export default function Tariflar() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [t, s, l, tp] = await Promise.all([
+        const [t, s, l] = await Promise.all([
           api.get('/billing/tariffs'),
           api.get('/billing/settings'),
           api.get(`/billing/companies/${user.company_id}/logs`),
-          api.get(`/billing/my-company/top-up-history`)
         ]);
         setTariffs(t.data);
         setSettings(s.data);
         setLogs(l.data);
-        setTopUpHistory(tp.data);
         try {
           const b = await api.get('/billing/my-company');
           setBilling(b.data);
@@ -543,7 +539,7 @@ export default function Tariflar() {
         tabs === 'subscription' && <SubscriptionHistoryTab logs={logs} />
       }
       {
-        tabs === 'billing' && <BillingHistoryTab topUpHistory={topUpHistory} />
+        tabs === 'billing' && <BillingHistoryTab logs={logs} />
       }
 
       {/* Toast Notification */}
