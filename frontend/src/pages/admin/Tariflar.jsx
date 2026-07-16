@@ -251,7 +251,8 @@ function SubscriptionHistoryTab({ logs }) {
   )
 }
 
-function BillingHistoryTab({ logs, billing }) {
+function BillingHistoryTab({ billing }) {
+  console.log(billing)
   return (
     <div className="mt-10 mb-8">
       <h2 className="text-2xl font-bold text-gray-900 mb-6 tracking-tight">Balans tarixi</h2>
@@ -261,37 +262,31 @@ function BillingHistoryTab({ logs, billing }) {
           <table className="min-w-full text-left text-sm whitespace-nowrap">
             <thead className="bg-gray-50/80 border-b border-gray-200">
               <tr>
-                <th scope="col" className="pl-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
                 <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Sana</th>
                 <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Miqdor</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {billing && billing.balance > 0 ? (
-                billing.map((item, index) => (
-                  <tr
-                    key={item.id}
-                    className="group hover:bg-violet-50/40 transition-all duration-300"
-                  >
-                    <td className="pl-6 py-4 font-medium text-gray-400 group-hover:text-violet-600 transition-colors">
-                      {(index + 1).toString().padStart(2, '0')}
-                    </td>
-                    <td className="px-6 py-4 text-gray-600 font-medium">
-                      {new Date(item.latest_top_up_date).toLocaleDateString('uz-UZ', {
-                        day: 'numeric',
-                        month: 'numeric',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="font-bold text-gray-900 group-hover:text-violet-700 transition-colors">
-                        {Number(item.latest_top_up_amount).toLocaleString()} UZS
-                      </span>
-                    </td>
-                  </tr>
-                ))
+              {billing && billing.latest_top_up_amount !== null ? (
+                <tr
+                  key={billing?.id}
+                  className="group hover:bg-violet-50/40 transition-all duration-300"
+                >
+                  <td className="px-6 py-4 text-gray-600 font-medium">
+                    {new Date(billing?.latest_top_up_date).toLocaleDateString('uz-UZ', {
+                      day: 'numeric',
+                      month: 'numeric',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="font-bold text-gray-900 group-hover:text-violet-700 transition-colors">
+                      {Number(billing?.latest_top_up_amount).toLocaleString()} UZS
+                    </span>
+                  </td>
+                </tr>
               ) : (
                 <tr>
                   <td colSpan={4} className="px-6 py-14 text-center">
@@ -326,8 +321,6 @@ export default function Tariflar() {
   const [toast, setToast] = useState(null);
   const [logs, setLogs] = useState([]);
   const [tabs, setTabs] = useState('tariflar');
-
-  console.log(billing)
 
   // API dan keladigan sozlamalar
   const [settings, setSettings] = useState({
@@ -529,7 +522,7 @@ export default function Tariflar() {
         tabs === 'subscription' && <SubscriptionHistoryTab logs={logs} />
       }
       {
-        tabs === 'billing' && <BillingHistoryTab logs={logs} billing={billing} />
+        tabs === 'billing' && <BillingHistoryTab billing={billing} />
       }
 
       {/* Toast Notification */}
