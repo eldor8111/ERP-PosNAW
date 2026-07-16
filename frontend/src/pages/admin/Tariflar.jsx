@@ -68,98 +68,96 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
 
       {/* ── Tarif kartalar ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {tariffs
-          .filter(tariff => Number(tariff.price_per_month) > 0 || !billing?.is_trial || isCurrent(tariff))
-          .map(tariff => (
-            <div
-              key={tariff.id}
-              className={`relative rounded-2xl border-2 bg-gradient-to-br p-4 flex flex-col transition-all hover:shadow-md ${bgAccent(tariff.price_per_month)} ${isCurrent(tariff) ? 'ring-2 ring-offset-2 ring-indigo-400' : ''}`}
-            >
-              {isCurrent(tariff) && (
-                <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-indigo-600 text-white text-[10px] font-black rounded-full whitespace-nowrap shadow">
-                  {t('tariffs.currentPlan')}
-                </span>
+        {tariffs.map(tariff => (
+          <div
+            key={tariff.id}
+            className={`relative rounded-2xl border-2 bg-linear-to-br p-4 flex flex-col transition-all hover:shadow-md ${bgAccent(tariff.price_per_month)} ${isCurrent(tariff) ? 'ring-2 ring-offset-2 ring-indigo-400' : ''}`}
+          >
+            {isCurrent(tariff) && (
+              <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-indigo-600 text-white text-[10px] font-black rounded-full whitespace-nowrap shadow">
+                {t('tariffs.currentPlan')}
+              </span>
+            )}
+
+            <div className="mb-2">
+              <h3 className="font-black text-slate-800 text-sm">{tariff.name}</h3>
+              {tariff.description && <p className="text-[11px] text-slate-500 mt-0.5">{tariff.description}</p>}
+            </div>
+
+            <div className={`text-[28px] font-black mb-2 ${priceColor(tariff.price_per_month)}`}>
+              {tariff.price_per_month > 0 ? (
+                <>{fmtMoney(tariff.price_per_month)} <span className="text-sm font-semibold text-slate-400">{t('tariffs.perMonth')}</span></>
+              ) : (
+                t('tariffs.trial')
               )}
+            </div>
 
-              <div className="mb-2">
-                <h3 className="font-black text-slate-800 text-sm">{tariff.name}</h3>
-                {tariff.description && <p className="text-[11px] text-slate-500 mt-0.5">{tariff.description}</p>}
+            <div className="space-y-1 flex-1">
+              <div className="flex items-center gap-1.5 text-[12px] text-slate-600">
+                <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {t('tariffs.duration')} <span className="font-bold">{tariff.duration_days} kun</span>
               </div>
-
-              <div className={`text-[28px] font-black mb-2 ${priceColor(tariff.price_per_month)}`}>
-                {tariff.price_per_month > 0 ? (
-                  <>{fmtMoney(tariff.price_per_month)} <span className="text-sm font-semibold text-slate-400">{t('tariffs.perMonth')}</span></>
-                ) : (
-                  t('tariffs.trial')
-                )}
+              <div className="flex items-center gap-1.5 text-[12px] text-slate-600">
+                <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                {t('tariffs.maxUsers')} <span className="font-bold">{tariff.max_users >= 9999 ? t('tariffs.unlimited') : tariff.max_users}</span>
               </div>
-
-              <div className="space-y-1 flex-1">
-                <div className="flex items-center gap-1.5 text-[12px] text-slate-600">
-                  <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  {t('tariffs.duration')} <span className="font-bold">{tariff.duration_days} kun</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-[12px] text-slate-600">
-                  <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  {t('tariffs.maxUsers')} <span className="font-bold">{tariff.max_users >= 9999 ? t('tariffs.unlimited') : tariff.max_users}</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-[12px] text-slate-600">
-                  <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                  {t('tariffs.maxBranches')} <span className="font-bold">{tariff.max_branches >= 9999 ? t('tariffs.unlimited') : tariff.max_branches}</span>
-                </div>
-              </div>
-
-              {/* BHM ko'rsatkichi */}
-              {tariff.bhm_percent != null && tariff.price_per_month > 0 && (
-                <div className="mt-2.5 pt-2.5 border-t border-dashed border-slate-200/80">
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 border border-indigo-100 rounded-lg text-[10px] text-indigo-600 font-semibold">
-                    BHMning <span className="font-black">{tariff.bhm_percent}%</span>
-                    <span className="text-indigo-400">({(tariff.bhm_percent / 100).toFixed(2)} qism)</span>
-                  </span>
-                </div>
-              )}
-
-              <div className='flex flex-col mt-5 gap-2'>
-                {/* Harakatlar */}
-                <div className="grid grid-cols-1 gap-2">
-                  <button
-                    onClick={() => handlePayme(tariff)}
-                    disabled={trialLoading}
-                    className="flex items-center justify-center gap-2 py-2.5 bg-[#19b467] cursor-pointer hover:bg-[#16a35d] text-white font-bold rounded-lg text-xs transition-all shadow-md disabled:opacity-60"
-                  >
-                    {trialLoading ? "Kuting..." : (
-                      <>
-                        <CreditCard size={20} /> <span>Payme orqali to'lash</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-center gap-2">
-                  <div className="w-full h-px bg-slate-200"></div>
-                  <span className='text-xs text-slate-500'>Yoki</span>
-                  <div className="w-full h-px bg-slate-200"></div>
-                </div>
-
-                {/* Tugma */}
-                <div className="">
-                  <button
-                    onClick={() => handleBuyTariff(tariff)}
-                    disabled={trialLoading || isCurrent(tariff) || (hasActiveSub && !isCurrent(tariff))}
-                    className={`w-full py-2.5 text-white font-bold rounded-lg text-xs cursor-pointer shadow-md transition-all ${btnColor(tariff.price_per_month)} disabled:opacity-60`}
-                  >
-                    {isCurrent(tariff) ? "Aktiv" : t('tariffs.buy')}
-                  </button>
-                </div>
+              <div className="flex items-center gap-1.5 text-[12px] text-slate-600">
+                <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+                {t('tariffs.maxBranches')} <span className="font-bold">{tariff.max_branches >= 9999 ? t('tariffs.unlimited') : tariff.max_branches}</span>
               </div>
             </div>
-          ))}
+
+            {/* BHM ko'rsatkichi */}
+            {tariff.bhm_percent != null && tariff.price_per_month > 0 && (
+              <div className="mt-2.5 pt-2.5 border-t border-dashed border-slate-200/80">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 border border-indigo-100 rounded-lg text-[10px] text-indigo-600 font-semibold">
+                  BHMning <span className="font-black">{tariff.bhm_percent}%</span>
+                  <span className="text-indigo-400">({(tariff.bhm_percent / 100).toFixed(2)} qism)</span>
+                </span>
+              </div>
+            )}
+
+            <div className='flex flex-col mt-5 gap-2'>
+              {/* Harakatlar */}
+              <div className="grid grid-cols-1 gap-2">
+                <button
+                  onClick={() => handlePayme(tariff)}
+                  disabled={trialLoading}
+                  className="flex items-center justify-center gap-2 py-2.5 bg-[#19b467] cursor-pointer hover:bg-[#16a35d] text-white font-bold rounded-lg text-xs transition-all shadow-md disabled:opacity-60"
+                >
+                  {trialLoading ? "Kuting..." : (
+                    <>
+                      <CreditCard size={20} /> <span>Payme orqali to'lash</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-full h-px bg-slate-200"></div>
+                <span className='text-xs text-slate-500'>Yoki</span>
+                <div className="w-full h-px bg-slate-200"></div>
+              </div>
+
+              {/* Tugma */}
+              <div className="">
+                <button
+                  onClick={() => handleBuyTariff(tariff)}
+                  disabled={trialLoading || isCurrent(tariff) || (hasActiveSub && !isCurrent(tariff))}
+                  className={`w-full py-2.5 text-white font-bold rounded-lg text-xs cursor-pointer shadow-md transition-all ${btnColor(tariff.price_per_month)} disabled:opacity-60`}
+                >
+                  {isCurrent(tariff) ? "Aktiv" : t('tariffs.buy')}
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
 
