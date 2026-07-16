@@ -251,7 +251,7 @@ function SubscriptionHistoryTab({ logs }) {
   )
 }
 
-function BillingHistoryTab({ logs }) {
+function BillingHistoryTab({ logs, billing }) {
   return (
     <div className="mt-10 mb-8">
       <h2 className="text-2xl font-bold text-gray-900 mb-6 tracking-tight">Balans tarixi</h2>
@@ -264,12 +264,11 @@ function BillingHistoryTab({ logs }) {
                 <th scope="col" className="pl-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
                 <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Sana</th>
                 <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Miqdor</th>
-                <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Tarif</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {logs && logs.length > 0 ? (
-                logs.map((item, index) => (
+              {billing && billing.balance > 0 ? (
+                billing.map((item, index) => (
                   <tr
                     key={item.id}
                     className="group hover:bg-violet-50/40 transition-all duration-300"
@@ -278,7 +277,7 @@ function BillingHistoryTab({ logs }) {
                       {(index + 1).toString().padStart(2, '0')}
                     </td>
                     <td className="px-6 py-4 text-gray-600 font-medium">
-                      {new Date(item.created_at).toLocaleDateString('uz-UZ', {
+                      {new Date(item.latest_top_up_date).toLocaleDateString('uz-UZ', {
                         day: 'numeric',
                         month: 'numeric',
                         year: 'numeric',
@@ -288,12 +287,7 @@ function BillingHistoryTab({ logs }) {
                     </td>
                     <td className="px-6 py-4">
                       <span className="font-bold text-gray-900 group-hover:text-violet-700 transition-colors">
-                        {Number(item.amount).toLocaleString()} UZS
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium bg-gray-100 text-gray-600 group-hover:bg-violet-100 group-hover:text-violet-700 transition-colors">
-                        {item.note}
+                        {Number(item.latest_top_up_amount).toLocaleString()} UZS
                       </span>
                     </td>
                   </tr>
@@ -308,7 +302,7 @@ function BillingHistoryTab({ logs }) {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                         </svg>
                       </div>
-                      <p className="text-gray-500 font-medium text-sm">Hozircha obunalar tarixi yo'q</p>
+                      <p className="text-gray-500 font-medium text-sm">Hozircha balans tarixi yo'q</p>
                     </div>
                   </td>
                 </tr>
@@ -331,91 +325,9 @@ export default function Tariflar() {
   const [trialLoading, setTrialLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [logs, setLogs] = useState([]);
-
-  const users = [
-    {
-      id: 1,
-      name: 'Javokhir',
-      phone: '+998901234567',
-      role: 'Admin',
-      status: 'active',
-      balance: 0,
-    },
-    {
-      id: 2,
-      name: 'Sardor',
-      phone: '+998991002039',
-      role: 'Manager',
-      status: 'active',
-      balance: 1000,
-    },
-    {
-      id: 3,
-      name: 'Musobek',
-      phone: '+998801234527',
-      role: 'Manager',
-      status: 'blocked',
-      balance: 2300,
-    },
-    {
-      id: 4,
-      name: 'Otabek',
-      phone: '+998901233367',
-      role: 'Manager',
-      status: 'blocked',
-      balance: 4560,
-    },
-    {
-      id: 5,
-      name: 'Shoxruh',
-      phone: '+998883453454',
-      role: 'Manager',
-      status: 'blocked',
-      balance: 19,
-    },
-    {
-      id: 6,
-      name: 'Bexruz',
-      phone: '+998933592345',
-      role: 'Manager',
-      status: 'active',
-      balance: 743,
-    },
-    {
-      id: 7,
-      name: 'Kamoliddin',
-      phone: '+998947456789',
-      role: 'Director',
-      status: 'active',
-      balance: 124,
-    },
-    {
-      id: 8,
-      name: 'Asliddin',
-      phone: '+998919987432',
-      role: 'Director',
-      status: 'active',
-      balance: 10,
-    },
-    {
-      id: 9,
-      name: 'Baxrom',
-      phone: '+998901234890',
-      role: 'Director',
-      status: 'active',
-      balance: 5,
-    },
-    {
-      id: 10,
-      name: 'Sirojiddin',
-      phone: '+998909876543',
-      role: 'Director',
-      status: 'active',
-      balance: 3900,
-    },
-  ]
-
   const [tabs, setTabs] = useState('tariflar');
+
+  console.log(billing)
 
   // API dan keladigan sozlamalar
   const [settings, setSettings] = useState({
@@ -617,7 +529,7 @@ export default function Tariflar() {
         tabs === 'subscription' && <SubscriptionHistoryTab logs={logs} />
       }
       {
-        tabs === 'billing' && <BillingHistoryTab logs={logs} />
+        tabs === 'billing' && <BillingHistoryTab logs={logs} billing={billing} />
       }
 
       {/* Toast Notification */}
