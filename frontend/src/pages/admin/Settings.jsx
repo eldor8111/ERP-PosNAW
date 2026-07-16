@@ -459,8 +459,8 @@ function PasswordTab() {
               <div className="flex gap-1 mt-2">
                 {[1, 2, 3, 4].map(i => (
                   <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${form.new_password.length >= i * 3
-                      ? (form.new_password.length >= 12 ? 'bg-emerald-500' : form.new_password.length >= 8 ? 'bg-amber-400' : 'bg-red-400')
-                      : 'bg-slate-200'
+                    ? (form.new_password.length >= 12 ? 'bg-emerald-500' : form.new_password.length >= 8 ? 'bg-amber-400' : 'bg-red-400')
+                    : 'bg-slate-200'
                     }`} />
                 ))}
               </div>
@@ -519,53 +519,94 @@ function PasswordTab() {
 const TG_PATH = "M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a5.962 5.962 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.699 1.201-1.22 1.28-.106.016-.215.023-.324.023-.329 0-.655-.078-.962-.23-.09-.045-2.072-1.373-2.91-2.133-.255-.23-.55-.664-.047-1.12.13-.12 2.4-2.2 4.414-4.043.203-.186.417-.384.417-.61 0-.306-.275-.417-.463-.384l-.536.09-5.694 3.447c-.382.235-.905.39-1.424.39-.17 0-.339-.022-.505-.065L4.053 12.55c-.71-.225-.71-.708.15-1.047 2.768-1.196 9.2-3.953 11.233-4.279.172-.027.35-.042.508-.042z";
 const TG_ICON_SM = <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH} /></svg>;
 
-function TelegramBotTab() {
+function TelegramBotTab({ companyId }) {
   const [savedToken, setSavedToken] = useState(null);
   const [botUsername, setBotUsername] = useState('');
-  const [companyId, setCompanyId] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [token, setToken] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
-  const [botType, setBotType] = useState('admin');
+  const [botType, setBotType] = useState('user');
+
+  const [data, setData] = useState([
+    { isAdmin: false, bot_token: '', bot_username: '' },
+    { isAdmin: true, bot_token: '', bot_username: '' },
+  ]);
 
   const load = () => {
     api.get('/companies').then(r => {
       if (r.data?.length > 0) {
         const co = r.data[0];
-        setSavedToken(co.tg_bot_token || null);
-        setBotUsername(co.tg_bot_username || '');
-        setCompanyId(co.id);
-        // username yo'q bo'lsa, tokenni qayta yuborib username ni olamiz
+
+        setData(prev => prev.map((item, i) =>
+          i === 0
+            ? { ...item, isAdmin: false, bot_username: co.tg_bot_username, bot_token: co.tg_bot_token }
+            : item
+        ));
+
         if (co.tg_bot_token && !co.tg_bot_username) {
           api.put(`/companies/${co.id}`, { tg_bot_token: co.tg_bot_token })
-            .then(r2 => setBotUsername(r2.data?.tg_bot_username || ''))
+            .then(r2 => {
+              setData(prev => prev.map((item, i) =>
+                i === 0 ? { ...item, bot_username: r2.data?.tg_bot_username, bot_token: r2.data?.tg_bot_token } : item
+              ));
+            })
             .catch(() => { });
         }
       }
     }).catch(e => toast.error(e.response?.data?.detail || e.message));
+
+    api.get(`/companies/${companyId}/admin-bot`).then(r => {
+      setData(prev => prev.map((item, i) =>
+        i === 1
+          ? { ...item, isAdmin: true, bot_username: r.data?.bot_username, bot_token: r.data?.bot_token }
+          : item
+      ));
+    }).catch(e => toast.error(e.response?.data?.detail || e.message));
   };
 
-  useEffect(() => { load(); }, []);
+  console.log(data)
+
+  useEffect(() => {
+    load();
+  }, [companyId]);
 
   const handleSave = async (e) => {
     e.preventDefault();
+
     if (!companyId || !token.trim()) return;
-    setSaving(true); setErr('');
-    try {
-      const res = await api.put(`/companies/${companyId}`, { tg_bot_token: token });
-      const username = res.data?.tg_bot_username || '';
-      toast.success(`Bot ulandi${username ? ` (@${username})` : ''}!`);
-      setSavedToken(token);
-      setBotUsername(username);
-      setToken('');
-      setShowModal(false);
-    } catch (error) {
-      setErr(error.response?.data?.detail || 'Xatolik yuz berdi');
-    } finally {
-      setSaving(false);
+
+    if (botType === "admin") {
+      try {
+        const res = await api.put(`/companies/${companyId}/admin-bot`, { bot_token: token });
+        toast.success(`Bot ulandi${res.data?.tg_bot_username ? ` (@${res.data?.tg_bot_username})` : ''}!`);
+        setSavedToken(token);
+        setToken('');
+        setShowModal(false);
+        return;
+      } catch (error) {
+        setErr(error.response?.data?.detail || 'Xatolik yuz berdi');
+      } finally {
+        setSaving(false);
+      }
+    } else {
+      setSaving(true); setErr('');
+
+      try {
+        const res = await api.put(`/companies/${companyId}`, { tg_bot_token: token });
+        const username = res.data?.tg_bot_username || '';
+        toast.success(`Bot ulandi${username ? ` (@${username})` : ''}!`);
+        setSavedToken(token);
+        setBotUsername(username);
+        setToken('');
+        setShowModal(false);
+      } catch (error) {
+        setErr(error.response?.data?.detail || 'Xatolik yuz berdi');
+      } finally {
+        setSaving(false);
+      }
     }
   };
 
@@ -616,24 +657,24 @@ function TelegramBotTab() {
             </tr>
           </thead>
           <tbody>
-            {savedToken ? (
-              <tr className="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
+            {data.map((item, index) => (
+              <tr key={index} className="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
                 {/* # */}
-                <td className="px-4 py-3.5 text-sm text-slate-400 w-10">1</td>
+                <td className="px-4 py-3.5 text-sm text-slate-400 w-10">{index + 1}</td>
 
                 {/* NOMI */}
                 <td className="px-4 py-3.5">
                   <span className="font-semibold text-slate-800 text-sm">
-                    {botUsername ? botUsername.toUpperCase() : 'BOT'}
+                    Bot
                   </span>
                 </td>
 
                 {/* USERNAME */}
                 <td className="px-4 py-3.5">
-                  {botUsername ? (
-                    <a href={`https://t.me/${botUsername}`} target="_blank" rel="noreferrer"
+                  {item ? (
+                    <a href={`https://t.me/${item?.bot_username}`} target="_blank" rel="noreferrer"
                       className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 whitespace-nowrap">
-                      {TG_ICON_SM}@{botUsername}
+                      {TG_ICON_SM}@{item?.bot_username}
                     </a>
                   ) : (
                     <span className="text-sm text-slate-400 italic">@username...</span>
@@ -642,16 +683,16 @@ function TelegramBotTab() {
 
                 {/* BOT */}
                 <td className="px-4 py-3.5">
-                  <span className="px-2.5 py-1 bg-green-100 text-green-700 text-[11px] font-bold rounded-md whitespace-nowrap">Mijoz boti</span>
+                  <span className="px-2.5 py-1 bg-green-100 text-green-700 text-[11px] font-bold rounded-md whitespace-nowrap">{item?.isAdmin ? 'Admin boti' : 'Mijoz boti'}</span>
                 </td>
 
                 {/* TOKEN */}
                 <td className="px-4 py-3.5">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-mono text-slate-500 max-w-[220px] truncate" title={savedToken}>
-                      {savedToken}
+                    <span className="text-xs font-mono text-slate-500 max-w-[220px] truncate" title={item?.bot_token}>
+                      {item?.bot_token}
                     </span>
-                    <button onClick={() => { navigator.clipboard.writeText(savedToken); toast.success('Token nusxalandi!'); }}
+                    <button onClick={() => { navigator.clipboard.writeText(item?.bot_token); toast.success('Token nusxalandi!'); }}
                       title="Tokenni nusxalash" className="flex-shrink-0 text-slate-300 hover:text-indigo-500 transition-colors">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -669,50 +710,27 @@ function TelegramBotTab() {
 
                 {/* ACTIONS */}
                 <td className="px-4 py-3.5">
-                  <div className="flex items-center gap-1.5 justify-end">
-                    {/* Ko'z — nastroyka */}
-                    <button onClick={() => setShowDetails(true)}
-                      className="w-8 h-8 flex items-center justify-center rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors" title="Nastroyka">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  <div className="flex items-center max-w-max whitespace-nowrap ml-auto gap-1.5 justify-end">
+                    <button onClick={() => { setShowModal(true); setMenuOpen(false); setErr(''); setToken(''); }}
+                      className="w-full text-left px-4 py-2.5 text-sm text-slate-700 cursor-pointer hover:bg-slate-100 flex items-center gap-2.5">
+                      <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
+                      Tokenni yangilash
                     </button>
-                    {/* 3 nuqta — menyu, tepaga ochiladi */}
-                    <div className="relative">
-                      <button onClick={() => setMenuOpen(p => !p)}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
-                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M12 5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 7a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 7a1.5 1.5 0 110-3 1.5 1.5 0 010 3z" />
-                        </svg>
-                      </button>
-                      {menuOpen && (
-                        <>
-                          <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-                          <div className="absolute right-0 bottom-full mb-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 min-w-[180px] py-1 overflow-hidden">
-                            <button onClick={() => { setShowModal(true); setMenuOpen(false); setErr(''); setToken(''); }}
-                              className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2.5">
-                              <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                              </svg>
-                              Tokenni yangilash
-                            </button>
-                            <div className="border-t border-slate-100" />
-                            <button onClick={handleDelete}
-                              className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2.5">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                              </svg>
-                              Uzib qo'yish
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
+                    <div className="border-t border-slate-100" />
+                    <button onClick={handleDelete}
+                      className="w-full text-left px-4 py-2.5 text-sm text-red-600 cursor-pointer hover:bg-red-100 flex items-center gap-2.5">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                      </svg>
+                      Uzib qo'yish
+                    </button>
                   </div>
                 </td>
               </tr>
-            ) : (
+            ))}
+            {data.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-14 text-center">
                   <div className="flex flex-col items-center gap-3 text-slate-400">
@@ -728,82 +746,6 @@ function TelegramBotTab() {
           </tbody>
         </table>
       </div>
-
-      {/* Details / Nastroyka modal */}
-      {showDetails && savedToken && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-          onClick={e => { if (e.target === e.currentTarget) setShowDetails(false); }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 text-lg font-bold">
-                  {botUsername ? botUsername[0].toUpperCase() : 'B'}
-                </div>
-                <div>
-                  <p className="font-bold text-slate-800">{botUsername ? `@${botUsername}` : 'Bot'}</p>
-                  <p className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse inline-block" />Faol
-                  </p>
-                </div>
-              </div>
-              <button onClick={() => setShowDetails(false)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Webhook URL */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Webhook URL</label>
-              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
-                <span className="text-xs font-mono text-slate-600 flex-1 truncate">{webhookUrl}</span>
-                <button onClick={() => { navigator.clipboard.writeText(webhookUrl); toast.success('Nusxalandi!'); }}
-                  className="flex-shrink-0 text-slate-400 hover:text-indigo-600 transition-colors">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            {/* Token */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Token</label>
-              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
-                <span className="text-xs font-mono text-slate-600 flex-1 truncate">{savedToken}</span>
-                <button onClick={() => { navigator.clipboard.writeText(savedToken); toast.success('Token nusxalandi!'); }}
-                  className="flex-shrink-0 text-slate-400 hover:text-indigo-600 transition-colors">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            {/* Bot imkoniyatlari */}
-            <div className="bg-slate-50 rounded-xl p-3.5 space-y-1.5">
-              <p className="text-xs font-bold text-slate-600">Bot imkoniyatlari (mijozlar uchun)</p>
-              <div className="grid grid-cols-2 gap-1 text-xs text-slate-500">
-                <span>💰 Qarz va to'lovlar</span>
-                <span>📦 Oxirgi xaridlar</span>
-                <span>🎫 Loyallik karta</span>
-                <span>❓ Yordam</span>
-              </div>
-            </div>
-
-            {/* Telegram da ochish */}
-            {botUsername && (
-              <a href={`https://t.me/${botUsername}`} target="_blank" rel="noreferrer"
-                className="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-semibold text-sm rounded-xl transition-colors">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH} /></svg>
-                Telegramda ochish → @{botUsername}
-              </a>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Modal — bot qo'shish */}
       {showModal && (
@@ -825,8 +767,8 @@ function TelegramBotTab() {
             </div>
 
             <div className='flex gap-2 text-[14.5px] font-medium'>
+              <button className={`px-5 py-2 ${botType === 'user' ? 'bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white' : 'bg-white hover:bg-slate-200 disabled:opacity-60 border border-indigo-600 text-indigo-600'} font-semibold text-sm rounded-lg transition-colors cursor-pointer`} onClick={() => setBotType('user')}>Mijoz bot</button>
               <button className={`px-5 py-2 ${botType === 'admin' ? 'bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white' : 'bg-white hover:bg-slate-200 disabled:opacity-60 border border-indigo-600 text-indigo-600'} font-semibold text-sm rounded-lg transition-colors cursor-pointer`} onClick={() => setBotType('admin')}>Admin bot</button>
-              <button className={`px-5 py-2 ${botType === 'user' ? 'bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white' : 'bg-white hover:bg-slate-200 disabled:opacity-60 border border-indigo-600 text-indigo-600'} font-semibold text-sm rounded-lg transition-colors cursor-pointer`} onClick={() => setBotType('user')}>Oddiy bot</button>
             </div>
 
             <form onSubmit={handleSave} className="space-y-4">
@@ -865,7 +807,7 @@ function TelegramBotTab() {
         </div>
       )}
     </div>
-  );
+  )
 }
 
 // ── Receipt settings helpers ───────────────────────────────────────────────────
@@ -934,14 +876,14 @@ function ReceiptPreview({ cfg, mm }) {
   return (
     <div className={`${narrow ? 'w-48' : 'w-64'} bg-white border border-slate-300 shadow-xl rounded-sm mx-auto font-mono leading-snug text-black font-bold`}
       style={{ fontSize: narrow ? '10px' : '11.5px', padding: '10px' }}>
-      
+
       {cfg.logo && <div className="text-center mb-1"><img src={cfg.logo} alt="logo" style={{ height: `${Math.round((cfg.logo_size || 40) * 0.6)}px`, maxWidth: '100%', objectFit: 'contain', margin: '0 auto' }} /></div>}
       {cfg.company ? <div className="text-center mb-1.5" style={{ fontSize: '13px' }}>{cfg.company}</div> : null}
       {cfg.address && <div className="text-center mb-1.5">{cfg.address}</div>}
       {cfg.phone && <div className="text-center mb-1.5">Tel: {cfg.phone}</div>}
       {cfg.inn && <div className="text-center mb-1.5">STIR: {cfg.inn}</div>}
       {cfg.header && <div className="text-center mb-1.5">{cfg.header}</div>}
-      
+
       <div className="flex justify-between">
         <span>Chek:</span>
         <span>#00001</span>
@@ -954,7 +896,7 @@ function ReceiptPreview({ cfg, mm }) {
         <span>Sana:</span>
         <span>15.06.2026 09:56</span>
       </div>
-      
+
       <div style={lineDashed}></div>
       <div className="flex justify-between">
         <span>Mijoz:</span>
@@ -969,7 +911,7 @@ function ReceiptPreview({ cfg, mm }) {
         <span>50,000</span>
       </div>
       <div style={lineDashed}></div>
-      
+
       <div>2. Mahsulot B</div>
       <div className="flex justify-between">
         <span>1 x 30,000</span>
@@ -988,7 +930,7 @@ function ReceiptPreview({ cfg, mm }) {
         <span>80,000 so'm</span>
       </div>
       <div style={lineDashed}></div>
-      
+
       <div className="flex justify-between">
         <span>To'lov:</span>
         <span>100,000 so'm</span>
@@ -1004,7 +946,7 @@ function ReceiptPreview({ cfg, mm }) {
         <span>0 so'm</span>
       </div>
       <div style={lineSolid}></div>
-      
+
       <div className="flex justify-between">
         <span>Jami qarz:</span>
         <span>0 so'm</span>
@@ -1528,8 +1470,8 @@ function ReceiptTab() {
         (sub === '58' ? cfg58 : sub === '80' ? cfg80 : cfgNak)[field] ||
         cfg58[field] || cfg80[field] || cfgNak[field] || '';
     }
-    const synced58  = { ...cfg58,  ...activeCompany };
-    const synced80  = { ...cfg80,  ...activeCompany };
+    const synced58 = { ...cfg58, ...activeCompany };
+    const synced80 = { ...cfg80, ...activeCompany };
     const syncedNak = { ...cfgNak, ...activeCompany };
 
     api.put('/companies/me/receipt_templates', {
@@ -1772,7 +1714,7 @@ function FiskalTab() {
 
   return (
     <div>
-      
+
     </div>
   );
 }
@@ -1781,6 +1723,20 @@ function FiskalTab() {
 export default function Settings() {
   const { t } = useLang();
   const [tab, setTab] = useState('valyuta');
+  const [companyId, setCompanyId] = useState(null);
+
+  const load = () => {
+    api.get('/companies').then(r => {
+      if (r.data?.length > 0) {
+        const co = r.data[0];
+        setCompanyId(co.id);
+      }
+    })
+  };
+
+  useEffect(() => {
+    load();
+  }, [companyId]);
 
   const TABS = [
     { id: 'filiyal', label: t('settings.tab.branches'), icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg> },
@@ -1813,7 +1769,7 @@ export default function Settings() {
       {tab === 'valyuta' && <CurrenciesTab />}
       {tab === 'api' && <ApiKeysTab />}
       {tab === 'chek' && <ReceiptTab />}
-      {tab === 'tgbot' && <TelegramBotTab />}
+      {tab === 'tgbot' && <TelegramBotTab companyId={companyId} />}
       {tab === 'parol' && <PasswordTab />}
       {tab === 'fiskal' && <FiskalTab />}
     </div>
