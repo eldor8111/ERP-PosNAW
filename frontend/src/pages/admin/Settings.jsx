@@ -529,6 +529,7 @@ function TelegramBotTab() {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
+  const [botType, setBotType] = useState('admin');
 
   const load = () => {
     api.get('/companies').then(r => {
@@ -821,6 +822,11 @@ function TelegramBotTab() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
+            </div>
+
+            <div className='flex gap-2 text-[14.5px] font-medium'>
+              <button className={`px-5 py-2 ${botType === 'admin' ? 'bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white' : 'bg-white hover:bg-slate-200 disabled:opacity-60 border border-indigo-600 text-indigo-600'} font-semibold text-sm rounded-lg transition-colors cursor-pointer`} onClick={() => setBotType('admin')}>Admin bot</button>
+              <button className={`px-5 py-2 ${botType === 'user' ? 'bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white' : 'bg-white hover:bg-slate-200 disabled:opacity-60 border border-indigo-600 text-indigo-600'} font-semibold text-sm rounded-lg transition-colors cursor-pointer`} onClick={() => setBotType('user')}>Oddiy bot</button>
             </div>
 
             <form onSubmit={handleSave} className="space-y-4">
