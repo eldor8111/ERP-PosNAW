@@ -190,7 +190,8 @@ function SubscriptionHistoryTab({ logs }) {
             <thead className="bg-gray-50/80 border-b border-gray-200">
               <tr>
                 <th scope="col" className="pl-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
-                <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Sana</th>
+                <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Boshlangan sana</th>
+                <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Tugash sana</th>
                 <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Miqdor</th>
                 <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Tarif</th>
               </tr>
@@ -205,8 +206,17 @@ function SubscriptionHistoryTab({ logs }) {
                     <td className="pl-6 py-4 font-medium text-gray-400 group-hover:text-violet-600 transition-colors">
                       {(index + 1).toString().padStart(2, '0')}
                     </td>
-                    <td className="px-6 py-4 text-gray-600 font-medium">
+                    <td className="px-4 py-4 text-gray-600 font-medium">
                       {new Date(item.created_at).toLocaleDateString('uz-UZ', {
+                        day: 'numeric',
+                        month: 'numeric',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </td>
+                    <td className="px-3 py-4 text-gray-600 font-medium">
+                      {new Date(item.subscription_ends_at).toLocaleDateString('uz-UZ', {
                         day: 'numeric',
                         month: 'numeric',
                         year: 'numeric',
