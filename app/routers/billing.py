@@ -643,6 +643,7 @@ def get_balance_logs(
             "note": lg.note,
             "created_by": lg.created_by.name if lg.created_by else None,
             "created_at": lg.created_at.isoformat() if lg.created_at else None,
+            "subscription_ends_at": lg.company.subscription_ends_at.isoformat() if lg.company and lg.company.subscription_ends_at else None,
         }
         for lg in logs
     ]
