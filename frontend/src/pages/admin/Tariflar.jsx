@@ -350,19 +350,30 @@ export default function Tariflar() {
     const fetchData = async () => {
       try {
         const [t, s, l] = await Promise.all([
-          api.get('/billing/tariffs'),
-          api.get('/billing/settings'),
-          api.get(`/billing/companies/${user.company_id}/logs`),
+          api.get('/billing/tariffs').catch(err => {
+            console.error("Failed to load tariffs:", err);
+            return { data: [] };
+          }),
+          api.get('/billing/settings').catch(err => {
+            console.error("Failed to load billing settings:", err);
+            return { data: null };
+          }),
+          api.get(`/billing/companies/${user.company_id}/logs`).catch(err => {
+            console.error("Failed to load logs:", err);
+            return { data: [] };
+          }),
         ]);
-        setTariffs(t.data);
-        setSettings(s.data);
-        setLogs(l.data);
+        if (t?.data) setTariffs(t.data);
+        if (s?.data) setSettings(prev => ({ ...prev, ...s.data }));
+        if (l?.data) setLogs(l.data);
         try {
           const b = await api.get('/billing/my-company');
           setBilling(b.data);
-        } catch { /* company yo'q bo'lsa skip */ }
+        } catch (e) {
+          console.error("Failed to load my-company billing:", e);
+        }
       } catch (e) {
-        console.error(e);
+        console.error("Global fetchData error:", e);
       } finally {
         setLoading(false);
       }

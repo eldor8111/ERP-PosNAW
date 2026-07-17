@@ -385,7 +385,9 @@ export default function Login() {
         return
       }
       
-      if (userRes?.role === 'cashier') {
+      if (userRes?.role === 'super_admin') {
+        navigate('/admin/super-admin')
+      } else if (userRes?.role === 'cashier') {
         navigate('/admin/ulgurji-sotuv')
       } else {
         navigate('/admin/products')
@@ -430,7 +432,9 @@ export default function Login() {
       localStorage.setItem('refresh_token', refresh_token)
       localStorage.setItem('user', JSON.stringify(user))
       // Auth context ni reload qilish uchun sahifani yangilaymiz
-      if (user?.role === 'cashier') {
+      if (user?.role === 'super_admin') {
+        window.location.href = '/admin/super-admin'
+      } else if (user?.role === 'cashier') {
         window.location.href = '/admin/ulgurji-sotuv'
       } else {
         window.location.href = '/admin/products'
@@ -456,7 +460,9 @@ export default function Login() {
       localStorage.setItem('refresh_token', refresh_token)
       localStorage.setItem('user', JSON.stringify(user))
       
-      if (user?.role === 'cashier') {
+      if (user?.role === 'super_admin') {
+        window.location.href = '/admin/super-admin'
+      } else if (user?.role === 'cashier') {
         window.location.href = '/admin/ulgurji-sotuv'
       } else {
         window.location.href = '/admin/products'

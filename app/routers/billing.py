@@ -54,6 +54,13 @@ def require_admin_or_super(user: User = Depends(get_current_user)) -> User:
     return user
 
 
+def require_admin_or_super_allow_expired(user: User = Depends(get_current_user_allow_expired)) -> User:
+    """Super Admin yoki Admin rolini talab qiladi (obuna muddati tugasa ham ruxsat beradi)"""
+    if user.role not in (UserRole.super_admin, UserRole.admin):
+        raise HTTPException(status_code=403, detail="Faqat Admin yoki Super Admin uchun")
+    return user
+
+
 def _tariff_out(t: Tariff) -> dict:
     return {
         "id": t.id,
@@ -206,7 +213,11 @@ def delete_tariff(
     t = db.query(Tariff).filter(Tariff.id == tariff_id).first()
     if not t:
         raise HTTPException(status_code=404, detail="Tarif topilmadi")
-    t.is_active = False
+    
+    # Nullify referencing companies' tariff_id to prevent FK IntegrityError
+    db.query(Company).filter(Company.tariff_id == tariff_id).update({Company.tariff_id: None})
+    
+    db.delete(t)
     db.commit()
     return {"ok": True}
 
@@ -580,7 +591,7 @@ def get_my_company_logs(
         limit: int = 50,
         log_type: Optional[str] = None,
         db: Session = Depends(get_db),
-        user: User = Depends(require_admin_or_super),
+        user: User = Depends(require_admin_or_super_allow_expired),
 ):
     """Admin o'z kompaniyasining balans tarixini ko'radi"""
     if not user.company_id:
@@ -610,7 +621,7 @@ def get_balance_logs(
         limit: int = 50,
         log_type: str = None,
         db: Session = Depends(get_db),
-        user: User = Depends(require_admin_or_super),
+        user: User = Depends(require_admin_or_super_allow_expired),
 ):
     """Super Admin — istalgan kompaniya; Admin — faqat o'z kompaniyasi"""
     # Admin faqat o'z kompaniyasini ko'ra oladi

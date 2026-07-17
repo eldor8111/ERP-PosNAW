@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext'
 import PrivateRoute from './components/PrivateRoute'
 import { ROLE_GROUPS } from './constants/roles'
 import Toast from './components/Toast'
+import { Toaster } from 'react-hot-toast'
 import Login from './pages/Login'
 import PosLogin from './pages/PosLogin'
 import RegisterCompany from './pages/RegisterCompany'
@@ -57,7 +58,24 @@ function PageLoader() {
   )
 }
 
-import { Toaster } from 'react-hot-toast'
+function AdminIndex() {
+  const userStr = localStorage.getItem('user')
+  let user = null
+  try {
+    user = JSON.parse(userStr || '{}')
+  } catch {
+    // ignore error
+  }
+
+  if (user?.role === 'super_admin') {
+    return <Navigate to="super-admin" replace />
+  }
+  if (user?.role === 'cashier') {
+    // cashier default tab handles sotuv or pos-kassa
+    return <Navigate to="sotuv" replace />
+  }
+  return <Navigate to="products" replace />
+}
 
 export default function App() {
   const Router = window.location.protocol === 'file:' ? HashRouter : BrowserRouter
@@ -77,7 +95,7 @@ export default function App() {
               <AdminLayout />
             </PrivateRoute>
           }>
-            <Route index element={<Navigate to="products" replace />} />
+            <Route index element={<AdminIndex />} />
             <Route path="products" element={<Suspense fallback={<PageLoader />}><Products /></Suspense>} />
             <Route path="profile" element={<Suspense fallback={<PageLoader />}><Profile /></Suspense>} />
             <Route path="purchases" element={<Suspense fallback={<PageLoader />}><Purchases /></Suspense>} />
