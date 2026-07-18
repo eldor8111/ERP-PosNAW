@@ -283,8 +283,6 @@ app.include_router(sms_router.router, prefix=API_PREFIX)
 app.include_router(hippo_router.router, prefix=API_PREFIX)
 app.include_router(admin_router, prefix=API_PREFIX)
 
-
-app.mount("/hippo", hippo_app)
 # Serve uploaded static files
 import os
 os.makedirs("static/uploads/products", exist_ok=True)

@@ -16,7 +16,7 @@ from app.utils.hippo_client import (
     HippoConnectionError,
 )
 
-router = APIRouter(prefix="/api/hippo", tags=["Hippo Fiskalizatsiya"])
+router = APIRouter(prefix="/hippo", tags=["Hippo Fiskalizatsiya"])
 
 
 """HippoClientError turlarini mos HTTP statusga o'giradi."""

@@ -3,7 +3,7 @@ import api from '../../api/axios';
 import { useLang } from '../../context/LangContext';
 import toast from 'react-hot-toast';
 import { saveReceiptSettings } from '../../utils/receiptBuilder';
-import { Zap } from 'lucide-react';
+import { Search, Zap } from 'lucide-react';
 import axios from 'axios';
 
 // ── Valyutalar tab ────────────────────────────────────────────────────────────
@@ -566,8 +566,6 @@ function TelegramBotTab({ companyId }) {
       ));
     }).catch(e => toast.error(e.response?.data?.detail || e.message));
   };
-
-  console.log(data)
 
   useEffect(() => {
     load();
@@ -1704,7 +1702,7 @@ function BranchesTab() {
 
 function FiskalTab() {
   async function getSettings() {
-    const res = await axios.get('/hippo/settings')
+    const res = await api.get('/hippo/fiscal-modules')
     console.log(res.data)
   }
 
@@ -1714,7 +1712,13 @@ function FiskalTab() {
 
   return (
     <div>
-
+      <div className="flex flex-col gap-2">
+        <p>Fiskal qurilmani aniqlash</p>
+        <div className="flex items-center gap-2">
+          <input type="text" className='border w-100 outline-none border-slate-200 rounded-lg px-2 py-1.5' />
+          <button className='border outline-none border-slate-200 rounded-lg flex items-center gap-1 cursor-pointer px-2 py-1.5 bg-indigo-600 text-white'><Search size={18} /> Aniqlash</button>
+        </div>
+      </div>
     </div>
   );
 }
