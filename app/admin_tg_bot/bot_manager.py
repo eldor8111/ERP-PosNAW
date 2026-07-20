@@ -543,7 +543,6 @@ async def main() -> None:
             return
 
         print(f"[Admin Bot] {len(admin_bots)} ta admin bot topildi. Ishga tushirilmoqda...")
-
         tasks = []
         for company_bot in admin_bots:
             task = asyncio.create_task(start_bot(company_bot.bot_token, company_bot.company_id))
