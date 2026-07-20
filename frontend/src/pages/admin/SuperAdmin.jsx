@@ -938,6 +938,8 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
 const fmtMoney = (v) => Number(v || 0).toLocaleString('uz-UZ');
 
 /* ─── BILLING TAB ───────────────────────────────────── */
+const BILLING_PAGE_SIZE = 15;
+
 function BillingTab() {
   const { t } = useLang();
   const [list, setList] = useState([]);
@@ -950,6 +952,7 @@ function BillingTab() {
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [page, setPage] = useState(1);
 
   const load = () => {
     setLoading(true);
@@ -1022,6 +1025,15 @@ function BillingTab() {
     return true;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / BILLING_PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginated = filtered.slice((safePage - 1) * BILLING_PAGE_SIZE, safePage * BILLING_PAGE_SIZE);
+
+  const handleSearch = (val) => { setSearch(val); setPage(1); };
+  const handleDateFrom = (val) => { setDateFrom(val); setPage(1); };
+  const handleDateTo = (val) => { setDateTo(val); setPage(1); };
+  const handleClearFilters = () => { setSearch(''); setDateFrom(''); setDateTo(''); setPage(1); };
+
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
       <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
@@ -1031,6 +1043,11 @@ function BillingTab() {
           </span>
           Korxonalar Billing
           <span className="text-xs font-normal text-slate-400">({filtered.length}/{list.length})</span>
+          {filtered.length > 0 && (
+            <span className="text-xs font-normal text-slate-400 ml-1">
+              — {safePage}-sahifa
+            </span>
+          )}
         </h3>
         <button onClick={load} className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg font-semibold text-slate-600 transition-all">
           Yangilash
@@ -1043,21 +1060,21 @@ function BillingTab() {
           type="text"
           placeholder="Korxona nomi yoki kodi..."
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={e => handleSearch(e.target.value)}
           className="flex-1 min-w-[180px] text-sm border border-slate-200 rounded-lg px-3 py-1.5 outline-none focus:ring-2 focus:ring-blue-300 bg-white"
         />
         <div className="flex items-center gap-1.5 text-xs text-slate-500">
           <span>Dan:</span>
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+          <input type="date" value={dateFrom} onChange={e => handleDateFrom(e.target.value)}
             className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-blue-300 bg-white" />
         </div>
         <div className="flex items-center gap-1.5 text-xs text-slate-500">
           <span>Gacha:</span>
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+          <input type="date" value={dateTo} onChange={e => handleDateTo(e.target.value)}
             className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-blue-300 bg-white" />
         </div>
         {(search || dateFrom || dateTo) && (
-          <button onClick={() => { setSearch(''); setDateFrom(''); setDateTo(''); }}
+          <button onClick={handleClearFilters}
             className="text-xs px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg font-semibold border border-red-100 transition-all">
             Tozalash
           </button>
@@ -1077,14 +1094,19 @@ function BillingTab() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {filtered.length === 0 && (
+              {paginated.length === 0 && (
                 <tr><td colSpan={7} className="text-center py-10 text-slate-400 text-sm">Hech narsa topilmadi</td></tr>
               )}
-              {filtered.map(c => (
+              {paginated.map((c, idx) => (
                 <tr key={c.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3">
-                    <div className="font-semibold text-slate-800">{c.name}</div>
-                    <div className="text-xs text-slate-400 font-mono">{c.org_code}</div>
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-xs text-slate-300 w-5 shrink-0">{(safePage - 1) * BILLING_PAGE_SIZE + idx + 1}</span>
+                      <div>
+                        <div className="font-semibold text-slate-800">{c.name}</div>
+                        <div className="text-xs text-slate-400 font-mono">{c.org_code}</div>
+                      </div>
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-500">
                     {c.created_at ? new Date(c.created_at).toLocaleDateString('uz-UZ') : '—'}
@@ -1125,6 +1147,53 @@ function BillingTab() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* ── Pagination Controls ── */}
+      {!loading && filtered.length > BILLING_PAGE_SIZE && (
+        <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between bg-white">
+          <span className="text-sm text-slate-500">
+            {filtered.length} ta korxonadan{' '}
+            <span className="font-semibold text-slate-700">
+              {(safePage - 1) * BILLING_PAGE_SIZE + 1}–{Math.min(safePage * BILLING_PAGE_SIZE, filtered.length)}
+            </span>{' '}
+            ko'rsatildi
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={safePage === 1}
+              className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors font-medium"
+            >
+              ‹ Oldingi
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .slice(
+                Math.max(0, safePage - 3),
+                Math.min(totalPages, safePage + 2)
+              )
+              .map(p => (
+                <button
+                  key={p}
+                  onClick={() => setPage(p)}
+                  className={`w-9 h-9 rounded-lg text-sm font-semibold transition-colors ${
+                    p === safePage
+                      ? 'bg-blue-600 text-white font-bold shadow-sm shadow-blue-200'
+                      : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={safePage >= totalPages}
+              className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors font-medium"
+            >
+              Keyingi ›
+            </button>
+          </div>
         </div>
       )}
 

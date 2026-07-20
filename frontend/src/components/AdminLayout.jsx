@@ -325,7 +325,7 @@ export default function AdminLayout() {
 
         {/* Navigation */}
         <nav
-          className={`flex-1 overflow-y-auto px-3 space-y-0.5`}
+          className={`flex-1 mt-2 overflow-y-auto px-3 space-y-0.5`}
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {navGroups.map((group) => {
