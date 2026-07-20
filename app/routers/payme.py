@@ -433,7 +433,7 @@ def _perform_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse
         log = BalanceLog(
             company_id = company.id,
             amount     = amount_som,
-            log_type   = "payme_topup",
+            log_type   = "top_up",
             note       = (
                 f"Payme orqali toldirildi: +{amount_som:,.0f} som "
                 f"(txn: {payme_id})"
@@ -513,7 +513,7 @@ def _cancel_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
                 refund_log = BalanceLog(
                     company_id = company.id,
                     amount     = -amount_som,
-                    log_type   = "payme_refund",
+                    log_type   = "refund",
                     note       = (
                         f"Payme qaytarildi: -{amount_som:,.0f} som "
                         f"(txn: {payme_id}, sabab: {reason})"

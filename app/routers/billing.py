@@ -3,18 +3,18 @@ Billing API — Tariflar, Balans, Obuna boshqaruvi.
 Super Admin barcha korxonalarni boshqaradi.
 """
 from datetime import datetime, timezone, timedelta
-from typing import Optional, List
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException  # type: ignore
 from pydantic import BaseModel  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
 
-from app.database import get_db  # type: ignore
 from app.core.dependencies import get_current_user, get_current_user_allow_expired  # type: ignore
-from app.models.user import User, UserRole  # type: ignore
-from app.models.company import Company  # type: ignore
+from app.database import get_db  # type: ignore
 from app.models.billing import Tariff, BalanceLog  # type: ignore
+from app.models.company import Company  # type: ignore
 from app.models.platform_settings import PlatformSettings  # type: ignore
+from app.models.user import User, UserRole  # type: ignore
 
 router = APIRouter(prefix="/billing", tags=["Billing"])
 
@@ -213,10 +213,10 @@ def delete_tariff(
     t = db.query(Tariff).filter(Tariff.id == tariff_id).first()
     if not t:
         raise HTTPException(status_code=404, detail="Tarif topilmadi")
-    
+
     # Nullify referencing companies' tariff_id to prevent FK IntegrityError
     db.query(Company).filter(Company.tariff_id == tariff_id).update({Company.tariff_id: None})
-    
+
     db.delete(t)
     db.commit()
     return {"ok": True}
@@ -522,7 +522,6 @@ def subscribe_my_company(
     }
 
 
-
 # ─── Balans tarixi ────────────────────────────────────────────────────────────
 
 @router.get("/my-company/latest-top-up")
@@ -533,7 +532,7 @@ def get_my_company_latest_top_up(
     """Kompaniyaning oxirgi balans to'ldirilganligi (top_up) haqida ma'lumot olish"""
     if not user.company_id:
         raise HTTPException(status_code=404, detail="Korxona topilmadi")
-    
+
     log = (
         db.query(BalanceLog)
         .filter(BalanceLog.company_id == user.company_id, BalanceLog.log_type == "top_up")
@@ -542,7 +541,7 @@ def get_my_company_latest_top_up(
     )
     if not log:
         return {"has_top_up": False, "latest_top_up": None}
-        
+
     return {
         "has_top_up": True,
         "latest_top_up": {
@@ -556,36 +555,6 @@ def get_my_company_latest_top_up(
     }
 
 
-@router.get("/my-company/top-up-history")
-def get_my_company_top_up_history(
-        limit: int = 50,
-        db: Session = Depends(get_db),
-        user: User = Depends(get_current_user_allow_expired),
-):
-    """Kompaniyaning balans to'ldirish (top_up) tarixini olish"""
-    if not user.company_id:
-        raise HTTPException(status_code=404, detail="Korxona topilmadi")
-    
-    logs = (
-        db.query(BalanceLog)
-        .filter(BalanceLog.company_id == user.company_id, BalanceLog.log_type == "top_up")
-        .order_by(BalanceLog.created_at.desc())
-        .limit(limit)
-        .all()
-    )
-    return [
-        {
-            "id": lg.id,
-            "amount": float(lg.amount),
-            "log_type": lg.log_type,
-            "note": lg.note,
-            "created_by": lg.created_by.name if lg.created_by else None,
-            "created_at": lg.created_at.isoformat() if lg.created_at else None,
-        }
-        for lg in logs
-    ]
-
-
 @router.get("/my-company/logs")
 def get_my_company_logs(
         limit: int = 50,
@@ -596,11 +565,11 @@ def get_my_company_logs(
     """Admin o'z kompaniyasining balans tarixini ko'radi"""
     if not user.company_id:
         raise HTTPException(status_code=404, detail="Korxona topilmadi")
-    
+
     query = db.query(BalanceLog).filter(BalanceLog.company_id == user.company_id)
     if log_type:
         query = query.filter(BalanceLog.log_type == log_type)
-        
+
     logs = query.order_by(BalanceLog.created_at.desc()).limit(limit).all()
     return [
         {
@@ -623,17 +592,15 @@ def get_balance_logs(
         db: Session = Depends(get_db),
         user: User = Depends(require_admin_or_super_allow_expired),
 ):
-    """Super Admin — istalgan kompaniya; Admin — faqat o'z kompaniyasi"""
-    # Admin faqat o'z kompaniyasini ko'ra oladi
+
     if user.role == UserRole.admin and user.company_id != company_id:
         raise HTTPException(status_code=403, detail="Faqat o'z kompaniyangizni ko'ra olasiz")
 
     query = db.query(BalanceLog).filter(BalanceLog.company_id == company_id)
-    
-    # Filter by log_type (top_up, subscription, trial, refund)
+
     if log_type:
         query = query.filter(BalanceLog.log_type == log_type)
-    
+
     logs = query.order_by(BalanceLog.created_at.desc()).limit(limit).all()
     return [
         {
