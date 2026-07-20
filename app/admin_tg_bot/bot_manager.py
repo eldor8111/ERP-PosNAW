@@ -314,6 +314,10 @@ async def handle_daily_report(message: Message, company_id: int) -> None:
         await message.answer("❌ Iltimos, avval ro'yxatdan o'ting.")
         return
 
+    if admin.role != UserRole.director:
+        await message.answer("❌ Kechirasiz, hisobotlarni faqat direktorlar ko'ra oladi.")
+        return
+
     report = await asyncio.to_thread(get_daily_sales_report, company_id)
 
     await message.answer(
@@ -334,6 +338,10 @@ async def handle_monthly_report(message: Message, company_id: int) -> None:
 
     if not admin:
         await message.answer("❌ Iltimos, avval ro'yxatdan o'ting.")
+        return
+
+    if admin.role != UserRole.director:
+        await message.answer("❌ Kechirasiz, hisobotlarni faqat direktorlar ko'ra oladi.")
         return
 
     report = await asyncio.to_thread(get_monthly_sales_report, company_id)
