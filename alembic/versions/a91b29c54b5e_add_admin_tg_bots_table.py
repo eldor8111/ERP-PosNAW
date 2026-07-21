@@ -34,19 +34,34 @@ def upgrade() -> None:
     sa.UniqueConstraint('tg_id'),
     sa.UniqueConstraint('tg_id', 'company_id', name='uq_admin_tg_bot_user_company')
     )
-    op.drop_index(op.f('ix_bot_sessions_chat_id'), table_name='bot_sessions')
-    op.drop_table('bot_sessions')
-    op.drop_column('companies', 'payme_merchant_id')
-    op.drop_column('companies', 'payme_is_test')
-    op.drop_column('companies', 'payme_secret_key')
-    op.drop_index(op.f('ix_kassa_movements_company'), table_name='kassa_movements')
-    op.drop_index(op.f('ix_kassa_movements_created'), table_name='kassa_movements')
-    op.drop_index(op.f('ix_kassa_movements_wallet'), table_name='kassa_movements')
-    op.drop_index(op.f('ix_kassa_sessions_company'), table_name='kassa_sessions')
-    op.drop_index(op.f('ix_kassa_sessions_wallet'), table_name='kassa_sessions')
-    op.drop_index(op.f('ix_payme_txn_company'), table_name='payme_transactions')
-    op.drop_index(op.f('ix_payme_txn_payme_id'), table_name='payme_transactions')
-    # ### end Alembic commands ###
+    # op.create_table('admin_tg_bots',
+    # sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    # sa.Column('tg_id', sa.String(length=20), nullable=False),
+    # sa.Column('phone', sa.String(length=20), nullable=False),
+    # sa.Column('full_name', sa.String(length=255), nullable=True),
+    # sa.Column('role', sa.Enum('direktor', 'manager', 'admin', name='roleenum'), nullable=False),
+    # sa.Column('company_id', sa.Integer(), nullable=False),
+    # sa.Column('is_active', sa.Boolean(), nullable=True),
+    # sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+    # sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+    # sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ),
+    # sa.PrimaryKeyConstraint('id'),
+    # sa.UniqueConstraint('tg_id'),
+    # sa.UniqueConstraint('tg_id', 'company_id', name='uq_admin_tg_bot_user_company')
+    # )
+    # op.drop_index(op.f('ix_bot_sessions_chat_id'), table_name='bot_sessions', if_exists=True)
+    # op.drop_table('bot_sessions')
+    # op.drop_column('companies', 'payme_merchant_id')
+    # op.drop_column('companies', 'payme_is_test')
+    # op.drop_column('companies', 'payme_secret_key')
+    # op.drop_index(op.f('ix_kassa_movements_company'), table_name='kassa_movements')
+    # op.drop_index(op.f('ix_kassa_movements_created'), table_name='kassa_movements')
+    # op.drop_index(op.f('ix_kassa_movements_wallet'), table_name='kassa_movements')
+    # op.drop_index(op.f('ix_kassa_sessions_company'), table_name='kassa_sessions')
+    # op.drop_index(op.f('ix_kassa_sessions_wallet'), table_name='kassa_sessions')
+    # op.drop_index(op.f('ix_payme_txn_company'), table_name='payme_transactions')
+    # op.drop_index(op.f('ix_payme_txn_payme_id'), table_name='payme_transactions')
+    # # ### end Alembic commands ###
 
 
 def downgrade() -> None:
@@ -71,5 +86,5 @@ def downgrade() -> None:
     sa.PrimaryKeyConstraint('id', name=op.f('bot_sessions_pkey'))
     )
     op.create_index(op.f('ix_bot_sessions_chat_id'), 'bot_sessions', ['chat_id'], unique=False)
-    op.drop_table('admin_tg_bots')
+    op.drop_table('admin_tg_bots', if_exists=True)
     # ### end Alembic commands ###

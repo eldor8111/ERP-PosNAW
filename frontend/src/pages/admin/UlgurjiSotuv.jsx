@@ -1076,6 +1076,8 @@ export default function UlgurjiSotuv() {
     const pCashUZS = payments.filter(p => p.type === 'cash' || p.type === 'uzcard' || p.type === 'humo' || p.type === 'click' || p.type === 'payme' || p.type === 'transfer' ? p.type === 'cash' : false).reduce((s, p) => s + (parseN(p.amt) * getRate(p.currency)), 0);
     const pCardUZS = payments.filter(p => p.type !== 'cash' && p.type !== 'debt').reduce((s, p) => s + (parseN(p.amt) * getRate(p.currency)), 0);
     await submitSale(finalPayType, totalPaidUZS, pCashUZS, pCardUZS);
+
+    setIsFiskalOpen(true)
   };
 
   const handleDirectAction = async (actionType) => {
@@ -1220,6 +1222,47 @@ export default function UlgurjiSotuv() {
     }
     setTab(newTab);
   };
+
+  const [isFiskalOpen, setIsFiskalOpen] = useState(false);
+
+  const fiskalId = localStorage.getItem("fiskalId")
+  const fiskalSend = fiskalId ? localStorage.getItem('fiskalSend') : false
+
+  const fiskalData = {
+    factory_id: fiskalId,
+    receipt: {
+      time: "",
+      receivedCash: 0,
+      received_card: 0,
+      discount: 0,
+      type: 0,
+      operation: 0,
+      items: [
+        {
+          name: "",
+          barcode: "",
+          labels: [],
+          spic: "",
+          package_code: "",
+          quantity: 1,
+          price: 0,
+          discount: 0,
+          vat_percent: 12
+        }
+      ]
+    }
+  }
+
+  async function sendToFiskalSoliq() {
+    try {
+      const res = await api.post('/hippo/receipt/register', fiskalData)
+      console.log(res)
+    } catch (err) {
+      console.log(err)
+    } finally {
+      setIsFiskalOpen(false)
+    }
+  }
 
   /* ══════════════════════════════════════════════════
      RENDER
@@ -2008,6 +2051,7 @@ export default function UlgurjiSotuv() {
           updateLine(id, 'amt', formattedAmt);
         };
         const now = new Date();
+
         return (
           <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm p-0 md:p-4">
             <div className="bg-white w-full md:max-w-lg rounded-t-3xl md:rounded-2xl shadow-2xl overflow-hidden flex flex-col" style={{ maxHeight: '95vh' }}>
@@ -2101,7 +2145,7 @@ export default function UlgurjiSotuv() {
                               </div>
                             </div>
 
-                            <button onClick={() => removeLine(line.id)} className={`shrink-0 w-8 h-10 rounded-lg flex items-center justify-center ${payments.length > 1 ? 'text-slate-300 hover:text-red-500 hover:bg-red-50' : 'text-slate-200 cursor-not-allowed'}`}>
+                            <button onClick={() => removeLine(line.id)} className={`shrink-0 w-8 h-10 rounded-lg flex items-center justify-center ${payments.length > 1 ? 'text-slate-500 hover:text-red-500 hover:bg-red-50' : 'text-slate-400 cursor-not-allowed'}`}>
                               <Ic d="M6 18L18 6M6 6l12 12" cls="w-4 h-4" />
                             </button>
                           </div>
@@ -2300,6 +2344,21 @@ export default function UlgurjiSotuv() {
           </div>
         );
       })()}
+
+      {
+        isFiskalOpen && fiskalSend === 'true' ? (
+          <div className="bg-black/50 backdrop-blur-sm fixed top-0 left-0 z-40 w-full h-screen flex justify-center items-center">
+            <div className="bg-white rounded-xl p-5 flex flex-col min-w-100 gap-5">
+              <p className='font-medium text-xl'>Fiskalga yuborishni xohlaysizmi?</p>
+
+              <div className='flex gap-2'>
+                <button onClick={() => setIsFiskalOpen(false)} className='flex-1 cursor-pointer border border-indigo-600 text-indigo-600 font-medium py-1.25 rounded'>Yo'q</button>
+                <button onClick={sendToFiskalSoliq} className='flex-1 cursor-pointer bg-indigo-600 text-white font-medium py-1.25 rounded'>Xa</button>
+              </div>
+            </div>
+          </div>
+        ) : null
+      }
 
       {/* ══ SOTUV TAFSILOTI MODALI ══ */}
       {selectedSale && (

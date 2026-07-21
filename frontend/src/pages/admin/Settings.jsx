@@ -1701,22 +1701,69 @@ function BranchesTab() {
 }
 
 function FiskalTab() {
-  async function getSettings() {
-    const res = await api.get('/hippo/fiscal-modules')
-    console.log(res.data)
+  const [fiskalId, setFiskalId] = useState("Fiskal qurilma topilmadi");
+
+  // 1. Dastlabki qiymatni localStorage'dan o'qiymiz
+  const [fiskalSend, setFiskalSend] = useState(() => {
+    const saved = localStorage.getItem("fiskalSend");
+    return saved !== null ? JSON.parse(saved) : false;
+  });
+
+  async function getFactoryID() {
+    try {
+      const res = await api.get('/hippo/fiscal-modules');
+      setFiskalId(res.data[0]?.FactoryID || "Fiskal qurilma topilmadi");
+      localStorage.setItem("fiskalId", JSON.stringify(res.data[0]?.FactoryID))
+    } catch (error) {
+      setFiskalId("Fiskal qurilma topilmadi");
+    }
   }
 
   useEffect(() => {
-    getSettings()
-  }, [])
+    setFiskalId("Aniqlanmoqda...");
+    getFactoryID();
+  }, []);
+
+  // 2. fiskalSend o'zgarganda localStorage'ga yozadigan yordamchi funksiya
+  const handleFiskalSendChange = (value) => {
+    setFiskalSend(value);
+    localStorage.setItem("fiskalSend", JSON.stringify(value));
+  };
 
   return (
     <div>
       <div className="flex flex-col gap-2">
-        <p>Fiskal qurilmani aniqlash</p>
-        <div className="flex items-center gap-2">
-          <input type="text" className='border w-100 outline-none border-slate-200 rounded-lg px-2 py-1.5' />
-          <button className='border outline-none border-slate-200 rounded-lg flex items-center gap-1 cursor-pointer px-2 py-1.5 bg-indigo-600 text-white'><Search size={18} /> Aniqlash</button>
+        <div className="flex flex-col gap-2 bg-white w-max min-w-[340px] p-4 rounded-lg">
+          <p>Fiskal id:</p>
+
+          <div className='flex flex-col gap-3'>
+            <code>{fiskalId}</code>
+          </div>
+
+          <hr className='opacity-30' />
+
+          {
+            fiskalId !== "Fiskal qurilma topilmadi" && (
+              <div className='flex flex-col gap-1'>
+                <p>Savdolarda fiskal qurilmaga yuborilsinmi?</p>
+
+                <div className='w-max'>
+                  <button
+                    onClick={() => handleFiskalSendChange(false)}
+                    className={`${fiskalSend === false ? "bg-indigo-600 text-white" : "text-indigo-600 bg-white"} border border-indigo-600 px-4 rounded-l-md cursor-pointer py-0.5`}
+                  >
+                    Yo'q
+                  </button>
+                  <button
+                    onClick={() => handleFiskalSendChange(true)}
+                    className={`${fiskalSend === true ? "bg-indigo-600 text-white" : "text-indigo-600 bg-white"} border border-indigo-600 px-4 rounded-r-md cursor-pointer py-0.5`}
+                  >
+                    Xa
+                  </button>
+                </div>
+              </div>
+            )
+          }
         </div>
       </div>
     </div>

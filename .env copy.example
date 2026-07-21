@@ -1,0 +1,23 @@
+# DATABASE - Supabase yoki boshqa online PostgreSQL URL ni shu yerga yozing
+# Supabase dan olganingizdan keyin: postgresql+psycopg://postgres:[PASSWORD]@db.[PROJECT].supabase.co:5432/postgres
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/erppos
+
+# Secret key - o'zgartiring! (kamida 32 belgi)
+SECRET_KEY=super-secret-key-change-in-production-min-32-chars
+
+# Server public URL (Telegram webhook uchun)
+# Misol: https://savdo.e-code.uz
+SERVER_URL=
+
+# JWT settings
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=480
+REFRESH_TOKEN_EXPIRE_DAYS=7
+
+# ── Payme Merchant API ──────────────────────────────────────────────────────
+# Payme Business Cabinet dan olinadi: https://business.paycom.uz
+# Merchant API → Kassa → Sozlamalar
+PAYME_MERCHANT_ID=your_payme_merchant_id_here
+PAYME_SECRET_KEY=your_payme_secret_key_here
+# Test rejimi: true = checkout.test.paycom.net | false = checkout.paycom.net
+PAYME_IS_TEST=true
