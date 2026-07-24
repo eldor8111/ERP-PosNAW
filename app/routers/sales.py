@@ -132,6 +132,7 @@ def make_sale(
         customer_name=None,
         items_count=len(data.items),
         created_at=sale.created_at,
+        currency_code=sale.currency.code if getattr(sale, 'currency', None) else "UZS",
     )
 
 
@@ -160,6 +161,7 @@ def make_pending_sale(
         customer_name=None,
         items_count=len(data.items),
         created_at=sale.created_at,
+        currency_code=sale.currency.code if getattr(sale, 'currency', None) else "UZS",
     )
 
 
@@ -188,6 +190,7 @@ def make_return_sale(
         customer_name=None,
         items_count=len(data.items),
         created_at=sale.created_at,
+        currency_code=sale.currency.code if getattr(sale, 'currency', None) else "UZS",
     )
 
 
@@ -197,7 +200,7 @@ def list_sales(
         branch_id: Optional[int] = Query(None),
         customer_id: Optional[int] = Query(None),
         date_from: Optional[date] = Query(None),
-        date_to: Optional[date] = Query(None),
+        date_to: Optional   [date] = Query(None),
         date_today: Optional[bool] = Query(None, description="Faqat bugungi sotuvlar"),
         status: Optional[SaleStatus] = Query(None),
         search: Optional[str] = Query(None, description="Sotuv raqami yoki mijoz nomi bo'yicha qidiruv"),
@@ -217,7 +220,7 @@ def list_sales(
     q = (
         db.query(Sale, func.coalesce(items_count_sq.c.cnt, 0).label("items_count"))
         .outerjoin(items_count_sq, items_count_sq.c.sale_id == Sale.id)
-        .options(joinedload(Sale.cashier), joinedload(Sale.customer))
+        .options(joinedload(Sale.cashier), joinedload(Sale.customer), joinedload(Sale.currency))
     )
     q = q.filter(Sale.company_id == current_user.company_id)
 
@@ -282,6 +285,7 @@ def list_sales(
             customer_name=s.customer.name if s.customer else None,
             items_count=cnt,
             created_at=s.created_at,
+            currency_code=s.currency.code if getattr(s, 'currency', None) else "UZS",
         )
         for s, cnt in rows
     ]

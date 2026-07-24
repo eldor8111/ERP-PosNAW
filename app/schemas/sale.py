@@ -154,6 +154,7 @@ class SaleListOut(BaseModel):
     items_count: int
     created_at: datetime
     debt_due_date: Optional[date] = None
+    currency_code: Optional[str] = "UZS"
 
     model_config = {"from_attributes": True}
 
