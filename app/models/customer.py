@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, Integer, String, Numeric, ForeignKey, UniqueConstraint, JSON, DateTime  # type: ignore
+from sqlalchemy import Column, Integer, BigInteger, String, Numeric, ForeignKey, UniqueConstraint, JSON, DateTime  # type: ignore
 from sqlalchemy.orm import relationship
 
 from app.database import Base  # type: ignore
@@ -16,7 +16,7 @@ class Customer(Base):
     debt_currency = Column(String(3), nullable=False, server_default="UZS", default='UZS')
     debt_balances = Column(JSON, nullable=False, server_default='{}')
     debt_limit = Column(Numeric(14, 2), default=0)
-    loyalty_points = Column(Integer, default=0)
+    loyalty_points = Column(BigInteger, default=0)
     tg_chat_id = Column(String(50), index=True, nullable=True)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))

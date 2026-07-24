@@ -168,11 +168,12 @@ def create_sale(
             ("paid_humo", "humo"), ("paid_click", "click"), ("paid_payme", "payme"),
             ("paid_uzum", "uzum"), ("paid_cashback", "cashback"),
         ]
+        sale_curr = currency.code if currency else "UZS"
         for _field, _ptype in _field_type_map:
             _val = getattr(data, _field, Decimal("0")) or Decimal("0")
             if _val > 0:
                 from app.schemas.sale import PaymentItem as _PI
-                _auto_payments.append(_PI(type=PaymentType(_ptype), amount=_val))
+                _auto_payments.append(_PI(type=PaymentType(_ptype), amount=_val, currency=sale_curr))
         if _auto_payments:
             data.payments = _auto_payments
 
@@ -325,12 +326,19 @@ def create_sale(
                         description=f"Sotuv to'lovi #{sale.number} ({p.type.value})" + (f" ({p.amount} {p.currency})" if getattr(p, "currency", "UZS") != "UZS" else ""),
                     ))
                 if _cashier_wallet_id and p.type.value not in ("debt", "cashback"):
+                    p_currency = getattr(p, "currency", "UZS")
+                    if p_currency == "UZS" and currency and currency.code != "UZS" and p.amount == data.paid_amount:
+                        # Fallback if frontend forgot to set payment currency but meant sale currency
+                        p_currency = currency.code
+                    
+                    if p_currency is None: p_currency = "UZS"
                     db.add(KassaMovement(
                         wallet_id=_cashier_wallet_id, company_id=current_user.company_id,
                         session_id=_open_session_id,
-                        direction="in", payment_type=p.type.value, amount=p_amount_uzs,
+                        direction="in", payment_type=p.type.value, amount=p.amount,
+                        currency=p_currency,
                         reference_type="sale", reference_id=sale.id,
-                        description=f"Sotuv #{sale.number}" + (f" ({p.amount} {p.currency})" if getattr(p, "currency", "UZS") != "UZS" else ""), 
+                        description=f"Sotuv #{sale.number}" + (f" ({p.amount} {p_currency})" if p_currency != "UZS" else ""), 
                         created_by=current_user.id,
                     ))
     elif data.paid_amount > 0:
@@ -351,6 +359,7 @@ def create_sale(
                             wallet_id=_cashier_wallet_id, company_id=current_user.company_id,
                             session_id=_open_session_id,
                             direction="in", payment_type=_pt, amount=_amt,
+                            currency=currency.code if currency else "UZS",
                             reference_type="sale", reference_id=sale.id,
                             description=f"Sotuv #{sale.number}", created_by=current_user.id,
                         ))
@@ -369,6 +378,7 @@ def create_sale(
                     wallet_id=_cashier_wallet_id, company_id=current_user.company_id,
                     session_id=_open_session_id,
                     direction="in", payment_type=data.payment_type.value, amount=data.paid_amount,
+                    currency=currency.code if currency else "UZS",
                     reference_type="sale", reference_id=sale.id,
                     description=f"Sotuv #{sale.number}", created_by=current_user.id,
                 ))
