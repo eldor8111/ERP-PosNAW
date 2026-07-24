@@ -140,8 +140,22 @@ def create_return_sale(
                 Wallet.id == data.wallet_id,
                 Wallet.company_id == current_user.company_id
             ).first()
-            if wallet:
-                wallet.balance = Decimal(str(wallet.balance or 0)) - Decimal(str(data.paid_amount))
+        if not wallet:
+            wallet = db.query(Wallet).filter(
+                Wallet.company_id == current_user.company_id,
+                Wallet.is_open == True,
+                Wallet.is_active == True,
+            ).order_by(Wallet.id.asc()).first()
+
+        if wallet:
+            wallet.balance = Decimal(str(wallet.balance or 0)) - Decimal(str(data.paid_amount))
+
+        open_session_id = None
+        if wallet:
+            from app.models.moliya import KassaSession as _KS
+            _ks = db.query(_KS).filter(_KS.wallet_id == wallet.id, _KS.status == "open").first()
+            if _ks:
+                open_session_id = _ks.id
 
         if tx_branch_id:
             if data.payment_type == PaymentType.mixed:
@@ -149,7 +163,7 @@ def create_return_sale(
                     if _amt > 0:
                         db.add(Transaction(
                             branch_id=tx_branch_id, company_id=current_user.company_id,
-                            wallet_id=data.wallet_id,
+                            wallet_id=wallet.id if wallet else None,
                             type="expense", amount=_amt, reference_type="sale_refund",
                             reference_id=sale.id, payment_type=_pt,
                             description=f"Vazvrat to'lovi #{sale.number} (Aralash/{_pt})",
@@ -157,6 +171,7 @@ def create_return_sale(
                         if wallet and _pt not in ("debt", "cashback"):
                             db.add(KassaMovement(
                                 wallet_id=wallet.id, company_id=current_user.company_id,
+                                session_id=open_session_id,
                                 direction="out", payment_type=_pt, amount=_amt,
                                 reference_type="sale_refund", reference_id=sale.id,
                                 description=f"Vazvrat #{sale.number} (Aralash/{_pt})",
@@ -165,7 +180,7 @@ def create_return_sale(
             else:
                 db.add(Transaction(
                     branch_id=tx_branch_id, company_id=current_user.company_id,
-                    wallet_id=data.wallet_id,
+                    wallet_id=wallet.id if wallet else None,
                     type="expense", amount=data.paid_amount, payment_type=data.payment_type.value,
                     reference_type="sale_refund", reference_id=sale.id,
                     description=f"Vazvrat to'lovi #{sale.number}",
@@ -173,6 +188,7 @@ def create_return_sale(
                 if wallet and data.payment_type.value not in ("debt", "cashback"):
                     db.add(KassaMovement(
                         wallet_id=wallet.id, company_id=current_user.company_id,
+                        session_id=open_session_id,
                         direction="out", payment_type=data.payment_type.value, amount=data.paid_amount,
                         reference_type="sale_refund", reference_id=sale.id,
                         description=f"Vazvrat #{sale.number}",

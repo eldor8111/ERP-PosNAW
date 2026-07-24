@@ -286,6 +286,23 @@ def create_sale(
     except Exception:
         _cashier_wallet_id = None  # user_wallets jadvali yo'q — e'tibor bermaslik
 
+    if not _cashier_wallet_id:
+        from app.models.moliya import Wallet as _W
+        _open_w = db.query(_W).filter(
+            _W.company_id == current_user.company_id,
+            _W.is_open == True,
+            _W.is_active == True,
+        ).order_by(_W.id.asc()).first()
+        if _open_w:
+            _cashier_wallet_id = _open_w.id
+
+    _open_session_id = None
+    if _cashier_wallet_id:
+        from app.models.moliya import KassaSession as _KS
+        _ks = db.query(_KS).filter(_KS.wallet_id == _cashier_wallet_id, _KS.status == "open").first()
+        if _ks:
+            _open_session_id = _ks.id
+
     if _cashier_wallet_id:
         try:
             sale.wallet_id = _cashier_wallet_id  # Agar model da mavjud bo'lsa
@@ -310,6 +327,7 @@ def create_sale(
                 if _cashier_wallet_id and p.type.value not in ("debt", "cashback"):
                     db.add(KassaMovement(
                         wallet_id=_cashier_wallet_id, company_id=current_user.company_id,
+                        session_id=_open_session_id,
                         direction="in", payment_type=p.type.value, amount=p_amount_uzs,
                         reference_type="sale", reference_id=sale.id,
                         description=f"Sotuv #{sale.number}" + (f" ({p.amount} {p.currency})" if getattr(p, "currency", "UZS") != "UZS" else ""), 
@@ -323,6 +341,7 @@ def create_sale(
                     if tx_branch_id:
                         db.add(Transaction(
                             branch_id=tx_branch_id, company_id=current_user.company_id,
+                            wallet_id=_cashier_wallet_id,
                             type="income", amount=_amt, payment_type=_pt,
                             reference_type="sale", reference_id=sale.id,
                             description=f"Sotuv to'lovi #{sale.number} (Aralash/{_pt})",
@@ -330,6 +349,7 @@ def create_sale(
                     if _cashier_wallet_id:
                         db.add(KassaMovement(
                             wallet_id=_cashier_wallet_id, company_id=current_user.company_id,
+                            session_id=_open_session_id,
                             direction="in", payment_type=_pt, amount=_amt,
                             reference_type="sale", reference_id=sale.id,
                             description=f"Sotuv #{sale.number}", created_by=current_user.id,
@@ -339,6 +359,7 @@ def create_sale(
             if tx_branch_id:
                 db.add(Transaction(
                     branch_id=tx_branch_id, company_id=current_user.company_id,
+                    wallet_id=_cashier_wallet_id,
                     type="income", amount=data.paid_amount, payment_type=data.payment_type.value,
                     reference_type="sale", reference_id=sale.id,
                     description=f"Sotuv to'lovi #{sale.number}",
@@ -346,6 +367,7 @@ def create_sale(
             if _cashier_wallet_id and data.payment_type.value not in ("debt", "cashback"):
                 db.add(KassaMovement(
                     wallet_id=_cashier_wallet_id, company_id=current_user.company_id,
+                    session_id=_open_session_id,
                     direction="in", payment_type=data.payment_type.value, amount=data.paid_amount,
                     reference_type="sale", reference_id=sale.id,
                     description=f"Sotuv #{sale.number}", created_by=current_user.id,

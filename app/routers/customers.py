@@ -689,6 +689,7 @@ def get_customer_history(customer_id: int, db: Session = Depends(get_db),
         paid = float(s.paid_amount or 0)
         debt_added = max(0.0, total - paid)
         history.append({
+            "id": s.id,
             "op_type": "sale",                       # sotuv
             "date": s.created_at.isoformat(),
             "amount": total,
@@ -705,6 +706,7 @@ def get_customer_history(customer_id: int, db: Session = Depends(get_db),
 
     for p in payments:
         history.append({
+            "id": p.id,
             "op_type": "payment",                    # qarz to'lovi
             "date": p.created_at.isoformat(),
             "amount": float(p.amount or 0),
@@ -720,6 +722,7 @@ def get_customer_history(customer_id: int, db: Session = Depends(get_db),
 
     for e in debt_edits:
         history.append({
+            "id": e.id,
             "op_type": "debt_edit",                  # qarz tahriri
             "date": e.created_at.isoformat(),
             "amount": float(e.amount or 0),
@@ -852,33 +855,45 @@ def pay_debt(customer_id: int, data: DebtUpdate, db: Session = Depends(get_db),
     amount_in_uzs = data.amount * exchange_rate
     cust.debt_balance = max(Decimal("0"), (cust.debt_balance or Decimal("0")) - amount_in_uzs)
 
-    if data.wallet_id:
-        wallet = db.get(Wallet, data.wallet_id)
+    target_wallet_id = data.wallet_id
+    if not target_wallet_id:
+        open_w = db.query(Wallet).filter(
+            Wallet.company_id == current_user.company_id,
+            Wallet.is_open == True,
+            Wallet.is_active == True,
+        ).order_by(Wallet.id.asc()).first()
+        if open_w:
+            target_wallet_id = open_w.id
+
+    if target_wallet_id:
+        from app.models.moliya import KassaSession as _KS
+        wallet = db.get(Wallet, target_wallet_id)
         if wallet:
-            # Credit wallet with the raw amount in the payment currency
-            wallet.balance = float(wallet.balance) + float(data.amount)
+            wallet.balance = float(wallet.balance or 0) + float(data.amount)
+        open_session = db.query(_KS).filter(_KS.wallet_id == target_wallet_id, _KS.status == "open").first()
         tx = Transaction(
             company_id=current_user.company_id,
             branch_id=current_user.branch_id or 0,
-            wallet_id=data.wallet_id,
+            wallet_id=target_wallet_id,
             type="income",
             amount=data.amount,
-            payment_type=data.payment_type,
+            payment_type=data.payment_type or "cash",
             reference_type="customer_payment",
             reference_id=customer_id,
-            description=data.reason,
+            description=data.reason or f"Mijoz to'lovi: {cust.name}",
         )
         db.add(tx)
         # KassaMovement — mijoz to'lovi
         db.add(KassaMovement(
-            wallet_id=data.wallet_id,
+            wallet_id=target_wallet_id,
             company_id=current_user.company_id,
+            session_id=open_session.id if open_session else None,
             direction="in",
             payment_type=data.payment_type or "cash",
             amount=data.amount,
             reference_type="customer_payment",
             reference_id=customer_id,
-            description=f"Mijoz to'lovi: {cust.name} — {data.reason}",
+            description=f"Mijoz to'lovi: {cust.name}" + (f" — {data.reason}" if data.reason else ""),
             created_by=current_user.id,
         ))
 

@@ -57,21 +57,59 @@ class ExpenseCreate(BaseModel):
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
+def _get_user_wallet(wallet_id: int, db: Session, current_user):
+    q = db.query(Wallet).filter(Wallet.id == wallet_id)
+    role_val = getattr(current_user.role, "value", str(current_user.role))
+    if role_val != "super_admin" and current_user.company_id:
+        q = q.filter(Wallet.company_id == current_user.company_id)
+    return q.first()
+
 def get_kassa_balances(wallet_id: int, db: Session) -> dict:
     """Har bir payment_type uchun balans hisoblash."""
+    w = db.query(Wallet).filter(Wallet.id == wallet_id).first()
+    if not w or not w.is_open:
+        result = {ptype: 0.0 for ptype in PAYMENT_TYPES}
+        result["total"] = 0.0
+        return result
+
+    open_session = db.query(KassaSession).filter(
+        KassaSession.wallet_id == wallet_id,
+        KassaSession.status == "open"
+    ).order_by(KassaSession.opened_at.desc()).first()
+
+    start_time = open_session.opened_at if open_session else w.opened_at
+
     result = {}
     for ptype in PAYMENT_TYPES:
-        income = db.query(func.sum(KassaMovement.amount)).filter(
+        q_in = db.query(func.sum(KassaMovement.amount)).filter(
             KassaMovement.wallet_id == wallet_id,
             KassaMovement.payment_type == ptype,
             KassaMovement.direction == "in"
-        ).scalar() or 0
-
-        expense = db.query(func.sum(KassaMovement.amount)).filter(
+        )
+        q_out = db.query(func.sum(KassaMovement.amount)).filter(
             KassaMovement.wallet_id == wallet_id,
             KassaMovement.payment_type == ptype,
             KassaMovement.direction == "out"
-        ).scalar() or 0
+        )
+
+        if open_session:
+            q_in = q_in.filter(
+                (KassaMovement.session_id == open_session.id) |
+                (KassaMovement.created_at >= open_session.opened_at)
+            )
+            q_out = q_out.filter(
+                (KassaMovement.session_id == open_session.id) |
+                (KassaMovement.created_at >= open_session.opened_at)
+            )
+        elif start_time:
+            q_in = q_in.filter(KassaMovement.created_at >= start_time)
+            q_out = q_out.filter(KassaMovement.created_at >= start_time)
+        else:
+            q_in = q_in.filter(KassaMovement.id == -1)
+            q_out = q_out.filter(KassaMovement.id == -1)
+
+        income = q_in.scalar() or 0
+        expense = q_out.scalar() or 0
 
         result[ptype] = float(income) - float(expense)
     result["total"] = sum(result.values())
@@ -268,10 +306,7 @@ def create_wallet(data: WalletCreate, db: Session = Depends(get_db), current_use
 
 @router.get("/{wallet_id}")
 def get_wallet(wallet_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    w = db.query(Wallet).filter(
-        Wallet.id == wallet_id,
-        Wallet.company_id == current_user.company_id
-    ).first()
+    w = _get_user_wallet(wallet_id, db, current_user)
     if not w:
         raise HTTPException(404, "Kassa topilmadi")
     return wallet_out(w, db, current_user)
@@ -279,7 +314,7 @@ def get_wallet(wallet_id: int, db: Session = Depends(get_db), current_user=Depen
 
 @router.patch("/{wallet_id}")
 def update_wallet(wallet_id: int, data: WalletUpdate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    w = db.query(Wallet).filter(Wallet.id == wallet_id, Wallet.company_id == current_user.company_id).first()
+    w = _get_user_wallet(wallet_id, db, current_user)
     if not w:
         raise HTTPException(404, "Kassa topilmadi")
     if data.name is not None:
@@ -292,7 +327,7 @@ def update_wallet(wallet_id: int, data: WalletUpdate, db: Session = Depends(get_
 
 @router.delete("/{wallet_id}")
 def delete_wallet(wallet_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    w = db.query(Wallet).filter(Wallet.id == wallet_id, Wallet.company_id == current_user.company_id).first()
+    w = _get_user_wallet(wallet_id, db, current_user)
     if not w:
         raise HTTPException(404, "Kassa topilmadi")
     w.is_active = False
@@ -304,7 +339,7 @@ def delete_wallet(wallet_id: int, db: Session = Depends(get_db), current_user=De
 
 @router.post("/{wallet_id}/open")
 def open_kassa(wallet_id: int, data: OpenKassaIn, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    w = db.query(Wallet).filter(Wallet.id == wallet_id, Wallet.company_id == current_user.company_id).first()
+    w = _get_user_wallet(wallet_id, db, current_user)
     if not w:
         raise HTTPException(404, "Kassa topilmadi")
     if w.is_open:
@@ -315,12 +350,23 @@ def open_kassa(wallet_id: int, data: OpenKassaIn, db: Session = Depends(get_db),
     w.opened_at = now
     w.opened_by = current_user.id
     w.closed_at = None
+    w.opening_balance = data.opening_balance
+
+    # Ensure any stray open sessions are closed before creating a new one
+    old_sessions = db.query(KassaSession).filter(
+        KassaSession.wallet_id == w.id,
+        KassaSession.status == "open"
+    ).all()
+    for s in old_sessions:
+        s.status = "closed"
+        s.closed_at = now
 
     session = KassaSession(
         wallet_id=w.id,
-        company_id=current_user.company_id,
+        company_id=w.company_id,
         opened_by=current_user.id,
         opening_balance=data.opening_balance,
+        opened_at=now,
         note=data.note,
         status="open",
     )
@@ -330,7 +376,7 @@ def open_kassa(wallet_id: int, data: OpenKassaIn, db: Session = Depends(get_db),
     if data.opening_balance > 0:
         mv = KassaMovement(
             wallet_id=w.id,
-            company_id=current_user.company_id,
+            company_id=w.company_id,
             session_id=session.id,
             direction="in",
             payment_type="cash",
@@ -338,6 +384,7 @@ def open_kassa(wallet_id: int, data: OpenKassaIn, db: Session = Depends(get_db),
             reference_type="opening",
             description=f"Kassa ochilishi — boshlang'ich balans",
             created_by=current_user.id,
+            created_at=now,
         )
         db.add(mv)
 
@@ -347,7 +394,7 @@ def open_kassa(wallet_id: int, data: OpenKassaIn, db: Session = Depends(get_db),
 
 @router.post("/{wallet_id}/close")
 def close_kassa(wallet_id: int, data: CloseKassaIn, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    w = db.query(Wallet).filter(Wallet.id == wallet_id, Wallet.company_id == current_user.company_id).first()
+    w = _get_user_wallet(wallet_id, db, current_user)
     if not w:
         raise HTTPException(404, "Kassa topilmadi")
     if not w.is_open:
@@ -356,12 +403,13 @@ def close_kassa(wallet_id: int, data: CloseKassaIn, db: Session = Depends(get_db
     balances = get_kassa_balances(wallet_id, db)
     now = datetime.now(timezone.utc)
 
-    session = db.query(KassaSession).filter(
+    open_sessions = db.query(KassaSession).filter(
         KassaSession.wallet_id == wallet_id,
         KassaSession.status == "open"
-    ).first()
+    ).all()
 
-    if session:
+    last_session_id = None
+    for session in open_sessions:
         session.closed_at = now
         session.closed_by = current_user.id
         session.status = "closed"

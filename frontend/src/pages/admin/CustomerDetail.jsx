@@ -116,8 +116,8 @@ export default function CustomerDetail() {
       .then(r => setSalesData(r.data))
       .catch(() => setSalesData([]))
     api.get('/currencies', { _suppressToast: true }).then(r => setCurrencies(r.data)).catch(() => { })
-    api.get('/inventory/warehouses', { _suppressToast: true }).then(r => setWarehouses(r.data)).catch(() => {})
-    api.get('/finance/wallets', { _suppressToast: true }).then(r => setWallets(r.data)).catch(() => {})
+    api.get('/inventory/warehouses', { _suppressToast: true }).then(r => setWarehouses(r.data)).catch(() => { })
+    api.get('/finance/wallets', { _suppressToast: true }).then(r => setWallets(r.data)).catch(() => { })
   }, [customerId, navigate])
 
   const loadSales = useCallback(async () => {
@@ -753,6 +753,18 @@ function AktSverka({ stats, sales, loading, history }) {
   const [sortOrder, setSortOrder] = useState('asc')
   const [operationType, setOperationType] = useState('all')
   const [selectedCashier, setSelectedCashier] = useState('all')
+  const [openSaleDetailModal, setOpenSaleDetailModal] = useState(false)
+  const [saleDetailData, setSaleDetailData] = useState(null)
+
+  async function openSaleDetail(id) {
+    try {
+      const response = await api.get(`/sales/${id}`)
+      setSaleDetailData(response.data)
+      setOpenSaleDetailModal(true)
+    } catch (error) {
+      console.error(error)
+    }
+  }
 
   if (loading) return <LoadingSpinner />
 
@@ -768,6 +780,7 @@ function AktSverka({ stats, sales, loading, history }) {
   // ── Birlashtirilgan timeline yasash ──────────────────────────────────────────
   // (1) Sotuvlar
   const saleEvents = sales.map(s => ({
+    id: s.id,
     key: `sale-${s.id}`,
     date: s.created_at,
     label: 'Sotuv',
@@ -784,6 +797,7 @@ function AktSverka({ stats, sales, loading, history }) {
 
   // (2) Qarz to'lovlari (history ichidan payment turlar)
   const paymentEvents = (history || []).filter(h => h.op_type === 'payment' || h.type === 'payment').map(h => ({
+    id: h.id || null,
     key: `pay-${h.date}`,
     date: h.date,
     label: "Qarz to'lovi",
@@ -800,6 +814,7 @@ function AktSverka({ stats, sales, loading, history }) {
 
   // (3) Qarz tahrirlari
   const editEvents = (history || []).filter(h => h.op_type === 'debt_edit' || h.type === 'debt_edit').map(h => ({
+    id: h.id || null,
     key: `edit-${h.date}`,
     date: h.date,
     label: 'Qarz tahriri',
@@ -1004,7 +1019,7 @@ function AktSverka({ stats, sales, loading, history }) {
                 const debtDecrease = row.debtChange < 0 ? Math.abs(row.debtChange) : 0
 
                 return (
-                  <tr key={row.key} className={`text-center text-slate-700`}>
+                  <tr key={row.key} className={`text-center text-slate-700 hover:bg-slate-100 transition-all cursor-pointer`} onClick={() => openSaleDetail(row.id)}>
                     <td className='p-2 border border-slate-200'>{i + 1}</td>
                     <td className={`p-2 border border-slate-200 font-medium`}>
                       {row.label}
@@ -1045,6 +1060,101 @@ function AktSverka({ stats, sales, loading, history }) {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* modal */}
+
+      {openSaleDetailModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm z-50 p-4 transition-opacity">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+              <div>
+                <h3 className="text-xl font-bold text-slate-800">Sotuv tafsilotlari</h3>
+              </div>
+              <button
+                onClick={() => setOpenSaleDetailModal(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors duration-150 cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Scrollable Body */}
+            <div className="p-6 overflow-y-auto space-y-6">
+
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Umumiy Summa */}
+                <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-100">
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Umumiy summa</p>
+                  <p className="text-lg font-bold text-slate-900 mt-1">
+                    {fmt(saleDetailData?.total_amount)} <span className="text-xs text-slate-500 font-normal">{saleDetailData?.currency}</span>
+                  </p>
+                </div>
+
+                {/* To'langan */}
+                <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100/60">
+                  <p className="text-xs font-medium text-emerald-600 uppercase tracking-wider">To'langan</p>
+                  <p className="text-lg font-bold text-emerald-700 mt-1">
+                    {fmt(saleDetailData?.paid_amount)} <span className="text-xs text-emerald-600 font-normal">{saleDetailData?.currency}</span>
+                  </p>
+                </div>
+
+                {/* Qarzga qolgan */}
+                <div className={`p-4 rounded-xl border ${saleDetailData?.debt_amount > 0 ? 'bg-amber-50/50 border-amber-100/60' : 'bg-slate-50/80 border-slate-100'}`}>
+                  <p className={`text-xs font-medium uppercase tracking-wider ${saleDetailData?.debt_amount > 0 ? 'text-amber-600' : 'text-slate-500'}`}>
+                    Qarzga qolgan
+                  </p>
+                  <p className={`text-lg font-bold mt-1 ${saleDetailData?.debt_amount > 0 ? 'text-amber-700' : 'text-slate-700'}`}>
+                    {fmt(saleDetailData?.debt_amount)} <span className="text-xs font-normal opacity-75">{saleDetailData?.currency}</span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Mahsulotlar</h4>
+                <div className="border border-slate-100 rounded-xl overflow-hidden shadow-xs">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-slate-100">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Mahsulot</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Miqdor</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Narx</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Jami</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-slate-100 text-sm text-slate-700">
+                        {saleDetailData?.items?.map((item, index) => (
+                          <tr key={index} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="px-4 py-3 font-medium text-slate-900">{item.product_name}</td>
+                            <td className="px-4 py-3 text-right font-mono text-slate-600">{Number(item.quantity).toFixed(0)} {item.unit}</td>
+                            <td className="px-4 py-3 text-right font-mono text-slate-600">{fmt(item.unit_price)}</td>
+                            <td className="px-4 py-3 text-right font-semibold text-slate-900">{fmt(item.subtotal)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-3 border-t border-slate-100 flex justify-end bg-slate-50/50 shrink-0">
+              <button
+                onClick={() => setOpenSaleDetailModal(false)}
+                className="bg-slate-900 text-white hover:bg-slate-800 px-5 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 shadow-sm active:scale-98 cursor-pointer"
+              >
+                Yopish
+              </button>
+            </div>
+
+          </div>
         </div>
       )}
     </div>
@@ -1243,7 +1353,7 @@ function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSucce
   useEffect(() => {
     api.get('/products/', { params: { limit: 5000 } })
       .then(r => setProducts(Array.isArray(r.data) ? r.data : (r.data.items || [])))
-      .catch(() => {})
+      .catch(() => { })
   }, [])
 
   const filtered = prodSearch.length >= 1
