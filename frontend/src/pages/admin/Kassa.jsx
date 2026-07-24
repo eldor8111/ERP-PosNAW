@@ -45,7 +45,7 @@ function Modal({ title, onClose, children, wide }) {
   );
 }
 
-function KassaCard({ kassa, onRefresh, currencies }) {
+function KassaCard({ kassa, onRefresh }) {
   const [modal, setModal] = useState(null);
   const [history, setHistory] = useState(null);
   const [categories, setCategories] = useState([]);
@@ -159,8 +159,17 @@ function KassaCard({ kassa, onRefresh, currencies }) {
           return (
             <div key={k}>
               <div className="text-[11px] font-semibold uppercase tracking-wide text-green-700 mb-1">{cfg.label}</div>
-              <div className={`text-[15px] font-semibold tabular-nums ${val < 0 ? 'text-rose-600' : val > 0 ? 'text-slate-900' : 'text-slate-400'}`}>
-                {fmt(val)}
+              <div className={`text-[15px] font-semibold tabular-nums ${val < 0 ? 'text-rose-600' : 'text-slate-900'}`}>
+                {/* {fmt(val)} */}
+                {val && val.length > 0 ? (
+                  val.map((item) => (
+                    <span key={item.currency} className='flex flex-col'>
+                      {fmt(item.value)} {item.currency}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-slate-400">0</span>
+                )}
               </div>
             </div>
           );
@@ -439,11 +448,9 @@ export default function Kassa() {
   const [showNew, setShowNew] = useState(false);
   const [newForm, setNewForm] = useState({ name: '', type: 'cash', opening_balance: '' });
   const [saving, setSaving] = useState(false);
-  const [currencies, setCurrencies] = useState([]);
 
   const load = async () => {
     await api.get('/kassa').then(r => setKassalar(r.data)).catch(() => { });
-    await api.get('/currencies').then(r => setCurrencies(r.data)).catch(() => { });
   };
 
   useEffect(() => { load(); }, []);
@@ -508,7 +515,7 @@ export default function Kassa() {
 
       {tab === 'kassalar' && (
         <div className="grid grid-cols-1 gap-5">
-          {kassalar.map(k => <KassaCard key={k.id} currencies={currencies} kassa={k} onRefresh={load} />)}
+          {kassalar.map(k => <KassaCard key={k.id} kassa={k} onRefresh={load} />)}
           {kassalar.length === 0 && (
             <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-16 text-center">
               <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">💰</div>

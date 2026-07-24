@@ -889,14 +889,17 @@ export default function UlgurjiSotuv() {
     setSaving(true);
     try {
       const items = cart.map(it => {
-        const uPriceUZS = it.price * (it.rate || 1);
-        const discUZS = it.discount_type === 'pct' ? uPriceUZS * it.qty * (parseN(it.discount_val) / 100) : parseN(it.discount_val) * (it.rate || 1);
+        // unit_price ni original valyutada yuboramiz (masalan 0.5 USD)
+        // Backend currency va rate orqali UZS ga o'zi aylantiradi
+        const disc = it.discount_type === 'pct'
+          ? it.price * it.qty * (parseN(it.discount_val) / 100)
+          : parseN(it.discount_val);
         return {
-          product_id: it.product_id, quantity: it.qty, unit_price: uPriceUZS,
-          discount: discUZS,
+          product_id: it.product_id, quantity: it.qty, unit_price: it.price,
+          discount: disc,
           warehouse_id: it.warehouse_id || undefined,
-          currency: it.currency,
-          rate: it.rate,
+          currency: it.currency || 'UZS',
+          rate: it.rate || 1,
         };
       });
       // To'lovlarni ham valyutasi bilan yuboramiz
@@ -969,7 +972,8 @@ export default function UlgurjiSotuv() {
         debt_due_date: overridePayType === 'debt' && debtDate ? debtDate : undefined,
         payments: paymentsList.length > 0 ? paymentsList : undefined,
         currency_totals: Object.keys(actualDebts).length > 0 ? actualDebts : undefined,
-        currency_id: currencyId
+        currency_id: currencyId,
+        currency_code: primaryCurrencyCode || 'UZS',
       };
 
       let res;
@@ -1111,14 +1115,15 @@ export default function UlgurjiSotuv() {
     setPendingSaving(true);
     try {
       const items = cart.map(it => {
-        const uPriceUZS = it.price * (it.rate || 1);
-        const discUZS = it.discount_type === 'pct' ? uPriceUZS * it.qty * (parseN(it.discount_val) / 100) : parseN(it.discount_val) * (it.rate || 1);
+        const disc = it.discount_type === 'pct'
+          ? it.price * it.qty * (parseN(it.discount_val) / 100)
+          : parseN(it.discount_val);
         return {
-          product_id: it.product_id, quantity: it.qty, unit_price: uPriceUZS,
-          discount: discUZS,
+          product_id: it.product_id, quantity: it.qty, unit_price: it.price,
+          discount: disc,
           warehouse_id: it.warehouse_id || undefined,
-          currency: it.currency,
-          rate: it.rate,
+          currency: it.currency || 'UZS',
+          rate: it.rate || 1,
         };
       });
       const payload = {

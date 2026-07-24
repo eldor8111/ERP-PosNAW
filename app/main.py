@@ -165,6 +165,7 @@ def _run_auto_migrations(engine):
             updated_at TIMESTAMP DEFAULT NOW()
         );""",
         "CREATE INDEX IF NOT EXISTS ix_company_bots_company_id ON company_bots(company_id);",
+        "ALTER TABLE products ADD COLUMN IF NOT EXISTS expiry_date DATE;",
     ]
     _sa_text = __import__('sqlalchemy').text
     for sql in migrations:
