@@ -118,6 +118,7 @@ class KassaMovement(Base):
     direction = Column(String(10), nullable=False)   # 'in' | 'out'
     payment_type = Column(String(30), nullable=False, default="cash")  # cash|card|uzcard|humo|click|payme|uzum|keshbek
     amount = Column(Numeric(14, 2), nullable=False)
+    currency = Column(String(3), nullable=False, default="UZS")
     reference_type = Column(String(50), nullable=True)   # sale|supplier_payment|expense|invest|withdraw|customer_payment
     reference_id = Column(Integer, nullable=True)
     description = Column(Text, nullable=True)

@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
 from typing import Dict, List, Optional
 
@@ -71,6 +71,7 @@ class ProductCreate(BaseModel):
     cost_currency: str = "UZS"
     wholesale_currency: str = "UZS"
     sale_currency: str = "UZS"
+    expiry_date: Optional[date] = None
     # Virtual Products
     product_type: str = "stock"  # 'stock' yoki 'sell'
     conversion: Optional[ProductConversionIn] = None  # faqat product_type='sell' uchun
@@ -113,6 +114,7 @@ class ProductUpdate(BaseModel):
     cost_currency: Optional[str] = None
     wholesale_currency: Optional[str] = None
     sale_currency: Optional[str] = None
+    expiry_date: Optional[date] = None
     # Virtual Products
     product_type: Optional[str] = None  # 'stock' yoki 'sell'
     conversion: Optional[ProductConversionIn] = None
@@ -159,6 +161,7 @@ class ProductOut(BaseModel):
     cost_currency: str = "UZS"
     wholesale_currency: str = "UZS"
     sale_currency: str = "UZS"
+    expiry_date: Optional[date] = None
 
     model_config = {"from_attributes": True}
 

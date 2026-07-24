@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, Index, text, \
     SmallInteger, JSON
 from sqlalchemy.orm import relationship
+from sqlalchemy import Date
 
 from app.database import Base
 from app.models.mxik import VatRateType
@@ -49,6 +50,8 @@ class Product(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
+    expiry_date = Column(Date, nullable=True)
+
     category = relationship("Category", back_populates="products")
     stock_level = relationship("StockLevel", back_populates="product", uselist=False)
     stock_movements = relationship("StockMovement", back_populates="product")

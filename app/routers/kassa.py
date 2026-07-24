@@ -19,6 +19,7 @@ router = APIRouter(prefix="/kassa", tags=["Kassa"])
 class WalletCreate(BaseModel):
     name: str
     type: str = "cash"
+    currency: str = "UZS"
     branch_id: Optional[int] = None
     opening_balance: float = 0
 
@@ -28,6 +29,7 @@ class WalletUpdate(BaseModel):
 
 class OpenKassaIn(BaseModel):
     opening_balance: float = 0
+    currency: str = "UZS"
     note: Optional[str] = None
 
 class CloseKassaIn(BaseModel):
@@ -37,11 +39,13 @@ class CloseKassaIn(BaseModel):
 class InvestIn(BaseModel):
     amount: float
     payment_type: str = "cash"
+    currency: str = "UZS"
     description: Optional[str] = None
 
 class WithdrawIn(BaseModel):
     amount: float
     payment_type: str = "cash"
+    currency: str = "UZS"
     description: Optional[str] = None
 
 class ExpenseCategoryCreate(BaseModel):
@@ -53,28 +57,49 @@ class ExpenseCreate(BaseModel):
     category_id: int
     amount: float
     payment_type: str = "cash"
+    currency: str = "UZS"
     description: Optional[str] = None
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 def get_kassa_balances(wallet_id: int, db: Session) -> dict:
-    """Har bir payment_type uchun balans hisoblash."""
+    """Har bir payment_type uchun valyutalar bo'yicha balans hisoblash."""
     result = {}
     for ptype in PAYMENT_TYPES:
-        income = db.query(func.sum(KassaMovement.amount)).filter(
+        # Har bir payment_type uchun barcha valyutalarni olish
+        movements = db.query(KassaMovement.currency, func.sum(KassaMovement.amount)).filter(
             KassaMovement.wallet_id == wallet_id,
-            KassaMovement.payment_type == ptype,
-            KassaMovement.direction == "in"
-        ).scalar() or 0
-
-        expense = db.query(func.sum(KassaMovement.amount)).filter(
-            KassaMovement.wallet_id == wallet_id,
-            KassaMovement.payment_type == ptype,
-            KassaMovement.direction == "out"
-        ).scalar() or 0
-
-        result[ptype] = float(income) - float(expense)
-    result["total"] = sum(result.values())
+            KassaMovement.payment_type == ptype
+        ).group_by(KassaMovement.currency).all()
+        
+        currency_balances = []
+        for currency, total in movements:
+            income = db.query(func.sum(KassaMovement.amount)).filter(
+                KassaMovement.wallet_id == wallet_id,
+                KassaMovement.payment_type == ptype,
+                KassaMovement.direction == "in",
+                KassaMovement.currency == currency
+            ).scalar() or 0
+            
+            expense = db.query(func.sum(KassaMovement.amount)).filter(
+                KassaMovement.wallet_id == wallet_id,
+                KassaMovement.payment_type == ptype,
+                KassaMovement.direction == "out",
+                KassaMovement.currency == currency
+            ).scalar() or 0
+            
+            balance = float(income) - float(expense)
+            if balance != 0:
+                currency_balances.append({"currency": currency, "value": balance})
+        
+        result[ptype] = currency_balances
+    
+    # Total hisoblash (barcha valyutalar)
+    total = 0
+    for ptype in PAYMENT_TYPES:
+        for item in result[ptype]:
+            total += item["value"]
+    result["total"] = total
     return result
 
 
@@ -209,13 +234,14 @@ def create_expense(data: ExpenseCreate, db: Session = Depends(get_db), current_u
     cat = db.get(ExpenseCategory, data.category_id)
     mv = KassaMovement(wallet_id=data.wallet_id, company_id=current_user.company_id,
         session_id=session.id if session else None, direction="out",
-        payment_type=data.payment_type, amount=data.amount, reference_type="expense",
+        payment_type=data.payment_type, amount=data.amount, currency=data.currency,
+        reference_type="expense",
         reference_id=exp.id, description=data.description or (cat.name if cat else "Xarajat"),
         created_by=current_user.id)
     db.add(mv)
     tx = Transaction(company_id=current_user.company_id, branch_id=branch_id,
         wallet_id=data.wallet_id, type="expense", amount=data.amount,
-        payment_type=data.payment_type, reference_type="expense",
+        payment_type=data.payment_type, currency=data.currency, reference_type="expense",
         reference_id=exp.id, description=data.description or (cat.name if cat else "Xarajat"))
     db.add(tx)
     w.balance = float(w.balance or 0) - data.amount
@@ -257,6 +283,7 @@ def create_wallet(data: WalletCreate, db: Session = Depends(get_db), current_use
             direction="in",
             payment_type="cash",
             amount=data.opening_balance,
+            currency=data.currency,
             reference_type="opening",
             description="Boshlang'ich balans",
             created_by=current_user.id,
@@ -335,6 +362,7 @@ def open_kassa(wallet_id: int, data: OpenKassaIn, db: Session = Depends(get_db),
             direction="in",
             payment_type="cash",
             amount=data.opening_balance,
+            currency=data.currency,
             reference_type="opening",
             description=f"Kassa ochilishi — boshlang'ich balans",
             created_by=current_user.id,
@@ -404,6 +432,7 @@ def invest(wallet_id: int, data: InvestIn, db: Session = Depends(get_db), curren
         direction="in",
         payment_type=data.payment_type,
         amount=data.amount,
+        currency=data.currency,
         reference_type="invest",
         description=data.description or "Investitsiya",
         created_by=current_user.id,
@@ -435,6 +464,7 @@ def withdraw(wallet_id: int, data: WithdrawIn, db: Session = Depends(get_db), cu
         direction="out",
         payment_type=data.payment_type,
         amount=data.amount,
+        currency=data.currency,
         reference_type="withdraw",
         description=data.description or "Chiqarish",
         created_by=current_user.id,
