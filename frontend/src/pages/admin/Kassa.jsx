@@ -34,7 +34,7 @@ const btn = (color = 'indigo') => `px-4 py-2 text-sm font-semibold rounded-xl te
 function Modal({ title, onClose, children, wide }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div className={`bg-white rounded-2xl shadow-2xl w-full ${wide ? 'max-w-3xl' : 'max-w-md'} max-h-[90vh] flex flex-col`} onClick={e => e.stopPropagation()}>
+      <div className={`bg-white rounded-2xl shadow-2xl w-full ${wide ? 'max-w-6xl' : 'max-w-md'} max-h-[90vh] flex flex-col`} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <h3 className="text-lg font-bold text-slate-800">{title}</h3>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">✕</button>
@@ -45,11 +45,19 @@ function Modal({ title, onClose, children, wide }) {
   );
 }
 
-function KassaCard({ kassa, onRefresh }) {
+function KassaCard({ kassa, onRefresh, currencies }) {
   const [modal, setModal] = useState(null);
   const [history, setHistory] = useState(null);
   const [categories, setCategories] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [directionFilter, setDirectionFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState();
+
+  const filteredHistory = (history?.items && Array.isArray(history.items) ? history.items : []).filter(it => {
+    if (directionFilter !== 'all' && it.direction !== directionFilter) return false;
+    if (dateFilter && it.created_at.substring(0, 10) < dateFilter) return false;
+    return true;
+  });
 
   // Form states
   const [form, setForm] = useState({
@@ -313,9 +321,18 @@ function KassaCard({ kassa, onRefresh }) {
       )}
 
       {/* History modal */}
-      {modal === 'history' && history && (
+      {modal === 'history' && filteredHistory && (
         <Modal title="Kassa tarixi" onClose={() => setModal(null)} wide>
           <div className="space-y-4">
+            <div className="flex gap-3 max-w-100">
+              <select className={field} value={directionFilter} onChange={(e) => setDirectionFilter(e.target.value)}>
+                <option value="all">Barchasi</option>
+                <option value="in">Kirim</option>
+                <option value="out">Chiqim</option>
+              </select>
+
+              <input type="date" className={field} value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
+            </div>
             <div className="grid grid-cols-3 divide-x divide-slate-200 border border-slate-200 rounded-xl overflow-hidden">
               {[
                 { l: 'Jami kirim', v: history.summary.total_in, cls: 'text-emerald-600' },
@@ -338,20 +355,20 @@ function KassaCard({ kassa, onRefresh }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {history.items.map(m => {
+                  {filteredHistory.map(m => {
                     const dirCls = m.direction === 'in' ? 'text-emerald-600' : 'text-rose-600';
                     return (
                       <tr key={m.id} className="hover:bg-slate-50 transition-colors">
                         <td className={`px-3 py-2.5 font-medium ${dirCls}`}>{m.direction === 'in' ? '↓ Kirim' : '↑ Chiqim'}</td>
-                        <td className="px-3 py-2.5 text-slate-700">{PT_LABELS[m.payment_type] || m.payment_type}</td>
+                        <td className="px-3 py-2.5 text-slate-700">{m.payment_type}</td>
                         <td className={`px-3 py-2.5 font-semibold tabular-nums ${dirCls}`}>{fmt(m.amount)}</td>
                         <td className="px-3 py-2.5 text-slate-400 text-xs">{REF_LABELS[m.reference_type] || m.reference_type}</td>
-                        <td className="px-3 py-2.5 text-slate-500 max-w-[180px] truncate">{m.description || '—'}</td>
+                        <td className="px-3 py-2.5 text-slate-500 max-w-[240px] truncate">{m.description || '—'}</td>
                         <td className="px-3 py-2.5 text-slate-400 text-xs whitespace-nowrap">{fmtDate(m.created_at)}</td>
                       </tr>
                     );
                   })}
-                  {history.items.length === 0 && (
+                  {filteredHistory.length === 0 && (
                     <tr><td colSpan={6} className="px-3 py-8 text-center text-slate-400">Ma'lumot topilmadi</td></tr>
                   )}
                 </tbody>
@@ -422,12 +439,14 @@ export default function Kassa() {
   const [showNew, setShowNew] = useState(false);
   const [newForm, setNewForm] = useState({ name: '', type: 'cash', opening_balance: '' });
   const [saving, setSaving] = useState(false);
+  const [currencies, setCurrencies] = useState([]);
 
-  const load = useCallback(() => {
-    api.get('/kassa').then(r => setKassalar(r.data)).catch(() => { });
-  }, []);
+  const load = async () => {
+    await api.get('/kassa').then(r => setKassalar(r.data)).catch(() => { });
+    await api.get('/currencies').then(r => setCurrencies(r.data)).catch(() => { });
+  };
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, []);
 
   const createKassa = async (e) => {
     e.preventDefault(); setSaving(true);
@@ -489,7 +508,7 @@ export default function Kassa() {
 
       {tab === 'kassalar' && (
         <div className="grid grid-cols-1 gap-5">
-          {kassalar.map(k => <KassaCard key={k.id} kassa={k} onRefresh={load} />)}
+          {kassalar.map(k => <KassaCard key={k.id} currencies={currencies} kassa={k} onRefresh={load} />)}
           {kassalar.length === 0 && (
             <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-16 text-center">
               <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">💰</div>

@@ -724,29 +724,55 @@ def record_customer_debt_payment(
     amount_in_uzs = pay * exchange_rate
     customer.debt_balance = max(Decimal("0"), (customer.debt_balance or Decimal("0")) - amount_in_uzs)
 
-    # Wallet and Transaction
-    if data.wallet_id:
-        wallet = db.get(Wallet, data.wallet_id)
+    # Wallet, Transaction, and KassaMovement
+    target_wallet_id = data.wallet_id
+    if not target_wallet_id:
+        open_w = db.query(Wallet).filter(
+            Wallet.company_id == user.company_id,
+            Wallet.is_open == True,
+            Wallet.is_active == True,
+        ).order_by(Wallet.id.asc()).first()
+        if open_w:
+            target_wallet_id = open_w.id
+
+    if target_wallet_id:
+        from app.models.moliya import KassaSession as _KS, KassaMovement as _KM
+        wallet = db.get(Wallet, target_wallet_id)
         if wallet:
-            wallet.balance = float(wallet.balance or 0) + float(pay)
+            wallet.balance = float(wallet.balance or 0) + float(amount_in_uzs)
+        open_session = db.query(_KS).filter(_KS.wallet_id == target_wallet_id, _KS.status == "open").first()
 
-    from app.models.branch import Branch as _Branch
-    tx_branch_id = user.branch_id
-    if not tx_branch_id and user.company_id:
-        br = db.query(_Branch).filter(_Branch.company_id == user.company_id).first()
-        tx_branch_id = br.id if br else None
+        from app.models.branch import Branch as _Branch
+        tx_branch_id = user.branch_id
+        if not tx_branch_id and user.company_id:
+            br = db.query(_Branch).filter(_Branch.company_id == user.company_id).first()
+            tx_branch_id = br.id if br else None
 
-    tx = Transaction(
-        branch_id=tx_branch_id or 0,
-        wallet_id=data.wallet_id,
-        type="income",
-        amount=pay,
-        company_id=user.company_id,
-        reference_type="customer_payment",
-        reference_id=customer_id,
-        description=data.description or f"Mijoz qarzi to'lovi: {customer.name} ({currency})",
-    )
-    db.add(tx)
+        tx = Transaction(
+            branch_id=tx_branch_id or 0,
+            wallet_id=target_wallet_id,
+            type="income",
+            amount=pay,
+            company_id=user.company_id,
+            reference_type="customer_payment",
+            reference_id=customer_id,
+            description=data.description or f"Mijoz qarzi to'lovi: {customer.name} ({currency})",
+        )
+        db.add(tx)
+
+        db.add(_KM(
+            wallet_id=target_wallet_id,
+            company_id=user.company_id,
+            session_id=open_session.id if open_session else None,
+            direction="in",
+            payment_type="cash",
+            amount=amount_in_uzs,
+            reference_type="customer_payment",
+            reference_id=customer_id,
+            description=data.description or f"Mijoz qarzi to'lovi: {customer.name} ({currency})",
+            created_by=user.id,
+        ))
+
     db.commit()
     return {
         "customer_id": customer_id,
