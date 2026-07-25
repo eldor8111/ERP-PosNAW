@@ -32,14 +32,17 @@ def _build_po_out(po: PurchaseOrder) -> POOut:
         created_by=po.created_by,
         creator_name=po.creator.name,
         created_at=po.created_at,
+        currency=getattr(po, 'currency', None) or 'UZS',
         items=[
             POItemOut(
                 id=item.id,
                 product_id=item.product_id,
-                product_name=item.product.name,
+                product_name=item.product.name if item.product else "",
                 qty_ordered=item.qty_ordered,
                 qty_received=item.qty_received,
                 unit_cost=item.unit_cost,
+                cost_currency=getattr(item, 'cost_currency', None) or 'UZS',
+                original_unit_cost=getattr(item, 'original_unit_cost', None) or item.unit_cost,
             )
             for item in po.items
         ],
@@ -63,7 +66,11 @@ def list_purchase_orders(
 ):
     q = (
         db.query(PurchaseOrder)
-        .options(joinedload(PurchaseOrder.supplier), joinedload(PurchaseOrder.warehouse))
+        .options(
+            joinedload(PurchaseOrder.supplier),
+            joinedload(PurchaseOrder.warehouse),
+            joinedload(PurchaseOrder.items),
+        )
         .order_by(PurchaseOrder.created_at.desc())
     )
     q = q.filter(PurchaseOrder.company_id == current_user.company_id)
@@ -79,22 +86,48 @@ def list_purchase_orders(
         q = q.filter(PurchaseOrder.created_at >= datetime.combine(date_from, datetime.min.time()))
     if date_to:
         q = q.filter(PurchaseOrder.created_at < datetime.combine(date_to + timedelta(days=1), datetime.min.time()))
-        
+
     pos = q.offset(skip).limit(limit).all()
-    return [
-        POListOut(
-            id=po.id,
-            number=po.number,
-            supplier_name=po.supplier.name,
-            warehouse_name=po.warehouse.name,
-            status=po.status,
-            total_amount=po.total_amount,
-            paid_amount=po.paid_amount,
-            discount_amount=po.discount_amount,
-            created_at=po.created_at,
+    res = []
+    for po in pos:
+        # Use stored currency first; fallback to checking items
+        c_code = getattr(po, 'currency', None) or 'UZS'
+        if c_code == 'UZS':
+            for item in po.items:
+                item_cur = getattr(item, 'cost_currency', None)
+                if item_cur and item_cur != 'UZS':
+                    c_code = item_cur
+                    break
+
+        # Compute original total from items (in original currency)
+        orig_total = None
+        orig_paid = None
+        if c_code != 'UZS':
+            from decimal import Decimal as D
+            orig_total = sum(
+                (getattr(item, 'original_unit_cost', None) or item.unit_cost) * item.qty_ordered
+                for item in po.items
+            )
+            # paid_amount stored in UZS; show as-is for now (no rate available server-side)
+            orig_paid = None
+
+        res.append(
+            POListOut(
+                id=po.id,
+                number=po.number,
+                supplier_name=po.supplier.name,
+                warehouse_name=po.warehouse.name,
+                status=po.status,
+                total_amount=po.total_amount,
+                paid_amount=po.paid_amount,
+                discount_amount=po.discount_amount,
+                created_at=po.created_at,
+                currency=c_code,
+                original_total_amount=orig_total,
+                original_paid_amount=orig_paid,
+            )
         )
-        for po in pos
-    ]
+    return res
 
 
 @router.post("", response_model=POOut)

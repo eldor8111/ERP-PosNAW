@@ -983,10 +983,13 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
 
   const selectProduct = (p) => {
     setSel(p);
-    setCost(String(Number(p.cost_price) || ''));
+    const prodCur = p.cost_currency || 'UZS';
+    const prodPrice = Number(p.cost_price) > 0 ? p.cost_price : (Number(p.sale_price) > 0 ? p.sale_price : '');
+    setCurrency(prodCur);
+    setCost(prodPrice ? String(Number(prodPrice)) : '');
     setNewSalePrice(p.sale_price ? String(Math.round(p.sale_price)) : '');
     setNewWholesalePrice(p.wholesale_price ? String(Math.round(p.wholesale_price)) : '');
-    setQty(''); setDiscVal('0'); setDiscType('pct'); setCurrency('UZS');
+    setQty(''); setDiscVal('0'); setDiscType('pct');
     setTimeout(() => { if (qtyRef.current) qtyRef.current.focus(); }, 10);
   };
 
@@ -1023,11 +1026,19 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
   const updPoItem = (i, field, val) => setPoItems(prev => prev.map((x, idx) => {
     if (idx !== i) return x;
     const updated = { ...x, [field]: val };
+    if (field === 'currency' && x.currency !== val) {
+      const oldRate = getRateFor(x.currency);
+      const newRate = getRateFor(val);
+      if (x.unit_cost && Number(x.unit_cost) > 0) {
+        const inUzs = Number(x.unit_cost) * oldRate;
+        updated.unit_cost = Math.round((inUzs / newRate) * 100) / 100;
+      }
+    }
     updated.net_cost = calcNet(
-      field === 'unit_cost' ? val : x.unit_cost,
-      field === 'discount_type' ? val : x.discount_type,
-      field === 'discount_val' ? val : x.discount_val,
-      field === 'currency' ? val : x.currency
+      field === 'unit_cost' ? val : updated.unit_cost,
+      field === 'discount_type' ? val : updated.discount_type,
+      field === 'discount_val' ? val : updated.discount_val,
+      field === 'currency' ? val : updated.currency
     );
     return updated;
   }));
@@ -1038,31 +1049,90 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
   const hasCurrency = activeItems.some(i => i.currency === 'USD');
 
   const [showPay, setShowPay] = useState(false);
-  const [payForm, setPayForm] = useState({ discType: 'amt', discVal: '', cash: '', info: '', wallet_id: '' });
+  const [payForm, setPayForm] = useState({ discType: 'amt', discVal: '', cash: '', info: '', wallet_id: '', currency: 'UZS' });
 
-  const calcFinalTotal = () => {
-    const d = Number(payForm.discVal) || 0;
-    return payForm.discType === 'pct' ? totalNet * (1 - d / 100) : totalNet - d;
+  const handleOpenPay = () => {
+    if (!poForm.supplier_id || !poForm.warehouse_id || !poItems.length) {
+      setErr("Barcha majburiy maydonlarni (Ta'minotchi, Ombor, Mahsulotlar) to'ldiring!");
+      return;
+    }
+    setErr('');
+    const activeCur = (poItems.length > 0 && poItems[poItems.length - 1].currency) ? poItems[poItems.length - 1].currency : (currency || 'UZS');
+    const rate = getRateFor(activeCur);
+    const totalInCur = activeCur === 'UZS' ? Math.round(totalNet) : Math.round((totalNet / rate) * 100) / 100;
+
+    setPayForm(p => ({
+      ...p,
+      currency: activeCur,
+      discType: 'amt',
+      discVal: '',
+      cash: String(totalInCur),
+      info: p.info || '',
+    }));
+    setShowPay(true);
   };
-  const finalTotal = calcFinalTotal();
-  const paid = (Number(payForm.cash) || 0);
-  const debt = Math.max(0, finalTotal - paid);
-  const change = Math.max(0, paid - finalTotal);
+
+  const payCur = payForm.currency || 'UZS';
+  const payCurRate = getRateFor(payCur);
+
+  const calcPayModalTotals = () => {
+    const dVal = Number(payForm.discVal) || 0;
+    const discInUzs = payForm.discType === 'pct' ? totalNet * (dVal / 100) : dVal * payCurRate;
+    const finalTotalUzs = Math.max(0, totalNet - discInUzs);
+    const finalTotalInPayCur = payCur === 'UZS' ? finalTotalUzs : finalTotalUzs / payCurRate;
+
+    const paidInPayCur = Number(payForm.cash) || 0;
+    const paidInUzs = paidInPayCur * payCurRate;
+
+    const debtUzs = Math.max(0, finalTotalUzs - paidInUzs);
+    const changeUzs = Math.max(0, paidInUzs - finalTotalUzs);
+
+    return {
+      discInUzs,
+      finalTotalUzs,
+      finalTotalInPayCur: Math.round(finalTotalInPayCur * 100) / 100,
+      paidInUzs,
+      paidInPayCur,
+      debtUzs: Math.round(debtUzs),
+      changeUzs: Math.round(changeUzs),
+      debtInPayCur: payCur === 'UZS' ? Math.round(debtUzs) : Math.round((debtUzs / payCurRate) * 100) / 100,
+      changeInPayCur: payCur === 'UZS' ? Math.round(changeUzs) : Math.round((changeUzs / payCurRate) * 100) / 100,
+    };
+  };
+
+  const payTotals = calcPayModalTotals();
+
+  const handlePayCurrencyChange = (newCur) => {
+    const oldCur = payForm.currency || 'UZS';
+    if (oldCur === newCur) return;
+    const oldRate = getRateFor(oldCur);
+    const newRate = getRateFor(newCur);
+    let newCash = payForm.cash;
+    if (newCash && Number(newCash) > 0) {
+      const inUzs = Number(newCash) * oldRate;
+      newCash = String(Math.round((inUzs / newRate) * 100) / 100);
+    }
+    setPayForm(p => ({ ...p, currency: newCur, cash: newCash }));
+  };
 
   const savePo = (status = 'draft', paymentInfo = null) => {
     if (!poForm.supplier_id || !poForm.warehouse_id || !poItems.length) { setErr("Barcha majburiy maydonlarni to'ldiring"); return; }
     if (saving) return;
     setSaving(true); setErr('');
 
+    const activeCurrency = poItems.length > 0 ? (poItems[poItems.length - 1].currency || 'UZS') : 'UZS';
     const payload = {
       supplier_id: Number(poForm.supplier_id), warehouse_id: Number(poForm.warehouse_id),
       ...(editPo ? {} : { status }),
       note: poForm.note || null, expected_date: poForm.expected_date || null,
       update_retail: autoRetail, update_wholesale: autoWholesale,
+      currency: activeCurrency,
       items: poItems.map(i => ({
         product_id: i.product_id,
         qty_ordered: i.qty_ordered,
         unit_cost: i.net_cost,
+        cost_currency: i.currency || 'UZS',
+        original_unit_cost: i.currency && i.currency !== 'UZS' ? (Number(i.unit_cost) || 0) : (i.net_cost || 0),
         new_sale_price: i.new_sale_price,
         new_wholesale_price: i.new_wholesale_price
       })),
@@ -1070,7 +1140,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
 
     if (paymentInfo) {
       payload.paid_amount = paymentInfo.paid;
-      payload.discount_amount = totalNet - finalTotal;
+      payload.discount_amount = totalNet - payTotals.finalTotalUzs;
       payload.payment_type = 'cash';
       if (paymentInfo.wallet_id) payload.wallet_id = Number(paymentInfo.wallet_id);
       if (paymentInfo.info) payload.note = (payload.note ? payload.note + '\n' : '') + paymentInfo.info;
@@ -1353,10 +1423,24 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                         {Number(it.discount_val) > 0 && <div className="text-[10px] text-amber-600 mt-0.5">–{discPct}%</div>}
                       </td>
                       <td className="px-3 py-2.5 text-right font-semibold text-emerald-700 text-sm">
-                        {fmt(Math.round(it.net_cost))}
+                        {it.currency && it.currency !== 'UZS' ? (
+                          <div>
+                            <div>{fmt(it.unit_cost)} <span className="text-xs">{it.currency}</span></div>
+                            <div className="text-[10px] text-slate-400 font-normal">≈ {fmt(Math.round(it.net_cost))} so'm</div>
+                          </div>
+                        ) : (
+                          fmt(Math.round(it.net_cost))
+                        )}
                       </td>
                       <td className="px-3 py-2.5 text-right font-bold text-slate-800">
-                        {fmt(Math.round(it.net_cost * qty_n))}
+                        {it.currency && it.currency !== 'UZS' ? (
+                          <div>
+                            <div className="text-indigo-600">{fmt(Math.round(it.unit_cost * qty_n * 100) / 100)} <span className="text-xs">{it.currency}</span></div>
+                            <div className="text-[10px] text-slate-400 font-normal">≈ {fmt(Math.round(it.net_cost * qty_n))} so'm</div>
+                          </div>
+                        ) : (
+                          fmt(Math.round(it.net_cost * qty_n))
+                        )}
                       </td>
                       <td className="pr-2">
                         <button onClick={() => setPoItems(p => p.filter((_, idx) => idx !== i))}
@@ -1393,14 +1477,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
           <Btn v="secondary" onClick={() => savePo('draft')} disabled={saving}>{t('purchase.saveDraft')}</Btn>
           <Btn v="secondary" onClick={() => savePo('sent')} disabled={saving}>{t('purchase.saveNoPayment')}</Btn>
           <Btn v="amber" onClick={() => savePo('received')} disabled={saving}>Qabul qilish (Qarzga)</Btn>
-          <Btn onClick={() => {
-            if (!poForm.supplier_id || !poForm.warehouse_id || !poItems.length) {
-              setErr("Barcha majburiy maydonlarni (Ta'minotchi, Ombor, Mahsulotlar) to'ldiring!");
-              return;
-            }
-            setErr('');
-            setShowPay(true);
-          }} disabled={saving}>{t('admin.dict.payment') || 'To\'lov'}</Btn>
+          <Btn onClick={handleOpenPay} disabled={saving}>{t('admin.dict.payment') || 'To\'lov'}</Btn>
         </div>
       </div>
 
@@ -1431,7 +1508,9 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                   </div>
                   <div className="flex h-11">
                     <input type="number" value={payForm.discVal} onChange={e => setPayForm(p => ({ ...p, discVal: e.target.value }))} className={`${ic} flex-1 rounded-r-none border-r-0 text-base font-medium`} placeholder="0" />
-                    <div className="bg-slate-50 px-4 flex items-center border border-slate-200 text-slate-500 text-sm font-semibold rounded-r-xl">UZS | 1</div>
+                    <div className="bg-slate-50 px-4 flex items-center border border-slate-200 text-slate-500 text-sm font-semibold rounded-r-xl">
+                      {payCur} | {fmt(payCurRate)}
+                    </div>
                   </div>
                 </div>
 
@@ -1453,9 +1532,11 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                   <div className="bg-slate-50 px-5 flex items-center border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 h-full shadow-sm">{t('purchase.cash')}</div>
                   {/* Input group */}
                   <div className="flex flex-1 items-center h-full rounded-xl focus-within:ring-2 focus-within:ring-indigo-500 overflow-hidden shadow-sm">
-                    <input type="number" min="0" value={payForm.cash} onChange={e => setPayForm(p => ({ ...p, cash: e.target.value }))} className="flex-1 w-full h-full border border-slate-200 border-r-0 rounded-l-xl px-4 text-base font-medium outline-none" placeholder="0" />
-                    <div className="bg-white px-4 flex items-center border border-slate-200 border-x-0 text-indigo-600 text-sm font-bold h-full">UZS | 1</div>
-                    <button onClick={() => setPayForm(p => ({ ...p, cash: String(Math.round(finalTotal)) }))} className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 border-l-0 font-semibold px-6 h-full rounded-r-xl transition-colors whitespace-nowrap">
+                    <input type="number" min="0" value={payForm.cash} onChange={e => setPayForm(p => ({ ...p, cash: e.target.value }))} className="flex-1 w-full h-full border border-slate-200 border-r-0 rounded-l-xl px-4 text-base font-bold text-indigo-700 outline-none" placeholder="0" />
+                    <select value={payCur} onChange={e => handlePayCurrencyChange(e.target.value)} className="bg-slate-50 hover:bg-slate-100 px-3 flex items-center border border-slate-200 border-x-0 text-indigo-600 text-sm font-bold h-full outline-none cursor-pointer">
+                      {currencies.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
+                    </select>
+                    <button onClick={() => setPayForm(p => ({ ...p, cash: String(payTotals.finalTotalInPayCur) }))} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-slate-200 border-l-0 font-semibold px-6 h-full rounded-r-xl transition-colors whitespace-nowrap">
                       {t('purchase.totalBtn')}
                     </button>
                   </div>
@@ -1469,35 +1550,47 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
 
               {/* Summary blocks aligned to right */}
               <div className="flex flex-col items-end gap-3 pt-2">
-                <div className="flex items-center justify-between w-64 text-lg">
+                <div className="flex items-center justify-between w-72 text-base sm:text-lg">
                   <span className="text-slate-500">{t('purchase.summaryTotal')}</span>
-                  <span className="font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg">{fmt(Math.round(finalTotal))}</span>
+                  <span className="font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg">
+                    {fmt(payTotals.finalTotalInPayCur)} <span className="text-xs uppercase">{payCur}</span>
+                    {payCur !== 'UZS' && <span className="text-xs text-slate-400 font-normal ml-1">({fmt(payTotals.finalTotalUzs)} so'm)</span>}
+                  </span>
                 </div>
-                <div className="flex items-center justify-between w-64 text-lg">
+                <div className="flex items-center justify-between w-72 text-base sm:text-lg">
                   <span className="text-slate-500">{t('purchase.summaryPaid')}</span>
-                  <span className="font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-lg">{fmt(Math.round(paid))} <span className="text-xs uppercase">uzs</span></span>
+                  <span className="font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-lg">
+                    {fmt(payTotals.paidInPayCur)} <span className="text-xs uppercase">{payCur}</span>
+                    {payCur !== 'UZS' && <span className="text-xs text-slate-400 font-normal ml-1">({fmt(payTotals.paidInUzs)} so'm)</span>}
+                  </span>
                 </div>
-                <div className="flex items-center justify-between w-64 text-lg">
+                <div className="flex items-center justify-between w-72 text-base sm:text-lg">
                   <span className="text-slate-500">{t('purchase.summaryDebt')}</span>
-                  <span className="font-bold text-red-500 bg-red-50 px-3 py-1 rounded-lg">{fmt(Math.round(debt))}</span>
+                  <span className="font-bold text-red-500 bg-red-50 px-3 py-1 rounded-lg">
+                    {fmt(payTotals.debtInPayCur)} <span className="text-xs uppercase">{payCur}</span>
+                    {payCur !== 'UZS' && <span className="text-xs text-slate-400 font-normal ml-1">({fmt(payTotals.debtUzs)} so'm)</span>}
+                  </span>
                 </div>
-                <div className="flex items-center justify-between w-64 text-lg">
-                  <span className="text-slate-500">{t('purchase.summaryChange')}</span>
-                  <span className="font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-lg">{fmt(Math.round(change))}</span>
-                </div>
+                {payTotals.changeInPayCur > 0 && (
+                  <div className="flex items-center justify-between w-72 text-base sm:text-lg">
+                    <span className="text-slate-500">{t('purchase.summaryChange')}</span>
+                    <span className="font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-lg">
+                      {fmt(payTotals.changeInPayCur)} <span className="text-xs uppercase">{payCur}</span>
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Modal Footer Buttons */}
-            {/* Modal Footer Buttons */}
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50 mt-auto rounded-b-2xl flex-wrap">
-              <div className="text-sm font-semibold text-slate-500 flex-1">{t('purchase.supplierDebt')} <span className="text-slate-800 ml-1">{fmt(debt)} UZS</span></div>
+              <div className="text-sm font-semibold text-slate-500 flex-1">{t('purchase.supplierDebt')} <span className="text-slate-800 ml-1">{fmt(payTotals.debtInPayCur)} {payCur}</span></div>
               <button onClick={() => setShowPay(false)} className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-600 font-semibold bg-white hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
-              <button disabled={saving} onClick={() => savePo('received', { paid: paid - change, info: payForm.info, wallet_id: payForm.wallet_id })} className="px-6 py-2.5 rounded-xl bg-orange-400 hover:bg-orange-500 text-white font-bold flex items-center gap-2 transition-colors disabled:opacity-50 shadow-sm">
+              <button disabled={saving} onClick={() => savePo('received', { paid: payTotals.paidInUzs - payTotals.changeUzs, info: payForm.info, wallet_id: payForm.wallet_id })} className="px-6 py-2.5 rounded-xl bg-orange-400 hover:bg-orange-500 text-white font-bold flex items-center gap-2 transition-colors disabled:opacity-50 shadow-sm">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                 {t('purchase.saveAndPrint')}
               </button>
-              <button disabled={saving} onClick={() => savePo('received', { paid: paid - change, info: payForm.info, wallet_id: payForm.wallet_id })} className="px-8 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-colors shadow-sm shadow-blue-200 disabled:opacity-50 flex items-center gap-2">
+              <button disabled={saving} onClick={() => savePo('received', { paid: payTotals.paidInUzs - payTotals.changeUzs, info: payForm.info, wallet_id: payForm.wallet_id })} className="px-8 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-colors shadow-sm shadow-blue-200 disabled:opacity-50 flex items-center gap-2">
                 {saving ? '...' : (
                   <>
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
@@ -1589,9 +1682,19 @@ function KirimlarTab({ products, warehouses, suppliers }) {
     { k: 'supplier_name', l: t('purchase.supplier') || "Ta'minotchi" },
     { k: 'warehouse_name', l: t('purchase.colWarehouse') || 'Ombor' },
     { k: 'status', l: t('purchase.filterStatus') || 'Holat', r: v => <Badge meta={poMeta} val={v} /> },
-    { k: 'total_amount', l: t('purchase.colTotal') || "Jami (so'm)", r: v => fmt(v) },
-    { k: 'paid_amount', l: "To'langan", r: v => <span className="text-emerald-600 font-semibold">{fmt(v)}</span> },
-    { k: 'debt', l: "Qarzga", r: (_, row) => { const d = Number(row.total_amount) - Number(row.paid_amount || 0) - Number(row.discount_amount || 0); return d > 0 ? <span className="text-red-500 font-semibold">{fmt(d)}</span> : '—'; } },
+    { k: 'total_amount', l: t('purchase.colTotal') || "Jami", r: (v, row) => {
+      if (row.currency && row.currency !== 'UZS' && row.original_total_amount != null) {
+        return (
+          <div>
+            <div className="font-bold text-indigo-600">{fmt(Number(row.original_total_amount))} <span className="text-xs uppercase font-semibold">{row.currency}</span></div>
+            <div className="text-[10px] text-slate-400">≈ {fmt(Number(v))} so'm</div>
+          </div>
+        );
+      }
+      return <span>{fmt(v)} <span className="text-xs text-slate-400">so'm</span></span>;
+    } },
+    { k: 'paid_amount', l: "To'langan", r: (v, row) => <span className="text-emerald-600 font-semibold">{fmt(v)} <span className="text-xs text-slate-400">so'm</span></span> },
+    { k: 'debt', l: "Qarzga", r: (_, row) => { const d = Number(row.total_amount) - Number(row.paid_amount || 0) - Number(row.discount_amount || 0); return d > 0 ? <span className="text-red-500 font-semibold">{fmt(d)} <span className="text-xs">so'm</span></span> : '—'; } },
     { k: 'created_at', l: t('purchase.colDate') || 'Sana', r: v => fmtDay(v) },
     {
       k: 'id', l: '', r: (v, row) => (
@@ -1674,8 +1777,8 @@ function KirimlarTab({ products, warehouses, suppliers }) {
                       <td className="px-4 py-3 font-medium">{item.product_name}</td>
                       <td className="px-4 py-3 text-center">{item.qty_ordered}</td>
                       <td className="px-4 py-3 text-center text-emerald-600 font-semibold">{item.qty_received}</td>
-                      <td className="px-4 py-3 text-right">{fmt(item.unit_cost)}</td>
-                      <td className="px-4 py-3 text-right font-semibold">{fmt(Number(item.qty_ordered) * Number(item.unit_cost))}</td>
+                      <td className="px-4 py-3 text-right">{fmt(item.unit_cost)} <span className="text-xs font-semibold">{item.cost_currency || (detail.currency && detail.currency !== 'UZS' ? detail.currency : "so'm")}</span></td>
+                      <td className="px-4 py-3 text-right font-semibold">{fmt(Number(item.qty_ordered) * Number(item.unit_cost))} <span className="text-xs font-semibold">{item.cost_currency || (detail.currency && detail.currency !== 'UZS' ? detail.currency : "so'm")}</span></td>
                     </tr>
                   ))}
                 </tbody>

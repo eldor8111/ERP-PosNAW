@@ -9,6 +9,8 @@ class POItemCreate(BaseModel):
     product_id: int
     qty_ordered: Decimal
     unit_cost: Decimal
+    cost_currency: Optional[str] = "UZS"
+    original_unit_cost: Optional[Decimal] = None
     new_sale_price: Optional[Decimal] = None
     new_wholesale_price: Optional[Decimal] = None
 
@@ -20,6 +22,8 @@ class POItemOut(BaseModel):
     qty_ordered: Decimal
     qty_received: Decimal
     unit_cost: Decimal
+    cost_currency: Optional[str] = "UZS"
+    original_unit_cost: Optional[Decimal] = None
 
     model_config = {"from_attributes": True}
 
@@ -34,6 +38,7 @@ class POCreate(BaseModel):
     discount_amount: Decimal = Decimal("0")
     payment_type: str = "cash"
     wallet_id: Optional[int] = None
+    currency: Optional[str] = "UZS"
     items: List[POItemCreate]
 
 
@@ -76,6 +81,7 @@ class POOut(BaseModel):
     created_at: datetime
     paid_amount: Decimal = Decimal("0")
     discount_amount: Decimal = Decimal("0")
+    currency: Optional[str] = "UZS"
     items: List[POItemOut] = []
 
     model_config = {"from_attributes": True}
@@ -91,5 +97,8 @@ class POListOut(BaseModel):
     created_at: datetime
     paid_amount: Decimal = Decimal("0")
     discount_amount: Decimal = Decimal("0")
+    currency: Optional[str] = "UZS"
+    original_total_amount: Optional[Decimal] = None
+    original_paid_amount: Optional[Decimal] = None
 
     model_config = {"from_attributes": True}

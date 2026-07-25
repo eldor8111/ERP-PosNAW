@@ -34,6 +34,7 @@ def create_purchase_order(db: Session, data, current_user: User) -> PurchaseOrde
         created_by=current_user.id,
         company_id=current_user.company_id,
         status=data.status if getattr(data, 'status', None) else POStatus.draft,
+        currency=getattr(data, 'currency', 'UZS') or 'UZS',
     )
     # Add optional payment fields directly to the object since they were added to DB
     if hasattr(data, 'paid_amount'): po.paid_amount = data.paid_amount
@@ -68,6 +69,8 @@ def create_purchase_order(db: Session, data, current_user: User) -> PurchaseOrde
             qty_ordered=item_data.qty_ordered,
             qty_received=item_data.qty_ordered if po.status == POStatus.received else Decimal("0"),
             unit_cost=item_data.unit_cost,
+            cost_currency=getattr(item_data, 'cost_currency', 'UZS') or 'UZS',
+            original_unit_cost=getattr(item_data, 'original_unit_cost', None) or item_data.unit_cost,
         )
         db.add(item)
         total += item_data.qty_ordered * item_data.unit_cost
@@ -377,6 +380,8 @@ def update_purchase_order(db: Session, po_id: int, data, current_user: User) -> 
                 qty_ordered=item_data.qty_ordered,
                 qty_received=Decimal("0"),
                 unit_cost=item_data.unit_cost,
+                cost_currency=getattr(item_data, 'cost_currency', 'UZS') or 'UZS',
+                original_unit_cost=getattr(item_data, 'original_unit_cost', None) or item_data.unit_cost,
             )
             db.add(item)
             total += item_data.qty_ordered * item_data.unit_cost

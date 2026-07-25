@@ -27,6 +27,7 @@ class PurchaseOrder(Base):
     total_amount = Column(Numeric(14, 2), default=0)
     paid_amount = Column(Numeric(14, 2), default=0)
     discount_amount = Column(Numeric(14, 2), default=0)
+    currency = Column(String(3), nullable=True, default='UZS')
     note = Column(Text, nullable=True)
     expected_date = Column(DateTime, nullable=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
@@ -48,7 +49,9 @@ class POItem(Base):
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
     qty_ordered = Column(Numeric(12, 3), nullable=False)
     qty_received = Column(Numeric(12, 3), default=0)
-    unit_cost = Column(Numeric(12, 2), nullable=False)
+    unit_cost = Column(Numeric(12, 2), nullable=False)  # Always UZS (net)
+    original_unit_cost = Column(Numeric(12, 4), nullable=True)  # Original currency amount
+    cost_currency = Column(String(3), nullable=True, default='UZS')  # Original currency code
 
     po = relationship("PurchaseOrder", back_populates="items")
     product = relationship("Product")
