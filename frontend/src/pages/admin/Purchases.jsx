@@ -910,6 +910,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
   const [suppliers, setSups] = useState([]);
   const [wallets, setWallets] = useState([]);
   const [currencies, setCurrencies] = useState([{ code: 'UZS', rate: 1 }]);
+  const [currenciesLoaded, setCurrenciesLoaded] = useState(false);
 
   useEffect(() => {
     api.get('/products/', { params: { limit: 1000, status: 'active' } })
@@ -922,7 +923,8 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
       // Ensure UZS is always present with rate=1
       if (!list.find(c => c.code === 'UZS')) list.unshift({ code: 'UZS', rate: 1 });
       setCurrencies(list);
-    }).catch(() => {});
+      setCurrenciesLoaded(true);
+    }).catch(() => { setCurrenciesLoaded(true); });
   }, []);
 
   // Helper: get exchange rate for a currency code
@@ -1013,6 +1015,8 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
       new_sale_price: newSalePrice ? Number(newSalePrice) : null,
       new_wholesale_price: newWholesalePrice ? Number(newWholesalePrice) : null,
     };
+    console.log('[PO addItem] base:', { currency, cost, unit_cost: base.unit_cost, net_cost: base.net_cost, qty });
+
 
     setPoItems(prev => {
       const ex = prev.find(x => x.product_id === sel.id);
@@ -1120,7 +1124,9 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
     if (saving) return;
     setSaving(true); setErr('');
 
-    const activeCurrency = poItems.length > 0 ? (poItems[poItems.length - 1].currency || 'UZS') : 'UZS';
+    // PO ning asosiy valyutasini aniqlash: items ichidan birinchi non-UZS valyutani olish
+    const activeCurrency = poItems.find(i => i.currency && i.currency !== 'UZS')?.currency
+      || (poItems.length > 0 ? (poItems[0].currency || 'UZS') : 'UZS');
     const payload = {
       supplier_id: Number(poForm.supplier_id), warehouse_id: Number(poForm.warehouse_id),
       ...(editPo ? {} : { status }),
@@ -1137,6 +1143,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
         new_wholesale_price: i.new_wholesale_price
       })),
     };
+    console.log('[PO savePo] payload:', JSON.stringify(payload, null, 2));
 
     if (paymentInfo) {
       payload.paid_amount = paymentInfo.paid;
@@ -1229,12 +1236,14 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                   <input type="number" min="0" value={cost} onChange={e => setCost(e.target.value)}
                     className="flex-1 min-w-0 px-4 py-3 text-base font-semibold focus:outline-none bg-transparent rounded-l-xl" />
                   {/* Currency Listbox — outside overflow-hidden so dropdown is not clipped */}
-                  <Listbox value={currency} onChange={val => {
+                  <Listbox value={currency} disabled={!currenciesLoaded} onChange={val => {
                     if (cost && Number(cost) > 0) {
                       const oldRate = getRateFor(currency);
                       const newRate = getRateFor(val);
-                      const inUzs = Number(cost) * oldRate;
-                      setCost(String(Math.round((inUzs / newRate) * 100) / 100));
+                      if (oldRate > 0 && newRate > 0) {
+                        const inUzs = Number(cost) * oldRate;
+                        setCost(String(Math.round((inUzs / newRate) * 100) / 100));
+                      }
                     }
                     setCurrency(val);
                   }}>
@@ -1693,7 +1702,23 @@ function KirimlarTab({ products, warehouses, suppliers }) {
       }
       return <span>{fmt(v)} <span className="text-xs text-slate-400">so'm</span></span>;
     } },
-    { k: 'paid_amount', l: "To'langan", r: (v, row) => <span className="text-emerald-600 font-semibold">{fmt(v)} <span className="text-xs text-slate-400">so'm</span></span> },
+    { k: 'paid_amount', l: "To'langan", r: (v, row) => {
+      // USD yoki boshqa valyutada bo'lsa, original qiymatni ko'rsatish
+      if (row.currency && row.currency !== 'UZS' && row.original_paid_amount != null) {
+        return (
+          <div>
+            <div className="font-semibold text-emerald-600">{fmt(Number(row.original_paid_amount))} <span className="text-xs uppercase font-semibold">{row.currency}</span></div>
+            <div className="text-[10px] text-slate-400">≈ {fmt(Number(v))} so'm</div>
+          </div>
+        );
+      }
+      // Agar currency USD lekin original_paid_amount yo'q bo'lsa — UZS ekvivalentini ko'rsatish
+      if (row.currency && row.currency !== 'UZS') {
+        const origPaid = Number(v);
+        return <span className="text-emerald-600 font-semibold">{fmt(origPaid)} <span className="text-xs text-slate-400">so'm</span></span>;
+      }
+      return <span className="text-emerald-600 font-semibold">{fmt(v)} <span className="text-xs text-slate-400">so'm</span></span>;
+    } },
     { k: 'debt', l: "Qarzga", r: (_, row) => { const d = Number(row.total_amount) - Number(row.paid_amount || 0) - Number(row.discount_amount || 0); return d > 0 ? <span className="text-red-500 font-semibold">{fmt(d)} <span className="text-xs">so'm</span></span> : '—'; } },
     { k: 'created_at', l: t('purchase.colDate') || 'Sana', r: v => fmtDay(v) },
     {

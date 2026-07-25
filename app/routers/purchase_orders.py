@@ -108,8 +108,13 @@ def list_purchase_orders(
                 (getattr(item, 'original_unit_cost', None) or item.unit_cost) * item.qty_ordered
                 for item in po.items
             )
-            # paid_amount stored in UZS; show as-is for now (no rate available server-side)
-            orig_paid = None
+            # Compute original paid amount using exchange rate ratio
+            # orig_total / total_amount gives the rate: 1 UZS = X original_currency
+            if orig_total and po.total_amount and float(po.total_amount) > 0:
+                rate_ratio = float(orig_total) / float(po.total_amount)  # original / UZS
+                orig_paid = float(po.paid_amount or 0) * rate_ratio
+            else:
+                orig_paid = None
 
         res.append(
             POListOut(
