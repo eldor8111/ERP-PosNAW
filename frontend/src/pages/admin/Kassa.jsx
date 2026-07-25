@@ -16,7 +16,15 @@ const PT_CONFIG = {
   uzum: { label: 'Uzum', icon: <CreditCard className='w-5 h-5 text-orange-500' />, bg: 'bg-orange-500/15', border: 'border-orange-500/30', text: 'text-orange-400', dot: 'bg-orange-400' },
   keshbek: { label: 'Keshbek', icon: <HandCoins className='w-5 h-5 text-purple-500' />, bg: 'bg-purple-500/15', border: 'border-purple-500/30', text: 'text-purple-400', dot: 'bg-purple-400' },
 };
-const PT_LABELS = Object.fromEntries(Object.entries(PT_CONFIG).map(([k, v]) => [k, v.icon + ' ' + v.label]));
+const getBalanceValue = (val) => {
+  if (!val) return 0;
+  if (Array.isArray(val)) {
+    return val.reduce((sum, item) => sum + Number(item?.value || 0), 0);
+  }
+  return Number(val || 0);
+};
+
+const PT_LABELS = Object.fromEntries(Object.entries(PT_CONFIG).map(([k, v]) => [k, v.label]));
 const PT_KEYS = Object.keys(PT_CONFIG);
 
 const DIR_COLORS = { in: 'text-emerald-400', out: 'text-red-400' };
@@ -93,9 +101,9 @@ function KassaCard({ kassa, onRefresh }) {
         await api.post(`/kassa/${kassa.id}/open`, { opening_balance: Number(form.opening_balance) || 0, note: form.note });
         toast.success('Kassa ochildi');
       } else if (action === 'close') {
-        const actual = {};
-        PT_KEYS.forEach(k => { actual[k] = Number(form.actual[k] || 0); });
-        await api.post(`/kassa/${kassa.id}/close`, { actual_amounts: actual, note: form.note });
+        const actual_amounts = {};
+        PT_KEYS.forEach(k => { actual_amounts[k] = Number(form.actual[k] || 0); });
+        await api.post(`/kassa/${kassa.id}/close`, { actual_amounts, note: form.note });
         toast.success('Kassa yopildi');
       } else if (action === 'invest') {
         await api.post(`/kassa/${kassa.id}/invest`, { amount: Number(form.amount), payment_type: form.payment_type, description: form.description });
@@ -160,15 +168,14 @@ function KassaCard({ kassa, onRefresh }) {
             <div key={k}>
               <div className="text-[11px] font-semibold uppercase tracking-wide text-green-700 mb-1">{cfg.label}</div>
               <div className={`text-[15px] font-semibold tabular-nums ${val < 0 ? 'text-rose-600' : 'text-slate-900'}`}>
-                {/* {fmt(val)} */}
-                {val && val.length > 0 ? (
+                {val && Array.isArray(val) ? (
                   val.map((item) => (
                     <span key={item.currency} className='flex flex-col'>
                       {fmt(item.value)} {item.currency}
                     </span>
                   ))
                 ) : (
-                  <span className="text-slate-400">0</span>
+                  <span>{fmt(val)}</span>
                 )}
               </div>
             </div>
@@ -228,42 +235,90 @@ function KassaCard({ kassa, onRefresh }) {
       )}
 
       {/* Close modal */}
-      {modal === 'close' && (
-        <Modal title="Kassani yopish" onClose={() => setModal(null)} wide>
-          <div className="space-y-4">
-            <p className="text-sm text-slate-500">Har bir to'lov turi uchun haqiqiy summa kiriting:</p>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200">
-                  <th className="text-left px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-slate-400">To'lov turi</th>
-                  <th className="text-right px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-slate-400">Hisoblangan</th>
-                  <th className="text-right px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-slate-400">Haqiqiy</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {PT_KEYS.map(k => (
-                  <tr key={k}>
-                    <td className="px-3 py-2.5 text-slate-900">{PT_LABELS[k]}</td>
-                    <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-slate-900">{fmt(balances[k])}</td>
-                    <td className="px-3 py-2.5">
-                      <input type="number" className="w-32 px-2 py-1.5 bg-white border border-slate-200 rounded-md text-sm text-right focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500"
-                        value={form.actual[k] || ''} onChange={e => setForm({ ...form, actual: { ...form.actual, [k]: e.target.value } })} placeholder={fmt(balances[k])} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1.5">Izoh</label>
-              <textarea rows={2} className={field} value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder="Ixtiyoriy..." />
+      {modal === 'close' && (() => {
+        const totalBal = PT_KEYS.reduce((sum, k) => sum + getBalanceValue(balances[k]), 0);
+        const totalEntered = PT_KEYS.reduce((sum, k) => sum + Number(form.actual[k] || 0), 0);
+        const totalRemaining = totalBal - totalEntered;
+
+        return (
+          <Modal title="Kassani yopish" onClose={() => setModal(null)} wide>
+            <div className="space-y-4">
+              <p className="text-sm text-slate-500">Har bir to'lov turi uchun haqiqiy summa kiriting:</p>
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                      <th className="text-left px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">To'lov turi</th>
+                      <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Hisoblangan</th>
+                      <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Kiritilgan</th>
+                      <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Qolgani</th>
+                      <th className="text-center px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Amal</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {PT_KEYS.map(k => {
+                      const cfg = PT_CONFIG[k];
+                      const balVal = getBalanceValue(balances[k]);
+                      const enteredStr = form.actual[k];
+                      const entered = Number(enteredStr || 0);
+                      const remaining = balVal - entered;
+
+                      return (
+                        <tr key={k} className="hover:bg-slate-50/50">
+                          <td className="px-3 py-2.5 text-slate-900 font-medium flex items-center gap-2">
+                            {cfg.icon}
+                            <span>{cfg.label}</span>
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-slate-900">{fmt(balVal)}</td>
+                          <td className="px-3 py-2.5 text-right">
+                            <input
+                              type="number"
+                              min="0"
+                              className="w-32 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500"
+                              value={form.actual[k] !== undefined ? form.actual[k] : ''}
+                              onChange={e => setForm({ ...form, actual: { ...form.actual, [k]: e.target.value } })}
+                              placeholder="0"
+                            />
+                          </td>
+                          <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${remaining < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                            {fmt(remaining)}
+                          </td>
+                          <td className="px-3 py-2.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => setForm({ ...form, actual: { ...form.actual, [k]: balVal } })}
+                              className="text-xs text-indigo-600 font-semibold py-1.5 px-3 rounded-lg cursor-pointer hover:bg-indigo-100 border border-indigo-200 bg-indigo-50 transition-colors"
+                            >
+                              Barchasi
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot className="bg-slate-50 font-bold border-t border-slate-200">
+                    <tr>
+                      <td className="px-3 py-2.5 text-slate-700">Jami:</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-slate-900">{fmt(totalBal)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-indigo-600">{fmt(totalEntered)}</td>
+                      <td className={`px-3 py-2.5 text-right tabular-nums ${totalRemaining < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{fmt(totalRemaining)}</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-600 block mb-1.5">Izoh</label>
+                <textarea rows={2} className={field} value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder="Ixtiyoriy..." />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setModal(null)} className={cancelBtn}>Bekor</button>
+                <button onClick={() => save('close')} disabled={saving} className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-medium disabled:opacity-50 transition-colors">{saving ? '...' : 'Yopish'}</button>
+              </div>
             </div>
-            <div className="flex gap-3 pt-2">
-              <button onClick={() => setModal(null)} className={cancelBtn}>Bekor</button>
-              <button onClick={() => save('close')} disabled={saving} className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-medium disabled:opacity-50 transition-colors">{saving ? '...' : 'Yopish'}</button>
-            </div>
-          </div>
-        </Modal>
-      )}
+          </Modal>
+        );
+      })()}
 
       {/* Invest / Withdraw modal */}
       {(modal === 'invest' || modal === 'withdraw') && (

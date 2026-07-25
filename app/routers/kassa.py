@@ -381,7 +381,7 @@ def close_kassa(wallet_id: int, data: CloseKassaIn, db: Session = Depends(get_db
     if not w.is_open:
         raise HTTPException(400, "Kassa allaqachon yopiq")
 
-    balances = get_kassa_balances(wallet_id, db)
+    calculated = get_kassa_balances(wallet_id, db)
     now = datetime.now(timezone.utc)
 
     session = db.query(KassaSession).filter(
@@ -389,12 +389,56 @@ def close_kassa(wallet_id: int, data: CloseKassaIn, db: Session = Depends(get_db
         KassaSession.status == "open"
     ).first()
 
+    # actual_amounts — foydalanuvchi haqiqatda sanab bergan summa.
+    # Tizim hisoblangan (calculated) bilan farqni topib, KassaMovement yozamiz.
+    # diff = calculated - actual:
+    #   diff > 0  → kam topildi  → "out" harakati (balansni kamaytirish)
+    #   diff < 0  → ortiqcha     → "in"  harakati (balansni oshirish)
+    for ptype, actual_val in data.actual_amounts.items():
+        if ptype not in PAYMENT_TYPES:
+            continue
+
+        # UZS bo'yicha hozirgi hisoblangan balans
+        current_list = calculated.get(ptype, [])
+        current_amount = 0.0
+        if isinstance(current_list, list):
+            for item in current_list:
+                if item.get("currency") == "UZS":
+                    current_amount = float(item["value"])
+                    break
+        else:
+            current_amount = float(current_list or 0)
+
+        diff = current_amount - float(actual_val)   # calculated - actual
+        if abs(diff) < 0.01:
+            continue
+
+        # diff > 0 → balansda ortiqcha bor, "out" bilan tenglashtiramiz
+        # diff < 0 → balansda kam, "in" bilan tenglashtiramiz
+        direction = "out" if diff > 0 else "in"
+        mv = KassaMovement(
+            wallet_id=wallet_id,
+            company_id=current_user.company_id,
+            session_id=session.id if session else None,
+            direction=direction,
+            payment_type=ptype,
+            amount=abs(diff),
+            currency="UZS",
+            reference_type="closing_adjustment",
+            description=f"Yopilish balans farqi ({ptype}): hisoblangan={current_amount}, haqiqiy={float(actual_val)}",
+            created_by=current_user.id,
+        )
+        db.add(mv)
+        # Wallet.balance ni ham yangilash
+        w.balance = float(w.balance or 0) - diff
+
+    # Sessionni yopish
     if session:
         session.closed_at = now
         session.closed_by = current_user.id
         session.status = "closed"
         session.closing_summary = {
-            "calculated": balances,
+            "calculated": calculated,
             "actual": data.actual_amounts,
             "note": data.note,
         }
@@ -404,13 +448,18 @@ def close_kassa(wallet_id: int, data: CloseKassaIn, db: Session = Depends(get_db
     w.closed_by = current_user.id
 
     db.commit()
+
+    final_balances = get_kassa_balances(wallet_id, db)
     return {
         "ok": True,
         "closed_at": now,
-        "calculated_balances": balances,
+        "calculated_balances": calculated,
         "actual_amounts": data.actual_amounts,
+        "final_balances": final_balances,
         "session_id": session.id if session else None,
     }
+
+
 
 
 # ─── Investitsiya / Chiqarish ─────────────────────────────────────────────────
