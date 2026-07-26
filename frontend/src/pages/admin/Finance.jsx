@@ -207,7 +207,6 @@ export default function Finance() {
 
   const tabs = [
     { key: 'expenses', label: t('finance.expense') },
-    { key: 'categories', label: t('common.category') },
     { key: 'transactions', label: t('finance.transaction') },
     { key: 'payme-payment', label: '💳 Payme To\'lov' },
   ];
@@ -425,55 +424,7 @@ export default function Finance() {
           </div>
         )}
 
-        {/* ── Categories Tab ── */}
-        {activeTab === 'categories' && (
-          <div>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-50">
-              <span className="text-sm font-semibold text-slate-700">{t('finance.expenseCategories') || 'Xarajat kategoriyalari'}</span>
-              <button onClick={() => setShowAddCat(!showAddCat)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-                </svg>
-                {t('finance.category')} +
-              </button>
-            </div>
-            {showAddCat && (
-              <form onSubmit={addCategory} className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex flex-wrap gap-3 items-end">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('common.name') || 'Nomi'}</label>
-                  <input required placeholder={t('finance.categoryName') || "Kategoriya nomi"}
-                    className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    onChange={e => setCatForm({ ...catForm, name: e.target.value })} value={catForm.name} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('common.description') || 'Tavsif'}</label>
-                  <input placeholder={t('common.descPlaceholder') || "Qisqacha tavsif"}
-                    className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    onChange={e => setCatForm({ ...catForm, description: e.target.value })} value={catForm.description} />
-                </div>
-                <button type="submit" disabled={saving}
-                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors">{saving ? t('common.saving') : t('common.save')}</button>
-                <button type="button" onClick={() => setShowAddCat(false)}
-                  className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium rounded-xl transition-colors">{t('common.cancel')}</button>
-              </form>
-            )}
-            <div className="p-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {categories.map(c => (
-                <div key={c.id} className="bg-slate-50 border border-slate-100 rounded-xl p-4 hover:border-indigo-200 hover:bg-indigo-50 transition-colors">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="w-2 h-2 rounded-full bg-indigo-500" />
-                    <div className="text-sm font-semibold text-slate-800">{c.name}</div>
-                  </div>
-                  {c.description && <div className="text-xs text-slate-400 ml-4">{c.description}</div>}
-                </div>
-              ))}
-              {categories.length === 0 && (
-                <div className="col-span-4 text-center py-10 text-sm text-slate-400">{t('finance.noCategories') || 'Kategoriyalar topilmadi'}</div>
-              )}
-            </div>
-          </div>
-        )}
+
 
         {/* ── Transactions Tab ── */}
         {activeTab === 'transactions' && (
