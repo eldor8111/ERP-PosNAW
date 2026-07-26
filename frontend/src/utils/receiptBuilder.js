@@ -329,6 +329,8 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
     <span style="text-align:right">${finalDebtStr}</span>
   </div>` : '';
 
+  const clientName = sale.contractor_name || sale.customer_name || (sale.customer && sale.customer.name) || '';
+
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Chek ${sale.number || sale.id}</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
