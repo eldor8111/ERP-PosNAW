@@ -208,9 +208,6 @@ export default function Finance() {
     { key: 'expenses', label: t('finance.expense') },
     { key: 'categories', label: t('common.category') },
     { key: 'transactions', label: t('finance.transaction') },
-    { key: 'customer-debts', label: t('customer.totalDebtors') || 'Debitorlar' },
-    { key: 'supplier-debts', label: t('customer.totalCreditors') || 'Kreditorlar' },
-    { key: 'pl', label: t('finance.pl') || 'Foyda/Zarar' },
     { key: 'payme-payment', label: '💳 Payme To\'lov' },
   ];
 
