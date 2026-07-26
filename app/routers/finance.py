@@ -667,6 +667,7 @@ def get_customer_debts(
         cq = cq.filter(Customer.company_id == user.company_id)
     customers = cq.order_by(Customer.debt_balance.desc()).all()
     total = sum(float(c.debt_balance) for c in customers)
+    total_debts = {}
 
     today = date.today()
     customer_ids = [c.id for c in customers]
@@ -687,11 +688,21 @@ def get_customer_debts(
     items = []
     for c in customers:
         due = due_dates.get(c.id)
+        
+        c_balances = c.debt_balances or {}
+        if not c_balances and c.debt_balance and c.debt_balance > 0:
+            c_balances = {c.debt_currency or "UZS": float(c.debt_balance)}
+            
+        for curr, amt in c_balances.items():
+            if float(amt) > 0:
+                total_debts[curr] = total_debts.get(curr, 0.0) + float(amt)
+
         items.append({
             "id": c.id,
             "name": c.name,
             "phone": c.phone,
             "debt_balance": float(c.debt_balance),
+            "debt_balances": c_balances,
             "debt_limit": float(c.debt_limit),
             "earliest_due_date": str(due) if due else None,
             "overdue": bool(due and due < today),
@@ -700,6 +711,7 @@ def get_customer_debts(
     overdue_count = sum(1 for i in items if i["overdue"])
     return {
         "total_debt": total,
+        "total_debts": total_debts,
         "count": len(customers),
         "overdue_count": overdue_count,
         "items": items,
@@ -811,20 +823,34 @@ def get_supplier_debts(
     if user.role.value != "super_admin":
         sq = sq.filter(Supplier.company_id == user.company_id)
     suppliers = sq.order_by(Supplier.debt_balance.desc()).all()
+    
     total = sum(float(s.debt_balance) for s in suppliers)
+    total_debts = {}
+    items = []
+    
+    for s in suppliers:
+        s_balances = s.debt_balances or {}
+        if not s_balances and s.debt_balance and s.debt_balance > 0:
+            s_balances = {s.debt_currency or "UZS": float(s.debt_balance)}
+            
+        for curr, amt in s_balances.items():
+            if float(amt) > 0:
+                total_debts[curr] = total_debts.get(curr, 0.0) + float(amt)
+                
+        items.append({
+            "id": s.id,
+            "name": s.name,
+            "phone": s.phone,
+            "debt_balance": float(s.debt_balance),
+            "debt_balances": s_balances,
+            "payment_terms": s.payment_terms,
+        })
+
     return {
         "total_debt": total,
+        "total_debts": total_debts,
         "count": len(suppliers),
-        "items": [
-            {
-                "id": s.id,
-                "name": s.name,
-                "phone": s.phone,
-                "debt_balance": float(s.debt_balance),
-                "payment_terms": s.payment_terms,
-            }
-            for s in suppliers
-        ],
+        "items": items,
     }
 
 

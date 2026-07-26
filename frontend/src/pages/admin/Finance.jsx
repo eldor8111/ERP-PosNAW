@@ -634,7 +634,18 @@ export default function Finance() {
               <>
                 {/* Summary bar */}
                 <div className="px-6 py-3 border-b border-slate-100 bg-amber-50 flex flex-wrap gap-4 items-center">
-                  <span className="text-sm text-slate-600">{t('finance.totalDebt') || 'Jami qarz:'} <strong className="text-amber-700">{fmt(customerDebts.total_debt, t)}</strong></span>
+                  <span className="text-sm text-slate-600">
+                    {t('finance.totalDebt') || 'Jami qarz:'}
+                    {customerDebts.total_debts && Object.keys(customerDebts.total_debts).length > 0 ? (
+                      Object.entries(customerDebts.total_debts).map(([curr, amt]) => (
+                        <strong key={curr} className="text-amber-700 ml-2">
+                          {fmt(amt)} {curr === 'UZS' ? "so'm" : curr}
+                        </strong>
+                      ))
+                    ) : (
+                      <strong className="text-amber-700 ml-2">{fmt(customerDebts.total_debt, t)}</strong>
+                    )}
+                  </span>
                   <span className="text-sm text-slate-500">{customerDebts.count} ta mijoz</span>
                   {customerDebts.overdue_count > 0 && (
                     <span className="text-sm font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-lg">
@@ -657,7 +668,11 @@ export default function Finance() {
                         <tr key={c.id} className={`transition-colors ${c.overdue ? 'bg-red-50/50 hover:bg-red-50' : 'hover:bg-slate-50'}`}>
                           <td className="px-6 py-4 text-sm font-semibold text-slate-800">{c.name}</td>
                           <td className="px-6 py-4 text-sm text-slate-500">{c.phone || '—'}</td>
-                          <td className="px-6 py-4 text-sm font-bold text-amber-600">{fmt(c.debt_balance, t)}</td>
+                          <td className="px-6 py-4 text-sm font-bold text-amber-600">
+                            {c.debt_balances && Object.keys(c.debt_balances).length > 0
+                              ? Object.entries(c.debt_balances).map(([curr, amt]) => `${fmt(amt)} ${curr === 'UZS' ? "so'm" : curr}`).join(' + ')
+                              : fmt(c.debt_balance, t)}
+                          </td>
                           <td className="px-6 py-4 text-sm text-slate-500">{c.earliest_due_date || '—'}</td>
                           <td className="px-6 py-4">
                             {c.overdue
@@ -696,8 +711,19 @@ export default function Finance() {
             </div>
             {loading ? <Spinner /> : supplierDebts ? (
               <>
-                <div className="px-6 py-3 border-b border-slate-100 bg-red-50 flex gap-4">
-                  <span className="text-sm text-slate-600">{t('finance.totalDebt') || 'Jami qarz:'} <strong className="text-red-600">{fmt(supplierDebts.total_debt, t)}</strong></span>
+                <div className="px-6 py-3 border-b border-slate-100 bg-red-50 flex flex-wrap gap-4 items-center">
+                  <span className="text-sm text-slate-600">
+                    {t('finance.totalDebt') || 'Jami qarz:'} 
+                    {supplierDebts.total_debts && Object.keys(supplierDebts.total_debts).length > 0 ? (
+                      Object.entries(supplierDebts.total_debts).map(([curr, amt]) => (
+                        <strong key={curr} className="text-red-600 ml-2">
+                          {fmt(amt)} {curr === 'UZS' ? "so'm" : curr}
+                        </strong>
+                      ))
+                    ) : (
+                      <strong className="text-red-600 ml-2">{fmt(supplierDebts.total_debt, t)}</strong>
+                    )}
+                  </span>
                   <span className="text-sm text-slate-500">({supplierDebts.count} ta supplier)</span>
                 </div>
                 <table className="min-w-full">
@@ -713,7 +739,11 @@ export default function Finance() {
                       <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-4 text-sm font-semibold text-slate-800">{s.name}</td>
                         <td className="px-6 py-4 text-sm text-slate-500">{s.phone || '—'}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-red-600">{fmt(s.debt_balance)}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-red-600">
+                          {s.debt_balances && Object.keys(s.debt_balances).length > 0
+                            ? Object.entries(s.debt_balances).map(([curr, amt]) => `${fmt(amt)} ${curr === 'UZS' ? "so'm" : curr}`).join(' + ')
+                            : fmt(s.debt_balance, t)}
+                        </td>
                         <td className="px-6 py-4 text-sm text-slate-500">{s.payment_terms} kun</td>
                         <td className="px-6 py-4">
                           <button
