@@ -129,7 +129,7 @@ def delete_wallet(
         raise HTTPException(status_code=404, detail="Not found")
     # Mark as inactive instead of deleting if it has balance
     if w.balance != 0:
-        w.is_active = False
+        w.is_active = False  # type: ignore[assignment]
     else:
         db.delete(w)
     db.commit()
@@ -234,7 +234,7 @@ def create_expense(
     if data.wallet_id:
         wallet = db.get(Wallet, data.wallet_id)
         if wallet:
-            wallet.balance = float(wallet.balance) - float(data.amount)
+            wallet.balance = (Decimal(str(wallet.balance or 0)) - Decimal(str(data.amount)))
     db.commit()
     db.refresh(expense)
     return expense
@@ -312,7 +312,7 @@ def get_cash_balance(
         "total_expense": expense,
         "income_by_currency": income_by_curr,
         "expense_by_currency": expense_by_curr,
-        "balance": float(comp.balance) if comp else 0,
+        "balance": float(str(comp.balance or 0)) if comp else 0,
     }
 
 
@@ -545,9 +545,9 @@ def create_transaction(
         wallet = db.get(Wallet, data.wallet_id)
         if wallet:
             if data.type == "income":
-                wallet.balance = float(wallet.balance) + float(data.amount)
+                wallet.balance = (Decimal(str(wallet.balance or 0)) + Decimal(str(data.amount)))
             elif data.type == "expense":
-                wallet.balance = float(wallet.balance) - float(data.amount)
+                wallet.balance = (Decimal(str(wallet.balance or 0)) - Decimal(str(data.amount)))
                 
     db.commit()
     db.refresh(tx)
@@ -596,30 +596,30 @@ def update_transaction(
         if tx.wallet_id and diff != 0:
             w = db.get(Wallet, tx.wallet_id)
             if w:
-                if tx.type == "income": w.balance = float(w.balance) + diff
-                else: w.balance = float(w.balance) - diff
+                if tx.type == "income": w.balance = (Decimal(str(w.balance or 0)) + Decimal(str(diff)))
+                else: w.balance = (Decimal(str(w.balance or 0)) - Decimal(str(diff)))
 
     # References update
     if diff != 0:
         if tx.reference_type == "customer_payment" and tx.reference_id:
             customer = db.get(Customer, tx.reference_id)
             if customer:
-                customer.debt_balance = float(customer.debt_balance) - diff
+                customer.debt_balance = (Decimal(str(customer.debt_balance or 0)) - Decimal(str(diff)))
         elif tx.reference_type == "supplier_payment" and tx.reference_id:
             supplier = db.get(Supplier, tx.reference_id)
             if supplier:
-                supplier.debt_balance = float(supplier.debt_balance) - diff
+                supplier.debt_balance = (Decimal(str(supplier.debt_balance or 0)) - Decimal(str(diff)))
         elif tx.reference_type == "expense" and tx.reference_id:
             expense = db.get(Expense, tx.reference_id)
             if expense:
-                expense.amount = new_amount
+                expense.amount = Decimal(str(new_amount))
 
-    tx.amount = new_amount
+    tx.amount = Decimal(str(new_amount))
     if data.payment_type:
-        tx.payment_type = data.payment_type
-    tx.wallet_id = data.wallet_id
+        tx.payment_type = str(data.payment_type)  # type: ignore[assignment]
+    tx.wallet_id = data.wallet_id  # type: ignore[assignment]
     if data.description is not None:
-        tx.description = data.description
+        tx.description = str(data.description) if data.description is not None else tx.description
 
     db.commit()
     db.refresh(tx)
@@ -644,18 +644,18 @@ def delete_transaction(
         wallet = db.get(Wallet, tx.wallet_id)
         if wallet:
             if tx.type == "income":
-                wallet.balance = float(wallet.balance) - float(tx.amount)
+                wallet.balance = (Decimal(str(wallet.balance or 0)) - Decimal(str(tx.amount)))
             elif tx.type == "expense":
-                wallet.balance = float(wallet.balance) + float(tx.amount)
+                wallet.balance = (Decimal(str(wallet.balance or 0)) + Decimal(str(tx.amount)))
                 
     if tx.reference_type == "customer_payment" and tx.reference_id:
         customer = db.get(Customer, tx.reference_id)
         if customer:
-            customer.debt_balance = float(customer.debt_balance) + float(tx.amount)
+            customer.debt_balance = (Decimal(str(customer.debt_balance or 0)) + Decimal(str(tx.amount or 0)))
     elif tx.reference_type == "supplier_payment" and tx.reference_id:
         supplier = db.get(Supplier, tx.reference_id)
         if supplier:
-            supplier.debt_balance = float(supplier.debt_balance) + float(tx.amount)
+            supplier.debt_balance = (Decimal(str(supplier.debt_balance or 0)) + Decimal(str(tx.amount or 0)))
     elif tx.reference_type == "expense" and tx.reference_id:
         expense = db.get(Expense, tx.reference_id)
         if expense:
@@ -746,7 +746,7 @@ def record_customer_debt_payment(
 
     # Ensure debt_balances is initialised
     if not customer.debt_balances:
-        customer.debt_balances = {}
+        customer.debt_balances = {}  # type: ignore[assignment]
 
     # Update currency-specific balance
     curr_val = Decimal(str(customer.debt_balances.get(currency, 0)))
@@ -762,7 +762,7 @@ def record_customer_debt_payment(
             exchange_rate = Decimal(str(curr_obj.rate))
 
     amount_in_uzs = pay * exchange_rate
-    customer.debt_balance = max(Decimal("0"), (customer.debt_balance or Decimal("0")) - amount_in_uzs)
+    customer.debt_balance = max(Decimal("0"), Decimal(str(customer.debt_balance or 0)) - amount_in_uzs)
 
     # Wallet, Transaction, and KassaMovement
     target_wallet_id = data.wallet_id
@@ -779,7 +779,7 @@ def record_customer_debt_payment(
         from app.models.moliya import KassaSession as _KS, KassaMovement as _KM
         wallet = db.get(Wallet, target_wallet_id)
         if wallet:
-            wallet.balance = float(wallet.balance or 0) + float(amount_in_uzs)
+            wallet.balance = (Decimal(str(wallet.balance or 0)) + Decimal(str(amount_in_uzs)))
         open_session = db.query(_KS).filter(_KS.wallet_id == target_wallet_id, _KS.status == "open").first()
 
         from app.models.branch import Branch as _Branch
@@ -838,7 +838,7 @@ def fix_old_transactions(db: Session = Depends(get_db)):
     count = 0
     for tx in txs:
         if "USD" not in (tx.description or ""):
-            tx.currency_code = "USD"
+            tx.currency_code = "USD"  # type: ignore[assignment]
             count += 1
 
     # Also fix income (sale) transactions that have USD in description but wrong currency_code
@@ -852,10 +852,10 @@ def fix_old_transactions(db: Session = Depends(get_db)):
     for tx in income_txs:
         import re
         # Extract USD amount from description e.g. "(150 USD)"
-        m = re.search(r'\((\d+\.?\d*)\s*USD\)', tx.description or "")
+        m = re.search(r'\((\d+\.?\d*)\s*USD\)', str(tx.description or ""))
         if m:
-            tx.amount = float(m.group(1))
-            tx.currency_code = "USD"
+            tx.amount = Decimal(m.group(1))
+            tx.currency_code = "USD"  # type: ignore[assignment]
             income_count += 1
 
     db.commit()
@@ -921,7 +921,7 @@ def record_supplier_debt_payment(
 
     # Ensure debt_balances is initialised
     if not supplier.debt_balances:
-        supplier.debt_balances = {}
+        supplier.debt_balances = {}  # type: ignore[assignment]
     
     # Update currency-specific balance
     from decimal import Decimal
@@ -939,7 +939,7 @@ def record_supplier_debt_payment(
             exchange_rate = Decimal(str(curr_obj.rate))
 
     amount_in_uzs = Decimal(str(paid)) * exchange_rate
-    supplier.debt_balance = float(max(Decimal("0"), Decimal(str(supplier.debt_balance or 0)) - amount_in_uzs))
+    supplier.debt_balance = max(Decimal("0"), Decimal(str(supplier.debt_balance or 0)) - amount_in_uzs)
 
     from app.models.branch import Branch as _Branch
     tx_branch_id = user.branch_id
