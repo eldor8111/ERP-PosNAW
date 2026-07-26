@@ -66,6 +66,7 @@ class Transaction(Base):
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
     wallet_id = Column(Integer, ForeignKey("wallets.id"), nullable=True)
     payment_type = Column(String(50), nullable=True)
+    currency_code = Column(String(3), nullable=True, server_default='UZS', default='UZS')
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 

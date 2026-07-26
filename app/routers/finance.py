@@ -470,6 +470,7 @@ def get_expense_payments(
             "contragent": contragent,
             "turi": turi,
             "amount": float(tx.amount),
+            "currency_code": tx.currency_code or "UZS",
             "payment_type": ptype,
             "reference_type": tx.reference_type,
             "description": tx.description,

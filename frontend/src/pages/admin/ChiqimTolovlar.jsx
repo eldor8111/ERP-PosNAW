@@ -4,6 +4,12 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ') + " so'm";
+const fmtCurr = (v, curr) => {
+  const n = Number(v || 0);
+  if (!curr || curr === 'UZS') return n.toLocaleString('uz-UZ') + " so'm";
+  if (curr === 'USD') return '$' + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  return n.toLocaleString('uz-UZ') + ' ' + curr;
+};
 const today = () => new Date().toISOString().slice(0, 10);
 
 const PAYMENT_TYPES = [
@@ -159,13 +165,13 @@ export default function ChiqimTolovlar() {
                         {i.turi}
                       </span>
                     </td>
-                    <td className="px-4 py-3 font-bold text-red-500">{fmt(i.amount)}</td>
-                    <td className="px-2 py-3 text-center border-x border-slate-50">{['cash', 'naqd'].includes(i.payment_type) ? fmt(i.amount) : 0}</td>
-                    <td className="px-2 py-3 text-center border-x border-slate-50">{['card', 'plastik', 'uzcard', 'humo'].includes(i.payment_type) ? fmt(i.amount) : 0}</td>
-                    <td className="px-2 py-3 text-center border-x border-slate-50">{['bank', 'bank_transfer'].includes(i.payment_type) ? fmt(i.amount) : 0}</td>
-                    <td className="px-2 py-3 text-center border-x border-slate-50">{i.payment_type === 'click' ? fmt(i.amount) : 0}</td>
-                    <td className="px-2 py-3 text-center border-x border-slate-50">{i.payment_type === 'payme' ? fmt(i.amount) : 0}</td>
-                    <td className="px-2 py-3 text-center border-x border-slate-50">{i.payment_type === 'uzum' ? fmt(i.amount) : 0}</td>
+                    <td className="px-4 py-3 font-bold text-red-500">{fmtCurr(i.amount, i.currency_code)}</td>
+                    <td className="px-2 py-3 text-center border-x border-slate-50">{['cash', 'naqd'].includes(i.payment_type) ? fmtCurr(i.amount, i.currency_code) : 0}</td>
+                    <td className="px-2 py-3 text-center border-x border-slate-50">{['card', 'plastik', 'uzcard', 'humo'].includes(i.payment_type) ? fmtCurr(i.amount, i.currency_code) : 0}</td>
+                    <td className="px-2 py-3 text-center border-x border-slate-50">{['bank', 'bank_transfer'].includes(i.payment_type) ? fmtCurr(i.amount, i.currency_code) : 0}</td>
+                    <td className="px-2 py-3 text-center border-x border-slate-50">{i.payment_type === 'click' ? fmtCurr(i.amount, i.currency_code) : 0}</td>
+                    <td className="px-2 py-3 text-center border-x border-slate-50">{i.payment_type === 'payme' ? fmtCurr(i.amount, i.currency_code) : 0}</td>
+                    <td className="px-2 py-3 text-center border-x border-slate-50">{i.payment_type === 'uzum' ? fmtCurr(i.amount, i.currency_code) : 0}</td>
                     <td className="px-4 py-3">
                       <span className="px-2 py-1 rounded-md text-xs bg-blue-50 text-blue-600 border border-blue-100">
                         {i.reference_type === 'supplier_payment' || i.reference_type === 'purchase_order' ? "Ta'minotchiga to'lov" : i.reference_type === 'expense' ? "Xarajat" : "Mijozga qaytaruv"}
