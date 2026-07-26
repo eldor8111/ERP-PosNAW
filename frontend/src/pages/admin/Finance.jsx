@@ -639,7 +639,7 @@ export default function Finance() {
                     {customerDebts.total_debts && Object.keys(customerDebts.total_debts).length > 0 ? (
                       Object.entries(customerDebts.total_debts).map(([curr, amt]) => (
                         <strong key={curr} className="text-amber-700 ml-2">
-                          {fmt(amt)} {curr === 'UZS' ? "so'm" : curr}
+                          {Number(amt || 0).toLocaleString('uz-UZ')} {curr === 'UZS' ? "so'm" : curr}
                         </strong>
                       ))
                     ) : (
@@ -670,7 +670,7 @@ export default function Finance() {
                           <td className="px-6 py-4 text-sm text-slate-500">{c.phone || '—'}</td>
                           <td className="px-6 py-4 text-sm font-bold text-amber-600">
                             {c.debt_balances && Object.keys(c.debt_balances).length > 0
-                              ? Object.entries(c.debt_balances).map(([curr, amt]) => `${fmt(amt)} ${curr === 'UZS' ? "so'm" : curr}`).join(' + ')
+                              ? Object.entries(c.debt_balances).map(([curr, amt]) => `${Number(amt || 0).toLocaleString('uz-UZ')} ${curr === 'UZS' ? "so'm" : curr}`).join(' + ')
                               : fmt(c.debt_balance, t)}
                           </td>
                           <td className="px-6 py-4 text-sm text-slate-500">{c.earliest_due_date || '—'}</td>
@@ -717,7 +717,7 @@ export default function Finance() {
                     {supplierDebts.total_debts && Object.keys(supplierDebts.total_debts).length > 0 ? (
                       Object.entries(supplierDebts.total_debts).map(([curr, amt]) => (
                         <strong key={curr} className="text-red-600 ml-2">
-                          {fmt(amt)} {curr === 'UZS' ? "so'm" : curr}
+                          {Number(amt || 0).toLocaleString('uz-UZ')} {curr === 'UZS' ? "so'm" : curr}
                         </strong>
                       ))
                     ) : (
@@ -741,7 +741,7 @@ export default function Finance() {
                         <td className="px-6 py-4 text-sm text-slate-500">{s.phone || '—'}</td>
                         <td className="px-6 py-4 text-sm font-bold text-red-600">
                           {s.debt_balances && Object.keys(s.debt_balances).length > 0
-                            ? Object.entries(s.debt_balances).map(([curr, amt]) => `${fmt(amt)} ${curr === 'UZS' ? "so'm" : curr}`).join(' + ')
+                            ? Object.entries(s.debt_balances).map(([curr, amt]) => `${Number(amt || 0).toLocaleString('uz-UZ')} ${curr === 'UZS' ? "so'm" : curr}`).join(' + ')
                             : fmt(s.debt_balance, t)}
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-500">{s.payment_terms} kun</td>
