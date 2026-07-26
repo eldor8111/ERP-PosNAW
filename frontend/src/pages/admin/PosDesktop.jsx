@@ -306,6 +306,7 @@ const navigate = useNavigate();
         const settings = getReceiptSettings();
         const templateType = posSettings.paper === '58mm' ? '58' : '80';
         const tmplCfg = settings['r' + templateType] || settings[templateType] || {};
+        const selectedCust = customers.find(c => String(c.id) === String(custId));
         const meta = {
           id: orderNum.current, number: orderNum.current,
           cashier_name: 'Kassir',
@@ -322,6 +323,8 @@ const navigate = useNavigate();
             unit_price: c.unit_price,
             subtotal: c.unit_price * c.qty_ordered,
           })),
+          contractor_name: selectedCust ? selectedCust.name : undefined,
+          customer_name: selectedCust ? selectedCust.name : undefined,
         };
         printReceiptHtml(buildReceiptHtml(meta, templateType, tmplCfg));
       }

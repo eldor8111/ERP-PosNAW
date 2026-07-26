@@ -393,6 +393,7 @@ const navigate = useNavigate();
         const settings = getReceiptSettings();
         const templateType = posSettings.template || (posSettings.paper === '58mm' ? '58' : '80');
         const tmplCfg = settings['r' + templateType] || settings[templateType] || {};
+        const selectedCust = customers.find(c => String(c.id) === String(custId));
         const localMeta = {
           id: orderId, number: orderId,
           cashier_name: 'Kassa',
@@ -402,6 +403,8 @@ const navigate = useNavigate();
           discount_amount: totalDiscount,
           payment_types_array: payments.map(p => ({ type: p.type, amount: parseAmt(p.amount) })),
           items: cart,
+          contractor_name: selectedCust ? selectedCust.name : undefined,
+          customer_name: selectedCust ? selectedCust.name : undefined,
         };
         printReceiptHtml(buildReceiptHtml(localMeta, templateType, tmplCfg));
       }

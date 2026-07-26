@@ -681,6 +681,12 @@ export default function UlgurjiSotuv() {
     try {
       let data = s;
       if (!s.items) { const r = await api.get(`/sales/${s.id}`); data = r.data; }
+      const clientName = data.contractor_name || data.customer_name || s.customer_name || s.contractor_name || (data.customer && data.customer.name);
+      data = {
+        ...data,
+        contractor_name: clientName,
+        customer_name: clientName,
+      };
       const tpl = size === 'nak' ? 'nak' : size === '58' ? '58' : '80';
       const rSettings = getReceiptSettings();
       const cfgRaw = tpl === 'nak' ? (rSettings.nak || {}) : (rSettings['r' + tpl] || {});
@@ -1022,7 +1028,7 @@ export default function UlgurjiSotuv() {
             currency_code: currentCurrencyCode,
             exchange_rate: currentExchangeRate,
             // Mijoz ma'lumotlari
-            contractor_name: selectedCust ? selectedCust.name : undefined,
+            contractor_name: selectedCust ? selectedCust.name : (res.data.customer_name || undefined),
             contractor_contacts: selectedCust?.phone ? [{ value: selectedCust.phone }] : [],
             // To'lov turlari ro'yxati
             payment_types_array: payTypesArr.length > 0 ? payTypesArr : undefined,

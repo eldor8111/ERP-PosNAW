@@ -176,8 +176,14 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
     const totalColspan = visibleCols.length - 1;
 
     // Info rows (contractor, employee, etc.)
+    const clientName = sale.contractor_name ||
+      sale.customer_name ||
+      (typeof sale.customer === 'string' ? sale.customer : sale.customer?.name) ||
+      (typeof sale.contractor === 'string' ? sale.contractor : sale.contractor?.name) ||
+      sale.client_name ||
+      '';
     const infoLines = [
-      sh('show_contractor_name') && sale.contractor_name ? `<div><b>Mijoz:</b> ${sale.contractor_name}</div>` : '',
+      sh('show_contractor_name') ? `<div><b>Mijoz:</b> ${clientName || '___'}</div>` : '',
       sh('show_account_name') && sale.account_name ? `<div><b>Filial:</b> ${sale.account_name}</div>` : '',
       sh('show_account_username') && sale.account_username ? `<div><b>Foydalanuvchi:</b> ${sale.account_username}</div>` : '',
       sh('show_employee') && (sale.cashier_name || sale.employee_name) ? `<div><b>Xodim:</b> ${sale.employee_name || sale.cashier_name}</div>` : '',
@@ -345,9 +351,9 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   </div>
   <hr class="dash"/>
   
-  ${sale.contractor_name ? `<div class="flex"><span>Mijoz:</span><span style="text-transform:uppercase">${sale.contractor_name}</span></div>` : ''}
+  ${clientName ? `<div class="flex"><span>Mijoz:</span><span style="text-transform:uppercase">${clientName}</span></div>` : ''}
   ${sale.contractor_contacts?.length ? `<div class="flex"><span>Tel:</span><span>${sale.contractor_contacts.map(c => c.value || c).join(', ')}</span></div>` : ''}
-  ${sale.contractor_name || sale.contractor_contacts?.length ? `<hr class="dash"/>` : ''}
+  ${clientName || sale.contractor_contacts?.length ? `<hr class="dash"/>` : ''}
 
   ${rows}
 

@@ -904,7 +904,6 @@ function SaleDetailView({ saleId, onBack }) {
 ══════════════════════════════════════════════════════════ */
 function KirimCreateView({ onBack, onSaved, editPo = null }) {
   const { t } = useLang();
-  // Fetch our own data — don't depend on parent props (avoids race condition)
   const [products, setProds] = useState([]);
   const [warehouses, setWhs] = useState([]);
   const [suppliers, setSups] = useState([]);
@@ -920,7 +919,6 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
     api.get('/finance/wallets').then(r => { setWallets(r.data); if (r.data.length > 0) setPayForm(p => ({ ...p, wallet_id: r.data[0].id })); }).catch(console.error);
     api.get('/currencies/active').then(r => {
       const list = Array.isArray(r.data) ? r.data : [];
-      // Ensure UZS is always present with rate=1
       if (!list.find(c => c.code === 'UZS')) list.unshift({ code: 'UZS', rate: 1 });
       setCurrencies(list);
       setCurrenciesLoaded(true);

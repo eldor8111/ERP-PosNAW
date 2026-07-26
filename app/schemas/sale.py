@@ -117,6 +117,7 @@ class SaleOut(BaseModel):
     cashier_id: int
     cashier_name: str
     customer_id: Optional[int] = None
+    customer_name: Optional[str] = None  # Chekda mijoz ismini ko'rsatish uchun
     total_amount: Decimal
     discount_amount: Decimal
     paid_amount: Decimal

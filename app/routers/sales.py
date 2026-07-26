@@ -27,6 +27,7 @@ def _load_sale(db: Session, sale_id: int, user: Optional[User] = None) -> Sale:
             joinedload(Sale.items).joinedload(SaleItem.warehouse),
             joinedload(Sale.payments),
             joinedload(Sale.cashier),
+            joinedload(Sale.customer),
         )
         .filter(Sale.id == sale_id)
     )
@@ -72,6 +73,7 @@ def _build_sale_out(sale: Sale) -> SaleOut:
         cashier_id=sale.cashier_id,
         cashier_name=sale.cashier.name if sale.cashier else f"ID={sale.cashier_id}",
         customer_id=sale.customer_id,
+        customer_name=sale.customer.name if getattr(sale, 'customer', None) else None,
         warehouse_id=sale.warehouse_id,
         total_amount=sale.total_amount,
         discount_amount=sale.discount_amount,
@@ -115,7 +117,7 @@ def make_sale(
 
     ip = request.client.host if request.client else None
     sale = create_sale(db=db, data=data, current_user=current_user, ip=ip, background_tasks=background_tasks)
-    # _load_sale chaqirilmaydi — ortiqcha query yo'q, tezroq ishlaydi
+    cust_name = sale.customer.name if getattr(sale, 'customer', None) else (db.query(Customer.name).filter(Customer.id == sale.customer_id).scalar() if sale.customer_id else None)
     return SaleListOut(
         id=sale.id,
         number=sale.number,
@@ -129,7 +131,7 @@ def make_sale(
         payment_type=sale.payment_type,
         status=sale.status,
         customer_id=sale.customer_id,
-        customer_name=None,
+        customer_name=cust_name,
         items_count=len(data.items),
         created_at=sale.created_at,
         currency_code=sale.currency.code if getattr(sale, 'currency', None) else "UZS",
@@ -146,6 +148,7 @@ def make_pending_sale(
     """Ulgurji sotuv — to'lovsiz (pending) holatda saqlash. Stock tegilmaydi."""
     ip = request.client.host if request.client else None
     sale = create_pending_sale(db=db, data=data, current_user=current_user, ip=ip)
+    cust_name = sale.customer.name if getattr(sale, 'customer', None) else (db.query(Customer.name).filter(Customer.id == sale.customer_id).scalar() if sale.customer_id else None)
     return SaleListOut(
         id=sale.id,
         number=sale.number,
@@ -158,7 +161,7 @@ def make_pending_sale(
         payment_type=sale.payment_type,
         status=sale.status,
         customer_id=sale.customer_id,
-        customer_name=None,
+        customer_name=cust_name,
         items_count=len(data.items),
         created_at=sale.created_at,
         currency_code=sale.currency.code if getattr(sale, 'currency', None) else "UZS",
@@ -175,6 +178,7 @@ def make_return_sale(
     """POS — qaytarish (vazvrat) amalga oshirish"""
     ip = request.client.host if request.client else None
     sale = create_return_sale(db=db, data=data, current_user=current_user, ip=ip)
+    cust_name = sale.customer.name if getattr(sale, 'customer', None) else (db.query(Customer.name).filter(Customer.id == sale.customer_id).scalar() if sale.customer_id else None)
     return SaleListOut(
         id=sale.id,
         number=sale.number,
@@ -187,7 +191,7 @@ def make_return_sale(
         payment_type=sale.payment_type,
         status=sale.status,
         customer_id=sale.customer_id,
-        customer_name=None,
+        customer_name=cust_name,
         items_count=len(data.items),
         created_at=sale.created_at,
         currency_code=sale.currency.code if getattr(sale, 'currency', None) else "UZS",
