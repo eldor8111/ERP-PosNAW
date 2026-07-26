@@ -816,6 +816,22 @@ def record_customer_debt_payment(
     }
 
 
+@router.get("/fix-old-tx-currency")
+def fix_old_transactions(db: Session = Depends(get_db)):
+    txs = db.query(Transaction).filter(
+        Transaction.type == "expense",
+        Transaction.reference_type == "supplier_payment",
+        Transaction.amount < 10000,
+        Transaction.currency_code == "UZS"
+    ).all()
+    count = 0
+    for tx in txs:
+        if "USD" not in (tx.description or ""):
+            tx.currency_code = "USD"
+            count += 1
+    db.commit()
+    return {"message": f"Fixed {count} old transactions to USD"}
+
 # ─── Kreditor boshqaruvi (Supplier qarzi) ────────────────────────────────────
 
 @router.get("/supplier-debts")
