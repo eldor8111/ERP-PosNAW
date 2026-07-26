@@ -151,15 +151,33 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
         await api.post('/kassa/do-expense', { wallet_id: kassa.id, category_id: Number(form.category_id), amount: Number(form.amount), payment_type: form.payment_type, description: form.description });
         toast.success('Xarajat qilindi');
       } else if (action === 'transfer') {
-        if (!form.receiver_wallet_id || !form.amount) { toast.error("Qabul qiluvchi kassani va summani kiriting"); return; }
-        const res = await api.post(`/kassa/${kassa.id}/transfer/out`, {
-          receiver_wallet_id: Number(form.receiver_wallet_id),
-          amount: Number(form.amount),
-          currency: form.currency,
-          payment_type: form.payment_type,
-          note: form.note,
+        if (!form.receiver_wallet_id) { toast.error("Qabul qiluvchi kassani kiriting"); return; }
+        
+        const promises = [];
+        PT_KEYS.forEach(ptype => {
+          if (form.transfer_amounts?.[ptype]) {
+            Object.entries(form.transfer_amounts[ptype]).forEach(([curr, amount]) => {
+              const numAmount = Number(amount);
+              if (numAmount > 0) {
+                promises.push(api.post(`/kassa/${kassa.id}/transfer/out`, {
+                  receiver_wallet_id: Number(form.receiver_wallet_id),
+                  amount: numAmount,
+                  currency: curr,
+                  payment_type: ptype,
+                  note: form.note,
+                }));
+              }
+            });
+          }
         });
-        toast.success(`Transfer #${res.data.transfer_id} muvaffaqiyatli amalga oshirildi ✅`);
+
+        if (promises.length === 0) {
+          toast.error("Kamida bitta to'lov turi bo'yicha summa kiriting");
+          return;
+        }
+
+        await Promise.all(promises);
+        toast.success(`O'tkazma muvaffaqiyatli amalga oshirildi ✅`);
       }
       if (action !== 'close') setModal(null);
       onRefresh();
@@ -415,32 +433,74 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                 ))}
               </select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-1.5">To'lov turi</label>
-                <select className={field} value={form.payment_type} onChange={e => setForm({ ...form, payment_type: e.target.value })}>
-                  {PT_KEYS.map(k => <option key={k} value={k}>{PT_LABELS[k]}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-1.5">Valyuta</label>
-                <select className={field} value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })}>
-                  <option value="UZS">UZS (so'm)</option>
-                  <option value="USD">USD (dollar)</option>
-                </select>
-              </div>
+            
+            <p className="text-sm text-slate-600 font-medium mt-2">O'tkaziladigan summalarni kiriting:</p>
+            <div className="overflow-x-auto rounded-xl border border-slate-200 max-h-[40vh]">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 sticky top-0 shadow-sm z-10">
+                    <th className="text-left px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">To'lov turi</th>
+                    <th className="text-center px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Valyuta</th>
+                    <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">O'tkaziladigan summa</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {PT_KEYS.map(k => {
+                    const cfg = PT_CONFIG[k];
+                    const bVal = balances[k];
+                    let currencies = ['UZS'];
+                    if (Array.isArray(bVal) && bVal.length > 0) {
+                      currencies = bVal.map(item => item.currency);
+                    }
+                    
+                    return currencies.map((curr, idx) => {
+                      const maxBalance = Array.isArray(bVal) ? bVal.find(x => x.currency === curr)?.value || 0 : (bVal || 0);
+                      
+                      return (
+                        <tr key={`${k}-${curr}`} className="hover:bg-slate-50/50">
+                          {idx === 0 ? (
+                            <td rowSpan={currencies.length} className="px-3 py-2.5 text-slate-900 font-medium align-top bg-white/50">
+                              <div className="flex items-center gap-2">
+                                {cfg.icon}
+                                <span>{cfg.label}</span>
+                              </div>
+                            </td>
+                          ) : null}
+                          <td className="px-3 py-2.5 text-center font-medium text-slate-600">
+                            {curr}
+                            <div className="text-[10px] text-slate-400 font-normal">Kassada: {fmt(maxBalance)}</div>
+                          </td>
+                          <td className="px-3 py-2.5 text-right">
+                            <input
+                              type="number"
+                              min="0"
+                              className="w-40 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500"
+                              value={form.transfer_amounts?.[k]?.[curr] || ''}
+                              onChange={e => setForm({ 
+                                ...form, 
+                                transfer_amounts: { 
+                                  ...form.transfer_amounts, 
+                                  [k]: { ...(form.transfer_amounts?.[k] || {}), [curr]: e.target.value } 
+                                } 
+                              })}
+                              placeholder={`0 ${curr}`}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })}
+                </tbody>
+              </table>
             </div>
-            <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1.5">Summa *</label>
-              <input type="number" min="1" className={field} value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} placeholder="0" />
-            </div>
+
             <div>
               <label className="text-xs font-medium text-slate-600 block mb-1.5">Izoh</label>
               <input className={field} value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder="Ixtiyoriy..." />
             </div>
             <div className="flex gap-3 pt-2">
               <button onClick={() => setModal(null)} className={cancelBtn}>Bekor</button>
-              <button onClick={() => save('transfer')} disabled={saving || !form.receiver_wallet_id || !form.amount}
+              <button onClick={() => save('transfer')} disabled={saving || !form.receiver_wallet_id}
                 className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-bold disabled:opacity-50 transition-colors">
                 {saving ? 'Yuborilmoqda...' : '📤 Yuborish'}
               </button>
