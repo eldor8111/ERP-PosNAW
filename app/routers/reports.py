@@ -16,6 +16,7 @@ from app.models.customer import Customer
 from app.models.inventory import StockLevel
 from app.models.product import Product
 from app.models.purchase_order import PurchaseOrder
+from app.models.currency import Currency
 from app.models.sale import Sale, SaleItem, SaleStatus
 from app.models.batch import Batch
 from app.models.supplier import Supplier
@@ -56,16 +57,16 @@ def get_dashboard(
     wh_filter = get_warehouse_filter(warehouse_id)
     # currency_code bo'yicha guruhlash
     today_rows = db.query(
-        Sale.currency_code,
+        func.coalesce(Currency.code, 'UZS'),
         func.count(Sale.id),
-        func.coalesce(func.sum(Sale.total_amount), 0)
-    ).filter(
+        func.coalesce(func.sum(Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)), 0)
+    ).outerjoin(Currency, Currency.id == Sale.currency_id).filter(
         Sale.company_id == cid,
         Sale.created_at >= today_start,
         Sale.created_at < today_end,
         Sale.status == SaleStatus.completed,
         *wh_filter
-    ).group_by(Sale.currency_code).all()
+    ).group_by(func.coalesce(Currency.code, 'UZS')).all()
     today_count = sum(row[1] for row in today_rows)
     today_by_currency = {(row[0] or 'UZS'): float(row[2]) for row in today_rows}
     today_total = sum(today_by_currency.values())  # for change_pct calc only
@@ -113,15 +114,15 @@ def get_dashboard(
     month_start = datetime(_now.year, _now.month, 1, 0, 0, 0)
     # Oylik savdolar valyuta bo'yicha
     month_rows = db.query(
-        Sale.currency_code,
+        func.coalesce(Currency.code, 'UZS'),
         func.count(Sale.id),
-        func.coalesce(func.sum(Sale.total_amount), 0)
-    ).filter(
+        func.coalesce(func.sum(Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)), 0)
+    ).outerjoin(Currency, Currency.id == Sale.currency_id).filter(
         Sale.company_id == cid,
         Sale.created_at >= month_start,
         Sale.status == SaleStatus.completed,
         *wh_filter
-    ).group_by(Sale.currency_code).all()
+    ).group_by(func.coalesce(Currency.code, 'UZS')).all()
     month_count = sum(row[1] for row in month_rows)
     month_by_currency = {(row[0] or 'UZS'): float(row[2]) for row in month_rows}
     month_profit = db.query(func.coalesce(
@@ -179,12 +180,13 @@ def get_dashboard(
 
     cashier_q = (
         db.query(User.name, func.count(Sale.id).label("cnt"),
-                 Sale.currency_code,
-                 func.coalesce(func.sum(Sale.total_amount), 0).label("total"))
+                 func.coalesce(Currency.code, 'UZS'),
+                 func.coalesce(func.sum(Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)), 0).label("total"))
         .join(Sale, Sale.cashier_id == User.id)
+        .outerjoin(Currency, Currency.id == Sale.currency_id)
         .filter(Sale.company_id == cid, Sale.created_at >= month_start, Sale.status == SaleStatus.completed, *wh_filter)
     )
-    cashier_rows = cashier_q.group_by(User.id, User.name, Sale.currency_code).order_by(func.sum(Sale.total_amount).desc()).limit(30).all()
+    cashier_rows = cashier_q.group_by(User.id, User.name, func.coalesce(Currency.code, 'UZS')).order_by(func.sum(Sale.total_amount).desc()).limit(30).all()
     # Merge by cashier name grouping currencies
     cashier_map = {}
     for row in cashier_rows:

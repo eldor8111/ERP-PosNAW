@@ -73,19 +73,20 @@ def get_current_shift(db: Session = Depends(get_db), user: User = Depends(get_cu
     if not shift:
         return None
     
-    from app.models.sale import Sale, SalePayment
+    from app.models.currency import Currency
+from app.models.sale import Sale, SalePayment
     from sqlalchemy import func
     
     # Calculate totals from sales during this shift per payment type
     payments = db.query(
         SalePayment.payment_type,
-        Sale.currency_code,
+        func.coalesce(Currency.code, 'UZS'),
         func.sum(SalePayment.amount).label("total")
-    ).join(Sale, SalePayment.sale_id == Sale.id).filter(
+    ).join(Sale, SalePayment.sale_id == Sale.id).outerjoin(Currency, Currency.id == Sale.currency_id).filter(
         Sale.cashier_id == user.id,
         Sale.created_at >= shift.opened_at,
         Sale.status != "cancelled"
-    ).group_by(SalePayment.payment_type, Sale.currency_code).all()
+    ).group_by(SalePayment.payment_type, func.coalesce(Currency.code, 'UZS')).all()
 
     balances = {}
     total_sales_by_currency = {}
@@ -142,17 +143,18 @@ def open_shift(data: ShiftOpen, db: Session = Depends(get_db), user: User = Depe
 
 def _calc_shift_payment_balances(db: Session, shift: Shift):
     """SalePayment jadvalidan smena davomidagi to'lovlarni hisoblaydi."""
-    from app.models.sale import Sale, SalePayment
+    from app.models.currency import Currency
+from app.models.sale import Sale, SalePayment
     from sqlalchemy import func
     payments = db.query(
         SalePayment.payment_type,
-        Sale.currency_code,
+        func.coalesce(Currency.code, 'UZS'),
         func.sum(SalePayment.amount).label("total")
-    ).join(Sale, SalePayment.sale_id == Sale.id).filter(
+    ).join(Sale, SalePayment.sale_id == Sale.id).outerjoin(Currency, Currency.id == Sale.currency_id).filter(
         Sale.cashier_id == shift.cashier_id,
         Sale.created_at >= shift.opened_at,
         Sale.status != "cancelled"
-    ).group_by(SalePayment.payment_type, Sale.currency_code).all()
+    ).group_by(SalePayment.payment_type, func.coalesce(Currency.code, 'UZS')).all()
     balances = {}
     for p in payments:
         ptype = p.payment_type
