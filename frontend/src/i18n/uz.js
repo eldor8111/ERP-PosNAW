@@ -16,7 +16,7 @@ export default {
   'nav.purchases': "Xarid va Ta'minotchilar",
   'nav.warehouse': "Ombor",
   'nav.operations': 'Operatsiyalar',
-  'nav.finance': 'Moliya va Kassa',
+  'nav.finance': 'Moliya',
   'nav.reports': 'Hisobotlar',
   'nav.users': 'Foydalanuvchilar',
   'nav.settings': 'Sozlamalar',
@@ -371,7 +371,7 @@ export default {
   'common.created': 'Yaratilgan',
 
   // === FINANCE ===
-  'finance.title': 'Moliya va Kassa',
+  'finance.title': 'Moliya',
   'finance.wallets': 'Kassalar va Hisoblar',
   'finance.wallet': 'Kassa/Hisob',
   'finance.addWallet': 'Kassa yoki Hisob qo\'shish',
@@ -1060,7 +1060,7 @@ export default {
   'erp.m3.f5': 'Telegram xabarnoma yuborish',
   'erp.m3.f6': 'Mijoz segmentatsiyasi',
 
-  'erp.m4.t': 'Moliya va Kassa',
+  'erp.m4.t': 'Moliya',
   'erp.m4.s': 'To\'liq moliyaviy nazorat',
   'erp.m4.d': 'Har kungi kassa harakati, xarajatlar, daromadlar va foyda/zarar hisobotini real-vaqtda kuzating.',
   'erp.m4.f1': 'Kassa kirim/chiqim',

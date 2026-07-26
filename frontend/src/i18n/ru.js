@@ -16,7 +16,7 @@ export default {
   'nav.purchases': 'Закупки и Поставщики',
   'nav.warehouse': 'Склад',
   'nav.operations': 'Операции',
-  'nav.finance': 'Финансы и Касса',
+  'nav.finance': 'Финансы',
   'nav.reports': 'Отчёты',
   'nav.users': 'Пользователи',
   'nav.settings': 'Настройки',
@@ -371,7 +371,7 @@ export default {
   'common.created': 'Создано',
 
   // === FINANCE ===
-  'finance.title': 'Финансы и Касса',
+  'finance.title': 'Финансы',
   'finance.income': 'Приход',
   'finance.expense': 'Расход',
   'finance.cashBalance': 'Баланс кассы',
@@ -1064,7 +1064,7 @@ export default {
   'erp.m3.f5': 'Отправка уведомлений в Telegram',
   'erp.m3.f6': 'Сегментация клиентов',
 
-  'erp.m4.t': 'Финансы и Касса',
+  'erp.m4.t': 'Финансы',
   'erp.m4.s': 'Полный финансовый контроль',
   'erp.m4.d': 'Отслеживайте ежедневное движение денежных средств, расходы, доходы и отчет о прибылях/убытках в реальном времени.',
   'erp.m4.f1': 'Приход/расход кассы',

@@ -16,7 +16,7 @@ export default {
   'nav.purchases': 'Purchases & Suppliers',
   'nav.warehouse': 'Warehouse & Transfers',
   'nav.operations': 'Operations',
-  'nav.finance': 'Finance & Cash',
+  'nav.finance': 'Finance',
   'nav.reports': 'Reports',
   'nav.users': 'Users',
   'nav.settings': 'Settings',
@@ -371,7 +371,7 @@ export default {
   'common.created': 'Created',
 
   // === FINANCE ===
-  'finance.title': 'Finance & Cash',
+  'finance.title': 'Finance',
   'finance.income': 'Income',
   'finance.expense': 'Expense',
   'finance.cashBalance': 'Cash Balance',
@@ -508,7 +508,7 @@ export default {
   'ops.returnedItemsMsg': "items returned",
 
   // === FINANCE ===
-  'finance.title': 'Finance & Cash',
+  'finance.title': 'Finance',
   'finance.income': 'Income',
   'finance.expense': 'Expense',
   'finance.cashBalance': 'Cash Balance',
@@ -981,7 +981,7 @@ export default {
   'erp.m3.f5': 'Telegram notification sending',
   'erp.m3.f6': 'Customer segmentation',
 
-  'erp.m4.t': 'Finance and Cash',
+  'erp.m4.t': 'Finance',
   'erp.m4.s': 'Full financial control',
   'erp.m4.d': 'Track daily cash movements, expenses, incomes, and profit/loss reports in real-time.',
   'erp.m4.f1': 'Cash income/expense operations',
