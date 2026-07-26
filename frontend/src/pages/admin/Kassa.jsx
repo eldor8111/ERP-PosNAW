@@ -418,122 +418,170 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
       })()}
 
       {/* Transfer modal */}
-      {modal === 'transfer' && (
-        <Modal title="💸 Kassadan kassaga o'tkazma" onClose={() => setModal(null)} wide>
-          <div className="space-y-4">
-            <div className="p-3 bg-violet-50 border border-violet-200 rounded-xl text-xs text-violet-700">
-              ℹ️ <strong>Tezkor o'tkazma:</strong> Pul darhol ikkinchi kassaga o'tadi va ushbu kassadan yechiladi. Qabul qiluvchidan tasdiqlash talab etilmaydi.
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1.5">Qabul qiluvchi Kassa *</label>
-              <select className={field} value={form.receiver_wallet_id} onChange={e => setForm({ ...form, receiver_wallet_id: e.target.value })}>
-                <option value="">— Kassani tanlang —</option>
-                {allKassalar.filter(k => k.id !== kassa.id).map(k => (
-                  <option key={k.id} value={k.id}>{k.name} {!k.is_open ? '(yopiq)' : ''}</option>
-                ))}
-              </select>
-            </div>
-            
-            <div className="flex flex-wrap items-center justify-between gap-3 mt-2">
-              <p className="text-sm text-slate-600 font-medium">O'tkaziladigan summalarni kiriting:</p>
-              <button
-                onClick={() => {
-                  const newAmounts = {};
-                  PT_KEYS.forEach(k => {
-                    const bVal = balances[k];
-                    if (Array.isArray(bVal)) {
-                      bVal.forEach(item => {
-                        if (item.value > 0) {
-                          if (!newAmounts[k]) newAmounts[k] = {};
-                          newAmounts[k][item.currency] = item.value;
-                        }
-                      });
-                    } else if (bVal > 0) {
-                      if (!newAmounts[k]) newAmounts[k] = {};
-                      newAmounts[k]['UZS'] = bVal;
-                    }
-                  });
-                  setForm({ ...form, transfer_amounts: newAmounts });
-                }}
-                className="px-3 py-1.5 bg-violet-100 text-violet-700 text-xs font-bold rounded-lg hover:bg-violet-200 transition-colors flex items-center gap-1.5"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-                Barchasini kiritish
-              </button>
-            </div>
-            <div className="overflow-x-auto rounded-xl border border-slate-200 max-h-[40vh]">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 sticky top-0 shadow-sm z-10">
-                    <th className="text-left px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">To'lov turi</th>
-                    <th className="text-center px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Valyuta</th>
-                    <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">O'tkaziladigan summa</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {PT_KEYS.map(k => {
-                    const cfg = PT_CONFIG[k];
-                    const bVal = balances[k];
-                    let currencies = ['UZS'];
-                    if (Array.isArray(bVal) && bVal.length > 0) {
-                      currencies = bVal.map(item => item.currency);
-                    }
-                    
-                    return currencies.map((curr, idx) => {
-                      const maxBalance = Array.isArray(bVal) ? bVal.find(x => x.currency === curr)?.value || 0 : (bVal || 0);
-                      
-                      return (
-                        <tr key={`${k}-${curr}`} className="hover:bg-slate-50/50">
-                          {idx === 0 ? (
-                            <td rowSpan={currencies.length} className="px-3 py-2.5 text-slate-900 font-medium align-top bg-white/50">
-                              <div className="flex items-center gap-2">
-                                {cfg.icon}
-                                <span>{cfg.label}</span>
-                              </div>
-                            </td>
-                          ) : null}
-                          <td className="px-3 py-2.5 text-center font-medium text-slate-600">
-                            {curr}
-                            <div className="text-[10px] text-slate-400 font-normal">Kassada: {fmt(maxBalance)}</div>
-                          </td>
-                          <td className="px-3 py-2.5 text-right">
-                            <input
-                              type="number"
-                              min="0"
-                              className="w-40 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500"
-                              value={form.transfer_amounts?.[k]?.[curr] || ''}
-                              onChange={e => setForm({ 
-                                ...form, 
-                                transfer_amounts: { 
-                                  ...form.transfer_amounts, 
-                                  [k]: { ...(form.transfer_amounts?.[k] || {}), [curr]: e.target.value } 
-                                } 
-                              })}
-                              placeholder={`0 ${curr}`}
-                            />
-                          </td>
-                        </tr>
-                      );
-                    });
-                  })}
-                </tbody>
-              </table>
-            </div>
+      {modal === 'transfer' && (() => {
+        // Compute totals per payment type
+        const computeTotal = (k) => {
+          const rows = form.transfer_amounts?.[k] || {};
+          return Object.values(rows).reduce((s, v) => s + (Number(v) || 0), 0);
+        };
+        const grandTotal = PT_KEYS.reduce((s, k) => s + computeTotal(k), 0);
 
-            <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1.5">Izoh</label>
-              <input className={field} value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder="Ixtiyoriy..." />
+        const fillAll = () => {
+          const newAmounts = {};
+          PT_KEYS.forEach(k => {
+            const bVal = balances[k];
+            if (Array.isArray(bVal)) {
+              bVal.forEach(item => {
+                if (item.value > 0) {
+                  if (!newAmounts[k]) newAmounts[k] = {};
+                  newAmounts[k][item.currency] = item.value;
+                }
+              });
+            } else if (bVal > 0) {
+              if (!newAmounts[k]) newAmounts[k] = {};
+              newAmounts[k]['UZS'] = bVal;
+            }
+          });
+          setForm({ ...form, transfer_amounts: newAmounts });
+        };
+
+        return (
+          <Modal title="💸 Kassadan kassaga o'tkazma" onClose={() => setModal(null)} wide>
+            <div className="flex flex-col gap-5">
+
+              {/* Top bar */}
+              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+                <div className="flex-1 min-w-0">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-2">Qabul qiluvchi Kassa</label>
+                  <select
+                    className="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-xl text-[15px] font-semibold text-slate-800 focus:outline-none focus:border-violet-500 transition-colors"
+                    value={form.receiver_wallet_id}
+                    onChange={e => setForm({ ...form, receiver_wallet_id: e.target.value })}
+                  >
+                    <option value="">— Kassani tanlang —</option>
+                    {allKassalar.filter(k => k.id !== kassa.id).map(k => (
+                      <option key={k.id} value={k.id}>{k.name} {!k.is_open ? '(yopiq)' : ''}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  <button
+                    onClick={fillAll}
+                    className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold transition-all shadow-sm shadow-violet-200 active:scale-95"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                    Barchasini kiritish
+                  </button>
+                  {grandTotal > 0 && (
+                    <span className="text-[13px] font-bold text-violet-700 bg-violet-50 border border-violet-200 px-3 py-1 rounded-lg">
+                      Jami: {fmt(grandTotal)} UZS
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Payment type cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {PT_KEYS.map(k => {
+                  const cfg = PT_CONFIG[k];
+                  const bVal = balances[k];
+                  let currencies = [{ currency: 'UZS', value: 0 }];
+                  if (Array.isArray(bVal) && bVal.length > 0) {
+                    currencies = bVal;
+                  }
+                  const total = computeTotal(k);
+                  const hasBalance = currencies.some(c => c.value > 0);
+
+                  return (
+                    <div key={k} className={`rounded-2xl border-2 transition-all ${total > 0 ? 'border-violet-300 bg-violet-50/40 shadow-sm shadow-violet-100' : 'border-slate-200 bg-white'}`}>
+                      {/* Card header */}
+                      <div className="flex items-center justify-between px-4 pt-4 pb-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-xl ${cfg.bg} ${cfg.border} border`}>{cfg.icon}</div>
+                          <div>
+                            <p className="text-[15px] font-bold text-slate-800">{cfg.label}</p>
+                            {!hasBalance && <p className="text-[11px] text-slate-400 font-medium">Kassada qoldiq yo'q</p>}
+                          </div>
+                        </div>
+                        {total > 0 && (
+                          <span className={`text-[13px] font-extrabold tabular-nums ${cfg.text} bg-white border ${cfg.border} px-2.5 py-1 rounded-lg`}>
+                            {fmt(total)}
+                          </span>
+                        )}
+                      </div>
+                      {/* Currency rows */}
+                      <div className="px-4 pb-4 flex flex-col gap-2.5">
+                        {currencies.map(({ currency: curr, value: maxBal }) => (
+                          <div key={curr} className="flex items-center gap-3">
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[12px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">{curr}</span>
+                                <span className="text-[11px] text-slate-400 font-medium truncate">Kassada: {fmt(maxBal)}</span>
+                              </div>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                min="0"
+                                className={`w-36 px-3 py-2 pr-12 text-right text-sm font-bold rounded-xl border-2 focus:outline-none transition-all
+                                  ${(Number(form.transfer_amounts?.[k]?.[curr]) || 0) > 0
+                                    ? `${cfg.border} ${cfg.text} bg-white focus:ring-2 focus:ring-violet-500/20`
+                                    : 'border-slate-200 text-slate-700 bg-slate-50 focus:border-violet-400'
+                                  }`}
+                                value={form.transfer_amounts?.[k]?.[curr] || ''}
+                                onChange={e => setForm({
+                                  ...form,
+                                  transfer_amounts: {
+                                    ...form.transfer_amounts,
+                                    [k]: { ...(form.transfer_amounts?.[k] || {}), [curr]: e.target.value }
+                                  }
+                                })}
+                                placeholder="0"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none">{curr}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Note + actions */}
+              <div className="flex flex-col sm:flex-row gap-4 items-end pt-1 border-t border-slate-100">
+                <div className="flex-1">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-2">Izoh</label>
+                  <input
+                    className="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-xl text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:border-violet-500 transition-colors"
+                    value={form.note}
+                    onChange={e => setForm({ ...form, note: e.target.value })}
+                    placeholder="Ixtiyoriy izoh..."
+                  />
+                </div>
+                <div className="flex gap-3 shrink-0">
+                  <button onClick={() => setModal(null)} className="px-6 py-3 border-2 border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 transition-colors">
+                    Bekor
+                  </button>
+                  <button
+                    onClick={() => save('transfer')}
+                    disabled={saving || !form.receiver_wallet_id}
+                    className="px-8 py-3 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white rounded-xl text-sm font-bold disabled:opacity-50 transition-all shadow-md shadow-violet-200 active:scale-95 flex items-center gap-2"
+                  >
+                    {saving ? (
+                      <><span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span> Yuborilmoqda...</>
+                    ) : (
+                      <><span>📤</span> Yuborish</>
+                    )}
+                  </button>
+                </div>
+              </div>
+
             </div>
-            <div className="flex gap-3 pt-2">
-              <button onClick={() => setModal(null)} className={cancelBtn}>Bekor</button>
-              <button onClick={() => save('transfer')} disabled={saving || !form.receiver_wallet_id}
-                className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-bold disabled:opacity-50 transition-colors">
-                {saving ? 'Yuborilmoqda...' : '📤 Yuborish'}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
+          </Modal>
+        );
+      })()}
 
       {/* Invest / Withdraw modal */}
       {(modal === 'invest' || modal === 'withdraw') && (
