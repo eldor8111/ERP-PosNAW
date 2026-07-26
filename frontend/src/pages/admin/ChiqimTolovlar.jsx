@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import api from '../../api/axios';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
@@ -46,6 +46,31 @@ export default function ChiqimTolovlar() {
   };
 
   useEffect(() => { loadData(); }, [dateFrom, dateTo]);
+
+  const summaryData = useMemo(() => {
+    if (!data?.items) return {};
+    const res = {};
+    data.items.forEach(i => {
+      const cur = i.currency_code || 'UZS';
+      if (!res[cur]) res[cur] = { naqd: 0, plastik: 0, bank: 0, umumiy: 0, taminotchi: 0, xarajat: 0, qaytaruv: 0 };
+      
+      const amt = Number(i.amount) || 0;
+      res[cur].umumiy += amt;
+      
+      if (['cash', 'naqd'].includes(i.payment_type)) res[cur].naqd += amt;
+      else if (['card', 'plastik', 'uzcard', 'humo'].includes(i.payment_type)) res[cur].plastik += amt;
+      else if (['bank', 'bank_transfer'].includes(i.payment_type)) res[cur].bank += amt;
+
+      if (i.reference_type === 'supplier_payment' || i.reference_type === 'purchase_order' || i.reference_type === 'kirim') {
+        res[cur].taminotchi += amt;
+      } else if (i.reference_type === 'expense') {
+        res[cur].xarajat += amt;
+      } else if (i.reference_type === 'sale_refund') {
+        res[cur].qaytaruv += amt;
+      }
+    });
+    return res;
+  }, [data?.items]);
 
   const openEdit = (item) => {
     setEditItem(item);
@@ -213,34 +238,42 @@ export default function ChiqimTolovlar() {
       </div>
 
       {/* Summary cards */}
-      {data?.summary && (
+      {data?.items && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
             <h3 className="text-slate-500 text-sm font-semibold mb-3">Umumiy to'lovlar summasi</h3>
-            <div className="text-slate-600 text-sm mb-1">Naqd: <span className="font-bold text-slate-800">{fmt(data.summary.naqd)}</span></div>
-            <div className="text-slate-600 text-sm mb-1">Plastik: <span className="font-bold text-slate-800">{fmt(data.summary.plastik)}</span></div>
-            <div className="text-slate-600 text-sm mb-1">Bank: <span className="font-bold text-slate-800">{fmt(data.summary.bank)}</span></div>
-            <div className="text-slate-600 text-sm mt-3 pt-3 border-t border-slate-100">
-              Umumiy summa: <span className="font-bold text-lg text-emerald-600">{fmt(data.summary.umumiy)}</span>
-            </div>
+            {Object.entries(summaryData).length > 0 ? Object.entries(summaryData).map(([cur, sums]) => (
+              <div key={cur} className="mb-3 last:mb-0 border-b last:border-b-0 border-slate-50 pb-2">
+                <div className="text-slate-600 text-sm flex justify-between mb-1"><span>Naqd:</span> <span className="font-bold text-slate-800">{fmtCurr(sums.naqd, cur)}</span></div>
+                <div className="text-slate-600 text-sm flex justify-between mb-1"><span>Plastik:</span> <span className="font-bold text-slate-800">{fmtCurr(sums.plastik, cur)}</span></div>
+                <div className="text-slate-600 text-sm flex justify-between mb-2"><span>Bank:</span> <span className="font-bold text-slate-800">{fmtCurr(sums.bank, cur)}</span></div>
+                <div className="text-sm flex justify-between font-bold text-emerald-600"><span>Umumiy:</span> <span>{fmtCurr(sums.umumiy, cur)}</span></div>
+              </div>
+            )) : <div className="text-slate-500 text-sm">0 so'm</div>}
           </div>
           <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
             <h3 className="text-slate-500 text-sm font-semibold mb-3">Ta'minotchilarga to'lovlar</h3>
-            <div className="text-slate-600 text-sm mt-3 pt-3 border-t border-slate-100">
-              Umumiy summa: <span className="font-bold text-lg text-indigo-600">{fmt(data.summary.taminotchi_qarz_yopish)}</span>
-            </div>
+            {Object.entries(summaryData).length > 0 ? Object.entries(summaryData).map(([cur, sums]) => sums.taminotchi > 0 && (
+              <div key={cur} className="mb-2 last:mb-0 border-b last:border-b-0 border-slate-50 pb-2">
+                <div className="text-sm flex justify-between font-bold text-indigo-600"><span>Umumiy:</span> <span>{fmtCurr(sums.taminotchi, cur)}</span></div>
+              </div>
+            )) : <div className="text-slate-500 text-sm">0 so'm</div>}
           </div>
           <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
             <h3 className="text-slate-500 text-sm font-semibold mb-3">Xarajatlar summasi</h3>
-            <div className="text-slate-600 text-sm mt-3 pt-3 border-t border-slate-100">
-              Umumiy summa: <span className="font-bold text-lg text-blue-600">{fmt(data.summary.xarajat)}</span>
-            </div>
+            {Object.entries(summaryData).length > 0 ? Object.entries(summaryData).map(([cur, sums]) => sums.xarajat > 0 && (
+              <div key={cur} className="mb-2 last:mb-0 border-b last:border-b-0 border-slate-50 pb-2">
+                <div className="text-sm flex justify-between font-bold text-blue-600"><span>Umumiy:</span> <span>{fmtCurr(sums.xarajat, cur)}</span></div>
+              </div>
+            )) : <div className="text-slate-500 text-sm">0 so'm</div>}
           </div>
           <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
             <h3 className="text-slate-500 text-sm font-semibold mb-3">Mijozga qaytaruv summasi</h3>
-            <div className="text-slate-600 text-sm mt-3 pt-3 border-t border-slate-100">
-              Umumiy summa: <span className="font-bold text-lg text-amber-600">{fmt(data.summary.mijozga_qaytaruv)}</span>
-            </div>
+            {Object.entries(summaryData).length > 0 ? Object.entries(summaryData).map(([cur, sums]) => sums.qaytaruv > 0 && (
+              <div key={cur} className="mb-2 last:mb-0 border-b last:border-b-0 border-slate-50 pb-2">
+                <div className="text-sm flex justify-between font-bold text-amber-600"><span>Umumiy:</span> <span>{fmtCurr(sums.qaytaruv, cur)}</span></div>
+              </div>
+            )) : <div className="text-slate-500 text-sm">0 so'm</div>}
           </div>
         </div>
       )}
