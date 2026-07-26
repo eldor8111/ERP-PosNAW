@@ -79,7 +79,7 @@ def get_current_shift(db: Session = Depends(get_db), user: User = Depends(get_cu
     # Calculate totals from sales during this shift per payment type
     payments = db.query(
         SalePayment.payment_type,
-        func.coalesce(Currency.code, 'UZS'),
+        func.coalesce(Currency.code, 'UZS').label("currency"),
         func.sum(SalePayment.amount).label("total")
     ).join(Sale, SalePayment.sale_id == Sale.id).outerjoin(Currency, Currency.id == Sale.currency_id).filter(
         Sale.cashier_id == user.id,
@@ -91,7 +91,7 @@ def get_current_shift(db: Session = Depends(get_db), user: User = Depends(get_cu
     total_sales_by_currency = {}
     for p in payments:
         ptype = p.payment_type
-        curr = p.currency_code or 'UZS'
+        curr = p.currency or 'UZS'
         if ptype not in balances:
             balances[ptype] = {}
         balances[ptype][curr] = str(p.total)
@@ -144,7 +144,7 @@ def _calc_shift_payment_balances(db: Session, shift: Shift):
     """SalePayment jadvalidan smena davomidagi to'lovlarni hisoblaydi."""
     payments = db.query(
         SalePayment.payment_type,
-        func.coalesce(Currency.code, 'UZS'),
+        func.coalesce(Currency.code, 'UZS').label("currency"),
         func.sum(SalePayment.amount).label("total")
     ).join(Sale, SalePayment.sale_id == Sale.id).outerjoin(Currency, Currency.id == Sale.currency_id).filter(
         Sale.cashier_id == shift.cashier_id,
@@ -154,7 +154,7 @@ def _calc_shift_payment_balances(db: Session, shift: Shift):
     balances = {}
     for p in payments:
         ptype = p.payment_type
-        curr = p.currency_code or 'UZS'
+        curr = p.currency or 'UZS'
         if ptype not in balances:
             balances[ptype] = {}
         balances[ptype][curr] = Decimal(str(p.total))
