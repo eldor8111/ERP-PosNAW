@@ -275,10 +275,11 @@ def get_cash_balance(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user_allow_expired),
 ):
-    def _base(tx_type: str):
-        q = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
-            Transaction.type == tx_type
-        )
+    def _by_currency(tx_type: str):
+        q = db.query(
+            Transaction.currency_code,
+            func.coalesce(func.sum(Transaction.amount), 0).label("total")
+        ).filter(Transaction.type == tx_type)
         if user.role.value != "super_admin":
             q = q.filter(Transaction.company_id == user.company_id)
         if branch_id:
@@ -287,20 +288,30 @@ def get_cash_balance(
             q = q.filter(Transaction.created_at >= _parse_dt_start(date_from))
         if date_to:
             q = q.filter(Transaction.created_at < _parse_dt_end(date_to))
-        return float(q.scalar() or 0)
+        q = q.group_by(Transaction.currency_code)
+        result = {}
+        for row in q.all():
+            curr = (row.currency_code or "UZS").upper()
+            result[curr] = result.get(curr, 0.0) + float(row.total or 0)
+        return result
 
-    income = _base("income")
-    expense = _base("expense")
+    income_by_curr = _by_currency("income")
+    expense_by_curr = _by_currency("expense")
 
-    
+    # Also keep totals for backward compat
+    income = sum(income_by_curr.values())
+    expense = sum(expense_by_curr.values())
+
     from app.models.company import Company
     comp = db.query(Company).filter(Company.id == user.company_id).first() if user.company_id else None
-    
+
     return {
         "company_name": comp.name if comp else "Tizim",
         "org_code": comp.org_code if comp else "-",
         "total_income": income,
         "total_expense": expense,
+        "income_by_currency": income_by_curr,
+        "expense_by_currency": expense_by_curr,
         "balance": float(comp.balance) if comp else 0,
     }
 
