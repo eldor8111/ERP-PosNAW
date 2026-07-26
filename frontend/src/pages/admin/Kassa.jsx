@@ -33,6 +33,12 @@ const REF_LABELS = {
   expense: 'Xarajat', invest: 'Investitsiya',
   withdraw: 'Chiqarish', opening: 'Ochilish balansi',
   customer_payment: "Mijoz to'lovi",
+  closing_inkasso: 'Kassa Yopilishi (Inkassatsiya)',
+  closing_adjustment: 'Kassa Yopilishi (Qoldiq farqi)',
+  transfer_in: 'Kassadan Qabul',
+  transfer_out: "Kassaga O'tkazma",
+  transfer_out_pending: "O'tkazma (Kutilmoqda)",
+  transfer_rejected: "O'tkazma (Bekor qilingan)"
 };
 
 const inp = 'w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white';
@@ -42,7 +48,7 @@ const btn = (color = 'indigo') => `px-4 py-2 text-sm font-semibold rounded-xl te
 function Modal({ title, onClose, children, wide }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div className={`bg-white rounded-2xl shadow-2xl w-full ${wide ? 'max-w-6xl' : 'max-w-md'} max-h-[90vh] flex flex-col`} onClick={e => e.stopPropagation()}>
+      <div className={`bg-white rounded-2xl shadow-2xl w-full ${wide ? 'max-w-7xl' : 'max-w-md'} max-h-[90vh] flex flex-col`} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <h3 className="text-lg font-bold text-slate-800">{title}</h3>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">✕</button>
@@ -560,33 +566,33 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500">
-                    <th className="px-5 py-3.5 font-bold text-[11px] uppercase tracking-wider">Tranzaksiya</th>
-                    <th className="px-5 py-3.5 font-bold text-[11px] uppercase tracking-wider text-right">Summa</th>
-                    <th className="px-5 py-3.5 font-bold text-[11px] uppercase tracking-wider">Tafsilotlar</th>
+                    <th className="px-5 py-4 font-bold text-[13px] uppercase tracking-wider">Tranzaksiya</th>
+                    <th className="px-5 py-4 font-bold text-[13px] uppercase tracking-wider text-right">Summa</th>
+                    <th className="px-5 py-4 font-bold text-[13px] uppercase tracking-wider">Tafsilotlar</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredHistory.map(m => {
                     const isIn = m.direction === 'in';
                     const Icon = isIn ? (
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
                     ) : (
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
                     );
                     
                     return (
                       <tr key={m.id} className="hover:bg-slate-50/50 transition-colors group">
                         
-                        <td className="px-5 py-4 align-top w-[20%] min-w-[150px]">
-                          <div className="flex items-start gap-3.5">
+                        <td className="px-5 py-4 align-top w-[20%] min-w-[170px]">
+                          <div className="flex items-start gap-4">
                             <div className={`mt-0.5 p-2 rounded-xl flex-shrink-0 ${isIn ? 'bg-emerald-100/50 text-emerald-600' : 'bg-rose-100/50 text-rose-600'}`}>
                               {Icon}
                             </div>
                             <div>
-                              <p className={`font-bold text-[14px] leading-tight ${isIn ? 'text-emerald-700' : 'text-rose-700'}`}>
+                              <p className={`font-bold text-[16px] leading-tight ${isIn ? 'text-emerald-700' : 'text-rose-700'}`}>
                                 {isIn ? 'Kirim' : 'Chiqim'}
                               </p>
-                              <p className="text-[11px] text-slate-500 font-semibold mt-1 uppercase tracking-widest flex items-center gap-1.5">
+                              <p className="text-[13px] text-slate-500 font-semibold mt-1.5 uppercase tracking-widest flex items-center gap-1.5">
                                 {PT_CONFIG[m.payment_type]?.icon}
                                 <span>{PT_CONFIG[m.payment_type]?.label || m.payment_type}</span>
                               </p>
@@ -594,31 +600,31 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                           </div>
                         </td>
 
-                        <td className="px-5 py-4 align-top text-right w-[20%] min-w-[150px]">
+                        <td className="px-5 py-4 align-top text-right w-[20%] min-w-[170px]">
                           <div className="flex flex-col items-end">
-                            <p className={`font-black tabular-nums text-[16px] tracking-tight ${isIn ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            <p className={`font-black tabular-nums text-[18px] tracking-tight ${isIn ? 'text-emerald-600' : 'text-rose-600'}`}>
                               {isIn ? '+' : '−'}{fmt(m.amount)}
                             </p>
-                            <span className="inline-flex items-center justify-center mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500">
+                            <span className="inline-flex items-center justify-center mt-1.5 px-2.5 py-1 rounded text-[12px] font-bold bg-slate-100 text-slate-500">
                               {m.currency || 'UZS'}
                             </span>
                           </div>
                         </td>
 
                         <td className="px-5 py-4 align-top w-[60%]">
-                          <div className="flex flex-col gap-1.5">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="inline-flex items-center justify-center px-2 py-1 rounded-md bg-indigo-50 border border-indigo-100 text-[11px] font-bold text-indigo-700 uppercase tracking-wide">
+                          <div className="flex flex-col gap-2">
+                            <div className="flex flex-wrap items-center gap-2.5">
+                              <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-md bg-indigo-50 border border-indigo-100 text-[13px] font-bold text-indigo-700 uppercase tracking-wide">
                                 {REF_LABELS[m.reference_type] || m.reference_type}
                               </span>
-                              <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1">
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                              <span className="text-[13px] font-semibold text-slate-400 flex items-center gap-1.5">
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                 {fmtDate(m.created_at)}
                               </span>
                             </div>
                             
                             {m.description && (
-                              <p className="text-[13px] font-medium text-slate-600 leading-snug mt-0.5 line-clamp-2">
+                              <p className="text-[15px] font-medium text-slate-600 leading-snug mt-0.5 line-clamp-2">
                                 {m.description}
                               </p>
                             )}
