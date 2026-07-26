@@ -206,9 +206,13 @@ def customer_debts_report(
     q = db.query(Customer).filter(Customer.debt_balance > 0)
     q = q.filter(Customer.company_id == current_user.company_id)
     rows = q.order_by(Customer.debt_balance.desc()).all()
-    total = sum(float(c.debt_balance) for c in rows)
+    # Valyuta bo'yicha guruhlash
+    debt_by_currency = {}
+    for c in rows:
+        curr = c.debt_currency or 'UZS'
+        debt_by_currency[curr] = debt_by_currency.get(curr, 0) + float(c.debt_balance)
     return {
-        "total_debt": total,
+        "total_debt": debt_by_currency,
         "count": len(rows),
         "items": [
             {
@@ -216,6 +220,7 @@ def customer_debts_report(
                 "customer_name": c.name,
                 "phone": c.phone,
                 "debt_balance": float(c.debt_balance),
+                "debt_currency": c.debt_currency or 'UZS',
                 "debt_limit": float(c.debt_limit),
                 "usage_pct": round(float(c.debt_balance) / float(c.debt_limit) * 100, 1) if c.debt_limit else 0,
             }
@@ -233,9 +238,13 @@ def supplier_debts_report(
     q = db.query(Supplier).filter(Supplier.debt_balance > 0)
     q = q.filter(Supplier.company_id == current_user.company_id)
     rows = q.order_by(Supplier.debt_balance.desc()).all()
-    total = sum(float(s.debt_balance) for s in rows)
+    # Valyuta bo'yicha guruhlash
+    debt_by_currency = {}
+    for s in rows:
+        curr = getattr(s, 'debt_currency', None) or 'UZS'
+        debt_by_currency[curr] = debt_by_currency.get(curr, 0) + float(s.debt_balance)
     return {
-        "total_debt": total,
+        "total_debt": debt_by_currency,
         "count": len(rows),
         "items": [
             {
@@ -243,6 +252,7 @@ def supplier_debts_report(
                 "supplier_name": s.name,
                 "phone": s.phone,
                 "debt_balance": float(s.debt_balance),
+                "debt_currency": getattr(s, 'debt_currency', None) or 'UZS',
                 "payment_terms": s.payment_terms,
             }
             for s in rows

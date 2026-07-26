@@ -105,12 +105,14 @@ def get_kassa_balances(wallet_id: int, db: Session) -> dict:
         
         result[ptype] = currency_balances
     
-    # Total hisoblash (barcha valyutalar)
-    total = 0
+    # Total hisoblash (barcha valyutalar bo'yicha alohida)
+    total = {}
     for ptype in PAYMENT_TYPES:
         for item in result[ptype]:
-            total += item["value"]
-    result["total"] = total
+            curr = item["currency"]
+            total[curr] = total.get(curr, 0) + item["value"]
+    
+    result["total"] = [{"currency": k, "value": v} for k, v in total.items() if v != 0]
     return result
 
 
@@ -162,7 +164,7 @@ def get_user_wallets(
     return [
         {"id": w.id, "name": w.name, "type": w.type,
          "is_default": defaults.get(w.id, False),
-         "balance_total": float(sum(get_kassa_balances(w.id, db).get(pt, 0) for pt in PAYMENT_TYPES))}
+         "balance_total": get_kassa_balances(w.id, db).get("total", [])}
         for w in wallets
     ]
 

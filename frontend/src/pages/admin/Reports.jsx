@@ -8,6 +8,20 @@ import toast from 'react-hot-toast';
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const fmtS = (v) => Number(v || 0).toLocaleString('uz-UZ') + " so'm";
 const pct = (v) => `${Number(v || 0).toFixed(1)}%`;
+// Multi-currency dict formatter: {UZS: 1000, USD: 5} -> "1,000 so'm + 5 USD"
+const fmtDebt = (v) => {
+  if (!v) return "0 so'm";
+  if (typeof v === 'object' && !Array.isArray(v)) {
+    const parts = Object.entries(v).filter(([, amt]) => amt > 0)
+      .map(([c, amt]) => `${Number(amt).toLocaleString('uz-UZ')} ${c === 'UZS' ? "so'm" : c}`);
+    return parts.length ? parts.join(' + ') : "0 so'm";
+  }
+  return fmtS(v);
+};
+const fmtRowDebt = (balance, currency) => {
+  const curr = currency || 'UZS';
+  return `${Number(balance || 0).toLocaleString('uz-UZ')} ${curr === 'UZS' ? "so'm" : curr}`;
+};
 
 // ─── Kunlik sanalar ────────────────────────────────────────────────────────────
 const today = () => new Date().toISOString().slice(0, 10);
@@ -1208,7 +1222,7 @@ export default function Reports() {
               <>
                 <div className="px-6 py-3 border-b border-slate-100 bg-amber-50">
                   <span className="text-sm text-slate-600">Jami debitor qarz: </span>
-                  <strong className="text-amber-700">{fmtS(customerDebts.total_debt)}</strong>
+                  <strong className="text-amber-700">{fmtDebt(customerDebts.total_debt)}</strong>
                   <span className="ml-4 text-sm text-slate-500">({customerDebts.count} ta mijoz)</span>
                 </div>
                 <div className="overflow-x-auto">
@@ -1225,7 +1239,7 @@ export default function Reports() {
                         <tr key={c.customer_id} className={i % 2 ? 'bg-slate-50/50' : 'bg-white'}>
                           <td className="px-5 py-3.5 text-sm font-semibold text-slate-800">{c.customer_name}</td>
                           <td className="px-5 py-3.5 text-sm text-slate-500">{c.phone || '—'}</td>
-                          <td className="px-5 py-3.5 text-sm font-bold text-amber-600">{fmtS(c.debt_balance)}</td>
+                          <td className="px-5 py-3.5 text-sm font-bold text-amber-600">{fmtRowDebt(c.debt_balance, c.debt_currency)}</td>
                           <td className="px-5 py-3.5 text-sm text-slate-400">{fmtS(c.debt_limit)}</td>
                           <td className="px-5 py-3.5">
                             <div className="flex items-center gap-2">
@@ -1276,7 +1290,7 @@ export default function Reports() {
               <>
                 <div className="px-6 py-3 border-b border-slate-100 bg-red-50">
                   <span className="text-sm text-slate-600">Jami kreditor qarz: </span>
-                  <strong className="text-red-600">{fmtS(supplierDebts.total_debt)}</strong>
+                  <strong className="text-red-600">{fmtDebt(supplierDebts.total_debt)}</strong>
                   <span className="ml-4 text-sm text-slate-500">({supplierDebts.count} ta supplier)</span>
                 </div>
                 <div className="overflow-x-auto">
@@ -1293,7 +1307,7 @@ export default function Reports() {
                         <tr key={s.supplier_id} className={i % 2 ? 'bg-slate-50/50' : 'bg-white'}>
                           <td className="px-5 py-3.5 text-sm font-semibold text-slate-800">{s.supplier_name}</td>
                           <td className="px-5 py-3.5 text-sm text-slate-500">{s.phone || '—'}</td>
-                          <td className="px-5 py-3.5 text-sm font-bold text-red-600">{fmtS(s.debt_balance)}</td>
+                          <td className="px-5 py-3.5 text-sm font-bold text-red-600">{fmtRowDebt(s.debt_balance, s.debt_currency)}</td>
                           <td className="px-5 py-3.5 text-sm text-slate-500">{s.payment_terms} kun</td>
                         </tr>
                       ))}

@@ -79,23 +79,30 @@ def get_current_shift(db: Session = Depends(get_db), user: User = Depends(get_cu
     # Calculate totals from sales during this shift per payment type
     payments = db.query(
         SalePayment.payment_type,
+        Sale.currency_code,
         func.sum(SalePayment.amount).label("total")
     ).join(Sale, SalePayment.sale_id == Sale.id).filter(
         Sale.cashier_id == user.id,
         Sale.created_at >= shift.opened_at,
         Sale.status != "cancelled"
-    ).group_by(SalePayment.payment_type).all()
+    ).group_by(SalePayment.payment_type, Sale.currency_code).all()
 
     balances = {}
-    total_sales = Decimal("0")
+    total_sales_by_currency = {}
     for p in payments:
-        balances[p.payment_type] = str(p.total)
-        total_sales += p.total
+        ptype = p.payment_type
+        curr = p.currency_code or 'UZS'
+        if ptype not in balances:
+            balances[ptype] = {}
+        balances[ptype][curr] = str(p.total)
+        total_sales_by_currency[curr] = float(total_sales_by_currency.get(curr, 0)) + float(p.total)
 
     if "cash" not in balances:
-        balances["cash"] = "0"
+        balances["cash"] = {}
     
-    expected_cash = shift.opening_cash + Decimal(balances["cash"])
+    cash_balances = balances.get("cash", {})
+    cash_uzs = Decimal(cash_balances.get("UZS", "0"))
+    expected_cash = shift.opening_cash + cash_uzs
     
     return {
         "id": shift.id,
@@ -107,7 +114,7 @@ def get_current_shift(db: Session = Depends(get_db), user: User = Depends(get_cu
         "opening_cash": str(shift.opening_cash),
         "expected_cash": str(expected_cash),
         "balances": balances,
-        "total_sales": str(total_sales),
+        "total_sales": total_sales_by_currency,
         "status": shift.status,
     }
 
@@ -139,14 +146,22 @@ def _calc_shift_payment_balances(db: Session, shift: Shift):
     from sqlalchemy import func
     payments = db.query(
         SalePayment.payment_type,
+        Sale.currency_code,
         func.sum(SalePayment.amount).label("total")
     ).join(Sale, SalePayment.sale_id == Sale.id).filter(
         Sale.cashier_id == shift.cashier_id,
         Sale.created_at >= shift.opened_at,
         Sale.status != "cancelled"
-    ).group_by(SalePayment.payment_type).all()
-    balances = {p.payment_type: Decimal(str(p.total)) for p in payments}
-    cash_total = balances.get("cash", Decimal("0"))
+    ).group_by(SalePayment.payment_type, Sale.currency_code).all()
+    balances = {}
+    for p in payments:
+        ptype = p.payment_type
+        curr = p.currency_code or 'UZS'
+        if ptype not in balances:
+            balances[ptype] = {}
+        balances[ptype][curr] = Decimal(str(p.total))
+    cash_balances = balances.get("cash", {})
+    cash_total = cash_balances.get("UZS", Decimal("0"))
     return cash_total, balances
 
 

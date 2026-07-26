@@ -54,14 +54,21 @@ def get_dashboard(
         return []
 
     wh_filter = get_warehouse_filter(warehouse_id)
-    today_q = db.query(func.count(Sale.id), func.coalesce(func.sum(Sale.total_amount), 0)).filter(
+    # currency_code bo'yicha guruhlash
+    today_rows = db.query(
+        Sale.currency_code,
+        func.count(Sale.id),
+        func.coalesce(func.sum(Sale.total_amount), 0)
+    ).filter(
         Sale.company_id == cid,
         Sale.created_at >= today_start,
         Sale.created_at < today_end,
         Sale.status == SaleStatus.completed,
         *wh_filter
-    )
-    today_count, today_total = today_q.first()
+    ).group_by(Sale.currency_code).all()
+    today_count = sum(row[1] for row in today_rows)
+    today_by_currency = {(row[0] or 'UZS'): float(row[2]) for row in today_rows}
+    today_total = sum(today_by_currency.values())  # for change_pct calc only
 
     yesterday_start = today_start - timedelta(days=1)
     yesterday_total = db.query(func.coalesce(func.sum(Sale.total_amount), 0)).filter(
@@ -72,6 +79,13 @@ def get_dashboard(
         *wh_filter
     ).scalar()
     today_f = float(today_total)
+    yesterday_total = db.query(func.coalesce(func.sum(Sale.total_amount), 0)).filter(
+        Sale.company_id == cid,
+        Sale.created_at >= yesterday_start,
+        Sale.created_at < today_start,
+        Sale.status == SaleStatus.completed,
+        *wh_filter
+    ).scalar()
     yesterday_f = float(yesterday_total)
     today_change = round(float((today_f - yesterday_f) / yesterday_f * 100), 1) if yesterday_f > 0 else None
 
@@ -97,12 +111,19 @@ def get_dashboard(
 
     _now = datetime.now(timezone.utc)
     month_start = datetime(_now.year, _now.month, 1, 0, 0, 0)
-    month_count, month_total = db.query(func.count(Sale.id), func.coalesce(func.sum(Sale.total_amount), 0)).filter(
+    # Oylik savdolar valyuta bo'yicha
+    month_rows = db.query(
+        Sale.currency_code,
+        func.count(Sale.id),
+        func.coalesce(func.sum(Sale.total_amount), 0)
+    ).filter(
         Sale.company_id == cid,
         Sale.created_at >= month_start,
         Sale.status == SaleStatus.completed,
         *wh_filter
-    ).first()
+    ).group_by(Sale.currency_code).all()
+    month_count = sum(row[1] for row in month_rows)
+    month_by_currency = {(row[0] or 'UZS'): float(row[2]) for row in month_rows}
     month_profit = db.query(func.coalesce(
         func.sum(
             case(
@@ -157,11 +178,23 @@ def get_dashboard(
     dead_stock_count = dead_q.scalar()
 
     cashier_q = (
-        db.query(User.name, func.count(Sale.id).label("cnt"), func.coalesce(func.sum(Sale.total_amount), 0).label("total"))
+        db.query(User.name, func.count(Sale.id).label("cnt"),
+                 Sale.currency_code,
+                 func.coalesce(func.sum(Sale.total_amount), 0).label("total"))
         .join(Sale, Sale.cashier_id == User.id)
         .filter(Sale.company_id == cid, Sale.created_at >= month_start, Sale.status == SaleStatus.completed, *wh_filter)
     )
-    cashier_rows = cashier_q.group_by(User.id, User.name).order_by(func.sum(Sale.total_amount).desc()).limit(10).all()
+    cashier_rows = cashier_q.group_by(User.id, User.name, Sale.currency_code).order_by(func.sum(Sale.total_amount).desc()).limit(30).all()
+    # Merge by cashier name grouping currencies
+    cashier_map = {}
+    for row in cashier_rows:
+        nm = row.name
+        if nm not in cashier_map:
+            cashier_map[nm] = {"name": nm, "count": 0, "totals": {}}
+        cashier_map[nm]["count"] += row.cnt
+        curr = row.currency_code or "UZS"
+        cashier_map[nm]["totals"][curr] = cashier_map[nm]["totals"].get(curr, 0) + float(row.total)
+    cashier_perf = list(cashier_map.values())[:10]
 
     product_count = db.query(func.count(Product.id)).filter(Product.is_deleted == False, Product.company_id == cid).scalar()
 
@@ -169,7 +202,15 @@ def get_dashboard(
         db.query(func.count(Customer.id), func.coalesce(func.sum(Customer.debt_balance), 0))
         .filter(Customer.debt_balance > 0, Customer.company_id == cid)
     )
-    debtor_count, total_debt = debt_q.first()
+    debtor_count, _ = debt_q.first()
+    # Mijozlar qarzlarini valyuta bo'yicha guruhlash
+    debt_by_currency_rows = (
+        db.query(Customer.debt_currency, func.coalesce(func.sum(Customer.debt_balance), 0))
+        .filter(Customer.debt_balance > 0, Customer.company_id == cid)
+        .group_by(Customer.debt_currency)
+        .all()
+    )
+    debt_by_currency = {(row[0] or 'UZS'): float(row[1]) for row in debt_by_currency_rows}
     today_date = datetime.now(timezone.utc).date()
     overdue_debtor_count = (
         db.query(func.count(func.distinct(Sale.customer_id)))
@@ -198,13 +239,13 @@ def get_dashboard(
     return {
         "warehouse_id": warehouse_id,
         "today": {
-            "sales": str(today_total),
+            "sales": today_by_currency,
             "orders": today_count,
             "change_pct": today_change,
         },
         "weekly_trend": weekly_data,
         "monthly": {
-            "sales": str(month_total),
+            "sales": month_by_currency,
             "orders": month_count,
             "profit": str(month_profit),
         },
@@ -221,12 +262,9 @@ def get_dashboard(
             "low_stock_count": len(low_stock_rows),
             "dead_stock_count": dead_stock_count,
         },
-        "cashier_performance": [
-            {"name": r.name, "count": r.cnt, "total": float(r.total)}
-            for r in cashier_rows
-        ],
+        "cashier_performance": cashier_perf,
         "debts": {
-            "total_debt": float(total_debt or 0),
+            "total_debt": debt_by_currency,
             "debtor_count": debtor_count or 0,
             "overdue_count": overdue_debtor_count,
         },

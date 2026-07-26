@@ -83,7 +83,8 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
   });
 
   const balances = kassa.balances || {};
-  const total = balances.total || 0;
+  // total is now an array of {currency, value} objects from backend
+  const totalArr = Array.isArray(balances.total) ? balances.total : [];
   const isOpen = kassa.is_open;
 
   const loadHistory = useCallback(async () => {
@@ -217,8 +218,15 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
           </div>
 
           <div className="text-right">
-            <div className="text-2xl font-bold text-slate-900 tabular-nums leading-none">{fmt(total)}</div>
-            <div className="mt-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">so'm</div>
+            {totalArr.length === 0 ? (
+              <div className="text-2xl font-bold text-slate-900 tabular-nums leading-none">0 so'm</div>
+            ) : (
+              totalArr.map(item => (
+                <div key={item.currency} className="text-xl font-bold text-slate-900 tabular-nums leading-tight">
+                  {Number(item.value).toLocaleString('uz-UZ')} <span className="text-base font-semibold text-slate-500">{item.currency === 'UZS' ? "so'm" : item.currency}</span>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -889,7 +897,17 @@ export default function Kassa() {
     } catch (ex) { toast.error(ex.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
   };
 
-  const totalBalance = kassalar.reduce((s, k) => s + (k.balances?.total || 0), 0);
+  // Merge all wallets' totalArr into a single per-currency sum
+  const totalBalance = kassalar.reduce((acc, k) => {
+    const arr = Array.isArray(k.balances?.total) ? k.balances.total : [];
+    arr.forEach(({ currency, value }) => {
+      acc[currency] = (acc[currency] || 0) + value;
+    });
+    return acc;
+  }, {});
+  const totalBalanceLabel = Object.entries(totalBalance).length === 0
+    ? "0 so'm"
+    : Object.entries(totalBalance).map(([c, v]) => `${Number(v).toLocaleString('uz-UZ')} ${c === 'UZS' ? "so'm" : c}`).join(' + ');
   const totalOpen = kassalar.filter(k => k.is_open).length;
 
   return (
@@ -914,7 +932,7 @@ export default function Kassa() {
       {tab === 'kassalar' && kassalar.length > 0 && (
         <div className="grid grid-cols-3 gap-4">
           {[
-            { label: 'Jami balans', value: fmt(totalBalance) + " so'm", icon: <Banknote className='w-5 h-5 text-indigo-600' />, bg: 'bg-indigo-50', border: 'border-indigo-100', text: 'text-indigo-600' },
+            { label: 'Jami balans', value: totalBalanceLabel, icon: <Banknote className='w-5 h-5 text-indigo-600' />, bg: 'bg-indigo-50', border: 'border-indigo-100', text: 'text-indigo-600' },
             { label: 'Ochiq kassalar', value: totalOpen + ' ta', icon: <Gem className='w-5 h-5 text-emerald-600' />, bg: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-600' },
             { label: 'Jami kassalar', value: kassalar.length + ' ta', icon: <Landmark className='w-5 h-5 text-slate-600' />, bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700' },
           ].map(c => (
