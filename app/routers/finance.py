@@ -777,15 +777,20 @@ def record_customer_debt_payment(
             br = db.query(_Branch).filter(_Branch.company_id == user.company_id).first()
             tx_branch_id = br.id if br else None
 
+        tx_desc = data.description or f"Mijoz qarzi to'lovi: {customer.name}"
+        if currency != "UZS":
+            tx_desc = tx_desc + f" ({pay} {currency})"
+            
         tx = Transaction(
             branch_id=tx_branch_id or 0,
             wallet_id=target_wallet_id,
             type="income",
-            amount=pay,
+            amount=amount_in_uzs,
+            currency_code="UZS",
             company_id=user.company_id,
             reference_type="customer_payment",
             reference_id=customer_id,
-            description=data.description or f"Mijoz qarzi to'lovi: {customer.name} ({currency})",
+            description=tx_desc.strip(),
         )
         db.add(tx)
 
@@ -867,23 +872,50 @@ def record_supplier_debt_payment(
         raise HTTPException(status_code=404, detail="Supplier topilmadi")
 
     paid = float(data.amount)
-    if paid > float(supplier.debt_balance):
-        raise HTTPException(status_code=400, detail="To'lov summasi qarz balansidan katta")
+    currency = data.currency or "UZS"
+
+    # Ensure debt_balances is initialised
+    if not supplier.debt_balances:
+        supplier.debt_balances = {}
+    
+    # Update currency-specific balance
+    from decimal import Decimal
+    from sqlalchemy.orm.attributes import flag_modified
+    curr_val = Decimal(str(supplier.debt_balances.get(currency, 0)))
+    supplier.debt_balances[currency] = float(max(Decimal("0"), curr_val - Decimal(str(paid))))
+    flag_modified(supplier, "debt_balances")
+
+    # Update aggregate debt_balance
+    from app.models.currency import Currency as CurrencyModel
+    exchange_rate = Decimal("1")
+    if currency != "UZS":
+        curr_obj = db.query(CurrencyModel).filter(CurrencyModel.code == currency).first()
+        if curr_obj:
+            exchange_rate = Decimal(str(curr_obj.rate))
+
+    amount_in_uzs = Decimal(str(paid)) * exchange_rate
+    supplier.debt_balance = float(max(Decimal("0"), Decimal(str(supplier.debt_balance or 0)) - amount_in_uzs))
 
     from app.models.branch import Branch as _Branch
     tx_branch_id = user.branch_id
     if not tx_branch_id and supplier.company_id:
         br = db.query(_Branch).filter(_Branch.company_id == supplier.company_id).first()
         tx_branch_id = br.id if br else None
-    supplier.debt_balance = float(supplier.debt_balance) - paid
+
+    tx_desc = data.description or f"Supplier to'lovi: {supplier.name}"
+    if currency != "UZS":
+        tx_desc = tx_desc + f" ({paid} {currency})"
+
     tx = Transaction(
         branch_id=tx_branch_id or 0,
         type="expense",
-        amount=paid,
+        amount=amount_in_uzs,
+        currency_code="UZS",
         company_id=user.company_id,
+        wallet_id=data.wallet_id,
         reference_type="supplier_payment",
         reference_id=supplier_id,
-        description=data.description or f"Supplier to'lovi: {supplier.name}",
+        description=tx_desc.strip(),
     )
     db.add(tx)
     db.commit()
