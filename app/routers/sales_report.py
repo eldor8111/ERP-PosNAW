@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import require_roles
 from app.database import get_db
 from app.models.product import Product
+from app.models.currency import Currency
 from app.models.sale import Sale, SaleItem, SaleStatus
 from app.models.user import User, UserRole
 from app.utils.report_utils import _date_range
@@ -34,28 +35,41 @@ def daily_sales_report(
         db.query(
             func.date(Sale.created_at).label("day"),
             func.count(Sale.id).label("sales_count"),
-            func.sum(Sale.total_amount).label("total_amount"),
-            func.sum(Sale.discount_amount).label("total_discount"),
-            func.avg(Sale.total_amount).label("avg_check"),
+            func.coalesce(Currency.code, 'UZS').label("currency"),
+            func.sum(Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)).label("total_amount"),
+            func.sum(Sale.discount_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)).label("total_discount"),
+            func.avg(Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)).label("avg_check"),
         )
+        .outerjoin(Currency, Currency.id == Sale.currency_id)
         .filter(Sale.created_at >= start, Sale.created_at < end, Sale.status == SaleStatus.completed)
     )
     q = q.filter(Sale.company_id == current_user.company_id)
     rows = (
-        q.group_by(func.date(Sale.created_at))
+        q.group_by(func.date(Sale.created_at), func.coalesce(Currency.code, 'UZS'))
         .order_by(func.date(Sale.created_at).desc())
         .all()
     )
-    return [
-        {
-            "date": str(r.day),
-            "sales_count": r.sales_count,
-            "total_amount": str(r.total_amount or 0),
-            "total_discount": str(r.total_discount or 0),
-            "avg_check": str(round(r.avg_check or 0, 2)),
-        }
-        for r in rows
-    ]
+    
+    # Merge currencies by date
+    day_map = {}
+    for r in rows:
+        d = str(r.day)
+        if d not in day_map:
+            day_map[d] = {
+                "date": d,
+                "sales_count": 0,
+                "total_amount": {},
+                "total_discount": {},
+                "avg_check": {}
+            }
+        
+        curr = r.currency
+        day_map[d]["sales_count"] += r.sales_count
+        day_map[d]["total_amount"][curr] = float(r.total_amount or 0)
+        day_map[d]["total_discount"][curr] = float(r.total_discount or 0)
+        day_map[d]["avg_check"][curr] = float(r.avg_check or 0)
+        
+    return list(day_map.values())
 
 
 @router.get("/top-products")
@@ -74,6 +88,7 @@ def top_products_report(
             Product.name,
             Product.sku,
             func.sum(SaleItem.quantity).label("total_qty"),
+            func.coalesce(SaleItem.currency_code, 'UZS').label("currency"),
             func.sum(SaleItem.subtotal).label("total_revenue"),
             func.sum((SaleItem.unit_price - SaleItem.cost_price) * SaleItem.quantity).label("total_profit"),
         )
@@ -83,23 +98,36 @@ def top_products_report(
     )
     q = q.filter(Sale.company_id == current_user.company_id)
     rows = (
-        q.group_by(Product.id, Product.name, Product.sku)
+        q.group_by(Product.id, Product.name, Product.sku, func.coalesce(SaleItem.currency_code, 'UZS'))
         .order_by(func.sum(SaleItem.subtotal).desc())
         .limit(limit)
         .all()
     )
-    return [
-        {
-            "rank": idx + 1,
-            "product_id": r.id,
-            "product_name": r.name,
-            "sku": r.sku,
-            "total_qty": str(r.total_qty),
-            "total_revenue": str(r.total_revenue or 0),
-            "total_profit": str(r.total_profit or 0),
-        }
-        for idx, r in enumerate(rows)
-    ]
+    
+    # Merge currencies
+    prod_map = {}
+    for r in rows:
+        pid = r.id
+        if pid not in prod_map:
+            prod_map[pid] = {
+                "product_id": r.id,
+                "product_name": r.name,
+                "sku": r.sku,
+                "total_qty": 0.0,
+                "total_revenue": {},
+                "total_profit": {}
+            }
+        
+        curr = r.currency
+        prod_map[pid]["total_qty"] += float(r.total_qty or 0)
+        prod_map[pid]["total_revenue"][curr] = float(r.total_revenue or 0)
+        prod_map[pid]["total_profit"][curr] = float(r.total_profit or 0)
+        
+    sorted_prods = sorted(prod_map.values(), key=lambda x: sum(x["total_revenue"].values()), reverse=True)[:limit]
+    for idx, p in enumerate(sorted_prods):
+        p["rank"] = idx + 1
+        
+    return sorted_prods
 
 
 @router.get("/cashier-report")
@@ -116,30 +144,43 @@ def cashier_report(
             User.id,
             User.name,
             func.count(Sale.id).label("sales_count"),
-            func.coalesce(func.sum(Sale.total_amount), 0).label("total_amount"),
-            func.coalesce(func.sum(Sale.discount_amount), 0).label("total_discount"),
-            func.coalesce(func.avg(Sale.total_amount), 0).label("avg_check"),
+            func.coalesce(Currency.code, 'UZS').label("currency"),
+            func.coalesce(func.sum(Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)), 0).label("total_amount"),
+            func.coalesce(func.sum(Sale.discount_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)), 0).label("total_discount"),
+            func.coalesce(func.avg(Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)), 0).label("avg_check"),
         )
+        .outerjoin(Currency, Currency.id == Sale.currency_id)
         .join(Sale, Sale.cashier_id == User.id)
         .filter(Sale.created_at >= start, Sale.created_at < end, Sale.status == SaleStatus.completed)
     )
     q = q.filter(Sale.company_id == current_user.company_id)
     rows = (
-        q.group_by(User.id, User.name)
+        q.group_by(User.id, User.name, func.coalesce(Currency.code, 'UZS'))
         .order_by(func.sum(Sale.total_amount).desc())
         .all()
     )
-    return [
-        {
-            "cashier_id": r.id,
-            "cashier_name": r.name,
-            "sales_count": r.sales_count,
-            "total_amount": float(r.total_amount),
-            "total_discount": float(r.total_discount),
-            "avg_check": round(float(r.avg_check), 2),
-        }
-        for r in rows
-    ]
+
+    # Merge currencies
+    cashier_map = {}
+    for r in rows:
+        cid = r.id
+        if cid not in cashier_map:
+            cashier_map[cid] = {
+                "cashier_id": r.id,
+                "cashier_name": r.name,
+                "sales_count": 0,
+                "total_amount": {},
+                "total_discount": {},
+                "avg_check": {}
+            }
+        
+        curr = r.currency
+        cashier_map[cid]["sales_count"] += r.sales_count
+        cashier_map[cid]["total_amount"][curr] = float(r.total_amount or 0)
+        cashier_map[cid]["total_discount"][curr] = float(r.total_discount or 0)
+        cashier_map[cid]["avg_check"][curr] = float(r.avg_check or 0)
+        
+    return list(cashier_map.values())
 
 
 @router.get("/abc-xyz")
@@ -156,7 +197,7 @@ def abc_xyz_analysis(
             Product.id,
             Product.name,
             Product.sku,
-            func.sum(SaleItem.subtotal).label("revenue"),
+            func.sum(SaleItem.subtotal * func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)).label("revenue"),
             func.count(SaleItem.id).label("frequency"),
             func.sum(SaleItem.quantity).label("qty"),
         )

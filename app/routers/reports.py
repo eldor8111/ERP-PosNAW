@@ -8,7 +8,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, case, cast, Date as DateType
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.dependencies import require_roles
 from app.database import get_db
@@ -288,6 +288,7 @@ def sales_report(
     start, end = _date_range(date_from, date_to)
     q = (
         db.query(Sale, User)
+        .options(joinedload(Sale.currency))
         .join(User, User.id == Sale.cashier_id)
         .filter(Sale.created_at >= start, Sale.created_at < end, Sale.status == SaleStatus.completed)
     )
@@ -301,8 +302,9 @@ def sales_report(
             "id": s.id,
             "number": s.number,
             "cashier_name": u.name,
-            "total_amount": float(s.total_amount),
-            "discount_amount": float(s.discount_amount),
+            "total_amount": float(s.total_amount / (s.exchange_rate or 1)),
+            "discount_amount": float(s.discount_amount / (s.exchange_rate or 1)),
+            "currency_code": s.currency.code if s.currency else "UZS",
             "payment_type": s.payment_type,
             "status": s.status,
             "created_at": s.created_at.isoformat(),
@@ -448,6 +450,7 @@ def purchases_report(
             Supplier.id,
             Supplier.name,
             Supplier.phone,
+            func.coalesce(PurchaseOrder.currency, 'UZS').label("currency"),
             func.count(PurchaseOrder.id).label("po_count"),
             func.coalesce(func.sum(PurchaseOrder.total_amount), 0).label("total_amount"),
         )
@@ -456,20 +459,29 @@ def purchases_report(
     )
     q = q.filter(PurchaseOrder.company_id == current_user.company_id)
     rows = (
-        q.group_by(Supplier.id, Supplier.name, Supplier.phone)
+        q.group_by(Supplier.id, Supplier.name, Supplier.phone, func.coalesce(PurchaseOrder.currency, 'UZS'))
         .order_by(func.sum(PurchaseOrder.total_amount).desc())
         .all()
     )
-    return [
-        {
-            "supplier_id": r.id,
-            "supplier_name": r.name,
-            "phone": r.phone,
-            "po_count": r.po_count,
-            "total_amount": float(r.total_amount),
-        }
-        for r in rows
-    ]
+    
+    # Merge by supplier
+    supp_map = {}
+    for r in rows:
+        sid = r.id
+        if sid not in supp_map:
+            supp_map[sid] = {
+                "supplier_id": r.id,
+                "supplier_name": r.name,
+                "phone": r.phone,
+                "po_count": 0,
+                "total_amount": {}
+            }
+        
+        supp_map[sid]["po_count"] += r.po_count
+        curr = r.currency
+        supp_map[sid]["total_amount"][curr] = float(supp_map[sid]["total_amount"].get(curr, 0)) + float(r.total_amount)
+        
+    return list(supp_map.values())
 
 
 # ─── Mahsulotlar (Sotuv) hisoboti ──────────────────────────────────────────────
@@ -489,6 +501,7 @@ def product_sales_report(
             Product.id,
             Product.name,
             Product.sku,
+            func.coalesce(SaleItem.currency_code, 'UZS').label("currency_code"),
             func.sum(SaleItem.quantity).label("total_qty"),
             func.sum(SaleItem.subtotal).label("total_revenue"),
             func.sum((SaleItem.unit_price - SaleItem.cost_price) * SaleItem.quantity - SaleItem.discount).label("total_profit")
@@ -501,19 +514,29 @@ def product_sales_report(
             Sale.created_at < end,
             Sale.status == SaleStatus.completed
         )
-        .group_by(Product.id, Product.name, Product.sku)
+        .group_by(Product.id, Product.name, Product.sku, func.coalesce(SaleItem.currency_code, 'UZS'))
         .order_by(func.sum(SaleItem.quantity).desc())
     )
     
     rows = q.all()
-    return [
-        {
-            "product_id": r.id,
-            "product_name": r.name,
-            "sku": r.sku,
-            "total_qty": float(r.total_qty or 0),
-            "total_revenue": float(r.total_revenue or 0),
-            "total_profit": float(r.total_profit or 0)
-        }
-        for r in rows
-    ]
+    
+    # Merge currencies by product
+    product_map = {}
+    for r in rows:
+        pid = r.id
+        if pid not in product_map:
+            product_map[pid] = {
+                "product_id": r.id,
+                "product_name": r.name,
+                "sku": r.sku,
+                "total_qty": 0.0,
+                "total_revenue": {},
+                "total_profit": {}
+            }
+        
+        curr = r.currency_code
+        product_map[pid]["total_qty"] += float(r.total_qty or 0)
+        product_map[pid]["total_revenue"][curr] = float(product_map[pid]["total_revenue"].get(curr, 0)) + float(r.total_revenue or 0)
+        product_map[pid]["total_profit"][curr] = float(product_map[pid]["total_profit"].get(curr, 0)) + float(r.total_profit or 0)
+        
+    return list(product_map.values())

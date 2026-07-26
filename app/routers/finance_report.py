@@ -16,6 +16,7 @@ from app.models.category import Category
 from app.models.customer import Customer
 from app.models.moliya import Expense
 from app.models.product import Product
+from app.models.currency import Currency
 from app.models.sale import Sale, SaleItem, SaleStatus, SaleItemBatch
 from app.models.supplier import Supplier
 from app.models.user import User, UserRole
@@ -101,6 +102,7 @@ def profit_report(
             Product.name,
             Product.sku,
             Category.name.label("category_name"),
+            func.coalesce(SaleItem.currency_code, 'UZS').label("currency"),
             qty_expr.label("qty_sold"),
             revenue_expr.label("revenue"),
             cost_expr.label("cost"),
@@ -117,26 +119,39 @@ def profit_report(
     )
     q = q.filter(Sale.company_id == current_user.company_id)
     rows = (
-        q.group_by(Product.id, Product.name, Product.sku, Category.name)
+        q.group_by(Product.id, Product.name, Product.sku, Category.name, func.coalesce(SaleItem.currency_code, 'UZS'))
         .order_by(profit_expr.desc())
         .all()
     )
-    return [
-        {
-            "product_id": r.id,
-            "product_name": r.name,
-            "sku": r.sku,
-            "category_name": r.category_name or "—",
-            "qty_sold": float(r.qty_sold or 0),
-            "revenue": float(r.revenue or 0),
-            "cost": float(r.cost or 0),
-            "profit": float(r.profit or 0),
-            "margin_pct": round(
-                float(r.profit or 0) / float(r.revenue or 1) * 100, 1
-            ) if r.revenue and float(r.revenue) > 0 else 0,
-        }
-        for r in rows
-    ]
+
+    # Merge currencies
+    prod_map = {}
+    for r in rows:
+        pid = r.id
+        if pid not in prod_map:
+            prod_map[pid] = {
+                "product_id": r.id,
+                "product_name": r.name,
+                "sku": r.sku,
+                "category_name": r.category_name or "—",
+                "qty_sold": 0.0,
+                "revenue": {},
+                "cost": {},
+                "profit": {}
+            }
+        
+        curr = r.currency
+        prod_map[pid]["qty_sold"] += float(r.qty_sold or 0)
+        prod_map[pid]["revenue"][curr] = float(r.revenue or 0)
+        prod_map[pid]["cost"][curr] = float(r.cost or 0)
+        prod_map[pid]["profit"][curr] = float(r.profit or 0)
+        
+    for p in prod_map.values():
+        total_rev = sum(p["revenue"].values())
+        total_profit = sum(p["profit"].values())
+        p["margin_pct"] = round(total_profit / total_rev * 100, 1) if total_rev > 0 else 0
+        
+    return list(prod_map.values())
 
 
 @router.get("/batches")
@@ -167,6 +182,7 @@ def batches_profit_report(
             Batch.initial_quantity,
             Batch.quantity.label("remaining_quantity"),
             Batch.purchase_price,
+            func.coalesce(SaleItem.currency_code, 'UZS').label("currency"),
             sold_qty_expr.label("sold_qty"),
             revenue_expr.label("revenue"),
             profit_expr.label("profit"),
@@ -178,23 +194,37 @@ def batches_profit_report(
         .filter(Batch.created_at >= start, Batch.created_at < end)
     )
     q = q.filter(Batch.company_id == current_user.company_id)
-    rows = q.group_by(Batch.id, Product.name).order_by(Batch.created_at.desc()).all()
+    rows = q.group_by(Batch.id, Product.name, func.coalesce(SaleItem.currency_code, 'UZS')).order_by(Batch.created_at.desc()).all()
 
-    return [
-        {
-            "batch_id": r.id,
-            "product_name": r.product_name,
-            "lot_number": r.lot_number or "N/A",
-            "initial_quantity": float(r.initial_quantity or 0),
-            "remaining_quantity": float(r.remaining_quantity or 0),
-            "purchase_price": float(r.purchase_price or 0),
-            "sold_qty": float(r.sold_qty),
-            "revenue": float(r.revenue),
-            "profit": float(r.profit),
-            "margin_pct": round(float(r.profit / r.revenue * 100), 1) if r.revenue and float(r.revenue) > 0 else 0,
-        }
-        for r in rows
-    ]
+
+    # Merge currencies
+    batch_map = {}
+    for r in rows:
+        bid = r.id
+        if bid not in batch_map:
+            batch_map[bid] = {
+                "batch_id": r.id,
+                "product_name": r.product_name,
+                "lot_number": r.lot_number or "N/A",
+                "initial_quantity": float(r.initial_quantity or 0),
+                "remaining_quantity": float(r.remaining_quantity or 0),
+                "purchase_price": float(r.purchase_price or 0),
+                "sold_qty": 0.0,
+                "revenue": {},
+                "profit": {}
+            }
+        
+        curr = r.currency
+        batch_map[bid]["sold_qty"] += float(r.sold_qty)
+        batch_map[bid]["revenue"][curr] = float(r.revenue)
+        batch_map[bid]["profit"][curr] = float(r.profit)
+        
+    for b in batch_map.values():
+        total_rev = sum(b["revenue"].values())
+        total_profit = sum(b["profit"].values())
+        b["margin_pct"] = round(total_profit / total_rev * 100, 1) if total_rev > 0 else 0
+        
+    return list(batch_map.values())
 
 
 @router.get("/customer-debts")
@@ -267,47 +297,61 @@ def profit_loss_statement(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
 ):
-    """Foyda va Zarar hisoboti (FIFO, vazvratlar chegirilgan, company filtered)"""
+    """Foyda va Zarar hisoboti"""
     from app.models.moliya import ExpenseCategory
 
     start, end = _date_range(date_from, date_to)
     cid = current_user.company_id
 
-    gross_revenue = float(
-        db.query(func.coalesce(func.sum(Sale.total_amount), 0))
-        .filter(Sale.company_id == cid, Sale.created_at >= start, Sale.created_at < end, Sale.status == SaleStatus.completed)
-        .scalar()
-    )
+    def get_sales_by_currency(status):
+        rows = (
+            db.query(func.coalesce(Currency.code, 'UZS').label("currency"), func.coalesce(func.sum(Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)), 0).label("amount"))
+            .outerjoin(Currency, Currency.id == Sale.currency_id)
+            .filter(Sale.company_id == cid, Sale.created_at >= start, Sale.created_at < end, Sale.status == status)
+            .group_by(func.coalesce(Currency.code, 'UZS'))
+            .all()
+        )
+        return {r.currency: float(r.amount) for r in rows}
 
-    total_returns = float(
-        db.query(func.coalesce(func.sum(Sale.total_amount), 0))
-        .filter(Sale.company_id == cid, Sale.created_at >= start, Sale.created_at < end, Sale.status == SaleStatus.refunded)
-        .scalar()
-    )
+    gross_revenue = get_sales_by_currency(SaleStatus.completed)
+    total_returns = get_sales_by_currency(SaleStatus.refunded)
+    
+    net_revenue = {}
+    for c, amt in gross_revenue.items():
+        net_revenue[c] = amt - total_returns.get(c, 0)
 
-    net_revenue = gross_revenue - total_returns
-
-    cogs = float(
-        db.query(func.coalesce(
-            func.sum(
+    # COGS from SaleItems
+    cogs_rows = (
+        db.query(
+            func.coalesce(SaleItem.currency_code, 'UZS').label("currency"),
+            func.coalesce(func.sum(
                 case(
                     (Sale.status == SaleStatus.completed, SaleItem.cost_price * SaleItem.quantity),
                     (Sale.status == SaleStatus.refunded, -SaleItem.cost_price * SaleItem.quantity),
                     else_=0,
                 )
-            ), 0
-        ))
+            ), 0).label("cogs")
+        )
         .join(Sale)
         .filter(
             Sale.company_id == cid,
             Sale.created_at >= start, Sale.created_at < end,
             Sale.status.in_([SaleStatus.completed, SaleStatus.refunded]),
         )
-        .scalar()
+        .group_by(func.coalesce(SaleItem.currency_code, 'UZS'))
+        .all()
     )
+    cogs = {r.currency: float(r.cogs) for r in cogs_rows}
 
-    gross_profit = net_revenue - cogs
+    gross_profit = {}
+    for c, rev in net_revenue.items():
+        gross_profit[c] = rev - cogs.get(c, 0)
+        
+    for c, cost in cogs.items():
+        if c not in gross_profit:
+            gross_profit[c] = -cost
 
+    # Expenses (only UZS)
     exp_rows = (
         db.query(
             func.coalesce(ExpenseCategory.name, "Boshqa").label("cat"),
@@ -318,12 +362,21 @@ def profit_loss_statement(
         .group_by(ExpenseCategory.name)
         .all()
     )
-    expenses_by_cat = [{"name": r.cat, "total": float(r.total)} for r in exp_rows]
-    total_expenses = sum(r["total"] for r in expenses_by_cat)
+    expenses_by_cat = [{"name": r.cat, "total": {"UZS": float(r.total)}} for r in exp_rows]
+    total_expenses = {"UZS": sum(r["total"]["UZS"] for r in expenses_by_cat)}
 
-    net_profit = gross_profit - total_expenses
-    safe_revenue = net_revenue if net_revenue else 1
+    net_profit = {}
+    for c, gp in gross_profit.items():
+        net_profit[c] = gp - total_expenses.get(c, 0)
+        
+    for c, exp in total_expenses.items():
+        if c not in net_profit:
+            net_profit[c] = gross_profit.get(c, 0) - exp
 
+    uzs_net_rev = net_revenue.get("UZS", 0)
+    uzs_gp = gross_profit.get("UZS", 0)
+    uzs_np = net_profit.get("UZS", 0)
+    
     return {
         "period": {"from": str(start.date()), "to": str((end - timedelta(days=1)).date())},
         "revenue": net_revenue,
@@ -331,11 +384,11 @@ def profit_loss_statement(
         "returns": total_returns,
         "cogs": cogs,
         "gross_profit": gross_profit,
-        "gross_margin_pct": round(gross_profit / safe_revenue * 100, 2),
+        "gross_margin_pct": round(uzs_gp / (uzs_net_rev if uzs_net_rev else 1) * 100, 2),
         "expenses": {
             "total": total_expenses,
             "by_category": expenses_by_cat,
         },
         "net_profit": net_profit,
-        "net_margin_pct": round(net_profit / safe_revenue * 100, 2),
+        "net_margin_pct": round(uzs_np / (uzs_net_rev if uzs_net_rev else 1) * 100, 2),
     }
