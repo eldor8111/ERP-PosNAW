@@ -132,6 +132,10 @@ def create_sale(
                 detail=f"'{product.name}' uchun chegirma ({discount}) narxdan oshib ketdi",
             )
         subtotal = (unit_price * item_data.quantity) - discount
+        
+        # O'zining asl valyutasida saqlanadi
+        currency_code = getattr(item_data, "currency_code", "UZS")
+        exchange_rate = getattr(item_data, "exchange_rate", Decimal("1.0"))
 
         conversion = conversions_map.get(product.id)
         source_product = None
@@ -147,11 +151,15 @@ def create_sale(
             "cost_price": product.cost_price,
             "discount": discount,
             "subtotal": subtotal,
+            "currency_code": currency_code,
+            "exchange_rate": exchange_rate,
             "conversion": conversion,
             "source_product": source_product,
             "item_warehouse_id": item_data.warehouse_id,
         })
-        total_amount += subtotal
+        
+        # Jami sotuv summasi doim UZS (asosiy valyuta) da yig'iladi
+        total_amount += (subtotal * exchange_rate)
 
     total_amount -= data.discount_amount
     if total_amount < Decimal("0"):
@@ -491,6 +499,8 @@ def create_sale(
             cost_price=exact_unit_cost,
             discount=item_d["discount"],
             subtotal=item_d["subtotal"],
+            currency_code=item_d["currency_code"],
+            exchange_rate=item_d["exchange_rate"],
         )
         new_sale_items.append((sale_item, allocated_batches))
 

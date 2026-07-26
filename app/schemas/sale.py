@@ -13,6 +13,8 @@ class SaleItemCreate(BaseModel):
     unit_price: Optional[Decimal] = None  # None bo'lsa mahsulot narxidan oladi
     discount: Decimal = Decimal("0")
     warehouse_id: Optional[int] = None    # Desktop POS har item uchun sklad yuboradi
+    currency_code: Optional[str] = "UZS"
+    exchange_rate: Optional[Decimal] = Decimal("1.0")
 
     @field_validator("quantity")
     @classmethod
@@ -100,6 +102,8 @@ class SaleItemOut(BaseModel):
     unit: Optional[str] = "dona"           # O'lchov birligi (kg, litr, dona...)
     warehouse_id: Optional[int] = None      # Qaysi ombordan sotildi
     warehouse_name: Optional[str] = None    # Ombor nomi
+    currency_code: Optional[str] = "UZS"
+    exchange_rate: Optional[Decimal] = Decimal("1.0")
 
     model_config = {"from_attributes": True}
 

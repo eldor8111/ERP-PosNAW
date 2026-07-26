@@ -640,6 +640,8 @@ export default function UlgurjiSotuv() {
         product_id: it.product_id, name: it.product_name,
         unit: it.unit || 'dona',            // ← SaleItem dan haqiqiy unit
         qty: Number(it.quantity), price: Number(it.unit_price),
+        currency: it.currency_code || 'UZS',
+        rate: it.exchange_rate ? Number(it.exchange_rate) : 1,
         discount_type: 'sum', discount_val: it.discount > 0 ? String(it.discount) : '',
         wholesale_price: Number(it.unit_price), sale_price: Number(it.unit_price), stock_quantity: 9999,
         warehouse_id: it.warehouse_id || null, // ← per-item sklad (Desktop POS dan)
@@ -895,8 +897,6 @@ export default function UlgurjiSotuv() {
     setSaving(true);
     try {
       const items = cart.map(it => {
-        // unit_price ni original valyutada yuboramiz (masalan 0.5 USD)
-        // Backend currency va rate orqali UZS ga o'zi aylantiradi
         const disc = it.discount_type === 'pct'
           ? it.price * it.qty * (parseN(it.discount_val) / 100)
           : parseN(it.discount_val);
@@ -904,8 +904,8 @@ export default function UlgurjiSotuv() {
           product_id: it.product_id, quantity: it.qty, unit_price: it.price,
           discount: disc,
           warehouse_id: it.warehouse_id || undefined,
-          currency: it.currency || 'UZS',
-          rate: it.rate || 1,
+          currency_code: it.currency || 'UZS',
+          exchange_rate: it.rate || 1,
         };
       });
       // To'lovlarni ham valyutasi bilan yuboramiz
@@ -1049,11 +1049,11 @@ export default function UlgurjiSotuv() {
             items: cart.map(it => ({
               product_name: it.name,
               quantity: it.qty,
-              unit_price: it.price * (it.rate || 1),
+              unit_price: it.price,
               discount: it.discount_type === 'pct'
-                ? it.price * (it.rate || 1) * it.qty * (parseN(it.discount_val) / 100)
-                : parseN(it.discount_val) * (it.rate || 1),
-              subtotal: itemNetUZS(it),
+                ? it.price * it.qty * (parseN(it.discount_val) / 100)
+                : parseN(it.discount_val),
+              subtotal: itemNet(it),
               unit: it.unit,
               currency_name: it.currency || 'UZS',
             })),
