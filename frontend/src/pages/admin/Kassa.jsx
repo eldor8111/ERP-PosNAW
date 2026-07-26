@@ -115,9 +115,13 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
         // Blind Close: kassir kiritgan summani yuborish, hisoblanganni ko'rsatmasdan
         const actual_amounts = {};
         PT_KEYS.forEach(k => {
-          const enteredVal = form.actual[k];
-          if (enteredVal !== undefined && enteredVal !== '') {
-            actual_amounts[k] = { UZS: Number(enteredVal) };
+          if (form.actual[k]) {
+            Object.entries(form.actual[k]).forEach(([curr, val]) => {
+              if (val !== undefined && val !== '') {
+                if (!actual_amounts[k]) actual_amounts[k] = {};
+                actual_amounts[k][curr] = Number(val);
+              }
+            });
           }
         });
         const res = await api.post(`/kassa/${kassa.id}/close`, { actual_amounts, note: form.note });
@@ -322,30 +326,52 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200">
                           <th className="text-left px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">To'lov turi</th>
-                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Siz sanagan summa (UZS)</th>
+                          <th className="text-center px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Valyuta</th>
+                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Siz sanagan summa</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {PT_KEYS.map(k => {
                           const cfg = PT_CONFIG[k];
-                          return (
-                            <tr key={k} className="hover:bg-slate-50/50">
-                              <td className="px-3 py-2.5 text-slate-900 font-medium flex items-center gap-2">
-                                {cfg.icon}
-                                <span>{cfg.label}</span>
+                          const bVal = balances[k];
+                          // Agar bVal massiv bo'lsa, undagi barcha valyutalarni olamiz.
+                          // Agar bo'sh bo'lsa yoki undefined bo'lsa, faqat UZS ko'rsatamiz.
+                          let currencies = ['UZS'];
+                          if (Array.isArray(bVal) && bVal.length > 0) {
+                            currencies = bVal.map(item => item.currency);
+                          }
+                          
+                          return currencies.map((curr, idx) => (
+                            <tr key={`${k}-${curr}`} className="hover:bg-slate-50/50">
+                              {idx === 0 ? (
+                                <td rowSpan={currencies.length} className="px-3 py-2.5 text-slate-900 font-medium align-top bg-white/50">
+                                  <div className="flex items-center gap-2">
+                                    {cfg.icon}
+                                    <span>{cfg.label}</span>
+                                  </div>
+                                </td>
+                              ) : null}
+                              <td className="px-3 py-2.5 text-center font-medium text-slate-600">
+                                {curr}
                               </td>
                               <td className="px-3 py-2.5 text-right">
                                 <input
                                   type="number"
                                   min="0"
                                   className="w-40 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500"
-                                  value={form.actual[k] !== undefined ? form.actual[k] : ''}
-                                  onChange={e => setForm({ ...form, actual: { ...form.actual, [k]: e.target.value } })}
-                                  placeholder="0 (bo'sh qoldirsangiz 0 deb qabul qilinadi)"
+                                  value={form.actual[k]?.[curr] !== undefined ? form.actual[k][curr] : ''}
+                                  onChange={e => setForm({ 
+                                    ...form, 
+                                    actual: { 
+                                      ...form.actual, 
+                                      [k]: { ...(form.actual[k] || {}), [curr]: e.target.value } 
+                                    } 
+                                  })}
+                                  placeholder={`0 ${curr}`}
                                 />
                               </td>
                             </tr>
-                          );
+                          ));
                         })}
                       </tbody>
                     </table>

@@ -584,11 +584,30 @@ def close_kassa(wallet_id: int, data: CloseKassaIn, db: Session = Depends(get_db
             a_val = float(act_map.get(curr, 0.0))
             diff = c_val - a_val   # diff > 0 -> kam topildi -> out harakati
 
+            # 1. Kassir sanab bergan pulni "inkasso" sifatida kassa balansidan chiqarish
+            if a_val > 0:
+                mv_inkasso = KassaMovement(
+                    wallet_id=wallet_id,
+                    company_id=current_user.company_id,
+                    session_id=session.id if session else None,
+                    direction="out",
+                    payment_type=ptype,
+                    amount=a_val,
+                    currency=curr,
+                    reference_type="closing_inkasso",
+                    description=f"Yopilish (inkasso, {curr}): {a_val}",
+                    created_by=current_user.id,
+                )
+                db.add(mv_inkasso)
+                if curr == "UZS":
+                    w.balance = float(w.balance or 0) - a_val
+
+            # 2. Farqni (kamomad yoki ortiqcha) adjustment sifatida yozish
             if abs(diff) >= 0.01:
                 ptype_diffs[curr] = diff
                 direction = "out" if diff > 0 else "in"
                 
-                mv = KassaMovement(
+                mv_adj = KassaMovement(
                     wallet_id=wallet_id,
                     company_id=current_user.company_id,
                     session_id=session.id if session else None,
@@ -597,13 +616,13 @@ def close_kassa(wallet_id: int, data: CloseKassaIn, db: Session = Depends(get_db
                     amount=abs(diff),
                     currency=curr,
                     reference_type="closing_adjustment",
-                    description=f"Yopilish farqi ({ptype}): kutilgan={c_val}, haqiqiy={a_val}",
+                    description=f"Yopilish farqi ({ptype}, {curr}): kutilgan={c_val}, haqiqiy={a_val}",
                     created_by=current_user.id,
                 )
-                db.add(mv)
+                db.add(mv_adj)
                 
                 if curr == "UZS":
-                    w.balance = float(w.balance or 0) - diff
+                    w.balance = float(w.balance or 0) + (-diff) # Agar kamomad bo'lsa (diff>0) ayiramiz, aks holda qo'shamiz
         
         if ptype_diffs:
             diff_summary[ptype] = ptype_diffs
