@@ -510,57 +510,140 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
       {/* History modal */}
       {modal === 'history' && filteredHistory && (
         <Modal title="Kassa tarixi" onClose={() => setModal(null)} wide>
-          <div className="space-y-4">
-            <div className="flex gap-3 max-w-100">
-              <select className={field} value={directionFilter} onChange={(e) => setDirectionFilter(e.target.value)}>
-                <option value="all">Barchasi</option>
-                <option value="in">Kirim</option>
-                <option value="out">Chiqim</option>
-              </select>
-
-              <input type="date" className={field} value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
-            </div>
-            <div className="grid grid-cols-3 divide-x divide-slate-200 border border-slate-200 rounded-xl overflow-hidden">
-              {[
-                { l: 'Jami kirim', v: history.summary.total_in, cls: 'text-emerald-600' },
-                { l: 'Jami chiqim', v: history.summary.total_out, cls: 'text-rose-600' },
-                { l: 'Balans', v: history.summary.balance, cls: 'text-slate-900' },
-              ].map(s => (
-                <div key={s.l} className="px-4 py-3 bg-slate-50/60">
-                  <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400 mb-1">{s.l}</div>
-                  <div className={`text-base font-semibold tabular-nums ${s.cls}`}>{fmt(s.v)}</div>
+          <div className="space-y-6">
+            
+            {/* Header / Summary / Filters */}
+            <div className="flex flex-col md:flex-row gap-5 items-start md:items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              
+              <div className="flex gap-4 items-center flex-1">
+                <div className="relative">
+                  <select className="pl-4 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 appearance-none focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 shadow-sm transition-all" value={directionFilter} onChange={(e) => setDirectionFilter(e.target.value)}>
+                    <option value="all">🔄 Barcha</option>
+                    <option value="in">↓ Kirimlar</option>
+                    <option value="out">↑ Chiqimlar</option>
+                  </select>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  </div>
                 </div>
-              ))}
+
+                <div className="relative">
+                  <input type="date" className="pl-4 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
+                </div>
+                {dateFilter && (
+                  <button onClick={() => setDateFilter('')} className="text-xs font-bold text-rose-500 hover:text-rose-600 px-3 py-1.5 rounded-lg hover:bg-rose-100 transition-colors">Tozalash</button>
+                )}
+              </div>
+
+              {/* Balans tahlili (Summary) */}
+              <div className="flex gap-4 md:gap-8 bg-white px-5 py-3 rounded-xl shadow-sm border border-slate-100 items-center justify-end w-full md:w-auto">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Jami Kirim</p>
+                  <p className="text-sm font-bold text-emerald-600 mt-0.5 tabular-nums">+{fmt(history.summary.total_in)}</p>
+                </div>
+                <div className="w-px h-8 bg-slate-200"></div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Jami Chiqim</p>
+                  <p className="text-sm font-bold text-rose-600 mt-0.5 tabular-nums">−{fmt(history.summary.total_out)}</p>
+                </div>
+                <div className="w-px h-8 bg-slate-200"></div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Balans</p>
+                  <p className="text-sm font-extrabold text-slate-800 mt-0.5 tabular-nums">{fmt(history.summary.balance)}</p>
+                </div>
+              </div>
+
             </div>
-            <div className="overflow-x-auto rounded-xl border border-slate-200">
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr>
-                    {['Yo\'nalish', 'To\'lov turi', 'Summa', 'Tur', 'Izoh', 'Sana'].map(h => (
-                      <th key={h} className="px-3 py-2.5 text-left text-[11px] font-medium uppercase tracking-wide text-slate-400">{h}</th>
-                    ))}
+
+            {/* Table */}
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm bg-white">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500">
+                    <th className="px-5 py-3.5 font-bold text-[11px] uppercase tracking-wider">Tranzaksiya</th>
+                    <th className="px-5 py-3.5 font-bold text-[11px] uppercase tracking-wider text-right">Summa</th>
+                    <th className="px-5 py-3.5 font-bold text-[11px] uppercase tracking-wider">Tafsilotlar</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredHistory.map(m => {
-                    const dirCls = m.direction === 'in' ? 'text-emerald-600' : 'text-rose-600';
+                    const isIn = m.direction === 'in';
+                    const Icon = isIn ? (
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
+                    );
+                    
                     return (
-                      <tr key={m.id} className="hover:bg-slate-50 transition-colors">
-                        <td className={`px-3 py-2.5 font-medium ${dirCls}`}>{m.direction === 'in' ? '↓ Kirim' : '↑ Chiqim'}</td>
-                        <td className="px-3 py-2.5 text-slate-700">{m.payment_type}</td>
-                        <td className={`px-3 py-2.5 font-semibold tabular-nums ${dirCls}`}>{fmt(m.amount)}</td>
-                        <td className="px-3 py-2.5 text-slate-400 text-xs">{REF_LABELS[m.reference_type] || m.reference_type}</td>
-                        <td className="px-3 py-2.5 text-slate-500 max-w-[240px] truncate">{m.description || '—'}</td>
-                        <td className="px-3 py-2.5 text-slate-400 text-xs whitespace-nowrap">{fmtDate(m.created_at)}</td>
+                      <tr key={m.id} className="hover:bg-slate-50/50 transition-colors group">
+                        
+                        <td className="px-5 py-4 align-top w-[20%] min-w-[150px]">
+                          <div className="flex items-start gap-3.5">
+                            <div className={`mt-0.5 p-2 rounded-xl flex-shrink-0 ${isIn ? 'bg-emerald-100/50 text-emerald-600' : 'bg-rose-100/50 text-rose-600'}`}>
+                              {Icon}
+                            </div>
+                            <div>
+                              <p className={`font-bold text-[14px] leading-tight ${isIn ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                {isIn ? 'Kirim' : 'Chiqim'}
+                              </p>
+                              <p className="text-[11px] text-slate-500 font-semibold mt-1 uppercase tracking-widest flex items-center gap-1.5">
+                                {PT_CONFIG[m.payment_type]?.icon}
+                                <span>{PT_CONFIG[m.payment_type]?.label || m.payment_type}</span>
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="px-5 py-4 align-top text-right w-[20%] min-w-[150px]">
+                          <div className="flex flex-col items-end">
+                            <p className={`font-black tabular-nums text-[16px] tracking-tight ${isIn ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              {isIn ? '+' : '−'}{fmt(m.amount)}
+                            </p>
+                            <span className="inline-flex items-center justify-center mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500">
+                              {m.currency || 'UZS'}
+                            </span>
+                          </div>
+                        </td>
+
+                        <td className="px-5 py-4 align-top w-[60%]">
+                          <div className="flex flex-col gap-1.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="inline-flex items-center justify-center px-2 py-1 rounded-md bg-indigo-50 border border-indigo-100 text-[11px] font-bold text-indigo-700 uppercase tracking-wide">
+                                {REF_LABELS[m.reference_type] || m.reference_type}
+                              </span>
+                              <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1">
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                {fmtDate(m.created_at)}
+                              </span>
+                            </div>
+                            
+                            {m.description && (
+                              <p className="text-[13px] font-medium text-slate-600 leading-snug mt-0.5 line-clamp-2">
+                                {m.description}
+                              </p>
+                            )}
+                          </div>
+                        </td>
+                        
                       </tr>
                     );
                   })}
+
                   {filteredHistory.length === 0 && (
-                    <tr><td colSpan={6} className="px-3 py-8 text-center text-slate-400">Ma'lumot topilmadi</td></tr>
+                    <tr>
+                      <td colSpan={3} className="px-5 py-16 text-center">
+                        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-slate-50 border border-slate-100 text-slate-300 mb-4 shadow-sm">
+                          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
+                        </div>
+                        <h4 className="text-[15px] font-bold text-slate-700">Ma'lumot topilmadi</h4>
+                        <p className="text-sm font-medium text-slate-400 mt-1">Ushbu filtr bo'yicha hech qanday tranzaksiya mavjud emas.</p>
+                      </td>
+                    </tr>
                   )}
                 </tbody>
               </table>
             </div>
+
           </div>
         </Modal>
       )}

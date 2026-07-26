@@ -818,6 +818,7 @@ def kassa_history(
                 "direction": m.direction,
                 "payment_type": m.payment_type,
                 "amount": float(m.amount),
+                "currency": m.currency,
                 "reference_type": m.reference_type,
                 "reference_id": m.reference_id,
                 "description": m.description,
