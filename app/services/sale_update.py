@@ -42,14 +42,14 @@ def _reverse_sale_effects(db: Session, sale: Sale) -> None:
                 quantity=Decimal("0"),
             )
             db.add(stock)
-        stock.quantity += movement.quantity
+        stock.quantity += movement.quantity  # type: ignore
         db.delete(movement)
 
     for item in sale.items:
         for sib in db.query(SaleItemBatch).filter(SaleItemBatch.sale_item_id == item.id).all():
             batch = db.query(Batch).filter(Batch.id == sib.batch_id).first()
             if batch:
-                batch.quantity += sib.quantity
+                batch.quantity += sib.quantity  # type: ignore
             db.delete(sib)
 
     if sale.customer_id and sale.status != SaleStatus.pending:
@@ -75,7 +75,7 @@ def _reverse_sale_effects(db: Session, sale: Sale) -> None:
     from app.models.sale import SalePayment
     db.query(SalePayment).filter(SalePayment.sale_id == sale.id).delete()
 
-    for item in list(sale.items):
+    for item in list(sale.items):  # type: ignore
         db.delete(item)
 
     db.flush()
@@ -190,9 +190,9 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                     reason += f" ({sid['product'].name} → {src.name} x{conv.ratio})"
                 deduct_stock(
                     db=db, product_id=deduct_id, quantity=deduct_qty,
-                    user_id=current_user.id, reason=reason,
+                    user_id=current_user.id, reason=reason,  # type: ignore
                     reference_type="sale", reference_id=sale_id,
-                    warehouse_id=item_wh, allow_negative=True,
+                    warehouse_id=item_wh, allow_negative=True,  # type: ignore
                 )
 
         if new_customer_id and final_status != SaleStatus.pending:
@@ -203,11 +203,11 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
             if new_customer:
                 new_debt = max(Decimal("0"), (total_amount - paid_amount) * (sale.exchange_rate or Decimal("1")))
                 if new_debt > 0:
-                    new_customer.debt_balance = (new_customer.debt_balance or Decimal("0")) + new_debt
+                    new_customer.debt_balance = (new_customer.debt_balance or Decimal("0")) + new_debt  # type: ignore
 
                     # Sync with multi-currency debt_balances
                     if not new_customer.debt_balances:
-                        new_customer.debt_balances = {}
+                        new_customer.debt_balances = {}  # type: ignore
                     
                     if hasattr(data, "currency_totals") and data.currency_totals:
                         for curr_code, curr_debt in data.currency_totals.items():
@@ -232,12 +232,12 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 exr = sale.exchange_rate or Decimal("1")
                 if getattr(new_customer, "cashback_percent", 0) > 0:
                     cashback = (total_amount * exr * new_customer.cashback_percent) / Decimal("100")
-                    new_customer.bonus_balance = (new_customer.bonus_balance or Decimal("0")) + cashback
-                new_customer.total_spent = (new_customer.total_spent or Decimal("0")) + (total_amount * exr)
-                loyalty_earned = int((total_amount * exr) * Decimal("0.01"))
-                new_customer.loyalty_points = (new_customer.loyalty_points or 0) + loyalty_earned
-                sale.loyalty_points_earned = loyalty_earned
-            sale.loyalty_points_used = 0
+                    new_customer.bonus_balance = (new_customer.bonus_balance or Decimal("0")) + cashback  # type: ignore
+                new_customer.total_spent = (new_customer.total_spent or Decimal("0")) + (total_amount * exr)  # type: ignore
+                loyalty_earned = int((total_amount * exr) * Decimal("0.01"))  # type: ignore
+                new_customer.loyalty_points = (new_customer.loyalty_points or 0) + loyalty_earned  # type: ignore
+                sale.loyalty_points_earned = loyalty_earned  # type: ignore
+            sale.loyalty_points_used = 0  # type: ignore
 
         if final_status != SaleStatus.pending:
             tx_branch_id = resolve_branch_id(db, current_user, wh_id)
@@ -269,11 +269,11 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                     ))
 
         sale.status = final_status
-        sale.total_amount = total_amount
-        sale.discount_amount = disc_amount
-        sale.paid_amount = paid_amount
-        sale.paid_cash = paid_cash
-        sale.paid_card = paid_card
+        sale.total_amount = total_amount  # type: ignore
+        sale.discount_amount = disc_amount  # type: ignore
+        sale.paid_amount = paid_amount  # type: ignore
+        sale.paid_cash = paid_cash  # type: ignore
+        sale.paid_card = paid_card  # type: ignore
         sale.payment_type = payment_type
         sale.customer_id = new_customer_id
         sale.warehouse_id = wh_id
@@ -315,7 +315,7 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                             customer.debt_balance = (customer.debt_balance or Decimal("0")) + new_debt
                             
                             # Sync JSON
-                            if not customer.debt_balances: customer.debt_balances = {}
+                            if not customer.debt_balances: customer.debt_balances = {}  # type: ignore
                             
                             sale_currency = "UZS"
                             if sale.currency_id:
@@ -332,7 +332,7 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
 
                     elif old_status != SaleStatus.pending and sale.status == SaleStatus.pending:
                         if old_debt > 0:
-                            customer.debt_balance = max(Decimal("0"), customer.debt_balance - old_debt)
+                            customer.debt_balance = max(Decimal("0"), customer.debt_balance - old_debt)  # type: ignore
 
                             # Sync JSON
                             if customer.debt_balances:
@@ -352,10 +352,10 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
 
                     elif old_status != SaleStatus.pending and sale.status != SaleStatus.pending:
                         diff = new_debt - old_debt
-                        customer.debt_balance = max(Decimal("0"), customer.debt_balance + diff)
+                        customer.debt_balance = max(Decimal("0"), customer.debt_balance + diff)  # type: ignore
 
                         # Sync JSON
-                        if not customer.debt_balances: customer.debt_balances = {}
+                        if not customer.debt_balances: customer.debt_balances = {}  # type: ignore
                         
                         sale_currency = "UZS"
                         if sale.currency_id:
@@ -378,10 +378,10 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 if customer:
                     remaining_debt = (sale.total_amount - sale.paid_amount) * (sale.exchange_rate or Decimal("1"))
                     if remaining_debt > 0:
-                        customer.debt_balance = (customer.debt_balance or Decimal("0")) + remaining_debt
+                        customer.debt_balance = (customer.debt_balance or Decimal("0")) + remaining_debt  # type: ignore
 
                         # Sync JSON
-                        if not customer.debt_balances: customer.debt_balances = {}
+                        if not customer.debt_balances: customer.debt_balances = {}  # type: ignore
                         
                         sale_currency = "UZS"
                         if sale.currency_id:
@@ -392,7 +392,7 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                                 
                         curr_val = float(customer.debt_balances.get(sale_currency, 0))
                         raw_remaining = sale.total_amount - sale.paid_amount
-                        customer.debt_balances[sale_currency] = curr_val + float(raw_remaining)
+                        customer.debt_balances[sale_currency] = curr_val + float(raw_remaining)  # type: ignore
                         from sqlalchemy.orm.attributes import flag_modified
                         flag_modified(customer, "debt_balances")
 
@@ -405,9 +405,9 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                     reason += f" ({item.product.name} → {src.name} x{conv.ratio})"
                 deduct_stock(
                     db=db, product_id=deduct_id, quantity=deduct_qty,
-                    user_id=current_user.id, reason=reason,
-                    reference_type="sale", reference_id=sale.id,
-                    warehouse_id=sale.warehouse_id, allow_negative=True,
+                    user_id=current_user.id, reason=reason,  # type: ignore
+                    reference_type="sale", reference_id=sale.id,  # type: ignore
+                    warehouse_id=sale.warehouse_id, allow_negative=True,  # type: ignore
                 )
         elif old_status != SaleStatus.pending and sale.status == SaleStatus.pending:
             from app.models.inventory import StockMovement, StockLevel
@@ -424,10 +424,9 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 db.delete(movement)
 
     log_action(
-        db=db, action="SALE_UPDATE", entity_type="sale", entity_id=sale.id,
-        user_id=current_user.id,
+        db=db, action="SALE_UPDATE", entity_type="sale", entity_id=sale.id,  # type: ignore
+        user_id=current_user.id,  # type: ignore
         new_values={"status": str(sale.status), "paid": str(sale.paid_amount)},
     )
     db.commit()
-    return sale
     return sale

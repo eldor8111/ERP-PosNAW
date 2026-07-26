@@ -70,25 +70,25 @@ def _build_sale_out(sale: Sale) -> SaleOut:
     ] if hasattr(sale, 'payments') else []
 
     return SaleOut(
-        id=sale.id,
-        number=sale.number,
-        cashier_id=sale.cashier_id,
+        id=sale.id,  # type: ignore
+        number=sale.number,  # type: ignore
+        cashier_id=sale.cashier_id,  # type: ignore
         cashier_name=sale.cashier.name if sale.cashier else f"ID={sale.cashier_id}",
-        customer_id=sale.customer_id,
+        customer_id=sale.customer_id,  # type: ignore
         customer_name=sale.customer.name if getattr(sale, 'customer', None) else None,
-        warehouse_id=sale.warehouse_id,
-        total_amount=sale.total_amount,
-        discount_amount=sale.discount_amount,
-        paid_amount=sale.paid_amount,
-        paid_cash=sale.paid_cash,
-        paid_card=sale.paid_card,
+        warehouse_id=sale.warehouse_id,  # type: ignore
+        total_amount=sale.total_amount,  # type: ignore
+        discount_amount=sale.discount_amount,  # type: ignore
+        paid_amount=sale.paid_amount,  # type: ignore
+        paid_cash=sale.paid_cash,  # type: ignore
+        paid_card=sale.paid_card,  # type: ignore
         paid_cashback=getattr(sale, 'paid_cashback', 0) or 0,
         payment_type=sale.payment_type,
         status=sale.status,
-        note=sale.note,
+        note=sale.note,  # type: ignore
         items=items,
         payments=payments,
-        created_at=sale.created_at,
+        created_at=sale.created_at,  # type: ignore
         debt_due_date=getattr(sale, 'debt_due_date', None),
         currency_code=sale.currency.code if getattr(sale, 'currency', None) else "UZS",
         exchange_rate=getattr(sale, 'exchange_rate', 1.0) or 1.0,
@@ -121,21 +121,21 @@ def make_sale(
     sale = create_sale(db=db, data=data, current_user=current_user, ip=ip, background_tasks=background_tasks)
     cust_name = sale.customer.name if getattr(sale, 'customer', None) else (db.query(Customer.name).filter(Customer.id == sale.customer_id).scalar() if sale.customer_id else None)
     return SaleListOut(
-        id=sale.id,
-        number=sale.number,
-        cashier_name=current_user.name,
-        total_amount=sale.total_amount,
-        discount_amount=sale.discount_amount,
-        paid_amount=sale.paid_amount,
-        paid_cash=sale.paid_cash,
-        paid_card=sale.paid_card,
+        id=sale.id,  # type: ignore
+        number=sale.number,  # type: ignore
+        cashier_name=current_user.name,  # type: ignore
+        total_amount=sale.total_amount,  # type: ignore
+        discount_amount=sale.discount_amount,  # type: ignore
+        paid_amount=sale.paid_amount,  # type: ignore
+        paid_cash=sale.paid_cash,  # type: ignore
+        paid_card=sale.paid_card,  # type: ignore
         paid_cashback=getattr(sale, 'paid_cashback', 0) or 0,
         payment_type=sale.payment_type,
         status=sale.status,
-        customer_id=sale.customer_id,
+        customer_id=sale.customer_id,  # type: ignore
         customer_name=cust_name,
         items_count=len(data.items),
-        created_at=sale.created_at,
+        created_at=sale.created_at,  # type: ignore
         currency_code=sale.currency.code if getattr(sale, 'currency', None) else "UZS",
     )
 
@@ -152,20 +152,20 @@ def make_pending_sale(
     sale = create_pending_sale(db=db, data=data, current_user=current_user, ip=ip)
     cust_name = sale.customer.name if getattr(sale, 'customer', None) else (db.query(Customer.name).filter(Customer.id == sale.customer_id).scalar() if sale.customer_id else None)
     return SaleListOut(
-        id=sale.id,
-        number=sale.number,
-        cashier_name=current_user.name,
-        total_amount=sale.total_amount,
-        discount_amount=sale.discount_amount,
-        paid_amount=sale.paid_amount,
-        paid_cash=sale.paid_cash,
-        paid_card=sale.paid_card,
+        id=sale.id,  # type: ignore
+        number=sale.number,  # type: ignore
+        cashier_name=current_user.name,  # type: ignore
+        total_amount=sale.total_amount,  # type: ignore
+        discount_amount=sale.discount_amount,  # type: ignore
+        paid_amount=sale.paid_amount,  # type: ignore
+        paid_cash=sale.paid_cash,  # type: ignore
+        paid_card=sale.paid_card,  # type: ignore
         payment_type=sale.payment_type,
         status=sale.status,
-        customer_id=sale.customer_id,
+        customer_id=sale.customer_id,  # type: ignore
         customer_name=cust_name,
         items_count=len(data.items),
-        created_at=sale.created_at,
+        created_at=sale.created_at,  # type: ignore
         currency_code=sale.currency.code if getattr(sale, 'currency', None) else "UZS",
     )
 
@@ -182,20 +182,20 @@ def make_return_sale(
     sale = create_return_sale(db=db, data=data, current_user=current_user, ip=ip)
     cust_name = sale.customer.name if getattr(sale, 'customer', None) else (db.query(Customer.name).filter(Customer.id == sale.customer_id).scalar() if sale.customer_id else None)
     return SaleListOut(
-        id=sale.id,
-        number=sale.number,
-        cashier_name=current_user.name,
-        total_amount=sale.total_amount,
-        discount_amount=sale.discount_amount,
-        paid_amount=sale.paid_amount,
-        paid_cash=sale.paid_cash,
-        paid_card=sale.paid_card,
+        id=sale.id,  # type: ignore
+        number=sale.number,  # type: ignore
+        cashier_name=current_user.name,  # type: ignore
+        total_amount=sale.total_amount,  # type: ignore
+        discount_amount=sale.discount_amount,  # type: ignore
+        paid_amount=sale.paid_amount,  # type: ignore
+        paid_cash=sale.paid_cash,  # type: ignore
+        paid_card=sale.paid_card,  # type: ignore
         payment_type=sale.payment_type,
         status=sale.status,
-        customer_id=sale.customer_id,
+        customer_id=sale.customer_id,  # type: ignore
         customer_name=cust_name,
         items_count=len(data.items),
-        created_at=sale.created_at,
+        created_at=sale.created_at,  # type: ignore
         currency_code=sale.currency.code if getattr(sale, 'currency', None) else "UZS",
     )
 
@@ -351,7 +351,7 @@ def edit_sale(
 ):
     """Sotuvni tahrirlash: holat, izoh, to'lov miqdori"""
     sale = update_sale(db=db, sale_id=sale_id, data=data, current_user=current_user)
-    sale = _load_sale(db, sale.id, current_user)
+    sale = _load_sale(db, sale.id, current_user)  # type: ignore
     return _build_sale_out(sale)
 
 
@@ -400,13 +400,13 @@ def refund_sale(
         ).first()
         qty = Decimal(str(ri.quantity))
         if stock:
-            stock.quantity += qty
+            stock.quantity += qty  # type: ignore
         else:
             db.add(StockLevel(product_id=ri.product_id, quantity=qty, warehouse_id=sale.warehouse_id))
         refunded.append({"product_id": ri.product_id, "qty_returned": ri.quantity})
 
     if data.items:
-        sale.status = SaleStatus.refunded if hasattr(SaleStatus, 'refunded') else sale.status
+        sale.status = SaleStatus.refunded if hasattr(SaleStatus, 'refunded') else sale.status  # type: ignore
 
     db.commit()
     return {"message": f"{len(refunded)} ta mahsulot qaytarildi", "details": refunded}
