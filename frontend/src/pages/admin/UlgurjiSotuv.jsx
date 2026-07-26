@@ -474,7 +474,7 @@ export default function UlgurjiSotuv() {
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [autoPrint, setAutoPrint] = useState(localStorage.getItem('ulgurji_autoPrint') !== 'false');
-  const [onlySom, setOnlySom] = useState(localStorage.getItem('ulgurji_onlySom') !== 'false');
+  const [onlySom, setOnlySom] = useState(localStorage.getItem('ulgurji_onlySom') === 'true');
   const [receiptWidth, setReceiptWidth] = useState(localStorage.getItem('ulgurji_receiptWidth') || '80');
   const [defaultCustomerId, setDefaultCustomerId] = useState(localStorage.getItem('ulgurji_defaultCustomer') || '');
 
@@ -1055,7 +1055,8 @@ export default function UlgurjiSotuv() {
                 : parseN(it.discount_val),
               subtotal: itemNet(it),
               unit: it.unit,
-              currency_name: it.currency || 'UZS',
+              currency_code: it.currency || 'UZS',
+              exchange_rate: it.rate || 1.0,
             })),
           }, tpl, cfg));
         } catch (err) { console.error('Auto-print error:', err); }
@@ -1201,6 +1202,8 @@ export default function UlgurjiSotuv() {
         product_id: it.product_id, name: it.product_name,
         unit: it.unit || 'dona',            // ← haqiqiy unit
         qty: Number(it.quantity), price: Number(it.unit_price),
+        currency: it.currency_code || 'UZS',
+        rate: it.exchange_rate ? Number(it.exchange_rate) : 1,
         discount_type: 'sum', discount_val: it.discount > 0 ? String(it.discount) : '',
         wholesale_price: Number(it.unit_price), sale_price: Number(it.unit_price), stock_quantity: 9999,
         addedAt: Date.now(),

@@ -164,13 +164,13 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
           case 'show_measurement':     val = i.measurement_name || i.unit || ''; break;
           case 'show_warehouse':       val = i.warehouse_name || ''; break;
           case 'show_sku':             val = i.sku || ''; break;
-          case 'show_price':           val = itemUseCur ? (up / itemRate).toFixed(4).replace(/\.?0+$/, '') : up.toLocaleString('uz-UZ'); break;
-          case 'show_discount':        val = disc > 0 ? (itemUseCur ? `-${(disc / itemRate).toFixed(4).replace(/\.?0+$/, '')}` : `-${disc.toLocaleString('uz-UZ')}`) : ''; break;
-          case 'show_price_with_discount': val = itemUseCur ? ((up - disc/qty) / itemRate).toFixed(4).replace(/\.?0+$/, '') : (up - disc/qty).toLocaleString('uz-UZ'); break;
-          case 'show_net_price':       val = itemUseCur ? (sub / itemRate).toFixed(4).replace(/\.?0+$/, '') : sub.toLocaleString('uz-UZ'); break;
-          case 'show_currency':        val = itemCurr === 'USD' ? '$' : (itemCurr === 'RUB' ? '₽' : itemCurr); break;
+          case 'show_price':           val = itemUseCur ? up.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : up.toLocaleString('uz-UZ'); break;
+          case 'show_discount':        val = disc > 0 ? (itemUseCur ? `-${disc.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}` : `-${disc.toLocaleString('uz-UZ')}`) : ''; break;
+          case 'show_price_with_discount': val = itemUseCur ? (up - disc/qty).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : (up - disc/qty).toLocaleString('uz-UZ'); break;
+          case 'show_net_price':       val = itemUseCur ? sub.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : sub.toLocaleString('uz-UZ'); break;
+          case 'show_currency':        val = itemCurr === 'USD' ? '$' : (itemCurr === 'RUB' ? '₽' : (itemCurr === 'UZS' ? "so'm" : itemCurr)); break;
           case 'item_qty':             val = qty; break;
-          case 'item_total':           val = itemUseCur ? (sub / itemRate).toFixed(4).replace(/\.?0+$/, '') : sub.toLocaleString('uz-UZ'); break;
+          case 'item_total':           val = itemUseCur ? sub.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : sub.toLocaleString('uz-UZ'); break;
         }
         return `<td style="text-align:${col.align}">${val}</td>`;
       }).join('');
