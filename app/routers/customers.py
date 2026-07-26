@@ -260,12 +260,30 @@ def get_customers_summary_stats(
         current_user: User = Depends(get_current_user),
 ):
     """Mijozlar bo'yicha umumiy statistik ma'lumotlarni qaytaradi."""
-    total_customers = db.query(Customer).filter(Customer.company_id == current_user.company_id).count()
-    total_debt = db.query(func.sum(Customer.debt_balance)).filter(Customer.company_id == current_user.company_id).scalar() or Decimal("0")
-    total_debtors = db.query(Customer).filter(Customer.company_id == current_user.company_id, Customer.debt_balance > 0).count()
+    customers_data = db.query(Customer.debt_balance, Customer.debt_balances).filter(Customer.company_id == current_user.company_id).all()
+    total_customers = len(customers_data)
+    
+    total_debts = {}
+    total_debtors = 0
+    
+    for c_debt_balance, c_debt_balances in customers_data:
+        has_debt = False
+        if c_debt_balances:
+            for curr, amt in c_debt_balances.items():
+                if float(amt) > 0.01:
+                    total_debts[curr] = total_debts.get(curr, 0) + float(amt)
+                    has_debt = True
+        elif c_debt_balance and float(c_debt_balance) > 0:
+            total_debts["UZS"] = total_debts.get("UZS", 0) + float(c_debt_balance)
+            has_debt = True
+            
+        if has_debt:
+            total_debtors += 1
+
     return {
         "total_customers": total_customers,
-        "total_debt": total_debt,
+        "total_debt": total_debts.get("UZS", 0),
+        "total_debts": total_debts,
         "total_debtors": total_debtors,
     }
 

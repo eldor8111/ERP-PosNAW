@@ -687,7 +687,15 @@ export function SotuvMijozlar({ stats, reloadStats }) {
           </div>
           <div className='flex flex-col gap-1'>
             <div className="text-[10px] lg:text-xs leading-none font-semibold text-slate-400 uppercase tracking-wider">{t('customer.totalDebt')}</div>
-            <div className="text-[16px] leading-none lg:text-xl font-bold text-red-500 mt-0.5">{fmt(totalDebt)} {t('common.sum')}</div>
+            {stats?.total_debts && Object.keys(stats.total_debts).length > 0 ? (
+              Object.entries(stats.total_debts).map(([curr, amt]) => (
+                <div key={curr} className="text-[16px] leading-none lg:text-xl font-bold text-red-500 mt-0.5">
+                  {fmt(amt)} {curr === 'UZS' ? "so'm" : curr}
+                </div>
+              ))
+            ) : (
+              <div className="text-[16px] leading-none lg:text-xl font-bold text-red-500 mt-0.5">{fmt(totalDebt)} {t('common.sum')}</div>
+            )}
           </div>
         </div>
         <div className="bg-white rounded-lg lg:rounded-2xl shadow-sm border border-slate-100 p-2.25 lg:p-3 xl:p-5 flex items-center gap-4">
@@ -906,7 +914,13 @@ export function SotuvMijozlar({ stats, reloadStats }) {
             </div>
 
             <div className='flex gap-1 md:gap-3 text-right md:text-left items-center flex-col md:flex-row'>
-              <span className='hidden md:block'>Umumiy qarz: <strong className="text-red-500">{fmt(totalDebt)} so'm</strong></span>
+              <span className='hidden md:block'>Umumiy qarz: 
+                <strong className="text-red-500 ml-1">
+                  {stats?.total_debts && Object.keys(stats.total_debts).length > 0 
+                    ? Object.entries(stats.total_debts).map(([c, a]) => `${fmt(a)} ${c === 'UZS' ? "so'm" : c}`).join(', ') 
+                    : `${fmt(totalDebt)} so'm`}
+                </strong>
+              </span>
 
               {/* 5. LIMIT (PAGINATION) LISTBOX */}
               <div className="z-30 ml-auto md:ml-0">
@@ -1966,7 +1980,15 @@ function TolovTab({ customers, stats, reloadStats }) {
           </div>
           <div className='flex flex-col gap-1'>
             <div className="text-[10px] lg:text-xs leading-none font-semibold text-slate-400 uppercase tracking-wider">Jami qarz</div>
-            <div className="text-[16px] leading-none lg:text-xl font-bold text-red-500 mt-0.5">{fmt(totalDebt)} so'm</div>
+            {stats?.total_debts && Object.keys(stats.total_debts).length > 0 ? (
+              Object.entries(stats.total_debts).map(([curr, amt]) => (
+                <div key={curr} className="text-[16px] leading-none lg:text-xl font-bold text-red-500 mt-0.5">
+                  {fmt(amt)} {curr === 'UZS' ? "so'm" : curr}
+                </div>
+              ))
+            ) : (
+              <div className="text-[16px] leading-none lg:text-xl font-bold text-red-500 mt-0.5">{fmt(totalDebt)} so'm</div>
+            )}
           </div>
         </div>
       </div>
