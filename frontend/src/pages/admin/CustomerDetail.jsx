@@ -405,6 +405,19 @@ function SalesTable({ rows, stats, salesData, loading, emptyText = "Sotuvlar yo'
   const [toDate, setToDate] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState('all');
 
+  const [openSaleDetailModal, setOpenSaleDetailModal] = useState(false);
+  const [saleDetailData, setSaleDetailData] = useState(null);
+
+  async function openSaleDetail(id) {
+    try {
+      const response = await api.get(`/sales/${id}`);
+      setSaleDetailData(response.data);
+      setOpenSaleDetailModal(true);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(() => Number(localStorage.getItem('sales_limit')) || 10);
 
@@ -532,7 +545,7 @@ function SalesTable({ rows, stats, salesData, loading, emptyText = "Sotuvlar yo'
                 paginatedSales.map(s => {
                   const debt = Number(s.total_amount) - Number(s.paid_amount)
                   return (
-                    <tr key={s.id} className="hover:bg-slate-50 transition-colors">
+                    <tr key={s.id} onClick={() => openSaleDetail(s.id)} className="hover:bg-slate-50 transition-colors cursor-pointer">
                       <td className="px-4 py-4 font-mono text-xs text-slate-600">{s.number}</td>
                       <td className="px-4 py-4">
                         <code className="py-0.5 rounded-full text-xs">
@@ -648,6 +661,99 @@ function SalesTable({ rows, stats, salesData, loading, emptyText = "Sotuvlar yo'
           </div>
         )}
       </div>
+
+      {openSaleDetailModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm z-50 p-4 transition-opacity">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+              <div>
+                <h3 className="text-xl font-bold text-slate-800">Sotuv tafsilotlari</h3>
+              </div>
+              <button
+                onClick={() => setOpenSaleDetailModal(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors duration-150 cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Scrollable Body */}
+            <div className="p-6 overflow-y-auto space-y-6">
+
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Umumiy Summa */}
+                <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-100">
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Umumiy summa</p>
+                  <p className="text-lg font-bold text-slate-900 mt-1">
+                    {fmt(saleDetailData?.total_amount)} <span className="text-xs text-slate-500 font-normal">{saleDetailData?.currency_code || saleDetailData?.currency}</span>
+                  </p>
+                </div>
+
+                {/* To'langan */}
+                <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100/60">
+                  <p className="text-xs font-medium text-emerald-600 uppercase tracking-wider">To'langan</p>
+                  <p className="text-lg font-bold text-emerald-700 mt-1">
+                    {fmt(saleDetailData?.paid_amount)} <span className="text-xs text-emerald-600 font-normal">{saleDetailData?.currency_code || saleDetailData?.currency}</span>
+                  </p>
+                </div>
+
+                {/* Qarzga qolgan */}
+                <div className={`p-4 rounded-xl border ${saleDetailData?.debt_amount > 0 ? 'bg-amber-50/50 border-amber-100/60' : 'bg-slate-50/80 border-slate-100'}`}>
+                  <p className={`text-xs font-medium uppercase tracking-wider ${saleDetailData?.debt_amount > 0 ? 'text-amber-600' : 'text-slate-500'}`}>
+                    Qarzga qolgan
+                  </p>
+                  <p className={`text-lg font-bold mt-1 ${saleDetailData?.debt_amount > 0 ? 'text-amber-700' : 'text-slate-700'}`}>
+                    {fmt(saleDetailData?.debt_amount)} <span className="text-xs font-normal opacity-75">{saleDetailData?.currency_code || saleDetailData?.currency}</span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Mahsulotlar</h4>
+                <div className="border border-slate-100 rounded-xl overflow-hidden shadow-xs">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-slate-100">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Mahsulot</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Miqdor</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Narx</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Jami</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-slate-100 text-sm text-slate-700">
+                        {saleDetailData?.items?.map((item, index) => (
+                          <tr key={index} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="px-4 py-3 font-medium text-slate-900">{item.product_name}</td>
+                            <td className="px-4 py-3 text-right font-mono text-slate-600">{Number(item.quantity).toFixed(2).replace(/\.00$/, '')} {item.unit}</td>
+                            <td className="px-4 py-3 text-right font-mono text-slate-600">{fmt(item.unit_price)}</td>
+                            <td className="px-4 py-3 text-right font-semibold text-slate-900">{fmt(item.subtotal)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-3 border-t border-slate-100 flex justify-end bg-slate-50/50 shrink-0">
+              <button
+                onClick={() => setOpenSaleDetailModal(false)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors cursor-pointer"
+              >
+                Yopish
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   )
 }
