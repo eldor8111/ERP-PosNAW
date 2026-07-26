@@ -153,7 +153,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
           payment_type: form.payment_type,
           note: form.note,
         });
-        toast.success(`Transfer #${res.data.transfer_id} yuborildi. Qabul qiluvchi tasdiqlashi kutilmoqda ⏳`);
+        toast.success(`Transfer #${res.data.transfer_id} muvaffaqiyatli amalga oshirildi ✅`);
       }
       if (action !== 'close') setModal(null);
       onRefresh();
@@ -398,7 +398,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
         <Modal title="💸 Kassadan kassaga o'tkazma" onClose={() => setModal(null)}>
           <div className="space-y-4">
             <div className="p-3 bg-violet-50 border border-violet-200 rounded-xl text-xs text-violet-700">
-              🔐 <strong>Xavfsiz 2-bosqich:</strong> Siz yuborasiz → Qabul qiluvchi tasdiqlaydi. Tasdiqlangunga qadar pul "Yo'lda" holatida turadi.
+              ℹ️ <strong>Tezkor o'tkazma:</strong> Pul darhol ikkinchi kassaga o'tadi va ushbu kassadan yechiladi. Qabul qiluvchidan tasdiqlash talab etilmaydi.
             </div>
             <div>
               <label className="text-xs font-medium text-slate-600 block mb-1.5">Qabul qiluvchi Kassa *</label>

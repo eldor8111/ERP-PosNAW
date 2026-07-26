@@ -280,8 +280,8 @@ def transfer_out(
         
     session = db.query(KassaSession).filter(KassaSession.wallet_id == sender.id, KassaSession.status == "open").first()
     
-    # 1. KassaMovement - pul yechiladi
-    mv = KassaMovement(
+    # 1. Yuboruvchidan pul yechiladi (KassaMovement)
+    mv_out = KassaMovement(
         wallet_id=sender.id,
         company_id=current_user.company_id,
         session_id=session.id if session else None,
@@ -289,16 +289,36 @@ def transfer_out(
         payment_type=data.payment_type,
         amount=data.amount,
         currency=data.currency,
-        reference_type="transfer_out_pending",
+        reference_type="transfer_out",
         description=f"Transfer to {receiver.name}: {data.note or ''}",
         created_by=current_user.id,
     )
-    db.add(mv)
+    db.add(mv_out)
     
     if data.currency == "UZS":
         sender.balance = float(sender.balance or 0) - data.amount
         
-    # 2. CashTransfer yozuvi
+    # 2. Qabul qiluvchiga pul qo'shiladi (KassaMovement)
+    receiver_session = db.query(KassaSession).filter(KassaSession.wallet_id == receiver.id, KassaSession.status == "open").first()
+    
+    mv_in = KassaMovement(
+        wallet_id=receiver.id,
+        company_id=current_user.company_id,
+        session_id=receiver_session.id if receiver_session else None,
+        direction="in",
+        payment_type=data.payment_type,
+        amount=data.amount,
+        currency=data.currency,
+        reference_type="transfer_in",
+        description=f"Transfer from {sender.name}: {data.note or ''}",
+        created_by=current_user.id,
+    )
+    db.add(mv_in)
+    
+    if data.currency == "UZS":
+        receiver.balance = float(receiver.balance or 0) + data.amount
+
+    # 3. CashTransfer tarixi yozuvi
     ct = CashTransfer(
         company_id=current_user.company_id,
         sender_wallet_id=sender.id,
@@ -306,11 +326,19 @@ def transfer_out(
         amount=data.amount,
         currency=data.currency,
         payment_type=data.payment_type,
-        status="pending",
+        status="completed", # Avtomatik qabul qilingan hisoblanadi
         sent_by=current_user.id,
+        received_by=current_user.id,
+        received_at=datetime.now(timezone.utc),
         note=data.note
     )
     db.add(ct)
+    
+    # reference_id ni bog'lash
+    db.flush()
+    mv_out.reference_id = ct.id
+    mv_in.reference_id = ct.id
+    
     db.commit()
     db.refresh(ct)
     return {"ok": True, "transfer_id": ct.id}
