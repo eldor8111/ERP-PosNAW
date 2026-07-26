@@ -179,3 +179,6 @@ class SaleUpdate(BaseModel):
     debt_due_date: Optional[date] = None
     warehouse_id: Optional[int] = None
     currency_totals: Optional[dict] = None
+    currency_id: Optional[int] = None
+    currency_code: Optional[str] = None
+    exchange_rate: Optional[Decimal] = None

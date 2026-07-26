@@ -132,6 +132,9 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
             unit_price = resolve_price(item_d, product, _customer_price, _customer)
             discount = item_d.discount
             subtotal = (unit_price * item_d.quantity) - discount
+            
+            item_currency_code = getattr(item_d, "currency_code", "UZS")
+            item_exchange_rate = getattr(item_d, "exchange_rate", Decimal("1.0"))
 
             conversion = db.query(ProductConversion).filter(
                 ProductConversion.sell_product_id == product.id
@@ -149,9 +152,11 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 "cost_price": cost_price,
                 "discount": discount,
                 "subtotal": subtotal,
+                "currency_code": item_currency_code,
+                "exchange_rate": item_exchange_rate,
                 "item_warehouse_id": getattr(item_d, "warehouse_id", None),
             })
-            total_amount += subtotal
+            total_amount += (subtotal * item_exchange_rate)
 
         total_amount = max(Decimal("0"), total_amount - disc_amount)
         paid_amount = data.paid_amount if data.paid_amount is not None else old_paid_amount
@@ -170,6 +175,8 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 cost_price=sid["cost_price"],
                 discount=sid["discount"],
                 subtotal=sid["subtotal"],
+                currency_code=sid["currency_code"],
+                exchange_rate=sid["exchange_rate"],
                 warehouse_id=item_wh,
                 unit=sid["product"].unit or "dona",
             ))
@@ -274,6 +281,21 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
             sale.note = data.note
         if data.debt_due_date is not None:
             sale.debt_due_date = data.debt_due_date
+        
+        # Currency update
+        if hasattr(data, "currency_id") and data.currency_id is not None:
+            sale.currency_id = data.currency_id
+        
+        # Resolve overall exchange rate from first item if possible (as a fallback)
+        if sale_items_data:
+            # We already accumulated total_amount in UZS by multiplying with item_exchange_rate
+            # It's good to keep an exchange rate on the Sale object for display
+            first_item = sale_items_data[0]
+            if first_item.get("currency_code") != "UZS":
+                sale.exchange_rate = first_item.get("exchange_rate", sale.exchange_rate)
+        
+        if hasattr(data, "currency_code") and data.currency_code is not None:
+            sale.currency_code = data.currency_code
 
     else:
         # ── Oddiy yangilash: holat/izoh/to'lov ───────────────────────────────
