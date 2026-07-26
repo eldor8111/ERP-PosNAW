@@ -889,16 +889,21 @@ def pay_debt(customer_id: int, data: DebtUpdate, db: Session = Depends(get_db),
         if wallet:
             wallet.balance = float(wallet.balance or 0) + float(data.amount)
         open_session = db.query(_KS).filter(_KS.wallet_id == target_wallet_id, _KS.status == "open").first()
+        tx_desc = data.reason or f"Mijoz to'lovi: {cust.name}"
+        if currency != "UZS":
+            tx_desc = tx_desc + f" ({data.amount} {currency})"
+
         tx = Transaction(
             company_id=current_user.company_id,
             branch_id=current_user.branch_id or 0,
             wallet_id=target_wallet_id,
             type="income",
-            amount=data.amount,
+            amount=amount_in_uzs,
+            currency_code="UZS",
             payment_type=data.payment_type or "cash",
             reference_type="customer_payment",
             reference_id=customer_id,
-            description=data.reason or f"Mijoz to'lovi: {cust.name}",
+            description=tx_desc.strip(),
         )
         db.add(tx)
         # KassaMovement — mijoz to'lovi

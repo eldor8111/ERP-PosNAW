@@ -300,18 +300,22 @@ def pay_supplier_debt(
         br = db.query(_Branch).filter(_Branch.company_id == current_user.company_id).first()
         tx_branch_id = br.id if br else None
 
+    tx_desc = data.reason or ""
+    if currency != "UZS":
+        tx_desc = tx_desc + f" ({data.amount} {currency})"
+        
     # Tranzaksiya DOIM yoziladi (wallet_id bo'lmasa ham)
     tx = Transaction(
         company_id=current_user.company_id,
         branch_id=tx_branch_id or 0,
         wallet_id=data.wallet_id,
         type="expense",
-        amount=data.amount,
-        currency_code=currency,
+        amount=amount_in_uzs,
+        currency_code="UZS",
         payment_type=data.payment_type,
         reference_type="supplier_payment",
         reference_id=supplier_id,
-        description=data.reason
+        description=tx_desc.strip()
     )
     db.add(tx)
 

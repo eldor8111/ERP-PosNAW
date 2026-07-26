@@ -573,10 +573,26 @@ export default function Finance() {
                           {tx.type === 'income' ? (t('finance.income') || 'Kirim') : (t('finance.expense') || 'Chiqim')}
                         </span>
                       </td>
-                      <td className={`px-6 py-4 text-sm font-semibold ${tx.type === 'income' ? 'text-emerald-600' : 'text-red-500'}`}>
-                        {Number(tx.amount).toLocaleString('uz-UZ')} {tx.currency_code || 'UZS'}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-500">{tx.description || '—'}</td>
+                      {(() => {
+                        const desc = tx.description || '—';
+                        let displayAmount = `${Number(tx.amount).toLocaleString('uz-UZ')} ${tx.currency_code || 'UZS'}`;
+                        let displayDesc = desc;
+
+                        const match = desc.match(/\(([\d.,]+)\s+([A-Z]{3})\)$/);
+                        if (match) {
+                            displayAmount = `${Number(match[1].replace(/,/g, '')).toLocaleString('uz-UZ')} ${match[2]}`;
+                            displayDesc = desc.replace(match[0], '').trim() || '—';
+                        }
+                        
+                        return (
+                          <>
+                            <td className={`px-6 py-4 text-sm font-semibold ${tx.type === 'income' ? 'text-emerald-600' : 'text-red-500'}`}>
+                              {displayAmount}
+                            </td>
+                            <td className="px-6 py-4 text-sm text-slate-500">{displayDesc}</td>
+                          </>
+                        );
+                      })()}
                       <td className="px-6 py-4 text-sm text-slate-400">{tx.reference_type || '—'}</td>
                       <td className="px-6 py-4 text-sm text-slate-400">{new Date(tx.created_at).toLocaleDateString('uz-UZ')}</td>
                     </tr>
