@@ -419,7 +419,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
 
       {/* Transfer modal */}
       {modal === 'transfer' && (
-        <Modal title="💸 Kassadan kassaga o'tkazma" onClose={() => setModal(null)}>
+        <Modal title="💸 Kassadan kassaga o'tkazma" onClose={() => setModal(null)} wide>
           <div className="space-y-4">
             <div className="p-3 bg-violet-50 border border-violet-200 rounded-xl text-xs text-violet-700">
               ℹ️ <strong>Tezkor o'tkazma:</strong> Pul darhol ikkinchi kassaga o'tadi va ushbu kassadan yechiladi. Qabul qiluvchidan tasdiqlash talab etilmaydi.
@@ -434,7 +434,33 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
               </select>
             </div>
             
-            <p className="text-sm text-slate-600 font-medium mt-2">O'tkaziladigan summalarni kiriting:</p>
+            <div className="flex flex-wrap items-center justify-between gap-3 mt-2">
+              <p className="text-sm text-slate-600 font-medium">O'tkaziladigan summalarni kiriting:</p>
+              <button
+                onClick={() => {
+                  const newAmounts = {};
+                  PT_KEYS.forEach(k => {
+                    const bVal = balances[k];
+                    if (Array.isArray(bVal)) {
+                      bVal.forEach(item => {
+                        if (item.value > 0) {
+                          if (!newAmounts[k]) newAmounts[k] = {};
+                          newAmounts[k][item.currency] = item.value;
+                        }
+                      });
+                    } else if (bVal > 0) {
+                      if (!newAmounts[k]) newAmounts[k] = {};
+                      newAmounts[k]['UZS'] = bVal;
+                    }
+                  });
+                  setForm({ ...form, transfer_amounts: newAmounts });
+                }}
+                className="px-3 py-1.5 bg-violet-100 text-violet-700 text-xs font-bold rounded-lg hover:bg-violet-200 transition-colors flex items-center gap-1.5"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                Barchasini kiritish
+              </button>
+            </div>
             <div className="overflow-x-auto rounded-xl border border-slate-200 max-h-[40vh]">
               <table className="w-full text-sm">
                 <thead>
