@@ -2244,12 +2244,12 @@ export default function UlgurjiSotuv() {
 
                       rows.push({
                         label: `Umumiy summa (${c})`,
-                        val: sym + ' ' + (totalInC < 0.01 ? totalInC.toFixed(4) : totalInC.toFixed(2)),
+                        val: sym + ' ' + Number(totalInC.toFixed(4)),
                         cls: 'text-slate-700 font-bold border-t border-slate-100 pt-1.5'
                       });
                       rows.push({
                         label: `Jami to'lov (${c})`,
-                        val: sym + ' ' + (paidInC < 0.01 ? paidInC.toFixed(4) : paidInC.toFixed(2)),
+                        val: sym + ' ' + Number(paidInC.toFixed(4)),
                         cls: 'text-emerald-600 font-black'
                       });
                     });

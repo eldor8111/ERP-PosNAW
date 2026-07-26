@@ -152,6 +152,10 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
       const up = Number(i.unit_price || 0);
       const disc = Number(i.discount || i.discount_val || 0);
       const sub = Number(i.subtotal || (up * qty - disc));
+      const itemCurr = i.currency_code || 'UZS';
+      const itemRate = Number(i.exchange_rate) || 1.0;
+      const itemUseCur = itemCurr !== 'UZS';
+
       const cells = visibleCols.map(col => {
         let val = '';
         switch(col.key) {
@@ -160,13 +164,13 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
           case 'show_measurement':     val = i.measurement_name || i.unit || ''; break;
           case 'show_warehouse':       val = i.warehouse_name || ''; break;
           case 'show_sku':             val = i.sku || ''; break;
-          case 'show_price':           val = useCurrency ? (up / rate).toFixed(4).replace(/\.?0+$/, '') : up.toLocaleString('uz-UZ'); break;
-          case 'show_discount':        val = disc > 0 ? (useCurrency ? `-${(disc / rate).toFixed(4).replace(/\.?0+$/, '')}` : `-${disc.toLocaleString('uz-UZ')}`) : ''; break;
-          case 'show_price_with_discount': val = useCurrency ? ((up - disc/qty) / rate).toFixed(4).replace(/\.?0+$/, '') : (up - disc/qty).toLocaleString('uz-UZ'); break;
-          case 'show_net_price':       val = useCurrency ? (sub / rate).toFixed(4).replace(/\.?0+$/, '') : sub.toLocaleString('uz-UZ'); break;
-          case 'show_currency':        val = currCode; break;
+          case 'show_price':           val = itemUseCur ? (up / itemRate).toFixed(4).replace(/\.?0+$/, '') : up.toLocaleString('uz-UZ'); break;
+          case 'show_discount':        val = disc > 0 ? (itemUseCur ? `-${(disc / itemRate).toFixed(4).replace(/\.?0+$/, '')}` : `-${disc.toLocaleString('uz-UZ')}`) : ''; break;
+          case 'show_price_with_discount': val = itemUseCur ? ((up - disc/qty) / itemRate).toFixed(4).replace(/\.?0+$/, '') : (up - disc/qty).toLocaleString('uz-UZ'); break;
+          case 'show_net_price':       val = itemUseCur ? (sub / itemRate).toFixed(4).replace(/\.?0+$/, '') : sub.toLocaleString('uz-UZ'); break;
+          case 'show_currency':        val = itemCurr === 'USD' ? '$' : (itemCurr === 'RUB' ? '₽' : itemCurr); break;
           case 'item_qty':             val = qty; break;
-          case 'item_total':           val = useCurrency ? (sub / rate).toFixed(4).replace(/\.?0+$/, '') : sub.toLocaleString('uz-UZ'); break;
+          case 'item_total':           val = itemUseCur ? (sub / itemRate).toFixed(4).replace(/\.?0+$/, '') : sub.toLocaleString('uz-UZ'); break;
         }
         return `<td style="text-align:${col.align}">${val}</td>`;
       }).join('');
@@ -284,14 +288,18 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
     const disc = Number(i.discount || (i.discount_type==='pct'?(up*qty*(i.discount_val/100)):i.discount_val) || 0);
     const sub = Number(i.subtotal || (up * qty - disc));
 
-    const printUp = useCurrency ? (up / rate).toFixed(4).replace(/\.?0+$/, '') : up.toLocaleString('uz-UZ');
-    const printSub = useCurrency ? (sub / rate).toFixed(4).replace(/\.?0+$/, '') : sub.toLocaleString('uz-UZ');
-    const displaySym = useCurrency ? (currCode === 'USD' ? '$' : (currCode === 'RUB' ? '₽' : currCode)) : "so'm";
+    const itemCurr = i.currency_code || 'UZS';
+    const itemRate = Number(i.exchange_rate) || 1.0;
+    const itemUseCur = itemCurr !== 'UZS';
+
+    const printUp = itemUseCur ? (up / itemRate).toFixed(4).replace(/\.?0+$/, '') : up.toLocaleString('uz-UZ');
+    const printSub = itemUseCur ? (sub / itemRate).toFixed(4).replace(/\.?0+$/, '') : sub.toLocaleString('uz-UZ');
+    const displaySym = itemUseCur ? (itemCurr === 'USD' ? '$' : (itemCurr === 'RUB' ? '₽' : itemCurr)) : "so'm";
 
     return `
       <div>${idx + 1}. ${i.product_name || i.product?.name || `ID=${i.product_id}`}</div>
       <div class="flex">
-        <span>${qty} x ${printUp} ${useCurrency ? displaySym : ''}</span>
+        <span>${qty} x ${printUp} ${itemUseCur ? displaySym : ''}</span>
         <span>${printSub} ${displaySym}</span>
       </div>
       <hr class="dash"/>
