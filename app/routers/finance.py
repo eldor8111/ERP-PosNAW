@@ -840,8 +840,26 @@ def fix_old_transactions(db: Session = Depends(get_db)):
         if "USD" not in (tx.description or ""):
             tx.currency_code = "USD"
             count += 1
+
+    # Also fix income (sale) transactions that have USD in description but wrong currency_code
+    income_txs = db.query(Transaction).filter(
+        Transaction.type == "income",
+        Transaction.reference_type == "sale",
+        Transaction.currency_code == "UZS",
+        Transaction.description.ilike("% USD%"),
+    ).all()
+    income_count = 0
+    for tx in income_txs:
+        import re
+        # Extract USD amount from description e.g. "(150 USD)"
+        m = re.search(r'\((\d+\.?\d*)\s*USD\)', tx.description or "")
+        if m:
+            tx.amount = float(m.group(1))
+            tx.currency_code = "USD"
+            income_count += 1
+
     db.commit()
-    return {"message": f"Fixed {count} old transactions to USD"}
+    return {"message": f"Fixed {count} expense + {income_count} income transactions"}
 
 # ─── Kreditor boshqaruvi (Supplier qarzi) ────────────────────────────────────
 

@@ -250,11 +250,14 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                         
                         db.add(_SP(sale_id=sale.id, payment_type=p.type.value, amount=p_amount_uzs))
                         if tx_branch_id:
+                            _p_currency = (getattr(p, "currency", "UZS") or "UZS").upper()
+                            _tx_amount = p.amount if _p_currency != "UZS" else p_amount_uzs
                             db.add(Transaction(
                                 branch_id=tx_branch_id, company_id=current_user.company_id,
-                                type="income", amount=p_amount_uzs, payment_type=p.type.value,
+                                type="income", amount=_tx_amount, payment_type=p.type.value,
+                                currency_code=_p_currency,
                                 reference_type="sale", reference_id=sale.id,
-                                description=f"Sotuv tahrirlash #{sale.number} ({p.type.value})" + (f" ({p.amount} {p.currency})" if getattr(p, "currency", "UZS") != "UZS" else ""),
+                                description=f"Sotuv tahrirlash #{sale.number} ({p.type.value})" + (f" ({p.amount} {_p_currency})" if _p_currency != "UZS" else ""),
                                 created_at=sale.created_at,
                             ))
             elif paid_amount > 0:
@@ -263,6 +266,7 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                     db.add(Transaction(
                         branch_id=tx_branch_id, company_id=current_user.company_id,
                         type="income", amount=paid_amount, payment_type=payment_type.value,
+                        currency_code="UZS",
                         reference_type="sale", reference_id=sale.id,
                         description=f"Sotuv tahrirlash #{sale.number}",
                         created_at=sale.created_at,

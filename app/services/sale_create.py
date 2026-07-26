@@ -326,12 +326,16 @@ def create_sale(
                 
                 db.add(SalePayment(sale_id=sale.id, payment_type=p.type.value, amount=p_amount_uzs))
                 if tx_branch_id:
+                    _p_currency = (getattr(p, "currency", "UZS") or "UZS").upper()
+                    # Store original currency amount if not UZS; store UZS-converted amount if UZS
+                    _tx_amount = p.amount if _p_currency != "UZS" else p_amount_uzs
                     db.add(Transaction(
                         branch_id=tx_branch_id, company_id=current_user.company_id,
                         wallet_id=_cashier_wallet_id,
-                        type="income", amount=p_amount_uzs, payment_type=p.type.value,
+                        type="income", amount=_tx_amount, payment_type=p.type.value,
+                        currency_code=_p_currency,
                         reference_type="sale", reference_id=sale.id,
-                        description=f"Sotuv to'lovi #{sale.number} ({p.type.value})" + (f" ({p.amount} {p.currency})" if getattr(p, "currency", "UZS") != "UZS" else ""),
+                        description=f"Sotuv to'lovi #{sale.number} ({p.type.value})" + (f" ({p.amount} {_p_currency})" if _p_currency != "UZS" else ""),
                     ))
                 if _cashier_wallet_id and p.type.value not in ("debt", "cashback"):
                     p_currency = getattr(p, "currency", "UZS")
@@ -359,6 +363,7 @@ def create_sale(
                             branch_id=tx_branch_id, company_id=current_user.company_id,
                             wallet_id=_cashier_wallet_id,
                             type="income", amount=_amt, payment_type=_pt,
+                            currency_code="UZS",
                             reference_type="sale", reference_id=sale.id,
                             description=f"Sotuv to'lovi #{sale.number} (Aralash/{_pt})",
                         ))
@@ -374,10 +379,13 @@ def create_sale(
         else:
             db.add(SalePayment(sale_id=sale.id, payment_type=data.payment_type.value, amount=data.paid_amount))
             if tx_branch_id:
+                _sale_currency = (currency.code if currency else "UZS").upper()
+                _sale_tx_amount = data.paid_amount if _sale_currency != "UZS" else data.paid_amount
                 db.add(Transaction(
                     branch_id=tx_branch_id, company_id=current_user.company_id,
                     wallet_id=_cashier_wallet_id,
-                    type="income", amount=data.paid_amount, payment_type=data.payment_type.value,
+                    type="income", amount=_sale_tx_amount, payment_type=data.payment_type.value,
+                    currency_code=_sale_currency,
                     reference_type="sale", reference_id=sale.id,
                     description=f"Sotuv to'lovi #{sale.number}",
                 ))
