@@ -54,6 +54,8 @@ def _build_sale_out(sale: Sale) -> SaleOut:
                 if getattr(i, 'warehouse', None)
                 else None
             ),
+            currency_code=getattr(i, 'currency_code', 'UZS'),
+            exchange_rate=getattr(i, 'exchange_rate', Decimal("1.0")),
         )
         for i in sale.items
     ]
