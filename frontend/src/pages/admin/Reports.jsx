@@ -366,7 +366,7 @@ export default function Reports() {
                 }}
                 onPdf={() => printTable('Sotuvlar hisoboti',
                   ['Raqam', 'Kassir', 'Summa', "To'lov", 'Sana'],
-                  salesData.map(s => [s.number, s.cashier_name, fmtS(s.total_amount), s.payment_type, new Date(s.created_at).toLocaleDateString('uz-UZ')]),
+                  salesData.map(s => [s.number, s.cashier_name, fmtRowDebt(s.total_amount, s.currency_code), s.payment_type, new Date(s.created_at).toLocaleDateString('uz-UZ')]),
                   ['', 'JAMI', fmtS(salesData.reduce((a, s) => a + s.total_amount, 0)), '', '']
                 )}
                 on1c={async () => {
@@ -393,8 +393,8 @@ export default function Reports() {
                         <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                           <td className="px-5 py-3.5 text-sm font-mono font-semibold text-indigo-600">{s.number}</td>
                           <td className="px-5 py-3.5 text-sm text-slate-700">{s.cashier_name}</td>
-                          <td className="px-5 py-3.5 text-sm font-semibold text-slate-800">{fmtS(s.total_amount)}</td>
-                          <td className="px-5 py-3.5 text-sm text-slate-500">{s.discount_amount > 0 ? fmtS(s.discount_amount) : '—'}</td>
+                          <td className="px-5 py-3.5 text-sm font-semibold text-slate-800">{fmtRowDebt(s.total_amount, s.currency_code)}</td>
+                          <td className="px-5 py-3.5 text-sm text-slate-500">{s.discount_amount > 0 ? fmtRowDebt(s.discount_amount, s.currency_code) : '—'}</td>
                           <td className="px-5 py-3.5">
                             <span className="inline-flex px-2 py-0.5 bg-blue-50 text-blue-600 text-xs font-medium rounded-lg">{s.payment_type}</span>
                           </td>
@@ -434,8 +434,8 @@ export default function Reports() {
                 }}
                 onPdf={() => printTable('Mahsulot bo\'yicha foyda',
                   ['Mahsulot', 'Kategoriya', 'Sotildi', 'Daromad', 'Tannarx', 'Foyda', 'Margin'],
-                  profitData.map(r => [r.product_name, r.category_name, fmt(r.qty_sold), fmtS(r.revenue), fmtS(r.cost), fmtS(r.profit), pct(r.margin_pct)]),
-                  ['JAMI', '', '', fmtS(profitData.reduce((a, r) => a + r.revenue, 0)), fmtS(profitData.reduce((a, r) => a + r.cost, 0)), fmtS(profitData.reduce((a, r) => a + r.profit, 0)), '']
+                  profitData.map(r => [r.product_name, r.category_name, fmt(r.qty_sold), fmtDebt(r.revenue), fmtDebt(r.cost), fmtDebt(r.profit), pct(r.margin_pct)]),
+                  ['JAMI', '', '', '', '', '', '']
                 )}
               />
             </div>
