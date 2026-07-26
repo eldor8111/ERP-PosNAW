@@ -574,7 +574,7 @@ export default function Finance() {
                         </span>
                       </td>
                       <td className={`px-6 py-4 text-sm font-semibold ${tx.type === 'income' ? 'text-emerald-600' : 'text-red-500'}`}>
-                        {fmt(tx.amount, t)}
+                        {Number(tx.amount).toLocaleString('uz-UZ')} {tx.currency_code || 'UZS'}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-500">{tx.description || '—'}</td>
                       <td className="px-6 py-4 text-sm text-slate-400">{tx.reference_type || '—'}</td>
