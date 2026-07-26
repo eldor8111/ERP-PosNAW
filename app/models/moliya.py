@@ -98,8 +98,12 @@ class KassaSession(Base):
     opened_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     closed_at = Column(DateTime, nullable=True)
     opening_balance = Column(Numeric(14, 2), default=0)
-    # Yopilish paytidagi har bir to'lov turi balansi {cash: X, card: Y, ...}
-    closing_summary = Column(JSON, nullable=True)
+    
+    # Kutilgan va haqiqiy balanslarni saqlash (Blind close uchun)
+    expected_summary = Column(JSON, nullable=True)   # tizim hisoblagan summa
+    closing_summary = Column(JSON, nullable=True)    # kassir kiritgan summa
+    difference_summary = Column(JSON, nullable=True) # oradagi farq
+    
     note = Column(Text, nullable=True)
     status = Column(String(20), default="open")  # open | closed
 
@@ -128,3 +132,34 @@ class KassaMovement(Base):
 
     wallet = relationship("Wallet", backref="movements")
     session = relationship("KassaSession", backref="movements")
+
+# ─── Kassa o'tkazmalari (Transfers) ──────────────────────────────────────────
+
+class CashTransfer(Base):
+    """Qat'iy 2 bosqichli kassa o'tkazmalari (Kassadan kassaga)"""
+    __tablename__ = "cash_transfers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
+    
+    sender_wallet_id = Column(Integer, ForeignKey("wallets.id"), nullable=False)
+    receiver_wallet_id = Column(Integer, ForeignKey("wallets.id"), nullable=False)
+    
+    amount = Column(Numeric(14, 2), nullable=False)
+    currency = Column(String(3), nullable=False, default="UZS")
+    payment_type = Column(String(30), nullable=False, default="cash")
+    
+    status = Column(String(20), nullable=False, default="pending")  # pending | completed | rejected
+    
+    sent_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    received_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    
+    sent_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    received_at = Column(DateTime, nullable=True)
+    
+    note = Column(Text, nullable=True)
+
+    sender_wallet = relationship("Wallet", foreign_keys=[sender_wallet_id])
+    receiver_wallet = relationship("Wallet", foreign_keys=[receiver_wallet_id])
+    sender_user = relationship("User", foreign_keys=[sent_by])
+    receiver_user = relationship("User", foreign_keys=[received_by])

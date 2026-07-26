@@ -53,13 +53,15 @@ function Modal({ title, onClose, children, wide }) {
   );
 }
 
-function KassaCard({ kassa, onRefresh }) {
+function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
   const [modal, setModal] = useState(null);
   const [history, setHistory] = useState(null);
   const [categories, setCategories] = useState([]);
   const [saving, setSaving] = useState(false);
   const [directionFilter, setDirectionFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState();
+  const [closeResult, setCloseResult] = useState(null); // Z-report farqi
+  const [pendingTransfers, setPendingTransfers] = useState([]);
 
   const filteredHistory = (history?.items && Array.isArray(history.items) ? history.items : []).filter(it => {
     if (directionFilter !== 'all' && it.direction !== directionFilter) return false;
@@ -69,8 +71,9 @@ function KassaCard({ kassa, onRefresh }) {
 
   // Form states
   const [form, setForm] = useState({
-    amount: '', payment_type: 'cash', description: '',
-    category_id: '', opening_balance: '', actual: {}, note: ''
+    amount: '', payment_type: 'cash', currency: 'UZS', description: '',
+    category_id: '', opening_balance: '', actual: {}, note: '',
+    receiver_wallet_id: ''
   });
 
   const balances = kassa.balances || {};
@@ -87,8 +90,16 @@ function KassaCard({ kassa, onRefresh }) {
     setCategories(r.data);
   }, []);
 
+  const loadPendingTransfers = useCallback(async () => {
+    try {
+      const r = await api.get(`/kassa/${kassa.id}/transfers/pending`);
+      setPendingTransfers(r.data || []);
+    } catch { setPendingTransfers([]); }
+  }, [kassa.id]);
+
   const openModal = async (type) => {
-    setForm({ amount: '', payment_type: 'cash', description: '', category_id: '', opening_balance: '', actual: {}, note: '' });
+    setForm({ amount: '', payment_type: 'cash', currency: 'UZS', description: '', category_id: '', opening_balance: '', actual: {}, note: '', receiver_wallet_id: '' });
+    setCloseResult(null);
     if (type === 'history') await loadHistory();
     if (type === 'expense') await loadCategories();
     setModal(type);
@@ -101,10 +112,25 @@ function KassaCard({ kassa, onRefresh }) {
         await api.post(`/kassa/${kassa.id}/open`, { opening_balance: Number(form.opening_balance) || 0, note: form.note });
         toast.success('Kassa ochildi');
       } else if (action === 'close') {
+        // Blind Close: kassir kiritgan summani yuborish, hisoblanganni ko'rsatmasdan
         const actual_amounts = {};
-        PT_KEYS.forEach(k => { actual_amounts[k] = Number(form.actual[k] || 0); });
-        await api.post(`/kassa/${kassa.id}/close`, { actual_amounts, note: form.note });
-        toast.success('Kassa yopildi');
+        PT_KEYS.forEach(k => {
+          const enteredVal = form.actual[k];
+          if (enteredVal !== undefined && enteredVal !== '') {
+            actual_amounts[k] = { UZS: Number(enteredVal) };
+          }
+        });
+        const res = await api.post(`/kassa/${kassa.id}/close`, { actual_amounts, note: form.note });
+        const diff = res.data?.difference || {};
+        setCloseResult(diff);
+        // Farq bo'lsa natijani ko'rsat, yo'q bo'lsa modalni yopamiz
+        if (Object.keys(diff).length === 0) {
+          toast.success('Kassa yopildi. Farq yo\'q ✅');
+          setModal(null);
+        } else {
+          toast.success('Kassa yopildi. Farqni tekshiring 👇');
+          // modal ochiq qoladi, faqat natija ko'rsatiladi
+        }
       } else if (action === 'invest') {
         await api.post(`/kassa/${kassa.id}/invest`, { amount: Number(form.amount), payment_type: form.payment_type, description: form.description });
         toast.success("Investitsiya qo'shildi");
@@ -114,8 +140,18 @@ function KassaCard({ kassa, onRefresh }) {
       } else if (action === 'expense') {
         await api.post('/kassa/do-expense', { wallet_id: kassa.id, category_id: Number(form.category_id), amount: Number(form.amount), payment_type: form.payment_type, description: form.description });
         toast.success('Xarajat qilindi');
+      } else if (action === 'transfer') {
+        if (!form.receiver_wallet_id || !form.amount) { toast.error("Qabul qiluvchi kassani va summani kiriting"); return; }
+        const res = await api.post(`/kassa/${kassa.id}/transfer/out`, {
+          receiver_wallet_id: Number(form.receiver_wallet_id),
+          amount: Number(form.amount),
+          currency: form.currency,
+          payment_type: form.payment_type,
+          note: form.note,
+        });
+        toast.success(`Transfer #${res.data.transfer_id} yuborildi. Qabul qiluvchi tasdiqlashi kutilmoqda ⏳`);
       }
-      setModal(null);
+      if (action !== 'close') setModal(null);
       onRefresh();
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Xatolik');
@@ -208,6 +244,12 @@ function KassaCard({ kassa, onRefresh }) {
           <svg className="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
           Xarajat
         </button>
+        {isOpen && allKassalar.filter(k => k.id !== kassa.id).length > 0 && (
+          <button onClick={() => openModal('transfer')} className={`${ghostBtn} border-violet-300 text-violet-700 hover:bg-violet-50 hover:border-violet-400`}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+            Transfer
+          </button>
+        )}
         <button onClick={() => openModal('history')} className={`${ghostBtn} ml-auto`}>
           <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
           Tarix
@@ -234,91 +276,146 @@ function KassaCard({ kassa, onRefresh }) {
         </Modal>
       )}
 
-      {/* Close modal */}
+      {/* Close modal — BLIND CLOSE (kassir hisoblanganni ko'rmaydi) */}
       {modal === 'close' && (() => {
-        const totalBal = PT_KEYS.reduce((sum, k) => sum + getBalanceValue(balances[k]), 0);
-        const totalEntered = PT_KEYS.reduce((sum, k) => sum + Number(form.actual[k] || 0), 0);
-        const totalRemaining = totalBal - totalEntered;
-
         return (
-          <Modal title="Kassani yopish" onClose={() => setModal(null)} wide>
-            <div className="space-y-4">
-              <p className="text-sm text-slate-500">Har bir to'lov turi uchun haqiqiy summa kiriting:</p>
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="text-left px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">To'lov turi</th>
-                      <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Hisoblangan</th>
-                      <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Kiritilgan</th>
-                      <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Qolgani</th>
-                      <th className="text-center px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Amal</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {PT_KEYS.map(k => {
-                      const cfg = PT_CONFIG[k];
-                      const balVal = getBalanceValue(balances[k]);
-                      const enteredStr = form.actual[k];
-                      const entered = Number(enteredStr || 0);
-                      const remaining = balVal - entered;
+          <Modal title="Kassani yopish (Ko'r-ko'rona)" onClose={() => { setModal(null); setCloseResult(null); }} wide>
+            <div className="space-y-5">
+              {/* Farq natijasi (faqat yopishdan keyin chiqadi) */}
+              {closeResult && (
+                <div className="rounded-xl border p-4 bg-amber-50 border-amber-200">
+                  <p className="text-sm font-bold text-amber-800 mb-3">⚖️ Z-Report: Kassa yopildi. Farq:</p>
+                  {Object.entries(closeResult).length === 0 ? (
+                    <p className="text-emerald-700 font-semibold">✅ Farq yo'q — hammasi to'g'ri!</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {Object.entries(closeResult).map(([ptype, currs]) =>
+                        Object.entries(currs).map(([curr, diff]) => (
+                          <div key={`${ptype}-${curr}`} className="flex justify-between text-sm">
+                            <span className="text-amber-700 font-medium">{PT_CONFIG[ptype]?.label || ptype} ({curr})</span>
+                            <span className={`font-bold ${diff > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                              {diff > 0 ? `−${fmt(diff)} (Kamomad)` : `+${fmt(Math.abs(diff))} (Ortiqcha)`}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                  <button onClick={() => { setModal(null); setCloseResult(null); onRefresh(); }}
+                    className="mt-3 w-full py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold rounded-lg transition-colors">
+                    Yopish ✓
+                  </button>
+                </div>
+              )}
 
-                      return (
-                        <tr key={k} className="hover:bg-slate-50/50">
-                          <td className="px-3 py-2.5 text-slate-900 font-medium flex items-center gap-2">
-                            {cfg.icon}
-                            <span>{cfg.label}</span>
-                          </td>
-                          <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-slate-900">{fmt(balVal)}</td>
-                          <td className="px-3 py-2.5 text-right">
-                            <input
-                              type="number"
-                              min="0"
-                              className="w-32 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500"
-                              value={form.actual[k] !== undefined ? form.actual[k] : ''}
-                              onChange={e => setForm({ ...form, actual: { ...form.actual, [k]: e.target.value } })}
-                              placeholder="0"
-                            />
-                          </td>
-                          <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${remaining < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                            {fmt(remaining)}
-                          </td>
-                          <td className="px-3 py-2.5 text-center">
-                            <button
-                              type="button"
-                              onClick={() => setForm({ ...form, actual: { ...form.actual, [k]: balVal } })}
-                              className="text-xs text-indigo-600 font-semibold py-1.5 px-3 rounded-lg cursor-pointer hover:bg-indigo-100 border border-indigo-200 bg-indigo-50 transition-colors"
-                            >
-                              Barchasi
-                            </button>
-                          </td>
+              {!closeResult && (
+                <>
+                  {/* Ogohlantirish */}
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700">
+                    ℹ️ <strong>Ko'r-ko'rona tekshiruv:</strong> Kassadagi hisoblangan summani <strong>ko'rsatmasdan</strong> faqat
+                    siz sanagan summani kiriting. Tizim o'zi farqni hisoblab, Z-reportga yozadi.
+                  </div>
+
+                  <p className="text-sm text-slate-600 font-medium">Har bir to'lov turi uchun siz <strong>sanab</strong> chiqgan summani kiriting:</p>
+                  <div className="overflow-x-auto rounded-xl border border-slate-200">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200">
+                          <th className="text-left px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">To'lov turi</th>
+                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Siz sanagan summa (UZS)</th>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                  <tfoot className="bg-slate-50 font-bold border-t border-slate-200">
-                    <tr>
-                      <td className="px-3 py-2.5 text-slate-700">Jami:</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-slate-900">{fmt(totalBal)}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-indigo-600">{fmt(totalEntered)}</td>
-                      <td className={`px-3 py-2.5 text-right tabular-nums ${totalRemaining < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{fmt(totalRemaining)}</td>
-                      <td></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-1.5">Izoh</label>
-                <textarea rows={2} className={field} value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder="Ixtiyoriy..." />
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button onClick={() => setModal(null)} className={cancelBtn}>Bekor</button>
-                <button onClick={() => save('close')} disabled={saving} className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-medium disabled:opacity-50 transition-colors">{saving ? '...' : 'Yopish'}</button>
-              </div>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {PT_KEYS.map(k => {
+                          const cfg = PT_CONFIG[k];
+                          return (
+                            <tr key={k} className="hover:bg-slate-50/50">
+                              <td className="px-3 py-2.5 text-slate-900 font-medium flex items-center gap-2">
+                                {cfg.icon}
+                                <span>{cfg.label}</span>
+                              </td>
+                              <td className="px-3 py-2.5 text-right">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  className="w-40 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500"
+                                  value={form.actual[k] !== undefined ? form.actual[k] : ''}
+                                  onChange={e => setForm({ ...form, actual: { ...form.actual, [k]: e.target.value } })}
+                                  placeholder="0 (bo'sh qoldirsangiz 0 deb qabul qilinadi)"
+                                />
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-1.5">Izoh</label>
+                    <textarea rows={2} className={field} value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder="Ixtiyoriy..." />
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <button onClick={() => setModal(null)} className={cancelBtn}>Bekor</button>
+                    <button onClick={() => save('close')} disabled={saving} className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-bold disabled:opacity-50 transition-colors">
+                      {saving ? 'Yopilmoqda...' : '🔒 Kassani Yopish'}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </Modal>
         );
       })()}
+
+      {/* Transfer modal */}
+      {modal === 'transfer' && (
+        <Modal title="💸 Kassadan kassaga o'tkazma" onClose={() => setModal(null)}>
+          <div className="space-y-4">
+            <div className="p-3 bg-violet-50 border border-violet-200 rounded-xl text-xs text-violet-700">
+              🔐 <strong>Xavfsiz 2-bosqich:</strong> Siz yuborasiz → Qabul qiluvchi tasdiqlaydi. Tasdiqlangunga qadar pul "Yo'lda" holatida turadi.
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-600 block mb-1.5">Qabul qiluvchi Kassa *</label>
+              <select className={field} value={form.receiver_wallet_id} onChange={e => setForm({ ...form, receiver_wallet_id: e.target.value })}>
+                <option value="">— Kassani tanlang —</option>
+                {allKassalar.filter(k => k.id !== kassa.id).map(k => (
+                  <option key={k.id} value={k.id}>{k.name} {!k.is_open ? '(yopiq)' : ''}</option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-slate-600 block mb-1.5">To'lov turi</label>
+                <select className={field} value={form.payment_type} onChange={e => setForm({ ...form, payment_type: e.target.value })}>
+                  {PT_KEYS.map(k => <option key={k} value={k}>{PT_LABELS[k]}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-600 block mb-1.5">Valyuta</label>
+                <select className={field} value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })}>
+                  <option value="UZS">UZS (so'm)</option>
+                  <option value="USD">USD (dollar)</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-600 block mb-1.5">Summa *</label>
+              <input type="number" min="1" className={field} value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} placeholder="0" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-600 block mb-1.5">Izoh</label>
+              <input className={field} value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder="Ixtiyoriy..." />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setModal(null)} className={cancelBtn}>Bekor</button>
+              <button onClick={() => save('transfer')} disabled={saving || !form.receiver_wallet_id || !form.amount}
+                className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-bold disabled:opacity-50 transition-colors">
+                {saving ? 'Yuborilmoqda...' : '📤 Yuborish'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* Invest / Withdraw modal */}
       {(modal === 'invest' || modal === 'withdraw') && (
@@ -570,7 +667,7 @@ export default function Kassa() {
 
       {tab === 'kassalar' && (
         <div className="grid grid-cols-1 gap-5">
-          {kassalar.map(k => <KassaCard key={k.id} kassa={k} onRefresh={load} />)}
+          {kassalar.map(k => <KassaCard key={k.id} kassa={k} onRefresh={load} allKassalar={kassalar} />)}
           {kassalar.length === 0 && (
             <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-16 text-center">
               <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">💰</div>

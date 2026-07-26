@@ -9,7 +9,7 @@ from app.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.moliya import (
     Wallet, KassaSession, KassaMovement, ExpenseCategory,
-    Expense, Transaction, PAYMENT_TYPES
+    Expense, Transaction, PAYMENT_TYPES, CashTransfer
 )
 
 router = APIRouter(prefix="/kassa", tags=["Kassa"])
@@ -33,8 +33,19 @@ class OpenKassaIn(BaseModel):
     note: Optional[str] = None
 
 class CloseKassaIn(BaseModel):
-    actual_amounts: dict  # {cash: 0, card: 0, ...}
+    # Example format: {"cash": {"UZS": 50000, "USD": 100}, "card": {"UZS": 120000}}
+    actual_amounts: dict  
     note: Optional[str] = None
+
+class TransferOutIn(BaseModel):
+    receiver_wallet_id: int
+    amount: float
+    currency: str = "UZS"
+    payment_type: str = "cash"
+    note: Optional[str] = None
+
+class TransferStatusIn(BaseModel):
+    transfer_id: int
 
 class InvestIn(BaseModel):
     amount: float
@@ -249,6 +260,169 @@ def create_expense(data: ExpenseCreate, db: Session = Depends(get_db), current_u
     return {"ok": True, "expense_id": exp.id}
 
 
+# ─── Kassa O'tkazmalari (Transfers) ──────────────────────────────────────────
+
+@router.post("/{wallet_id}/transfer/out")
+def transfer_out(
+    wallet_id: int, 
+    data: TransferOutIn, 
+    db: Session = Depends(get_db), 
+    current_user=Depends(get_current_user)
+):
+    """Qat'iy 2-bosqichli transfer: Pul yuborish (Pending)"""
+    sender = db.query(Wallet).filter(Wallet.id == wallet_id, Wallet.company_id == current_user.company_id).first()
+    receiver = db.query(Wallet).filter(Wallet.id == data.receiver_wallet_id, Wallet.company_id == current_user.company_id).first()
+    
+    if not sender or not receiver:
+        raise HTTPException(404, "Kassa topilmadi")
+    if not sender.is_open:
+        raise HTTPException(400, "Yuboruvchi kassa yopiq")
+        
+    session = db.query(KassaSession).filter(KassaSession.wallet_id == sender.id, KassaSession.status == "open").first()
+    
+    # 1. KassaMovement - pul yechiladi
+    mv = KassaMovement(
+        wallet_id=sender.id,
+        company_id=current_user.company_id,
+        session_id=session.id if session else None,
+        direction="out",
+        payment_type=data.payment_type,
+        amount=data.amount,
+        currency=data.currency,
+        reference_type="transfer_out_pending",
+        description=f"Transfer to {receiver.name}: {data.note or ''}",
+        created_by=current_user.id,
+    )
+    db.add(mv)
+    
+    if data.currency == "UZS":
+        sender.balance = float(sender.balance or 0) - data.amount
+        
+    # 2. CashTransfer yozuvi
+    ct = CashTransfer(
+        company_id=current_user.company_id,
+        sender_wallet_id=sender.id,
+        receiver_wallet_id=receiver.id,
+        amount=data.amount,
+        currency=data.currency,
+        payment_type=data.payment_type,
+        status="pending",
+        sent_by=current_user.id,
+        note=data.note
+    )
+    db.add(ct)
+    db.commit()
+    db.refresh(ct)
+    return {"ok": True, "transfer_id": ct.id}
+
+@router.post("/transfer/in")
+def transfer_in(
+    data: TransferStatusIn,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Transfer qabul qilish"""
+    ct = db.query(CashTransfer).filter(CashTransfer.id == data.transfer_id, CashTransfer.company_id == current_user.company_id).first()
+    if not ct or ct.status != "pending":
+        raise HTTPException(400, "Transfer topilmadi yoki allaqachon bajarilgan")
+        
+    receiver = db.query(Wallet).filter(Wallet.id == ct.receiver_wallet_id).first()
+    if not receiver or not receiver.is_open:
+        raise HTTPException(400, "Qabul qiluvchi kassa yopiq")
+        
+    session = db.query(KassaSession).filter(KassaSession.wallet_id == receiver.id, KassaSession.status == "open").first()
+    
+    # 1. Transfer holatini o'zgartirish
+    ct.status = "completed"
+    ct.received_by = current_user.id
+    ct.received_at = datetime.now(timezone.utc)
+    
+    # 2. Qabul qiluvchiga KassaMovement
+    mv = KassaMovement(
+        wallet_id=receiver.id,
+        company_id=current_user.company_id,
+        session_id=session.id if session else None,
+        direction="in",
+        payment_type=ct.payment_type,
+        amount=ct.amount,
+        currency=ct.currency,
+        reference_type="transfer_in",
+        reference_id=ct.id,
+        description=f"Transfer from {ct.sender_wallet.name}: {ct.note or ''}",
+        created_by=current_user.id,
+    )
+    db.add(mv)
+    
+    if ct.currency == "UZS":
+        receiver.balance = float(receiver.balance or 0) + float(ct.amount)
+        
+    db.commit()
+    return {"ok": True}
+
+@router.post("/transfer/reject")
+def transfer_reject(
+    data: TransferStatusIn,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Transferni bekor qilish va pulni yuboruvchiga qaytarish"""
+    ct = db.query(CashTransfer).filter(CashTransfer.id == data.transfer_id, CashTransfer.company_id == current_user.company_id).first()
+    if not ct or ct.status != "pending":
+        raise HTTPException(400, "Transfer topilmadi yoki allaqachon bajarilgan")
+        
+    sender = db.query(Wallet).filter(Wallet.id == ct.sender_wallet_id).first()
+    session = db.query(KassaSession).filter(KassaSession.wallet_id == sender.id, KassaSession.status == "open").first()
+    
+    ct.status = "rejected"
+    ct.received_by = current_user.id
+    ct.received_at = datetime.now(timezone.utc)
+    
+    # Pulni orqaga qaytarish (refund)
+    mv = KassaMovement(
+        wallet_id=sender.id,
+        company_id=current_user.company_id,
+        session_id=session.id if session else None,
+        direction="in",
+        payment_type=ct.payment_type,
+        amount=ct.amount,
+        currency=ct.currency,
+        reference_type="transfer_rejected",
+        reference_id=ct.id,
+        description=f"Transfer bekor qilindi, qaytarildi",
+        created_by=current_user.id,
+    )
+    db.add(mv)
+    
+    if ct.currency == "UZS":
+        sender.balance = float(sender.balance or 0) + float(ct.amount)
+        
+    db.commit()
+    return {"ok": True}
+
+
+# ─── X-Report (Oraliq Hisobot) ───────────────────────────────────────────────
+
+@router.get("/{wallet_id}/x-report")
+def get_x_report(wallet_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Kassani yopmasdan kutilayotgan qoldiqni ko'rish (faqat menejer uchun)"""
+    # Eslatma: Rol tekshiruvlarini qo'shish tavsiya etiladi (masalan: user.role == 'manager')
+    w = db.query(Wallet).filter(Wallet.id == wallet_id, Wallet.company_id == current_user.company_id).first()
+    if not w:
+        raise HTTPException(404, "Kassa topilmadi")
+    if not w.is_open:
+        raise HTTPException(400, "Kassa yopiq")
+        
+    session = db.query(KassaSession).filter(KassaSession.wallet_id == wallet_id, KassaSession.status == "open").first()
+    calculated = get_kassa_balances(wallet_id, db)
+    
+    return {
+        "wallet_name": w.name,
+        "opened_at": session.opened_at if session else None,
+        "calculated_balances": calculated
+    }
+
+
+
 # ─── Kassalar CRUD ────────────────────────────────────────────────────────────
 
 @router.get("")
@@ -389,48 +563,50 @@ def close_kassa(wallet_id: int, data: CloseKassaIn, db: Session = Depends(get_db
         KassaSession.status == "open"
     ).first()
 
-    # actual_amounts — foydalanuvchi haqiqatda sanab bergan summa.
-    # Tizim hisoblangan (calculated) bilan farqni topib, KassaMovement yozamiz.
-    # diff = calculated - actual:
-    #   diff > 0  → kam topildi  → "out" harakati (balansni kamaytirish)
-    #   diff < 0  → ortiqcha     → "in"  harakati (balansni oshirish)
-    for ptype, actual_val in data.actual_amounts.items():
-        if ptype not in PAYMENT_TYPES:
-            continue
+    # actual_amounts — foydalanuvchi haqiqatda sanab bergan summa (Blind Close).
+    # { "cash": {"UZS": 1000, "USD": 50}, "card": {"UZS": 5000} }
+    diff_summary = {}
 
-        # UZS bo'yicha hozirgi hisoblangan balans
-        current_list = calculated.get(ptype, [])
-        current_amount = 0.0
-        if isinstance(current_list, list):
-            for item in current_list:
-                if item.get("currency") == "UZS":
-                    current_amount = float(item["value"])
-                    break
-        else:
-            current_amount = float(current_list or 0)
+    for ptype in PAYMENT_TYPES:
+        ptype_diffs = {}
+        calc_list = calculated.get(ptype, [])
+        calc_map = {item["currency"]: float(item["value"]) for item in calc_list} if isinstance(calc_list, list) else {}
+        
+        act_map = data.actual_amounts.get(ptype, {})
+        if not isinstance(act_map, dict):
+            # Backward compatibility agar eski client oddiy raqam yuborsa
+            act_map = {"UZS": float(act_map)} if act_map else {}
 
-        diff = current_amount - float(actual_val)   # calculated - actual
-        if abs(diff) < 0.01:
-            continue
+        all_currencies = set(calc_map.keys()).union(act_map.keys())
+        
+        for curr in all_currencies:
+            c_val = calc_map.get(curr, 0.0)
+            a_val = float(act_map.get(curr, 0.0))
+            diff = c_val - a_val   # diff > 0 -> kam topildi -> out harakati
 
-        # diff > 0 → balansda ortiqcha bor, "out" bilan tenglashtiramiz
-        # diff < 0 → balansda kam, "in" bilan tenglashtiramiz
-        direction = "out" if diff > 0 else "in"
-        mv = KassaMovement(
-            wallet_id=wallet_id,
-            company_id=current_user.company_id,
-            session_id=session.id if session else None,
-            direction=direction,
-            payment_type=ptype,
-            amount=abs(diff),
-            currency="UZS",
-            reference_type="closing_adjustment",
-            description=f"Yopilish balans farqi ({ptype}): hisoblangan={current_amount}, haqiqiy={float(actual_val)}",
-            created_by=current_user.id,
-        )
-        db.add(mv)
-        # Wallet.balance ni ham yangilash
-        w.balance = float(w.balance or 0) - diff
+            if abs(diff) >= 0.01:
+                ptype_diffs[curr] = diff
+                direction = "out" if diff > 0 else "in"
+                
+                mv = KassaMovement(
+                    wallet_id=wallet_id,
+                    company_id=current_user.company_id,
+                    session_id=session.id if session else None,
+                    direction=direction,
+                    payment_type=ptype,
+                    amount=abs(diff),
+                    currency=curr,
+                    reference_type="closing_adjustment",
+                    description=f"Yopilish farqi ({ptype}): kutilgan={c_val}, haqiqiy={a_val}",
+                    created_by=current_user.id,
+                )
+                db.add(mv)
+                
+                if curr == "UZS":
+                    w.balance = float(w.balance or 0) - diff
+        
+        if ptype_diffs:
+            diff_summary[ptype] = ptype_diffs
 
     # Sessionni yopish
     if session:
