@@ -12,6 +12,9 @@ from app.database import get_db  # type: ignore
 from app.models.shift import Shift  # type: ignore
 from app.core.dependencies import get_current_user  # type: ignore
 from app.models.user import User  # type: ignore
+from app.models.currency import Currency
+from app.models.sale import Sale, SalePayment
+from sqlalchemy import func
 
 router = APIRouter(prefix="/shifts", tags=["shifts"])
 
@@ -72,10 +75,6 @@ def get_current_shift(db: Session = Depends(get_db), user: User = Depends(get_cu
     shift = db.query(Shift).filter(Shift.cashier_id == user.id, Shift.status == "open").first()
     if not shift:
         return None
-    
-    from app.models.currency import Currency
-from app.models.sale import Sale, SalePayment
-    from sqlalchemy import func
     
     # Calculate totals from sales during this shift per payment type
     payments = db.query(
@@ -143,9 +142,6 @@ def open_shift(data: ShiftOpen, db: Session = Depends(get_db), user: User = Depe
 
 def _calc_shift_payment_balances(db: Session, shift: Shift):
     """SalePayment jadvalidan smena davomidagi to'lovlarni hisoblaydi."""
-    from app.models.currency import Currency
-from app.models.sale import Sale, SalePayment
-    from sqlalchemy import func
     payments = db.query(
         SalePayment.payment_type,
         func.coalesce(Currency.code, 'UZS'),
