@@ -432,7 +432,8 @@ def get_expense_payments(
     customer_ids = [tx.reference_id for tx in txs if tx.reference_type == "sale_refund" and tx.reference_id]
     expense_ids = [tx.reference_id for tx in txs if tx.reference_type == "expense" and tx.reference_id]
     
-    suppliers = {s.id: s.name for s in db.query(Supplier).filter(Supplier.id.in_(supplier_ids)).all()} if supplier_ids else {}
+    suppliers_obj = {s.id: s for s in db.query(Supplier).filter(Supplier.id.in_(supplier_ids)).all()} if supplier_ids else {}
+    suppliers = {sid: s.name for sid, s in suppliers_obj.items()}
     customers = {c.id: c.name for c in db.query(Customer).filter(Customer.id.in_(customer_ids)).all()} if customer_ids else {}
     expenses_db = {e.id: e.category.name for e in db.query(Expense).filter(Expense.id.in_(expense_ids)).all() if e.category} if expense_ids else {}
     
@@ -465,12 +466,27 @@ def get_expense_payments(
         
         wallet_name = tx.wallet.name if tx.wallet else "Noma'lum Kassa"
         
+        # currency_code aniqlanishi: avvalo tranzaksiyadan, keyin ta'minotchining qarzidan
+        tx_currency = getattr(tx, 'currency_code', None)
+        if not tx_currency or tx_currency == 'UZS':
+            if tx.reference_type in ['supplier_payment', 'kirim', 'purchase_order'] and tx.reference_id:
+                sup = suppliers_obj.get(tx.reference_id)
+                if sup:
+                    # debt_balances da UZS dan boshqa valyuta bormi?
+                    db_map = sup.debt_balances or {}
+                    non_uzs = [c for c, v in db_map.items() if c != 'UZS' and float(v or 0) >= 0]
+                    if non_uzs:
+                        tx_currency = non_uzs[0]
+                    elif sup.debt_currency and sup.debt_currency != 'UZS':
+                        tx_currency = sup.debt_currency
+        currency_code = tx_currency or 'UZS'
+
         items.append({
             "id": tx.id,
             "contragent": contragent,
             "turi": turi,
             "amount": float(tx.amount),
-            "currency_code": getattr(tx, 'currency_code', None) or "UZS",
+            "currency_code": currency_code,
             "payment_type": ptype,
             "reference_type": tx.reference_type,
             "description": tx.description,
