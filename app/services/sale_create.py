@@ -234,8 +234,6 @@ def create_sale(
         if paid_amount_uzs < total_amount:
             # Qarz miqdori = (UZS jami - to'langan UZS)
             debt_amount_uzs = total_amount - paid_amount_uzs
-            if customer.debt_limit > 0 and (customer.debt_balance + debt_amount_uzs) > customer.debt_limit:
-                raise HTTPException(status_code=400, detail="Mijozning qarz limiti oshib ketdi")
 
             customer.debt_balance += debt_amount_uzs
 
