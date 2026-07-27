@@ -684,10 +684,15 @@ export default function UlgurjiSotuv() {
       let data = s;
       if (!s.items) { const r = await api.get(`/sales/${s.id}`); data = r.data; }
       const clientName = data.contractor_name || data.customer_name || s.customer_name || s.contractor_name || (data.customer && data.customer.name);
+      
+      const selectedCust = customers.find(c => String(c.id) === String(data.customer_id || s.customer_id));
+      
       data = {
         ...data,
         contractor_name: clientName,
         customer_name: clientName,
+        before_debt_balances: selectedCust ? (selectedCust.debt_balances || { UZS: Number(selectedCust.debt_balance || 0) }) : null,
+        before_debt: selectedCust ? (selectedCust.debt_balances ? (selectedCust.debt_balances[data.currency_code || 'UZS'] || 0) : Number(selectedCust.debt_balance || 0)) : 0,
       };
       const tpl = size === 'nak' ? 'nak' : size === '58' ? '58' : '80';
       const rSettings = getReceiptSettings();

@@ -405,6 +405,8 @@ const navigate = useNavigate();
           items: cart,
           contractor_name: selectedCust ? selectedCust.name : undefined,
           customer_name: selectedCust ? selectedCust.name : undefined,
+          before_debt_balances: selectedCust ? (selectedCust.debt_balances || { UZS: Number(selectedCust.debt_balance || 0) }) : null,
+          before_debt: selectedCust ? (selectedCust.debt_balances ? (selectedCust.debt_balances['UZS'] || 0) : Number(selectedCust.debt_balance || 0)) : 0,
         };
         printReceiptHtml(buildReceiptHtml(localMeta, templateType, tmplCfg));
       }
