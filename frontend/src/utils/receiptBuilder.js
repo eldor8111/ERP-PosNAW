@@ -117,6 +117,14 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
 
   const change = Math.max(0, Number(sale.paid_amount) - Number(sale.total_amount));
 
+  const oldDebtStr = oldDebtsList.length > 0
+    ? oldDebtsList.map(d => fmtCurrencyAmt(d.amount, d.currency)).join(', ')
+    : fmtCurrencyAmt(0, 'UZS');
+  
+  const finalDebtStr = finalDebtsList.length > 0
+    ? finalDebtsList.map(d => fmtCurrencyAmt(d.amount, d.currency)).join(', ')
+    : fmtCurrencyAmt(0, 'UZS');
+
   if (isNak) {
     const c = cfg; // shorthand
     const sh = (key, def=true) => c[key] !== undefined ? c[key] : def;
@@ -208,8 +216,9 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
             ? sale.payment_types_array.map(pt => `<tr><td>To'lov (${pt.type}):</td><td>${fmtVal(pt.amount)}</td></tr>`).join('')
             : `<tr><td>To'langan:</td><td>${fmtVal(sale.paid_amount)}</td></tr>`
         ) : ''}
-        ${sh('show_contractor_debts') && debt > 0 ? `<tr><td style="color:red">Qarz:</td><td style="color:red">${fmtVal(debt)}</td></tr>` : ''}
-        ${sh('show_before_debts') && oldDebtsList.length > 0 ? `<tr><td>Oldingi qarz:</td><td>${oldDebtStr}</td></tr>` : ''}
+        ${sh('show_contractor_debts') ? `<tr><td style="color:red">Joriy qarz:</td><td style="color:red">${fmtVal(debt)}</td></tr>` : ''}
+        ${sh('show_before_debts') ? `<tr><td>Oldingi qarz:</td><td>${oldDebtStr}</td></tr>` : ''}
+        ${sh('show_debts') ? `<tr><td><b>Umumiy qarz:</b></td><td><b>${finalDebtStr}</b></td></tr>` : ''}
         ${sh('show_last_payment') && sale.last_payment ? `<tr><td>Oxirgi to'lov:</td><td>${fmtVal(sale.last_payment)}</td></tr>` : ''}
         ${change > 0 ? `<tr><td style="color:green">Qaytim:</td><td style="color:green">${fmtVal(change)}</td></tr>` : ''}
       </table>` : '';
@@ -306,28 +315,20 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
     `;
   }).join('');
 
-  const oldDebtStr = oldDebtsList.length > 0
-    ? oldDebtsList.map(d => fmtCurrencyAmt(d.amount, d.currency)).join(', ')
-    : fmtCurrencyAmt(0, 'UZS');
-  
-  const finalDebtStr = finalDebtsList.length > 0
-    ? finalDebtsList.map(d => fmtCurrencyAmt(d.amount, d.currency)).join(', ')
-    : fmtCurrencyAmt(0, 'UZS');
-
-  const debtSectionHtml = (oldDebtsList.length > 0 || newDebt > 0 || sale.contractor_name) ? `
-  <div class="flex">
+  const debtSectionHtml = (sh('show_before_debts') || sh('show_contractor_debts') || sh('show_debts')) ? `
+  ${sh('show_before_debts') ? `<div class="flex">
     <span>Oldingi qarz:</span>
     <span style="text-align:right">${oldDebtStr}</span>
-  </div>
-  <div class="flex">
+  </div>` : ''}
+  ${sh('show_contractor_debts') ? `<div class="flex">
     <span>Qarzga:</span>
     <span style="text-align:right">${fmtVal(newDebt)}</span>
-  </div>
+  </div>` : ''}
   <hr/>
-  <div class="flex">
+  ${sh('show_debts') ? `<div class="flex">
     <span>Jami qarz:</span>
     <span style="text-align:right">${finalDebtStr}</span>
-  </div>` : '';
+  </div>` : ''}` : '';
 
   const clientName = sale.contractor_name || sale.customer_name || (sale.customer && sale.customer.name) || '';
 
