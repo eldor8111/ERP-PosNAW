@@ -71,6 +71,13 @@ class ExpenseCreate(BaseModel):
     currency: str = "UZS"
     description: Optional[str] = None
 
+class ExpenseUpdate(BaseModel):
+    category_id: Optional[int] = None
+    amount: Optional[float] = None
+    payment_type: Optional[str] = None
+    currency: Optional[str] = None
+    description: Optional[str] = None
+
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 def get_kassa_balances(wallet_id: int, db: Session) -> dict:
@@ -260,6 +267,91 @@ def create_expense(data: ExpenseCreate, db: Session = Depends(get_db), current_u
     w.balance = float(w.balance or 0) - data.amount
     db.commit()
     return {"ok": True, "expense_id": exp.id}
+
+
+@router.put("/expense/{expense_id}")
+def update_expense(expense_id: int, data: ExpenseUpdate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    exp = db.query(Expense).filter(Expense.id == expense_id, Expense.company_id == current_user.company_id).first()
+    if not exp:
+        raise HTTPException(404, "Xarajat topilmadi")
+
+    w = db.query(Wallet).filter(Wallet.id == exp.wallet_id).first()
+    if not w:
+        raise HTTPException(404, "Kassa topilmadi")
+
+    # Revert old amount from wallet balance
+    w.balance = float(w.balance or 0) + float(exp.amount)
+
+    # Update Expense fields
+    if data.category_id is not None:
+        exp.category_id = data.category_id
+    if data.amount is not None:
+        if data.amount <= 0:
+            raise HTTPException(400, "Summa musbat bo'lishi kerak")
+        exp.amount = data.amount
+    if data.description is not None:
+        exp.description = data.description
+
+    # Find category name for description fallback
+    cat_name = "Xarajat"
+    if exp.category_id:
+        cat = db.get(ExpenseCategory, exp.category_id)
+        if cat:
+            cat_name = cat.name
+
+    desc = exp.description or cat_name
+
+    # Apply new amount to wallet balance
+    w.balance = float(w.balance or 0) - float(exp.amount)
+
+    # Update related KassaMovement
+    mv = db.query(KassaMovement).filter(KassaMovement.reference_type == "expense", KassaMovement.reference_id == exp.id).first()
+    if mv:
+        if data.amount is not None:
+            mv.amount = exp.amount
+        if data.payment_type is not None:
+            mv.payment_type = data.payment_type
+        if data.currency is not None:
+            mv.currency = data.currency
+        mv.description = desc
+
+    # Update related Transaction
+    tx = db.query(Transaction).filter(Transaction.reference_type == "expense", Transaction.reference_id == exp.id).first()
+    if tx:
+        if data.amount is not None:
+            tx.amount = exp.amount
+        if data.payment_type is not None:
+            tx.payment_type = data.payment_type
+        tx.description = desc
+
+    db.commit()
+    return {"ok": True, "message": "Xarajat yangilandi"}
+
+
+@router.delete("/expense/{expense_id}")
+def delete_expense(expense_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    exp = db.query(Expense).filter(Expense.id == expense_id, Expense.company_id == current_user.company_id).first()
+    if not exp:
+        raise HTTPException(404, "Xarajat topilmadi")
+
+    w = db.query(Wallet).filter(Wallet.id == exp.wallet_id).first()
+    if w:
+        # Revert expense amount to wallet balance
+        w.balance = float(w.balance or 0) + float(exp.amount)
+
+    # Delete related KassaMovement
+    mv = db.query(KassaMovement).filter(KassaMovement.reference_type == "expense", KassaMovement.reference_id == exp.id).first()
+    if mv:
+        db.delete(mv)
+
+    # Delete related Transaction
+    tx = db.query(Transaction).filter(Transaction.reference_type == "expense", Transaction.reference_id == exp.id).first()
+    if tx:
+        db.delete(tx)
+
+    db.delete(exp)
+    db.commit()
+    return {"ok": True, "message": "Xarajat o'chirildi"}
 
 
 # ─── Kassa O'tkazmalari (Transfers) ──────────────────────────────────────────

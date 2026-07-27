@@ -68,6 +68,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
   const [dateFilter, setDateFilter] = useState();
   const [closeResult, setCloseResult] = useState(null); // Z-report farqi
   const [pendingTransfers, setPendingTransfers] = useState([]);
+  const [editExpense, setEditExpense] = useState(null);
 
   const filteredHistory = (history?.items && Array.isArray(history.items) ? history.items : []).filter(it => {
     if (directionFilter !== 'all' && it.direction !== directionFilter) return false;
@@ -185,6 +186,32 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Xatolik');
     } finally { setSaving(false); }
+  };
+
+  const handleDeleteExpense = async (expenseId) => {
+    if (!window.confirm("Rostdan ham ushbu xarajatni o'chirmoqchimisiz?")) return;
+    try {
+      await api.delete(`/kassa/expense/${expenseId}`);
+      toast.success("Xarajat o'chirildi");
+      loadHistory();
+      onRefresh();
+    } catch (e) { toast.error(e.response?.data?.detail || "Xatolik"); }
+  };
+
+  const handleSaveEditExpense = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.put(`/kassa/expense/${editExpense.id}`, {
+        amount: Number(editExpense.amount),
+        description: editExpense.description,
+        category_id: Number(editExpense.category_id) || undefined
+      });
+      toast.success("Xarajat yangilandi");
+      setEditExpense(null);
+      loadHistory();
+      onRefresh();
+    } catch (ex) { toast.error(ex.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
   };
 
   // Local style tokens — plain Tailwind palette only
@@ -711,6 +738,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                     <th className="px-5 py-4 font-bold text-[13px] uppercase tracking-wider">Tranzaksiya</th>
                     <th className="px-5 py-4 font-bold text-[13px] uppercase tracking-wider text-right">Summa</th>
                     <th className="px-5 py-4 font-bold text-[13px] uppercase tracking-wider">Tafsilotlar</th>
+                    <th className="px-5 py-4 font-bold text-[13px] uppercase tracking-wider text-right">Amallar</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -772,6 +800,27 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                             )}
                           </div>
                         </td>
+
+                        <td className="px-5 py-4 align-middle text-right">
+                          {m.reference_type === 'expense' && m.reference_id && (
+                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => {
+                                setEditExpense({
+                                  id: m.reference_id,
+                                  amount: m.amount,
+                                  description: m.description || '',
+                                  category_id: '' // Odatda backend qaytarmaydi KassaMovement orqali, modalda kategoriyani qayta kiritishi mumkin yoki ixtiyoriy.
+                                });
+                                if (categories.length === 0) loadCategories();
+                              }} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title="Tahrirlash">
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                              </button>
+                              <button onClick={() => handleDeleteExpense(m.reference_id)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors" title="O'chirish">
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                            </div>
+                          )}
+                        </td>
                         
                       </tr>
                     );
@@ -793,6 +842,33 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
             </div>
 
           </div>
+        </Modal>
+      )}
+
+      {/* Edit Expense modal */}
+      {editExpense && (
+        <Modal title="Xarajatni tahrirlash" onClose={() => setEditExpense(null)}>
+          <form onSubmit={handleSaveEditExpense} className="space-y-4">
+            <div>
+              <label className="text-xs font-medium text-slate-600 block mb-1.5">Summa *</label>
+              <input required type="number" min="1" className={field} value={editExpense.amount} onChange={e => setEditExpense({ ...editExpense, amount: e.target.value })} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-600 block mb-1.5">Kategoriya</label>
+              <select className={field} value={editExpense.category_id} onChange={e => setEditExpense({ ...editExpense, category_id: e.target.value })}>
+                <option value="">O'zgartirmaslik (Avvalgi)</option>
+                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-600 block mb-1.5">Izoh</label>
+              <input className={field} value={editExpense.description} onChange={e => setEditExpense({ ...editExpense, description: e.target.value })} />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={() => setEditExpense(null)} className={cancelBtn}>Bekor qilish</button>
+              <button type="submit" disabled={saving || !editExpense.amount} className={primaryBtn}>{saving ? 'Saqlanmoqda...' : 'Saqlash'}</button>
+            </div>
+          </form>
         </Modal>
       )}
     </div>
