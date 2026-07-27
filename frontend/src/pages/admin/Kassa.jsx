@@ -803,7 +803,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
 
                         <td className="px-5 py-4 align-middle text-right">
                           {m.reference_type === 'expense' && m.reference_id && (
-                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex items-center justify-end gap-2 transition-opacity">
                               <button onClick={() => {
                                 setEditExpense({
                                   id: m.reference_id,
