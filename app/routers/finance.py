@@ -570,7 +570,7 @@ def update_transaction(
 ):
     from app.models.customer import Customer
     from app.models.supplier import Supplier
-    from app.models.moliya import Expense
+    from app.models.moliya import Expense, KassaMovement
 
     tx = db.get(Transaction, tx_id)
     if not tx or (user.role.value != "super_admin" and tx.company_id != user.company_id):
@@ -621,6 +621,21 @@ def update_transaction(
     if data.description is not None:
         tx.description = str(data.description) if data.description is not None else tx.description
 
+    # Sync KassaMovement if exists
+    if tx.reference_type and tx.reference_id:
+        mv = db.query(KassaMovement).filter(
+            KassaMovement.reference_type == tx.reference_type, 
+            KassaMovement.reference_id == tx.reference_id
+        ).first()
+        if mv:
+            mv.amount = Decimal(str(new_amount))
+            if data.payment_type:
+                mv.payment_type = str(data.payment_type)
+            if data.wallet_id:
+                mv.wallet_id = data.wallet_id
+            if data.description is not None:
+                mv.description = str(data.description) if data.description is not None else mv.description
+
     db.commit()
     db.refresh(tx)
     return tx
@@ -634,7 +649,7 @@ def delete_transaction(
 ):
     from app.models.customer import Customer
     from app.models.supplier import Supplier
-    from app.models.moliya import Expense
+    from app.models.moliya import Expense, KassaMovement
 
     tx = db.get(Transaction, tx_id)
     if not tx or (user.role.value != "super_admin" and tx.company_id != user.company_id):
@@ -660,6 +675,15 @@ def delete_transaction(
         expense = db.get(Expense, tx.reference_id)
         if expense:
             db.delete(expense)
+
+    # Delete synced KassaMovement if exists
+    if tx.reference_type and tx.reference_id:
+        mv = db.query(KassaMovement).filter(
+            KassaMovement.reference_type == tx.reference_type,
+            KassaMovement.reference_id == tx.reference_id
+        ).first()
+        if mv:
+            db.delete(mv)
 
     db.delete(tx)
     db.commit()
