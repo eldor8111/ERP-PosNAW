@@ -105,11 +105,11 @@ def create_sale(
         }
 
     currency = None
-    exchange_rate = Decimal(1.0)
+    exchange_rate = Decimal("1.0")
     if data.currency_id:
         currency = db.query(Currency).filter(Currency.id == data.currency_id).first()
         if currency:
-            exchange_rate = currency.rate
+            exchange_rate = Decimal(str(currency.rate))
 
     sale_items_data = []
     total_amount = Decimal("0")
@@ -218,19 +218,26 @@ def create_sale(
                 total_amount = Decimal("0")
 
         if getattr(customer, "cashback_percent", 0) > 0:
-            cashback_amount = (total_amount * exchange_rate * customer.cashback_percent) / Decimal("100")
+            # total_amount allaqachon UZS da, exchange_rate bilan ko'paytirish shart emas
+            cashback_amount = (total_amount * customer.cashback_percent) / Decimal("100")
             customer.bonus_balance = (customer.bonus_balance or Decimal("0")) + cashback_amount
-        customer.total_spent = (customer.total_spent or Decimal("0")) + (total_amount * exchange_rate)
+        customer.total_spent = (customer.total_spent or Decimal("0")) + total_amount
 
-        loyalty_earned = int((total_amount * exchange_rate) * Decimal("0.01"))
+        loyalty_earned = int(total_amount * Decimal("0.01"))
         customer.loyalty_points += loyalty_earned
 
-        if data.paid_amount < total_amount:
-            debt_amount = (total_amount - data.paid_amount) * exchange_rate
-            if customer.debt_limit > 0 and (customer.debt_balance + debt_amount) > customer.debt_limit:
+        # paid_amount frontenddan sale valyutasida keladi (masalan USD).
+        # total_amount esa UZS da hisoblanadi (subtotal * exchange_rate).
+        # Taqqoslash uchun paid_amount ni UZS ga o'tkazamiz.
+        paid_amount_uzs = data.paid_amount * exchange_rate
+
+        if paid_amount_uzs < total_amount:
+            # Qarz miqdori = (UZS jami - to'langan UZS)
+            debt_amount_uzs = total_amount - paid_amount_uzs
+            if customer.debt_limit > 0 and (customer.debt_balance + debt_amount_uzs) > customer.debt_limit:
                 raise HTTPException(status_code=400, detail="Mijozning qarz limiti oshib ketdi")
 
-            customer.debt_balance += debt_amount
+            customer.debt_balance += debt_amount_uzs
 
             # Sync with multi-currency debt_balances
             if not customer.debt_balances:
@@ -241,17 +248,25 @@ def create_sale(
                     curr_val = float(customer.debt_balances.get(curr_code, 0))
                     customer.debt_balances[curr_code] = curr_val + float(curr_debt)
             else:
-                actual_debt_in_currency = total_amount - data.paid_amount
+                # Qarzni sotuv valyutasida saqlash (UZS bo'lsa UZS, USD bo'lsa USD)
                 sale_currency = currency.code if currency else "UZS"
+                if sale_currency == "UZS":
+                    actual_debt_in_currency = debt_amount_uzs
+                else:
+                    # Sale valyutasida qarz = total_amount_currency - paid_amount_currency
+                    # total_amount_currency = total_amount / exchange_rate
+                    total_in_currency = (total_amount / exchange_rate) if exchange_rate else total_amount
+                    actual_debt_in_currency = total_in_currency - data.paid_amount
 
                 curr_val = float(customer.debt_balances.get(sale_currency, 0))
                 customer.debt_balances[sale_currency] = curr_val + float(actual_debt_in_currency)
 
-
             from sqlalchemy.orm.attributes import flag_modified
             flag_modified(customer, "debt_balances")
 
-    if data.paid_amount < total_amount and not data.customer_id:
+    # paid_amount ni UZS ga o'tkazib tekshiramiz
+    _paid_uzs_check = data.paid_amount * exchange_rate
+    if _paid_uzs_check < total_amount and not data.customer_id:
         raise HTTPException(status_code=400, detail="Qarzga sotish uchun mijozni tanlash majburiy")
 
     # ── Sale yozuvi ───────────────────────────────────────────────────────────
