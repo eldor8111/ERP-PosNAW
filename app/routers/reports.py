@@ -56,20 +56,33 @@ def get_dashboard(
 
     wh_filter = get_warehouse_filter(warehouse_id)
     # currency_code bo'yicha guruhlash
-    today_rows = db.query(
-        func.coalesce(Currency.code, 'UZS'),
-        func.count(Sale.id),
-        func.coalesce(func.sum(Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)), 0)
-    ).outerjoin(Currency, Currency.id == Sale.currency_id).filter(
-        Sale.company_id == cid,
-        Sale.created_at >= today_start,
-        Sale.created_at < today_end,
-        Sale.status == SaleStatus.completed,
-        *wh_filter
-    ).group_by(func.coalesce(Currency.code, 'UZS')).all()
-    today_count = sum(row[1] for row in today_rows)
-    today_by_currency = {(row[0] or 'UZS'): float(row[2]) for row in today_rows}
+    import logging
+    _log = logging.getLogger(__name__)
+    _log.warning(f"[DASHBOARD] cid={cid}, today_start={today_start}, today_end={today_end}")
+
+    today_rows = (
+        db.query(
+            func.coalesce(Currency.code, 'UZS').label("cur"),
+            func.count(Sale.id).label("cnt"),
+            func.coalesce(func.sum(Sale.total_amount), 0).label("total"),
+        )
+        .select_from(Sale)
+        .outerjoin(Currency, Currency.id == Sale.currency_id)
+        .filter(
+            Sale.company_id == cid,
+            Sale.created_at >= today_start,
+            Sale.created_at < today_end,
+            Sale.status == SaleStatus.completed,
+            *wh_filter,
+        )
+        .group_by(func.coalesce(Currency.code, 'UZS'))
+        .all()
+    )
+    _log.warning(f"[DASHBOARD] today_rows count={len(today_rows)}, rows={today_rows}")
+    today_count = sum(row.cnt for row in today_rows)
+    today_by_currency = {(row.cur or 'UZS'): float(row.total) for row in today_rows}
     today_total = sum(today_by_currency.values())  # for change_pct calc only
+
 
     yesterday_start = today_start - timedelta(days=1)
     yesterday_total = db.query(func.coalesce(func.sum(Sale.total_amount), 0)).filter(
