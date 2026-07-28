@@ -56,6 +56,10 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   const isNak = tpl === 'nak' || tpl === 'A4';
   const width = isNak ? '100%' : (narrow ? '320px' : '420px');
 
+  // sh — cfg[key] qiymatini qaytaradi, aniqlanmagan bo'lsa def qaytaradi
+  // isNak bloki ichida ham, tashqarida ham ishlatilishi mumkin
+  const sh = (key, def = true) => cfg[key] !== undefined ? cfg[key] : def;
+
   const useCurrency = sale.currency_code && sale.currency_code !== 'UZS';
   const rate = Number(sale.exchange_rate) || 1.0;
   const currCode = sale.currency_code || 'UZS';
@@ -127,7 +131,6 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
 
   if (isNak) {
     const c = cfg; // shorthand
-    const sh = (key, def=true) => c[key] !== undefined ? c[key] : def;
 
     const nakLogoPos = c.logo_position || 'center';
     const nakLogoAlign = nakLogoPos === 'left' ? 'left' : nakLogoPos === 'right' ? 'right' : 'center';
