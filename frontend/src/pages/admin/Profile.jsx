@@ -102,10 +102,29 @@ export default function Profile() {
     useEffect(() => {
         if (user?.role !== 'super_admin') {
             api.get('/billing/my-company').then(r => setCompanyName(r.data.name)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
-            api.get('/warehouses').then(r => setWarehouses(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
-            api.get('/branches').then(r => setBranches(r.data.filter(b => b.is_active))).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+            api.get('/warehouses').then(r => {
+                const list = r.data;
+                setWarehouses(list);
+                // localStorage da saqlangan warehouseId haqiqiy omborlar ro'yxatida bo'lmasa — tozalaymiz
+                const savedWh = localStorage.getItem('dashboard_warehouse_id');
+                if (savedWh && !list.find(w => w.id === Number(savedWh))) {
+                    localStorage.removeItem('dashboard_warehouse_id');
+                    setWarehouseId('');
+                }
+            }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+            api.get('/branches').then(r => {
+                const list = r.data.filter(b => b.is_active);
+                setBranches(list);
+                // localStorage da saqlangan branchId haqiqiy filiallar ro'yxatida bo'lmasa — tozalaymiz
+                const savedBr = localStorage.getItem('dashboard_branch_id');
+                if (savedBr && !list.find(b => b.id === Number(savedBr))) {
+                    localStorage.removeItem('dashboard_branch_id');
+                    setBranchId('');
+                }
+            }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
         }
     }, [user]);
+
 
     const UserCreatedAt = user.created_at;
     const dateObj = new Date(UserCreatedAt);
