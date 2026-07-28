@@ -6,7 +6,7 @@
  * Backend orqali EMAS — brauzerdan bevosita chaqiriladi.
  */
 
-const HIPPO_BASE = 'http://127.0.0.1:8081';
+const HIPPO_BASE = 'http://127.0.0.1:8082';   // CORS bridge (hippo_bridge.py)
 const HIPPO_TIMEOUT = 5000; // 5 soniya
 
 // ── VAT mapping ─────────────────────────────────────────────────────────────
