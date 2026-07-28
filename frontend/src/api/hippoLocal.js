@@ -19,18 +19,41 @@ const getVatPercent = (t) => VAT_MAP[t] ?? 12;
 
 // ── Cart → Hippo items ───────────────────────────────────────────────────────
 function cartToItems(cart) {
-  return cart.map(item => ({
-    name:         item.product_name || item.name || 'Mahsulot',
-    barcode:      item.barcode       || '',
-    spic:         item.mxik_code     || '',
-    package_code: item.package_code  ? String(item.package_code) : '',
-    labels:       item.labels        || [],
-    quantity:     Number(item.qty_ordered || item.quantity || 1),
-    price:        Math.round(Number(item.unit_price || 0)),
-    discount:     Math.round(Number(item.discount   || 0)),
-    vat_percent:  getVatPercent(item.vat_rate_type),
-  }));
+  return cart.map(item => {
+    // PosKassa:      item.unit_price (UZS)  yoki  item.price (UZS)
+    // UlgurjiSotuv:  item.price (o'z valyutasida)  ×  item.rate (kurs → UZS)
+    const unitPriceRaw = Number(item.unit_price ?? item.price ?? 0);
+    const rate         = Number(item.rate || item.exchange_rate || 1);
+    const priceUZS     = Math.round(unitPriceRaw * rate);
+
+    const qty = Number(item.qty_ordered || item.quantity || item.qty || 1);
+
+    // Chegirma UZS da:
+    //   PosKassa: item.discount — allaqachon hisoblangan (barcha qty uchun)
+    //   UlgurjiSotuv: discount_type + discount_val — hisoblash kerak
+    let discountUZS = 0;
+    if (item.discount !== undefined && item.discount !== null) {
+      discountUZS = Math.round(Number(item.discount || 0) * rate);
+    } else if (item.discount_type === 'pct') {
+      discountUZS = Math.round(priceUZS * qty * (Number(item.discount_val || 0) / 100));
+    } else if (item.discount_type === 'sum') {
+      discountUZS = Math.round(Number(item.discount_val || 0) * rate);
+    }
+
+    return {
+      name:         item.product_name || item.name || 'Mahsulot',
+      barcode:      item.barcode       || '',
+      spic:         item.mxik_code     || '',
+      package_code: item.package_code  ? String(item.package_code) : '',
+      labels:       item.labels        || [],
+      quantity:     qty,
+      price:        priceUZS,
+      discount:     discountUZS,
+      vat_percent:  getVatPercent(item.vat_rate_type),
+    };
+  });
 }
+
 
 // ── To'lovlarni ajratish ─────────────────────────────────────────────────────
 function splitPayments(payments) {
