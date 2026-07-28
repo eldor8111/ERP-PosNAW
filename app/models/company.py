@@ -19,7 +19,8 @@ class Company(Base):
     tg_bot_username = Column(String(100), nullable=True)
     is_active = Column(Boolean, default=True)
     balance = Column(Numeric(18, 2), default=0, nullable=False)
-    agent_id = Column(Integer, ForeignKey("agents.id"), nullable=True)
+    agent_id = Column(Integer, ForeignKey("agents.id", ondelete="SET NULL"), nullable=True)
+
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))

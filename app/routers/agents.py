@@ -108,6 +108,13 @@ def delete_agent(agent_id: int, db: Session = Depends(get_db), _: User = Depends
     agent = db.query(Agent).filter(Agent.id == agent_id).first()
     if not agent:
         raise HTTPException(status_code=404, detail="Agent topilmadi")
+
+    # Agentga bog'liq dokonlarning agent_id ni NULL ga o'rnatamiz
+    # (dokonlar o'chib ketmasligi uchun)
+    db.query(Company).filter(Company.agent_id == agent_id).update(
+        {"agent_id": None}, synchronize_session="fetch"
+    )
+
     db.delete(agent)
     db.commit()
     return {"message": "Agent o'chirildi"}
