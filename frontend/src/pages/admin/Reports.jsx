@@ -509,7 +509,7 @@ export default function Reports() {
                 onExcel={() => {
                   const ws = XLSX.utils.json_to_sheet(productSalesData.map(r => ({
                     'Mahsulot': r.product_name, 'SKU': r.sku,
-                    'Sotilgan Miqdor': r.total_qty, 'Daromad': r.total_revenue, 'Foyda': r.total_profit,
+                    'Sotilgan Miqdor': r.total_qty, 'Daromad': fmtDebt(r.total_revenue), 'Foyda': fmtDebt(r.total_profit),
                   })));
                   const wb = XLSX.utils.book_new();
                   XLSX.utils.book_append_sheet(wb, ws, 'Mahsulotlar (Sotuv)');
@@ -534,8 +534,8 @@ export default function Reports() {
                         <td className="px-5 py-3.5 text-sm font-medium text-slate-800">{r.product_name}</td>
                         <td className="px-5 py-3.5 text-sm font-mono text-indigo-600">{r.sku}</td>
                         <td className="px-5 py-3.5 text-sm text-slate-600 font-bold">{fmt(r.total_qty)}</td>
-                        <td className="px-5 py-3.5 text-sm font-semibold text-emerald-600">{fmtS(r.total_revenue)}</td>
-                        <td className="px-5 py-3.5 text-sm font-semibold text-blue-600">{fmtS(r.total_profit)}</td>
+                        <td className="px-5 py-3.5 text-sm font-semibold text-emerald-600">{fmtDebt(r.total_revenue)}</td>
+                        <td className="px-5 py-3.5 text-sm font-semibold text-blue-600">{fmtDebt(r.total_profit)}</td>
                       </tr>
                     ))}
                     {productSalesData.length === 0 && <tr><td colSpan={5} className="px-6 py-12 text-center text-sm text-slate-400">{t('common.noData')}</td></tr>}
@@ -546,8 +546,8 @@ export default function Reports() {
                         <td className="px-5 py-3 text-sm text-slate-700">{t('admin.dict.th_total') || 'JAMI'}</td>
                         <td />
                         <td className="px-5 py-3 text-sm">{fmt(productSalesData.reduce((a, r) => a + r.total_qty, 0))}</td>
-                        <td className="px-5 py-3 text-sm text-emerald-600">{fmtS(productSalesData.reduce((a, r) => a + r.total_revenue, 0))}</td>
-                        <td className="px-5 py-3 text-sm text-blue-600">{fmtS(productSalesData.reduce((a, r) => a + r.total_profit, 0))}</td>
+                        <td className="px-5 py-3 text-sm text-emerald-600">{fmtDebt(sumDebtList(productSalesData, 'total_revenue'))}</td>
+                        <td className="px-5 py-3 text-sm text-blue-600">{fmtDebt(sumDebtList(productSalesData, 'total_profit'))}</td>
                       </tr>
                     </tfoot>
                   )}
