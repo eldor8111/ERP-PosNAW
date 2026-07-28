@@ -338,7 +338,7 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
     timerRef.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await api.get('/products/pos-list', {
+        const res = await api.get('/products', {
           params: { search: q.trim(), limit: 30, warehouse_id: warehouseId || undefined },
           signal: abortCtrl.signal,
           _silent: true,
@@ -371,7 +371,7 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
     if (!q.trim()) {
       setLoading(true);
       try {
-        const res = await api.get('/products/pos-list', { params: { limit: 30, warehouse_id: warehouseId || undefined }, _silent: true });
+        const res = await api.get('/products', { params: { limit: 30, warehouse_id: warehouseId || undefined }, _silent: true });
         const items = Array.isArray(res.data) ? res.data : (res.data?.items || []);
         setResults(items.slice(0, 30));
       } catch { /* ignore */ }

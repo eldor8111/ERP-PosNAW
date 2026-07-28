@@ -261,6 +261,11 @@ const navigate = useNavigate();
         unit_price: Number(p.sale_price) || 0,
         discount_type: 'sum',
         discount_val: 0,
+        mxik_code: p.mxik_code || '',
+        package_code: p.parent_code || p.package_code || '',
+        barcode: p.barcode || '',
+        labels: p.labels || [],
+        vat_rate_type: p.vat_rate_type || 'nds_12',
         qty_ordered: 1,
         max_stock: p.stock_quantity
       }, ...prev];
