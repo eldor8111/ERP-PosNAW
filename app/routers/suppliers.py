@@ -384,3 +384,103 @@ def pay_supplier_debt(
     db.commit()
     db.refresh(supplier)
     return supplier
+
+
+@router.get("/{supplier_id}/stats")
+def get_supplier_stats(supplier_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_roles(*ALLOWED))):
+    q = db.query(Supplier).filter(Supplier.id == supplier_id)
+    q = q.filter(Supplier.company_id == current_user.company_id)
+    supplier = q.first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
+
+    from app.models.purchase_order import PurchaseOrder, POStatus
+
+    all_pos = db.query(PurchaseOrder).filter(
+        PurchaseOrder.supplier_id == supplier_id,
+        PurchaseOrder.company_id == current_user.company_id
+    ).all()
+    
+    active_pos = [p for p in all_pos if p.status != POStatus.cancelled]
+    
+    balances = dict(supplier.debt_balances or {})
+    if not balances and float(supplier.debt_balance or 0) > 0:
+        balances["UZS"] = float(supplier.debt_balance)
+
+    return {
+        "id": supplier.id,
+        "name": supplier.name,
+        "phone": supplier.phone,
+        "inn": supplier.inn,
+        "address": supplier.address,
+        "payment_terms": supplier.payment_terms,
+        "debt_balance": float(supplier.debt_balance or 0),
+        "debt_balances": balances,
+        "total_purchases_count": len(active_pos),
+        "total_purchases_amount": sum(float(p.total_amount) for p in active_pos),
+        "total_paid_amount": sum(float(p.paid_amount) for p in active_pos),
+    }
+
+
+@router.get("/{supplier_id}/history")
+def get_supplier_history(supplier_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_roles(*ALLOWED))):
+    q = db.query(Supplier).filter(Supplier.id == supplier_id)
+    q = q.filter(Supplier.company_id == current_user.company_id)
+    supplier = q.first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
+
+    from app.models.purchase_order import PurchaseOrder
+    from app.models.moliya import Transaction
+
+    # 1) Barcha xaridlar
+    purchases = db.query(PurchaseOrder).filter(
+        PurchaseOrder.supplier_id == supplier_id,
+        PurchaseOrder.company_id == current_user.company_id
+    ).order_by(PurchaseOrder.created_at.desc()).all()
+
+    # 2) Barcha to'lovlar (supplier_payment va purchase_order reference bilan bo'lgan chiqimlar)
+    payments = db.query(Transaction).filter(
+        Transaction.reference_type.in_(["supplier_payment", "purchase_order"]),
+        Transaction.reference_id == supplier_id,
+        Transaction.company_id == current_user.company_id,
+        Transaction.type == "expense"
+    ).order_by(Transaction.created_at.desc()).all()
+
+    history = []
+
+    for p in purchases:
+        total = float(p.total_amount or 0)
+        paid = float(p.paid_amount or 0)
+        debt_added = max(0.0, total - paid)
+        history.append({
+            "id": p.id,
+            "op_type": "purchase",
+            "date": p.created_at.isoformat(),
+            "amount": total,
+            "paid": paid,
+            "debt": debt_added,
+            "currency": getattr(p, "currency", "UZS") or "UZS",
+            "payment_type": "",
+            "cashier": getattr(p.creator, "name", "") if p.creator else "",
+            "sale_number": getattr(p, "number", ""),
+            "description": f"Xarid #{getattr(p, 'number', '')}",
+            "type": "purchase",
+        })
+
+    for pay in payments:
+        history.append({
+            "id": pay.id,
+            "op_type": "payment",
+            "date": pay.created_at.isoformat(),
+            "amount": float(pay.amount or 0),
+            "paid": float(pay.amount or 0),
+            "debt": 0,
+            "currency": pay.currency_code or "UZS",
+            "payment_type": pay.payment_type or "cash",
+            "cashier": getattr(pay.creator, "name", "") if getattr(pay, "creator", None) else "",
+            "description": pay.description or "Ta'minotchi to'lovi",
+            "type": "payment",
+        })
+
+    return sorted(history, key=lambda x: x["date"], reverse=True)

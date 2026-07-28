@@ -19,6 +19,7 @@ const Finance         = lazy(() => import('./pages/admin/Finance'))
 const Reports         = lazy(() => import('./pages/admin/Reports'))
 const Customers       = lazy(() => import('./pages/admin/Customers'))
 const CustomerDetail  = lazy(() => import('./pages/admin/CustomerDetail'))
+const SupplierDetail  = lazy(() => import('./pages/admin/SupplierDetail'))
 // const SotuvMijozlar   = lazy(() => import('./pages/admin/SotuvMijozlar'))
 const UlgurjiSotuv   = lazy(() => import('./pages/admin/UlgurjiSotuv'))
 const PosKassa        = lazy(() => import('./pages/admin/PosKassa'))
@@ -107,6 +108,7 @@ export default function App() {
             <Route path="kassa" element={<Suspense fallback={<PageLoader />}><Kassa /></Suspense>} />
             <Route path="reports" element={<Suspense fallback={<PageLoader />}><Reports /></Suspense>} />
             <Route path="customers/:customerId" element={<Suspense fallback={<PageLoader />}><CustomerDetail /></Suspense>} />
+            <Route path="suppliers/:supplierId" element={<Suspense fallback={<PageLoader />}><SupplierDetail /></Suspense>} />
             <Route path="customers" element={<Suspense fallback={<PageLoader />}><Customers /></Suspense>} />
             <Route path="sotuv" element={<Suspense fallback={<PageLoader />}><UlgurjiSotuv /></Suspense>} />
             <Route path="pos-kassa" element={<Suspense fallback={<PageLoader />}><PosKassa /></Suspense>} />

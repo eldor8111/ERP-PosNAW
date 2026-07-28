@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useLang } from '../../context/LangContext';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
@@ -1860,6 +1861,7 @@ function AvatarS({ name }) {
 }
 function SuppliersTab() {
   const { t } = useLang();
+  const navigate = useNavigate();
   const [list, setList] = useState([]);
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(null);
@@ -2153,7 +2155,7 @@ function SuppliersTab() {
               const hasDebt = debtMap.length > 0;
               return (
                 <tr key={s.id} className="hover:bg-slate-50">
-                  <td className="px-5 py-4"><div className="flex items-center gap-2.5"><AvatarS name={s.name} /><div><div className="text-sm font-semibold text-slate-800">{s.name}</div>{s.email && <div className="text-xs text-slate-400">{s.email}</div>}</div></div></td>
+                  <td className="px-5 py-4 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => navigate(`/admin/suppliers/${s.id}`)}><div className="flex items-center gap-2.5"><AvatarS name={s.name} /><div><div className="text-sm font-semibold text-indigo-600 hover:underline">{s.name}</div>{s.email && <div className="text-xs text-slate-400">{s.email}</div>}</div></div></td>
                   <td className="px-5 py-4 text-sm font-mono text-slate-600">{s.inn || '\u2014'}</td>
                   <td className="px-5 py-4 text-sm text-slate-500">{s.phone || '\u2014'}</td>
                   <td className="px-5 py-4"><StarRating value={s.rating} /></td>
