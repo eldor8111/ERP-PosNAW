@@ -68,10 +68,12 @@ class Transaction(Base):
     payment_type = Column(String(50), nullable=True)
     currency_code = Column(String(3), nullable=True, server_default='UZS', default='UZS')
     description = Column(Text, nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     branch = relationship("Branch")
     wallet = relationship("Wallet")
+    user = relationship("User")
 
 class WalletBalance(Base):
     __tablename__ = "wallet_balances"

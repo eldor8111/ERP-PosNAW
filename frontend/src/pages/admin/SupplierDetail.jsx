@@ -161,12 +161,13 @@ export default function SupplierDetail() {
                     <th className="px-4 py-3 text-left font-semibold text-slate-500 text-xs">Sana</th>
                     <th className="px-4 py-3 text-left font-semibold text-slate-500 text-xs">Amaliyot turi</th>
                     <th className="px-4 py-3 text-left font-semibold text-slate-500 text-xs">Tafsilot</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-500 text-xs">Xodim</th>
                     <th className="px-4 py-3 text-right font-semibold text-slate-500 text-xs">Kirim / Chiqim</th>
                     <th className="px-4 py-3 text-right font-semibold text-slate-500 text-xs">Amallar</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {loadingTab ? <tr><td colSpan={5} className="text-center py-10">Yuklanmoqda...</td></tr> : history.map(h => (
+                  {loadingTab ? <tr><td colSpan={6} className="text-center py-10">Yuklanmoqda...</td></tr> : history.map(h => (
                     <tr key={`${h.op_type}-${h.id || h.date}`} className="hover:bg-slate-50">
                       <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">{fmtDate(h.date)}</td>
                       <td className="px-4 py-3">
@@ -175,6 +176,7 @@ export default function SupplierDetail() {
                          <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded text-xs">{h.op_type}</span>}
                       </td>
                       <td className="px-4 py-3 text-slate-600 text-xs">{h.description}</td>
+                      <td className="px-4 py-3 text-slate-500 text-xs">{h.cashier || '—'}</td>
                       <td className="px-4 py-3 text-right font-semibold">
                         {h.op_type === 'purchase' ? (
                           <span className="text-red-500">-{fmt(h.amount)} {h.currency}</span>
@@ -191,7 +193,7 @@ export default function SupplierDetail() {
                       </td>
                     </tr>
                   ))}
-                  {!loadingTab && history.length === 0 && <tr><td colSpan={5} className="text-center py-10 text-slate-400">Hech qanday ma'lumot yo'q</td></tr>}
+                  {!loadingTab && history.length === 0 && <tr><td colSpan={6} className="text-center py-10 text-slate-400">Hech qanday ma'lumot yo'q</td></tr>}
                 </tbody>
               </table>
             </div>

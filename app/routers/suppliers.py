@@ -355,7 +355,8 @@ def pay_supplier_debt(
         payment_type=data.payment_type,
         reference_type="supplier_payment",
         reference_id=supplier_id,
-        description=tx_desc.strip()
+        description=tx_desc.strip(),
+        user_id=current_user.id
     )
     db.add(tx)
 
@@ -478,8 +479,9 @@ def get_supplier_history(supplier_id: int, db: Session = Depends(get_db), curren
             "debt": 0,
             "currency": pay.currency_code or "UZS",
             "payment_type": pay.payment_type or "cash",
-            "cashier": getattr(pay.creator, "name", "") if getattr(pay, "creator", None) else "",
-            "description": pay.description or "Ta'minotchi to'lovi",
+            "cashier": getattr(pay.user, "name", "") if pay.user else "",
+            "sale_number": "",
+            "description": pay.description or "To'lov",
             "type": "payment",
         })
 
