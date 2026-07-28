@@ -13,8 +13,9 @@ import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headless
 import { ChevronsUpDown, CheckIcon, Building2, Warehouse } from 'lucide-react'; // Ikonkalar uchun (ixtiyoriy)
 
 const fmt = (val) => {
-    if (!val) return "0 so'm";
+    if (val === null || val === undefined) return "0 so'm";
     const n = Number(val);
+    if (isNaN(n)) return "0 so'm";
     if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1) + " mlrd";
     if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + " mln";
     if (n >= 1_000) return (n / 1_000).toFixed(0) + " K";
@@ -22,8 +23,24 @@ const fmt = (val) => {
 };
 
 const fmtFull = (val) => {
-    if (!val) return "0 so'm";
+    if (val === null || val === undefined) return "0 so'm";
     return Number(val).toLocaleString('uz-UZ') + " so'm";
+};
+
+// Backend dict ob'ektini ({UZS: 500000, USD: 200}) formatlaydi
+const fmtCurrency = (obj) => {
+    if (!obj || typeof obj !== 'object') return fmt(obj);
+    const parts = [];
+    const uzs = obj['UZS'];
+    const usd = obj['USD'];
+    if (uzs && Number(uzs) > 0) parts.push(fmt(uzs));
+    if (usd && Number(usd) > 0) parts.push(Number(usd).toLocaleString('uz-UZ') + ' $');
+    // Boshqa valyutalar
+    Object.entries(obj).forEach(([cur, amt]) => {
+        if (cur !== 'UZS' && cur !== 'USD' && amt && Number(amt) > 0)
+            parts.push(Number(amt).toLocaleString('uz-UZ') + ' ' + cur);
+    });
+    return parts.length > 0 ? parts.join(' + ') : "0 so'm";
 };
 
 function KpiCard({ label, value, sub, icon, gradient, iconBg, badge }) {
@@ -172,7 +189,7 @@ export default function Profile() {
     const kpis = [
         {
             label: t('dashboard.todaySales'),
-            value: fmt(data.today?.sales),
+            value: fmtCurrency(data.today?.sales),
             sub: `${data.today?.orders ?? 0} ${t('common.item')} ${t('sale.title').toLowerCase()}`,
             badge: data.today?.change_pct,
             gradient: "bg-linear-to-br from-indigo-500 to-indigo-700",
@@ -186,7 +203,7 @@ export default function Profile() {
         },
         {
             label: t('dashboard.totalSales'),
-            value: fmt(data.monthly?.sales),
+            value: fmtCurrency(data.monthly?.sales),
             sub: `${data.monthly?.orders ?? 0} ${t('common.item')} ${t('sale.title').toLowerCase()}`,
             gradient: "bg-linear-to-br from-emerald-500 to-emerald-700",
             iconBg: "bg-white/20",
@@ -224,7 +241,7 @@ export default function Profile() {
         },
         {
             label: t('customer.totalDebt'),
-            value: fmt(data.debts?.total_debt),
+            value: fmtCurrency(data.debts?.total_debt),
             sub: data.debts?.overdue_count > 0
                 ? `⚠ ${data.debts.overdue_count} ${t('common.item')} ${t('common.warning').toLowerCase()}`
                 : `${data.debts?.debtor_count ?? 0} ${t('common.item')} ${t('customer.totalDebtors').toLowerCase()}`,
