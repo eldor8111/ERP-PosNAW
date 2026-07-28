@@ -92,7 +92,7 @@ def get_dashboard(
 
     week_start = datetime.combine(
         datetime.now(timezone.utc).date() - timedelta(days=6), datetime.min.time()
-    )
+    ).replace(tzinfo=timezone.utc)
     week_rows = db.query(
         cast(Sale.created_at, DateType).label("day"),
         func.coalesce(func.sum(Sale.total_amount), 0).label("total"),
@@ -111,7 +111,7 @@ def get_dashboard(
         weekly_data.append({"date": day.strftime("%d.%m"), "amount": total, "count": count})
 
     _now = datetime.now(timezone.utc)
-    month_start = datetime(_now.year, _now.month, 1, 0, 0, 0)
+    month_start = datetime(_now.year, _now.month, 1, 0, 0, 0, tzinfo=timezone.utc)
     # Oylik savdolar valyuta bo'yicha
     month_rows = db.query(
         func.coalesce(Currency.code, 'UZS'),
@@ -160,7 +160,7 @@ def get_dashboard(
         low_q = low_q.filter(StockLevel.warehouse_id == warehouse_id)
     low_stock_rows = low_q.order_by(StockLevel.quantity).limit(20).all()
 
-    six_months_ago = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=180)
+    six_months_ago = datetime.now(timezone.utc) - timedelta(days=180)
     sold_ids = (
         db.query(SaleItem.product_id)
         .join(Sale)
@@ -180,13 +180,14 @@ def get_dashboard(
 
     cashier_q = (
         db.query(User.name, func.count(Sale.id).label("cnt"),
-                 func.coalesce(Currency.code, 'UZS'),
+                 func.coalesce(Currency.code, 'UZS').label("currency_code"),
                  func.coalesce(func.sum(Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)), 0).label("total"))
         .join(Sale, Sale.cashier_id == User.id)
         .outerjoin(Currency, Currency.id == Sale.currency_id)
         .filter(Sale.company_id == cid, Sale.created_at >= month_start, Sale.status == SaleStatus.completed, *wh_filter)
     )
     cashier_rows = cashier_q.group_by(User.id, User.name, func.coalesce(Currency.code, 'UZS')).order_by(func.sum(Sale.total_amount).desc()).limit(30).all()
+
     # Merge by cashier name grouping currencies
     cashier_map = {}
     for row in cashier_rows:
@@ -222,7 +223,7 @@ def get_dashboard(
 
     month30_start = datetime.combine(
         datetime.now(timezone.utc).date() - timedelta(days=29), datetime.min.time()
-    )
+    ).replace(tzinfo=timezone.utc)
     month30_rows = db.query(
         cast(Sale.created_at, DateType).label("day"),
         func.coalesce(func.sum(Sale.total_amount), 0).label("total"),
