@@ -900,7 +900,7 @@ export default function Reports() {
                 onExcel={() => {
                   const ws = XLSX.utils.json_to_sheet(cashierData.map(r => ({
                     'Kassir': r.cashier_name, 'Sotuvlar': r.sales_count,
-                    'Jami summa': r.total_amount, 'O\'rt. chek': r.avg_check, 'Chegirma': r.total_discount,
+                    'Jami summa': fmtDebt(r.total_amount), 'O\'rt. chek': fmtDebt(r.avg_check), 'Chegirma': fmtDebt(r.total_discount),
                   })));
                   const wb = XLSX.utils.book_new();
                   XLSX.utils.book_append_sheet(wb, ws, 'Kassir');
@@ -908,7 +908,7 @@ export default function Reports() {
                 }}
                 onPdf={() => printTable('Kassir hisoboti',
                   ['Kassir', 'Sotuvlar', 'Jami summa', "O'rt. chek"],
-                  cashierData.map(r => [r.cashier_name, r.sales_count, fmtS(r.total_amount), fmtS(r.avg_check)])
+                  cashierData.map(r => [r.cashier_name, r.sales_count, fmtDebt(r.total_amount), fmtDebt(r.avg_check)])
                 )}
               />
             </div>
@@ -949,9 +949,9 @@ export default function Reports() {
                         </td>
                         <td className="px-5 py-3.5 text-sm font-semibold text-slate-800">{r.cashier_name}</td>
                         <td className="px-5 py-3.5 text-sm text-slate-600">{r.sales_count} ta</td>
-                        <td className="px-5 py-3.5 text-sm font-bold text-emerald-600">{fmtS(r.total_amount)}</td>
-                        <td className="px-5 py-3.5 text-sm text-slate-500">{fmtS(r.avg_check)}</td>
-                        <td className="px-5 py-3.5 text-sm text-slate-500">{fmtS(r.total_discount)}</td>
+                        <td className="px-5 py-3.5 text-sm font-bold text-emerald-600">{fmtDebt(r.total_amount)}</td>
+                        <td className="px-5 py-3.5 text-sm text-slate-500">{fmtDebt(r.avg_check)}</td>
+                        <td className="px-5 py-3.5 text-sm text-slate-500">{fmtDebt(r.total_discount)}</td>
                       </tr>
                     ))}
                     {cashierData.length === 0 && <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-400">{t('common.noData')}</td></tr>}
