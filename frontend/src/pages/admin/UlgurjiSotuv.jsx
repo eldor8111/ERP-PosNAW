@@ -756,6 +756,12 @@ export default function UlgurjiSotuv() {
         wholesale_price: (onlySom && p.sale_currency !== 'UZS') ? Number(p.wholesale_price || 0) * getRate(p.sale_currency) : Number(p.wholesale_price || 0),
         sale_price: (onlySom && p.sale_currency !== 'UZS') ? Number(p.sale_price || 0) * getRate(p.sale_currency) : Number(p.sale_price || 0),
         stock_quantity: Number(p.stock_quantity || 0), image_url: p.image_url,
+        // Fiskal maydonlar
+        mxik_code:    p.mxik_code    || '',
+        package_code: p.package_code || '',
+        barcode:      p.barcode      || '',
+        labels:       p.labels       || [],
+        vat_rate_type: p.vat_rate_type || 'nds_12',
         addedAt: Date.now(),
       }];
     });
@@ -823,6 +829,12 @@ export default function UlgurjiSotuv() {
         wholesale_price: (onlySom && formProduct.sale_currency !== 'UZS') ? Number(formProduct.wholesale_price || 0) * getRate(formProduct.sale_currency) : Number(formProduct.wholesale_price || 0),
         sale_price: (onlySom && formProduct.sale_currency !== 'UZS') ? Number(formProduct.sale_price || 0) * getRate(formProduct.sale_currency) : Number(formProduct.sale_price || 0),
         stock_quantity: Number(formProduct.stock_quantity || 0), image_url: formProduct.image_url,
+        // Fiskal maydonlar
+        mxik_code:    formProduct.mxik_code    || '',
+        package_code: formProduct.package_code || '',
+        barcode:      formProduct.barcode      || '',
+        labels:       formProduct.labels       || [],
+        vat_rate_type: formProduct.vat_rate_type || 'nds_12',
         addedAt: Date.now(),
       }];
     });
