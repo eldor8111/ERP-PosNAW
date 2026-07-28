@@ -49,7 +49,7 @@ function KpiCard({ label, value, sub, icon, gradient, iconBg, badge }) {
             <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-white/70">{label}</p>
-                    <p className="mt-2 text-2xl font-bold truncate">{value}</p>
+                    <p className="mt-2 text-xl md:text-2xl font-bold break-words whitespace-normal">{value}</p>
                     {sub && <p className="mt-1 text-sm text-white/60">{sub}</p>}
                 </div>
                 <div className="flex flex-col items-end gap-2 ml-3">
