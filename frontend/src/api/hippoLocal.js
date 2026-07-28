@@ -1,155 +1,135 @@
 /**
  * hippoLocal.js
  * ─────────────
- * Hippo Communicator bilan TO'G'RIDAN muloqot qiluvchi modul.
- * Hippo kassir kompyuterida localhost:8081 da ishlaydi.
- * Backend orqali EMAS — brauzerdan bevosita chaqiriladi.
+ * Hippo Communicator bilan muloqot qiluvchi frontend moduli.
+ *
+ * Electron app (e-code-pos) da ishlasa:
+ *   → window.hippo.* (IPC orqali, Node.js, CORS muammosi yo'q) ✅
+ *
+ * Oddiy brauzerda ishlasa (fallback):
+ *   → http://127.0.0.1:8082 (hippo_bridge.py orqali)
  */
 
-const HIPPO_BASE = 'http://127.0.0.1:8082';   // CORS bridge (hippo_bridge.py)
-const HIPPO_TIMEOUT = 5000; // 5 soniya
+// ── Electron aniqlash ────────────────────────────────────────────────────────
+const isElectron = () => typeof window !== 'undefined' && !!window.hippo;
 
-// ── VAT mapping ─────────────────────────────────────────────────────────────
-const VAT_MAP = {
-  standard: 12,
-  zero:      0,
-  exempt:    0,
-  nds_12:   12,
-  nds_0:     0,
-  no_nds:    0,
-};
+// ── VAT mapping (fallback uchun) ─────────────────────────────────────────────
+const VAT_MAP = { standard: 12, zero: 0, exempt: 0, nds_12: 12, nds_0: 0, no_nds: 0 };
+const getVatPercent = (t) => VAT_MAP[t] ?? 12;
 
-function getVatPercent(vatRateType) {
-  return VAT_MAP[vatRateType] ?? 12;
+// ── Cart → Hippo items ───────────────────────────────────────────────────────
+function cartToItems(cart) {
+  return cart.map(item => ({
+    name:         item.product_name || item.name || 'Mahsulot',
+    barcode:      item.barcode       || '',
+    spic:         item.mxik_code     || '',
+    package_code: item.package_code  ? String(item.package_code) : '',
+    labels:       item.labels        || [],
+    quantity:     Number(item.qty_ordered || item.quantity || 1),
+    price:        Math.round(Number(item.unit_price || 0)),
+    discount:     Math.round(Number(item.discount   || 0)),
+    vat_percent:  getVatPercent(item.vat_rate_type),
+  }));
 }
 
-// ── HTTP yordamchi ──────────────────────────────────────────────────────────
-async function hippoRequest(method, path, body = null) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), HIPPO_TIMEOUT);
+// ── To'lovlarni ajratish ─────────────────────────────────────────────────────
+function splitPayments(payments) {
+  const CASH  = new Set(['cash']);
+  let cash = 0, card = 0;
+  for (const p of (payments || [])) {
+    const amt = parseInt(p.amount || 0, 10);
+    if (CASH.has(p.type)) cash += amt; else card += amt;
+  }
+  return { receivedCash: cash, received_card: card };
+}
 
+// ── Direct fetch (fallback) ───────────────────────────────────────────────────
+const BRIDGE = 'http://127.0.0.1:8082';
+async function bridgeFetch(method, path, body = null) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 5000);
   try {
-    const res = await fetch(`${HIPPO_BASE}${path}`, {
+    const res = await fetch(`${BRIDGE}${path}`, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: body ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
+      signal: ctrl.signal,
     });
-
-    clearTimeout(timer);
-
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      throw Object.assign(new Error(data?.Message || `HTTP ${res.status}`), {
-        status: res.status,
-        payload: data,
-      });
-    }
-
-    return data;
-  } catch (err) {
-    clearTimeout(timer);
-    if (err.name === 'AbortError') {
-      throw new Error('Hippo javob bermadi (timeout 5s). Servis ishlab turganligini tekshiring.');
-    }
-    throw err;
-  }
+    return await res.json().catch(() => ({}));
+  } finally { clearTimeout(t); }
 }
 
-// ── Health check ─────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────────────────
+// PUBLIC API
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Hippo Communicator health check */
 export async function hippoHealth() {
-  return hippoRequest('GET', '/fiscalization/v1/fiscal-modules');
+  if (isElectron()) return window.hippo.health();
+  return bridgeFetch('GET', '/api/fiscal-module/v1/fiscal-module');
 }
 
-// ── Fiskal modullar ro'yxati ─────────────────────────────────────────────────
+/** Ulangan fiskal qurilmalar ro'yxati */
 export async function getFiscalModules() {
-  return hippoRequest('GET', '/fiscalization/v1/fiscal-modules');
+  if (isElectron()) return window.hippo.listDevices();
+  return bridgeFetch('GET', '/api/fiscal-module/v1/fiscal-module');
 }
 
-// ── Chek ro'yxatdan o'tkazish ─────────────────────────────────────────────────
 /**
- * cart: PosKassa.jsx dagi cart array
- * payments: [{ type: 'cash'|'card'|..., amount: 15000 }]
- * factoryId: localStorage.getItem('fiskalId')
- * discountAmount: umumiy chegirma
+ * Sotuv chekini fiskallash
+ * @param {{ factoryId, cart, payments, discountAmount }} opts
  */
 export async function registerReceipt({ factoryId, cart, payments, discountAmount = 0 }) {
-  // To'lovlarni ajratish
-  const CASH_TYPES = new Set(['cash']);
-  const CARD_TYPES = new Set(['card', 'uzcard', 'humo', 'payme', 'click', 'uzum']);
-
-  let receivedCash = 0;
-  let receivedCard = 0;
-
-  for (const p of payments) {
-    const amt = parseInt(p.amount || 0, 10);
-    if (CASH_TYPES.has(p.type)) receivedCash += amt;
-    else if (CARD_TYPES.has(p.type)) receivedCard += amt;
-  }
-
-  // Chek qatorlari
-  const items = cart.map(item => ({
-    name:         item.product_name || item.name || 'Mahsulot',
-    barcode:      item.barcode || '',
-    spic:         item.mxik_code || '',
-    package_code: item.package_code ? String(item.package_code) : '',
-    labels:       item.labels || [],
-    quantity:     Number(item.qty_ordered || item.quantity || 1),
-    price:        Math.round(Number(item.unit_price || 0)),
-    discount:     Math.round(Number(item.discount || 0)),
-    vat_percent:  getVatPercent(item.vat_rate_type),
-  }));
-
-  const payload = {
-    factory_id: factoryId,
-    receipt: {
-      receivedCash,
-      received_card: receivedCard,
-      discount:      Math.round(Number(discountAmount || 0)),
-      type:          0,      // 0 = oddiy sotuv
-      operation:     0,      // 0 = sotuv
-      items,
-    },
+  const items = cartToItems(cart);
+  const { receivedCash, received_card } = splitPayments(payments);
+  const receipt = {
+    receivedCash,
+    received_card,
+    discount:  Math.round(Number(discountAmount || 0)),
+    type:      0,   // 0 = oddiy sotuv
+    operation: 0,   // 0 = sotuv
   };
 
-  return hippoRequest('POST', '/fiscalization/v1/receipt/register', payload);
-}
-
-// ── Qaytarish cheki ───────────────────────────────────────────────────────────
-export async function registerReturn({ factoryId, cart, payments, discountAmount = 0 }) {
-  const receipt = await registerReceipt({ factoryId, cart, payments, discountAmount });
-  // operation=1 bilan qaytadan yuboring (qaytarish)
-  // Amalda registerReceipt ni operation:1 bilan chaqiramiz
-  return hippoRequest('POST', '/fiscalization/v1/receipt/register', {
+  if (isElectron()) {
+    return window.hippo.fiscalize(factoryId, receipt, items);
+  }
+  return bridgeFetch('POST', '/api/fiscalization/v1/receipt/register', {
     factory_id: factoryId,
-    receipt: {
-      receivedCash:  0,
-      received_card: 0,
-      discount:      0,
-      type:          0,
-      operation:     1,   // 1 = qaytarish
-      items: cart.map(item => ({
-        name:         item.product_name || item.name || 'Mahsulot',
-        barcode:      item.barcode || '',
-        spic:         item.mxik_code || '',
-        package_code: item.package_code ? String(item.package_code) : '',
-        labels:       item.labels || [],
-        quantity:     Number(item.qty_ordered || item.quantity || 1),
-        price:        Math.round(Number(item.unit_price || 0)),
-        discount:     0,
-        vat_percent:  getVatPercent(item.vat_rate_type),
-      })),
-    },
+    receipt: { ...receipt, items },
   });
 }
 
-// ── Z-report ochish ───────────────────────────────────────────────────────────
-export async function openZReport(factoryId) {
-  return hippoRequest('POST', '/report/v1/z-report/open', { factory_id: factoryId });
+/**
+ * Qaytarish chekini fiskallash
+ */
+export async function registerReturn({ factoryId, cart, discountAmount = 0 }) {
+  const items = cartToItems(cart);
+  const receipt = {
+    receivedCash:  0,
+    received_card: 0,
+    discount:      0,
+    type:          0,
+    operation:     1,   // 1 = qaytarish
+  };
+
+  if (isElectron()) {
+    return window.hippo.fiscalize(factoryId, receipt, items);
+  }
+  return bridgeFetch('POST', '/api/fiscalization/v1/receipt/register', {
+    factory_id: factoryId,
+    receipt: { ...receipt, items },
+  });
 }
 
-// ── Z-report yopish ───────────────────────────────────────────────────────────
-export async function closeZReport(factoryId) {
-  return hippoRequest('POST', '/report/v1/z-report/close', { factory_id: factoryId });
+/** Z-report ochish */
+export async function openZReport(factoryId) {
+  if (isElectron()) return window.hippo.openShift(factoryId);
+  return bridgeFetch('POST', '/api/report/v1/z-report/open', { factory_id: factoryId });
 }
+
+/** Z-report yopish */
+export async function closeZReport(factoryId) {
+  if (isElectron()) return window.hippo.closeShift(factoryId);
+  return bridgeFetch('POST', '/api/report/v1/z-report/close', { factory_id: factoryId });
+}
+
