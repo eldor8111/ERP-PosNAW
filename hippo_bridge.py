@@ -23,9 +23,10 @@ BRIDGE_PORT = 8082
 class CORSProxy(BaseHTTPRequestHandler):
 
     CORS_HEADERS = {
-        "Access-Control-Allow-Origin":  "*",
-        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+        "Access-Control-Allow-Origin":          "*",
+        "Access-Control-Allow-Methods":         "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers":         "Content-Type, Authorization, X-Requested-With",
+        "Access-Control-Allow-Private-Network": "true",   # Chrome Private Network Access
     }
 
     def log_message(self, format, *args):
