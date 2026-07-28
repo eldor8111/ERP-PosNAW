@@ -329,7 +329,19 @@ export default function AdminLayout() {
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {navGroups.map((group) => {
-            const visibleLinks = group.links.filter(link => user && link.roles.includes(user.role));
+            const visibleLinks = group.links.filter(link => {
+              if (!user) return false;
+              if (user.role === 'super_admin') return true;
+              
+              const permKey = link.path.split('/').pop();
+              if (user.permissions && Object.keys(user.permissions).length > 0) {
+                if (user.permissions[permKey] !== undefined) {
+                  return user.permissions[permKey] === true;
+                }
+              }
+              
+              return link.roles.includes(user.role);
+            });
             if (!visibleLinks.length) return null;
             return (
               <div key={group.key} className="">

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
 import { useLang } from '../../context/LangContext';
 import toast from 'react-hot-toast';
+import { PERMISSIONS } from '../../constants/permissions';
 
 // super_admin ni dropdown dan yashiramiz — faqat DB orqali beriladi
 const ROLES = ['admin', 'director', 'manager', 'accountant', 'warehouse', 'cashier'];
@@ -22,7 +23,7 @@ const ROLE_COLORS = {
   cashier: 'bg-indigo-100 text-indigo-700',
 };
 
-const BLANK_FORM = { name: '', phone: '', email: '', password: '', role: 'cashier', branch_id: '' };
+const BLANK_FORM = { name: '', phone: '', email: '', password: '', role: 'cashier', branch_id: '', permissions: {} };
 
 const inp = "w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500";
 
@@ -69,6 +70,40 @@ function BranchSelect({ value, onChange, branches }) {
   );
 }
 
+function PermissionsList({ form, setField }) {
+  const handlePerm = (k, v) => {
+    const newPerms = { ...(form.permissions || {}) };
+    if (v === 'default') delete newPerms[k];
+    else newPerms[k] = (v === 'allow');
+    setField('permissions', newPerms);
+  };
+  return (
+    <div className="pt-2 border-t border-slate-100 mt-4">
+      <h4 className="text-sm font-bold text-slate-700 mb-2">Maxsus huquqlar</h4>
+      <p className="text-xs text-slate-500 mb-3">Tizim bo'limlariga kirishni alohida belgilashingiz mumkin.</p>
+      <div className="max-h-60 overflow-y-auto space-y-2 pr-1" style={{ scrollbarWidth: 'thin' }}>
+        {Object.entries(PERMISSIONS).map(([k, p]) => (
+          <div key={k} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 bg-slate-50 border border-slate-100 rounded-xl">
+            <div>
+              <div className="text-xs font-semibold text-slate-700">{p.label}</div>
+              <div className="text-[10px] text-slate-500 leading-tight mt-0.5">{p.desc}</div>
+            </div>
+            <select
+              value={form.permissions?.[k] === true ? 'allow' : form.permissions?.[k] === false ? 'deny' : 'default'}
+              onChange={e => handlePerm(k, e.target.value)}
+              className="text-xs py-1.5 px-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium"
+            >
+              <option value="default">Standart (Rolga qarab)</option>
+              <option value="allow" className="text-emerald-600 font-semibold">Ruxsat berish</option>
+              <option value="deny" className="text-red-600 font-semibold">Taqiqlash</option>
+            </select>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // OTP bosqichlari: 'form' → 'otp_sent' → 'otp_verified'
 export default function Users() {
   const { t } = useLang();
@@ -101,7 +136,7 @@ export default function Users() {
     setModal('create');
   };
   const openEdit = (u) => {
-    setForm({ name: u.name, phone: u.phone, email: u.email || '', password: '', role: u.role, branch_id: u.branch_id ?? '' });
+    setForm({ name: u.name, phone: u.phone, email: u.email || '', password: '', role: u.role, branch_id: u.branch_id ?? '', permissions: u.permissions || {} });
     setSelected(u); setError(''); setModal('edit');
   };
   const openKassa = async (u) => {
@@ -169,6 +204,7 @@ export default function Users() {
         email: form.email || null,
         password: form.password,
         role: form.role,
+        permissions: form.permissions,
         branch_id: form.branch_id ? Number(form.branch_id) : null,
       };
       await api.post('/users/', payload);
@@ -187,6 +223,7 @@ export default function Users() {
         phone: form.phone,
         email: form.email || null,
         role: form.role,
+        permissions: form.permissions,
         branch_id: form.branch_id ? Number(form.branch_id) : null,
       };
       await api.put(`/users/${selected.id}`, payload);
@@ -359,6 +396,8 @@ export default function Users() {
               {branches.length > 0 && (
                 <BranchSelect value={form.branch_id} onChange={v => setField('branch_id', v)} branches={branches} />
               )}
+              
+              <PermissionsList form={form} setField={setField} />
 
               {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
 
@@ -399,6 +438,9 @@ export default function Users() {
               {branches.length > 0 && (
                 <BranchSelect value={form.branch_id} onChange={v => setField('branch_id', v)} branches={branches} />
               )}
+              
+              <PermissionsList form={form} setField={setField} />
+
               {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>

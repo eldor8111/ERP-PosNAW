@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import enum
 
-from sqlalchemy import Boolean, Column, DateTime, Enum, Integer, String, ForeignKey  # type: ignore
+from sqlalchemy import Boolean, Column, DateTime, Enum, Integer, String, ForeignKey, JSON  # type: ignore
 from sqlalchemy.orm import relationship  # type: ignore
 
 from app.database import Base  # type: ignore
@@ -31,6 +31,7 @@ class User(Base):
     email = Column(String(100), unique=True, nullable=True)
     hashed_password = Column(String(200), nullable=False)
     role = Column(Enum(UserRole), default=UserRole.cashier)
+    permissions = Column(JSON, nullable=True, default={})
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
     status = Column(Enum(UserStatus), default=UserStatus.active)

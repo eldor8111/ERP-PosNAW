@@ -20,6 +20,7 @@ class UserCreate(BaseModel):
     email: Optional[str] = None
     password: str
     role: UserRole = UserRole.cashier
+    permissions: Optional[dict] = None
     branch_id: Optional[int] = None
     otp_verified_token: Optional[str] = None
 
@@ -34,6 +35,7 @@ class UserUpdate(BaseModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     role: Optional[UserRole] = None
+    permissions: Optional[dict] = None
     status: Optional[UserStatus] = None
     branch_id: Optional[int] = None
 
@@ -48,6 +50,7 @@ class UserOut(BaseModel):
     phone: str
     email: Optional[str]
     role: UserRole
+    permissions: Optional[dict] = None
     status: UserStatus
     branch_id: Optional[int] = None
     company_id: Optional[int] = None

@@ -62,6 +62,12 @@ def get_current_user(
     if payload_role:
         user.role = UserRole(payload_role)  # type: ignore
 
+    if payload_company_id:
+        from app.models.user_company import UserCompany
+        uc = db.query(UserCompany).filter(UserCompany.user_id == user.id, UserCompany.company_id == int(payload_company_id)).first()
+        if uc and uc.permissions:
+            user.permissions = uc.permissions
+
     _check_company_subscription(user, db)
 
     return user
@@ -93,6 +99,12 @@ def get_current_user_allow_expired(
     payload_role = payload.get("role")
     if payload_role:
         user.role = UserRole(payload_role)  # type: ignore
+        
+    if payload_company_id:
+        from app.models.user_company import UserCompany
+        uc = db.query(UserCompany).filter(UserCompany.user_id == user.id, UserCompany.company_id == int(payload_company_id)).first()
+        if uc and uc.permissions:
+            user.permissions = uc.permissions
         
     return user
 

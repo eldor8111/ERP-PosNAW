@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import (
     Boolean, Column, DateTime, Enum,
-    ForeignKey, Integer, UniqueConstraint,
+    ForeignKey, Integer, UniqueConstraint, JSON
 )
 from sqlalchemy.orm import relationship  # type: ignore
 
@@ -21,6 +21,7 @@ class UserCompany(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
     role = Column(Enum(UserRole), default=UserRole.cashier, nullable=False)
+    permissions = Column(JSON, nullable=True, default={})
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 

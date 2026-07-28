@@ -246,6 +246,7 @@ def create_user(
             user_id=active_existing.id,
             company_id=company_id,
             role=data.role,
+            permissions=data.permissions or {},
             is_active=True
         )
         db.add(new_uc)
@@ -272,16 +273,18 @@ def create_user(
         user.email = data.email
         user.hashed_password = hash_password(data.password)
         user.role = data.role
+        user.permissions = data.permissions or {}
         user.branch_id = data.branch_id
         user.company_id = company_id
         user.status = UserStatus.active
 
         uc_inactive = db.query(UserCompany).filter(UserCompany.user_id == user.id, UserCompany.company_id == company_id).first()
         if not uc_inactive:
-            db.add(UserCompany(user_id=user.id, company_id=company_id, role=data.role, is_active=True))
+            db.add(UserCompany(user_id=user.id, company_id=company_id, role=data.role, permissions=data.permissions or {}, is_active=True))
         else:
             uc_inactive.is_active = True
             uc_inactive.role = data.role
+            uc_inactive.permissions = data.permissions or {}
     else:
         user = User(
             name=data.name,
@@ -289,13 +292,14 @@ def create_user(
             email=data.email,
             hashed_password=hash_password(data.password),
             role=data.role,
+            permissions=data.permissions or {},
             branch_id=data.branch_id,
             company_id=company_id,
             tg_chat_id=None,
         )
         db.add(user)
         db.flush()
-        db.add(UserCompany(user_id=user.id, company_id=company_id, role=data.role, is_active=True))
+        db.add(UserCompany(user_id=user.id, company_id=company_id, role=data.role, permissions=data.permissions or {}, is_active=True))
 
     db.flush()
 
@@ -354,6 +358,11 @@ def update_user(
         user.role = data.role
         if uc:
             uc.role = data.role
+            
+    if data.permissions is not None:
+        user.permissions = data.permissions
+        if uc:
+            uc.permissions = data.permissions
     if data.status is not None:
         user.status = data.status
         if uc:
