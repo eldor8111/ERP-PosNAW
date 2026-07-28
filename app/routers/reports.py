@@ -517,15 +517,17 @@ def product_sales_report(
     """Barcha mahsulotlarning aniq qancha sotilganini ko'rsatadigan hisobot"""
     start, end = _date_range(date_from, date_to)
     
+    er = func.coalesce(func.nullif(SaleItem.exchange_rate, 0), 1)
+    
     q = (
         db.query(
             Product.id,
             Product.name,
             Product.sku,
-            func.coalesce(SaleItem.currency_code, 'UZS').label("currency_code"),
+            func.coalesce(Product.cost_currency, 'UZS').label("currency_code"),
             func.sum(SaleItem.quantity).label("total_qty"),
-            func.sum(SaleItem.subtotal).label("total_revenue"),
-            func.sum((SaleItem.unit_price - SaleItem.cost_price) * SaleItem.quantity - SaleItem.discount).label("total_profit")
+            func.sum(SaleItem.subtotal / er).label("total_revenue"),
+            func.sum(((SaleItem.unit_price - SaleItem.cost_price) * SaleItem.quantity - SaleItem.discount) / er).label("total_profit")
         )
         .join(SaleItem, SaleItem.product_id == Product.id)
         .join(Sale, Sale.id == SaleItem.sale_id)
@@ -535,7 +537,7 @@ def product_sales_report(
             Sale.created_at < end,
             Sale.status == SaleStatus.completed
         )
-        .group_by(Product.id, Product.name, Product.sku, func.coalesce(SaleItem.currency_code, 'UZS'))
+        .group_by(Product.id, Product.name, Product.sku, func.coalesce(Product.cost_currency, 'UZS'))
         .order_by(func.sum(SaleItem.quantity).desc())
     )
     

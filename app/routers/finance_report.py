@@ -65,6 +65,8 @@ def profit_report(
     """Mahsulot va kategoriya bo'yicha foyda hisoboti (FIFO, vazvratlar chegirilgan)"""
     start, end = _date_range(date_from, date_to)
 
+    er = func.coalesce(func.nullif(SaleItem.exchange_rate, 0), 1)
+
     qty_expr = func.sum(
         case(
             (Sale.status == SaleStatus.completed, SaleItem.quantity),
@@ -74,24 +76,24 @@ def profit_report(
     )
     revenue_expr = func.sum(
         case(
-            (Sale.status == SaleStatus.completed, SaleItem.subtotal),
-            (Sale.status == SaleStatus.refunded, -SaleItem.subtotal),
+            (Sale.status == SaleStatus.completed, SaleItem.subtotal / er),
+            (Sale.status == SaleStatus.refunded, -SaleItem.subtotal / er),
             else_=0,
         )
     )
     cost_expr = func.sum(
         case(
-            (Sale.status == SaleStatus.completed, SaleItem.cost_price * SaleItem.quantity),
-            (Sale.status == SaleStatus.refunded, -SaleItem.cost_price * SaleItem.quantity),
+            (Sale.status == SaleStatus.completed, (SaleItem.cost_price * SaleItem.quantity) / er),
+            (Sale.status == SaleStatus.refunded, -(SaleItem.cost_price * SaleItem.quantity) / er),
             else_=0,
         )
     )
     profit_expr = func.sum(
         case(
             (Sale.status == SaleStatus.completed,
-             SaleItem.subtotal - SaleItem.cost_price * SaleItem.quantity),
+             (SaleItem.subtotal - SaleItem.cost_price * SaleItem.quantity) / er),
             (Sale.status == SaleStatus.refunded,
-             -(SaleItem.subtotal - SaleItem.cost_price * SaleItem.quantity)),
+             -(SaleItem.subtotal - SaleItem.cost_price * SaleItem.quantity) / er),
             else_=0,
         )
     )
@@ -102,7 +104,7 @@ def profit_report(
             Product.name,
             Product.sku,
             Category.name.label("category_name"),
-            func.coalesce(SaleItem.currency_code, 'UZS').label("currency"),
+            func.coalesce(Product.cost_currency, 'UZS').label("currency"),
             qty_expr.label("qty_sold"),
             revenue_expr.label("revenue"),
             cost_expr.label("cost"),
@@ -119,7 +121,7 @@ def profit_report(
     )
     q = q.filter(Sale.company_id == current_user.company_id)
     rows = (
-        q.group_by(Product.id, Product.name, Product.sku, Category.name, func.coalesce(SaleItem.currency_code, 'UZS'))
+        q.group_by(Product.id, Product.name, Product.sku, Category.name, func.coalesce(Product.cost_currency, 'UZS'))
         .order_by(profit_expr.desc())
         .all()
     )
