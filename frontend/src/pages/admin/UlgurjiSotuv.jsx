@@ -10,6 +10,8 @@ import ShiftOpenModal from '../../components/ShiftOpenModal';
 import { matchesSearch } from '../../utils/translit';
 import ProductAddModal from '../../components/ProductAddModal';
 import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
+import { fiscalizeAndPrint } from '../../api/hippoLocal';
+
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 const today = () => new Date().toISOString().slice(0, 10);
@@ -560,6 +562,12 @@ export default function UlgurjiSotuv() {
   const [editingSale, setEditingSale] = useState(null);
   const [pendingSaving, setPendingSaving] = useState(false);
 
+  // Fiskal tasdiqlash modal
+  const [fiskalPending, setFiskalPending] = useState(null); // null | { factoryId, cart, payments, discount }
+  const [isFiskalizing, setIsFiskalizing] = useState(false);
+
+
+
   const [tab, setTab] = useState('new');
   const [sales, setSales] = useState([]);
   const [loadingSales, setLoadingSales] = useState(false);
@@ -1066,12 +1074,29 @@ export default function UlgurjiSotuv() {
           }, tpl, cfg));
         } catch (err) { console.error('Auto-print error:', err); }
       }
+
+      // Snapshot: cart tozalanishidan oldin saqlaymiz
+      const cartSnap     = [...cart];
+      const paymentsSnap = payments.filter(p => parseN(p.amt) > 0).map(p => ({
+        type: p.type, amount: String(parseN(p.amt) * getRate(p.currency || 'UZS')),
+      }));
+      const discSnap = saleDisc;
+
       setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDiscVal('');
       setPayNote(''); setDebtDate('');
       setShowPayment(false); setShowDebtDate(false); setPayments([]);
       setFormProduct(null); setFormPrice(''); setFormQty('1'); setFormDiscVal('');
       sessionStorage.removeItem('ulgurji_cart');
       sessionStorage.removeItem('ulgurji_customer');
+
+      // Fiskalizatsiya yoqilgan bo'lsa — tasdiqlash modalini ko'rsatamiz
+      const fiskalEnabled = JSON.parse(localStorage.getItem('fiskalSend') || 'false');
+      const factoryId     = JSON.parse(localStorage.getItem('fiskalId')   || 'null');
+      if (fiskalEnabled && factoryId && !editingSale) {
+        setFiskalPending({ factoryId, cartSnap, paymentsSnap, discount: discSnap });
+      }
+
+
     } catch (e) { toast.error(e?.response?.data?.detail || 'Saqlashda xatolik'); }
     finally { setSaving(false); }
   };
@@ -1247,6 +1272,61 @@ export default function UlgurjiSotuv() {
     <div className="absolute inset-0 flex flex-col bg-slate-100 overflow-hidden">
       {showShiftModal && <ShiftOpenModal onOpened={() => { reloadShift(); setShowShiftModal(false); }} onCancel={() => setShowShiftModal(false)} />}
       {showProdAddModal && <ProductAddModal onClose={() => setShowProdAddModal(false)} onSaved={p => { selectFormProduct(p); setShowProdAddModal(false); }} />}
+
+      {/* ── FISKAL TASDIQLASH MODAL ─────────────────────────────────────── */}
+      {fiskalPending && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-[360px] overflow-hidden">
+            <div className="bg-slate-900 px-5 py-4 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+              </div>
+              <div>
+                <div className="text-white font-bold text-sm">Sotuv saqlandi ✓</div>
+                <div className="text-slate-400 text-xs">Fiskal chek haqida qaror qiling</div>
+              </div>
+            </div>
+            <div className="px-5 py-5 text-center">
+              <div className="text-2xl mb-1">🧾</div>
+              <div className="font-bold text-slate-800 text-base mb-1">Fiskal chek chiqarilsinmi?</div>
+              <div className="text-slate-500 text-xs">Soliq bo'yicha rasmiy chek Hippo orqali yoziladi va printer ga yuboriladi</div>
+            </div>
+            <div className="px-5 pb-5 flex gap-3">
+              <button
+                disabled={isFiskalizing}
+                onClick={() => setFiskalPending(null)}
+                className="flex-1 py-3 rounded-xl border-2 border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-colors disabled:opacity-40"
+              >
+                Yo'q, o'tkazib yubor
+              </button>
+              <button
+                disabled={isFiskalizing}
+                onClick={async () => {
+                  setIsFiskalizing(true);
+                  try {
+                    const { factoryId, cartSnap, paymentsSnap, discount } = fiskalPending;
+                    await fiscalizeAndPrint({ factoryId, cart: cartSnap, payments: paymentsSnap, discountAmount: discount });
+                    toast.success('✅ Fiskal chek yuborildi!');
+                  } catch (err) {
+                    toast.error('⚠️ Fiskal xato: ' + (err?.message || "Noma'lum"));
+                  } finally {
+                    setIsFiskalizing(false);
+                    setFiskalPending(null);
+                  }
+                }}
+                className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isFiskalizing
+                  ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg> Yuborilmoqda...</>
+                  : <>✓ Ha, fiskal qil</>
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── HEADER ── */}
       <div className="shrink-0 bg-white border-b border-slate-200 px-3 md:px-5 py-2.5 flex items-center justify-between shadow-sm gap-2">
