@@ -524,7 +524,7 @@ def product_sales_report(
             Product.id,
             Product.name,
             Product.sku,
-            func.coalesce(func.nullif(Product.sale_currency, ''), 'UZS').label("currency_code"),
+            func.coalesce(func.nullif(Product.wholesale_currency, 'UZS'), func.nullif(Product.cost_currency, 'UZS'), func.nullif(Product.sale_currency, 'UZS'), 'UZS').label("currency_code"),
             func.sum(SaleItem.quantity).label("total_qty"),
             func.sum(SaleItem.subtotal / er).label("total_revenue"),
             func.sum(((SaleItem.unit_price - SaleItem.cost_price) * SaleItem.quantity - SaleItem.discount) / er).label("total_profit")
@@ -537,7 +537,7 @@ def product_sales_report(
             Sale.created_at < end,
             Sale.status == SaleStatus.completed
         )
-        .group_by(Product.id, Product.name, Product.sku, func.coalesce(func.nullif(Product.sale_currency, ''), 'UZS'))
+        .group_by(Product.id, Product.name, Product.sku, func.coalesce(func.nullif(Product.wholesale_currency, 'UZS'), func.nullif(Product.cost_currency, 'UZS'), func.nullif(Product.sale_currency, 'UZS'), 'UZS'))
         .order_by(func.sum(SaleItem.quantity).desc())
     )
     
