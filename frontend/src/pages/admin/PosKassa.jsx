@@ -444,9 +444,12 @@ const navigate = useNavigate();
       // Fiskalizatsiya yoqilgan bo'lsa — tasdiqlash modalini ko'rsatamiz
       const fiskalEnabled = JSON.parse(localStorage.getItem('fiskalSend') || 'false');
       const factoryId     = JSON.parse(localStorage.getItem('fiskalId')   || 'null');
+      console.log('[FISKAL DEBUG]', { fiskalEnabled, factoryId, offline: result?.offline, result });
       if (fiskalEnabled && factoryId && !result?.offline) {
+        console.log('[FISKAL] Modal ochilmoqda...');
         setFiskalPending({ factoryId, cartSnap, paymentsSnap, discount: discSnap });
       }
+
 
     } catch (e) {
       toast.error(e.response?.data?.detail || "Xatolik yuz berdi");
