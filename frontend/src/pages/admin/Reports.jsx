@@ -174,7 +174,6 @@ export default function Reports() {
 
   // Ma'lumotlar
   const [salesData, setSalesData] = useState([]);
-  const [inventoryData, setInventoryData] = useState([]);
   const [expenseData, setExpenseData] = useState(null);
   const [profitData, setProfitData] = useState([]);
   const [cashierData, setCashierData] = useState([]);
@@ -213,9 +212,6 @@ export default function Reports() {
       if (tab === 'sales') {
         const r = await api.get(`/reports/sales${qs()}`);
         setSalesData(r.data);
-      } else if (tab === 'inventory') {
-        const r = await api.get('/reports/inventory');
-        setInventoryData(r.data);
       } else if (tab === 'expenses') {
         const r = await api.get(`/reports/expenses${qs()}`);
         setExpenseData(r.data);
@@ -294,7 +290,6 @@ export default function Reports() {
     { key: 'profit', label: t('reports.tab.profit'), icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z' },
     { key: 'pl', label: t('reports.tab.pl'), icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
     { key: 'cashier', label: t('reports.tab.cashier'), icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
-    { key: 'inventory', label: t('reports.tab.inventory'), icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
     { key: 'deadstock', label: t('reports.tab.deadstock'), icon: 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
     { key: 'expenses', label: t('reports.tab.expenses'), icon: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z' },
     { key: 'purchases', label: t('reports.tab.purchases'), icon: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z' },
@@ -945,65 +940,6 @@ export default function Reports() {
                       </tr>
                     ))}
                     {cashierData.length === 0 && <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-400">{t('common.noData')}</td></tr>}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ── Ombor ── */}
-        {tab === 'inventory' && (
-          <>
-            <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
-              <span className="text-sm font-semibold text-slate-700">Ombor qoldiqlari</span>
-              <ExportBtns
-                onExcel={() => {
-                  const ws = XLSX.utils.json_to_sheet(inventoryData.map(i => ({
-                    'Mahsulot': i.product_name, 'SKU': i.sku, 'Qoldiq': i.quantity,
-                    'Min. qoldiq': i.min_stock, 'Qiymat': i.value, 'Holat': i.is_low ? 'Kam' : 'Yetarli',
-                  })));
-                  const wb = XLSX.utils.book_new();
-                  XLSX.utils.book_append_sheet(wb, ws, 'Ombor');
-                  saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `ombor_${today()}.xlsx`);
-                }}
-                onPdf={() => printTable('Ombor qoldiqlari',
-                  ['Mahsulot', 'SKU', 'Qoldiq', 'Min. qoldiq', 'Qiymat', 'Holat'],
-                  inventoryData.map(i => [i.product_name, i.sku, i.quantity, i.min_stock, fmtS(i.value), i.is_low ? '⚠ Kam' : 'Yetarli'])
-                )}
-              />
-            </div>
-            {loading ? <Spinner /> : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100">
-                      {['Mahsulot', 'SKU', 'Qoldiq', 'Min. qoldiq', 'Qiymat', 'Holat'].map(h => (
-                        <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {inventoryData.map(i => (
-                      <tr key={i.product_id} className={`hover:bg-slate-50 transition-colors ${i.is_low ? 'bg-rose-50/30' : ''}`}>
-                        <td className="px-5 py-3.5 text-sm font-medium text-slate-800">{i.product_name}</td>
-                        <td className="px-5 py-3.5 text-sm font-mono text-indigo-600">{i.sku}</td>
-                        <td className="px-5 py-3.5">
-                          <span className={`text-sm font-bold ${i.is_low ? 'text-red-500' : 'text-slate-800'}`}>{i.quantity}</span>
-                        </td>
-                        <td className="px-5 py-3.5 text-sm text-slate-400">{i.min_stock}</td>
-                        <td className="px-5 py-3.5 text-sm text-slate-700">{fmtS(i.value)}</td>
-                        <td className="px-5 py-3.5">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                            i.is_low ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'
-                          }`}>
-                            <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                            {i.is_low ? 'Kam' : 'Yetarli'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                    {inventoryData.length === 0 && <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-400">{t('common.noData')}</td></tr>}
                   </tbody>
                 </table>
               </div>
