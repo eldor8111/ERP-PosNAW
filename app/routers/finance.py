@@ -305,6 +305,8 @@ def get_cash_balance(
     from app.models.company import Company
     comp = db.query(Company).filter(Company.id == user.company_id).first() if user.company_id else None
 
+    balance_by_curr = {k: income_by_curr.get(k, 0) - expense_by_curr.get(k, 0) for k in set(income_by_curr) | set(expense_by_curr)}
+
     return {
         "company_name": comp.name if comp else "Tizim",
         "org_code": comp.org_code if comp else "-",
@@ -312,6 +314,7 @@ def get_cash_balance(
         "total_expense": expense,
         "income_by_currency": income_by_curr,
         "expense_by_currency": expense_by_curr,
+        "balance_by_currency": balance_by_curr,
         "balance": float(str(comp.balance or 0)) if comp else 0,
     }
 
