@@ -348,8 +348,8 @@ export default function Users() {
       {/* ── CREATE MODAL ─────────────────────────────────────── */}
       {modal === 'create' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-slate-100">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-100 shrink-0">
               <h3 className="text-lg font-bold text-slate-800">{t('user.newUser')}</h3>
               <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -357,7 +357,7 @@ export default function Users() {
                 </svg>
               </button>
             </div>
-            <form onSubmit={handleCreate} className="p-6 space-y-4">
+            <form onSubmit={handleCreate} className="p-6 space-y-4 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
 
               {/* Ism */}
               <Field label={`${t('common.name')} *`}>
@@ -415,8 +415,8 @@ export default function Users() {
       {/* ── EDIT MODAL ─────────────────────────────────────── */}
       {modal === 'edit' && selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-slate-100">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-100 shrink-0">
               <h3 className="text-lg font-bold text-slate-800">{t('user.editUser')}</h3>
               <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -424,7 +424,7 @@ export default function Users() {
                 </svg>
               </button>
             </div>
-            <form onSubmit={handleEdit} className="p-6 space-y-4">
+            <form onSubmit={handleEdit} className="p-6 space-y-4 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
               <Field label={`${t('common.name')} *`}>
                 <input type="text" required value={form.name} onChange={e => setField('name', e.target.value)} className={inp} autoFocus />
               </Field>
