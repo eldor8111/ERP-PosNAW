@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { saveReceiptSettings } from '../../utils/receiptBuilder';
 import { Search, Zap } from 'lucide-react';
 import axios from 'axios';
+import { getFiscalModules } from '../../api/hippoLocal';
 
 // ── Valyutalar tab ────────────────────────────────────────────────────────────
 function CurrenciesTab() {
@@ -1711,21 +1712,14 @@ function FiskalTab() {
   });
   const [loading, setLoading]         = useState(false);
 
-  // Hippo health va qurilmalarni yuklash
+  // Hippo health va qurilmalarni BEVOSITA localhost:8081 dan yuklash
   const refresh = async () => {
     setLoading(true);
     setStatus('checking');
     try {
-      await api.get('/hippo/health', { _silent: true });
+      const modules = await getFiscalModules(); // to'g'ridan localhost:8081
+      const list = Array.isArray(modules) ? modules : (modules?.FiscalModules || []);
       setStatus('online');
-    } catch {
-      setStatus('offline');
-      setLoading(false);
-      return;
-    }
-    try {
-      const res = await api.get('/hippo/fiscal-modules', { _silent: true });
-      const list = Array.isArray(res.data) ? res.data : [];
       setModules(list);
       // Agar hali tanlanmagan bo'lsa, birinchisini avtomatik tanlaymiz
       if (!selectedId && list.length > 0) {
@@ -1734,6 +1728,7 @@ function FiskalTab() {
         localStorage.setItem('fiskalId', JSON.stringify(fid));
       }
     } catch {
+      setStatus('offline');
       setModules([]);
     } finally {
       setLoading(false);

@@ -9,6 +9,7 @@ import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../ut
 import { useActiveShift } from '../../hooks/useActiveShift';
 import ShiftOpenModal from '../../components/ShiftOpenModal';
 import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
+import { registerReceipt } from '../../api/hippoLocal';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const cleanNum = (str) => Number(String(str).replace(/\D/g, ''));
@@ -412,6 +413,26 @@ const navigate = useNavigate();
       }
 
       const result = await submitSaleOrQueue(payload, false);
+
+      // ── Hippo: chekni BEVOSITA localhost:8081 ga yuborish ────────────────
+      try {
+        const fiskalEnabled = JSON.parse(localStorage.getItem('fiskalSend') || 'false');
+        const factoryId     = JSON.parse(localStorage.getItem('fiskalId')   || 'null');
+        if (fiskalEnabled && factoryId && !result?.offline) {
+          await registerReceipt({
+            factoryId,
+            cart,           // product_name, barcode, mxik_code, package_code, vat_rate_type bor
+            payments,       // [{ type: 'cash'|'card', amount: '15000' }]
+            discountAmount: totalDiscount,
+          });
+          console.log('[Hippo] Chek muvaffaqiyatli fiskallandi.');
+        }
+      } catch (hippoErr) {
+        // Hippo xatosi sotuvni bekor qilmaydi — faqat ogohlantirish
+        console.warn('[Hippo] Fiskallashtirishda xato:', hippoErr?.message);
+        toast("⚠️ Sotuv saqlandi, lekin fiskal chek yuborilmadi", { duration: 4000 });
+      }
+      // ─────────────────────────────────────────────────────────────────────
 
       setCart([]);
       setPayments([{ type: 'cash', amount: '' }]);

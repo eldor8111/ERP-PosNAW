@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
+import { openZReport } from '../api/hippoLocal';
 
 export default function ShiftOpenModal({ onOpened, onCancel }) {
   const [cash, setCash] = useState('');
@@ -13,16 +14,15 @@ export default function ShiftOpenModal({ onOpened, onCancel }) {
       await api.post('/shifts/open', { opening_cash: Number(cash) || 0 });
       toast.success('Smena muvaffaqiyatli ochildi!');
 
-      // ── Hippo Z-report ochish (background) ───────────────────────────────
+      // ── Hippo Z-report ochish (BEVOSITA localhost:8081) ────────────────
       try {
         const fiskalEnabled = JSON.parse(localStorage.getItem('fiskalSend') || 'false');
         const factoryId     = JSON.parse(localStorage.getItem('fiskalId')   || 'null');
         if (fiskalEnabled && factoryId) {
-          await api.post('/hippo/z-report/open', { factory_id: factoryId }, { _silent: true });
+          await openZReport(factoryId);
         }
       } catch (hippoErr) {
-        // Hippo xatosi smenani to'xtatmaydi — faqat ogohlantirish
-        console.warn('[Hippo] Z-report ochishda xato:', hippoErr?.response?.data || hippoErr.message);
+        console.warn('[Hippo] Z-report ochishda xato:', hippoErr?.message);
       }
       // ─────────────────────────────────────────────────────────────────────
 
