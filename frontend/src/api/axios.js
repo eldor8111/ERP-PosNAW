@@ -78,6 +78,22 @@ api.interceptors.request.use((config) => {
   const token = localStorage.getItem('access_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
 
+  // ── Hippo fiskalizatsiya headeri ────────────────────────────────────────
+  // POST /sales/   → sotuv cheki fiskallashtiriladi
+  // POST /shifts/close, /shifts/:id/close → Z-report yopiladi
+  try {
+    const url = config.url || ''
+    const isPost = config.method === 'post'
+    const isSalesPost  = isPost && url.includes('/sales/')
+    const isShiftClose = isPost && (url.endsWith('/close') || url.includes('/close'))
+    const fiskalEnabled = JSON.parse(localStorage.getItem('fiskalSend') || 'false')
+    const factoryId = JSON.parse(localStorage.getItem('fiskalId') || 'null')
+    if ((isSalesPost || isShiftClose) && fiskalEnabled && factoryId) {
+      config.headers['X-Hippo-Factory-Id'] = factoryId
+    }
+  } catch { /* localStorage o'qishda xato bo'lsa e'tibor bermaymiz */ }
+  // ─────────────────────────────────────────────────────────────────────────
+
   if (config.method === 'get' && !config._noCache) {
     const key = cacheKey(config.url, config.params)
     const now = Date.now()

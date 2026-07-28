@@ -2,7 +2,7 @@
 Shifts API: Manage cashier shifts.
 """
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException  # type: ignore
+from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
 from pydantic import BaseModel  # type: ignore
 from decimal import Decimal
@@ -228,17 +228,47 @@ def _do_close_shift(db: Session, shift: Shift, data: ShiftClose, user: "User") -
     return {"id": shift.id, "status": shift.status, "closed_at": shift.closed_at}
 
 
+def _hippo_z_close(factory_id: str):
+    """Hippo Z-report yopish — background task. Xatolik smena yopishni to'xtatmaydi."""
+    try:
+        import logging
+        from app.utils.hippo_client import hippo_client, HippoClientError
+        hippo_client.post("/report/v1/z-report/close", {"factory_id": factory_id})
+        logging.getLogger("hippo.shift").info("[Hippo] Z-report yopildi. factory_id=%s", factory_id)
+    except Exception as exc:
+        import logging
+        logging.getLogger("hippo.shift").warning("[Hippo] Z-report yopishda xato: %s", exc)
+
+
 @router.post("/close")
-def close_current_shift(data: ShiftClose = ShiftClose(), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def close_current_shift(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    data: ShiftClose = ShiftClose(),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """Close the current user's active shift (no shift_id needed)."""
     shift = db.query(Shift).filter(Shift.cashier_id == user.id, Shift.status == "open").first()
     if not shift:
         raise HTTPException(status_code=404, detail="Faol smena topilmadi")
-    return _do_close_shift(db, shift, data, user)
+    result = _do_close_shift(db, shift, data, user)
+    # ── Hippo Z-report ──
+    factory_id = request.headers.get("X-Hippo-Factory-Id", "").strip()
+    if factory_id:
+        background_tasks.add_task(_hippo_z_close, factory_id)
+    return result
 
 
 @router.post("/{shift_id}/close")
-def close_shift(shift_id: int, data: ShiftClose = ShiftClose(), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def close_shift(
+    shift_id: int,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    data: ShiftClose = ShiftClose(),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     shift = db.get(Shift, shift_id)
     if not shift or (user.role.value != "super_admin" and shift.company_id != user.company_id):
         raise HTTPException(status_code=404, detail="Smena topilmadi")
@@ -248,7 +278,12 @@ def close_shift(shift_id: int, data: ShiftClose = ShiftClose(), db: Session = De
             raise HTTPException(status_code=403, detail="Boshqa kassirning smenasini yopa olmaysiz")
     if shift.status == "closed":
         raise HTTPException(status_code=400, detail="Smena allaqachon yopilgan")
-    return _do_close_shift(db, shift, data, user)
+    result = _do_close_shift(db, shift, data, user)
+    # ── Hippo Z-report ──
+    factory_id = request.headers.get("X-Hippo-Factory-Id", "").strip()
+    if factory_id:
+        background_tasks.add_task(_hippo_z_close, factory_id)
+    return result
 
 
 @router.get("/{shift_id}")

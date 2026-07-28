@@ -1701,71 +1701,203 @@ function BranchesTab() {
 }
 
 function FiskalTab() {
-  const [fiskalId, setFiskalId] = useState("Fiskal qurilma topilmadi");
-
-  // 1. Dastlabki qiymatni localStorage'dan o'qiymiz
-  const [fiskalSend, setFiskalSend] = useState(() => {
-    const saved = localStorage.getItem("fiskalSend");
-    return saved !== null ? JSON.parse(saved) : false;
+  const [status, setStatus]           = useState('checking'); // 'checking'|'online'|'offline'
+  const [modules, setModules]         = useState([]);
+  const [selectedId, setSelectedId]   = useState(() => {
+    try { return JSON.parse(localStorage.getItem('fiskalId') || 'null'); } catch { return null; }
   });
+  const [fiskalSend, setFiskalSend]   = useState(() => {
+    try { return JSON.parse(localStorage.getItem('fiskalSend') || 'false'); } catch { return false; }
+  });
+  const [loading, setLoading]         = useState(false);
 
-  async function getFactoryID() {
+  // Hippo health va qurilmalarni yuklash
+  const refresh = async () => {
+    setLoading(true);
+    setStatus('checking');
     try {
-      const res = await api.get('/hippo/fiscal-modules');
-      setFiskalId(res.data[0]?.FactoryID || "Fiskal qurilma topilmadi");
-      localStorage.setItem("fiskalId", JSON.stringify(res.data[0]?.FactoryID))
-    } catch (error) {
-      setFiskalId("Fiskal qurilma topilmadi");
+      await api.get('/hippo/health', { _silent: true });
+      setStatus('online');
+    } catch {
+      setStatus('offline');
+      setLoading(false);
+      return;
     }
-  }
-
-  useEffect(() => {
-    setFiskalId("Aniqlanmoqda...");
-    getFactoryID();
-  }, []);
-
-  // 2. fiskalSend o'zgarganda localStorage'ga yozadigan yordamchi funksiya
-  const handleFiskalSendChange = (value) => {
-    setFiskalSend(value);
-    localStorage.setItem("fiskalSend", JSON.stringify(value));
+    try {
+      const res = await api.get('/hippo/fiscal-modules', { _silent: true });
+      const list = Array.isArray(res.data) ? res.data : [];
+      setModules(list);
+      // Agar hali tanlanmagan bo'lsa, birinchisini avtomatik tanlaymiz
+      if (!selectedId && list.length > 0) {
+        const fid = list[0]?.FactoryID || null;
+        setSelectedId(fid);
+        localStorage.setItem('fiskalId', JSON.stringify(fid));
+      }
+    } catch {
+      setModules([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  return (
-    <div>
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-col gap-2 bg-white w-max min-w-[340px] p-4 rounded-lg">
-          <p>Fiskal id:</p>
+  useEffect(() => { refresh(); }, []);
 
-          <div className='flex flex-col gap-3'>
-            <code>{fiskalId}</code>
+  const selectModule = (factoryId) => {
+    setSelectedId(factoryId);
+    localStorage.setItem('fiskalId', JSON.stringify(factoryId));
+  };
+
+  const toggleFiskal = (val) => {
+    setFiskalSend(val);
+    localStorage.setItem('fiskalSend', JSON.stringify(val));
+    if (val) toast.success('Fiskalizatsiya yoqildi ✓');
+    else toast("Fiskalizatsiya o'chirildi");
+  };
+
+  const statusColor = {
+    checking: 'bg-amber-400',
+    online:   'bg-emerald-500',
+    offline:  'bg-red-500',
+  }[status];
+
+  const statusLabel = {
+    checking: 'Tekshirilmoqda...',
+    online:   'Online — Hippo ishlayapti',
+    offline:  'Offline — Hippo topilmadi',
+  }[status];
+
+  return (
+    <div className="max-w-xl space-y-4">
+
+      {/* ── Header card ── */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-base font-bold text-slate-800">Hippo Communicator</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Fiskal qurilma integratsiyasi</p>
+          </div>
+          <button
+            onClick={refresh}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold rounded-xl transition-all disabled:opacity-50"
+          >
+            <svg className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Yangilash
+          </button>
+        </div>
+
+        {/* Status badge */}
+        <div className={`flex items-center gap-2.5 px-4 py-3 rounded-xl ${
+          status === 'online'   ? 'bg-emerald-50 border border-emerald-200' :
+          status === 'offline'  ? 'bg-red-50 border border-red-200' :
+          'bg-amber-50 border border-amber-200'
+        }`}>
+          <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+            status === 'checking' ? 'animate-pulse ' : ''
+          }${statusColor}`} />
+          <span className={`text-sm font-semibold ${
+            status === 'online'  ? 'text-emerald-700' :
+            status === 'offline' ? 'text-red-700' :
+            'text-amber-700'
+          }`}>{statusLabel}</span>
+        </div>
+
+        {status === 'offline' && (
+          <p className="text-xs text-red-500 mt-2 px-1">
+            Hippo Communicator ishlamayapti. Kassir kompyuterida servis ishga tushganligini tekshiring.
+          </p>
+        )}
+      </div>
+
+      {/* ── Fiskal modullar ── */}
+      {status === 'online' && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 className="text-sm font-bold text-slate-700 mb-3">Ulangan fiskal qurilmalar</h3>
+
+          {modules.length === 0 ? (
+            <div className="text-center py-6 text-slate-400">
+              <svg className="w-10 h-10 mx-auto mb-2 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
+              </svg>
+              <p className="text-sm font-medium">Fiskal qurilma topilmadi</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {modules.map((m) => {
+                const fid = m.FactoryID;
+                const isSelected = fid === selectedId;
+                return (
+                  <button
+                    key={fid}
+                    onClick={() => selectModule(fid)}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all ${
+                      isSelected
+                        ? 'border-indigo-500 bg-indigo-50'
+                        : 'border-slate-200 bg-slate-50 hover:border-indigo-300'
+                    }`}
+                  >
+                    <div className="text-left">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Factory ID</p>
+                      <p className="font-black text-slate-800 tracking-widest text-sm mt-0.5">{fid}</p>
+                      {m.Description && <p className="text-xs text-slate-400 mt-0.5">{m.Description}</p>}
+                    </div>
+                    {isSelected && (
+                      <span className="flex items-center gap-1 text-indigo-600 text-xs font-bold shrink-0">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Tanlangan
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Fiskalizatsiya toggle ── */}
+      {status === 'online' && selectedId && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-slate-800">Savdolarda fiskalizatsiya</h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Yoqilsa — har bir sotuv Hippo orqali fiskal qurilmaga yuboriladi
+              </p>
+            </div>
+            {/* Toggle switch */}
+            <button
+              onClick={() => toggleFiskal(!fiskalSend)}
+              className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors ${
+                fiskalSend ? 'bg-emerald-500' : 'bg-slate-300'
+              }`}
+            >
+              <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform ${
+                fiskalSend ? 'translate-x-8' : 'translate-x-1'
+              }`} />
+            </button>
           </div>
 
-          <hr className='opacity-30' />
-
-          {
-            fiskalId !== "Fiskal qurilma topilmadi" && (
-              <div className='flex flex-col gap-1'>
-                <p>Savdolarda fiskal qurilmaga yuborilsinmi?</p>
-
-                <div className='w-max'>
-                  <button
-                    onClick={() => handleFiskalSendChange(false)}
-                    className={`${fiskalSend === false ? "bg-indigo-600 text-white" : "text-indigo-600 bg-white"} border border-indigo-600 px-4 rounded-l-md cursor-pointer py-0.5`}
-                  >
-                    Yo'q
-                  </button>
-                  <button
-                    onClick={() => handleFiskalSendChange(true)}
-                    className={`${fiskalSend === true ? "bg-indigo-600 text-white" : "text-indigo-600 bg-white"} border border-indigo-600 px-4 rounded-r-md cursor-pointer py-0.5`}
-                  >
-                    Xa
-                  </button>
-                </div>
+          {fiskalSend && (
+            <div className="mt-4 flex items-start gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+              <svg className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+              <div>
+                <p className="text-xs font-bold text-emerald-700">Fiskalizatsiya faol</p>
+                <p className="text-xs text-emerald-600 mt-0.5">
+                  Qurilma: <span className="font-black tracking-widest">{selectedId}</span>
+                </p>
               </div>
-            )
-          }
+            </div>
+          )}
         </div>
-      </div>
+      )}
+
     </div>
   );
 }

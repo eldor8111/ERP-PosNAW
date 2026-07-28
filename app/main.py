@@ -33,9 +33,6 @@ from app.models import bot_session  # noqa: F401 — ensure bot_sessions table e
 from app.models import payme_transaction  # noqa: F401 — ensure payme_transactions table exists
 from dotenv import load_dotenv
 from app.services.scheduler import start_scheduler
-########################################
-from app.routers.hippo import hippo_app
-
 
 
 load_dotenv()

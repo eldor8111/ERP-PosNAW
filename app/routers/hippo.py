@@ -4,6 +4,8 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Query
 from app.schemas.hippo import (
     RegisterReceiptRequest,
     UpdateSettingsRequestModel,
+    ZReportRequest,
+    SyncRequestModel,
 )
 from app.services.hippo_service import hippo_service
 from app.utils.hippo_client import (
@@ -126,17 +128,17 @@ def get_current_shift(factory_id: str = Query(...)):
 # -- Z-report ----------------------------------------------------------------
 
 @router.post("/z-report/open")
-def open_z_report(factory_id: str = Query(...)):
+def open_z_report(request: ZReportRequest):
     try:
-        return hippo_service.open_z_report(factory_id)
+        return hippo_service.open_z_report(request.factory_id)
     except HippoClientError as exc:
         _map_exception(exc)
 
 
 @router.post("/z-report/close")
-def close_z_report(factory_id: str = Query(...)):
+def close_z_report(request: ZReportRequest):
     try:
-        return hippo_service.close_z_report(factory_id)
+        return hippo_service.close_z_report(request.factory_id)
     except HippoClientError as exc:
         _map_exception(exc)
 
@@ -149,10 +151,10 @@ def get_z_report(factory_id: str = Query(...), index: int = Query(0)):
         _map_exception(exc)
 
 
-@router.get("/z-report/unacknowledged")
-def get_unacknowledged_z_reports(factory_id: str = Query(...)):
+@router.post("/z-report/unacknowledged")
+def get_unacknowledged_z_reports(request: ZReportRequest):
     try:
-        return hippo_service.get_unacknowledged_z_report_indexes(factory_id)
+        return hippo_service.get_unacknowledged_z_report_indexes(request.factory_id)
     except HippoClientError as exc:
         _map_exception(exc)
 
@@ -160,17 +162,17 @@ def get_unacknowledged_z_reports(factory_id: str = Query(...)):
 # -- Sync -------------------------------------------------------------------
 
 @router.post("/sync/receipts")
-def sync_receipts(factory_id: str = Query(...), items_count: int = Query(50)):
+def sync_receipts(request: SyncRequestModel):
     try:
-        return hippo_service.sync_receipts(factory_id, items_count)
+        return hippo_service.sync_receipts(request.factory_id, request.items_count)
     except HippoClientError as exc:
         _map_exception(exc)
 
 
 @router.post("/sync/z-reports")
-def sync_z_reports(factory_id: str = Query(...), items_count: int = Query(50)):
+def sync_z_reports(request: SyncRequestModel):
     try:
-        return hippo_service.sync_z_reports(factory_id, items_count)
+        return hippo_service.sync_z_reports(request.factory_id, request.items_count)
     except HippoClientError as exc:
         _map_exception(exc)
 
@@ -208,14 +210,4 @@ def get_printers():
         return hippo_service.get_printers()
     except HippoClientError as exc:
         _map_exception(exc)
-
-from fastapi import FastAPI
-
-hippo_app = FastAPI(
-    title="Hippo Fiskalizatsiya APP",
-    description="Soliq fiskalizatsiya tizimi bilan integratsiya",
-    version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc"
-)
-hippo_app.include_router(router)
+

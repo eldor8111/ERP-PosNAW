@@ -13,6 +13,7 @@ from app.models.sale import Sale, SaleItem, SaleStatus
 from app.models.user import User, UserRole
 from app.schemas.sale import SaleCreate, SaleItemOut, SaleListOut, SaleOut, SaleUpdate
 from app.services.sale_service import create_sale, create_return_sale, delete_sale, update_sale, create_pending_sale
+from app.services.hippo_fiscalize import fiscalize_sale, fiscalize_return
 
 router = APIRouter(prefix="/sales", tags=["Sales (POS)"])
 
@@ -120,6 +121,15 @@ def make_sale(
     ip = request.client.host if request.client else None
     sale = create_sale(db=db, data=data, current_user=current_user, ip=ip, background_tasks=background_tasks)
     cust_name = sale.customer.name if getattr(sale, 'customer', None) else (db.query(Customer.name).filter(Customer.id == sale.customer_id).scalar() if sale.customer_id else None)
+
+    # ── Hippo fiskalizatsiya (background) ────────────────────────────────────
+    # Kassir X-Hippo-Factory-Id headerini yuborsa — chek fiskallashtiriladi.
+    # Header bo'lmasa — xato ko'tarilmaydi, sotuv normal saqlanadi.
+    _factory_id = request.headers.get("X-Hippo-Factory-Id", "").strip()
+    if _factory_id:
+        background_tasks.add_task(fiscalize_sale, db, sale.id, _factory_id)
+    # ─────────────────────────────────────────────────────────────────────────
+
     return SaleListOut(
         id=sale.id,  # type: ignore
         number=sale.number,  # type: ignore
@@ -138,6 +148,7 @@ def make_sale(
         created_at=sale.created_at,  # type: ignore
         currency_code=sale.currency.code if getattr(sale, 'currency', None) else "UZS",
     )
+
 
 
 @router.post("/pending", response_model=SaleListOut)
@@ -384,6 +395,8 @@ class RefundIn(_BaseModel):
 def refund_sale(
         sale_id: int,
         data: RefundIn,
+        request: Request,
+        background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
         current_user: User = Depends(require_roles(*POS_ROLES)),
 ):
@@ -409,4 +422,11 @@ def refund_sale(
         sale.status = SaleStatus.refunded if hasattr(SaleStatus, 'refunded') else sale.status  # type: ignore
 
     db.commit()
+
+    # ── Hippo: qaytarish chekini fiskallash (background) ─────────────────────
+    _factory_id = request.headers.get("X-Hippo-Factory-Id", "").strip()
+    if _factory_id:
+        background_tasks.add_task(fiscalize_return, db, sale_id, _factory_id)
+    # ─────────────────────────────────────────────────────────────────────────
+
     return {"message": f"{len(refunded)} ta mahsulot qaytarildi", "details": refunded}

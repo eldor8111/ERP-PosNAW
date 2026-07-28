@@ -12,6 +12,20 @@ export default function ShiftOpenModal({ onOpened, onCancel }) {
     try {
       await api.post('/shifts/open', { opening_cash: Number(cash) || 0 });
       toast.success('Smena muvaffaqiyatli ochildi!');
+
+      // ── Hippo Z-report ochish (background) ───────────────────────────────
+      try {
+        const fiskalEnabled = JSON.parse(localStorage.getItem('fiskalSend') || 'false');
+        const factoryId     = JSON.parse(localStorage.getItem('fiskalId')   || 'null');
+        if (fiskalEnabled && factoryId) {
+          await api.post('/hippo/z-report/open', { factory_id: factoryId }, { _silent: true });
+        }
+      } catch (hippoErr) {
+        // Hippo xatosi smenani to'xtatmaydi — faqat ogohlantirish
+        console.warn('[Hippo] Z-report ochishda xato:', hippoErr?.response?.data || hippoErr.message);
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
       onOpened();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Xatolik yuz berdi');
