@@ -23,6 +23,21 @@ const fmtRowDebt = (balance, currency) => {
   return `${Number(balance || 0).toLocaleString('uz-UZ')} ${curr === 'UZS' ? "so'm" : curr}`;
 };
 
+const sumDebtList = (list, key) => {
+  const result = {};
+  list.forEach(item => {
+    const val = item[key];
+    if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
+      Object.entries(val).forEach(([c, amt]) => {
+        result[c] = (result[c] || 0) + amt;
+      });
+    } else {
+      result['UZS'] = (result['UZS'] || 0) + Number(val || 0);
+    }
+  });
+  return result;
+};
+
 // ─── Kunlik sanalar ────────────────────────────────────────────────────────────
 const today = () => new Date().toISOString().slice(0, 10);
 const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
@@ -420,8 +435,8 @@ export default function Reports() {
                 onExcel={() => {
                   const ws = XLSX.utils.json_to_sheet(profitData.map(r => ({
                     'Mahsulot': r.product_name, 'SKU': r.sku, 'Kategoriya': r.category_name,
-                    'Sotildi': r.qty_sold, 'Daromad': r.revenue, 'Tannarx': r.cost,
-                    'Foyda': r.profit, 'Margin %': r.margin_pct,
+                    'Sotildi': r.qty_sold, 'Daromad': fmtDebt(r.revenue), 'Tannarx': fmtDebt(r.cost),
+                    'Foyda': fmtDebt(r.profit), 'Margin %': r.margin_pct,
                   })));
                   const wb = XLSX.utils.book_new();
                   XLSX.utils.book_append_sheet(wb, ws, 'Foyda');
@@ -451,9 +466,9 @@ export default function Reports() {
                         <td className="px-5 py-3.5 text-sm font-medium text-slate-800">{r.product_name}</td>
                         <td className="px-5 py-3.5"><span className="text-xs px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-lg">{r.category_name}</span></td>
                         <td className="px-5 py-3.5 text-sm text-slate-600">{fmt(r.qty_sold)}</td>
-                        <td className="px-5 py-3.5 text-sm font-semibold text-slate-800">{fmtS(r.revenue)}</td>
-                        <td className="px-5 py-3.5 text-sm text-slate-500">{fmtS(r.cost)}</td>
-                        <td className="px-5 py-3.5 text-sm font-semibold text-emerald-600">{fmtS(r.profit)}</td>
+                        <td className="px-5 py-3.5 text-sm font-semibold text-slate-800">{fmtDebt(r.revenue)}</td>
+                        <td className="px-5 py-3.5 text-sm text-slate-500">{fmtDebt(r.cost)}</td>
+                        <td className="px-5 py-3.5 text-sm font-semibold text-emerald-600">{fmtDebt(r.profit)}</td>
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-2">
                             <div className="flex-1 bg-slate-200 rounded-full h-1.5 min-w-12">
@@ -472,9 +487,9 @@ export default function Reports() {
                         <td className="px-5 py-3 text-sm text-slate-700">{t('admin.dict.th_total') || 'JAMI'}</td>
                         <td />
                         <td className="px-5 py-3 text-sm">{fmt(profitData.reduce((a, r) => a + r.qty_sold, 0))}</td>
-                        <td className="px-5 py-3 text-sm">{fmtS(profitData.reduce((a, r) => a + r.revenue, 0))}</td>
-                        <td className="px-5 py-3 text-sm">{fmtS(profitData.reduce((a, r) => a + r.cost, 0))}</td>
-                        <td className="px-5 py-3 text-sm text-emerald-600">{fmtS(profitData.reduce((a, r) => a + r.profit, 0))}</td>
+                        <td className="px-5 py-3 text-sm">{fmtDebt(sumDebtList(profitData, 'revenue'))}</td>
+                        <td className="px-5 py-3 text-sm">{fmtDebt(sumDebtList(profitData, 'cost'))}</td>
+                        <td className="px-5 py-3 text-sm text-emerald-600">{fmtDebt(sumDebtList(profitData, 'profit'))}</td>
                         <td />
                       </tr>
                     </tfoot>
@@ -957,7 +972,7 @@ export default function Reports() {
                   if (!deadStockData) return;
                   const ws = XLSX.utils.json_to_sheet(deadStockData.items.map(i => ({
                     'Mahsulot': i.product_name, 'SKU': i.sku,
-                    'Miqdor': i.quantity, 'Tannarx': i.cost_price, 'Qiymat': i.value,
+                    'Miqdor': i.quantity, 'Tannarx': fmtRowDebt(i.cost_price, i.currency), 'Qiymat': fmtRowDebt(i.value, i.currency),
                   })));
                   const wb = XLSX.utils.book_new();
                   XLSX.utils.book_append_sheet(wb, ws, "O'lik stok");
@@ -967,8 +982,8 @@ export default function Reports() {
                   if (!deadStockData) return;
                   printTable("O'lik stok hisoboti",
                     ['Mahsulot', 'SKU', 'Miqdor', 'Tannarx', 'Qiymat'],
-                    deadStockData.items.map(i => [i.product_name, i.sku, i.quantity, fmtS(i.cost_price), fmtS(i.value)]),
-                    ['JAMI', '', '', '', fmtS(deadStockData.total_value)]
+                    deadStockData.items.map(i => [i.product_name, i.sku, i.quantity, fmtRowDebt(i.cost_price, i.currency), fmtRowDebt(i.value, i.currency)]),
+                    ['JAMI', '', '', '', fmtDebt(deadStockData.total_value)]
                   );
                 }}
               />
@@ -982,7 +997,7 @@ export default function Reports() {
                   </div>
                   <div className="bg-amber-50 rounded-xl p-4">
                     <div className="text-xs font-semibold text-amber-600 mb-1">Umumiy qiymat</div>
-                    <div className="text-2xl font-bold text-amber-700">{fmtS(deadStockData.total_value)}</div>
+                    <div className="text-2xl font-bold text-amber-700">{fmtDebt(deadStockData.total_value)}</div>
                   </div>
                   <div className="bg-slate-50 rounded-xl p-4">
                     <div className="text-xs font-semibold text-slate-500 mb-1">Muddat</div>
@@ -1004,8 +1019,8 @@ export default function Reports() {
                           <td className="px-5 py-3.5 text-sm font-medium text-slate-800">{i.product_name}</td>
                           <td className="px-5 py-3.5 text-sm font-mono text-indigo-600">{i.sku}</td>
                           <td className="px-5 py-3.5 text-sm text-slate-600">{i.quantity}</td>
-                          <td className="px-5 py-3.5 text-sm text-slate-500">{fmtS(i.cost_price)}</td>
-                          <td className="px-5 py-3.5 text-sm font-semibold text-rose-600">{fmtS(i.value)}</td>
+                          <td className="px-5 py-3.5 text-sm text-slate-500">{fmtRowDebt(i.cost_price, i.currency)}</td>
+                          <td className="px-5 py-3.5 text-sm font-semibold text-rose-600">{fmtRowDebt(i.value, i.currency)}</td>
                         </tr>
                       ))}
                       {deadStockData.items.length === 0 && (

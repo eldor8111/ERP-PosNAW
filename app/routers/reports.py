@@ -429,7 +429,13 @@ def dead_stock_report(
         .order_by((StockLevel.quantity * Product.cost_price).desc())
         .all()
     )
-    total_value = sum(float(s.quantity * p.cost_price) for s, p in rows)
+    
+    total_value = {}
+    for s, p in rows:
+        c = p.cost_currency or 'UZS'
+        val = float(s.quantity * p.cost_price)
+        total_value[c] = total_value.get(c, 0) + val
+
     return {
         "months": months,
         "total_items": len(rows),
@@ -441,6 +447,7 @@ def dead_stock_report(
                 "sku": p.sku,
                 "quantity": float(s.quantity),
                 "cost_price": float(p.cost_price),
+                "currency": p.cost_currency or 'UZS',
                 "value": float(s.quantity * p.cost_price),
             }
             for s, p in rows
