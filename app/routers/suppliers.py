@@ -269,20 +269,60 @@ def pay_supplier_debt(
     # Update the currency-specific balance in debt_balances JSON
     from decimal import Decimal
     from sqlalchemy.orm.attributes import flag_modified
-    curr_val = Decimal(str(supplier.debt_balances.get(currency, 0)))
-    supplier.debt_balances[currency] = float(max(Decimal("0"), curr_val - Decimal(str(data.amount))))
+    from app.models.currency import Currency as CurrencyModel
+
+    def get_rate(cur: str) -> Decimal:
+        """Valyuta kursini qaytaradi (UZS=1)"""
+        if cur == "UZS":
+            return Decimal("1")
+        obj = db.query(CurrencyModel).filter(CurrencyModel.code == cur).first()
+        return Decimal(str(obj.rate)) if obj else Decimal("1")
+
+    payment_currency = currency          # to'lov valyutasi
+    payment_amount   = Decimal(str(data.amount))
+    payment_rate     = get_rate(payment_currency)
+    payment_in_uzs   = payment_amount * payment_rate  # to'lov UZS ekvivalenti
+
+    remaining_uzs = payment_in_uzs  # hali qoplash kerak bo'lgan UZS
+
+    # 1) Avval to'lov valyutasidagi qarzdan ayiramiz
+    if payment_currency in supplier.debt_balances and float(supplier.debt_balances[payment_currency]) > 0:
+        debt_in_pay_cur = Decimal(str(supplier.debt_balances[payment_currency]))
+        deducted = min(debt_in_pay_cur, payment_amount)
+        supplier.debt_balances[payment_currency] = float(debt_in_pay_cur - deducted)
+        remaining_uzs -= deducted * payment_rate
+
+    # 2) Qolgan summa bo'lsa, boshqa valyutalardagi qarzlardan kurs bo'yicha ayiramiz
+    if remaining_uzs > Decimal("0.001"):
+        for debt_cur, debt_val in list(supplier.debt_balances.items()):
+            if remaining_uzs <= Decimal("0.001"):
+                break
+            if debt_cur == payment_currency:
+                continue
+            debt_amount = Decimal(str(debt_val))
+            if debt_amount <= 0:
+                continue
+            debt_rate = get_rate(debt_cur)
+            # Bu valyutadagi qarz UZS ekvivalenti
+            debt_in_uzs = debt_amount * debt_rate
+            if debt_in_uzs <= Decimal("0.001"):
+                continue
+            # Necha UZS qoplanadi bu qarzdan
+            uzs_to_cover = min(remaining_uzs, debt_in_uzs)
+            # UZS dan ushbu valyutaga o'tkazamiz
+            amount_in_debt_cur = uzs_to_cover / debt_rate
+            supplier.debt_balances[debt_cur] = float(
+                max(Decimal("0"), debt_amount - amount_in_debt_cur)
+            )
+            remaining_uzs -= uzs_to_cover
+
     flag_modified(supplier, "debt_balances")
 
     # Update aggregate debt_balance (always in UZS)
-    from app.models.currency import Currency as CurrencyModel
-    exchange_rate = Decimal("1")
-    if currency != "UZS":
-        curr_obj = db.query(CurrencyModel).filter(CurrencyModel.code == currency).first()
-        if curr_obj:
-            exchange_rate = Decimal(str(curr_obj.rate))
-
-    amount_in_uzs = Decimal(str(data.amount)) * exchange_rate
+    exchange_rate = payment_rate
+    amount_in_uzs = payment_in_uzs
     supplier.debt_balance = max(Decimal("0"), Decimal(str(supplier.debt_balance or 0)) - amount_in_uzs)
+
 
 
     from app.models.moliya import Transaction, Wallet, KassaMovement
