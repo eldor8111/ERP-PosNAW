@@ -133,3 +133,45 @@ export async function closeZReport(factoryId) {
   return bridgeFetch('POST', '/api/report/v1/z-report/close', { factory_id: factoryId });
 }
 
+/**
+ * Fiskal chekni printer ga yuborish
+ * @param {string} factoryId
+ * @param {string|number} transactionId  — registerReceipt javobidagi transaction_id
+ */
+export async function printFiscalReceipt(factoryId, transactionId) {
+  if (isElectron()) {
+    return window.hippo.printReceipt(factoryId, transactionId);
+  }
+  return bridgeFetch('POST', '/api/fiscalization/v1/receipt/print', {
+    factory_id:     factoryId,
+    transaction_id: transactionId,
+  });
+}
+
+/**
+ * Fiskallash + chop etish birgalikda (checkout modal tomonidan ishlatiladi)
+ * @returns {{ fiscal: object, printed: boolean }}
+ */
+export async function fiscalizeAndPrint({ factoryId, cart, payments, discountAmount = 0 }) {
+  const fiscal = await registerReceipt({ factoryId, cart, payments, discountAmount });
+  let printed = false;
+  const txId = fiscal?.transaction_id ?? fiscal?.TransactionID;
+
+  // PDF to'g'ridan qaytsa — Electron printer ga yubor
+  if (fiscal?.receipt_pdf_base64_content) {
+    try {
+      if (isElectron() && window.electron?.print?.fiscalPdf) {
+        await window.electron.print.fiscalPdf(fiscal.receipt_pdf_base64_content, '');
+        printed = true;
+      }
+    } catch { /* chop xatosi fiskalizatsiyani bekor qilmaydi */ }
+  } else if (txId) {
+    try {
+      await printFiscalReceipt(factoryId, txId);
+      printed = true;
+    } catch { /* chop xatosi fiskalizatsiyani bekor qilmaydi */ }
+  }
+
+  return { fiscal, printed };
+}
+

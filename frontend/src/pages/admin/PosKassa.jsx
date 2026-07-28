@@ -9,7 +9,8 @@ import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../ut
 import { useActiveShift } from '../../hooks/useActiveShift';
 import ShiftOpenModal from '../../components/ShiftOpenModal';
 import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
-import { registerReceipt } from '../../api/hippoLocal';
+import { registerReceipt, fiscalizeAndPrint } from '../../api/hippoLocal';
+
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const cleanNum = (str) => Number(String(str).replace(/\D/g, ''));
@@ -306,8 +307,14 @@ const navigate = useNavigate();
   const [activeInputIdx, setActiveInputIdx] = useState(0);
 
   const [showDebtModal, setShowDebtModal] = useState(false);
-  const [debtDueDate, setDebtDueDate] = useState('');
-  const [debtNote, setDebtNote] = useState('');
+  const [debtDueDate, setDebtDueDate]     = useState('');
+  const [debtNote, setDebtNote]           = useState('');
+
+  // Fiskal tasdiqlash modal
+  // null | { factoryId, cartSnap, paymentsSnap, discount }
+  const [fiskalPending, setFiskalPending] = useState(null);
+  const [isFiskalizing, setIsFiskalizing] = useState(false);
+
 
   const handleNumClick = (val) => {
     setPayments(prev => {
@@ -414,25 +421,10 @@ const navigate = useNavigate();
 
       const result = await submitSaleOrQueue(payload, false);
 
-      // ── Hippo: chekni BEVOSITA localhost:8081 ga yuborish ────────────────
-      try {
-        const fiskalEnabled = JSON.parse(localStorage.getItem('fiskalSend') || 'false');
-        const factoryId     = JSON.parse(localStorage.getItem('fiskalId')   || 'null');
-        if (fiskalEnabled && factoryId && !result?.offline) {
-          await registerReceipt({
-            factoryId,
-            cart,           // product_name, barcode, mxik_code, package_code, vat_rate_type bor
-            payments,       // [{ type: 'cash'|'card', amount: '15000' }]
-            discountAmount: totalDiscount,
-          });
-          console.log('[Hippo] Chek muvaffaqiyatli fiskallandi.');
-        }
-      } catch (hippoErr) {
-        // Hippo xatosi sotuvni bekor qilmaydi — faqat ogohlantirish
-        console.warn('[Hippo] Fiskallashtirishda xato:', hippoErr?.message);
-        toast("⚠️ Sotuv saqlandi, lekin fiskal chek yuborilmadi", { duration: 4000 });
-      }
-      // ─────────────────────────────────────────────────────────────────────
+      // Savat va to'lovni tozalamiz
+      const cartSnap     = [...cart];
+      const paymentsSnap = [...payments];
+      const discSnap     = totalDiscount;
 
       setCart([]);
       setPayments([{ type: 'cash', amount: '' }]);
@@ -442,11 +434,20 @@ const navigate = useNavigate();
       setDebtNote('');
       setShowCheckout(false);
       setOrderId(Math.floor(Math.random() * 900000) + 100000);
+
       if (result?.offline) {
-         toast.warning("Internet yo'q — sotuv offline saqlandi.");
+        toast.warning("Internet yo'q — sotuv offline saqlandi.");
       } else {
-         toast.success("Muvaffaqiyatli sotildi!");
+        toast.success('Muvaffaqiyatli sotildi!');
       }
+
+      // Fiskalizatsiya yoqilgan bo'lsa — tasdiqlash modalini ko'rsatamiz
+      const fiskalEnabled = JSON.parse(localStorage.getItem('fiskalSend') || 'false');
+      const factoryId     = JSON.parse(localStorage.getItem('fiskalId')   || 'null');
+      if (fiskalEnabled && factoryId && !result?.offline) {
+        setFiskalPending({ factoryId, cartSnap, paymentsSnap, discount: discSnap });
+      }
+
     } catch (e) {
       toast.error(e.response?.data?.detail || "Xatolik yuz berdi");
     } finally {
@@ -462,7 +463,79 @@ const navigate = useNavigate();
           onCancel={() => setShowShiftModal(false)}
         />
       )}
-      
+
+      {/* ── FISKAL TASDIQLASH MODAL ─────────────────────────────────────── */}
+      {fiskalPending && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-[360px] overflow-hidden">
+            {/* Header */}
+            <div className="bg-slate-900 px-5 py-4 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+              </div>
+              <div>
+                <div className="text-white font-bold text-sm">Sotuv saqlandi ✓</div>
+                <div className="text-slate-400 text-xs">Fiskal chek haqida qaror qiling</div>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="px-5 py-5 text-center">
+              <div className="text-2xl mb-1">🧾</div>
+              <div className="font-bold text-slate-800 text-base mb-1">
+                Fiskal chek chiqarilsinmi?
+              </div>
+              <div className="text-slate-500 text-xs">
+                Soliq bo'yicha rasmiy chek Hippo orqali yoziladi va printer ga yuboriladi
+              </div>
+            </div>
+
+            {/* Buttons */}
+            <div className="px-5 pb-5 flex gap-3">
+              {/* Yo'q */}
+              <button
+                disabled={isFiskalizing}
+                onClick={() => setFiskalPending(null)}
+                className="flex-1 py-3 rounded-xl border-2 border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-colors disabled:opacity-40"
+              >
+                Yo'q, o'tkazib yubor
+              </button>
+
+              {/* Ha */}
+              <button
+                disabled={isFiskalizing}
+                onClick={async () => {
+                  setIsFiskalizing(true);
+                  try {
+                    const { factoryId, cartSnap, paymentsSnap, discount } = fiskalPending;
+                    await fiscalizeAndPrint({
+                      factoryId,
+                      cart:          cartSnap,
+                      payments:      paymentsSnap,
+                      discountAmount: discount,
+                    });
+                    toast.success('✅ Fiskal chek yuborildi!');
+                  } catch (err) {
+                    toast.error('⚠️ Fiskal xato: ' + (err?.message || 'Noma\'lum'));
+                  } finally {
+                    setIsFiskalizing(false);
+                    setFiskalPending(null);
+                  }
+                }}
+                className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isFiskalizing
+                  ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg> Yuborilmoqda...</>
+                  : <>✓ Ha, fiskal qil</>
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── LEFT PANE: CHECKOUT & CART ── */}
       <div className="w-[450px] bg-white flex flex-col shadow-2xl z-20 shrink-0">
         
