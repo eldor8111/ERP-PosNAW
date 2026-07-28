@@ -913,7 +913,7 @@ export default function Reports() {
               />
             </div>
             {cashBalance && (
-              <div className="grid grid-cols-3 gap-4 px-6 py-4 border-b border-slate-100 bg-linear-to-r from-slate-50 to-blue-50/30">
+              <div className="grid grid-cols-2 gap-4 px-6 py-4 border-b border-slate-100 bg-linear-to-r from-slate-50 to-blue-50/30">
                 <div className="bg-white rounded-xl p-4 border border-emerald-100 shadow-sm">
                   <div className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-1">Jami Kirim</div>
                   <div className="text-2xl font-black text-emerald-600">{fmtDebt(cashBalance.income_by_currency || {})}</div>
@@ -921,10 +921,6 @@ export default function Reports() {
                 <div className="bg-white rounded-xl p-4 border border-red-100 shadow-sm">
                   <div className="text-xs font-bold text-red-500 uppercase tracking-widest mb-1">Jami Chiqim</div>
                   <div className="text-2xl font-black text-red-500">{fmtDebt(cashBalance.expense_by_currency || {})}</div>
-                </div>
-                <div className={`rounded-xl p-4 border shadow-sm ${cashBalance.balance >= 0 ? 'bg-white border-blue-100' : 'bg-red-50 border-red-200'}`}>
-                  <div className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-1">Kassadagi Balans</div>
-                  <div className={`text-2xl font-black ${cashBalance.balance >= 0 ? 'text-blue-700' : 'text-red-600'}`}>{fmtDebt(cashBalance.balance_by_currency || {})}</div>
                 </div>
               </div>
             )}
