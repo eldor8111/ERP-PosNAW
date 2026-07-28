@@ -23,13 +23,20 @@ def list_users(
 ):
     from sqlalchemy import or_
     from app.models.user_company import UserCompany
-    q = db.query(User).outerjoin(UserCompany).filter(User.status == UserStatus.active)
+    q = db.query(User).filter(User.status == UserStatus.active)
+    
+    uc_exists = db.query(UserCompany).filter(
+        UserCompany.user_id == User.id,
+        UserCompany.company_id == current_user.company_id,
+        UserCompany.is_active == True
+    ).exists()
+
     q = q.filter(
         or_(
             User.company_id == current_user.company_id,
-            (UserCompany.company_id == current_user.company_id) & (UserCompany.is_active == True)
+            uc_exists
         )
-    ).distinct()
+    )
     return q.all()
 
 
