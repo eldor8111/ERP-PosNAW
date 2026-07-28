@@ -155,16 +155,16 @@ export default function ChiqimTolovlar() {
           <table className="min-w-full">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">#</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">CONTRAGENT</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">TURI</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">TO'LOV</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500" colSpan="6">TO'LOV TURLARI</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">CHIQIM MANBASI</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">KASSA</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">MA'LUMOT</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">SANA</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">AMALLAR</th>
+                <th className="px-2 py-2 text-left text-[11px] font-semibold text-slate-500">#</th>
+                <th className="px-2 py-2 text-left text-[11px] font-semibold text-slate-500">CONTRAGENT</th>
+                <th className="px-2 py-2 text-left text-[11px] font-semibold text-slate-500">TURI</th>
+                <th className="px-2 py-2 text-left text-[11px] font-semibold text-slate-500">TO'LOV</th>
+                <th className="px-2 py-2 text-center text-[11px] font-semibold text-slate-500" colSpan="6">TO'LOV TURLARI</th>
+                <th className="px-2 py-2 text-left text-[11px] font-semibold text-slate-500">CHIQIM MANBASI</th>
+                <th className="px-2 py-2 text-left text-[11px] font-semibold text-slate-500">KASSA</th>
+                <th className="px-2 py-2 text-left text-[11px] font-semibold text-slate-500">MA'LUMOT</th>
+                <th className="px-2 py-2 text-left text-[11px] font-semibold text-slate-500">SANA</th>
+                <th className="px-2 py-2 text-left text-[11px] font-semibold text-slate-500">AMALLAR</th>
               </tr>
               <tr className="bg-slate-50 border-b border-slate-100">
                 <th colSpan="4"></th>
@@ -182,48 +182,48 @@ export default function ChiqimTolovlar() {
                 <tr><td colSpan="15" className="text-center py-8">Yuklanmoqda...</td></tr>
               ) : data?.items?.length > 0 ? (
                 data.items.map((i, idx) => (
-                  <tr key={i.id} className="hover:bg-slate-50 text-sm">
-                    <td className="px-4 py-3 text-slate-500">{idx + 1}</td>
-                    <td className="px-4 py-3 font-semibold text-indigo-600">{i.contragent}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded-md text-xs font-medium ${i.turi === 'Xarajat' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
+                  <tr key={i.id} className="hover:bg-slate-50 text-xs">
+                    <td className="px-2 py-2 text-slate-500">{idx + 1}</td>
+                    <td className="px-2 py-2 font-semibold text-indigo-600">{i.contragent}</td>
+                    <td className="px-2 py-2 whitespace-nowrap">
+                      <span className={`px-2 py-1 rounded-md font-medium ${i.turi === 'Xarajat' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
                         {i.turi}
                       </span>
                     </td>
-                    <td className="px-4 py-3 font-bold text-red-500">{fmtCurr(i.amount, i.currency_code)}</td>
-                    <td className="px-2 py-3 text-center border-x border-slate-50">{['cash', 'naqd'].includes(i.payment_type) ? fmtCurr(i.amount, i.currency_code) : 0}</td>
-                    <td className="px-2 py-3 text-center border-x border-slate-50">{['card', 'plastik', 'uzcard', 'humo'].includes(i.payment_type) ? fmtCurr(i.amount, i.currency_code) : 0}</td>
-                    <td className="px-2 py-3 text-center border-x border-slate-50">{['bank', 'bank_transfer'].includes(i.payment_type) ? fmtCurr(i.amount, i.currency_code) : 0}</td>
-                    <td className="px-2 py-3 text-center border-x border-slate-50">{i.payment_type === 'click' ? fmtCurr(i.amount, i.currency_code) : 0}</td>
-                    <td className="px-2 py-3 text-center border-x border-slate-50">{i.payment_type === 'payme' ? fmtCurr(i.amount, i.currency_code) : 0}</td>
-                    <td className="px-2 py-3 text-center border-x border-slate-50">{i.payment_type === 'uzum' ? fmtCurr(i.amount, i.currency_code) : 0}</td>
-                    <td className="px-4 py-3">
-                      <span className="px-2 py-1 rounded-md text-xs bg-blue-50 text-blue-600 border border-blue-100">
-                        {i.reference_type === 'supplier_payment' || i.reference_type === 'purchase_order' ? "Ta'minotchiga to'lov" : i.reference_type === 'expense' ? "Xarajat" : "Mijozga qaytaruv"}
+                    <td className="px-2 py-2 font-bold text-red-500 whitespace-nowrap">{fmtCurr(i.amount, i.currency_code)}</td>
+                    <td className="px-2 py-2 text-center border-x border-slate-50 whitespace-nowrap">{['cash', 'naqd'].includes(i.payment_type) ? fmtCurr(i.amount, i.currency_code) : 0}</td>
+                    <td className="px-2 py-2 text-center border-x border-slate-50 whitespace-nowrap">{['card', 'plastik', 'uzcard', 'humo'].includes(i.payment_type) ? fmtCurr(i.amount, i.currency_code) : 0}</td>
+                    <td className="px-2 py-2 text-center border-x border-slate-50 whitespace-nowrap">{['bank', 'bank_transfer'].includes(i.payment_type) ? fmtCurr(i.amount, i.currency_code) : 0}</td>
+                    <td className="px-2 py-2 text-center border-x border-slate-50 whitespace-nowrap">{i.payment_type === 'click' ? fmtCurr(i.amount, i.currency_code) : 0}</td>
+                    <td className="px-2 py-2 text-center border-x border-slate-50 whitespace-nowrap">{i.payment_type === 'payme' ? fmtCurr(i.amount, i.currency_code) : 0}</td>
+                    <td className="px-2 py-2 text-center border-x border-slate-50 whitespace-nowrap">{i.payment_type === 'uzum' ? fmtCurr(i.amount, i.currency_code) : 0}</td>
+                    <td className="px-2 py-2 whitespace-nowrap">
+                      <span className="px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-600 border border-blue-100">
+                        {i.reference_type === 'supplier_payment' || i.reference_type === 'purchase_order' ? "Ta'minotchiga" : i.reference_type === 'expense' ? "Xarajat" : "Mijozga qaytaruv"}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-slate-600 text-xs">{i.wallet}</td>
-                    <td className="px-4 py-3 text-slate-500 text-xs">{i.description || '—'}</td>
-                    <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{new Date(i.created_at).toLocaleString('uz-UZ')}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2">
+                    <td className="px-2 py-2 text-slate-600 whitespace-nowrap">{i.wallet}</td>
+                    <td className="px-2 py-2 text-slate-500 max-w-[120px] truncate" title={i.description || ''}>{i.description || '—'}</td>
+                    <td className="px-2 py-2 text-slate-500 whitespace-nowrap">{new Date(i.created_at).toLocaleString('uz-UZ')}</td>
+                    <td className="px-2 py-2 whitespace-nowrap">
+                      <div className="flex gap-1.5">
                         {i.reference_type !== 'purchase_order' ? (
                           <>
                             <button
                               onClick={() => openEdit(i)}
-                              className="px-2 py-1 text-xs font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
+                              className="px-2 py-1 font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
                             >
                               Tahrirlash
                             </button>
                             <button
                               onClick={() => handleDelete(i)}
-                              className="px-2 py-1 text-xs font-semibold bg-red-50 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
+                              className="px-2 py-1 font-semibold bg-red-50 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
                             >
                               O'chirish
                             </button>
                           </>
                         ) : (
-                          <span className="text-xs text-slate-400 italic">Xarid bo'limidan</span>
+                          <span className="text-[10px] text-red-400 italic bg-red-50 px-1 py-0.5 rounded">Xaridlar bo'limidan tahrirlang</span>
                         )}
                       </div>
                     </td>
