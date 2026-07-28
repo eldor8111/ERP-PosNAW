@@ -758,7 +758,7 @@ export default function UlgurjiSotuv() {
         stock_quantity: Number(p.stock_quantity || 0), image_url: p.image_url,
         // Fiskal maydonlar
         mxik_code:    p.mxik_code    || '',
-        package_code: p.package_code || '',
+        package_code: p.parent_code || p.package_code || '',
         barcode:      p.barcode      || '',
         labels:       p.labels       || [],
         vat_rate_type: p.vat_rate_type || 'nds_12',
@@ -831,7 +831,7 @@ export default function UlgurjiSotuv() {
         stock_quantity: Number(formProduct.stock_quantity || 0), image_url: formProduct.image_url,
         // Fiskal maydonlar
         mxik_code:    formProduct.mxik_code    || '',
-        package_code: formProduct.package_code || '',
+        package_code: formProduct.parent_code || formProduct.package_code || '',
         barcode:      formProduct.barcode      || '',
         labels:       formProduct.labels       || [],
         vat_rate_type: formProduct.vat_rate_type || 'nds_12',
