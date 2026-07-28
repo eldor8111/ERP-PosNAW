@@ -104,7 +104,7 @@ def profit_report(
             Product.name,
             Product.sku,
             Category.name.label("category_name"),
-            func.coalesce(Product.cost_currency, 'UZS').label("currency"),
+            func.coalesce(func.nullif(Product.sale_currency, ''), 'UZS').label("currency"),
             qty_expr.label("qty_sold"),
             revenue_expr.label("revenue"),
             cost_expr.label("cost"),
@@ -121,7 +121,7 @@ def profit_report(
     )
     q = q.filter(Sale.company_id == current_user.company_id)
     rows = (
-        q.group_by(Product.id, Product.name, Product.sku, Category.name, func.coalesce(Product.cost_currency, 'UZS'))
+        q.group_by(Product.id, Product.name, Product.sku, Category.name, func.coalesce(func.nullif(Product.sale_currency, ''), 'UZS'))
         .order_by(profit_expr.desc())
         .all()
     )
