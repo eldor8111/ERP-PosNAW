@@ -40,6 +40,7 @@ def daily_sales_report(
             func.sum(Sale.discount_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)).label("total_discount"),
             func.avg(Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)).label("avg_check"),
         )
+        .select_from(Sale)
         .outerjoin(Currency, Currency.id == Sale.currency_id)
         .filter(Sale.created_at >= start, Sale.created_at < end, Sale.status == SaleStatus.completed)
     )
@@ -149,8 +150,8 @@ def cashier_report(
             func.coalesce(func.sum(Sale.discount_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)), 0).label("total_discount"),
             func.coalesce(func.avg(Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)), 0).label("avg_check"),
         )
-        .outerjoin(Currency, Currency.id == Sale.currency_id)
         .join(Sale, Sale.cashier_id == User.id)
+        .outerjoin(Currency, Currency.id == Sale.currency_id)
         .filter(Sale.created_at >= start, Sale.created_at < end, Sale.status == SaleStatus.completed)
     )
     q = q.filter(Sale.company_id == current_user.company_id)
