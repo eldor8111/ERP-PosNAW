@@ -726,14 +726,17 @@ function SalesTable({ rows, stats, salesData, loading, emptyText = "Sotuvlar yo'
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-slate-100 text-sm text-slate-700">
-                        {saleDetailData?.items?.map((item, index) => (
+                        {saleDetailData?.items?.map((item, index) => {
+                          const itemCurrency = item.currency_code || saleDetailData?.currency_code || saleDetailData?.currency || 'UZS';
+                          const currLabel = itemCurrency === 'USD' ? '$' : "so'm";
+                          return (
                           <tr key={index} className="hover:bg-slate-50/60 transition-colors">
                             <td className="px-4 py-3 font-medium text-slate-900">{item.product_name}</td>
                             <td className="px-4 py-3 text-right font-mono text-slate-600">{Number(item.quantity).toFixed(2).replace(/\.00$/, '')} {item.unit}</td>
-                            <td className="px-4 py-3 text-right font-mono text-slate-600">{fmt(item.unit_price)}</td>
-                            <td className="px-4 py-3 text-right font-semibold text-slate-900">{fmt(item.subtotal)}</td>
+                            <td className="px-4 py-3 text-right font-mono text-slate-600 whitespace-nowrap">{fmt(item.unit_price)} {currLabel}</td>
+                            <td className="px-4 py-3 text-right font-semibold text-slate-900 whitespace-nowrap">{fmt(item.subtotal)} {currLabel}</td>
                           </tr>
-                        ))}
+                        )})}
                       </tbody>
                     </table>
                   </div>
