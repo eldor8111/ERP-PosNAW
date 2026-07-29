@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
 const fmtDate = (s) => s ? new Date(s).toLocaleString('ru-RU', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' }).replace(',','') : '—';
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => (new Date(Date.now() - new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 10);
 const fmtS = (v) => Number(v || 0).toLocaleString('uz-UZ') + " so'm";
 
 function printTable(title, headers, rows, totalsRow = null) {

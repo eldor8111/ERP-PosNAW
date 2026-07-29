@@ -11,7 +11,7 @@ import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 const fmtDt = (d) => d ? new Date(d).toLocaleString('uz-UZ') : '—';
 const fmtDay = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => (new Date(Date.now() - new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 10);
 
 const OptionsTable = ({ row, onEdit, onReturn, onDelete }) => {
   const [open, setOpen] = useState(false);

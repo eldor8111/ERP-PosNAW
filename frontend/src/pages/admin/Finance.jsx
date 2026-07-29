@@ -6,7 +6,7 @@ import { useLang } from '../../context/LangContext';
 import { matchesSearch } from '../../utils/translit';
 
 const fmt = (v, t) => Number(v || 0).toLocaleString('uz-UZ') + " " + (t ? (t('common.sum') || "so'm") : "so'm");
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => (new Date(Date.now() - new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 10);
 const firstOfMonth = () => { const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10); };
 
 // ─── Spinner ───────────────────────────────────────────────────────────────────

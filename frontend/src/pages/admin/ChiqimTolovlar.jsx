@@ -10,7 +10,7 @@ const fmtCurr = (v, curr) => {
   if (curr === 'USD') return '$' + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   return n.toLocaleString('uz-UZ') + ' ' + curr;
 };
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => (new Date(Date.now() - new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 10);
 
 const PAYMENT_TYPES = [
   { value: 'cash', label: 'Naqd' },

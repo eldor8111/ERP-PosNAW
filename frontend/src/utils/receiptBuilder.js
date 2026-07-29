@@ -383,6 +383,7 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
     <span>${xilMaxsulot} xil mahsulot</span>
   </div>
   <hr/>
+  ${sale.note ? `<div style="text-align:center;margin-top:4px;margin-bottom:4px;font-style:italic;">Izoh: ${sale.note}</div><hr/>` : ''}
   
   <div class="flex">
     <span>JAMI:</span>
@@ -400,9 +401,7 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   
   ${change > 0 ? `<div class="flex"><span>Qaytim:</span><span>${fmtVal(change)}</span></div><hr class="dash"/>` : ''}
   
-  ${sale.note ? `<div style="margin-top:10px;text-align:center;font-style:italic;">Izoh: ${sale.note}</div>` : ''}
-
-  <div class="center" style="margin-top:15px;">${cfg.footer || 'Xaridingiz uchun raxmat!'}</div>
+    <div class="center" style="margin-top:15px;">${cfg.footer || 'Xaridingiz uchun raxmat!'}</div>
 </body></html>`;
 }
 

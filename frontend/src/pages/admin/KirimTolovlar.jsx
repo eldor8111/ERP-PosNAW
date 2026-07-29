@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ') + " so'm";
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => (new Date(Date.now() - new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 10);
 
 const PAYMENT_TYPES = [
   { value: 'cash', label: 'Naqd' },

@@ -39,7 +39,7 @@ const sumDebtList = (list, key) => {
 };
 
 // ─── Kunlik sanalar ────────────────────────────────────────────────────────────
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => (new Date(Date.now() - new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 10);
 const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
 const firstOfMonth = () => {
   const d = new Date(); d.setDate(1);
