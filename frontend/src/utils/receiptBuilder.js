@@ -197,32 +197,39 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
       (typeof sale.contractor === 'string' ? sale.contractor : sale.contractor?.name) ||
       sale.client_name ||
       '';
+      
+    const contactInfo = sale.contractor_contacts?.length 
+      ? sale.contractor_contacts.map(c=>c.value||c).join(', ') 
+      : (sale.customer?.phone || '___');
+      
     const infoLines = [
       sh('show_contractor_name') ? `<div><b>Mijoz:</b> ${clientName || '___'}</div>` : '',
-      sh('show_account_name') && sale.account_name ? `<div><b>Filial:</b> ${sale.account_name}</div>` : '',
-      sh('show_account_username') && sale.account_username ? `<div><b>Foydalanuvchi:</b> ${sale.account_username}</div>` : '',
-      sh('show_employee') && (sale.cashier_name || sale.employee_name) ? `<div><b>Xodim:</b> ${sale.employee_name || sale.cashier_name}</div>` : '',
-      sh('show_status') && sale.status ? `<div><b>Holat:</b> ${sale.status}</div>` : '',
-      sh('show_contractor_contacts') && sale.contractor_contacts?.length ? `<div><b>Kontakt:</b> ${sale.contractor_contacts.map(c=>c.value||c).join(', ')}</div>` : '',
+      sh('show_account_name') ? `<div><b>Filial:</b> ${sale.account_name || '___'}</div>` : '',
+      sh('show_account_username') ? `<div><b>Foydalanuvchi:</b> ${sale.account_username || '___'}</div>` : '',
+      sh('show_employee') ? `<div><b>Xodim:</b> ${sale.employee_name || sale.cashier_name || '___'}</div>` : '',
+      sh('show_status') ? `<div><b>Holat:</b> ${sale.status || '___'}</div>` : '',
+      sh('show_contractor_contacts') ? `<div><b>Kontakt:</b> ${contactInfo}</div>` : '',
     ].filter(Boolean).join('');
+
+    const totalQty = (sale.items || []).reduce((sum, i) => sum + Number(i.quantity || i.qty_ordered || 0), 0);
 
     // Totals section
     const totalsHtml = sh('show_totals') ? `
       <table class="totals">
         <tr><td>JAMI:</td><td><b>${fmtVal(sale.total_amount)}</b></td></tr>
-        ${sh('show_total_national') && sale.total_national ? `<tr><td>Milliy valyutada:</td><td>${sale.total_national}</td></tr>` : ''}
-        ${sh('show_total_quantity') && sale.total_quantity ? `<tr><td>Jami miqdor:</td><td>${sale.total_quantity}</td></tr>` : ''}
-        ${sh('show_exact_discounts') && Number(sale.discount_amount) > 0 ? `<tr><td>Chegirma:</td><td>-${fmtVal(sale.discount_amount)}</td></tr>` : ''}
-        ${sh('show_percent_discount') && sale.percent_discount ? `<tr><td>% Chegirma:</td><td>${sale.percent_discount}%</td></tr>` : ''}
+        ${sh('show_total_national') ? `<tr><td>Milliy valyutada:</td><td>${sale.total_national || '___'}</td></tr>` : ''}
+        ${sh('show_total_quantity') ? `<tr><td>Jami miqdor:</td><td>${totalQty}</td></tr>` : ''}
+        ${sh('show_exact_discounts') ? `<tr><td>Chegirma:</td><td>-${fmtVal(sale.discount_amount || 0)}</td></tr>` : ''}
+        ${sh('show_percent_discount') ? `<tr><td>% Chegirma:</td><td>${sale.percent_discount || '___'}%</td></tr>` : ''}
         ${sh('show_payment_amounts') ? (
-          sale.payment_types_array
+          sale.payment_types_array && sale.payment_types_array.length > 0
             ? sale.payment_types_array.map(pt => `<tr><td>To'lov (${pt.type}):</td><td>${fmtVal(pt.amount)}</td></tr>`).join('')
             : `<tr><td>To'langan:</td><td>${fmtVal(sale.paid_amount)}</td></tr>`
         ) : ''}
         ${sh('show_contractor_debts') ? `<tr><td style="color:red">Joriy qarz:</td><td style="color:red">${fmtVal(debt)}</td></tr>` : ''}
         ${sh('show_before_debts') ? `<tr><td>Oldingi qarz:</td><td>${oldDebtStr}</td></tr>` : ''}
         ${sh('show_debts') ? `<tr><td><b>Umumiy qarz:</b></td><td><b>${finalDebtStr}</b></td></tr>` : ''}
-        ${sh('show_last_payment') && sale.last_payment ? `<tr><td>Oxirgi to'lov:</td><td>${fmtVal(sale.last_payment)}</td></tr>` : ''}
+        ${sh('show_last_payment') ? `<tr><td>Oxirgi to'lov:</td><td>${sale.last_payment ? fmtVal(sale.last_payment) : '___'}</td></tr>` : ''}
         ${change > 0 ? `<tr><td style="color:green">Qaytim:</td><td style="color:green">${fmtVal(change)}</td></tr>` : ''}
       </table>` : '';
 
@@ -233,7 +240,7 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
       ${sh('show_storekeeper') ? `<div>Omborchi: ${c.storekeeper || '___________'}</div>` : ''}
     </div>`;
 
-    const noteHtml = sh('show_note') && sale.note ? `<div style="margin-top:6px;font-size:9px;color:#555">Izoh: ${sale.note}</div>` : '';
+    const noteHtml = sh('show_note') ? `<div style="margin-top:6px;font-size:9px;color:#555">Izoh: ${sale.note || '___'}</div>` : '';
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Nakladnoy ${sale.number || sale.id}</title>
 <style>
