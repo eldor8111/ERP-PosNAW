@@ -172,17 +172,9 @@ api.interceptors.response.use(
         config.headers.Authorization = `Bearer ${newToken}`
         return api(config)
       } else {
-        // Refresh ham ishlamadi
+        // Refresh ham ishlamadi — lekin foydalanuvchini majburiy chiqarmaymiz
         _refreshQueue.forEach(q => q.reject(error))
         _refreshQueue = []
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
-        localStorage.removeItem('user')
-        toast.warn("Sessiya tugadi. Iltimos qayta kiring.")
-        setTimeout(() => {
-          if (window.location.protocol === 'file:') window.location.hash = '#/login'
-          else window.location.href = '/login'
-        }, 1500)
         return Promise.reject(error)
       }
     }

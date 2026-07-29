@@ -193,7 +193,20 @@ def create_sale(
     if paid_cashback_amount > 0 and not data.customer_id:
         raise HTTPException(status_code=400, detail="Keshbekdan foydalanish uchun mijozni tanlash majburiy")
 
-    # ── CRM / Loyallik ────────────────────────────────────────────────────────
+    # ── Haqiqiy to'langan summa (UZS) ──
+    paid_amount_uzs = Decimal("0")
+    if getattr(data, "payments", None):
+        for _p in data.payments:
+            if _p.type.value not in ("debt", "cashback"):
+                _p_rate = Decimal(str(getattr(_p, "rate", 1.0) or 1.0))
+                paid_amount_uzs += _p.amount * _p_rate
+    else:
+        paid_amount_uzs = data.paid_amount * exchange_rate
+
+    # Agar qarz bo'lsa va mijoz tanlanmagan bo'lsa xato ko'tarish
+    if (paid_amount_uzs + paid_cashback_amount + Decimal(str(data.loyalty_points_used))) < total_amount and not data.customer_id:
+        raise HTTPException(status_code=400, detail="Qarzga sotish uchun mijozni tanlash majburiy")
+
     loyalty_earned = 0
     prev_debt_balance = 0.0
     if data.customer_id:
@@ -218,7 +231,6 @@ def create_sale(
                 total_amount = Decimal("0")
 
         if getattr(customer, "cashback_percent", 0) > 0:
-            # total_amount allaqachon UZS da, exchange_rate bilan ko'paytirish shart emas
             cashback_amount = (total_amount * customer.cashback_percent) / Decimal("100")
             customer.bonus_balance = (customer.bonus_balance or Decimal("0")) + cashback_amount
         customer.total_spent = (customer.total_spent or Decimal("0")) + total_amount
@@ -226,46 +238,33 @@ def create_sale(
         loyalty_earned = int(total_amount * Decimal("0.01"))
         customer.loyalty_points += loyalty_earned
 
-        # paid_amount frontenddan sale valyutasida keladi (masalan USD).
-        # total_amount esa UZS da hisoblanadi (subtotal * exchange_rate).
-        # Taqqoslash uchun paid_amount ni UZS ga o'tkazamiz.
-        paid_amount_uzs = data.paid_amount * exchange_rate
-
         if paid_amount_uzs < total_amount:
-            # Qarz miqdori = (UZS jami - to'langan UZS)
             debt_amount_uzs = total_amount - paid_amount_uzs
+            if debt_amount_uzs > Decimal("0.01"):
+                customer.debt_balance += debt_amount_uzs
 
-            customer.debt_balance += debt_amount_uzs
+                # Sync with multi-currency debt_balances
+                if not customer.debt_balances:
+                    customer.debt_balances = {}
 
-            # Sync with multi-currency debt_balances
-            if not customer.debt_balances:
-                customer.debt_balances = {}
-
-            if data.currency_totals:
-                for curr_code, curr_debt in data.currency_totals.items():
-                    curr_val = float(customer.debt_balances.get(curr_code, 0))
-                    customer.debt_balances[curr_code] = curr_val + float(curr_debt)
-            else:
-                # Qarzni sotuv valyutasida saqlash (UZS bo'lsa UZS, USD bo'lsa USD)
-                sale_currency = currency.code if currency else "UZS"
-                if sale_currency == "UZS":
-                    actual_debt_in_currency = debt_amount_uzs
+                if getattr(data, "currency_totals", None):
+                    for curr_code, curr_debt in data.currency_totals.items():
+                        curr_val = float(customer.debt_balances.get(curr_code, 0))
+                        customer.debt_balances[curr_code] = curr_val + float(curr_debt)
                 else:
-                    # Sale valyutasida qarz = total_amount_currency - paid_amount_currency
-                    # total_amount_currency = total_amount / exchange_rate
-                    total_in_currency = (total_amount / exchange_rate) if exchange_rate else total_amount
-                    actual_debt_in_currency = total_in_currency - data.paid_amount
+                    sale_currency = currency.code if currency else "UZS"
+                    if sale_currency == "UZS":
+                        actual_debt_in_currency = debt_amount_uzs
+                    else:
+                        total_in_currency = (total_amount / exchange_rate) if exchange_rate else total_amount
+                        actual_paid_in_curr = (paid_amount_uzs / exchange_rate) if exchange_rate else paid_amount_uzs
+                        actual_debt_in_currency = total_in_currency - actual_paid_in_curr
 
-                curr_val = float(customer.debt_balances.get(sale_currency, 0))
-                customer.debt_balances[sale_currency] = curr_val + float(actual_debt_in_currency)
+                    curr_val = float(customer.debt_balances.get(sale_currency, 0))
+                    customer.debt_balances[sale_currency] = curr_val + float(actual_debt_in_currency)
 
-            from sqlalchemy.orm.attributes import flag_modified
-            flag_modified(customer, "debt_balances")
-
-    # paid_amount ni UZS ga o'tkazib tekshiramiz
-    _paid_uzs_check = data.paid_amount * exchange_rate
-    if _paid_uzs_check < total_amount and not data.customer_id:
-        raise HTTPException(status_code=400, detail="Qarzga sotish uchun mijozni tanlash majburiy")
+                from sqlalchemy.orm.attributes import flag_modified
+                flag_modified(customer, "debt_balances")
 
     # ── Sale yozuvi ───────────────────────────────────────────────────────────
     sale = Sale(

@@ -201,12 +201,19 @@ def _append_debt_edit(cust: Customer, edited_from: dict, edited_to: dict) -> Non
     flag_modified(cust, "debt_edited")
 
 
-class DebtUpdate(BaseModel):
+class PaymentInput(BaseModel):
     amount: Decimal
+    currency: Optional[str] = "UZS"
+    payment_type: Optional[str] = "cash"
+    rate: Optional[Decimal] = Decimal("1.0")
+
+class DebtUpdate(BaseModel):
+    amount: Optional[Decimal] = Decimal("0")
     reason: str
     currency: Optional[str] = "UZS"
     wallet_id: Optional[int] = None
     payment_type: Optional[str] = "cash"
+    payments: Optional[list[PaymentInput]] = None
 
 
 class PointsAdjust(BaseModel):
@@ -852,29 +859,13 @@ def pay_debt(customer_id: int, data: DebtUpdate, db: Session = Depends(get_db),
         cust.debt_balances = {}
 
     # --- LEGACY MIGRATION ---
-    # Eski akkountlarda debt_balances bo'sh bo'ladi, debt_balance eski field'da.
-    # Agar debt_balances bo'sh bo'lsa, avval uni debt_balance dan to'ldiramiz.
     if not cust.debt_balances and float(cust.debt_balance or 0) > 0:
         legacy_currency = (cust.debt_currency or "UZS").strip().upper() or "UZS"
         cust.debt_balances = {legacy_currency: float(cust.debt_balance)}
 
-    # Update the currency-specific balance in debt_balances JSON
-    curr_val = Decimal(str(cust.debt_balances.get(currency, 0)))
-    cust.debt_balances[currency] = float(max(Decimal("0"), curr_val - data.amount))
-    flag_modified(cust, "debt_balances")
-
-    # Update aggregate debt_balance (always in UZS)
-    exchange_rate = Decimal("1")
-    if currency != "UZS":
-        curr_obj = db.query(CurrencyModel).filter(CurrencyModel.code == currency).first()
-        if curr_obj:
-            exchange_rate = Decimal(str(curr_obj.rate))
-
-    amount_in_uzs = data.amount * exchange_rate
-    cust.debt_balance = max(Decimal("0"), (cust.debt_balance or Decimal("0")) - amount_in_uzs)
-
     target_wallet_id = data.wallet_id
     if not target_wallet_id:
+        from app.models.moliya import Wallet
         open_w = db.query(Wallet).filter(
             Wallet.company_id == current_user.company_id,
             Wallet.is_open == True,
@@ -883,43 +874,84 @@ def pay_debt(customer_id: int, data: DebtUpdate, db: Session = Depends(get_db),
         if open_w:
             target_wallet_id = open_w.id
 
+    from app.models.moliya import KassaSession as _KS
+    open_session = None
+    wallet = None
     if target_wallet_id:
-        from app.models.moliya import KassaSession as _KS
         wallet = db.get(Wallet, target_wallet_id)
-        if wallet:
-            wallet.balance = float(wallet.balance or 0) + float(data.amount)
         open_session = db.query(_KS).filter(_KS.wallet_id == target_wallet_id, _KS.status == "open").first()
-        tx_desc = data.reason or f"Mijoz to'lovi: {cust.name}"
-        if currency != "UZS":
-            tx_desc = tx_desc + f" ({data.amount} {currency})"
 
-        tx = Transaction(
-            company_id=current_user.company_id,
-            branch_id=current_user.branch_id or 0,
-            wallet_id=target_wallet_id,
-            type="income",
-            amount=amount_in_uzs,
-            currency_code="UZS",
-            payment_type=data.payment_type or "cash",
-            reference_type="customer_payment",
-            reference_id=customer_id,
-            description=tx_desc.strip(),
-        )
-        db.add(tx)
-        # KassaMovement — mijoz to'lovi
-        db.add(KassaMovement(
-            wallet_id=target_wallet_id,
-            company_id=current_user.company_id,
-            session_id=open_session.id if open_session else None,
-            direction="in",
-            payment_type=data.payment_type or "cash",
-            amount=data.amount,
-            reference_type="customer_payment",
-            reference_id=customer_id,
-            description=f"Mijoz to'lovi: {cust.name}" + (f" — {data.reason}" if data.reason else ""),
-            created_by=current_user.id,
-        ))
+    # To'lovlarni ro'yxatini shakllantiramiz
+    payments_to_process = []
+    if data.payments and len(data.payments) > 0:
+        payments_to_process = data.payments
+    else:
+        # Fallback for older clients (single payment)
+        payments_to_process = [
+            PaymentInput(
+                amount=data.amount,
+                currency=data.currency or "UZS",
+                payment_type=data.payment_type or "cash",
+                rate=Decimal("1.0")
+            )
+        ]
 
+    for p in payments_to_process:
+        p_currency = p.currency or "UZS"
+        # Update the currency-specific balance in debt_balances JSON
+        curr_val = Decimal(str(cust.debt_balances.get(p_currency, 0)))
+        cust.debt_balances[p_currency] = float(max(Decimal("0"), curr_val - p.amount))
+        
+        # Determine exchange rate
+        exchange_rate = Decimal("1")
+        if p_currency != "UZS":
+            curr_obj = db.query(CurrencyModel).filter(CurrencyModel.code == p_currency).first()
+            if curr_obj:
+                exchange_rate = Decimal(str(curr_obj.rate))
+            elif getattr(p, "rate", None):
+                exchange_rate = Decimal(str(p.rate))
+
+        amount_in_uzs = p.amount * exchange_rate
+        cust.debt_balance = max(Decimal("0"), (cust.debt_balance or Decimal("0")) - amount_in_uzs)
+
+        if wallet:
+            wallet.balance = float(wallet.balance or 0) + float(p.amount)
+            
+            tx_desc = data.reason or f"Mijoz to'lovi: {cust.name}"
+            if p_currency != "UZS":
+                tx_desc = tx_desc + f" ({p.amount} {p_currency})"
+            elif data.payments and len(data.payments) > 1:
+                tx_desc = tx_desc + f" ({p.amount} {p_currency})"
+
+            tx = Transaction(
+                company_id=current_user.company_id,
+                branch_id=current_user.branch_id or 0,
+                wallet_id=target_wallet_id,
+                type="income",
+                amount=amount_in_uzs,
+                currency_code="UZS",
+                payment_type=p.payment_type or "cash",
+                reference_type="customer_payment",
+                reference_id=customer_id,
+                description=tx_desc.strip(),
+            )
+            db.add(tx)
+
+            # KassaMovement — mijoz to'lovi
+            db.add(KassaMovement(
+                wallet_id=target_wallet_id,
+                company_id=current_user.company_id,
+                session_id=open_session.id if open_session else None,
+                direction="in",
+                payment_type=p.payment_type or "cash",
+                amount=p.amount,
+                reference_type="customer_payment",
+                reference_id=customer_id,
+                description=f"Mijoz to'lovi: {cust.name}" + (f" — {data.reason}" if data.reason else ""),
+                created_by=current_user.id,
+            ))
+
+    flag_modified(cust, "debt_balances")
     db.commit()
     return {
         "message": "Qarzdorlik to'landi",

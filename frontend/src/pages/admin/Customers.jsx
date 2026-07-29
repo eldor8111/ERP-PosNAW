@@ -1897,7 +1897,8 @@ function TolovTab({ customers, stats, reloadStats }) {
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(false);
   const [sel, setSel] = useState(null);
-  const [form, setForm] = useState({ amount: '', payType: 'cash', description: '', currency: 'UZS', wallet_id: '' });
+  const [form, setForm] = useState({ description: '', wallet_id: '' });
+  const [payments, setPayments] = useState([{ payType: 'cash', amount: '', currency: 'UZS' }]);
   const [saving, setSaving] = useState(false);
   const [currencies, setCurrencies] = useState([]);
   const [wallets, setWallets] = useState([]);
@@ -1930,26 +1931,41 @@ function TolovTab({ customers, stats, reloadStats }) {
 
   const openModal = (c = null) => {
     setSel(c);
-    setForm(f => ({ ...f, amount: '', description: '', currency: 'UZS' }));
+    setForm(f => ({ ...f, description: '' }));
+    setPayments([{ payType: 'cash', amount: '', currency: 'UZS' }]);
     setErr('');
     setModal(true);
   };
   const close = () => { setModal(false); setSel(null); setErr(''); };
 
+  const addPayment = () => setPayments(p => [...p, { payType: 'cash', amount: '', currency: 'UZS' }]);
+  const removePayment = (i) => setPayments(p => p.filter((_, idx) => idx !== i));
+  const updatePayment = (i, field, val) => {
+    setPayments(p => p.map((x, idx) => idx === i ? { ...x, [field]: val } : x));
+  };
+
   const handlePay = async (e) => {
     e.preventDefault();
     if (!sel) { setErr("Mijozni tanlang"); return; }
-    const amt = parseAmt(form.amount);
-    if (!amt || amt <= 0) { setErr("Miqdor kiritilmagan"); return; }
+    
+    const validPayments = payments.map(p => ({
+       ...p,
+       amount: parseAmt(p.amount)
+    })).filter(p => p.amount > 0);
+
+    if (validPayments.length === 0) { setErr("Miqdor kiritilmagan"); return; }
 
     setSaving(true); setErr('');
     try {
       await api.post(`/customers/${sel.id}/pay-debt`, {
-        amount: amt,
-        payment_type: form.payType,
         wallet_id: form.wallet_id ? Number(form.wallet_id) : undefined,
-        currency: form.currency,
-        reason: form.description || `Mijoz to'lovi: ${sel.name} (${form.currency})`,
+        reason: form.description || `Mijoz to'lovi: ${sel.name}`,
+        payments: validPayments.map(p => ({
+          payment_type: p.payType,
+          amount: p.amount,
+          currency: p.currency,
+          rate: p.currency === 'UZS' ? 1 : (currencies.find(c => c.code === p.currency)?.rate || 1)
+        }))
       });
       toast.success("To'lov qabul qilindi!");
       close();
@@ -2105,49 +2121,60 @@ function TolovTab({ customers, stats, reloadStats }) {
                   </div>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Valyuta</label>
-                  <select value={form.currency} onChange={e => setForm(f => ({ ...f, currency: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="UZS">UZS (So'm)</option>
-                    {currencies.filter(c => c.code !== 'UZS').map(c => <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Kassa/Hamyon</label>
-                  <select value={form.wallet_id} onChange={e => setForm(f => ({ ...f, wallet_id: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500">
-                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                  </select>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Kassa/Hamyon</label>
+                <select value={form.wallet_id} onChange={e => setForm(f => ({ ...f, wallet_id: e.target.value }))}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500">
+                  {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-2 mt-2 uppercase tracking-wider">To'lovlar</label>
+                <div className="space-y-2">
+                  {payments.map((p, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <select value={p.payType} onChange={e => updatePayment(i, 'payType', e.target.value)} className="w-1/3 min-w-24 border border-slate-200 rounded-xl px-2 py-2 text-sm bg-slate-50 outline-none">
+                        {PAY_TYPES_LIST.filter(pt => pt.v !== 'mixed' && pt.v !== 'debt').map(pt => <option key={pt.v} value={pt.v}>{pt.l}</option>)}
+                      </select>
+                      <select value={p.currency} onChange={e => updatePayment(i, 'currency', e.target.value)} className="w-20 border border-slate-200 rounded-xl px-2 py-2 text-sm bg-slate-50 outline-none">
+                        <option value="UZS">UZS</option>
+                        {currencies.filter(c => c.code !== 'UZS').map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
+                      </select>
+                      <input type="text" inputMode="decimal" placeholder="0.00" value={p.amount} onChange={e => updatePayment(i, 'amount', e.target.value)} className="w-1/3 flex-1 min-w-24 border border-slate-200 rounded-xl px-2 py-2 text-sm font-semibold outline-none" />
+                      {payments.length > 1 && (
+                        <button type="button" onClick={() => removePayment(i)} className="p-2 text-slate-300 hover:text-red-500 rounded-xl transition-colors">✕</button>
+                      )}
+                    </div>
+                  ))}
+                  <button type="button" onClick={addPayment} className="w-full mt-2 py-2 border-2 border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-bold text-sm rounded-xl transition-all">
+                    + Yana qo'shish
+                  </button>
                 </div>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">To'lov miqdori *</label>
-                <div className="relative">
-                  <input type="text" inputMode="numeric" required className={inputCls} value={form.amount}
-                    onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} placeholder="0.00" />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">{form.currency}</span>
-                </div>
-                {sel && form.amount && parseAmt(form.amount) > 0 && form.currency === 'UZS' && (
-                  <div className="text-xs text-slate-400 mt-1">
-                    To'lovdan keyin qarz: <span className="font-semibold text-amber-600">
-                      {fmt(Math.max(0, Number(sel.debt_balance) - parseAmt(form.amount)))} so'm
+
+              {sel && payments.some(p => parseAmt(p.amount) > 0) && (
+                <div className="text-xs text-slate-500 mt-2 font-medium bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <div className="mb-1 flex justify-between">
+                    <span>Jami (UZS ekvivalentida):</span>
+                    <span className="font-bold text-indigo-700">
+                      {fmt(payments.reduce((acc, p) => {
+                        const r = p.currency === 'UZS' ? 1 : (currencies.find(c => c.code === p.currency)?.rate || 1);
+                        return acc + (parseAmt(p.amount) * r);
+                      }, 0))} s
                     </span>
                   </div>
-                )}
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-2">To'lov turi</label>
-                <div className="flex flex-wrap gap-2">
-                  {PAY_TYPES_LIST.map(pt => (
-                    <button key={pt.v} type="button" onClick={() => setForm(f => ({ ...f, payType: pt.v }))}
-                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${form.payType === pt.v ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'}`}>
-                      {pt.l}
-                    </button>
-                  ))}
+                  <div className="flex justify-between">
+                    <span>To'lovdan keyingi qarz:</span>
+                    <span className="font-bold text-amber-600">
+                      {fmt(Math.max(0, Number(sel.debt_balance) - payments.reduce((acc, p) => {
+                        const r = p.currency === 'UZS' ? 1 : (currencies.find(c => c.code === p.currency)?.rate || 1);
+                        return acc + (parseAmt(p.amount) * r);
+                      }, 0)))} s
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">Izoh</label>
                 <input className={inputCls} value={form.description}
