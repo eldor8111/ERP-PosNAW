@@ -687,7 +687,9 @@ export default function UlgurjiSotuv() {
       setEditingSale({ id: sale.id, number: sale.number, warehouse_id: sale.warehouse_id, created_at: sale.created_at });
       if (sale.warehouse_id) setWarehouseId(String(sale.warehouse_id));
       else setWarehouseId('');
-      sessionStorage.setItem('ulgurji_session_sale_id', String(sale.id));
+      // MUHIM: tahrirlash rejimida session_sale_id YOZMAYMIZ
+      // Aks holda useEffect (pending tiklash) cartni yana bir marta to'ldiradi → dublikat!
+      sessionStorage.removeItem('ulgurji_session_sale_id');
       setTab('new'); setOpenMenuId(null);
       toast.success(`"${sale.number}" sotuv tahrirlash uchun yuklandi`);
     } catch (e) { toast.error(e?.response?.data?.detail || 'Sotuvni yuklashda xatolik'); }

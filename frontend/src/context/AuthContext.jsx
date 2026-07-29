@@ -45,6 +45,11 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(() => {
     clearPosCache()
+    // SessionStorage ni ham tozalaymiz — boshqa kompaniyaga kirganda
+    // eski kompaniyaning savati, mijozi, pending sale ID si qolmasin
+    sessionStorage.removeItem('ulgurji_cart')
+    sessionStorage.removeItem('ulgurji_customer')
+    sessionStorage.removeItem('ulgurji_session_sale_id')
     localStorage.removeItem('access_token')
     localStorage.removeItem('user')
     setUser(null)
