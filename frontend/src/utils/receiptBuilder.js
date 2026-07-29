@@ -399,6 +399,8 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   ${debtSectionHtml}
   
   ${change > 0 ? `<div class="flex"><span>Qaytim:</span><span>${fmtVal(change)}</span></div><hr class="dash"/>` : ''}
+  
+  ${sale.note ? `<div style="margin-top:10px;text-align:center;font-style:italic;">Izoh: ${sale.note}</div>` : ''}
 
   <div class="center" style="margin-top:15px;">${cfg.footer || 'Xaridingiz uchun raxmat!'}</div>
 </body></html>`;
