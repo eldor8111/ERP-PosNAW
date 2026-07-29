@@ -339,13 +339,25 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
       setLoading(true);
       try {
         const res = await api.get('/products', {
-          params: { search: q.trim(), limit: 30, warehouse_id: warehouseId || undefined },
+          params: { search: q.trim(), limit: 50, warehouse_id: warehouseId || undefined },
           signal: abortCtrl.signal,
           _silent: true,
         });
         if (abortCtrl.signal.aborted) return;
         const items = Array.isArray(res.data) ? res.data : (res.data?.items || []);
-        setResults(items.slice(0, 20));
+        // Aqlli tartiblash: qidirilgan so'z bilan boshlangan mahsulotlar tepaga
+        const sq = q.trim().toLowerCase();
+        const scored = items.map(p => {
+          const n = (p.name || '').toLowerCase();
+          let score = 0;
+          if (n === sq) score = 4;                                    // to'liq mos
+          else if (n.startsWith(sq + ' ') || n.startsWith(sq + '-') || n === sq) score = 3; // boshidan mos
+          else if (new RegExp('(?:^|[\\s\\-])' + sq.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(n)) score = 2; // so'z boshidan
+          else score = 1;                                              // ichida uchraydi
+          return { ...p, _score: score };
+        });
+        scored.sort((a, b) => b._score - a._score || (a.name || '').localeCompare(b.name || ''));
+        setResults(scored.slice(0, 20));
       } catch (err) {
         if (err?.code !== 'ERR_CANCELED') setResults([]);
       } finally {
