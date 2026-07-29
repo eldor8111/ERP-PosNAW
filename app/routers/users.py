@@ -147,19 +147,27 @@ def get_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.super_admin)),
 ):
-    from sqlalchemy import or_
-    from app.models.user_company import UserCompany
-    q = db.query(User).outerjoin(UserCompany).filter(User.id == user_id)
-    q = q.filter(
-        or_(
-            User.company_id == current_user.company_id,
-            (UserCompany.company_id == current_user.company_id) & (UserCompany.is_active == True)
-        )
-    ).distinct()
-    user = q.first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
-    return user
+    try:
+        from sqlalchemy import or_
+        from app.models.user_company import UserCompany
+        q = db.query(User).outerjoin(UserCompany).filter(User.id == user_id)
+        q = q.filter(
+            or_(
+                User.company_id == current_user.company_id,
+                (UserCompany.company_id == current_user.company_id) & (UserCompany.is_active == True)
+            )
+        ).distinct()
+        user = q.first()
+        if not user:
+            raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
+        return user
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback, logging
+        logging.error(f"GET /users/{user_id} error: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Server xatosi: {str(e)}")
+
 
 
 @router.post("/", response_model=UserOut, status_code=status.HTTP_201_CREATED)
@@ -386,7 +394,7 @@ def update_user(
         entity_id=user.id,
         user_id=current_user.id,
         old_values=old,
-        new_values=data.model_dump(exclude_none=True),
+        new_values=data.model_dump(mode='json', exclude_none=True),
         ip_address=request.client.host if request.client else None,
     )
     db.commit()

@@ -5,8 +5,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 720
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 43200  # 30 kun
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 90  # 90 kun
     ENV: str = "production"
     CORS_ORIGINS: str = ""
     # Telegram OTP bot

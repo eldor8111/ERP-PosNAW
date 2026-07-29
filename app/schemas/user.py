@@ -48,13 +48,13 @@ class UserOut(BaseModel):
     id: int
     name: str
     phone: str
-    email: Optional[str]
+    email: Optional[str] = None
     role: UserRole
     permissions: Optional[dict] = None
     status: UserStatus
     branch_id: Optional[int] = None
     company_id: Optional[int] = None
-    created_at: datetime
+    created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
