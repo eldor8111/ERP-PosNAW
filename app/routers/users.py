@@ -147,26 +147,23 @@ def get_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.super_admin)),
 ):
-    try:
-        from sqlalchemy import or_
-        from app.models.user_company import UserCompany
-        q = db.query(User).outerjoin(UserCompany).filter(User.id == user_id)
-        q = q.filter(
-            or_(
-                User.company_id == current_user.company_id,
-                (UserCompany.company_id == current_user.company_id) & (UserCompany.is_active == True)
-            )
-        ).distinct()
-        user = q.first()
-        if not user:
+    from app.models.user_company import UserCompany
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
+    # Kompaniyaga tegishliligini tekshirish
+    if current_user.role != UserRole.super_admin:
+        in_company = (
+            user.company_id == current_user.company_id or
+            db.query(UserCompany).filter(
+                UserCompany.user_id == user_id,
+                UserCompany.company_id == current_user.company_id,
+                UserCompany.is_active == True
+            ).first() is not None
+        )
+        if not in_company:
             raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
-        return user
-    except HTTPException:
-        raise
-    except Exception as e:
-        import traceback, logging
-        logging.error(f"GET /users/{user_id} error: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"Server xatosi: {str(e)}")
+    return user
 
 
 
@@ -340,16 +337,19 @@ def update_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.super_admin)),
 ):
-    from sqlalchemy import or_
     from app.models.user_company import UserCompany
-    q = db.query(User).outerjoin(UserCompany).filter(User.id == user_id)
-    q = q.filter(
-        or_(
-            User.company_id == current_user.company_id,
-            (UserCompany.company_id == current_user.company_id) & (UserCompany.is_active == True)
+    user = db.query(User).filter(User.id == user_id).first()
+    if user and current_user.role != UserRole.super_admin:
+        in_company = (
+            user.company_id == current_user.company_id or
+            db.query(UserCompany).filter(
+                UserCompany.user_id == user_id,
+                UserCompany.company_id == current_user.company_id,
+                UserCompany.is_active == True
+            ).first() is not None
         )
-    ).distinct()
-    user = q.first()
+        if not in_company:
+            user = None
     
     uc = None
     if user:
@@ -410,18 +410,21 @@ def change_password(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.super_admin)),
 ):
-    from sqlalchemy import or_
     from app.models.user_company import UserCompany
-    q = db.query(User).outerjoin(UserCompany).filter(User.id == user_id)
-    q = q.filter(
-        or_(
-            User.company_id == current_user.company_id,
-            (UserCompany.company_id == current_user.company_id) & (UserCompany.is_active == True)
-        )
-    ).distinct()
-    user = q.first()
+    user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
+    if current_user.role != UserRole.super_admin:
+        in_company = (
+            user.company_id == current_user.company_id or
+            db.query(UserCompany).filter(
+                UserCompany.user_id == user_id,
+                UserCompany.company_id == current_user.company_id,
+                UserCompany.is_active == True
+            ).first() is not None
+        )
+        if not in_company:
+            raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
 
     user.hashed_password = hash_password(data.new_password)
 
@@ -446,16 +449,19 @@ def delete_user(
     if user_id == current_user.id:
         raise HTTPException(status_code=400, detail="O'zingizni o'chira olmaysiz")
 
-    from sqlalchemy import or_
     from app.models.user_company import UserCompany
-    q = db.query(User).outerjoin(UserCompany).filter(User.id == user_id)
-    q = q.filter(
-        or_(
-            User.company_id == current_user.company_id,
-            (UserCompany.company_id == current_user.company_id) & (UserCompany.is_active == True)
+    user = db.query(User).filter(User.id == user_id).first()
+    if user and current_user.role != UserRole.super_admin:
+        in_company = (
+            user.company_id == current_user.company_id or
+            db.query(UserCompany).filter(
+                UserCompany.user_id == user_id,
+                UserCompany.company_id == current_user.company_id,
+                UserCompany.is_active == True
+            ).first() is not None
         )
-    ).distinct()
-    user = q.first()
+        if not in_company:
+            user = None
     
     uc = None
     if user:
