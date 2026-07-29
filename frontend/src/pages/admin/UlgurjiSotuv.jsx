@@ -1164,9 +1164,20 @@ export default function UlgurjiSotuv() {
     if (!cart.length) return;
     if (!custId) return toast.error('Mijoz tanlanmagan!');
     if (!hasShift) { setShowShiftModal(true); return; }
-    const nonSomItem = cart.find(item => item.currency && item.currency !== 'UZS');
-    const defaultPayCurrency = nonSomItem ? nonSomItem.currency : 'UZS';
-    setPayments([{ id: Date.now(), type: 'cash', amt: '', currency: defaultPayCurrency }]);
+    
+    const uniqueCurrencies = [...new Set(cart.map(item => item.currency || 'UZS'))];
+    
+    if (uniqueCurrencies.length > 0) {
+      setPayments(uniqueCurrencies.map((curr, idx) => ({ 
+        id: Date.now() + idx, 
+        type: 'cash', 
+        amt: '', 
+        currency: curr 
+      })));
+    } else {
+      setPayments([{ id: Date.now(), type: 'cash', amt: '', currency: 'UZS' }]);
+    }
+    
     setShowPayment(true);
   };
 
@@ -2121,13 +2132,29 @@ export default function UlgurjiSotuv() {
         const fillLine = (id) => {
           const line = payments.find(p => p.id === id);
           if (!line) return;
-          const totalOtherPaidUZS = getPaidUZS(payments.filter(p => p.id !== id));
-          const stillNeededUZS = Math.max(0, total - totalOtherPaidUZS);
-          const lineRate = getRate(line.currency);
-          const neededInLineCurrency = stillNeededUZS / lineRate;
-          const formattedAmt = line.currency === 'UZS' || !line.currency
-            ? String(Math.round(neededInLineCurrency))
-            : String(Number(neededInLineCurrency.toFixed(4)));
+          
+          const lineCurr = line.currency || 'UZS';
+          
+          const itemsCostInCurr = cart.filter(it => (it.currency || 'UZS') === lineCurr).reduce((sum, it) => sum + itemNet(it), 0);
+          
+          let formattedAmt = '0';
+
+          if (itemsCostInCurr > 0) {
+            const otherPaidInCurr = payments.filter(p => p.id !== id && (p.currency || 'UZS') === lineCurr).reduce((sum, p) => sum + (parseFloat(p.amt) || 0), 0);
+            const neededInLineCurrency = Math.max(0, itemsCostInCurr - otherPaidInCurr);
+            formattedAmt = lineCurr === 'UZS' || !lineCurr
+              ? String(Math.round(neededInLineCurrency))
+              : String(Number(neededInLineCurrency.toFixed(4)));
+          } else {
+            const totalOtherPaidUZS = getPaidUZS(payments.filter(p => p.id !== id));
+            const stillNeededUZS = Math.max(0, total - totalOtherPaidUZS);
+            const lineRate = getRate(lineCurr);
+            const neededInLineCurrency = stillNeededUZS / lineRate;
+            formattedAmt = lineCurr === 'UZS' || !lineCurr
+              ? String(Math.round(neededInLineCurrency))
+              : String(Number(neededInLineCurrency.toFixed(4)));
+          }
+          
           updateLine(id, 'amt', formattedAmt);
         };
         const now = new Date();
