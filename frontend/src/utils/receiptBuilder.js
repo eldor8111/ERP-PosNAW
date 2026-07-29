@@ -122,11 +122,11 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   const change = Math.max(0, Number(sale.paid_amount) - Number(sale.total_amount));
 
   const oldDebtStr = oldDebtsList.length > 0
-    ? oldDebtsList.map(d => fmtCurrencyAmt(d.amount, d.currency)).join(', ')
+    ? oldDebtsList.map(d => fmtCurrencyAmt(d.amount, d.currency)).join('<br/>')
     : fmtCurrencyAmt(0, 'UZS');
   
   const finalDebtStr = finalDebtsList.length > 0
-    ? finalDebtsList.map(d => fmtCurrencyAmt(d.amount, d.currency)).join(', ')
+    ? finalDebtsList.map(d => fmtCurrencyAmt(d.amount, d.currency)).join('<br/>')
     : fmtCurrencyAmt(0, 'UZS');
 
   if (isNak) {
