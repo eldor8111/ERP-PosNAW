@@ -383,7 +383,7 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
     <span>${xilMaxsulot} xil mahsulot</span>
   </div>
   <hr/>
-  ${sale.note ? `<div style="text-align:center;margin-top:4px;margin-bottom:4px;font-style:italic;">Izoh: ${sale.note}</div><hr/>` : ''}
+  ${sale.note ? `<div style="text-align:center;margin-top:4px;margin-bottom:4px;font-weight:bold;">Izoh: ${sale.note}</div><hr/>` : ''}
   
   <div class="flex">
     <span>JAMI:</span>
