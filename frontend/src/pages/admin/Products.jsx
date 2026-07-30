@@ -1543,6 +1543,50 @@ export default function Products() {
       window.URL.revokeObjectURL(url);
 
     } catch (error) {
+      toast.error("Eksport qilishda xatolik yuz berdi");
+    }
+  };
+
+  const exportToTMA = async () => {
+    try {
+      const apiData = await api.get('/products/')
+        .then(r => r.data)
+        .catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi"); return []; });
+
+      const filteredData = apiData.filter(prod => prod.unit === "kg" || prod.unit === "g");
+      
+      if (!filteredData || filteredData.length === 0) {
+        toast.warning("Tarozi uchun (kg/g) mahsulotlar topilmadi");
+        return;
+      }
+
+      // Rongta TM-A (CSV) format: PLU, ItemCode, Name, Department, UnitPrice, Unit, BarcodeType
+      let csvContent = "PLU,ItemCode,Name,Department,UnitPrice,Unit,BarcodeType\r\n";
+
+      filteredData.forEach(prod => {
+        const plu = prod.sku && prod.sku.trim() ? prod.sku.trim().replace(/\D/g, '') : String(prod.id);
+        const name = (prod.name || '').replace(/,/g, ' '); // remove commas from name
+        const price = prod.sale_price ? Math.round(parseFloat(prod.sale_price)) : 0;
+        const dept = 1;
+        const unit = 0; // 0 for kg
+        const barcodeType = 7; // EAN13
+        
+        csvContent += `${plu},${plu},${name},${dept},${price},${unit},${barcodeType}\r\n`;
+      });
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'TMA_Taroti_PLU.csv');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error("Eksport qilishda xatolik yuz berdi");
+    }
+  };
       console.error(error);
     }
   };
@@ -1777,7 +1821,13 @@ export default function Products() {
                   onClick={() => exportToShtrixM(products)}
                   className="cursor-pointer leading-none inline-flex items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-mist-600 hover:bg-mist-500 text-white text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-lg transition-colors border border-mist-200"
                 >
-                  <Binary className='w-5 h-5' /> Yuklab Olish
+                  <Binary className='w-5 h-5' /> Shtrix-M uchun
+                </button>
+                <button
+                  onClick={() => exportToTMA()}
+                  className="cursor-pointer leading-none inline-flex items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-lg transition-colors border border-indigo-200"
+                >
+                  <Binary className='w-5 h-5' /> TM-A uchun
                 </button>
               </>
             )}

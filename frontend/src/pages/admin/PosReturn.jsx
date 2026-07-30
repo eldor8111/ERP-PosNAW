@@ -191,6 +191,27 @@ const navigate = useNavigate();
                 }];
               });
               setSearch('');
+           } else if (scannedCode.length === 13 && (scannedCode.startsWith('21') || scannedCode.startsWith('22'))) {
+              const itemCode = scannedCode.substring(2, 7);
+              const weightGram = parseInt(scannedCode.substring(7, 12), 10) || 0;
+              const weightKg = weightGram / 1000;
+              
+              const scaleProduct = products.find(p => p.sku === itemCode || p.barcode === itemCode);
+              if (scaleProduct) {
+                 setCart(prev => {
+                   const ex = prev.find(x => x.product_id === scaleProduct.id);
+                   if (ex) return prev.map(x => x.product_id === scaleProduct.id ? { ...x, qty_ordered: x.qty_ordered + weightKg } : x);
+                   return [...prev, {
+                     product_id: scaleProduct.id, product_name: scaleProduct.name, unit: scaleProduct.unit || 'kg',
+                     unit_price: Number(scaleProduct.sale_price) || 0, discount_type: 'pct', discount_val: 0,
+                     net_cost: Number(scaleProduct.sale_price) || 0, qty_ordered: weightKg, max_stock: scaleProduct.stock_quantity
+                   }];
+                 });
+                 setSearch('');
+              } else {
+                 setErr(`Tarozi mahsuloti topilmadi (Kodi: ${itemCode})`);
+                 setTimeout(() => setErr(''), 3000);
+              }
            } else {
               setErr(`Shtrix kod topilmadi: ${scannedCode}`);
               setTimeout(() => setErr(''), 3000);

@@ -400,7 +400,20 @@ function saleBarcodeKey(e) {
     const q = e.target.value.trim();
     if (!q) return;
     const p = allProducts.find(x => x.barcode === q || x.sku === q);
-    if (p) { addToCartById(p.id); e.target.value = ''; renderSaleGrid(allProducts); }
+    if (p) { addToCartById(p.id, 1); e.target.value = ''; renderSaleGrid(allProducts); }
+    else if (q.length === 13 && (q.startsWith('21') || q.startsWith('22'))) {
+      const itemCode = q.substring(2, 7);
+      const weightGram = parseInt(q.substring(7, 12), 10) || 0;
+      const weightKg = weightGram / 1000;
+      const scaleProduct = allProducts.find(x => x.sku === itemCode || x.barcode === itemCode);
+      if (scaleProduct) {
+        addToCartById(scaleProduct.id, weightKg);
+        e.target.value = ''; renderSaleGrid(allProducts);
+      } else {
+        toast('Tarozi mahsuloti topilmadi (Kodi: ' + itemCode + ')', 'err');
+        e.target.value = '';
+      }
+    }
     else saleSearch(q);
   }
 }
@@ -450,16 +463,16 @@ function renderSaleGrid(list) {
 }
 
 // ─── CART ─────────────────────────────────────
-function addToCartById(id) {
+function addToCartById(id, qtyToAdd = 1) {
   const prod = allProducts.find(p => p.id === id);
   if (!prod) return;
-  addToCart(prod);
+  addToCart(prod, qtyToAdd);
 }
 
-function addToCart(prod) {
+function addToCart(prod, qtyToAdd = 1) {
   const existing = cart.find(x => x.id === prod.id);
-  if (existing) existing.qty++;
-  else cart.push({ ...prod, qty: 1 });
+  if (existing) existing.qty += qtyToAdd;
+  else cart.push({ ...prod, qty: qtyToAdd });
   renderCart();
   toast(prod.name + ' qo\'shildi', 'ok');
 }

@@ -872,18 +872,28 @@ export default function UlgurjiSotuv() {
         const buf = scanBufRef.current.trim(); scanBufRef.current = '';
         if (buf.length < 3) return;
 
-        // Skanerlangan kodni ko'rsatish (debug va foydalanuvchi uchun)
         toast.info(`Skanerlandi: ${buf}`, { autoClose: 1500 });
 
         const cust = customersRef.current.find(c => c.phone && (c.phone === buf || c.phone.replace(/\D/g, '') === buf.replace(/\D/g, '')));
         if (cust) { setCustIdRef.current(String(cust.id)); toast.success(`Mijoz tanlandi: ${cust.name}`); return; }
 
-        api.get(`/products/barcode/${encodeURIComponent(buf)}`)
+        let searchCode = buf;
+        let weightQty = 1;
+
+        if (buf.length === 13 && (buf.startsWith('21') || buf.startsWith('22'))) {
+          searchCode = buf.substring(2, 7);
+          const weightGram = parseInt(buf.substring(7, 12), 10) || 0;
+          weightQty = weightGram / 1000;
+        }
+
+        api.get(`/products/barcode/${encodeURIComponent(searchCode)}`)
           .then(r => {
             if (r.data?.id) {
-              addToCartRef.current(r.data);
+              const prod = r.data;
+              if (weightQty !== 1) prod.qty_ordered = weightQty;
+              addToCartRef.current(prod);
             } else {
-              toast.error(`Mahsulot topilmadi: ${buf}`);
+              toast.error(`Mahsulot topilmadi: ${searchCode}`);
             }
           })
           .catch(() => {
@@ -891,7 +901,7 @@ export default function UlgurjiSotuv() {
             if (el?.tagName === 'INPUT' && el.value.includes(buf)) {
               el.value = el.value.replace(buf, '').trim();
             }
-            toast.error(`Xatolik yoki topilmadi: ${buf}`);
+            toast.error(`Xatolik yoki topilmadi: ${searchCode}`);
           });
       } else if (e.key.length === 1) {
         if (gap > 50) scanBufRef.current = e.key; else scanBufRef.current += e.key;
