@@ -1587,11 +1587,6 @@ export default function Products() {
       toast.error("Eksport qilishda xatolik yuz berdi");
     }
   };
-      console.error(error);
-    }
-  };
-
-
   /* ════════════════════════════════════════════════ */
   return (
     <div className="space-y-6">
