@@ -122,6 +122,15 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
     oldDebtsList.push({ currency: 'UZS', amount: Number(sale.before_debt) });
   }
 
+  // DEBUG INFO
+  html += `
+    <tr>
+      <td colspan="${useCurrency ? 6 : 5}" style="text-align:left; border: 1px solid #000; font-size: 10px; color: red;">
+        DEBUG debt_amounts: ${sale.debt_amounts ? JSON.stringify(sale.debt_amounts) : 'MISSING'} | before_debt_balances: ${sale.before_debt_balances ? JSON.stringify(sale.before_debt_balances) : 'MISSING'}
+      </td>
+    </tr>
+  `;
+
   // ─── Joriy sotuv qarzi: har valyuta O'Z formatida ───────────────────
   // debt_amounts = { USD: 5.5, UZS: 500000 }
   // USD → "$ 5.50", UZS → "500,000 so'm" — ARALASHTIRILMAYDI
