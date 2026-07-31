@@ -35,50 +35,50 @@ export default function LandingLayout({ children }) {
   ]
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
+    <div className="min-h-screen relative overflow-hidden bg-slate-900 text-slate-100 font-sans">
       {/* Navbar */}
       <nav className={`fixed w-full px-5 top-0 z-100 backdrop-blur-xl border-b transition-all duration-300 animate-[slideUp_0.6s_ease-out_0.1s_backwards] ${scrolled
-        ? 'bg-white/80 border-black/8 shadow-[0_4px_20px_rgba(0,0,0,0.03)]'
-        : 'bg-white border-transparent'
+        ? 'bg-slate-900/90 border-white/10 shadow-[0_4px_30px_rgba(0,0,0,0.5)]'
+        : 'bg-transparent border-transparent'
         }`}>
         <div className="max-w-[1400px] w-full mx-auto relative z-10">
-          <div className="py-2 md:py-3 xl:py-5 flex justify-between w-full items-center gap-5 xl:gap-10">
+          <div className="py-3 md:py-4 xl:py-5 flex justify-between w-full items-center gap-5 xl:gap-10">
             <span onClick={() => navigate('/')} className="cursor-pointer">
-              <ECodeLogo size={36} />
+              <ECodeLogo size={42} showText={false} />
             </span>
 
             {/* Desktop Nav Links */}
-            <div className="hidden lg:flex items-center gap-6 xl:gap-9 mx-auto">
+            <div className="hidden lg:flex items-center gap-8 xl:gap-12 mx-auto">
               {navLinks.map(link => (
                 <a
                   key={link.path}
                   onClick={() => navigate(link.path)}
-                  className={`cursor-pointer text-nowrap no-underline font-semibold text-[14px] xl:text-[16px] transition-colors duration-200 relative py-2 group ${link.path === location.pathname ? 'text-green-700' : 'text-slate-500 hover:text-green-700'
+                  className={`cursor-pointer text-nowrap no-underline font-medium text-[15px] xl:text-[16px] transition-colors duration-200 relative py-2 group ${link.path === location.pathname ? 'text-blue-400' : 'text-slate-300 hover:text-white'
                     }`}
                 >
                   {link.label}
-                  <span className="absolute bottom-[-4px] left-0 w-0 h-0.5 bg-green-700 rounded-sm transition-all duration-300 group-hover:w-full" />
+                  <span className="absolute bottom-0 left-0 w-0 h-[2px] bg-blue-500 rounded-sm transition-all duration-300 group-hover:w-full" />
                 </a>
               ))}
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               {/* Lang switcher */}
               <div className="relative">
                 <button
                   onClick={() => setLangOpen(!langOpen)}
-                  className="bg-white border border-black/8 flex items-center gap-1.5 text-[13px] text-slate-900 cursor-pointer px-3 py-1 rounded-lg font-semibold transition-all duration-200 hover:bg-slate-100"
+                  className="bg-slate-800 border border-white/10 flex items-center gap-2 text-[13px] text-white cursor-pointer px-4 py-2 rounded-xl font-medium transition-all duration-200 hover:bg-slate-700 hover:border-white/20 shadow-sm"
                 >
                   {currentLang?.short} <LangIcon />
                 </button>
                 {langOpen && (
-                  <div className="absolute right-0 top-full mt-2 bg-white border border-black/8 rounded-xl p-1.5 shadow-[0_20px_40px_rgba(0,0,0,0.08)] min-w-[140px] animate-[fadeInUp_0.2s_ease-out_forwards] origin-top-right z-50">
+                  <div className="absolute right-0 top-full mt-2 bg-slate-800 border border-white/10 rounded-xl p-1.5 shadow-[0_20px_40px_rgba(0,0,0,0.4)] min-w-[140px] animate-[fadeInUp_0.2s_ease-out_forwards] origin-top-right z-50">
                     {LANGUAGES.map(l => (
                       <button
                         key={l.code}
                         onClick={() => { setLang(l.code); setLangOpen(false); }}
-                        className="w-full text-left bg-none border-none px-2.5 py-2.5 rounded-lg cursor-pointer text-sm text-slate-500 font-medium hover:bg-slate-50 hover:text-blue-600"
+                        className="w-full text-left bg-transparent border-none px-3 py-2.5 rounded-lg cursor-pointer text-sm text-slate-300 font-medium hover:bg-slate-700 hover:text-white transition-colors"
                       >
                         {l.flag} {l.label}
                       </button>
@@ -88,13 +88,13 @@ export default function LandingLayout({ children }) {
               </div>
 
               <button
-                className="hidden lg:inline-flex bg-transparent text-slate-500 border-none font-semibold px-4 py-2 rounded-xl cursor-pointer transition-all duration-200 hover:text-slate-900 hover:bg-black/3"
+                className="hidden lg:inline-flex bg-transparent text-slate-300 border-none font-medium px-5 py-2.5 rounded-xl cursor-pointer transition-all duration-200 hover:text-white hover:bg-white/5"
                 onClick={() => window.location.href = loginUrl}
               >
                 {t('land.nav.login') || 'Kirish'}
               </button>
               <button
-                className="hidden lg:inline-flex items-center justify-center gap-2 bg-linear-to-br from-green-700 to-green-500 text-white border-none font-bold px-5 py-2 rounded-xl cursor-pointer transition-all duration-400 shadow-[0_10px_30px_rgba(37,99,235,0.15)] text-[15px] relative overflow-hidden hover:scale-[1.02] hover:shadow-[0_15px_30px_rgba(37,99,235,0.3)]"
+                className="hidden lg:inline-flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white border border-blue-400/20 font-semibold px-6 py-2.5 rounded-xl cursor-pointer transition-all duration-300 shadow-[0_0_20px_rgba(37,99,235,0.3)] text-[15px] hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)] hover:from-blue-500 hover:to-blue-400"
                 onClick={() => window.location.href = registerUrl}
               >
                 {t('land.nav.register') || 'Boshlash'}
@@ -102,7 +102,7 @@ export default function LandingLayout({ children }) {
 
               {/* Hamburger */}
               <button
-                className="lg:hidden bg-none border-none text-[28px] text-slate-900 cursor-pointer"
+                className="lg:hidden bg-transparent border-none text-[28px] text-white cursor-pointer"
                 onClick={() => setMobileMenu(!mobileMenu)}
               >
                 ☰
@@ -112,27 +112,27 @@ export default function LandingLayout({ children }) {
         </div>
 
         {/* Mobile Menu */}
-        <div className={`flex justify-between flex-col gap-4 h-[calc(100vh-50px)] bg-white px-6 py-6 border-l border-black/8 absolute transition-all duration-300 top-full w-full max-w-90 z-80 ${mobileMenu ? 'right-0' : '-right-90'}`}>
-          <div className='flex flex-col gap-4'>
+        <div className={`flex justify-between flex-col gap-4 h-[calc(100vh-60px)] bg-slate-900 px-6 py-8 border-l border-white/10 absolute transition-all duration-300 top-full w-full max-w-sm z-80 shadow-2xl ${mobileMenu ? 'right-0' : '-right-full'}`}>
+          <div className='flex flex-col gap-2'>
             {navLinks.map(link => (
               <a
                 key={link.path}
                 onClick={() => { navigate(link.path); setMobileMenu(false); }}
-                className="cursor-pointer no-underline text-slate-900 text-base font-semibold py-2 border-b border-black/5 last:border-none"
+                className="cursor-pointer no-underline text-white text-lg font-medium py-3 border-b border-white/10 last:border-none hover:text-blue-400 transition-colors"
               >
                 {link.label}
               </a>
             ))}
           </div>
-          <div className='flex flex-col'>
+          <div className='flex flex-col gap-3 pb-8'>
             <button
               onClick={() => window.location.href = loginUrl}
-              className="py-3 rounded-xl font-bold text-[15px] mt-2 cursor-pointer border border-black/8 bg-white"
+              className="py-3.5 rounded-xl font-semibold text-[16px] cursor-pointer border border-white/20 bg-slate-800 text-white hover:bg-slate-700 transition-colors"
             >
               {t('land.nav.login') || 'Kirish'}
             </button>
             <button
-              className="py-3 rounded-xl font-bold text-[15px] mt-1 cursor-pointer border-none bg-linear-to-br from-blue-600 to-blue-400 text-white"
+              className="py-3.5 rounded-xl font-semibold text-[16px] cursor-pointer border-none bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg hover:from-blue-500 hover:to-blue-400 transition-all"
               onClick={() => window.location.href = registerUrl}
             >
               {t('land.nav.register') || 'Boshlash'}
@@ -142,55 +142,61 @@ export default function LandingLayout({ children }) {
       </nav>
 
       {/* Page Content */}
-      {children}
+      <main className="min-h-screen">
+        {children}
+      </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-black/8 py-20 pb-[60px]">
+      <footer className="bg-slate-950 border-t border-white/10 py-20 pb-[60px] relative">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-900/10 via-slate-950 to-slate-950"></div>
         <div className="max-w-[1400px] mx-auto px-6 relative z-10">
           <div className="flex justify-between flex-wrap gap-[60px]">
             <div className="flex flex-col">
               <span onClick={() => navigate('/')} className="cursor-pointer">
-                <ECodeLogo size={32} />
+                <ECodeLogo size={42} showText={false} />
               </span>
-              <p className="mt-6 text-[15px] text-slate-500">
+              <p className="mt-8 text-[15px] text-slate-400 max-w-xs leading-relaxed">
+                Kichik va o'rta biznes uchun eng yaxshi raqamlashtirish yechimlari.
+              </p>
+              <p className="mt-4 text-[14px] text-slate-500">
                 © {new Date().getFullYear()} E-code LLC. {t('land.footer.rights') || 'Barcha huquqlar himoyalangan.'}
               </p>
             </div>
-            <div className="flex gap-20 flex-wrap">
+            <div className="flex gap-x-24 gap-y-12 flex-wrap">
               <div className="flex flex-col gap-4">
-                <strong className="text-slate-900 text-base mb-3 font-bold uppercase">
+                <strong className="text-white text-sm mb-2 font-bold tracking-wider uppercase opacity-80">
                   {t('land.footer.services') || 'Xizmatlar'}
                 </strong>
                 {navLinks.map(link => (
                   <span
                     key={link.path}
                     onClick={() => navigate(link.path)}
-                    className="cursor-pointer text-slate-500 text-[15px] transition-all duration-300 hover:text-blue-600 hover:translate-x-1"
+                    className="cursor-pointer text-slate-400 text-[15px] transition-all duration-300 hover:text-blue-400 hover:translate-x-1"
                   >
                     {link.label}
                   </span>
                 ))}
               </div>
               <div className="flex flex-col gap-4">
-                <strong className="text-slate-900 text-base mb-3 font-bold uppercase">
+                <strong className="text-white text-sm mb-2 font-bold tracking-wider uppercase opacity-80">
                   {t('land.footer.contact') || 'Aloqa'}
                 </strong>
-                <span className="text-slate-500 text-[15px]">ecode.uz@gmail.com</span>
-                <span className="text-slate-500 text-[15px]">+998 88 911 81 71</span>
+                <a href="mailto:ecode.uz@gmail.com" className="text-slate-400 text-[15px] hover:text-blue-400 transition-colors no-underline">ecode.uz@gmail.com</a>
+                <a href="tel:+998889118171" className="text-slate-400 text-[15px] hover:text-blue-400 transition-colors no-underline">+998 88 911 81 71</a>
               </div>
               <div className="flex flex-col gap-4">
-                <strong className="text-slate-900 text-base mb-3 font-bold uppercase">
+                <strong className="text-white text-sm mb-2 font-bold tracking-wider uppercase opacity-80">
                   {t('land.footer.system') || 'Tizim'}
                 </strong>
                 <span
                   onClick={() => window.location.href = loginUrl}
-                  className="cursor-pointer text-slate-500 text-[15px] transition-all duration-300 hover:text-blue-600 hover:translate-x-1"
+                  className="cursor-pointer text-slate-400 text-[15px] transition-all duration-300 hover:text-blue-400 hover:translate-x-1"
                 >
                   {t('land.nav.login') || 'Kirish'}
                 </span>
                 <span
                   onClick={() => window.location.href = registerUrl}
-                  className="cursor-pointer text-slate-500 text-[15px] transition-all duration-300 hover:text-blue-600 hover:translate-x-1"
+                  className="cursor-pointer text-slate-400 text-[15px] transition-all duration-300 hover:text-blue-400 hover:translate-x-1"
                 >
                   {t('land.nav.register') || 'Boshlash'}
                 </span>
