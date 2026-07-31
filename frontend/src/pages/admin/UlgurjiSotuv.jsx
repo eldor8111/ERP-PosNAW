@@ -723,14 +723,44 @@ export default function UlgurjiSotuv() {
 
         // Eskiroq sotuvlar uchun fallback (qachonki backend debt_amounts saqlamagan bo'lsa)
         if (Object.keys(saleDebtAmounts).length === 0) {
-          const debtUzs = Number(data.total_amount || 0) - Number(data.paid_amount || 0);
-          if (debtUzs > 0.01) {
-            const sCurr = String(data.currency_code || 'UZS').toUpperCase();
-            const sRate = Number(data.exchange_rate || 1);
-            const debtInCurr = sCurr === 'UZS' ? debtUzs : (debtUzs / sRate);
-            saleDebtAmounts = { [sCurr]: Number(debtInCurr.toFixed(2)) };
-            data.debt_amounts = saleDebtAmounts; // buildReceiptHtml uchun ham kerak
+          const residByCurr = {};
+          if (data.items) {
+            data.items.forEach(it => {
+              const c = String(it.currency_code || 'UZS').toUpperCase();
+              residByCurr[c] = (residByCurr[c] || 0) + Number(it.subtotal || 0);
+            });
           }
+          
+          let pAmtUZS = Number(data.paid_amount || 0);
+          if (pAmtUZS > 0) {
+             if (residByCurr['UZS'] !== undefined && residByCurr['UZS'] >= pAmtUZS) {
+                 residByCurr['UZS'] -= pAmtUZS;
+             } else {
+                 let rem = pAmtUZS - (residByCurr['UZS'] || 0);
+                 residByCurr['UZS'] = 0;
+                 for (const c of Object.keys(residByCurr)) {
+                    if (c !== 'UZS' && residByCurr[c] > 0) {
+                        const rate = Number(data.exchange_rate || 1);
+                        if (rate > 1) {
+                            const inVal = rem / rate;
+                            if (residByCurr[c] >= inVal) {
+                                residByCurr[c] -= inVal;
+                                rem = 0;
+                                break;
+                            } else {
+                                rem -= residByCurr[c] * rate;
+                                residByCurr[c] = 0;
+                            }
+                        }
+                    }
+                 }
+             }
+          }
+
+          for (const [c, a] of Object.entries(residByCurr)) {
+            if (a > 0.001) saleDebtAmounts[c] = Number(a.toFixed(2));
+          }
+          data.debt_amounts = saleDebtAmounts;
         }
 
         // Avvalgi balans = hozirgi balans - joriy sotuv qarzi
