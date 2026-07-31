@@ -709,12 +709,31 @@ export default function UlgurjiSotuv() {
       
       const selectedCust = customers.find(c => String(c.id) === String(data.customer_id || s.customer_id));
       
+      // Chek chop etilganda mijozning HOZIRGI (sotuv keyingi) balansi emas,
+      // OLDINGI (sotuv yaratilishidan avval) balansi ko'rsatilishi kerak.
+      // Agar sotuv allaqachon bajarilgan bo'lsa, mijoz balansi yangilangan —
+      // shuning uchun `debt_amounts`ni hisobga olib, avvalgi holatni tiklashga harakat qilamiz.
+      let prevBalances = null;
+      if (selectedCust) {
+        const currBalances = selectedCust.debt_balances || { UZS: Number(selectedCust.debt_balance || 0) };
+        const saleDebtAmounts = data.debt_amounts || {};
+        // Avvalgi balans = hozirgi balans - joriy sotuv qarzi
+        if (Object.keys(saleDebtAmounts).length > 0) {
+          prevBalances = { ...currBalances };
+          for (const [curr, amt] of Object.entries(saleDebtAmounts)) {
+            prevBalances[curr] = (Number(prevBalances[curr] || 0)) - Number(amt);
+          }
+        } else {
+          prevBalances = currBalances;
+        }
+      }
+
       data = {
         ...data,
         contractor_name: clientName,
         customer_name: clientName,
-        before_debt_balances: selectedCust ? (selectedCust.debt_balances || { UZS: Number(selectedCust.debt_balance || 0) }) : null,
-        before_debt: selectedCust ? (selectedCust.debt_balances ? (selectedCust.debt_balances[data.currency_code || 'UZS'] || 0) : Number(selectedCust.debt_balance || 0)) : 0,
+        before_debt_balances: prevBalances,
+        before_debt: 0, // before_debt_balances ishlatilganda bu e'tiborga olinmaydi
       };
       const tpl = size === 'nak' ? 'nak' : size === '58' ? '58' : '80';
       const rSettings = getReceiptSettings();
@@ -1084,17 +1103,21 @@ export default function UlgurjiSotuv() {
             // Izoh
             note: note || payNote || undefined,
             // Qarz ma'lumotlari in UZS (so the receipt builder divides it back correctly)
-            before_debt: (() => {
-              if (!selectedCust) return 0;
-              if (selectedCust.debt_balances && selectedCust.debt_balances[currentCurrencyCode] !== undefined) {
-                return Number(selectedCust.debt_balances[currentCurrencyCode]) * currentExchangeRate;
+            // Auto-print: before_debt_balances = hozirgi balansdan joriy sotuv qarzini ayirish
+            before_debt: 0,
+            before_debt_balances: (() => {
+              if (!selectedCust) return null;
+              const currBalances = selectedCust.debt_balances || { UZS: Number(selectedCust.debt_balance || 0) };
+              const saleDebtAmounts = res.data.debt_amounts || {};
+              if (Object.keys(saleDebtAmounts).length > 0) {
+                const prev = { ...currBalances };
+                for (const [curr, amt] of Object.entries(saleDebtAmounts)) {
+                  prev[curr] = (Number(prev[curr] || 0)) - Number(amt);
+                }
+                return prev;
               }
-              if (selectedCust.debt_balances && selectedCust.debt_balances.UZS !== undefined) {
-                return Number(selectedCust.debt_balances.UZS);
-              }
-              return Number(selectedCust.debt_balance || 0);
+              return currBalances;
             })(),
-            before_debt_balances: selectedCust ? (selectedCust.debt_balances || { UZS: Number(selectedCust.debt_balance || 0) }) : null,
             items: cart.map(it => ({
               product_name: it.name,
               quantity: it.qty,
