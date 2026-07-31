@@ -122,14 +122,6 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
     oldDebtsList.push({ currency: 'UZS', amount: Number(sale.before_debt) });
   }
 
-  // DEBUG INFO
-  html += `
-    <tr>
-      <td colspan="${useCurrency ? 6 : 5}" style="text-align:left; border: 1px solid #000; font-size: 10px; color: red;">
-        DEBUG debt_amounts: ${sale.debt_amounts ? JSON.stringify(sale.debt_amounts) : 'MISSING'} | before_debt_balances: ${sale.before_debt_balances ? JSON.stringify(sale.before_debt_balances) : 'MISSING'}
-      </td>
-    </tr>
-  `;
 
   // ─── Joriy sotuv qarzi: har valyuta O'Z formatida ───────────────────
   // debt_amounts = { USD: 5.5, UZS: 500000 }
@@ -306,6 +298,16 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
             ? sale.payment_types_array.map(pt => `<tr><td>To'lov (${pt.type}):</td><td>${fmtVal(pt.amount)}</td></tr>`).join('')
             : `<tr><td>To'langan:</td><td>${fmtVal(sale.paid_amount)}</td></tr>`
         ) : ''}
+        <tr>
+          <td colspan="${visibleCols.length}" style="text-align:left; border-top:2px dashed #000; font-size: 10px; color: red;">
+            DEBUG debt_amounts: ${sale.debt_amounts ? JSON.stringify(sale.debt_amounts) : 'MISSING'} | before_debt_balances: ${sale.before_debt_balances ? JSON.stringify(sale.before_debt_balances) : 'MISSING'}
+          </td>
+        </tr>
+        ${sh('show_items_count', true) ? `
+        <tr>
+          <td colspan="${visibleCols.length - 1}" style="text-align:right">Jami miqdor:</td>
+          <td style="text-align:right"><strong>${totalQty}</strong></td>
+        </tr>` : ''}
         ${sh('show_contractor_debts') ? `<tr><td style="color:red;vertical-align:top">Joriy qarz:</td><td style="color:red">${currentDebtStr}</td></tr>` : ''}
         ${sh('show_before_debts') ? `<tr><td style="vertical-align:top">Oldingi qarz:</td><td>${oldDebtStr}</td></tr>` : ''}
         ${sh('show_debts') ? `<tr><td style="vertical-align:top"><b>Umumiy qarz:</b></td><td><b>${finalDebtStr}</b></td></tr>` : ''}
