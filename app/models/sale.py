@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Date, Enum, ForeignKey, Integer, Numeric, String, Text, Index  # type: ignore
+from sqlalchemy import Column, DateTime, Date, Enum, ForeignKey, Integer, Numeric, String, Text, Index, JSON  # type: ignore
 from sqlalchemy.orm import relationship  # type: ignore
 
 from app.database import Base  # type: ignore
