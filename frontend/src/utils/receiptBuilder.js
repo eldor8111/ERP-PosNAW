@@ -287,32 +287,27 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
 
     // Totals section
     const totalsHtml = sh('show_totals') ? `
-      <table class="totals">
-        <tr><td style="vertical-align:top">JAMI:</td><td><b>${jamiStr}</b></td></tr>
-        ${sh('show_total_national') ? `<tr><td>Milliy valyutada:</td><td>${sale.total_national || '___'}</td></tr>` : ''}
-        ${sh('show_total_quantity') ? `<tr><td>Jami miqdor:</td><td>${totalQty}</td></tr>` : ''}
-        ${sh('show_exact_discounts') ? `<tr><td>Chegirma:</td><td>-${fmtVal(sale.discount_amount || 0)}</td></tr>` : ''}
-        ${sh('show_percent_discount') ? `<tr><td>% Chegirma:</td><td>${sale.percent_discount || '___'}%</td></tr>` : ''}
+      <table class="totals" style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+        <tr style="border-bottom: 1px dashed #ccc;"><td style="vertical-align:top; padding:4px 0;">JAMI:</td><td style="padding:4px 0;"><b>${jamiStr}</b></td></tr>
+        ${sh('show_total_national') ? `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">Milliy valyutada:</td><td style="padding:4px 0;">${sale.total_national || '___'}</td></tr>` : ''}
+        ${sh('show_total_quantity') ? `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">Jami miqdor:</td><td style="padding:4px 0;">${totalQty}</td></tr>` : ''}
+        ${sh('show_exact_discounts') ? `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">Chegirma:</td><td style="padding:4px 0;">-${fmtVal(sale.discount_amount || 0)}</td></tr>` : ''}
+        ${sh('show_percent_discount') ? `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">% Chegirma:</td><td style="padding:4px 0;">${sale.percent_discount || '___'}%</td></tr>` : ''}
         ${sh('show_payment_amounts') ? (
           sale.payment_types_array && sale.payment_types_array.length > 0
-            ? sale.payment_types_array.map(pt => `<tr><td>To'lov (${pt.type}):</td><td>${fmtVal(pt.amount)}</td></tr>`).join('')
-            : `<tr><td>To'langan:</td><td>${fmtVal(sale.paid_amount)}</td></tr>`
+            ? sale.payment_types_array.map(pt => `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">To'lov (${pt.type}):</td><td style="padding:4px 0;">${fmtVal(pt.amount)}</td></tr>`).join('')
+            : `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">To'langan:</td><td style="padding:4px 0;">${fmtVal(sale.paid_amount)}</td></tr>`
         ) : ''}
-        <tr>
-          <td colspan="${visibleCols.length}" style="text-align:left; border-top:2px dashed #000; font-size: 10px; color: red;">
-            DEBUG debt_amounts: ${sale.debt_amounts ? JSON.stringify(sale.debt_amounts) : 'MISSING'} | before_debt_balances: ${sale.before_debt_balances ? JSON.stringify(sale.before_debt_balances) : 'MISSING'}
-          </td>
-        </tr>
         ${sh('show_items_count', true) ? `
-        <tr>
-          <td colspan="${visibleCols.length - 1}" style="text-align:right">Jami miqdor:</td>
-          <td style="text-align:right"><strong>${totalQty}</strong></td>
+        <tr style="border-bottom: 1px dashed #ccc;">
+          <td colspan="${visibleCols.length - 1}" style="text-align:right; padding:4px 0;">Jami miqdor:</td>
+          <td style="text-align:right; padding:4px 0;"><strong>${totalQty}</strong></td>
         </tr>` : ''}
-        ${sh('show_contractor_debts') ? `<tr><td style="color:red;vertical-align:top">Joriy qarz:</td><td style="color:red">${currentDebtStr}</td></tr>` : ''}
-        ${sh('show_before_debts') ? `<tr><td style="vertical-align:top">Oldingi qarz:</td><td>${oldDebtStr}</td></tr>` : ''}
-        ${sh('show_debts') ? `<tr><td style="vertical-align:top"><b>Umumiy qarz:</b></td><td><b>${finalDebtStr}</b></td></tr>` : ''}
-        ${sh('show_last_payment') ? `<tr><td>Oxirgi to'lov:</td><td>${sale.last_payment ? fmtVal(sale.last_payment) : '___'}</td></tr>` : ''}
-        ${change > 0 ? `<tr><td style="color:green">Qaytim:</td><td style="color:green">${fmtVal(change)}</td></tr>` : ''}
+        ${sh('show_contractor_debts') ? `<tr style="border-bottom: 1px dashed #ccc;"><td style="color:red; vertical-align:top; padding:4px 0;">Joriy qarz:</td><td style="color:red; padding:4px 0;">${currentDebtStr}</td></tr>` : ''}
+        ${sh('show_before_debts') ? `<tr style="border-bottom: 1px dashed #ccc;"><td style="vertical-align:top; padding:4px 0;">Oldingi qarz:</td><td style="padding:4px 0;">${oldDebtStr}</td></tr>` : ''}
+        ${sh('show_debts') ? `<tr style="border-bottom: 1px dashed #ccc;"><td style="vertical-align:top; padding:4px 0;"><b>Umumiy qarz:</b></td><td style="padding:4px 0;"><b>${finalDebtStr}</b></td></tr>` : ''}
+        ${sh('show_last_payment') ? `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">Oxirgi to'lov:</td><td style="padding:4px 0;">${sale.last_payment ? fmtVal(sale.last_payment) : '___'}</td></tr>` : ''}
+        ${change > 0 ? `<tr style="border-bottom: 1px dashed #ccc;"><td style="color:green; padding:4px 0;">Qaytim:</td><td style="color:green; padding:4px 0;">${fmtVal(change)}</td></tr>` : ''}
       </table>` : '';
 
     // Signatures
