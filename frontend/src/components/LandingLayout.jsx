@@ -31,10 +31,6 @@ export default function LandingLayout({ children }) {
 
   const navLinks = [
     { label: t('land.nav.erp') || 'ERP Tizim', path: '/' },
-    { label: 'Eviko', path: '/chaqqon-pro' },
-    { label: t('land.nav.websites') || 'Veb-saytlar', path: '/veb-saytlar' },
-    { label: t('land.nav.bots') || 'Telegram Botlar', path: '/telegram-botlar' },
-    { label: t('land.nav.custom') || 'Noyob Dasturlar', path: '/noyob-dasturlar' },
     { label: t('land.nav.contact') || 'Aloqa', path: '/aloqa' },
   ]
 
