@@ -9,138 +9,75 @@ const GREEN_DARK = '#047857';
 const GREEN_GLOW = 'rgba(5,150,105,0.5)';
 const GREEN_LIGHT = '#34d399';     // emerald-400 — qorang'u fonda yorqin yashil
 
-/* ─── Yorug' (oq) fon uchun — sidebar, mobile ────────────────────────── */
+const BLUE = '#60a5fa'; // blue-400
+const DARK_BG = '#111827'; // gray-900
+
 export default function ECodeLogo({
-  size = 32,
+  size = 48,
   showText = true,
-  textClassName = 'text-[16px]',
   className = '',
 }) {
-  return (
-    <div className={`flex items-center gap-2.5 ${className}`}>
-      <svg
-        width={size}
-        height={size}
-        viewBox="0 0 48 48"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        style={{ flexShrink: 0 }}
-      >
-        {/* Tashqi daire — yashil */}
-        <circle cx="24" cy="24" r="21" stroke={GREEN} strokeWidth="2.5" />
-        {/* Yuqori kichik nuqta */}
-        <circle cx="24" cy="5" r="2.8" fill={GREEN} />
-        {/* E harfi */}
-        <text
-          x="24" y="30"
-          fontFamily="Arial, sans-serif"
-          fontSize="19"
-          fontWeight="700"
-          textAnchor="middle"
-          fill={GREEN}
-        >E</text>
-      </svg>
+  // If showText is true, render the full pill logo
+  if (showText) {
+    return (
+      <div className={`flex items-center bg-[#111827] rounded-[1.5rem] px-5 py-2 gap-3 shadow-lg ${className}`} style={{ width: 'fit-content' }}>
+        <svg width={size} height={size} viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+          {/* White U */}
+          <path d="M 16 12 L 16 36 A 8 8 0 0 0 32 36 L 32 18" stroke="white" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          {/* Blue U */}
+          <path d="M 32 18 L 32 46 A 8 8 0 0 0 48 46 L 48 24" stroke={BLUE} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        </svg>
+        <div className="flex flex-col justify-center">
+          <span className="text-white font-bold text-xl leading-none tracking-wide font-sans">E-code</span>
+          <span className="text-blue-400 font-bold text-[10px] leading-tight tracking-[0.2em] mt-1 font-sans">PAPERLESS ERP</span>
+        </div>
+      </div>
+    );
+  }
 
-      {showText && (
-        <span className={`font-black leading-none tracking-tight ${textClassName} text-slate-800`}>
-          <span style={{ color: GREEN }}>E</span>-code
-        </span>
-      )}
+  // If showText is false, render just the icon without the dark pill
+  return (
+    <div className={className} style={{ display: 'inline-flex' }}>
+      <svg width={size} height={size} viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M 16 12 L 16 36 A 8 8 0 0 0 32 36 L 32 18" stroke="#111827" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d="M 32 18 L 32 46 A 8 8 0 0 0 48 46 L 48 24" stroke={BLUE} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      </svg>
     </div>
   );
 }
 
-/* ─── Faqat ikonka — sidebar yig'ilgan holat ─────────────────────────── */
 export function ECodeIcon({ size = 32, className = '' }) {
   return (
     <div className={className} style={{ display: 'inline-flex' }}>
-      <svg
-        width={size}
-        height={size}
-        viewBox="0 0 48 48"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        style={{ flexShrink: 0 }}
-      >
-        <circle cx="24" cy="24" r="21" stroke={GREEN} strokeWidth="2.5" />
-        <circle cx="24" cy="5" r="2.8" fill={GREEN} />
-        <text
-          x="24" y="30"
-          fontFamily="Arial, sans-serif"
-          fontSize="19"
-          fontWeight="700"
-          textAnchor="middle"
-          fill={GREEN}
-        >E</text>
+      <svg width={size} height={size} viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M 16 12 L 16 36 A 8 8 0 0 0 32 36 L 32 18" stroke="#111827" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d="M 32 18 L 32 46 A 8 8 0 0 0 48 46 L 48 24" stroke={BLUE} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
       </svg>
     </div>
   );
 }
 
-/* ─── Qorang'u / gradient fon uchun (Login, Register chap panel) ──────
-   Yashil daire + yashil E — qorang'u fonda glow bilan ajralib turadi
-   ──────────────────────────────────────────────────────────────────── */
-export function ECodeLogoPrimary({ size = 44, className = '' }) {
+export function ECodeLogoPrimary({ size = 48, className = '' }) {
   return (
-    <div className={`flex items-center gap-3 ${className}`}>
-      <svg
-        width={size}
-        height={size}
-        viewBox="0 0 48 48"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        style={{
-          flexShrink: 0,
-          filter: `drop-shadow(0 0 10px ${GREEN_GLOW}) drop-shadow(0 2px 6px ${GREEN_GLOW})`,
-        }}
-      >
-        {/* Yashil daire — qorang'u fonda glow bilan yaqqol ko'rinadi */}
-        <circle cx="24" cy="24" r="21" stroke={GREEN_LIGHT} strokeWidth="2.8" />
-        {/* Yashil nuqta */}
-        <circle cx="24" cy="5" r="2.8" fill={GREEN_LIGHT} />
-        {/* Yashil E harfi */}
-        <text
-          x="24" y="30"
-          fontFamily="Arial, sans-serif"
-          fontSize="19"
-          fontWeight="700"
-          textAnchor="middle"
-          fill={GREEN_LIGHT}
-        >E</text>
+    <div className={`flex items-center bg-[#111827] rounded-[1.5rem] px-5 py-2 gap-3 shadow-2xl shadow-blue-500/20 ${className}`} style={{ width: 'fit-content' }}>
+      <svg width={size} height={size} viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+        <path d="M 16 12 L 16 36 A 8 8 0 0 0 32 36 L 32 18" stroke="white" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d="M 32 18 L 32 46 A 8 8 0 0 0 48 46 L 48 24" stroke={BLUE} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
       </svg>
-
-      <span className="font-bold text-[20px] text-white leading-none tracking-wide">
-        E-code
-      </span>
+      <div className="flex flex-col justify-center">
+        <span className="text-white font-bold text-xl leading-none tracking-wide font-sans">E-code</span>
+        <span className="text-blue-400 font-bold text-[10px] leading-tight tracking-[0.2em] mt-1 font-sans">PAPERLESS ERP</span>
+      </div>
     </div>
   );
 }
 
-/* ─── POS login (qorang'u fon) uchun ikonka ─────────────────────────── */
-export function ECodeIconLight({ size = 64, className = '' }) {
+export function ECodeIconLight({ size = 48, className = '' }) {
   return (
     <div className={className} style={{ display: 'inline-flex' }}>
-      <svg
-        width={size}
-        height={size}
-        viewBox="0 0 48 48"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        style={{
-          flexShrink: 0,
-          filter: `drop-shadow(0 0 14px ${GREEN_GLOW}) drop-shadow(0 3px 8px ${GREEN_GLOW})`,
-        }}
-      >
-        <circle cx="24" cy="24" r="21" stroke={GREEN_LIGHT} strokeWidth="2.8" />
-        <circle cx="24" cy="5" r="2.8" fill={GREEN_LIGHT} />
-        <text
-          x="24" y="30"
-          fontFamily="Arial, sans-serif"
-          fontSize="19"
-          fontWeight="700"
-          textAnchor="middle"
-          fill={GREEN_LIGHT}
-        >E</text>
+      <svg width={size} height={size} viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M 16 12 L 16 36 A 8 8 0 0 0 32 36 L 32 18" stroke="white" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d="M 32 18 L 32 46 A 8 8 0 0 0 48 46 L 48 24" stroke={BLUE} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
       </svg>
     </div>
   );
