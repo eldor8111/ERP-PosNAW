@@ -1560,50 +1560,67 @@ export default function Products() {
         return;
       }
 
-      // TM-A xA format (semicolon delimited, no header):
-      // PLU(5 digits);Name(max 28 chars);Price(soʻm);BarcodeType(2=weight-embedded);Tare;Department
-      // BarcodeType 2 => barcode = 2 + PLU(5) + Weight_gram(5) + CheckDigit(1) = 13 digits
-      let csvLines = [];
+      // TM-A xA haqiqiy .TMS fayl formati (A_150.TMS asosida)
+      // Tab bilan ajratilgan, PLU satri: PLU\tid\tid\t\t3\tnarx,0\t0,0\t0,0\t0\t0\t0\t0\t0\t0\t9\tnom\t...
+      // Barcode type 3 => tarozi EAN-13: 2 + PLU(5) + og'irlik(5) + check(1)
+      // PLU raqami = mahsulot ID (tarozi shu raqamni barcodega yozadi)
+      const T = '\t'; // tab
+      const lines = [];
 
-      filteredData.forEach(prod => {
-        // PLU: faqat raqamlar, 5 ta raqamga to'ldirish
-        const rawPlu = prod.sku && prod.sku.trim()
-          ? prod.sku.trim().replace(/\D/g, '')
-          : String(prod.id);
-        const plu = rawPlu.padStart(5, '0').slice(-5); // 5 ta raqam, oshib ketsa oxirgi 5 ta
-        
-        // Nom: vergul va nuqtali vergullarni olib tashlash, max 28 ta belgi
-        const name = (prod.name || '')
-          .replace(/[;,"]/g, ' ')
+      lines.push('');
+      lines.push(`ECS${T}VER${T}100${T}`);
+      lines.push(`DWL${T}PLU${T}`);
+
+      filteredData.forEach((prod, idx) => {
+        // PLU raqami: faqat raqamlar, ID ishlatiladi
+        const plu = prod.id;
+
+        // Nom: tab va maxsus belgilarni tozalash
+        const name = (prod.name || 'Nomsiz')
+          .replace(/[\t\r\n]/g, ' ')
           .trim()
           .substring(0, 28);
-        
-        // Narx: butun son (so'm)
-        const price = prod.sale_price ? Math.round(parseFloat(prod.sale_price)) : 0;
-        
-        // BarcodeType=2: weight-embedded EAN-13 (2+PLU5+Weight5+Check1)
-        const barcodeType = 2;
-        const tare = 0;      // Tara og'irligi (g)
-        const dept = 1;      // Department
-        
-        csvLines.push(`${plu};${name};${price};${barcodeType};${tare};${dept}`);
+
+        // Narx: vergul bilan kasrli (15000,0 shaklida) - taroziga mos
+        const priceRaw = prod.sale_price ? parseFloat(prod.sale_price) : 0;
+        const price = priceRaw.toFixed(1).replace('.', ',');
+
+        // PLU satri (A_150.TMS ga aynan mos):
+        // PLU\t{plu}\t{plu}\t\t3\t{narx}\t0,0\t0,0\t0\t0\t0\t0\t0\t0\t9\t{nom}\t\t\t\t\t\t\t\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0,0\t0,0\t0\t127\t0,0\t0,0\t0,0\t0\t127\t0,0\t0,0\t0,0\t0\t127\t0,0\t0,0\t0,0\t0\t127\t0,0\t0,0\t0,0\t0\t0\t0\t0\t0\t0\t0\t\t0\t0\t0\t
+        const row = [
+          'PLU', plu, plu, '', 3, price, '0,0', '0,0',
+          0, 0, 0, 0, 0, 0, 9, name,
+          '', '', '', '', '', '', '', '',
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+          '0,0', '0,0', 0, 127, '0,0', '0,0', '0,0', 0,
+          127, '0,0', '0,0', '0,0', 0,
+          127, '0,0', '0,0', '0,0', 0,
+          127, '0,0', '0,0', '0,0', 0,
+          0, 0, 0, 0, 0, 0, '', 0, 0, 0, ''
+        ].join(T);
+        lines.push(row);
       });
 
-      const csvContent = csvLines.join('\r\n') + '\r\n';
-      const blob = new Blob([csvContent], { type: 'text/plain;charset=utf-8' });
+      lines.push(`END${T}PLU${T}`);
+      lines.push(`END${T}ECS${T}`);
+      lines.push('');
+
+      const tmsContent = lines.join('\r\n');
+      const blob = new Blob([tmsContent], { type: 'text/plain;charset=utf-8' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', 'PLU.tms');
+      link.setAttribute('download', 'A_000.TMS');
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-      toast.success(`${filteredData.length} ta mahsulot PLU.csv ga eksport qilindi!`);
+      toast.success(`${filteredData.length} ta mahsulot A_000.TMS ga eksport qilindi!`);
     } catch (error) {
       toast.error("Eksport qilishda xatolik yuz berdi");
     }
   };
+
   /* ════════════════════════════════════════════════ */
   return (
     <div className="space-y-6">
