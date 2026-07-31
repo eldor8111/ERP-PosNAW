@@ -200,8 +200,6 @@ export default function Landing() {
     switch (serviceName) {
       case 'ERP Tizim':
         return LaptopMinimal;
-      case 'Eviko (Restoran POS)':
-        return ChefHat;
       case 'Web sayt yasash':
         return GlobeIcon;
       case 'Telegram Bot':
@@ -216,7 +214,6 @@ export default function Landing() {
   // Sizdagi oddiy massiv (faqat string nomlar bilan)
   const serviceOptions = [
     'ERP Tizim',
-    'Eviko (Restoran POS)',
     'Web sayt yasash',
     'Telegram Bot',
     "Boshqa g'oya"
@@ -360,7 +357,6 @@ export default function Landing() {
 
   const leadCapture = [
     { id: 1, name: 'ERP Tizim', avatar: LaptopMinimal },
-    { id: 2, name: 'Eviko (Restoran POS)', avatar: ChefHat },
     { id: 3, name: 'Web sayt yasash', avatar: Globe },
     { id: 4, name: 'Telegram bot', avatar: Bot },
     { id: 5, name: "Boshqa g'oya", avatar: Lamp },
@@ -586,36 +582,6 @@ export default function Landing() {
             <p className="text-[18px] text-slate-500 max-w-[600px] mx-auto">{t('land.noPaper')}</p>
           </div>
           <TabbedModules t={t} />
-        </div>
-      </section>
-
-      {/* ── Chaqqon Pro ── */}
-      <section className="py-[120px] w-full flex justify-center relative bg-linear-to-br from-amber-50 to-orange-100 border-y border-orange-200">
-        <div className="w-max px-6 relative z-10">
-          <div className="text-center mb-[70px] animate-[fadeInUp_0.8s_ease-out_both]">
-            <div className="text-orange-600 bg-orange-600/10 inline-block px-3 py-1 rounded-xl font-bold mb-4">🍽️ {t('land.chaqqon.badge') || 'Yangi tizim'}</div>
-            <h2 className="text-[clamp(32px,5vw,44px)] font-extrabold tracking-[-0.04em] mb-4 text-orange-900">{'Eviko'}</h2>
-            <p className="text-[18px] text-orange-700 max-w-[600px] mx-auto">{t('land.chaqqon.sub') || 'Restoran POS'}</p>
-          </div>
-          <div
-            className="group cursor-pointer lg:col-span-2 bg-white border border-orange-300 rounded-[24px] p-10 flex flex-col relative overflow-hidden shadow-[0_10px_25px_-5px_rgba(234,88,12,0.1)] transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:-translate-y-2 hover:scale-[1.01] hover:shadow-[0_30px_60px_rgba(0,0,0,0.08),inset_0_0_0_2px_rgba(234,88,12,0.1)]"
-            onClick={() => navigate('/chaqqon-pro')}
-          >
-            <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-[30px] lg:gap-[40px] h-full transition-transform duration-300 group-hover:-translate-y-1">
-              <div>
-                <div className="w-14 h-14 bg-orange-100 text-orange-600 text-2xl border border-orange-200 rounded-2xl flex items-center justify-center mb-6 shadow-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] group-hover:scale-[1.15] group-hover:rotate-[5deg] group-hover:bg-orange-500 group-hover:text-white group-hover:shadow-[0_10px_20px_rgba(234,88,12,0.3)]">🍔</div>
-                <h3 className="m-0 mt-4 mb-2 text-[24px] font-extrabold tracking-[-0.02em] text-orange-900">{t('land.chaqqon.box_title') || 'Maxsus Restoran POS'}</h3>
-                <p className="m-0 mt-2 text-amber-900 leading-[1.7] text-[16px]">{t('land.chaqqon.box_desc') || 'Kassalar, ofitsiantlar va h.k'}</p>
-                <span className="inline-flex items-center gap-1.5 text-[14px] font-bold text-orange-600 mt-4 opacity-0 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0">{t('land.chaqqon.box_more') || 'Batafsil'} {ICONS.arrowRight}</span>
-              </div>
-              <ul className="list-none p-0 m-0 flex flex-col gap-4 bg-orange-50/50 p-8 rounded-[20px] border border-orange-200 min-w-0 lg:min-w-[300px] w-full lg:w-auto shadow-sm transform translate-z-0 transition-all duration-300 text-orange-900 group-hover:scale-[1.02] group-hover:shadow-md">
-                <li className="flex items-center gap-3 text-[15px] font-semibold group/item"><BadgeCheck /> {t('land.chaqqon.l2')}</li>
-                <li className="flex items-center gap-3 text-[15px] font-semibold group/item"><BadgeCheck /> {t('land.chaqqon.l3')}</li>
-                <li className="flex items-center gap-3 text-[15px] font-semibold group/item"><BadgeCheck /> {t('land.chaqqon.l1')}</li>
-                <li className="flex items-center gap-3 text-[15px] font-semibold group/item"><BadgeCheck /> {t('land.chaqqon.l4')}</li>
-              </ul>
-            </div>
-          </div>
         </div>
       </section>
 
