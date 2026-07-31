@@ -298,11 +298,7 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
             ? sale.payment_types_array.map(pt => `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">To'lov (${pt.type}):</td><td style="padding:4px 0;">${fmtVal(pt.amount)}</td></tr>`).join('')
             : `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">To'langan:</td><td style="padding:4px 0;">${fmtVal(sale.paid_amount)}</td></tr>`
         ) : ''}
-        ${sh('show_items_count', true) ? `
-        <tr style="border-bottom: 1px dashed #ccc;">
-          <td colspan="${visibleCols.length - 1}" style="text-align:right; padding:4px 0;">Jami miqdor:</td>
-          <td style="text-align:right; padding:4px 0;"><strong>${totalQty}</strong></td>
-        </tr>` : ''}
+
         ${sh('show_contractor_debts') ? `<tr style="border-bottom: 1px dashed #ccc;"><td style="color:red; vertical-align:top; padding:4px 0;">Joriy qarz:</td><td style="color:red; padding:4px 0;">${currentDebtStr}</td></tr>` : ''}
         ${sh('show_before_debts') ? `<tr style="border-bottom: 1px dashed #ccc;"><td style="vertical-align:top; padding:4px 0;">Oldingi qarz:</td><td style="padding:4px 0;">${oldDebtStr}</td></tr>` : ''}
         ${sh('show_debts') ? `<tr style="border-bottom: 1px dashed #ccc;"><td style="vertical-align:top; padding:4px 0;"><b>Umumiy qarz:</b></td><td style="padding:4px 0;"><b>${finalDebtStr}</b></td></tr>` : ''}
