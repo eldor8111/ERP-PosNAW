@@ -24,11 +24,11 @@ export default function ECodeLogo({
       <div className={`flex items-center gap-2 ${className}`} style={{ width: 'fit-content' }}>
         <svg width={size} height={size} viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
           {/* Shape 1: Dark U (Left) - High */}
-          <path d="M 9 14 L 9 34 A 5 5 0 0 0 19 34 L 19 14" stroke={DARK_TEXT} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          <path d="M 10 10 L 10 38 A 4 4 0 0 0 18 38 L 18 10" stroke={DARK_TEXT} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
           {/* Shape 2: Blue U (Middle) - Low */}
-          <path d="M 25 22 L 25 42 A 5 5 0 0 0 35 42 L 35 22" stroke={BLUE_DARK} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          <path d="M 26 18 L 26 46 A 4 4 0 0 0 34 46 L 34 18" stroke={BLUE_DARK} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
           {/* Shape 3: Blue U (Right) - High */}
-          <path d="M 41 14 L 41 34 A 5 5 0 0 0 51 34 L 51 14" stroke={BLUE_DARK} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          <path d="M 42 10 L 42 38 A 4 4 0 0 0 50 38 L 50 10" stroke={BLUE_DARK} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
         </svg>
         <span className="text-slate-800 font-bold text-2xl leading-none tracking-wide font-sans mt-1">E-code</span>
       </div>
@@ -39,9 +39,9 @@ export default function ECodeLogo({
   return (
     <div className={className} style={{ display: 'inline-flex' }}>
       <svg width={size} height={size} viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M 9 14 L 9 34 A 5 5 0 0 0 19 34 L 19 14" stroke={DARK_TEXT} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        <path d="M 25 22 L 25 42 A 5 5 0 0 0 35 42 L 35 22" stroke={BLUE_DARK} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        <path d="M 41 14 L 41 34 A 5 5 0 0 0 51 34 L 51 14" stroke={BLUE_DARK} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d="M 10 10 L 10 38 A 4 4 0 0 0 18 38 L 18 10" stroke={DARK_TEXT} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d="M 26 18 L 26 46 A 4 4 0 0 0 34 46 L 34 18" stroke={BLUE_DARK} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d="M 42 10 L 42 38 A 4 4 0 0 0 50 38 L 50 10" stroke={BLUE_DARK} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
       </svg>
     </div>
   );
@@ -51,9 +51,9 @@ export function ECodeIcon({ size = 32, className = '' }) {
   return (
     <div className={className} style={{ display: 'inline-flex' }}>
       <svg width={size} height={size} viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M 9 14 L 9 34 A 5 5 0 0 0 19 34 L 19 14" stroke={DARK_TEXT} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        <path d="M 25 22 L 25 42 A 5 5 0 0 0 35 42 L 35 22" stroke={BLUE_DARK} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        <path d="M 41 14 L 41 34 A 5 5 0 0 0 51 34 L 51 14" stroke={BLUE_DARK} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d="M 10 10 L 10 38 A 4 4 0 0 0 18 38 L 18 10" stroke={DARK_TEXT} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d="M 26 18 L 26 46 A 4 4 0 0 0 34 46 L 34 18" stroke={BLUE_DARK} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d="M 42 10 L 42 38 A 4 4 0 0 0 50 38 L 50 10" stroke={BLUE_DARK} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
       </svg>
     </div>
   );
@@ -63,9 +63,9 @@ export function ECodeLogoPrimary({ size = 48, className = '' }) {
   return (
     <div className={`flex items-center gap-2 ${className}`} style={{ width: 'fit-content' }}>
       <svg width={size} height={size} viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
-        <path d="M 9 14 L 9 34 A 5 5 0 0 0 19 34 L 19 14" stroke="white" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        <path d="M 25 22 L 25 42 A 5 5 0 0 0 35 42 L 35 22" stroke={BLUE_LIGHT} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        <path d="M 41 14 L 41 34 A 5 5 0 0 0 51 34 L 51 14" stroke={BLUE_LIGHT} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d="M 10 10 L 10 38 A 4 4 0 0 0 18 38 L 18 10" stroke="white" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d="M 26 18 L 26 46 A 4 4 0 0 0 34 46 L 34 18" stroke={BLUE_LIGHT} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d="M 42 10 L 42 38 A 4 4 0 0 0 50 38 L 50 10" stroke={BLUE_LIGHT} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
       </svg>
       <span className="text-white font-bold text-2xl leading-none tracking-wide font-sans mt-1">E-code</span>
     </div>
@@ -76,9 +76,9 @@ export function ECodeIconLight({ size = 48, className = '' }) {
   return (
     <div className={className} style={{ display: 'inline-flex' }}>
       <svg width={size} height={size} viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M 9 14 L 9 34 A 5 5 0 0 0 19 34 L 19 14" stroke="white" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        <path d="M 25 22 L 25 42 A 5 5 0 0 0 35 42 L 35 22" stroke={BLUE_LIGHT} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        <path d="M 41 14 L 41 34 A 5 5 0 0 0 51 34 L 51 14" stroke={BLUE_LIGHT} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d="M 10 10 L 10 38 A 4 4 0 0 0 18 38 L 18 10" stroke="white" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d="M 26 18 L 26 46 A 4 4 0 0 0 34 46 L 34 18" stroke={BLUE_LIGHT} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d="M 42 10 L 42 38 A 4 4 0 0 0 50 38 L 50 10" stroke={BLUE_LIGHT} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
       </svg>
     </div>
   );
