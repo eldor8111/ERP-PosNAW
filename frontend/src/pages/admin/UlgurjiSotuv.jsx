@@ -720,6 +720,19 @@ export default function UlgurjiSotuv() {
         if (typeof saleDebtAmounts === 'string') {
           try { saleDebtAmounts = JSON.parse(saleDebtAmounts); } catch (e) { saleDebtAmounts = {}; }
         }
+
+        // Eskiroq sotuvlar uchun fallback (qachonki backend debt_amounts saqlamagan bo'lsa)
+        if (Object.keys(saleDebtAmounts).length === 0) {
+          const debtUzs = Number(data.total_amount || 0) - Number(data.paid_amount || 0);
+          if (debtUzs > 0.01) {
+            const sCurr = String(data.currency_code || 'UZS').toUpperCase();
+            const sRate = Number(data.exchange_rate || 1);
+            const debtInCurr = sCurr === 'UZS' ? debtUzs : (debtUzs / sRate);
+            saleDebtAmounts = { [sCurr]: Number(debtInCurr.toFixed(2)) };
+            data.debt_amounts = saleDebtAmounts; // buildReceiptHtml uchun ham kerak
+          }
+        }
+
         // Avvalgi balans = hozirgi balans - joriy sotuv qarzi
         if (Object.keys(saleDebtAmounts).length > 0) {
           prevBalances = { ...currBalances };
