@@ -213,10 +213,7 @@ export default function Landing() {
 
   // Sizdagi oddiy massiv (faqat string nomlar bilan)
   const serviceOptions = [
-    'ERP Tizim',
-    'Web sayt yasash',
-    'Telegram Bot',
-    "Boshqa g'oya"
+    'ERP Tizim'
   ]
 
   const handleLeadSubmit = async (e) => {
