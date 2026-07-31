@@ -85,6 +85,21 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
     return `${v.toLocaleString('uz-UZ')} so'm`;
   };
 
+  const totalsByCurr = {};
+  (sale.items || []).forEach(i => {
+    const qty = Number(i.quantity || i.qty_ordered || 0);
+    const up = Number(i.unit_price || 0);
+    const disc = Number(i.discount || (i.discount_type === 'pct' ? (up * qty * (i.discount_val / 100)) : i.discount_val) || 0);
+    const sub = Number(i.subtotal || (up * qty - disc));
+    const curr = i.currency_code || 'UZS';
+    totalsByCurr[curr] = (totalsByCurr[curr] || 0) + sub;
+  });
+
+  const jamiList = Object.keys(totalsByCurr).map(curr => fmtCurrencyAmt(totalsByCurr[curr], curr));
+  const jamiStr = jamiList.length > 1 
+    ? jamiList.join('<br/>') 
+    : (jamiList.length === 1 ? jamiList[0] : fmtVal(sale.total_amount));
+
   const debt = Number(sale.total_amount) - Number(sale.paid_amount);
   const newDebt = Number(debt || 0);
 
@@ -216,7 +231,7 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
     // Totals section
     const totalsHtml = sh('show_totals') ? `
       <table class="totals">
-        <tr><td>JAMI:</td><td><b>${fmtVal(sale.total_amount)}</b></td></tr>
+        <tr><td style="vertical-align:top">JAMI:</td><td><b>${jamiStr}</b></td></tr>
         ${sh('show_total_national') ? `<tr><td>Milliy valyutada:</td><td>${sale.total_national || '___'}</td></tr>` : ''}
         ${sh('show_total_quantity') ? `<tr><td>Jami miqdor:</td><td>${totalQty}</td></tr>` : ''}
         ${sh('show_exact_discounts') ? `<tr><td>Chegirma:</td><td>-${fmtVal(sale.discount_amount || 0)}</td></tr>` : ''}
@@ -227,8 +242,8 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
             : `<tr><td>To'langan:</td><td>${fmtVal(sale.paid_amount)}</td></tr>`
         ) : ''}
         ${sh('show_contractor_debts') ? `<tr><td style="color:red">Joriy qarz:</td><td style="color:red">${fmtVal(debt)}</td></tr>` : ''}
-        ${sh('show_before_debts') ? `<tr><td>Oldingi qarz:</td><td>${oldDebtStr}</td></tr>` : ''}
-        ${sh('show_debts') ? `<tr><td><b>Umumiy qarz:</b></td><td><b>${finalDebtStr}</b></td></tr>` : ''}
+        ${sh('show_before_debts') ? `<tr><td style="vertical-align:top">Oldingi qarz:</td><td>${oldDebtStr}</td></tr>` : ''}
+        ${sh('show_debts') ? `<tr><td style="vertical-align:top"><b>Umumiy qarz:</b></td><td><b>${finalDebtStr}</b></td></tr>` : ''}
         ${sh('show_last_payment') ? `<tr><td>Oxirgi to'lov:</td><td>${sale.last_payment ? fmtVal(sale.last_payment) : '___'}</td></tr>` : ''}
         ${change > 0 ? `<tr><td style="color:green">Qaytim:</td><td style="color:green">${fmtVal(change)}</td></tr>` : ''}
       </table>` : '';
@@ -273,7 +288,7 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   <table>
     <thead><tr>${headerRow}</tr></thead>
     <tbody>${itemRows}</tbody>
-    <tfoot><tr><td colspan="${totalColspan}" style="text-align:right;font-weight:bold">JAMI:</td><td style="text-align:right;font-weight:bold">${fmtVal(sale.total_amount)}</td></tr></tfoot>
+    <tfoot><tr><td colspan="${totalColspan}" style="text-align:right;font-weight:bold;vertical-align:top">JAMI:</td><td style="text-align:right;font-weight:bold">${jamiStr}</td></tr></tfoot>
   </table>
   ${totalsHtml}
   ${noteHtml}
@@ -385,9 +400,9 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   <hr/>
   ${sale.note ? `<div style="text-align:center;margin-top:4px;margin-bottom:4px;font-weight:bold;">Izoh: ${sale.note}</div><hr/>` : ''}
   
-  <div class="flex">
+  <div class="flex" style="align-items:flex-start;">
     <span>JAMI:</span>
-    <span>${fmtVal(sale.total_amount)}</span>
+    <span style="text-align:right;">${jamiStr}</span>
   </div>
   <hr class="dash"/>
 
