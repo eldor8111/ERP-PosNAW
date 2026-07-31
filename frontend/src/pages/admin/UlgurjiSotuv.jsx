@@ -716,12 +716,16 @@ export default function UlgurjiSotuv() {
       let prevBalances = null;
       if (selectedCust) {
         const currBalances = selectedCust.debt_balances || { UZS: Number(selectedCust.debt_balance || 0) };
-        const saleDebtAmounts = data.debt_amounts || {};
+        let saleDebtAmounts = data.debt_amounts || {};
+        if (typeof saleDebtAmounts === 'string') {
+          try { saleDebtAmounts = JSON.parse(saleDebtAmounts); } catch (e) { saleDebtAmounts = {}; }
+        }
         // Avvalgi balans = hozirgi balans - joriy sotuv qarzi
         if (Object.keys(saleDebtAmounts).length > 0) {
           prevBalances = { ...currBalances };
           for (const [curr, amt] of Object.entries(saleDebtAmounts)) {
-            prevBalances[curr] = (Number(prevBalances[curr] || 0)) - Number(amt);
+            const c = String(curr).toUpperCase();
+            prevBalances[c] = (Number(prevBalances[c] || 0)) - Number(amt);
           }
         } else {
           prevBalances = currBalances;
@@ -1111,17 +1115,25 @@ export default function UlgurjiSotuv() {
             // Izoh
             note: note || payNote || undefined,
             // Joriy sotuv qarzi — backenddan (har valyuta alohida)
-            debt_amounts: res.data.debt_amounts || null,
+            debt_amounts: (() => {
+              let d = res.data.debt_amounts || null;
+              if (typeof d === 'string') { try { d = JSON.parse(d); } catch (e) { d = null; } }
+              return d;
+            })(),
             // Qarz ma'lumotlari — auto-print: before_debt_balances = hozirgi - joriy
             before_debt: 0,
             before_debt_balances: (() => {
               if (!selectedCust) return null;
               const currBalances = selectedCust.debt_balances || { UZS: Number(selectedCust.debt_balance || 0) };
-              const saleDebtAmounts = res.data.debt_amounts || {};
+              let saleDebtAmounts = res.data.debt_amounts || {};
+              if (typeof saleDebtAmounts === 'string') {
+                try { saleDebtAmounts = JSON.parse(saleDebtAmounts); } catch (e) { saleDebtAmounts = {}; }
+              }
               if (Object.keys(saleDebtAmounts).length > 0) {
                 const prev = { ...currBalances };
                 for (const [curr, amt] of Object.entries(saleDebtAmounts)) {
-                  prev[curr] = (Number(prev[curr] || 0)) - Number(amt);
+                  const c = String(curr).toUpperCase();
+                  prev[c] = (Number(prev[c] || 0)) - Number(amt);
                 }
                 return prev;
               }
