@@ -125,8 +125,21 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
     finalBalancesDict['UZS'] = Number(sale.before_debt || 0);
   }
 
-  const newDebtInSaleCurrency = useCurrency ? (newDebt / rate) : newDebt;
-  finalBalancesDict[currCode] = (finalBalancesDict[currCode] || 0) + newDebtInSaleCurrency;
+  const currentDebtsList = [];
+  if (sale.debt_amounts && Object.keys(sale.debt_amounts).length > 0) {
+    for (const [curr, amt] of Object.entries(sale.debt_amounts)) {
+      if (Math.abs(amt) > 0.01) {
+        currentDebtsList.push({ currency: curr, amount: Number(amt) });
+        finalBalancesDict[curr] = (finalBalancesDict[curr] || 0) + Number(amt);
+      }
+    }
+  } else {
+    const newDebtInSaleCurrency = useCurrency ? (newDebt / rate) : newDebt;
+    if (Math.abs(newDebtInSaleCurrency) > 0.01) {
+      currentDebtsList.push({ currency: currCode, amount: newDebtInSaleCurrency });
+      finalBalancesDict[currCode] = (finalBalancesDict[currCode] || 0) + newDebtInSaleCurrency;
+    }
+  }
 
   for (const [curr, amt] of Object.entries(finalBalancesDict)) {
     if (Math.abs(amt) > 0.01) {
@@ -138,6 +151,10 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
 
   const oldDebtStr = oldDebtsList.length > 0
     ? oldDebtsList.map(d => fmtCurrencyAmt(d.amount, d.currency)).join('<br/>')
+    : fmtCurrencyAmt(0, 'UZS');
+  
+  const currentDebtStr = currentDebtsList.length > 0
+    ? currentDebtsList.map(d => fmtCurrencyAmt(d.amount, d.currency)).join('<br/>')
     : fmtCurrencyAmt(0, 'UZS');
   
   const finalDebtStr = finalDebtsList.length > 0
@@ -241,7 +258,7 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
             ? sale.payment_types_array.map(pt => `<tr><td>To'lov (${pt.type}):</td><td>${fmtVal(pt.amount)}</td></tr>`).join('')
             : `<tr><td>To'langan:</td><td>${fmtVal(sale.paid_amount)}</td></tr>`
         ) : ''}
-        ${sh('show_contractor_debts') ? `<tr><td style="color:red">Joriy qarz:</td><td style="color:red">${fmtVal(debt)}</td></tr>` : ''}
+        ${sh('show_contractor_debts') ? `<tr><td style="color:red;vertical-align:top">Joriy qarz:</td><td style="color:red">${currentDebtStr}</td></tr>` : ''}
         ${sh('show_before_debts') ? `<tr><td style="vertical-align:top">Oldingi qarz:</td><td>${oldDebtStr}</td></tr>` : ''}
         ${sh('show_debts') ? `<tr><td style="vertical-align:top"><b>Umumiy qarz:</b></td><td><b>${finalDebtStr}</b></td></tr>` : ''}
         ${sh('show_last_payment') ? `<tr><td>Oxirgi to'lov:</td><td>${sale.last_payment ? fmtVal(sale.last_payment) : '___'}</td></tr>` : ''}
@@ -345,9 +362,9 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
     <span>Oldingi qarz:</span>
     <span style="text-align:right">${oldDebtStr}</span>
   </div>` : ''}
-  ${sh('show_contractor_debts') ? `<div class="flex">
+  ${sh('show_contractor_debts') ? `<div class="flex" style="align-items:flex-start;">
     <span>Qarzga:</span>
-    <span style="text-align:right">${fmtVal(newDebt)}</span>
+    <span style="text-align:right">${currentDebtStr}</span>
   </div>` : ''}
   <hr/>
   ${sh('show_debts') ? `<div class="flex">

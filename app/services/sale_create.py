@@ -247,24 +247,65 @@ def create_sale(
                 if not customer.debt_balances:
                     customer.debt_balances = {}
 
+                final_debts = {}
                 if getattr(data, "currency_totals", None):
-                    for curr_code, curr_debt in data.currency_totals.items():
-                        curr_val = float(customer.debt_balances.get(curr_code, 0))
-                        customer.debt_balances[curr_code] = curr_val + float(curr_debt)
+                    final_debts = {k: Decimal(str(v)) for k, v in data.currency_totals.items()}
                 else:
-                    sale_currency = currency.code if currency else "UZS"
-                    if sale_currency == "UZS":
-                        actual_debt_in_currency = debt_amount_uzs
-                    else:
-                        total_in_currency = (total_amount / exchange_rate) if exchange_rate else total_amount
-                        actual_paid_in_curr = (paid_amount_uzs / exchange_rate) if exchange_rate else paid_amount_uzs
-                        actual_debt_in_currency = total_in_currency - actual_paid_in_curr
+                    currency_rates = {"UZS": Decimal("1.0")}
+                    remain = {}
+                    for item in sale_items_data:
+                        curr = item["currency_code"]
+                        currency_rates[curr] = item.get("exchange_rate", Decimal("1.0"))
+                        remain[curr] = remain.get(curr, Decimal("0")) + item["subtotal"]
+                    
+                    if getattr(data, "payments", None):
+                        for p in data.payments:
+                            if p.currency:
+                                currency_rates[p.currency] = getattr(p, "rate", Decimal("1.0")) or Decimal("1.0")
+                            if p.type.value not in ("debt", "cashback"):
+                                p_curr = p.currency or "UZS"
+                                remain[p_curr] = remain.get(p_curr, Decimal("0")) - p.amount
 
-                    curr_val = float(customer.debt_balances.get(sale_currency, 0))
-                    customer.debt_balances[sale_currency] = curr_val + float(actual_debt_in_currency)
+                    if currency:
+                        currency_rates[currency.code] = exchange_rate
+
+                    if data.discount_amount > 0:
+                        remain["UZS"] = remain.get("UZS", Decimal("0")) - data.discount_amount
+                    if paid_cashback_amount > 0:
+                        remain["UZS"] = remain.get("UZS", Decimal("0")) - paid_cashback_amount
+                    if getattr(data, "loyalty_points_used", 0) > 0:
+                        remain["UZS"] = remain.get("UZS", Decimal("0")) - Decimal(str(data.loyalty_points_used))
+
+                    overpaid_uzs = Decimal("0")
+                    for c in list(remain.keys()):
+                        if remain[c] < Decimal("-0.001"):
+                            overpaid_uzs += abs(remain[c]) * currency_rates.get(c, Decimal("1"))
+                            del remain[c]
+                    
+                    for c in list(remain.keys()):
+                        if remain[c] > Decimal("0.001") and overpaid_uzs > Decimal("0.001"):
+                            need_uzs = remain[c] * currency_rates.get(c, Decimal("1"))
+                            if overpaid_uzs >= need_uzs:
+                                overpaid_uzs -= need_uzs
+                                del remain[c]
+                            else:
+                                remain[c] -= overpaid_uzs / currency_rates.get(c, Decimal("1"))
+                                overpaid_uzs = Decimal("0")
+                    
+                    final_debts = {c: amt for c, amt in remain.items() if amt > Decimal("0.01")}
+
+                # Baza va mijozning debt_balances ni yangilaymiz
+                for curr_code, curr_debt in final_debts.items():
+                    curr_val = Decimal(str(customer.debt_balances.get(curr_code, 0)))
+                    customer.debt_balances[curr_code] = float(curr_val + curr_debt)
+
+                # final_debts ni saqlab qolamiz sale.debt_amounts ga o'tkazish uchun
+                sale_debt_amounts = {c: float(amt) for c, amt in final_debts.items()}
 
                 from sqlalchemy.orm.attributes import flag_modified
                 flag_modified(customer, "debt_balances")
+        else:
+            sale_debt_amounts = {}
 
     # ── Sale yozuvi ───────────────────────────────────────────────────────────
     sale = Sale(
@@ -287,6 +328,7 @@ def create_sale(
         loyalty_points_earned=loyalty_earned,
         loyalty_points_used=data.loyalty_points_used,
         debt_due_date=data.debt_due_date,
+        debt_amounts=sale_debt_amounts,
     )
     db.add(sale)
     db.flush()
