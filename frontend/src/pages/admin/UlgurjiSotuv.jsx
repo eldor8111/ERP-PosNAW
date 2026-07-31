@@ -1081,8 +1081,16 @@ export default function UlgurjiSotuv() {
           const cfg = { ...cfgRaw, ...merged };
           // Tanlangan mijozni aniqlaymiz
           const selectedCust = customers.find(c => String(c.id) === String(custId));
+          // UZS ekvivalentida ko'rsatish uchun (chekda to'lov qatorlari)
           const payTypesArr = payments.filter(p => parseN(p.amt) > 0).map(p => ({
             type: p.type, amount: parseN(p.amt) * (getRate(p.currency || 'UZS'))
+          }));
+          // Native valyutada (joriy qarz fallback uchun)
+          const paymentCurrencies = payments.filter(p => parseN(p.amt) > 0).map(p => ({
+            type: p.type,
+            amount: parseN(p.amt),
+            currency: p.currency || 'UZS',
+            rate: getRate(p.currency || 'UZS'),
           }));
           const currentCurrencyCode = res.data.currency_code || primaryCurrencyCode || "UZS";
           const currentExchangeRate = res.data.exchange_rate || getRate(primaryCurrencyCode) || 1.0;
@@ -1098,12 +1106,13 @@ export default function UlgurjiSotuv() {
             // Mijoz ma'lumotlari
             contractor_name: selectedCust ? selectedCust.name : (res.data.customer_name || undefined),
             contractor_contacts: selectedCust?.phone ? [{ value: selectedCust.phone }] : [],
-            // To'lov turlari ro'yxati
+            // To'lov turlari ro'yxati (UZS ekvivalentida, ko'rsatish uchun)
             payment_types_array: payTypesArr.length > 0 ? payTypesArr : undefined,
             // Izoh
             note: note || payNote || undefined,
-            // Qarz ma'lumotlari in UZS (so the receipt builder divides it back correctly)
-            // Auto-print: before_debt_balances = hozirgi balansdan joriy sotuv qarzini ayirish
+            // Joriy sotuv qarzi — backenddan (har valyuta alohida)
+            debt_amounts: res.data.debt_amounts || null,
+            // Qarz ma'lumotlari — auto-print: before_debt_balances = hozirgi - joriy
             before_debt: 0,
             before_debt_balances: (() => {
               if (!selectedCust) return null;
@@ -1118,6 +1127,8 @@ export default function UlgurjiSotuv() {
               }
               return currBalances;
             })(),
+            // To'lov valyuta ma'lumotlari (fallback uchun)
+            payment_currencies: paymentCurrencies,
             items: cart.map(it => ({
               product_name: it.name,
               quantity: it.qty,

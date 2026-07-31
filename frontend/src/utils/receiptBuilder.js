@@ -127,6 +127,7 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   // USD → "$ 5.50", UZS → "500,000 so'm" — ARALASHTIRILMAYDI
   const currentDebtsList = [];
   if (sale.debt_amounts && Object.keys(sale.debt_amounts).length > 0) {
+    // Backend dan to'g'ri qarz ma'lumoti bor
     for (const [curr, amt] of Object.entries(sale.debt_amounts)) {
       const a = Number(amt || 0);
       if (Math.abs(a) > 0.001) {
@@ -134,10 +135,41 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
       }
     }
   } else {
-    // Fallback: total - paid, sotuv valyutasida
-    const newDebtInSaleCurrency = useCurrency ? (newDebt / rate) : newDebt;
-    if (Math.abs(newDebtInSaleCurrency) > 0.001) {
-      currentDebtsList.push({ currency: currCode, amount: newDebtInSaleCurrency });
+    // Fallback: items dan to'lovlarni ayirib, qolgan qarzni hisoblash
+    // totalsByCurr allaqachon hisoblangan: { USD: 1116.42, UZS: 1437000 }
+    const residByCurr = {};
+    for (const [curr, amt] of Object.entries(totalsByCurr)) {
+      residByCurr[curr] = Number(amt);
+    }
+
+    // payment_currencies: native valyutada to'lovlar
+    // Masalan: [{ currency: 'USD', amount: 782.4, rate: 12578 }]
+    const payCurrencies = sale.payment_currencies || [];
+    if (payCurrencies.length > 0) {
+      for (const p of payCurrencies) {
+        const pCurr = p.currency || currCode || 'UZS';
+        const pAmt = Number(p.amount || 0);
+        if (pAmt > 0) {
+          if (residByCurr[pCurr] !== undefined) {
+            // Shu valyutadan to'landi
+            residByCurr[pCurr] = residByCurr[pCurr] - pAmt;
+          } else {
+            // Boshqa valyutadan to'landi — UZS ga o'tkazib kamaytiramiz
+            const pRate = Number(p.rate || 1);
+            const pAmtUZS = pAmt * pRate;
+            if (residByCurr['UZS'] !== undefined) {
+              residByCurr['UZS'] = residByCurr['UZS'] - pAmtUZS;
+            }
+          }
+        }
+      }
+    }
+
+    // Qolgan (musbat) summalar — qarz
+    for (const [curr, amt] of Object.entries(residByCurr)) {
+      if (amt > 0.001) {
+        currentDebtsList.push({ currency: curr, amount: amt });
+      }
     }
   }
 
