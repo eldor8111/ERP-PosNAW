@@ -64,7 +64,7 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   const rate = Number(sale.exchange_rate) || 1.0;
   const currCode = sale.currency_code || 'UZS';
 
-  // Sotuv valyutasida qiymatni formatlash (UZS dan konversiya qilish)
+  // fmtVal: sotuv valyutasiga UZS qiymatini o'tkazib formatlash
   const fmtVal = (valUZS) => {
     const val = Number(valUZS || 0);
     if (useCurrency) {
@@ -79,7 +79,7 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
     return val.toLocaleString('uz-UZ') + " so'm";
   };
 
-  // Belgilangan valyutada qiymatni formatlash (konversiyasiz)
+  // fmtCurrencyAmt: belgilangan valyutada formatlash (konversiyasiz)
   const fmtCurrencyAmt = (val, code) => {
     const v = Number(val || 0);
     if (code === 'USD') return `$ ${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -87,84 +87,62 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
     return `${v.toLocaleString('uz-UZ')} so'm`;
   };
 
-  // JAMI hisoblash: barcha itemlar sotuv valyutasiga keltirilib yig'iladi
-  // Shunday qilib bitta valyutada yagona jami chiqadi
-  let totalInSaleCurrency = 0;
+  // JAMI: har bir item o'z valyutasida yig'iladi → alohida ko'rsatiladi
+  // Masalan: UZS itemlar → "1,312,000 so'm", USD itemlar → "$ 27.36"
+  const totalsByCurr = {};
   (sale.items || []).forEach(i => {
     const qty = Number(i.quantity || i.qty_ordered || 0);
     const up = Number(i.unit_price || 0);
     const disc = Number(i.discount || (i.discount_type === 'pct' ? (up * qty * (i.discount_val / 100)) : i.discount_val) || 0);
     const sub = Number(i.subtotal || (up * qty - disc));
-    const itemCurr = i.currency_code || 'UZS';
-    const itemRate = Number(i.exchange_rate) || 1.0;
-    // Item subtotal ni UZS ga keltir, keyin sotuv valyutasiga o'tkazamiz
-    const subInUZS = itemCurr === 'UZS' ? sub : (sub * itemRate);
-    totalInSaleCurrency += useCurrency ? (subInUZS / rate) : subInUZS;
+    const curr = i.currency_code || 'UZS';
+    totalsByCurr[curr] = (totalsByCurr[curr] || 0) + sub;
   });
-  // Agar items bo'sh yoki 0 bo'lsa, sale.total_amount dan foydalanish
-  const jamiStr = totalInSaleCurrency > 0.001
-    ? fmtCurrencyAmt(totalInSaleCurrency, currCode)
-    : fmtVal(sale.total_amount);
+
+  const jamiList = Object.keys(totalsByCurr).map(curr => fmtCurrencyAmt(totalsByCurr[curr], curr));
+  const jamiStr = jamiList.length > 1
+    ? jamiList.join('<br/>')
+    : (jamiList.length === 1 ? jamiList[0] : fmtVal(sale.total_amount));
 
   const debt = Number(sale.total_amount) - Number(sale.paid_amount);
   const newDebt = Number(debt || 0);
 
-  // ─── Oldingi qarz (sotuv yaratilishidan OLDIN) ───────────────────────
-  // before_debt_balances = { USD: 12.5, UZS: 140000 } (har valyutada alohida)
-  // Chekda faqat sotuv valyutasida ko'rsatiladi
+  // ─── Oldingi qarz: har valyuta O'Z formatida ────────────────────────
+  // before_debt_balances = { USD: 12.5, UZS: 140000 }
+  // USD → "$ 12.50", UZS → "140,000 so'm" — ARALASHTIRILMAYDI
   const oldDebtsList = [];
   if (sale.before_debt_balances && Object.keys(sale.before_debt_balances).length > 0) {
-    if (useCurrency) {
-      // Sotuv valyutasida (masalan USD) oldingi qarzni ko'rsat
-      const amtInCurr = Number(sale.before_debt_balances[currCode] || 0);
-      // UZS dagi qarzni ham sotuv valyutasiga o'tkazib qo'shamiz
-      const amtFromUZS = (Number(sale.before_debt_balances['UZS'] || 0)) / rate;
-      const totalOldInCurr = amtInCurr + amtFromUZS;
-      if (Math.abs(totalOldInCurr) > 0.001) {
-        oldDebtsList.push({ currency: currCode, amount: totalOldInCurr });
-      }
-    } else {
-      // Sotuv UZS da — faqat UZS qarzini ko'rsat
-      const amtUZS = Number(sale.before_debt_balances['UZS'] || 0);
-      if (Math.abs(amtUZS) > 0.01) {
-        oldDebtsList.push({ currency: 'UZS', amount: amtUZS });
+    for (const [curr, amt] of Object.entries(sale.before_debt_balances)) {
+      const a = Number(amt || 0);
+      if (Math.abs(a) > 0.01) {
+        oldDebtsList.push({ currency: curr, amount: a });
       }
     }
   } else if (Number(sale.before_debt || 0) > 0.01) {
-    // Eski format: before_debt UZS da
-    const oldAmt = useCurrency ? (Number(sale.before_debt) / rate) : Number(sale.before_debt);
-    if (Math.abs(oldAmt) > 0.001) {
-      oldDebtsList.push({ currency: currCode, amount: oldAmt });
-    }
+    oldDebtsList.push({ currency: 'UZS', amount: Number(sale.before_debt) });
   }
 
-  // ─── Joriy sotuv bo'yicha qarz ─────────────────────────────────────────
-  // debt_amounts = { USD: 5.5 } — backenddan keladi (sotuv valyutasida)
+  // ─── Joriy sotuv qarzi: har valyuta O'Z formatida ───────────────────
+  // debt_amounts = { USD: 5.5, UZS: 500000 }
+  // USD → "$ 5.50", UZS → "500,000 so'm" — ARALASHTIRILMAYDI
   const currentDebtsList = [];
   if (sale.debt_amounts && Object.keys(sale.debt_amounts).length > 0) {
     for (const [curr, amt] of Object.entries(sale.debt_amounts)) {
       const a = Number(amt || 0);
       if (Math.abs(a) > 0.001) {
-        // debt_amounts da UZS qiymati bo'lsa va sotuv valyutasi boshqa bo'lsa
-        if (curr === 'UZS' && useCurrency) {
-          const converted = a / rate;
-          if (Math.abs(converted) > 0.001) {
-            currentDebtsList.push({ currency: currCode, amount: converted });
-          }
-        } else {
-          currentDebtsList.push({ currency: curr, amount: a });
-        }
+        currentDebtsList.push({ currency: curr, amount: a });
       }
     }
   } else {
-    // Fallback: total_amount - paid_amount
+    // Fallback: total - paid, sotuv valyutasida
     const newDebtInSaleCurrency = useCurrency ? (newDebt / rate) : newDebt;
     if (Math.abs(newDebtInSaleCurrency) > 0.001) {
       currentDebtsList.push({ currency: currCode, amount: newDebtInSaleCurrency });
     }
   }
 
-  // ─── Umumiy qarz = oldingi + joriy (sotuv valyutasida) ──────────────
+  // ─── Umumiy qarz = oldingi + joriy, har valyuta alohida ─────────────
+  // { USD: oldUSD + currUSD, UZS: oldUZS + currUZS }
   const finalDebtsDict = {};
   for (const d of oldDebtsList) {
     finalDebtsDict[d.currency] = (finalDebtsDict[d.currency] || 0) + d.amount;
@@ -180,15 +158,15 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
 
   const oldDebtStr = oldDebtsList.length > 0
     ? oldDebtsList.map(d => fmtCurrencyAmt(d.amount, d.currency)).join('<br/>')
-    : fmtCurrencyAmt(0, currCode);
-  
+    : fmtCurrencyAmt(0, 'UZS');
+
   const currentDebtStr = currentDebtsList.length > 0
     ? currentDebtsList.map(d => fmtCurrencyAmt(d.amount, d.currency)).join('<br/>')
-    : fmtCurrencyAmt(0, currCode);
-  
+    : fmtCurrencyAmt(0, 'UZS');
+
   const finalDebtStr = finalDebtsList.length > 0
     ? finalDebtsList.map(d => fmtCurrencyAmt(d.amount, d.currency)).join('<br/>')
-    : fmtCurrencyAmt(0, currCode);
+    : fmtCurrencyAmt(0, 'UZS');
 
   if (isNak) {
     const c = cfg; // shorthand
