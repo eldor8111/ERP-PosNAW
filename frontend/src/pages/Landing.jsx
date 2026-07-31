@@ -585,63 +585,7 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── Boshqa Xizmatlar / IT Agency ── */}
-      <section className="py-[120px] relative bg-slate-50 border-t border-slate-200">
-        <div className="max-w-[1400px] mx-auto relative z-10">
-          <div className="text-center mb-[70px] animate-[fadeInUp_0.8s_ease-out_both]">
-            <h2 className="text-[clamp(32px,5vw,44px)] font-extrabold tracking-[-0.04em] mb-4 text-slate-900">{t('land.agency.title') || 'Biz bilan faqat ERP emas...'}</h2>
-            <p className="text-[18px] text-slate-500 max-w-[600px] mx-auto">{t('land.agency.sub')}</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
 
-            {/* Veb-saytlar */}
-            <div
-              className="group cursor-pointer bg-white text-slate-900 border border-slate-200 rounded-2xl p-7 shadow-[0_4px_6px_rgba(0,0,0,0.02)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_24px_rgba(0,0,0,0.08)] hover:border-blue-600"
-              onClick={() => navigate('/veb-saytlar')}
-            >
-              <div className="flex flex-col h-full relative z-10">
-                <div className="text-blue-600 mb-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="55" height="55" fill="#0000FF" viewBox="0 0 256 256"><path d="M128,24h0A104,104,0,1,0,232,128,104.12,104.12,0,0,0,128,24Zm88,104a87.61,87.61,0,0,1-3.33,24H174.16a157.44,157.44,0,0,0,0-48h38.51A87.61,87.61,0,0,1,216,128ZM102,168H154a115.11,115.11,0,0,1-26,45A115.27,115.27,0,0,1,102,168Zm-3.9-16a140.84,140.84,0,0,1,0-48h59.88a140.84,140.84,0,0,1,0,48ZM40,128a87.61,87.61,0,0,1,3.33-24H81.84a157.44,157.44,0,0,0,0,48H43.33A87.61,87.61,0,0,1,40,128ZM154,88H102a115.11,115.11,0,0,1,26-45A115.27,115.27,0,0,1,154,88Zm52.33,0H170.71a135.28,135.28,0,0,0-22.3-45.6A88.29,88.29,0,0,1,206.37,88ZM107.59,42.4A135.28,135.28,0,0,0,85.29,88H49.63A88.29,88.29,0,0,1,107.59,42.4ZM49.63,168H85.29a135.28,135.28,0,0,0,22.3,45.6A88.29,88.29,0,0,1,49.63,168Zm98.78,45.6a135.28,135.28,0,0,0,22.3-45.6h35.66A88.29,88.29,0,0,1,148.41,213.6Z"></path></svg>
-                </div>
-                <h3 className="text-[1.3rem] font-bold mb-2.5">{t('land.agency.w_title')}</h3>
-                <p className="text-slate-600 text-[1rem] leading-[1.5]">{t('land.agency.w_desc')}</p>
-                <span className="inline-block text-[14px] font-bold text-blue-600 mt-3.5 opacity-0 translate-y-1.5 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0">{t('land.chaqqon.box_more')} →</span>
-              </div>
-            </div>
-
-            {/* Telegram Botlar */}
-            <div
-              className="group cursor-pointer bg-white text-slate-900 border border-slate-200 rounded-2xl p-7 shadow-[0_4px_6px_rgba(0,0,0,0.02)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_24px_rgba(0,0,0,0.08)] hover:border-blue-600"
-              onClick={() => navigate('/telegram-botlar')}
-            >
-              <div className="flex flex-col h-full relative z-10">
-                <div className="text-green-600 mb-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="55" height="55" fill="#22c55e" viewBox="0 0 256 256"><path d="M200,48H136V16a8,8,0,0,0-16,0V48H56A32,32,0,0,0,24,80V192a32,32,0,0,0,32,32H200a32,32,0,0,0,32-32V80A32,32,0,0,0,200,48Zm16,144a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V80A16,16,0,0,1,56,64H200a16,16,0,0,1,16,16Zm-52-56H92a28,28,0,0,0,0,56h72a28,28,0,0,0,0-56Zm-24,16v24H116V152ZM80,164a12,12,0,0,1,12-12h8v24H92A12,12,0,0,1,80,164Zm84,12h-8V152h8a12,12,0,0,1,0,24ZM72,108a12,12,0,1,1,12,12A12,12,0,0,1,72,108Zm88,0a12,12,0,1,1,12,12A12,12,0,0,1,160,108Z"></path></svg>
-                </div>
-                <h3 className="text-[1.3rem] font-bold mb-2.5">{t('land.agency.b_title')}</h3>
-                <p className="text-slate-600 text-[1rem] leading-[1.5]">{t('land.agency.b_desc')}</p>
-                <span className="inline-block text-[14px] font-bold text-blue-600 mt-3.5 opacity-0 translate-y-1.5 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0">{t('land.chaqqon.box_more')} →</span>
-              </div>
-            </div>
-
-            {/* Noyob Dasturlar */}
-            <div
-              className="group cursor-pointer bg-white text-slate-900 border border-slate-200 rounded-2xl p-7 shadow-[0_4px_6px_rgba(0,0,0,0.02)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_24px_rgba(0,0,0,0.08)] hover:border-blue-600"
-              onClick={() => navigate('/noyob-dasturlar')}
-            >
-              <div className="flex flex-col h-full relative z-10">
-                <div className="text-red-500 mb-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="55" height="55" fill="#ef4444" viewBox="0 0 256 256"><path d="M232,168h-8V72a24,24,0,0,0-24-24H56A24,24,0,0,0,32,72v96H24a8,8,0,0,0-8,8v16a24,24,0,0,0,24,24H216a24,24,0,0,0,24-24V176A8,8,0,0,0,232,168ZM48,72a8,8,0,0,1,8-8H200a8,8,0,0,1,8,8v96H48ZM224,192a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8v-8H224ZM152,88a8,8,0,0,1-8,8H112a8,8,0,0,1,0-16h32A8,8,0,0,1,152,88Z"></path></svg>
-                </div>
-                <h3 className="text-[1.3rem] font-bold mb-2.5">{t('land.agency.s_title')}</h3>
-                <p className="text-slate-600 text-[1rem] leading-[1.5]">{t('land.agency.s_desc')}</p>
-                <span className="inline-block text-[14px] font-bold text-blue-600 mt-3.5 opacity-0 translate-y-1.5 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0">{t('land.chaqqon.box_more')} →</span>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </section>
 
       {/* ── Lead Capture / So'rov Qoldirish ── */}
       <section id="lead-form" className="py-[140px] bg-blue-600 relative overflow-hidden">
