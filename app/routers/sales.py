@@ -93,6 +93,7 @@ def _build_sale_out(sale: Sale) -> SaleOut:
         debt_due_date=getattr(sale, 'debt_due_date', None),
         currency_code=sale.currency.code if getattr(sale, 'currency', None) else "UZS",
         exchange_rate=getattr(sale, 'exchange_rate', 1.0) or 1.0,
+        debt_amounts=getattr(sale, 'debt_amounts', None),
     )
 
 
@@ -178,6 +179,7 @@ def make_pending_sale(
         items_count=len(data.items),
         created_at=sale.created_at,  # type: ignore
         currency_code=sale.currency.code if getattr(sale, 'currency', None) else "UZS",
+        debt_amounts=getattr(sale, 'debt_amounts', None),
     )
 
 
@@ -208,6 +210,7 @@ def make_return_sale(
         items_count=len(data.items),
         created_at=sale.created_at,  # type: ignore
         currency_code=sale.currency.code if getattr(sale, 'currency', None) else "UZS",
+        debt_amounts=getattr(sale, 'debt_amounts', None),
     )
 
 
@@ -303,6 +306,7 @@ def list_sales(
             items_count=cnt,
             created_at=s.created_at,
             currency_code=s.currency.code if getattr(s, 'currency', None) else "UZS",
+            debt_amounts=getattr(s, 'debt_amounts', None),
         )
         for s, cnt in rows
     ]
