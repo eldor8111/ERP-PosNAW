@@ -1594,7 +1594,7 @@ export default function Products() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', 'PLU.csv');
+      link.setAttribute('download', 'PLU.tms');
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
