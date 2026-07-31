@@ -224,6 +224,22 @@ def get_by_barcode(
         stripped = barcode.lstrip('0')
         if stripped:
             product = db.query(Product).filter(*base_filter, Product.sku == stripped).first()
+    # Topilmasa SKU ning oxirgi N raqami bilan qidirish
+    # (TM-A tarozi faqat 5 ta raqamni barcodedan yuboradi, SKU esa ko'proq bo'lishi mumkin)
+    if not product:
+        from sqlalchemy import func
+        stripped_code = barcode.lstrip('0') or barcode
+        products_found = db.query(Product).filter(
+            *base_filter,
+            Product.sku.isnot(None),
+            Product.sku != ''
+        ).all()
+        for p in products_found:
+            if p.sku:
+                sku_digits = ''.join(filter(str.isdigit, p.sku))
+                if sku_digits.endswith(stripped_code) or sku_digits.endswith(barcode):
+                    product = p
+                    break
     # Topilmasa ID bo'yicha qidirish (tarozi PLU = mahsulot ID)
     if not product:
         try:

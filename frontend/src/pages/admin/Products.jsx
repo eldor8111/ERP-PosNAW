@@ -1572,8 +1572,12 @@ export default function Products() {
       lines.push(`DWL${T}PLU${T}`);
 
       filteredData.forEach((prod, idx) => {
-        // PLU raqami: faqat raqamlar, ID ishlatiladi
-        const plu = prod.id;
+        // PLU raqami: artikul (SKU) dan faqat raqamlar ishlatiladi, yo'q bo'lsa ID
+        const rawPlu = prod.sku && prod.sku.trim()
+          ? prod.sku.trim().replace(/\D/g, '')  // SKU dan faqat raqamlar
+          : String(prod.id);
+        const plu = rawPlu || String(prod.id);  // bo'sh bo'lsa ID ga qaytamiz
+
 
         // Nom: tab va maxsus belgilarni tozalash
         const name = (prod.name || 'Nomsiz')
