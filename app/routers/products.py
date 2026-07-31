@@ -213,9 +213,25 @@ def get_by_barcode(
     if not product:
         product = (
             db.query(Product)
-            .filter(*base_filter, Product.extra_barcodes.ilike(f'%"{barcode}"%'))
+            .filter(*base_filter, Product.extra_barcodes.ilike(f'"%{barcode}"'))
             .first()
         )
+    # Topilmasa SKU bo'yicha qidirish (TM-A tarozi PLU kodi)
+    if not product:
+        product = db.query(Product).filter(*base_filter, Product.sku == barcode).first()
+    # Topilmasa SKU leading zeros olib qidirish (masalan '00001' => '1' yoki aksi)
+    if not product:
+        stripped = barcode.lstrip('0')
+        if stripped:
+            product = db.query(Product).filter(*base_filter, Product.sku == stripped).first()
+    # Topilmasa ID bo'yicha qidirish (tarozi PLU = mahsulot ID)
+    if not product:
+        try:
+            pid = int(barcode.lstrip('0') or '0')
+            if pid > 0:
+                product = db.query(Product).filter(*base_filter, Product.id == pid).first()
+        except ValueError:
+            pass
 
     if not product:
         raise HTTPException(status_code=404, detail=f"Barcode '{barcode}' bo'yicha mahsulot topilmadi")

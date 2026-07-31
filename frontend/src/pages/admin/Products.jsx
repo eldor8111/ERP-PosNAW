@@ -1560,29 +1560,46 @@ export default function Products() {
         return;
       }
 
-      // Rongta TM-A (CSV) format: PLU, ItemCode, Name, Department, UnitPrice, Unit, BarcodeType
-      let csvContent = "PLU,ItemCode,Name,Department,UnitPrice,Unit,BarcodeType\r\n";
+      // TM-A xA format (semicolon delimited, no header):
+      // PLU(5 digits);Name(max 28 chars);Price(soʻm);BarcodeType(2=weight-embedded);Tare;Department
+      // BarcodeType 2 => barcode = 2 + PLU(5) + Weight_gram(5) + CheckDigit(1) = 13 digits
+      let csvLines = [];
 
       filteredData.forEach(prod => {
-        const plu = prod.sku && prod.sku.trim() ? prod.sku.trim().replace(/\D/g, '') : String(prod.id);
-        const name = (prod.name || '').replace(/,/g, ' '); // remove commas from name
-        const price = prod.sale_price ? Math.round(parseFloat(prod.sale_price)) : 0;
-        const dept = 1;
-        const unit = 0; // 0 for kg
-        const barcodeType = 7; // EAN13
+        // PLU: faqat raqamlar, 5 ta raqamga to'ldirish
+        const rawPlu = prod.sku && prod.sku.trim()
+          ? prod.sku.trim().replace(/\D/g, '')
+          : String(prod.id);
+        const plu = rawPlu.padStart(5, '0').slice(-5); // 5 ta raqam, oshib ketsa oxirgi 5 ta
         
-        csvContent += `${plu},${plu},${name},${dept},${price},${unit},${barcodeType}\r\n`;
+        // Nom: vergul va nuqtali vergullarni olib tashlash, max 28 ta belgi
+        const name = (prod.name || '')
+          .replace(/[;,"]/g, ' ')
+          .trim()
+          .substring(0, 28);
+        
+        // Narx: butun son (so'm)
+        const price = prod.sale_price ? Math.round(parseFloat(prod.sale_price)) : 0;
+        
+        // BarcodeType=2: weight-embedded EAN-13 (2+PLU5+Weight5+Check1)
+        const barcodeType = 2;
+        const tare = 0;      // Tara og'irligi (g)
+        const dept = 1;      // Department
+        
+        csvLines.push(`${plu};${name};${price};${barcodeType};${tare};${dept}`);
       });
 
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+      const csvContent = csvLines.join('\r\n') + '\r\n';
+      const blob = new Blob([csvContent], { type: 'text/plain;charset=utf-8' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', 'TMA_Taroti_PLU.csv');
+      link.setAttribute('download', 'PLU.csv');
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
+      toast.success(`${filteredData.length} ta mahsulot PLU.csv ga eksport qilindi!`);
     } catch (error) {
       toast.error("Eksport qilishda xatolik yuz berdi");
     }
