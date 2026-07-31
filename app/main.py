@@ -163,6 +163,8 @@ def _run_auto_migrations(engine):
         );""",
         "CREATE INDEX IF NOT EXISTS ix_company_bots_company_id ON company_bots(company_id);",
         "ALTER TABLE products ADD COLUMN IF NOT EXISTS expiry_date DATE;",
+        # ── Sales multi-currency debt tracking ──
+        "ALTER TABLE sales ADD COLUMN IF NOT EXISTS debt_amounts JSON DEFAULT '{}'::json;",
     ]
     _sa_text = __import__('sqlalchemy').text
     for sql in migrations:
