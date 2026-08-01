@@ -36,6 +36,7 @@ class User(Base):
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
     status = Column(Enum(UserStatus), default=UserStatus.active)
     tg_chat_id = Column(String(50), nullable=True)  # Telegram OTP uchun
+    fcm_token = Column(String(255), nullable=True)  # Push bildirishnomalar uchun
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     branch = relationship("Branch", back_populates="users")

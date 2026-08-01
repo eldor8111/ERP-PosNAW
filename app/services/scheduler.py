@@ -1,13 +1,16 @@
 """
 Avtomatik Scheduler — Fon vazifalar boshqaruvchisi
 ====================================================
-1. Har kuni soat 09:00 da — muddati kelgan qarz eslatmalari (mijozlarga)
-2. Har kuni soat 17:30 da — do'kon rahbariga kunlik hisobot (Telegram)
-3. Har kuni soat 10:00 da — muddati o'tgan qarzlar uchun rahbarga ogohlantirish
+1. Har kuni soat 09:00 da — muddati kelgan qarz eslatmalari (mijozlarga Telegram)
+2. Har kuni soat 10:00 da — muddati o'tgan qarzlar haqida rahbarga ogohlantirish (Telegram)
+3. Har bir do'konning sozlamasida belgilangan vaqtda — kunlik hisobot:
+   • Telegram → rahbar/admin lar
+   • FCM Push Notification → rahbar/admin lar (mobil ilova)
 """
 import asyncio
 from datetime import datetime, date, timezone, timedelta
 import httpx
+
 from app.database import SessionLocal
 from app.models.sale import Sale, SaleStatus, PaymentType
 from app.models.customer import Customer
@@ -32,6 +35,38 @@ async def send_tg_msg_async(token: str, chat_id: str, text: str,
     except Exception as e:
         print(f"[TG] Xabar yuborishda xatolik: {e}")
         return False
+
+
+# ─── FCM Push Notification yuboruvchi ────────────────────────────────────
+
+def _send_fcm_to_managers(company: Company, db, title: str, body: str, data: dict = None):
+    """
+    Kompaniya rahbar/adminlari uchun FCM push notification yuboradi.
+    fcm_token mavjud bo'lgan barcha admin/director larga yuboradi.
+    """
+    try:
+        from app.services.fcm_service import send_multicast_notification
+        tokens = []
+        managers = db.query(User).filter(
+            User.company_id == company.id,
+            User.role.in_([UserRole.admin, UserRole.director]),
+            User.fcm_token.isnot(None),
+        ).all()
+        tokens = [u.fcm_token for u in managers if u.fcm_token]
+        if not tokens:
+            return
+        result = send_multicast_notification(
+            tokens=tokens,
+            title=title,
+            body=body,
+            data=data or {"type": "daily_report", "company_id": str(company.id)},
+        )
+        print(
+            f"[Scheduler][FCM] {company.name}: {result['success']} ta push yuborildi, "
+            f"{result['failure']} ta xato"
+        )
+    except Exception as e:
+        print(f"[Scheduler][FCM] Xatolik ({company.name}): {e}")
 
 
 # ─── 1. Qarz eslatmalari (Mijozlarga — har kuni soat 09:00) ─────────────
@@ -126,7 +161,6 @@ async def notify_managers_overdue():
             if not company.tg_bot_token:
                 continue
 
-            # Muddati o'tgan savdolar
             overdue_sales = db.query(Sale).filter(
                 Sale.company_id == company.id,
                 Sale.status == SaleStatus.completed,
@@ -144,7 +178,6 @@ async def notify_managers_overdue():
                 for s in overdue_sales
             )
 
-            # Rahbarlarga xabar yuborish
             managers = db.query(User).filter(
                 User.company_id == company.id,
                 User.role.in_([UserRole.admin, UserRole.director]),
@@ -162,7 +195,16 @@ async def notify_managers_overdue():
             for manager in managers:
                 await send_tg_msg_async(company.tg_bot_token, manager.tg_chat_id, msg)
 
-        print(f"[Scheduler] Muddati o'tgan qarzlar haqida rahbarlarga xabar yuborildi")
+            # FCM push ham yuborish
+            _send_fcm_to_managers(
+                company=company,
+                db=db,
+                title=f"⚠️ {company.name}: Muddati o'tgan qarzlar",
+                body=f"{len(overdue_sales)} ta mijozda jami {total_overdue:,.0f} so'm muddati o'tgan qarz bor.",
+                data={"type": "overdue_debt", "company_id": str(company.id)},
+            )
+
+        print("[Scheduler] Muddati o'tgan qarzlar haqida rahbarlarga xabar yuborildi")
 
     except Exception as e:
         print(f"[Scheduler] notify_managers_overdue xatolik: {e}")
@@ -170,60 +212,77 @@ async def notify_managers_overdue():
         db.close()
 
 
-# ─── 3. Kunlik hisobot — Rahbarga (har kuni soat 17:30) ─────────────────
+# ─── 3. Kunlik hisobot — har bir do'konning o'z vaqtida ─────────────────
 
-async def send_daily_report_to_managers():
+async def send_daily_report_for_company(company: Company, db):
     """
-    Har kuni soat 17:30 da barcha kompaniyalar rahbarlariga
-    kunlik savdo hisobotini Telegram orqali yuboradi.
+    Bitta kompaniya uchun kunlik hisobot yuboradi:
+    - Telegram orqali rahbar/adminlarga
+    - FCM Push orqali mobil ilovaga
     """
     from app.services.ai_service import build_daily_report
 
+    try:
+        report_text = build_daily_report(db, company.id, company.name)
+    except Exception as e:
+        print(f"[Scheduler] {company.name} uchun hisobot yaratishda xatolik: {e}")
+        report_text = (
+            f"📊 <b>{company.name} — Kunlik Hisobot</b>\n\n"
+            f"Hisobotni yaratishda xatolik yuz berdi. "
+            f"Iltimos, ilovadan tekshiring."
+        )
+
+    # Telegram orqali
+    if company.tg_bot_token:
+        managers_tg = db.query(User).filter(
+            User.company_id == company.id,
+            User.role.in_([UserRole.admin, UserRole.director]),
+            User.tg_chat_id.isnot(None),
+        ).all()
+        for manager in managers_tg:
+            ok = await send_tg_msg_async(
+                company.tg_bot_token,
+                manager.tg_chat_id,
+                report_text,
+            )
+            if ok:
+                print(f"[Scheduler][TG] Hisobot: {company.name} → {manager.name}")
+
+    # FCM Push Notification orqali (qisqa xulosa)
+    _send_fcm_to_managers(
+        company=company,
+        db=db,
+        title=f"📊 {company.name} — Kunlik Hisobot",
+        body="Bugungi savdo hisoboti tayyor. Ko'rish uchun bosing.",
+        data={"type": "daily_report", "company_id": str(company.id)},
+    )
+
+
+async def check_and_send_reports():
+    """
+    Barcha faol kompaniyalarning hisobot vaqtini tekshiradi.
+    Vaqti kelgan kompaniya uchun hisobot yuboradi.
+    """
     db = SessionLocal()
     try:
+        utc_now = datetime.now(timezone.utc)
+        uz_now = utc_now + timedelta(hours=5)
+        current_hhmm = uz_now.strftime("%H:%M")  # M-n: "17:30"
+
         companies = db.query(Company).filter(Company.is_active == True).all()
-        total_sent = 0
 
         for company in companies:
-            if not company.tg_bot_token:
-                continue  # Bot ulangan bo'lmasa o'tkazib yuboramiz
-
-            # Rahbar va adminlarni topamiz (tg_chat_id si borlarini)
-            managers = db.query(User).filter(
-                User.company_id == company.id,
-                User.role.in_([UserRole.admin, UserRole.director]),
-                User.tg_chat_id.isnot(None)
-            ).all()
-
-            if not managers:
-                continue
-
-            # Kunlik hisobot matnini tayyorlaymiz
-            try:
-                report_text = build_daily_report(db, company.id, company.name)
-            except Exception as e:
-                print(f"[Scheduler] {company.name} uchun hisobot yaratishda xatolik: {e}")
-                report_text = (
-                    f"📊 <b>{company.name} — Kunlik Hisobot</b>\n\n"
-                    f"Hisobotni yaratishda xatolik yuz berdi. "
-                    f"Iltimos, ilovadan tekshiring."
+            # daily_report_time ustuni mavjud bo'lmasa yoki None bo'lsa
+            report_time = getattr(company, "daily_report_time", None) or "17:30"
+            if report_time == current_hhmm:
+                print(
+                    f"[Scheduler] {company.name} uchun kunlik hisobot vaqti keldi "
+                    f"({current_hhmm}). Yuborilmoqda..."
                 )
-
-            # Har bir rahbarga yuboramiz
-            for manager in managers:
-                ok = await send_tg_msg_async(
-                    company.tg_bot_token,
-                    manager.tg_chat_id,
-                    report_text
-                )
-                if ok:
-                    total_sent += 1
-                    print(f"[Scheduler] Hisobot yuborildi: {company.name} → {manager.name}")
-
-        print(f"[Scheduler] Kunlik hisobot: {total_sent} ta rahbarga yuborildi")
+                await send_daily_report_for_company(company, db)
 
     except Exception as e:
-        print(f"[Scheduler] send_daily_report_to_managers xatolik: {e}")
+        print(f"[Scheduler] check_and_send_reports xatolik: {e}")
     finally:
         db.close()
 
@@ -243,24 +302,26 @@ async def start_scheduler():
     Har daqiqada vaqtni tekshirib, belgilangan vazifalarni bajaradi.
 
     Jadval (O'zbekiston vaqti — UTC+5):
-    ┌─────────────────────────────────────────────────────────┐
-    │  09:00  — Mijozlarga qarz eslatmalari (Telegram)        │
-    │  10:00  — Rahbarga muddati o'tgan qarzlar ogohlantirish │
-    │  17:30  — Rahbarga kunlik savdo hisoboti (Telegram)     │
-    └─────────────────────────────────────────────────────────┘
+    ┌──────────────────────────────────────────────────────────────────┐
+    │  09:00     — Mijozlarga qarz eslatmalari (Telegram)             │
+    │  10:00     — Rahbarga muddati o'tgan qarzlar ogohlantirish      │
+    │  Har daqiqa— Har bir do'konning o'z vaqtida kunlik hisobot      │
+    │              (Telegram + FCM Push Notification)                  │
+    └──────────────────────────────────────────────────────────────────┘
     """
     last_debt_date = None
     last_overdue_date = None
-    last_report_date = None
+    # Hisobot uchun: {company_id: last_report_date}
+    last_report_dates: dict = {}
 
     print("[Scheduler] Ishga tushdi ✅")
 
     while True:
         try:
-            # O'zbekiston vaqtida ishlash uchun UTC+5
             utc_now = datetime.now(timezone.utc)
             uz_now = utc_now + timedelta(hours=5)
             today = uz_now.date()
+            current_hhmm = uz_now.strftime("%H:%M")
 
             # 09:00 — Qarz eslatmalari (mijozlarga)
             if _is_time(9, 0, uz_now) and last_debt_date != today:
@@ -274,11 +335,25 @@ async def start_scheduler():
                 await notify_managers_overdue()
                 last_overdue_date = today
 
-            # 17:30 — Kunlik hisobot (rahbarga)
-            if _is_time(17, 30, uz_now) and last_report_date != today:
-                print(f"[Scheduler] {uz_now.strftime('%H:%M')} — Kunlik hisobot yuborilmoqda")
-                await send_daily_report_to_managers()
-                last_report_date = today
+            # Har daqiqa — Har bir do'konning o'z vaqtida kunlik hisobot
+            # (Telegram + FCM Push)
+            db = SessionLocal()
+            try:
+                companies = db.query(Company).filter(Company.is_active == True).all()
+                for company in companies:
+                    report_time = getattr(company, "daily_report_time", None) or "17:30"
+                    if (
+                        report_time == current_hhmm
+                        and last_report_dates.get(company.id) != today
+                    ):
+                        print(
+                            f"[Scheduler] {company.name} — hisobot vaqti keldi "
+                            f"({current_hhmm}). Yuborilmoqda..."
+                        )
+                        await send_daily_report_for_company(company, db)
+                        last_report_dates[company.id] = today
+            finally:
+                db.close()
 
         except Exception as e:
             print(f"[Scheduler] Loop xatolik: {e}")

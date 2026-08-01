@@ -495,3 +495,19 @@ def delete_user(
         ip_address=request.client.host if request.client else None,
     )
     db.commit()
+
+class FCMTokenUpdate(_BaseModel):
+    fcm_token: str
+
+@router.put("/me/fcm-token", status_code=status.HTTP_200_OK)
+def update_my_fcm_token(
+    data: FCMTokenUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Mobil ilovadan kelgan FCM tokenni foydalanuvchiga saqlaydi."""
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if user:
+        user.fcm_token = data.fcm_token
+        db.commit()
+    return {"ok": True, "message": "FCM token saqlandi"}

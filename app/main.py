@@ -186,6 +186,9 @@ def _run_auto_migrations(engine):
         );""",
         "CREATE INDEX IF NOT EXISTS ix_chat_history_user_company ON ai_chat_history(user_id, company_id);",
         "CREATE INDEX IF NOT EXISTS ix_chat_history_created ON ai_chat_history(created_at);",
+        # ── FCM and Notifications ──
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS fcm_token VARCHAR(255);",
+        "ALTER TABLE companies ADD COLUMN IF NOT EXISTS daily_report_time VARCHAR(10) DEFAULT '17:30';",
     ]
     _sa_text = __import__('sqlalchemy').text
     for sql in migrations:

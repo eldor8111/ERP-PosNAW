@@ -66,6 +66,7 @@ class CompanyUpdate(BaseModel):
     is_active: Optional[bool] = None
     tg_bot_token: Optional[str] = None
     tg_bot_username: Optional[str] = None
+    daily_report_time: Optional[str] = None
 
 
 class ReceiptTemplatesUpdate(BaseModel):
@@ -83,6 +84,7 @@ class CompanyOut(BaseModel):
     tg_bot_token: Optional[str] = None
     tg_bot_username: Optional[str] = None
     receipt_templates: Optional[dict] = None
+    daily_report_time: str = "17:30"
 
     class Config:
         from_attributes = True
@@ -104,7 +106,7 @@ def list_companies(
         result.append(CompanyOut(
             id=c.id, name=c.name, address=c.address, phone=c.phone, 
             email=c.email, is_active=c.is_active, created_at=c.created_at, 
-            branches_count=bc, tg_bot_token=c.tg_bot_token, tg_bot_username=c.tg_bot_username, receipt_templates=c.receipt_templates))  # type: ignore[call-arg]
+            branches_count=bc, tg_bot_token=c.tg_bot_token, tg_bot_username=c.tg_bot_username, receipt_templates=c.receipt_templates, daily_report_time=c.daily_report_time or "17:30"))  # type: ignore[call-arg]
     return result
 
 @router.get("/me/receipt_templates")
@@ -150,7 +152,7 @@ def create_company(
     return CompanyOut(
         id=c.id, name=c.name, address=c.address, phone=c.phone, 
         email=c.email, is_active=c.is_active, created_at=c.created_at, 
-        branches_count=0, tg_bot_token=c.tg_bot_token, tg_bot_username=c.tg_bot_username, receipt_templates=c.receipt_templates)  # type: ignore[call-arg]
+        branches_count=0, tg_bot_token=c.tg_bot_token, tg_bot_username=c.tg_bot_username, receipt_templates=c.receipt_templates, daily_report_time=c.daily_report_time or "17:30")  # type: ignore[call-arg]
 
 
 @router.put("/{company_id}", response_model=CompanyOut)
@@ -187,7 +189,7 @@ def update_company(
     return CompanyOut(
         id=c.id, name=c.name, address=c.address, phone=c.phone,
         email=c.email, is_active=c.is_active, created_at=c.created_at,
-        branches_count=bc, tg_bot_token=c.tg_bot_token, tg_bot_username=c.tg_bot_username, receipt_templates=c.receipt_templates)  # type: ignore[call-arg]
+        branches_count=bc, tg_bot_token=c.tg_bot_token, tg_bot_username=c.tg_bot_username, receipt_templates=c.receipt_templates, daily_report_time=c.daily_report_time or "17:30")  # type: ignore[call-arg]
 
 
 @router.delete("/{company_id}", status_code=status.HTTP_204_NO_CONTENT)
