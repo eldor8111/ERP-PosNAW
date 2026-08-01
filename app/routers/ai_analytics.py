@@ -22,24 +22,70 @@ router = APIRouter(prefix="/ai", tags=["AI Analytics & Copilot"])
 class ChatRequest(BaseModel):
     message: str
 
+@router.get("/status")
+def get_ai_status():
+    """AI tizimi holati (debug uchun)"""
+    import httpx
+    from app.config import settings
+    
+    if not settings.GEMINI_API_KEY:
+        return {"status": "error", "message": "GEMINI_API_KEY .env da yo'q!"}
+    
+    key_preview = settings.GEMINI_API_KEY[:12] + "..."
+    
+    # Har ikkala API versiyasini sinab ko'ramiz
+    results = []
+    models_to_test = [
+        ("v1beta", "gemini-2.0-flash"),
+        ("v1", "gemini-1.5-flash"),
+        ("v1beta", "gemini-1.5-flash"),
+    ]
+    
+    for api_ver, model in models_to_test:
+        url = f"https://generativelanguage.googleapis.com/{api_ver}/models/{model}:generateContent?key={settings.GEMINI_API_KEY}"
+        try:
+            resp = httpx.post(url, json={
+                "contents": [{"parts": [{"text": "salom"}]}]
+            }, timeout=10)
+            results.append({
+                "api": api_ver, "model": model,
+                "status": resp.status_code,
+                "ok": resp.status_code == 200,
+                "error": resp.json().get("error", {}).get("message", "") if resp.status_code != 200 else ""
+            })
+            if resp.status_code == 200:
+                break  # Ishlaydigan topildi
+        except Exception as e:
+            results.append({"api": api_ver, "model": model, "status": 0, "ok": False, "error": str(e)})
+    
+    working = [r for r in results if r["ok"]]
+    return {
+        "api_key_preview": key_preview,
+        "working_model": working[0] if working else None,
+        "all_results": results
+    }
+
 @router.get("/daily-summary")
 def get_daily_summary(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director))
 ):
     """Bugungi kun xulosasi va AI tahlili"""
+    def sf(v):
+        try: return float(v or 0)
+        except: return 0.0
+
     today = date.today()
     sales = db.query(Sale).filter(
         func.date(Sale.created_at) == today,
         Sale.company_id == current_user.company_id
     ).all()
     
-    total_sales = sum(float(s.total_amount) for s in sales)
-    cash = sum(float(s.paid_cash) for s in sales)
-    card = sum(float(s.paid_card) for s in sales)
-    debt = sum(float(s.total_amount - s.paid_amount) for s in sales)
+    total_sales = sum(sf(s.total_amount) for s in sales)
+    cash = sum(sf(s.paid_cash) for s in sales)
+    card = sum(sf(s.paid_card) for s in sales)
+    debt = sum(sf(s.total_amount) - sf(s.paid_amount) for s in sales)
     
-    # AI orqali tahlil
     context = build_daily_context(db, current_user.company_id)
     prompt = "Ushbu ma'lumotlarga asoslanib 1-2 ta gap bilan bugungi savdoga ta'rif ber."
     ai_summary = call_gemini(prompt, context)

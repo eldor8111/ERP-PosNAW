@@ -16,14 +16,16 @@ from app.models.customer import Customer
 from app.models.inventory import StockLevel
 from app.services.debt_scoring import categorize_customers
 
-GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1/models"
+GEMINI_API_BASE_V1BETA = "https://generativelanguage.googleapis.com/v1beta/models"
+GEMINI_API_BASE_V1 = "https://generativelanguage.googleapis.com/v1/models"
 
-# Sinab ko'riladigan modellar (v1 API da ishlaydiganlari)
+# (api_version_url, model_name) — birinchi ishlaygani tanlanadi
 MODELS_TO_TRY = [
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
-    "gemini-pro",
+    (GEMINI_API_BASE_V1BETA, "gemini-2.0-flash"),
+    (GEMINI_API_BASE_V1BETA, "gemini-1.5-flash"),
+    (GEMINI_API_BASE_V1, "gemini-1.5-flash"),
+    (GEMINI_API_BASE_V1BETA, "gemini-1.5-pro"),
+    (GEMINI_API_BASE_V1, "gemini-1.5-pro"),
 ]
 
 SYSTEM_PROMPT = (
@@ -50,16 +52,15 @@ def _call_gemini_raw(prompt: str) -> str:
         return ""
 
     payload = {
-        "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-        "contents": [{"parts": [{"text": prompt}]}],
+        "contents": [{"parts": [{"text": SYSTEM_PROMPT + "\n\n" + prompt}]}],
         "generationConfig": {
             "temperature": 0.2,
             "maxOutputTokens": 1024,
         },
     }
 
-    for model in MODELS_TO_TRY:
-        url = f"{GEMINI_API_BASE}/{model}:generateContent?key={settings.GEMINI_API_KEY}"
+    for base_url, model in MODELS_TO_TRY:
+        url = f"{base_url}/{model}:generateContent?key={settings.GEMINI_API_KEY}"
         try:
             resp = httpx.post(url, json=payload, timeout=20)
             if resp.status_code == 200:
@@ -70,10 +71,12 @@ def _call_gemini_raw(prompt: str) -> str:
                     .get("parts", [{}])[0]
                     .get("text", "")
                 )
-                return text.strip()
-            elif resp.status_code == 404:
-                # Model topilmadi — keyingi modelga o'tamiz
-                print(f"[Gemini] {model} topilmadi (404), keyingisini sinab ko'ramiz...")
+                if text:
+                    print(f"[Gemini OK] {model} ({base_url.split('/')[5]})")
+                    return text.strip()
+            elif resp.status_code in (404, 400):
+                err_msg = resp.json().get("error", {}).get("message", "")
+                print(f"[Gemini] {model} {resp.status_code}: {err_msg[:100]}")
                 continue
             else:
                 print(f"[Gemini] {model} xatolik {resp.status_code}: {resp.text[:200]}")
