@@ -111,14 +111,15 @@ def categorize_customers(db: Session, company_id: int):
         due_date = str(oldest_debt.debt_due_date) if oldest_debt and oldest_debt.debt_due_date else None
         days_remaining = (oldest_debt.debt_due_date - date.today()).days if oldest_debt and oldest_debt.debt_due_date else 0
         
-        total_debt += float(c.debt_balance)
+        debt_bal = float(c.debt_balance or 0)
+        total_debt += debt_bal
         if score_data['overdue_count'] > 0:
             total_overdue += 1
             
         results.append({
             "id": c.id,
             "name": c.name,
-            "debt": float(c.debt_balance),
+            "debt": debt_bal,
             "due_date": due_date,
             "days_remaining": days_remaining,
             "trust_score": score_data['score'],

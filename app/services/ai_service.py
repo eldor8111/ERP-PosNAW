@@ -86,63 +86,76 @@ def build_daily_context(db: Session, company_id: int) -> str:
 
 def get_insights(db: Session, company_id: int):
     """3 ta karta (Insights) uchun ma'lumot"""
-    today = date.today()
-    last_week_start = today - timedelta(days=14)
-    last_week_end = today - timedelta(days=7)
-    this_week_start = today - timedelta(days=7)
-    
-    # O'sish tendensiyasi
-    last_week_sales = db.query(func.coalesce(func.sum(Sale.total_amount), 0)).filter(
-        func.date(Sale.created_at) >= last_week_start,
-        func.date(Sale.created_at) < last_week_end,
-        Sale.company_id == company_id
-    ).scalar() or 0
-    
-    this_week_sales = db.query(func.coalesce(func.sum(Sale.total_amount), 0)).filter(
-        func.date(Sale.created_at) >= this_week_start,
-        func.date(Sale.created_at) <= today,
-        Sale.company_id == company_id
-    ).scalar() or 0
-    
-    growth_pct = 0
-    if last_week_sales > 0:
-        growth_pct = ((this_week_sales - last_week_sales) / last_week_sales) * 100
+    try:
+        today = date.today()
+        last_week_start = today - timedelta(days=14)
+        last_week_end = today - timedelta(days=7)
+        this_week_start = today - timedelta(days=7)
+        
+        # O'sish tendensiyasi
+        last_week_sales = db.query(func.coalesce(func.sum(Sale.total_amount), 0)).filter(
+            func.date(Sale.created_at) >= last_week_start,
+            func.date(Sale.created_at) < last_week_end,
+            Sale.company_id == company_id
+        ).scalar() or 0
+        
+        this_week_sales = db.query(func.coalesce(func.sum(Sale.total_amount), 0)).filter(
+            func.date(Sale.created_at) >= this_week_start,
+            func.date(Sale.created_at) <= today,
+            Sale.company_id == company_id
+        ).scalar() or 0
+        
+        growth_pct = 0
+        if last_week_sales > 0:
+            growth_pct = float((this_week_sales - last_week_sales) / last_week_sales) * 100
 
-    trend = "O'sish" if growth_pct > 0 else "Pasayish"
-    
-    # Zaxira e'tibori
-    low_stock = db.query(StockLevel).filter(
-        StockLevel.quantity < 10,
-        StockLevel.warehouse.has(company_id=company_id)
-    ).count()
-    
-    # Qarz xavfi
-    debt_data = categorize_customers(db, company_id)
-    overdue = debt_data['overdue_count']
-    
-    return [
-        {
-            "type": "growth",
-            "icon": "📈",
-            "title": "O'sish tendensiyasi",
-            "body": f"O'tgan haftaga nisbatan umumiy savdo hajmi {abs(growth_pct):.1f}% ga {trend.lower()} kuzatildi.",
-            "color": "green" if growth_pct >= 0 else "red"
-        },
-        {
-            "type": "warning",
-            "icon": "⚠️",
-            "title": "Zaxira e'tibori",
-            "body": f"{low_stock} ta mahsulot zaxirasi tugamoqda (10 tadan kam). Zaxirani tekshiring.",
-            "color": "orange"
-        },
-        {
-            "type": "tip",
-            "icon": "💡",
-            "title": "AI Tavsiyasi",
-            "body": f"Xavfli qarzdorlar soni {overdue} ta. Ularga tez orada eslatma yuborishni tavsiya qilamiz.",
-            "color": "blue"
-        }
-    ]
+        trend = "O'sish" if growth_pct > 0 else "Pasayish"
+        
+        # Zaxira e'tibori
+        low_stock = db.query(StockLevel).filter(
+            StockLevel.quantity < 10,
+            StockLevel.warehouse.has(company_id=company_id)
+        ).count()
+        
+        # Qarz xavfi
+        debt_data = categorize_customers(db, company_id)
+        overdue = debt_data['overdue_count']
+        
+        return [
+            {
+                "type": "growth",
+                "icon": "📈",
+                "title": "O'sish tendensiyasi",
+                "body": f"O'tgan haftaga nisbatan umumiy savdo hajmi {abs(growth_pct):.1f}% ga {trend.lower()} kuzatildi.",
+                "color": "green" if growth_pct >= 0 else "red"
+            },
+            {
+                "type": "warning",
+                "icon": "⚠️",
+                "title": "Zaxira e'tibori",
+                "body": f"{low_stock} ta mahsulot zaxirasi tugamoqda (10 tadan kam). Zaxirani tekshiring.",
+                "color": "orange"
+            },
+            {
+                "type": "tip",
+                "icon": "💡",
+                "title": "AI Tavsiyasi",
+                "body": f"Xavfli qarzdorlar soni {overdue} ta. Ularga tez orada eslatma yuborishni tavsiya qilamiz.",
+                "color": "blue"
+            }
+        ]
+    except Exception as e:
+        import traceback
+        error_msg = traceback.format_exc()
+        return [
+            {
+                "type": "warning",
+                "icon": "⚠️",
+                "title": "Xatolik",
+                "body": f"Insight xatosi: {str(e)}",
+                "color": "red"
+            }
+        ]
 
 def parse_copilot_intent(message: str, context: str = "") -> dict:
     """Foydalanuvchi xabaridan amalni aniqlash"""
@@ -164,12 +177,19 @@ def parse_copilot_intent(message: str, context: str = "") -> dict:
     """
     
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash", generation_config={"response_mime_type": "application/json"})
+        model = genai.GenerativeModel("gemini-1.5-flash")
         response = model.generate_content(prompt)
-        return json.loads(response.text)
+        text = response.text.strip()
+        if text.startswith("```json"):
+            text = text[7:]
+        if text.endswith("```"):
+            text = text[:-3]
+        return json.loads(text.strip())
     except Exception as e:
-        print(f"JSON parsing xatosi: {e}")
-        return {"intent": "unknown", "reply": "So'rovni tushunishda xatolik yuz berdi."}
+        import traceback
+        err = traceback.format_exc()
+        print(f"JSON parsing xatosi: {err}")
+        return {"intent": "unknown", "reply": f"So'rovni tushunishda xatolik yuz berdi: {str(e)}"}
 
 def execute_copilot_action(intent_data: dict, db: Session, company_id: int, user_id: int) -> dict:
     """Intent asosida DB ga amal bajarish"""
