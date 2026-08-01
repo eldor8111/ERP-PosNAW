@@ -56,4 +56,5 @@ urllib3==2.6.3
 uvicorn==0.41.0
 watchfiles==1.1.1
 websockets==16.0
-google-genai>=1.0.0
+# google-genai kutubxonasi endi kerak emas — to'g'ridan-to'g'ri httpx HTTP so'rov ishlatiladi
+# google-genai>=1.0.0

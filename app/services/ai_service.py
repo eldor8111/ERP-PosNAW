@@ -1,7 +1,10 @@
+"""
+AI Service — SDK'siz, to'g'ridan-to'g'ri HTTP REST API orqali Gemini bilan ishlaydi.
+Bu yondashuv har qanday SDK versiya muammolarini hal qiladi.
+"""
 import json
 import re
-from google import genai
-from google.genai import types
+import httpx
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import date, timedelta
@@ -13,143 +16,149 @@ from app.models.customer import Customer
 from app.models.inventory import StockLevel
 from app.services.debt_scoring import categorize_customers
 
-# Gemini konfiguratsiyasi — Yangi SDK (google-genai)
-_client = None
+GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1/models"
 
-def _get_client():
-    """Lazy-init: Gemini client ni bir marta yaratib keshlaymiz"""
-    global _client
-    if _client is None and settings.GEMINI_API_KEY:
-        _client = genai.Client(api_key=settings.GEMINI_API_KEY)
-    return _client
-
-# Ishlaydigan model nomlari (yangi SDK v1 API ishlatadi)
+# Sinab ko'riladigan modellar (v1 API da ishlaydiganlari)
 MODELS_TO_TRY = [
     "gemini-2.0-flash",
     "gemini-1.5-flash",
     "gemini-1.5-pro",
+    "gemini-pro",
 ]
 
-SYSTEM_PROMPT = """
-Sen E-Code ERP/POS tizimining sun'iy intellekt yordamchisisisan.
-Do'kon egasiga savdo, ombor va moliyaviy maslahat berasan.
-Javoblarni o'zbek tilida, qisqa, tushunarli va aniq ber.
-Raqamlarni chiroyli formatda yoz (masalan, 1,500,000 so'm).
-"""
+SYSTEM_PROMPT = (
+    "Sen E-Code ERP/POS tizimining sun'iy intellekt yordamchisisisan. "
+    "Do'kon egasiga savdo, ombor va moliyaviy maslahat berasan. "
+    "Javoblarni o'zbek tilida, qisqa, tushunarli va aniq ber. "
+    "Raqamlarni chiroyli formatda yoz (masalan: 1,500,000 so'm)."
+)
 
-def _safe_generate(prompt: str) -> str:
-    """Bir nechta model orqali Gemini'dan matn olish."""
-    client = _get_client()
-    if not client:
+
+def _safe_float(v):
+    try:
+        return float(v or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _call_gemini_raw(prompt: str) -> str:
+    """
+    Gemini REST API ga to'g'ridan-to'g'ri HTTP POST yuboradi.
+    SDK'ga bog'liq emas — istalgan serverda ishlaydi.
+    """
+    if not settings.GEMINI_API_KEY:
         return ""
-    
-    for model_name in MODELS_TO_TRY:
+
+    payload = {
+        "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.2,
+            "maxOutputTokens": 1024,
+        },
+    }
+
+    for model in MODELS_TO_TRY:
+        url = f"{GEMINI_API_BASE}/{model}:generateContent?key={settings.GEMINI_API_KEY}"
         try:
-            response = client.models.generate_content(
-                model=model_name,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=SYSTEM_PROMPT,
-                    temperature=0.2,
-                    max_output_tokens=1024,
+            resp = httpx.post(url, json=payload, timeout=20)
+            if resp.status_code == 200:
+                data = resp.json()
+                text = (
+                    data.get("candidates", [{}])[0]
+                    .get("content", {})
+                    .get("parts", [{}])[0]
+                    .get("text", "")
                 )
-            )
-            return response.text or ""
+                return text.strip()
+            elif resp.status_code == 404:
+                # Model topilmadi — keyingi modelga o'tamiz
+                print(f"[Gemini] {model} topilmadi (404), keyingisini sinab ko'ramiz...")
+                continue
+            else:
+                print(f"[Gemini] {model} xatolik {resp.status_code}: {resp.text[:200]}")
+                break
         except Exception as e:
-            err_str = str(e)
-            print(f"[Gemini] {model_name} xatosi: {err_str}")
-            if "404" in err_str or "not found" in err_str.lower():
-                continue   # Keyingi modelga o'tish
-            break          # Boshqa xato — to'xtatamiz
+            print(f"[Gemini] {model} ulanish xatosi: {e}")
+            break
+
     return ""
 
 
 def call_gemini(prompt: str, context: str = "") -> str:
-    """Gemini API ga so'rov yuborish. Agar kalit yo'q bo'lsa fallback qaytaradi."""
+    """Gemini API ga so'rov. Agar ishlamasa fallback qaytaradi."""
     if not settings.GEMINI_API_KEY:
-        return _fallback_analysis(context)
-    try:
-        full_prompt = f"Tizim ma'lumotlari:\n{context}\n\nFoydalanuvchi so'rovi/Topshiriq:\n{prompt}"
-        result = _safe_generate(full_prompt)
-        return result or _fallback_analysis(context)
-    except Exception as e:
-        print(f"Gemini API Xatosi: {e}")
-        return _fallback_analysis(context)
+        return _fallback_analysis()
+    full_prompt = f"Tizim ma'lumotlari:\n{context}\n\nTopshiriq:\n{prompt}"
+    result = _call_gemini_raw(full_prompt)
+    return result or _fallback_analysis()
 
 
-def _fallback_analysis(context: str) -> str:
-    """Gemini API ishlamasa statik javob"""
+def _fallback_analysis() -> str:
     return "Tizim tahlili yakunlandi. Ma'lumotlarga ko'ra hamma narsa me'yorida."
 
 
 def build_daily_context(db: Session, company_id: int) -> str:
-    """Bugungi savdo haqida qisqacha ma'lumot yig'ish"""
+    """Bugungi savdo haqida qisqacha ma'lumot"""
     today = date.today()
     sales = db.query(Sale).filter(
         func.date(Sale.created_at) == today,
         Sale.company_id == company_id
     ).all()
 
-    def sf(v):
-        try:
-            return float(v or 0)
-        except:
-            return 0.0
+    total = sum(_safe_float(s.total_amount) for s in sales)
+    cash = sum(_safe_float(s.paid_cash) for s in sales)
+    card = sum(_safe_float(s.paid_card) for s in sales)
 
-    total_sales = sum(sf(s.total_amount) for s in sales)
-    cash = sum(sf(s.paid_cash) for s in sales)
-    card = sum(sf(s.paid_card) for s in sales)
+    top_product = (
+        db.query(Product.name, func.sum(SaleItem.quantity).label("qty"))
+        .join(SaleItem, SaleItem.product_id == Product.id)
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .filter(func.date(Sale.created_at) == today, Sale.company_id == company_id)
+        .group_by(Product.name)
+        .order_by(func.sum(SaleItem.quantity).desc())
+        .first()
+    )
+    top_name = top_product[0] if top_product else "Yo'q"
 
-    top_product = db.query(
-        Product.name, func.sum(SaleItem.quantity).label('qty')
-    ).join(SaleItem, SaleItem.product_id == Product.id)\
-     .join(Sale, Sale.id == SaleItem.sale_id)\
-     .filter(func.date(Sale.created_at) == today, Sale.company_id == company_id)\
-     .group_by(Product.name).order_by(func.sum(SaleItem.quantity).desc()).first()
-
-    top_prod_name = top_product[0] if top_product else "Yo'q"
-
-    return f"""
-    Bugungi sana: {today}
-    Sotuvlar soni: {len(sales)} ta
-    Umumiy tushum: {total_sales:,.0f} so'm
-    Naqd pul: {cash:,.0f} so'm
-    Plastik karta: {card:,.0f} so'm
-    Eng ko'p sotilgan mahsulot: {top_prod_name}
-    """
+    return (
+        f"Bugungi sana: {today}\n"
+        f"Sotuvlar soni: {len(sales)} ta\n"
+        f"Umumiy tushum: {total:,.0f} so'm\n"
+        f"Naqd pul: {cash:,.0f} so'm\n"
+        f"Plastik karta: {card:,.0f} so'm\n"
+        f"Eng ko'p sotilgan: {top_name}"
+    )
 
 
 def get_insights(db: Session, company_id: int):
     """3 ta karta (Insights) uchun ma'lumot"""
-    def sf(v):
-        try:
-            return float(v or 0)
-        except:
-            return 0.0
-
     try:
         today = date.today()
-        last_week_start = today - timedelta(days=14)
-        last_week_end = today - timedelta(days=7)
-        this_week_start = today - timedelta(days=7)
+        prev_start = today - timedelta(days=14)
+        prev_end = today - timedelta(days=7)
+        curr_start = today - timedelta(days=7)
 
-        last_week_sales = sf(db.query(func.coalesce(func.sum(Sale.total_amount), 0)).filter(
-            func.date(Sale.created_at) >= last_week_start,
-            func.date(Sale.created_at) < last_week_end,
-            Sale.company_id == company_id
-        ).scalar())
-
-        this_week_sales = sf(db.query(func.coalesce(func.sum(Sale.total_amount), 0)).filter(
-            func.date(Sale.created_at) >= this_week_start,
-            func.date(Sale.created_at) <= today,
-            Sale.company_id == company_id
-        ).scalar())
+        prev_sales = _safe_float(
+            db.query(func.coalesce(func.sum(Sale.total_amount), 0))
+            .filter(func.date(Sale.created_at) >= prev_start,
+                    func.date(Sale.created_at) < prev_end,
+                    Sale.company_id == company_id)
+            .scalar()
+        )
+        curr_sales = _safe_float(
+            db.query(func.coalesce(func.sum(Sale.total_amount), 0))
+            .filter(func.date(Sale.created_at) >= curr_start,
+                    func.date(Sale.created_at) <= today,
+                    Sale.company_id == company_id)
+            .scalar()
+        )
 
         growth_pct = 0.0
-        if last_week_sales > 0:
-            growth_pct = (this_week_sales - last_week_sales) / last_week_sales * 100
+        if prev_sales > 0:
+            growth_pct = (curr_sales - prev_sales) / prev_sales * 100
 
-        trend = "o'sish" if growth_pct > 0 else "pasayish"
+        trend_word = "o'sish" if growth_pct >= 0 else "pasayish"
 
         low_stock = db.query(StockLevel).filter(
             StockLevel.quantity < 10,
@@ -157,41 +166,41 @@ def get_insights(db: Session, company_id: int):
         ).count()
 
         debt_data = categorize_customers(db, company_id)
-        overdue = debt_data.get('overdue_count', 0)
+        overdue = debt_data.get("overdue_count", 0)
 
         return [
             {
                 "type": "growth",
                 "icon": "📈",
                 "title": "O'sish tendensiyasi",
-                "body": f"O'tgan haftaga nisbatan umumiy savdo hajmi {abs(growth_pct):.1f}% ga {trend} kuzatildi.",
-                "color": "green" if growth_pct >= 0 else "red"
+                "body": f"O'tgan haftaga nisbatan umumiy savdo {abs(growth_pct):.1f}% {trend_word} kuzatildi.",
+                "color": "green" if growth_pct >= 0 else "red",
             },
             {
                 "type": "warning",
                 "icon": "⚠️",
                 "title": "Zaxira e'tibori",
-                "body": f"{low_stock} ta mahsulot zaxirasi tugamoqda (10 tadan kam). Zaxirani tekshiring.",
-                "color": "orange"
+                "body": f"{low_stock} ta mahsulot zaxirasi 10 tadan kam. Zaxirani to'ldiring.",
+                "color": "orange",
             },
             {
                 "type": "tip",
                 "icon": "💡",
                 "title": "AI Tavsiyasi",
-                "body": f"Xavfli qarzdorlar soni {overdue} ta. Ularga tez orada eslatma yuborishni tavsiya qilamiz.",
-                "color": "blue"
-            }
+                "body": f"Muddati o'tgan qarzdorlar soni: {overdue} ta. Ularga eslatma yuborishni tavsiya qilamiz.",
+                "color": "blue",
+            },
         ]
     except Exception as e:
         import traceback
-        print(f"get_insights xatosi: {traceback.format_exc()}")
+        print(f"[get_insights] xato: {traceback.format_exc()}")
         return [
             {
                 "type": "warning",
                 "icon": "⚠️",
-                "title": "Xatolik",
-                "body": f"Ma'lumotni yuklashda xatolik: {str(e)}",
-                "color": "red"
+                "title": "Yuklashda xatolik",
+                "body": f"Ma'lumotni yuklashda xatolik yuz berdi: {str(e)}",
+                "color": "red",
             }
         ]
 
@@ -199,96 +208,94 @@ def get_insights(db: Session, company_id: int):
 def parse_copilot_intent(message: str, context: str = "") -> dict:
     """Foydalanuvchi xabaridan amalni aniqlash"""
     if not settings.GEMINI_API_KEY:
-        return {"intent": "unknown", "reply": "Gemini API sozlanmagan. Iltimos kalitni kiriting."}
+        return {"intent": "query", "reply": "Gemini API kaliti sozlanmagan. .env faylini tekshiring."}
 
     prompt = f"""
-    Quyida do'konning hozirgi ma'lumotlari:
-    {context}
+Quyida do'konning hozirgi ma'lumotlari:
+{context}
 
-    Foydalanuvchi so'rovi: "{message}"
+Foydalanuvchi so'rovi: "{message}"
 
-    Quyidagi variantlardan birini JSON formatida qaytar:
-    1. Agar qarz to'lashi haqida bo'lsa: {{"intent": "debt_payment", "customer_name": "ism", "amount": summa_raqamda}}
-    2. Agar kimgadir qarzga narsa berilgan bo'lsa: {{"intent": "add_debt", "customer_name": "ism", "amount": summa_raqamda}}
-    3. Agar savol yoxud suhbat bo'lsa, o'zbek tilida chiroyli qilib javob ber: {{"intent": "query", "reply": "Aqlli javobing..."}}
+Quyidagi uchta variantdan biri bo'yicha FAQAT toza JSON (``` belgilarsiz, izohsiz) qaytar:
+1. Qarz to'lash: {{"intent": "debt_payment", "customer_name": "ism", "amount": raqam}}
+2. Qarz yozish: {{"intent": "add_debt", "customer_name": "ism", "amount": raqam}}
+3. Savol/suhbat: {{"intent": "query", "reply": "O'zbekcha aniq javob..."}}
+"""
 
-    Hech qanday izohsiz faqat toza JSON qaytar. Hech qanday ```json kabi belgilar bo'lmasin.
-    """
+    raw = _call_gemini_raw(prompt)
 
-    try:
-        text = _safe_generate(prompt)
-        if not text:
-            return {"intent": "query", "reply": "Kechirasiz, AI hozir ishlamayapti."}
+    if not raw:
+        return {"intent": "query", "reply": "Kechirasiz, AI hozir javob bera olmayapti. Bir ozdan keyin qayta urinib ko'ring."}
 
-        # JSON tozalash
-        text = text.strip()
-        text = re.sub(r"```json", "", text)
-        text = re.sub(r"```", "", text)
-        text = text.strip()
+    # JSON qidirish
+    clean = re.sub(r"```json|```", "", raw).strip()
+    # Faqat { ... } qismini olish
+    match = re.search(r"\{.*\}", clean, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group())
+        except json.JSONDecodeError:
+            pass
 
-        return json.loads(text)
-    except json.JSONDecodeError:
-        # Agar JSON kelsa ham bo'lmasa, tekst sifatida qaytaramiz
-        return {"intent": "query", "reply": text if text else "Kechirasiz, tushunmadim."}
-    except Exception as e:
-        import traceback
-        print(f"parse_copilot_intent xatosi: {traceback.format_exc()}")
-        return {"intent": "unknown", "reply": f"So'rovni tushunishda xatolik: {str(e)}"}
+    # JSON kelmasa — tekst sifatida qaytaramiz
+    return {"intent": "query", "reply": raw}
 
 
 def execute_copilot_action(intent_data: dict, db: Session, company_id: int, user_id: int) -> dict:
     """Intent asosida DB ga amal bajarish"""
-    intent = intent_data.get('intent')
+    intent = intent_data.get("intent")
 
     if intent == "debt_payment":
-        customer_name = intent_data.get('customer_name')
-        amount = intent_data.get('amount')
+        customer_name = intent_data.get("customer_name", "")
+        amount = _safe_float(intent_data.get("amount", 0))
 
-        customer = db.query(Customer).filter(
-            Customer.company_id == company_id,
-            Customer.name.ilike(f"%{customer_name}%")
-        ).first()
-
+        customer = (
+            db.query(Customer)
+            .filter(Customer.company_id == company_id,
+                    Customer.name.ilike(f"%{customer_name}%"))
+            .first()
+        )
         if not customer:
-            return {"reply": f"Mijoz topilmadi: {customer_name}"}
+            return {"reply": f"❌ '{customer_name}' ismli mijoz topilmadi. Ismni to'g'ri yozing."}
 
         try:
-            customer.debt_balance = float(customer.debt_balance or 0) - float(amount or 0)
+            customer.debt_balance = _safe_float(customer.debt_balance) - amount
             db.commit()
         except Exception as e:
             db.rollback()
-            return {"reply": f"Qarzni yozishda xatolik: {str(e)}"}
+            return {"reply": f"❌ Bazaga yozishda xatolik: {str(e)}"}
 
         return {
-            "reply": f"✅ Muvaffaqiyatli! {customer.name} nomli mijozning qarzidan {float(amount):,.0f} so'm yechib olindi va tizimga yozildi.",
-            "action": {"type": "debt_payment", "customer_id": customer.id, "amount": amount}
+            "reply": f"✅ Muvaffaqiyatli! {customer.name} mijozning qarzidan {amount:,.0f} so'm yechib olindi va tizimga yozildi.",
+            "action": {"type": "debt_payment", "customer_id": customer.id, "amount": amount},
         }
 
     elif intent == "add_debt":
-        customer_name = intent_data.get('customer_name')
-        amount = intent_data.get('amount')
+        customer_name = intent_data.get("customer_name", "")
+        amount = _safe_float(intent_data.get("amount", 0))
 
-        customer = db.query(Customer).filter(
-            Customer.company_id == company_id,
-            Customer.name.ilike(f"%{customer_name}%")
-        ).first()
-
+        customer = (
+            db.query(Customer)
+            .filter(Customer.company_id == company_id,
+                    Customer.name.ilike(f"%{customer_name}%"))
+            .first()
+        )
         if not customer:
-            return {"reply": f"Mijoz topilmadi: {customer_name}. Avval mijozni bazaga qo'shing."}
+            return {"reply": f"❌ '{customer_name}' ismli mijoz topilmadi. Avval mijozni bazaga qo'shing."}
 
         try:
-            customer.debt_balance = float(customer.debt_balance or 0) + float(amount or 0)
+            customer.debt_balance = _safe_float(customer.debt_balance) + amount
             db.commit()
         except Exception as e:
             db.rollback()
-            return {"reply": f"Qarzni yozishda xatolik: {str(e)}"}
+            return {"reply": f"❌ Bazaga yozishda xatolik: {str(e)}"}
 
         return {
-            "reply": f"📝 Muvaffaqiyatli! {customer.name} hisobiga {float(amount):,.0f} so'm qarz yozildi.",
-            "action": {"type": "add_debt", "customer_id": customer.id, "amount": amount}
+            "reply": f"📝 Muvaffaqiyatli! {customer.name} hisobiga {amount:,.0f} so'm qarz yozildi.",
+            "action": {"type": "add_debt", "customer_id": customer.id, "amount": amount},
         }
 
     elif intent == "query":
-        return {"reply": intent_data.get('reply', 'Kechirasiz, tushunmadim.')}
+        return {"reply": intent_data.get("reply", "Kechirasiz, tushunmadim.")}
 
-    return {"reply": "Kechirasiz, hozircha men faqat asosiy savdo va ombor ma'lumotlarini o'qiy olaman."}
+    return {"reply": "Kechirasiz, hozircha men faqat qarz va savdo ma'lumotlarini boshqara olaman."}
