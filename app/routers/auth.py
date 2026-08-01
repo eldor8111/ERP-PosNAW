@@ -435,19 +435,7 @@ def register_company(request: Request, data: CompanyRegisterRequest, db: Session
     # Telefon normalizatsiya
     data.phone = data.phone.strip().replace("+", "").replace(" ", "").replace("-", "")
 
-    bot_token = _get_otp_bot_token()
-    is_dev_mode = not bot_token or bot_token == "YOUR_TELEGRAM_BOT_TOKEN_HERE"
-
-    # OTP tekshirish (agar bot sozlangan bo'lsa)
-    if not is_dev_mode:
-        if not data.otp_verified_token:
-            raise HTTPException(status_code=400, detail="Telegram OTP tasdiqlash talab qilinadi")
-        from app.core.security import decode_token
-        token_data = decode_token(data.otp_verified_token)
-        if not token_data or token_data.get("type") != "otp_verified":
-            raise HTTPException(status_code=400, detail="OTP token noto'g'ri yoki muddati o'tgan")
-        if token_data.get("phone") != data.phone:
-            raise HTTPException(status_code=400, detail="OTP token bu telefon uchun emas")
+    # OTP tekshirish olib tashlandi — to'g'ridan ro'yxatdan o'tish
 
     # Telefon takrorlanishini tekshirish
     existing_user = db.query(User).filter(User.phone == data.phone).first()
