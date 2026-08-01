@@ -246,6 +246,10 @@ app.add_middleware(
 
 API_PREFIX = "/api"
 
+from app.routers import hippo as hippo_router  # type: ignore
+from app.admin_tg_bot.bot_routers import admin_router
+from app.routers import ai_analytics
+
 app.include_router(auth.router, prefix=API_PREFIX)
 app.include_router(users.router, prefix=API_PREFIX)
 app.include_router(categories.router, prefix=API_PREFIX)
@@ -284,6 +288,7 @@ app.include_router(mxik_router.router, prefix=API_PREFIX)
 app.include_router(sms_router.router, prefix=API_PREFIX)
 app.include_router(hippo_router.router, prefix=API_PREFIX)
 app.include_router(admin_router, prefix=API_PREFIX)
+app.include_router(ai_analytics.router, prefix=API_PREFIX)
 
 # Serve uploaded static files
 import os

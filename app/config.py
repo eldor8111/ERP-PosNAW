@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     HIPPO_COMMUNICATOR_URL: str = "http://127.0.0.1:8081"
     HIPPO_API_PREFIX: str = "/api"
     HIPPO_TIMEOUT: int = 30
+    # Gemini API Key
+    GEMINI_API_KEY: str = ""
 
     class Config:
         env_file = ".env"
