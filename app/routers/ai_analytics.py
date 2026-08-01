@@ -36,7 +36,11 @@ def get_ai_status():
     # Har ikkala API versiyasini sinab ko'ramiz
     results = []
     models_to_test = [
+        ("v1beta", "gemini-2.0-flash"),
         ("v1", "gemini-1.5-flash"),
+        ("v1beta", "gemini-1.5-flash"),
+        ("v1beta", "gemini-1.5-pro"),
+        ("v1", "gemini-pro"),
     ]
     
     for api_ver, model in models_to_test:
