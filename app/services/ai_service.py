@@ -177,8 +177,26 @@ def parse_copilot_intent(message: str, context: str = "") -> dict:
     """
     
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash-latest")
-        response = model.generate_content(prompt)
+        models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
+        response = None
+        last_error = None
+        
+        for model_name in models_to_try:
+            try:
+                model = genai.GenerativeModel(model_name)
+                response = model.generate_content(prompt)
+                break  # Agar ishladi, tsikldan chiqib ketamiz
+            except Exception as e:
+                last_error = e
+                # Agar 404 bo'lsa, keyingi modelga o'tishda davom etamiz
+                if "404" in str(e) or "not found" in str(e).lower():
+                    continue
+                else:
+                    raise e
+                    
+        if not response:
+            raise last_error
+
         text = response.text.strip()
         if text.startswith("```json"):
             text = text[7:]
