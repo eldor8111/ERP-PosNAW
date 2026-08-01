@@ -143,14 +143,6 @@ export default function Aloqa() {
 
         <div className="max-w-[1400px] mx-auto px-4 w-full relative z-10 text-center flex flex-col items-center">
           
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-full text-blue-400 font-semibold text-sm mb-8 animate-[fadeInDown_0.6s_ease-out_both]">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
-            </span>
-            {t('aloqa.tag') || "Biz har doim aloqadamiz"}
-          </div>
-
           <h1 className="text-5xl md:text-7xl font-extrabold text-white tracking-[-0.04em] mb-6 leading-[1.1] animate-[fadeInUp_0.7s_ease-out_0.1s_both]">
             {t('aloqa.hero.title1') || "Savollaringiz bormi?"} <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-400 to-emerald-400 inline-block mt-2">

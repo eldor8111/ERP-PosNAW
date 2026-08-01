@@ -823,6 +823,8 @@ export default {
   
   // === NEW LANDING STRINGS ===
   'land.nav.erp': 'ERP System',
+  'land.nav.about': 'About Us',
+  'land.nav.news': 'News',
   'land.nav.chaqqon': 'Chaqqon Pro',
   'land.nav.websites': 'Websites',
   'land.nav.bots': 'Telegram Bots',
@@ -1393,7 +1395,7 @@ export default {
   // Aloqa
   'aloqa.bc.home': 'Home',
   'aloqa.bc.current': 'Contact',
-  'aloqa.tag': '📬 &nbsp;Get in touch',
+  'aloqa.tag': 'Get in touch',
   'aloqa.hero.title1': 'Have questions?',
   'aloqa.hero.title2': 'Contact us!',
   'aloqa.hero.desc': 'Write or call us — we reply within 30 minutes.',
@@ -1491,5 +1493,6 @@ export default {
   'admin.dict.th_cashier': 'CASHIER',
   'admin.dict.th_prod': 'PRODUCT',
   'admin.dict.th_qty': 'QTY',
-  'admin.dict.th_price': 'PRICE'
+  'admin.dict.th_price': 'PRICE',
+  'land.nav.integrations': 'Integrations'
 };

@@ -43,7 +43,10 @@ const VebSaytlar      = lazy(() => import('./pages/VebSaytlar'))
 const TelegramBotlar  = lazy(() => import('./pages/TelegramBotlar'))
 const NoyobDasturlar  = lazy(() => import('./pages/NoyobDasturlar'))
 const ChaqqonPro      = lazy(() => import('./pages/ChaqqonPro'))
+const Integratsiyalar  = lazy(() => import('./pages/Integratsiyalar'))
 const Aloqa           = lazy(() => import('./pages/Aloqa'))
+const BizHaqimizda    = lazy(() => import('./pages/BizHaqimizda'))
+const Yangiliklar     = lazy(() => import('./pages/Yangiliklar'))
 const Profile         = lazy(() => import('./pages/admin/Profile'))
 const NotFound        = lazy(() => import('./pages/NotFound'))
 
@@ -140,6 +143,9 @@ export default function App() {
           <Route path="/telegram-botlar" element={<Suspense fallback={<PageLoader />}><TelegramBotlar /></Suspense>} />
           <Route path="/noyob-dasturlar" element={<Suspense fallback={<PageLoader />}><NoyobDasturlar /></Suspense>} />
           <Route path="/chaqqon-pro" element={<Suspense fallback={<PageLoader />}><ChaqqonPro /></Suspense>} />
+          <Route path="/integratsiyalar" element={<Suspense fallback={<PageLoader />}><Integratsiyalar /></Suspense>} />
+          <Route path="/biz-haqimizda" element={<Suspense fallback={<PageLoader />}><BizHaqimizda /></Suspense>} />
+          <Route path="/yangiliklar" element={<Suspense fallback={<PageLoader />}><Yangiliklar /></Suspense>} />
           <Route path="/aloqa" element={<Suspense fallback={<PageLoader />}><Aloqa /></Suspense>} />
           <Route path="*" element={<Suspense fallback={<PageLoader />}><NotFound /></Suspense>} />
         </Routes>

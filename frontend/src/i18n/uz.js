@@ -902,6 +902,8 @@ export default {
 
   // === NEW LANDING STRINGS ===
   'land.nav.erp': 'ERP Tizim',
+  'land.nav.about': 'Biz haqimizda',
+  'land.nav.news': 'Yangiliklar',
   'land.nav.chaqqon': 'Chaqqon Pro',
   'land.nav.websites': 'Veb-saytlar',
   'land.nav.bots': 'Telegram Botlar',
@@ -1408,7 +1410,7 @@ export default {
   // VebSaytlar
   'web.bc.home': 'Bosh sahifa',
   'web.bc.current': 'Maxsus Veb-saytlar',
-  'web.tag': '🌐 &nbsp;Professional Veb Ishlab Chiqish',
+  'web.tag': '🌐 Professional Veb Ishlab Chiqish',
   'web.hero.title1': 'Sizning g\'oyangizni',
   'web.hero.title2': 'veb reallikka',
   'web.hero.title3': 'aylantiramiz',
@@ -1570,5 +1572,6 @@ export default {
   'admin.dict.th_cashier': 'KASSIR',
   'admin.dict.th_prod': 'MAHSULOT',
   'admin.dict.th_qty': 'MIQDOR',
-  'admin.dict.th_price': 'NARX'
+  'admin.dict.th_price': 'NARX',
+  'land.nav.integrations': 'Integratsiyalar'
 };

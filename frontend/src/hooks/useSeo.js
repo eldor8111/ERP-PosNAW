@@ -17,7 +17,7 @@ export function useSeo(title, description) {
       }
     }
     return () => {
-      document.title = "E-code – ERP, POS, Veb Sayt va Telegram Bot Yechimlari | O'zbekiston"
+      document.title = "E-Code — ERP, POS va biznesni raqamlashtirish yechimlarini yaratuvchi kompaniya."
     }
   }, [title, description])
 }

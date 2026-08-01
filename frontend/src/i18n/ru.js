@@ -906,6 +906,8 @@ export default {
 
   // === NEW LANDING STRINGS ===
   'land.nav.erp': 'ERP Система',
+  'land.nav.about': 'О нас',
+  'land.nav.news': 'Новости',
   'land.nav.chaqqon': 'Chaqqon Pro',
   'land.nav.websites': 'Веб-сайты',
   'land.nav.bots': 'Телеграм Боты',
@@ -1476,7 +1478,7 @@ export default {
   // Aloqa
   'aloqa.bc.home': 'Главная',
   'aloqa.bc.current': 'Контакты',
-  'aloqa.tag': '📬 &nbsp;Свяжитесь с нами',
+  'aloqa.tag': 'Свяжитесь с нами',
   'aloqa.hero.title1': 'Есть вопросы?',
   'aloqa.hero.title2': 'Свяжитесь!',
   'aloqa.hero.desc': 'Напишите или позвоните — ответим за 30 минут.',
@@ -1574,5 +1576,6 @@ export default {
   'admin.dict.th_cashier': 'КАССИР',
   'admin.dict.th_prod': 'ТОВАР',
   'admin.dict.th_qty': 'КОЛ-ВО',
-  'admin.dict.th_price': 'ЦЕНА'
+  'admin.dict.th_price': 'ЦЕНА',
+  'land.nav.integrations': 'Интеграции'
 };

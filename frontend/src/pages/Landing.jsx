@@ -6,6 +6,7 @@ import { ShieldCheck, Zap, Cloud, Globe, Bot, Laptop, BadgeCheck, ArrowBigDown, 
 import axios from 'axios'
 import { useSeo } from '../hooks/useSeo'
 import { Label, Listbox, ListboxButton, ListboxOption, ListboxOptions } from '@headlessui/react'
+import Reveal from '../components/Reveal'
 
 // ─── SVG ICONS FOR BENTO ────────────────────────────────────────────────────
 const ICONS = {
@@ -120,68 +121,57 @@ const VisualAudit = () => (
   </div>
 );
 
-// ─── TABBED MODULE (HOW IT WORKS) ───────────────────────────────────────────
+// ─── UNROLLED SINGLE DB SHOWCASE (ALL FEATURES FULLY OPEN) ──────────────────────
 function TabbedModules({ t }) {
-  const [activeTab, setActiveTab] = useState(0)
-
-  const oneDbIcons = [
-    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill={activeTab === 0 ? "#0000FF" : "#808080"} viewBox="0 0 256 256"><path d="M232,48V88a8,8,0,0,1-16,0V56H184a8,8,0,0,1,0-16h40A8,8,0,0,1,232,48ZM72,200H40V168a8,8,0,0,0-16,0v40a8,8,0,0,0,8,8H72a8,8,0,0,0,0-16Zm152-40a8,8,0,0,0-8,8v32H184a8,8,0,0,0,0,16h40a8,8,0,0,0,8-8V168A8,8,0,0,0,224,160ZM32,96a8,8,0,0,0,8-8V56H72a8,8,0,0,0,0-16H32a8,8,0,0,0-8,8V88A8,8,0,0,0,32,96ZM80,80a8,8,0,0,0-8,8v80a8,8,0,0,0,16,0V88A8,8,0,0,0,80,80Zm104,88V88a8,8,0,0,0-16,0v80a8,8,0,0,0,16,0ZM144,80a8,8,0,0,0-8,8v80a8,8,0,0,0,16,0V88A8,8,0,0,0,144,80Zm-32,0a8,8,0,0,0-8,8v80a8,8,0,0,0,16,0V88A8,8,0,0,0,112,80Z"></path></svg>
-    ,
-    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill={activeTab === 1 ? "#0000FF" : "#808080"} viewBox="0 0 256 256"><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,160H40V56H216V200ZM176,88a48,48,0,0,1-96,0,8,8,0,0,1,16,0,32,32,0,0,0,64,0,8,8,0,0,1,16,0Z"></path></svg>
-    ,
-    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill={activeTab === 2 ? "#0000FF" : "#808080"} viewBox="0 0 256 256"><path d="M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.26,47,25.53a8,8,0,0,0,4.2,0c1-.27,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm0,72c0,37.07-13.66,67.16-40.6,89.42A129.3,129.3,0,0,1,128,223.62a128.25,128.25,0,0,1-38.92-21.81C61.82,179.51,48,149.3,48,112l0-56,160,0ZM82.34,141.66a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32l-56,56a8,8,0,0,1-11.32,0Z"></path></svg>
-    ,
-  ]
-
-  const tabs = [
+  const features = [
     {
       title: t('land.tab1.title') || "Tovarlar va Nomenklatura",
-      desc: t('land.tab1.desc') || "Minglab tovar pozitsiyalarini shtrix-kod kataloglari orqali yagona bazaga birlashtiring...",
-      visual: <VisualWarehouse />
+      desc: t('land.tab1.desc') || "Minglab tovar pozitsiyalarini shtrix-kod kataloglari orqali yagona bazaga birlashtiring va real-vaqtda kuzating.",
+      visual: <VisualWarehouse />,
+      iconBg: "bg-blue-50 text-blue-600 border-blue-200"
     },
     {
       title: t('land.tab2.title') || "Sotuv va Tranzaksiyalar",
-      desc: t('land.tab2.desc') || "B2B uchun shartnomaviy sotuv...",
-      visual: <VisualPOS />
+      desc: t('land.tab2.desc') || "B2B uchun shartnomaviy sotuv, kassa terminallari, cheklar va naqd/bank kartasi tranzaksiyalari oqimi.",
+      visual: <VisualPOS />,
+      iconBg: "bg-emerald-50 text-emerald-600 border-emerald-200"
     },
     {
       title: t('land.tab3.title') || "Audit va Xavfsizlik",
-      desc: t('land.tab3.desc') || "Xodimlarning barcha harakatlari va tranzaksiya o'zgarishlari tizim loglariga muhrlanadi...",
-      visual: <VisualAudit />
+      desc: t('land.tab3.desc') || "Xodimlarning barcha harakatlari va tranzaksiya o'zgarishlari tizim loglariga muhrlanadi. To'liq ichki nazorat va ruxsatlar tizimi (RBAC).",
+      visual: <VisualAudit />,
+      iconBg: "bg-purple-50 text-purple-600 border-purple-200"
     }
-  ]
+  ];
 
   return (
-    <div className="flex gap-10 bg-white/80 backdrop-blur-2xl border border-white rounded-3xl p-10 shadow-[0_20px_50px_rgba(0,0,0,0.05)]">
-      <div className="flex flex-col gap-4">
-        {tabs.map((tab, idx) => (
-          <button
-            key={idx}
-            className={`text-left w-full bg-white overflow-hidden border p-6 rounded-[20px] cursor-pointer transition-all duration-300 shadow-sm group ${activeTab === idx
-              ? 'border-blue-600/30 h-40 shadow-[0_10px_30px_rgba(37,99,235,0.1),inset_3px_0_0_#2563eb]'
-              : 'border-black/8 h-20 hover:bg-slate-50'
-              }`}
-            onClick={() => { setActiveTab(idx) }}
-          >
-            <div className='flex justify-between items-center'>
-              <h3 className={`m-0 mb-2 text-[20px] font-bold flex items-center gap-2 transition-all duration-300 ${activeTab === idx ? 'text-blue-600' : 'text-slate-500'}`}>
-                {oneDbIcons[idx]}
-                {tab.title}
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {features.map((item, idx) => (
+        <div
+          key={idx}
+          className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-xl shadow-slate-200/40 hover:shadow-2xl hover:border-blue-400/50 transition-all duration-300 flex flex-col justify-between group"
+        >
+          <div className="space-y-4 mb-6">
+            <div className="flex items-center gap-3">
+              <div className={`p-3.5 rounded-2xl border font-bold text-lg shadow-sm ${item.iconBg}`}>
+                0{idx + 1}
+              </div>
+              <h3 className="text-xl font-extrabold text-slate-900 tracking-tight group-hover:text-blue-600 transition-colors">
+                {item.title}
               </h3>
-
-              <ChevronDown className={`-translate-y-0.75 transition-all duration-300 ease-in-out ${activeTab === idx ? 'rotate-180 text-blue-600' : 'rotate-0 text-slate-500'}`} />
             </div>
-            <p className={`m-0 text-[15px] transition-all duration-300 leading-[1.6] ${activeTab === idx ? 'text-slate-500' : 'text-white'}`}>{tab.desc}</p>
-          </button>
-        ))}
-      </div>
-      <div className="flex w-full justify-end overflow-hidden">
-        <div className="animate-[fadeInUp_0.5s_cubic-bezier(0.2,0.8,0.2,1)]" key={activeTab}>
-          {tabs[activeTab].visual}
+            <p className="text-slate-600 text-sm leading-relaxed">
+              {item.desc}
+            </p>
+          </div>
+
+          <div className="rounded-2xl overflow-hidden border border-slate-100 bg-slate-50 p-2 shadow-inner flex justify-center items-center">
+            {item.visual}
+          </div>
         </div>
-      </div>
+      ))}
     </div>
-  )
+  );
 }
 
 // ─── MAIN COMPONENT ─────────────────────────────────────────────────────────
@@ -189,11 +179,11 @@ export default function Landing() {
   const { t } = useLang()
   const navigate = useNavigate()
   useSeo(
-    "E-code – ERP, POS, Veb Sayt va Telegram Bot Yechimlari | O'zbekiston",
-    "E-code — O'zbekiston uchun ERP tizimi, POS kassa, veb sayt yaratish, Telegram botlar va noyob dasturiy yechimlar. Biznesingizni raqamlashtiring."
+    "E-Code — ERP, POS va biznesni raqamlashtirish yechimlarini yaratuvchi kompaniya.",
+    "E-Code — ERP, POS va biznesni raqamlashtirish yechimlarini yaratuvchi kompaniya."
   )
 
-  const [leadForm, setLeadForm] = useState({ service: 'ERP Tizim', name: '', phone: '+998' })
+  const [leadForm, setLeadForm] = useState({ service: '', name: '', phone: '+998' })
   const [leadStatus, setLeadStatus] = useState(null) // 'loading', 'success', 'error'
 
   const getServiceIcon = (serviceName) => {
@@ -369,21 +359,21 @@ export default function Landing() {
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.03)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_at_top,black_30%,transparent_80%)] z-0" />
         <div className="max-w-[1400px] mx-auto relative z-10 grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-[60px] items-center text-center lg:text-left">
           <div className="flex flex-col items-center lg:items-start">
-            <div className="animate-[slideUp_0.8s_ease-out_0.1s_backwards] inline-block px-4 py-1.5 bg-blue-600/10 border border-blue-600/20 rounded-full text-[13px] font-bold text-blue-600 mb-6">
+            <div style={{ animationDelay: '100ms' }} className="animate-slide-up inline-block px-4 py-1.5 bg-blue-600/10 border border-blue-600/20 rounded-full text-[13px] font-bold text-blue-600 mb-6">
               {t('land.b2b')}
             </div>
-            <h1 className="animate-[slideUp_0.8s_ease-out_0.2s_backwards] text-[clamp(32px,9vw,55px)] lg:text-[clamp(48px,6vw,68px)] font-black leading-[1.05] tracking-[-0.04em] m-0 mb-6 text-slate-900">
+            <h1 style={{ animationDelay: '200ms' }} className="animate-slide-up text-[clamp(32px,9vw,55px)] lg:text-[clamp(48px,6vw,68px)] font-black leading-[1.05] tracking-[-0.04em] m-0 mb-6 text-slate-900">
               {t('land.erp')} <br />
-              <span className="bg-linear-to-br from-emerald-600 to-blue-600 bg-clip-text text-transparent inline-block animate-[bgPan_4s_linear_infinite_alternate]">
+              <span className="bg-gradient-to-r from-emerald-600 via-teal-500 to-blue-600 bg-clip-text text-transparent inline-block">
                 {t('land.eco')}
               </span>
             </h1>
-            <p className="animate-[slideUp_0.8s_ease-out_0.3s_backwards] text-[19px] text-slate-500 leading-[1.6] m-0 mb-10 max-w-[560px]">
+            <p style={{ animationDelay: '350ms' }} className="animate-slide-up text-[19px] text-slate-600 leading-[1.6] m-0 mb-10 max-w-[560px]">
               {t('land.desc1')}
             </p>
-            <div className="animate-[slideUp_0.8s_ease-out_0.4s_backwards] flex flex-col lg:flex-row gap-4 mb-10 w-full lg:w-auto lg:justify-start justify-center">
+            <div style={{ animationDelay: '450ms' }} className="animate-slide-up flex flex-col lg:flex-row gap-4 mb-10 w-full lg:w-auto lg:justify-start justify-center">
               <button
-                className="inline-flex mx-auto items-center w-max justify-center gap-2 bg-linear-to-br from-blue-600 to-blue-500 text-white border-none font-bold px-8 py-4 text-[16px] rounded-2xl cursor-pointer transition-all duration-[400ms] ease-[cubic-bezier(0.175,0.885,0.32,1.275)] shadow-[0_10px_30px_rgba(37,99,235,0.15)] relative overflow-hidden group hover:-translate-y-[3px] hover:scale-[1.02] hover:shadow-[0_15px_30px_rgba(37,99,235,0.3)]"
+                className="inline-flex mx-auto items-center w-max justify-center gap-2 bg-gradient-to-r from-blue-600 to-emerald-600 text-white border-none font-bold px-8 py-4 text-[16px] rounded-2xl cursor-pointer transition-all duration-300 shadow-[0_10px_30px_rgba(37,99,235,0.25)] relative overflow-hidden group hover:-translate-y-[3px] hover:scale-[1.02] hover:shadow-[0_15px_30px_rgba(37,99,235,0.4)]"
                 onClick={() => {
                   const leadSection = document.getElementById('lead-form');
                   if (leadSection) leadSection.scrollIntoView({ behavior: 'smooth' });
@@ -393,25 +383,25 @@ export default function Landing() {
               </button>
             </div>
 
-            <div className="animate-[slideUp_0.8s_ease-out_0.5s_backwards] text-[14px] border-t border-black/8 pt-6 pb-2.5 max-w-[480px]">
+            <div style={{ animationDelay: '550ms' }} className="animate-slide-up text-[14px] border-t border-black/8 pt-6 pb-2.5 max-w-[480px]">
               <div className="flex gap-[20px] flex-wrap font-semibold flex-col lflex-row items-center lg:items-start text-xs lg:text-sm">
                 <div className='flex items-center gap-1.5'>
-                  <span className='text-green-600 animate-pulse'><ShieldCheck size={18} /></span>
-                  <span className="text-blue-600">{t('land.sec1')}</span>
+                  <span className='text-emerald-600 animate-pulse'><ShieldCheck size={18} /></span>
+                  <span className="text-slate-700">{t('land.sec1')}</span>
                 </div>
                 <div className='flex items-center gap-1.5'>
-                  <span className='text-yellow-500 animate-pulse'><Zap size={18} /></span>
-                  <span className="text-blue-600">{t('land.sec2')}</span>
+                  <span className='text-amber-500 animate-pulse'><Zap size={18} /></span>
+                  <span className="text-slate-700">{t('land.sec2')}</span>
                 </div>
                 <div className='flex items-center gap-1.5'>
-                  <span className='text-gray-600 animate-pulse'><Cloud size={18} /></span>
-                  <span className="text-blue-600">{t('land.sec3')}</span>
+                  <span className='text-blue-600 animate-pulse'><Cloud size={18} /></span>
+                  <span className="text-slate-700">{t('land.sec3')}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="hidden lg:block perspective-[1200px] animate-[slideUp_1s_ease-out_0.2s_backwards]">
+          <div style={{ animationDelay: '300ms' }} className="hidden lg:block perspective-[1200px] animate-slide-up">
             <DashboardMinimal />
           </div>
         </div>
@@ -420,78 +410,88 @@ export default function Landing() {
       {/* ── Features Bento Grid ── */}
       <section id="features" className="py-[120px] relative">
         <div className="max-w-[1400px] mx-auto relative z-10">
-          <div className="text-center mb-[70px] animate-[fadeInUp_0.8s_ease-out_both]">
-            <h2 className="text-[clamp(32px,5vw,44px)] font-extrabold tracking-[-0.04em] mb-4 text-slate-900">{t('land.ecosystem')}</h2>
-            <p className="text-[18px] text-slate-500 max-w-[600px] mx-auto">{t('land.arch')}</p>
-          </div>
+          <Reveal direction="up" delay={100}>
+            <div className="text-center mb-[70px]">
+              <h2 className="text-[clamp(32px,5vw,44px)] font-extrabold tracking-[-0.04em] mb-4 text-slate-900">{t('land.ecosystem')}</h2>
+              <p className="text-[18px] text-slate-500 max-w-[600px] mx-auto">{t('land.arch')}</p>
+            </div>
+          </Reveal>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 auto-rows-[minmax(280px,auto)] gap-6">
 
             {/* Box 1 - Hero Bento → ERP Tizim */}
-            <div
-              className="group cursor-pointer lg:col-span-2 bg-white/70 backdrop-blur-[16px] border border-white/80 rounded-[24px] p-10 flex flex-col relative overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.04),inset_0_0_0_1px_rgba(255,255,255,0.5)] transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] animate-[slideUp_0.8s_backwards_0.1s] hover:-translate-y-2 hover:scale-[1.01] hover:shadow-[0_30px_60px_rgba(0,0,0,0.08),inset_0_0_0_2px_rgba(37,99,235,0.1)]"
-              onClick={() => navigate('/erp-tizim')}
-              title="ERP Tizim haqida batafsil"
-            >
-              <div className="relative z-10 flex flex-col h-full transition-transform duration-300 group-hover:-translate-y-1">
-                <div className="w-14 h-14 bg-white border border-black/8 rounded-2xl flex items-center justify-center mb-6 text-blue-600 shadow-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] group-hover:scale-[1.15] group-hover:rotate-[5deg] group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 group-hover:shadow-[0_10px_20px_rgba(37,99,235,0.3)]">
-                  {ICONS.pos}
+            <Reveal direction="up" delay={150} className="lg:col-span-2">
+              <div
+                className="group cursor-pointer bg-white/70 backdrop-blur-[16px] border border-white/80 rounded-[24px] p-10 flex flex-col relative overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.04),inset_0_0_0_1px_rgba(255,255,255,0.5)] transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:-translate-y-2 hover:scale-[1.01] hover:shadow-[0_30px_60px_rgba(0,0,0,0.08),inset_0_0_0_2px_rgba(37,99,235,0.1)] h-full"
+                onClick={() => navigate('/erp-tizim')}
+                title="ERP Tizim haqida batafsil"
+              >
+                <div className="relative z-10 flex flex-col h-full transition-transform duration-300 group-hover:-translate-y-1">
+                  <div className="w-14 h-14 bg-white border border-black/8 rounded-2xl flex items-center justify-center mb-6 text-blue-600 shadow-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] group-hover:scale-[1.15] group-hover:rotate-[5deg] group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 group-hover:shadow-[0_10px_20px_rgba(37,99,235,0.3)]">
+                    {ICONS.pos}
+                  </div>
+                  <h3 className="m-0 mb-4 text-[24px] font-extrabold tracking-[-0.02em] text-slate-900">{t('land.omni')}</h3>
+                  <p className="m-0 text-slate-500 leading-[1.7] text-[16px]">{t('land.omniDesc')}</p>
+                  <span className="inline-flex items-center gap-1.5 text-[14px] font-bold text-blue-600 mt-5 opacity-0 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0">{t('land.chaqqon.box_more') || 'Batafsil ko\'rish'} {ICONS.arrowRight}</span>
                 </div>
-                <h3 className="m-0 mb-4 text-[24px] font-extrabold tracking-[-0.02em] text-slate-900">{t('land.omni')}</h3>
-                <p className="m-0 text-slate-500 leading-[1.7] text-[16px]">{t('land.omniDesc')}</p>
-                <span className="inline-flex items-center gap-1.5 text-[14px] font-bold text-blue-600 mt-5 opacity-0 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0">{t('land.chaqqon.box_more') || 'Batafsil ko\'rish'} {ICONS.arrowRight}</span>
+                <div className="absolute -right-[30px] -bottom-[30px] w-[65%] h-[110%] z-[1] opacity-30 transition-opacity duration-[800ms] group-hover:opacity-60" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' opacity='0.1'%3E%3Crect x='10' y='10' width='80' height='80' rx='12' stroke='%232563eb' stroke-width='3' fill='none'/%3E%3C/svg%3E\")", backgroundRepeat: "repeat" }} />
               </div>
-              <div className="absolute -right-[30px] -bottom-[30px] w-[65%] h-[110%] z-[1] opacity-30 transition-opacity duration-[800ms] group-hover:opacity-60" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' opacity='0.1'%3E%3Crect x='10' y='10' width='80' height='80' rx='12' stroke='%232563eb' stroke-width='3' fill='none'/%3E%3C/svg%3E\")", backgroundRepeat: "repeat" }} />
-            </div>
+            </Reveal>
 
             {/* Box 2 → ERP Tizim (Analitika) */}
-            <div
-              className="group cursor-pointer bg-white/70 backdrop-blur-lg border border-white/80 rounded-[24px] p-10 flex flex-col relative overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.04),inset_0_0_0_1px_rgba(255,255,255,0.5)] transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] animate-[slideUp_0.8s_backwards_0.2s] hover:-translate-y-2 hover:scale-[1.01] hover:shadow-[0_30px_60px_rgba(0,0,0,0.08),inset_0_0_0_2px_rgba(37,99,235,0.1)]"
-              onClick={() => navigate('/erp-tizim')}
-              title="Analitika va hisobotlar"
-            >
-              <div className="relative z-10 flex flex-col h-full transition-transform duration-300 group-hover:-translate-y-1">
-                <div className="w-14 h-14 bg-white border border-black/8 rounded-2xl flex items-center justify-center mb-6 text-blue-600 shadow-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] group-hover:scale-[1.15] group-hover:rotate-[5deg] group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 group-hover:shadow-[0_10px_20px_rgba(37,99,235,0.3)]">{ICONS.chart}</div>
-                <h3 className="m-0 mb-4 text-[24px] font-extrabold tracking-[-0.02em] text-slate-900">{t('land.bi')}</h3>
-                <p className="m-0 text-slate-500 leading-[1.7] text-[16px]">{t('land.biDesc')}</p>
-                <span className="inline-flex items-center gap-1.5 text-[14px] font-bold text-blue-600 mt-5 opacity-0 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0">{t('land.chaqqon.box_more') || 'Batafsil'} {ICONS.arrowRight}</span>
+            <Reveal direction="up" delay={250}>
+              <div
+                className="group cursor-pointer bg-white/70 backdrop-blur-lg border border-white/80 rounded-[24px] p-10 flex flex-col relative overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.04),inset_0_0_0_1px_rgba(255,255,255,0.5)] transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:-translate-y-2 hover:scale-[1.01] hover:shadow-[0_30px_60px_rgba(0,0,0,0.08),inset_0_0_0_2px_rgba(37,99,235,0.1)] h-full"
+                onClick={() => navigate('/erp-tizim')}
+                title="Analitika va hisobotlar"
+              >
+                <div className="relative z-10 flex flex-col h-full transition-transform duration-300 group-hover:-translate-y-1">
+                  <div className="w-14 h-14 bg-white border border-black/8 rounded-2xl flex items-center justify-center mb-6 text-blue-600 shadow-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] group-hover:scale-[1.15] group-hover:rotate-[5deg] group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 group-hover:shadow-[0_10px_20px_rgba(37,99,235,0.3)]">{ICONS.chart}</div>
+                  <h3 className="m-0 mb-4 text-[24px] font-extrabold tracking-[-0.02em] text-slate-900">{t('land.bi')}</h3>
+                  <p className="m-0 text-slate-500 leading-[1.7] text-[16px]">{t('land.biDesc')}</p>
+                  <span className="inline-flex items-center gap-1.5 text-[14px] font-bold text-blue-600 mt-5 opacity-0 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0">{t('land.chaqqon.box_more') || 'Batafsil'} {ICONS.arrowRight}</span>
+                </div>
               </div>
-            </div>
+            </Reveal>
 
             {/* Box 3 → ERP Tizim (CRM) */}
-            <div
-              className="group cursor-pointer bg-white/70 backdrop-blur-[16px] border border-white/80 rounded-[24px] p-10 flex flex-col relative overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.04),inset_0_0_0_1px_rgba(255,255,255,0.5)] transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] animate-[slideUp_0.8s_backwards_0.3s] hover:-translate-y-2 hover:scale-[1.01] hover:shadow-[0_30px_60px_rgba(0,0,0,0.08),inset_0_0_0_2px_rgba(37,99,235,0.1)]"
-              onClick={() => navigate('/erp-tizim')}
-              title="CRM — Mijozlar boshqaruvi"
-            >
-              <div className="relative z-10 flex flex-col h-full transition-transform duration-300 group-hover:-translate-y-1">
-                <div className="w-14 h-14 bg-white border border-black/8 rounded-2xl flex items-center justify-center mb-6 text-blue-600 shadow-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] group-hover:scale-[1.15] group-hover:rotate-[5deg] group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 group-hover:shadow-[0_10px_20px_rgba(37,99,235,0.3)]">{ICONS.crm}</div>
-                <h3 className="m-0 mb-4 text-[24px] font-extrabold tracking-[-0.02em] text-slate-900">{t('land.crm')}</h3>
-                <p className="m-0 text-slate-500 leading-[1.7] text-[16px]">{t('land.crmDesc')}</p>
-                <span className="inline-flex items-center gap-1.5 text-[14px] font-bold text-blue-600 mt-5 opacity-0 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0">{t('land.chaqqon.box_more') || 'Batafsil'} {ICONS.arrowRight}</span>
+            <Reveal direction="up" delay={300}>
+              <div
+                className="group cursor-pointer bg-white/70 backdrop-blur-[16px] border border-white/80 rounded-[24px] p-10 flex flex-col relative overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.04),inset_0_0_0_1px_rgba(255,255,255,0.5)] transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:-translate-y-2 hover:scale-[1.01] hover:shadow-[0_30px_60px_rgba(0,0,0,0.08),inset_0_0_0_2px_rgba(37,99,235,0.1)] h-full"
+                onClick={() => navigate('/erp-tizim')}
+                title="CRM — Mijozlar boshqaruvi"
+              >
+                <div className="relative z-10 flex flex-col h-full transition-transform duration-300 group-hover:-translate-y-1">
+                  <div className="w-14 h-14 bg-white border border-black/8 rounded-2xl flex items-center justify-center mb-6 text-blue-600 shadow-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] group-hover:scale-[1.15] group-hover:rotate-[5deg] group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 group-hover:shadow-[0_10px_20px_rgba(37,99,235,0.3)]">{ICONS.crm}</div>
+                  <h3 className="m-0 mb-4 text-[24px] font-extrabold tracking-[-0.02em] text-slate-900">{t('land.crm')}</h3>
+                  <p className="m-0 text-slate-500 leading-[1.7] text-[16px]">{t('land.crmDesc')}</p>
+                  <span className="inline-flex items-center gap-1.5 text-[14px] font-bold text-blue-600 mt-5 opacity-0 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0">{t('land.chaqqon.box_more') || 'Batafsil'} {ICONS.arrowRight}</span>
+                </div>
               </div>
-            </div>
+            </Reveal>
 
             {/* Box 4 - Wide Bento → ERP Tizim (Ombor) */}
-            <div
-              className="group cursor-pointer lg:col-span-2 bg-white/70 backdrop-blur-[16px] border border-white/80 rounded-[24px] p-10 flex flex-col relative overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.04),inset_0_0_0_1px_rgba(255,255,255,0.5)] transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] animate-[slideUp_0.8s_backwards_0.4s] hover:-translate-y-2 hover:scale-[1.01] hover:shadow-[0_30px_60px_rgba(0,0,0,0.08),inset_0_0_0_2px_rgba(37,99,235,0.1)]"
-              onClick={() => navigate('/erp-tizim')}
-              title="Ombor boshqaruvi — WMS"
-            >
-              <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-[30px] lg:gap-[40px] h-full transition-transform duration-300 group-hover:-translate-y-1">
-                <div>
-                  <div className="w-14 h-14 bg-white border border-black/[0.08] rounded-2xl flex items-center justify-center mb-6 text-blue-600 shadow-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] group-hover:scale-[1.15] group-hover:rotate-[5deg] group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 group-hover:shadow-[0_10px_20px_rgba(37,99,235,0.3)]">{ICONS.warehouse}</div>
-                  <h3 className="m-0 mb-4 text-[24px] font-extrabold tracking-[-0.02em] text-slate-900">{t('land.wms')}</h3>
-                  <p className="m-0 text-slate-500 leading-[1.7] text-[16px]">{t('land.wmsDesc')}</p>
-                  <span className="inline-flex items-center gap-1.5 text-[14px] font-bold text-blue-600 mt-4 opacity-0 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0">{t('land.chaqqon.box_more') || 'Batafsil ko\'rish'} {ICONS.arrowRight}</span>
+            <Reveal direction="up" delay={400} className="lg:col-span-2">
+              <div
+                className="group cursor-pointer bg-white/70 backdrop-blur-[16px] border border-white/80 rounded-[24px] p-10 flex flex-col relative overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.04),inset_0_0_0_1px_rgba(255,255,255,0.5)] transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:-translate-y-2 hover:scale-[1.01] hover:shadow-[0_30px_60px_rgba(0,0,0,0.08),inset_0_0_0_2px_rgba(37,99,235,0.1)] h-full"
+                onClick={() => navigate('/erp-tizim')}
+                title="Ombor boshqaruvi — WMS"
+              >
+                <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-[30px] lg:gap-[40px] h-full transition-transform duration-300 group-hover:-translate-y-1">
+                  <div>
+                    <div className="w-14 h-14 bg-white border border-black/[0.08] rounded-2xl flex items-center justify-center mb-6 text-blue-600 shadow-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] group-hover:scale-[1.15] group-hover:rotate-[5deg] group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 group-hover:shadow-[0_10px_20px_rgba(37,99,235,0.3)]">{ICONS.warehouse}</div>
+                    <h3 className="m-0 mb-4 text-[24px] font-extrabold tracking-[-0.02em] text-slate-900">{t('land.wms')}</h3>
+                    <p className="m-0 text-slate-500 leading-[1.7] text-[16px]">{t('land.wmsDesc')}</p>
+                    <span className="inline-flex items-center gap-1.5 text-[14px] font-bold text-blue-600 mt-4 opacity-0 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0">{t('land.chaqqon.box_more') || 'Batafsil ko\'rish'} {ICONS.arrowRight}</span>
+                  </div>
+                  <ul className="list-none p-0 m-0 flex flex-col gap-4 bg-white p-8 rounded-[20px] border border-black/[0.08] min-w-0 lg:min-w-[300px] w-full lg:w-auto shadow-sm transform translate-z-0 transition-all duration-300 group-hover:scale-[1.02] group-hover:shadow-md">
+                    <li className="flex items-center gap-3 text-[15px] font-semibold text-slate-900 group/item">{ICONS.check} {t('land.check1')}</li>
+                    <li className="flex items-center gap-3 text-[15px] font-semibold text-slate-900 group/item">{ICONS.check} {t('land.check2')}</li>
+                    <li className="flex items-center gap-3 text-[15px] font-semibold text-slate-900 group/item">{ICONS.check} {t('land.check3')}</li>
+                  </ul>
                 </div>
-                <ul className="list-none p-0 m-0 flex flex-col gap-4 bg-white p-8 rounded-[20px] border border-black/[0.08] min-w-0 lg:min-w-[300px] w-full lg:w-auto shadow-sm transform translate-z-0 transition-all duration-300 group-hover:scale-[1.02] group-hover:shadow-md">
-                  <li className="flex items-center gap-3 text-[15px] font-semibold text-slate-900 group/item">{ICONS.check} {t('land.check1')}</li>
-                  <li className="flex items-center gap-3 text-[15px] font-semibold text-slate-900 group/item">{ICONS.check} {t('land.check2')}</li>
-                  <li className="flex items-center gap-3 text-[15px] font-semibold text-slate-900 group/item">{ICONS.check} {t('land.check3')}</li>
-                </ul>
               </div>
-            </div>
+            </Reveal>
 
           </div>
         </div>
@@ -500,85 +500,95 @@ export default function Landing() {
       {/* ── Modules Interactive ── */}
       <section className="py-[100px] max-w-[1400px] mx-auto" id="modullar">
         <div>
-          <div className="text-center mb-[72px]">
-            <div className="inline-block px-4 py-1.5 bg-blue-600/10 border border-blue-600/15 rounded-full text-[13px] font-bold text-blue-600 mb-5 uppercase tracking-wider">{t('erp.mod.tag') || 'Modullar'}</div>
-            <h2 className="text-3xl md:text-[4vw] lg:text-[44px] font-black text-slate-900 tracking-tight mb-4">{t('erp.mod.title') || '6 ta kuchli modul — bitta tizim'}</h2>
-            <p className="text-lg text-slate-500 max-w-[560px] mx-auto leading-relaxed">{t('erp.mod.desc') || 'Har bir biznes jarayoni uchun maxsus ishlab chiqilgan, bir-biri bilan to\'liq integratsiya qilingan modullar'}</p>
-          </div>
+          <Reveal direction="up" delay={100}>
+            <div className="text-center mb-[72px]">
+              <div className="inline-block px-4 py-1.5 bg-blue-600/10 border border-blue-600/15 rounded-full text-[13px] font-bold text-blue-600 mb-5 uppercase tracking-wider">{t('erp.mod.tag') || 'Modullar'}</div>
+              <h2 className="text-3xl md:text-[4vw] lg:text-[44px] font-black text-slate-900 tracking-tight mb-4">{t('erp.mod.title') || '6 ta kuchli modul — bitta tizim'}</h2>
+              <p className="text-lg text-slate-500 max-w-[560px] mx-auto leading-relaxed">{t('erp.mod.desc') || 'Har bir biznes jarayoni uchun maxsus ishlab chiqilgan, bir-biri bilan to\'liq integratsiya qilingan modullar'}</p>
+            </div>
+          </Reveal>
 
-          <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6 bg-white rounded-3xl border border-black/5 overflow-hidden shadow-2xl shadow-black/5">
-            {/* Sidebar */}
-            <div className="border-r border-black/5 flex justify-between lg:flex-col w-full bg-slate-50/50 p-2 gap-1">
-              {modules.map((mod, idx) => (
-                <button
+          <Reveal direction="up" delay={200}>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {modules.map((mod) => (
+                <div
                   key={mod.id}
-                  className={`flex cursor-pointer items-center gap-4 p-5 rounded-xl border-1.5 border-transparent transition-all text-left font-sans ${activeModule === idx
-                    ? `border-l-3 font-bold ${mod.borderClass} ${mod.colorClass} ${mod.bgClass}`
-                    : 'text-slate-500 hover:bg-black/5 hover:text-slate-900'
-                    }`}
-                  onClick={() => setActiveModule(idx)}
+                  className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-xl shadow-slate-200/30 hover:shadow-2xl hover:border-blue-400/50 transition-all duration-300 flex flex-col justify-between group"
                 >
-                  <span className="text-2xl shrink-0">{mod.icon}</span>
-                  <div className='hidden lg:block'>
-                    <div className="text-[16px] font-bold text-inherit">{mod.title}</div>
-                    <div className="text-[14px] leading-5 text-inherit opacity-70 mt-0.5">{mod.subtitle}</div>
+                  <div className="space-y-6">
+                    {/* Header: Icon + Titles */}
+                    <div className="flex items-center gap-4 border-b border-slate-100 pb-5">
+                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-md ${mod.colorClass} ${mod.bgClass}`}>
+                        {mod.icon}
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-extrabold text-slate-900 tracking-tight group-hover:text-blue-600 transition-colors">
+                          {mod.title}
+                        </h3>
+                        <p className="text-xs text-slate-500 font-medium mt-0.5">{mod.subtitle}</p>
+                      </div>
+                    </div>
+
+                    {/* Description */}
+                    <p className="text-slate-600 text-sm leading-relaxed">
+                      {mod.desc}
+                    </p>
+
+                    {/* Key Stats Pills */}
+                    <div className="flex gap-2 flex-wrap">
+                      {mod.stats.map((s, i) => (
+                        <div
+                          key={i}
+                          className={`flex-1 min-w-[90px] bg-slate-50 border border-slate-200/70 rounded-xl p-2.5 text-center`}
+                        >
+                          <span className={`block text-lg font-black tracking-tight ${mod.colorClass}`}>{s.val}</span>
+                          <span className="block text-[11px] text-slate-500 font-medium">{s.label}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Features Checklist */}
+                    <div className="space-y-2.5 pt-2">
+                      {mod.features.slice(0, 4).map((f, i) => (
+                        <div key={i} className="flex items-center gap-2.5 text-xs font-semibold text-slate-800">
+                          <span className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${mod.colorClass} ${mod.bgClass}`}>
+                            <CheckIcon />
+                          </span>
+                          <span>{f}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </button>
+
+                  {/* Action Button */}
+                  <div className="pt-6 mt-6 border-t border-slate-100">
+                    <button
+                      className={`w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r ${mod.btnBg} text-white font-bold text-sm py-3.5 px-6 rounded-xl cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-[1.02] active:scale-95`}
+                      onClick={() => window.location.href = '/register'}
+                    >
+                      {t('erp.mod.btn') || 'Bu modul bilan boshlash'} <ArrowRight />
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
-
-            {/* Content */}
-            <div className="p-10 animate-fadeInUp" key={activeModule}>
-              <div className={`flex items-center gap-5 mb-6 pb-6 border-b-2 ${modules[activeModule].borderClass}`}>
-                <div className={`text-[36px] w-[78px] h-[78px] rounded-2xl flex items-center justify-center shrink-0 ${modules[activeModule].colorClass} ${modules[activeModule].bgClass}`}>
-                  {modules[activeModule].icon}
-                </div>
-                <div>
-                  <h3 className="text-2xl font-black text-slate-900 tracking-tight">{modules[activeModule].title}</h3>
-                  <p className="text-sm text-slate-500 mt-1">{modules[activeModule].subtitle}</p>
-                </div>
-              </div>
-              <p className="text-[17px] leading-relaxed text-slate-600 mb-8">{modules[activeModule].desc}</p>
-
-              <div className="flex gap-4 mb-8 flex-wrap">
-                {modules[activeModule].stats.map((s, i) => (
-                  <div key={i} className={`flex-1 min-w-[140px] bg-slate-50 border border-black/5 border-t-3 rounded-xl p-4 text-center ${modules[activeModule].borderClass}`}>
-                    <span className={`block text-2xl font-black tracking-tight ${modules[activeModule].colorClass}`}>{s.val}</span>
-                    <span className="block text-xs text-slate-500 mt-1 font-semibold">{s.label}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
-                {modules[activeModule].features.map((f, i) => (
-                  <div key={i} className="flex items-center gap-3 text-[15px] font-semibold text-slate-800">
-                    <span className={`w-7 h-7 animate-pulse rounded-lg flex items-center justify-center shrink-0 ${modules[activeModule].colorClass} ${modules[activeModule].bgClass}`}>
-                      <CheckIcon />
-                    </span>
-                    <span>{f}</span>
-                  </div>
-                ))}
-              </div>
-
-              <button
-                className={`inline-flex items-center gap-2 bg-gradient-to-r ${modules[activeModule].btnBg} text-white font-bold text-base px-8 py-4 rounded-xl cursor-pointer transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg`}
-                onClick={() => window.location.href = '/register'}
-              >
-                {t('erp.mod.btn') || 'Bu modul bilan boshlash'} <ArrowRight />
-              </button>
-            </div>
-          </div>
+          </Reveal>
         </div>
       </section>
 
       {/* ── Modullar / How it works ── */}
       <section id="modules" className="py-[120px] relative bg-gradient-to-b from-slate-100 to-white border-y border-black/[0.08]">
         <div className="max-w-[1400px] mx-auto relative z-10">
-          <div className="text-center mb-[70px] animate-[fadeInUp_0.8s_ease-out_both]">
-            <h2 className="text-[clamp(32px,5vw,44px)] font-extrabold tracking-[-0.04em] mb-4 text-slate-900">{t('land.singleDb')}</h2>
-            <p className="text-[18px] text-slate-500 max-w-[600px] mx-auto">{t('land.noPaper')}</p>
-          </div>
-          <TabbedModules t={t} />
+          <Reveal direction="up" delay={100}>
+            <div className="text-center mb-[70px]">
+              <h2 className="text-[clamp(32px,5vw,44px)] font-extrabold tracking-[-0.04em] mb-4 text-slate-900">{t('land.singleDb')}</h2>
+              <p className="text-[18px] text-slate-500 max-w-[600px] mx-auto">{t('land.noPaper')}</p>
+            </div>
+          </Reveal>
+
+          <Reveal direction="up" delay={200}>
+            <TabbedModules t={t} />
+          </Reveal>
         </div>
       </section>
 
@@ -588,31 +598,32 @@ export default function Landing() {
       <section id="lead-form" className="py-[140px] bg-blue-600 relative overflow-hidden">
         <div className="absolute inset-0 bg-repeat animate-[slideUp_20s_linear_infinite] opacity-40 z-0" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' opacity='0.1'%3E%3Ccircle cx='2' cy='2' r='2' fill='%23fff'/%3E%3C/svg%3E\")" }} />
         <div className="max-w-[1400px] mx-auto relative z-10">
-          <div className="bg-white/10 text-white backdrop-blur-[20px] border border-white/20 rounded-[24px] shadow-[0_30px_60px_rgba(0,0,0,0.2)] relative z-[1] grid grid-cols-1 lg:grid-cols-2 gap-10 text-center lg:text-left p-[30px] lg:p-[60px]">
-            <div className="flex flex-col">
-              <h2 className="text-[2rem] lg:text-[2.5rem] mb-5 text-white tracking-[-0.02em] font-black">{t('land.lead.title')}</h2>
-              <p className="text-white/80 text-[1.2rem] mb-[30px] leading-[1.6] max-w-[640px] lg:mx-0 mx-auto">{t('land.lead.sub')}</p>
-              <ul className="list-none p-0 text-white/90 flex flex-col gap-4 items-center lg:items-start">
-                <li className="flex items-center gap-3 text-[1.1rem]">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 shrink-0 text-emerald-400">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  {t('land.lead.l1')}
-                </li>
-                <li className="flex items-center gap-3 text-[1.1rem]">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 shrink-0 text-emerald-400">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  {t('land.lead.l2')}
-                </li>
-                <li className="flex items-center gap-3 text-[1.1rem]">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 shrink-0 text-emerald-400">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  {t('land.lead.l3')}
-                </li>
-              </ul>
-            </div>
+          <Reveal direction="zoom" delay={150}>
+            <div className="bg-white/10 text-white backdrop-blur-[20px] border border-white/20 rounded-[24px] shadow-[0_30px_60px_rgba(0,0,0,0.2)] relative z-[1] grid grid-cols-1 lg:grid-cols-2 gap-10 text-center lg:text-left p-[30px] lg:p-[60px]">
+              <div className="flex flex-col">
+                <h2 className="text-[2rem] lg:text-[2.5rem] mb-5 text-white tracking-[-0.02em] font-black">{t('land.lead.title')}</h2>
+                <p className="text-white/80 text-[1.2rem] mb-[30px] leading-[1.6] max-w-[640px] lg:mx-0 mx-auto">{t('land.lead.sub')}</p>
+                <ul className="list-none p-0 text-white/90 flex flex-col gap-4 items-center lg:items-start">
+                  <li className="flex items-center gap-3 text-[1.1rem]">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 shrink-0 text-emerald-400">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    {t('land.lead.l1')}
+                  </li>
+                  <li className="flex items-center gap-3 text-[1.1rem]">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 shrink-0 text-emerald-400">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    {t('land.lead.l2')}
+                  </li>
+                  <li className="flex items-center gap-3 text-[1.1rem]">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 shrink-0 text-emerald-400">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    {t('land.lead.l3')}
+                  </li>
+                </ul>
+              </div>
 
             <div className="bg-white rounded-2xl p-[30px] text-slate-900 self-center h-fit w-full">
               {leadStatus === 'success' ? (
@@ -627,57 +638,15 @@ export default function Landing() {
                   <h3 className="text-[1.4rem] mb-2.5 font-bold m-0">{t('land.form.title')}</h3>
 
                   <div className="flex flex-col">
-                    <Listbox
+                    <label className="text-[0.9rem] text-slate-600 block mb-2">{t('land.form.service')}</label>
+                    <input
+                      type="text"
+                      placeholder="Masalan: ERP Tizim, POS Kassa, Veb sayt..."
                       value={leadForm.service}
-                      onChange={(value) => setLeadForm({ ...leadForm, service: value })}
-                    >
-                      <label className="text-[0.9rem] text-slate-600 block mb-2">{t('land.form.service')}</label>
-
-                      <div className="relative">
-                        <ListboxButton className="w-full cursor-pointer flex items-center p-3 justify-between rounded-lg border border-slate-200 text-[1rem] bg-white text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
-                          <span className="flex items-center gap-3">
-                            {/* Tanlangan matnga qarab ikonkani komponent sifatida yaratamiz */}
-                            {(() => {
-                              const SelectedIcon = getServiceIcon(leadForm.service);
-                              return <SelectedIcon className="size-5 shrink-0 text-slate-500" />;
-                            })()}
-                            <span className="block truncate">{leadForm.service}</span>
-                          </span>
-                          <ChevronsUpDown
-                            aria-hidden="true"
-                            className="size-5 text-gray-400"
-                          />
-                        </ListboxButton>
-
-                        <ListboxOptions
-                          transition
-                          className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-md outline-0 bg-white text-base border border-slate-200 transition duration-100 ease-in data-[closed]:opacity-0 sm:text-sm shadow-lg"
-                        >
-                          {serviceOptions.map((optionName, index) => {
-                            const OptionIcon = getServiceIcon(optionName);
-
-                            return (
-                              <ListboxOption
-                                key={index}
-                                value={optionName}
-                                className="group relative py-2.5 pr-9 pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-blue-500 data-[focus]:text-white outline-hidden"
-                              >
-                                <div className="flex items-center gap-3">
-                                  <OptionIcon className="size-5 shrink-0 text-gray-400 group-data-[focus]:text-white" />
-                                  <span className="block truncate font-normal group-data-[selected]:font-semibold">
-                                    {optionName}
-                                  </span>
-                                </div>
-
-                                <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-500 group-not-data-[selected]:hidden group-data-[focus]:text-white">
-                                  <CheckIcon aria-hidden="true" className="size-5" />
-                                </span>
-                              </ListboxOption>
-                            )
-                          })}
-                        </ListboxOptions>
-                      </div>
-                    </Listbox>
+                      onChange={(e) => setLeadForm({ ...leadForm, service: e.target.value })}
+                      className="w-full p-3 rounded-lg border border-slate-200 text-[1rem] bg-white text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                      required
+                    />
                   </div>
 
                   <div className="flex flex-col">
@@ -715,8 +684,9 @@ export default function Landing() {
               )}
             </div>
           </div>
-        </div>
-      </section>
+        </Reveal>
+      </div>
+    </section>
     </LandingLayout>
   )
 }
