@@ -177,7 +177,7 @@ def parse_copilot_intent(message: str, context: str = "") -> dict:
     """
     
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-1.5-flash-latest")
         response = model.generate_content(prompt)
         text = response.text.strip()
         if text.startswith("```json"):

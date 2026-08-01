@@ -6,6 +6,13 @@ from typing import List, Dict, Any
 from app.models.customer import Customer
 from app.models.sale import Sale
 
+def safe_float(val):
+    try:
+        if val is None: return 0.0
+        return float(val)
+    except (ValueError, TypeError):
+        return 0.0
+
 def calculate_debt_score(customer_id: int, db: Session) -> Dict[str, Any]:
     """
     Kredit skoring algoritmi.
@@ -35,7 +42,7 @@ def calculate_debt_score(customer_id: int, db: Session) -> Dict[str, Any]:
             "avg_delay_days": 0
         }
 
-    total_debt = sum(float(s.total_amount - s.paid_amount) for s in debt_sales)
+    total_debt = sum(safe_float(safe_float(s.total_amount) - safe_float(s.paid_amount)) for s in debt_sales)
     overdue_count = 0
     max_delay = 0
 
@@ -43,11 +50,20 @@ def calculate_debt_score(customer_id: int, db: Session) -> Dict[str, Any]:
 
     for s in debt_sales:
         if s.debt_due_date:
-            delay = (today - s.debt_due_date).days
-            if delay > 0:
-                overdue_count += 1
-                if delay > max_delay:
-                    max_delay = delay
+            try:
+                # Agar type string bo'lsa (ba'zi DB xatolari) date'ga o'g'irish
+                due_date_obj = s.debt_due_date
+                if isinstance(due_date_obj, str):
+                    due_date_obj = datetime.strptime(due_date_obj.split('T')[0], "%Y-%m-%d").date()
+                elif isinstance(due_date_obj, datetime):
+                    due_date_obj = due_date_obj.date()
+                delay = (today - due_date_obj).days
+                if delay > 0:
+                    overdue_count += 1
+                    if delay > max_delay:
+                        max_delay = delay
+            except Exception:
+                pass
     
     if overdue_count == 0:
         score += 25
@@ -90,48 +106,73 @@ def calculate_debt_score(customer_id: int, db: Session) -> Dict[str, Any]:
     }
 
 def categorize_customers(db: Session, company_id: int):
-    customers = db.query(Customer).filter(
-        Customer.company_id == company_id,
-        Customer.debt_balance > 0
-    ).all()
-    
-    results = []
-    total_debt = 0
-    total_overdue = 0
-    
-    for c in customers:
-        score_data = calculate_debt_score(c.id, db)
+    try:
+        customers = db.query(Customer).filter(
+            Customer.company_id == company_id,
+            Customer.debt_balance > 0
+        ).all()
         
-        # Eng eski qarzni topish
-        oldest_debt = db.query(Sale).filter(
-            Sale.customer_id == c.id,
-            Sale.total_amount > Sale.paid_amount
-        ).order_by(Sale.created_at.asc()).first()
+        results = []
+        total_debt = 0
+        total_overdue = 0
         
-        due_date = str(oldest_debt.debt_due_date) if oldest_debt and oldest_debt.debt_due_date else None
-        days_remaining = (oldest_debt.debt_due_date - date.today()).days if oldest_debt and oldest_debt.debt_due_date else 0
-        
-        debt_bal = float(c.debt_balance or 0)
-        total_debt += debt_bal
-        if score_data['overdue_count'] > 0:
-            total_overdue += 1
+        for c in customers:
+            score_data = calculate_debt_score(c.id, db)
             
-        results.append({
-            "id": c.id,
-            "name": c.name,
-            "debt": debt_bal,
-            "due_date": due_date,
-            "days_remaining": days_remaining,
-            "trust_score": score_data['score'],
-            "trust_label": score_data['label'],
-            "trust_color": score_data['color'],
-            "avg_delay_days": score_data['avg_delay_days'],
-            "payment_pattern": score_data['pattern']
-        })
-        
-    return {
-        "total_debtors": len(results),
-        "total_debt": total_debt,
-        "overdue_count": total_overdue,
-        "customers": results
-    }
+            # Eng eski qarzni topish
+            oldest_debt = db.query(Sale).filter(
+                Sale.customer_id == c.id,
+                Sale.total_amount > Sale.paid_amount
+            ).order_by(Sale.created_at.asc()).first()
+            
+            due_date = None
+            days_remaining = 0
+            
+            if oldest_debt and oldest_debt.debt_due_date:
+                due_date_obj = oldest_debt.debt_due_date
+                try:
+                    if isinstance(due_date_obj, str):
+                        due_date_obj = datetime.strptime(due_date_obj.split('T')[0], "%Y-%m-%d").date()
+                    elif isinstance(due_date_obj, datetime):
+                        due_date_obj = due_date_obj.date()
+                    due_date = str(due_date_obj)
+                    days_remaining = (due_date_obj - date.today()).days
+                except Exception:
+                    pass
+            
+            debt_bal = safe_float(c.debt_balance)
+            total_debt += debt_bal
+            if score_data['overdue_count'] > 0:
+                total_overdue += 1
+                
+            results.append({
+                "id": c.id,
+                "name": c.name or "Noma'lum mijoz",
+                "debt": debt_bal,
+                "due_date": due_date,
+                "days_remaining": days_remaining,
+                "trust_score": score_data['score'],
+                "trust_label": score_data['label'],
+                "trust_color": score_data['color'],
+                "avg_delay_days": score_data['avg_delay_days'],
+                "payment_pattern": score_data['pattern']
+            })
+            
+        return {
+            "total_debtors": len(results),
+            "total_debt": total_debt,
+            "overdue_count": total_overdue,
+            "customers": results
+        }
+    except Exception as e:
+        import traceback
+        err = traceback.format_exc()
+        print(f"categorize_customers xatosi: {err}")
+        return {
+            "total_debtors": 0,
+            "total_debt": 0,
+            "overdue_count": 0,
+            "customers": [],
+            "error": str(e),
+            "traceback": err
+        }
