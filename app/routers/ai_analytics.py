@@ -36,9 +36,7 @@ def get_ai_status():
     # Har ikkala API versiyasini sinab ko'ramiz
     results = []
     models_to_test = [
-        ("v1beta", "gemini-2.0-flash"),
         ("v1", "gemini-1.5-flash"),
-        ("v1beta", "gemini-1.5-flash"),
     ]
     
     for api_ver, model in models_to_test:
@@ -46,7 +44,7 @@ def get_ai_status():
         try:
             resp = httpx.post(url, json={
                 "contents": [{"parts": [{"text": "salom"}]}]
-            }, timeout=10)
+            }, timeout=5)
             results.append({
                 "api": api_ver, "model": model,
                 "status": resp.status_code,
@@ -56,7 +54,7 @@ def get_ai_status():
             if resp.status_code == 200:
                 break  # Ishlaydigan topildi
         except Exception as e:
-            results.append({"api": api_ver, "model": model, "status": 0, "ok": False, "error": str(e)})
+            results.append({"api": api_ver, "model": model, "status": 0, "ok": False, "error": type(e).__name__ + ": " + str(e)})
     
     working = [r for r in results if r["ok"]]
     return {
