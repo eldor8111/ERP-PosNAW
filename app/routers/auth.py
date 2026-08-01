@@ -488,7 +488,7 @@ def register_company(request: Request, data: CompanyRegisterRequest, db: Session
     db.flush()
 
     # Bot orqali ulangan chat_id ni topamiz (bo'lsa DB ga saqlaymiz)
-    reg_chat_id = _find_chat_id_by_phone(data.phone) if not is_dev_mode else None
+    reg_chat_id = _find_chat_id_by_phone(data.phone, db)
 
     user = User(
         name=data.name,
