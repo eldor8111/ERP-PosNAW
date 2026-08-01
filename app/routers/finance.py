@@ -401,6 +401,7 @@ def get_income_payments(
             "contragent": contragent,
             "turi": turi,
             "amount": float(tx.amount),
+            "currency_code": tx.currency_code or "UZS",
             "payment_type": ptype,
             "reference_type": tx.reference_type,
             "description": tx.description,
@@ -856,19 +857,37 @@ def record_customer_debt_payment(
 
 @router.get("/fix-old-tx-currency")
 def fix_old_transactions(db: Session = Depends(get_db)):
+    import re
+    from decimal import Decimal
+    # Fix all transactions that are UZS but have (amount CURRENCY) in description
     txs = db.query(Transaction).filter(
-        Transaction.type == "expense",
-        Transaction.reference_type == "supplier_payment",
-        Transaction.amount < 10000,
-        Transaction.currency_code == "UZS"
+        Transaction.currency_code == "UZS",
+        Transaction.description.like("%(%)%")
     ).all()
+    
     count = 0
+    pattern = re.compile(r'\(([\d\.,]+)\s+([A-Z]{3})\)\s*$')
+    
     for tx in txs:
-        if "USD" not in (tx.description or ""):
-            tx.currency_code = "USD"  # type: ignore[assignment]
-            count += 1
+        if not tx.description: continue
+        match = pattern.search(tx.description)
+        if match:
+            orig_amount_str = match.group(1).replace(',', '')
+            orig_amount = float(orig_amount_str)
+            orig_currency = match.group(2)
+            
+            # If the current amount is significantly larger, it means it was converted to UZS
+            tx_amount = float(tx.amount) if tx.amount else 0.0  # type: ignore[arg-type]
+            if tx_amount > orig_amount * 1000:
+                tx.amount = Decimal(str(orig_amount))
+                tx.currency_code = orig_currency  # type: ignore[assignment]
+                count += 1
+            # If amount is small but it was UZS, it might be an old bug where it just didn't set currency
+            elif tx_amount == orig_amount:
+                tx.currency_code = orig_currency  # type: ignore[assignment]
+                count += 1
 
-    # Also fix income (sale) transactions that have USD in description but wrong currency_code
+    # Check the old logic for sales just in case
     income_txs = db.query(Transaction).filter(
         Transaction.type == "income",
         Transaction.reference_type == "sale",
@@ -877,8 +896,6 @@ def fix_old_transactions(db: Session = Depends(get_db)):
     ).all()
     income_count = 0
     for tx in income_txs:
-        import re
-        # Extract USD amount from description e.g. "(150 USD)"
         m = re.search(r'\((\d+\.?\d*)\s*USD\)', str(tx.description or ""))
         if m:
             tx.amount = Decimal(m.group(1))
@@ -886,7 +903,7 @@ def fix_old_transactions(db: Session = Depends(get_db)):
             income_count += 1
 
     db.commit()
-    return {"message": f"Fixed {count} expense + {income_count} income transactions"}
+    return {"message": f"Fixed {count} generic and {income_count} sale transactions"}
 
 # ─── Kreditor boshqaruvi (Supplier qarzi) ────────────────────────────────────
 

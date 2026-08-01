@@ -1,9 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import api from '../../api/axios';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ') + " so'm";
+const fmtCurr = (v, curr) => {
+  const n = Number(v || 0);
+  if (!curr || curr === 'UZS') return n.toLocaleString('uz-UZ') + " so'm";
+  if (curr === 'USD') return '$' + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  return n.toLocaleString('uz-UZ') + ' ' + curr;
+};
 const today = () => (new Date(Date.now() - new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 10);
 
 const PAYMENT_TYPES = [
@@ -40,6 +46,31 @@ export default function KirimTolovlar() {
   };
 
   useEffect(() => { loadData(); }, [dateFrom, dateTo]);
+
+  const summaryData = useMemo(() => {
+    if (!data?.items) return {};
+    const res = {};
+    data.items.forEach(i => {
+      const cur = i.currency_code || 'UZS';
+      if (!res[cur]) res[cur] = { naqd: 0, plastik: 0, bank: 0, umumiy: 0, sotuv: 0, qarz_yopish: 0, qaytaruv: 0 };
+      
+      const amt = Number(i.amount) || 0;
+      res[cur].umumiy += amt;
+      
+      if (['cash', 'naqd'].includes(i.payment_type)) res[cur].naqd += amt;
+      else if (['card', 'plastik', 'uzcard', 'humo'].includes(i.payment_type)) res[cur].plastik += amt;
+      else if (['bank', 'bank_transfer'].includes(i.payment_type)) res[cur].bank += amt;
+
+      if (i.reference_type === 'customer_payment') {
+        res[cur].qarz_yopish += amt;
+      } else if (i.reference_type === 'sale') {
+        res[cur].sotuv += amt;
+      } else if (i.reference_type === 'return_to_supplier') {
+        res[cur].qaytaruv += amt;
+      }
+    });
+    return res;
+  }, [data?.items]);
 
   const openEdit = (item) => {
     setEditItem(item);
@@ -159,13 +190,13 @@ export default function KirimTolovlar() {
                         {i.turi}
                       </span>
                     </td>
-                    <td className="px-4 py-3 font-bold text-emerald-600">{fmt(i.amount)}</td>
-                    <td className="px-2 py-3 text-center border-x border-slate-50">{['cash', 'naqd'].includes(i.payment_type) ? fmt(i.amount) : 0}</td>
-                    <td className="px-2 py-3 text-center border-x border-slate-50">{['card', 'plastik', 'uzcard', 'humo'].includes(i.payment_type) ? fmt(i.amount) : 0}</td>
-                    <td className="px-2 py-3 text-center border-x border-slate-50">{['bank', 'bank_transfer'].includes(i.payment_type) ? fmt(i.amount) : 0}</td>
-                    <td className="px-2 py-3 text-center border-x border-slate-50">{i.payment_type === 'click' ? fmt(i.amount) : 0}</td>
-                    <td className="px-2 py-3 text-center border-x border-slate-50">{i.payment_type === 'payme' ? fmt(i.amount) : 0}</td>
-                    <td className="px-2 py-3 text-center border-x border-slate-50">{i.payment_type === 'uzum' ? fmt(i.amount) : 0}</td>
+                    <td className="px-4 py-3 font-bold text-emerald-600">{fmtCurr(i.amount, i.currency_code)}</td>
+                    <td className="px-2 py-3 text-center border-x border-slate-50">{['cash', 'naqd'].includes(i.payment_type) ? fmtCurr(i.amount, i.currency_code) : 0}</td>
+                    <td className="px-2 py-3 text-center border-x border-slate-50">{['card', 'plastik', 'uzcard', 'humo'].includes(i.payment_type) ? fmtCurr(i.amount, i.currency_code) : 0}</td>
+                    <td className="px-2 py-3 text-center border-x border-slate-50">{['bank', 'bank_transfer'].includes(i.payment_type) ? fmtCurr(i.amount, i.currency_code) : 0}</td>
+                    <td className="px-2 py-3 text-center border-x border-slate-50">{i.payment_type === 'click' ? fmtCurr(i.amount, i.currency_code) : 0}</td>
+                    <td className="px-2 py-3 text-center border-x border-slate-50">{i.payment_type === 'payme' ? fmtCurr(i.amount, i.currency_code) : 0}</td>
+                    <td className="px-2 py-3 text-center border-x border-slate-50">{i.payment_type === 'uzum' ? fmtCurr(i.amount, i.currency_code) : 0}</td>
                     <td className="px-4 py-3">
                       <span className="px-2 py-1 rounded-md text-xs bg-blue-50 text-blue-600 border border-blue-100">
                         {i.reference_type === 'customer_payment' ? "Qarz yopish" : i.reference_type === 'sale' ? "Sotuv" : "Ta'minotchidan qaytaruv"}
@@ -207,34 +238,42 @@ export default function KirimTolovlar() {
       </div>
 
       {/* Summary cards */}
-      {data?.summary && (
+      {data?.items && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
             <h3 className="text-slate-500 text-sm font-semibold mb-3">Umumiy to'lovlar summasi</h3>
-            <div className="text-slate-600 text-sm mb-1">Naqd: <span className="font-bold text-slate-800">{fmt(data.summary.naqd)}</span></div>
-            <div className="text-slate-600 text-sm mb-1">Plastik: <span className="font-bold text-slate-800">{fmt(data.summary.plastik)}</span></div>
-            <div className="text-slate-600 text-sm mb-1">Bank: <span className="font-bold text-slate-800">{fmt(data.summary.bank)}</span></div>
-            <div className="text-slate-600 text-sm mt-3 pt-3 border-t border-slate-100">
-              Umumiy summa: <span className="font-bold text-lg text-emerald-600">{fmt(data.summary.umumiy)}</span>
-            </div>
+            {Object.entries(summaryData).length > 0 ? Object.entries(summaryData).map(([cur, sums]) => (
+              <div key={cur} className="mb-3 last:mb-0 border-b last:border-b-0 border-slate-50 pb-2">
+                <div className="text-slate-600 text-sm flex justify-between mb-1"><span>Naqd:</span> <span className="font-bold text-slate-800">{fmtCurr(sums.naqd, cur)}</span></div>
+                <div className="text-slate-600 text-sm flex justify-between mb-1"><span>Plastik:</span> <span className="font-bold text-slate-800">{fmtCurr(sums.plastik, cur)}</span></div>
+                <div className="text-slate-600 text-sm flex justify-between mb-2"><span>Bank:</span> <span className="font-bold text-slate-800">{fmtCurr(sums.bank, cur)}</span></div>
+                <div className="text-sm flex justify-between font-bold text-emerald-600"><span>Umumiy:</span> <span>{fmtCurr(sums.umumiy, cur)}</span></div>
+              </div>
+            )) : <div className="text-slate-500 text-sm">0 so'm</div>}
           </div>
           <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
             <h3 className="text-slate-500 text-sm font-semibold mb-3">Mijozdan to'lovlar summasi (Qarz)</h3>
-            <div className="text-slate-600 text-sm mt-3 pt-3 border-t border-slate-100">
-              Umumiy summa: <span className="font-bold text-lg text-indigo-600">{fmt(data.summary.mijoz_qarz_yopish)}</span>
-            </div>
+            {Object.entries(summaryData).length > 0 ? Object.entries(summaryData).map(([cur, sums]) => sums.qarz_yopish > 0 && (
+              <div key={cur} className="mb-2 last:mb-0 border-b last:border-b-0 border-slate-50 pb-2">
+                <div className="text-sm flex justify-between font-bold text-indigo-600"><span>Umumiy:</span> <span>{fmtCurr(sums.qarz_yopish, cur)}</span></div>
+              </div>
+            )) : <div className="text-slate-500 text-sm">0 so'm</div>}
           </div>
           <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
             <h3 className="text-slate-500 text-sm font-semibold mb-3">Sotuv to'lovlari summasi</h3>
-            <div className="text-slate-600 text-sm mt-3 pt-3 border-t border-slate-100">
-              Umumiy summa: <span className="font-bold text-lg text-blue-600">{fmt(data.summary.sotuv_summasi)}</span>
-            </div>
+            {Object.entries(summaryData).length > 0 ? Object.entries(summaryData).map(([cur, sums]) => sums.sotuv > 0 && (
+              <div key={cur} className="mb-2 last:mb-0 border-b last:border-b-0 border-slate-50 pb-2">
+                <div className="text-sm flex justify-between font-bold text-blue-600"><span>Umumiy:</span> <span>{fmtCurr(sums.sotuv, cur)}</span></div>
+              </div>
+            )) : <div className="text-slate-500 text-sm">0 so'm</div>}
           </div>
           <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
             <h3 className="text-slate-500 text-sm font-semibold mb-3">Ta'minotchidan qaytaruv summasi</h3>
-            <div className="text-slate-600 text-sm mt-3 pt-3 border-t border-slate-100">
-              Umumiy summa: <span className="font-bold text-lg text-amber-600">{fmt(data.summary.taminotchi_qaytaruv)}</span>
-            </div>
+            {Object.entries(summaryData).length > 0 ? Object.entries(summaryData).map(([cur, sums]) => sums.qaytaruv > 0 && (
+              <div key={cur} className="mb-2 last:mb-0 border-b last:border-b-0 border-slate-50 pb-2">
+                <div className="text-sm flex justify-between font-bold text-amber-600"><span>Umumiy:</span> <span>{fmtCurr(sums.qaytaruv, cur)}</span></div>
+              </div>
+            )) : <div className="text-slate-500 text-sm">0 so'm</div>}
           </div>
         </div>
       )}

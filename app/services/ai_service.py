@@ -462,13 +462,16 @@ def _answer_from_context(msg: str, context: str) -> str:
             return f"Bugun {savdolar} savdo qilindi, jami tushum: {tushum}."
 
     if "naqd" in msg or "cash" in msg:
-        return f"Bugungi naqd pul tushumi: {lines.get('Naqd', 'ma\'lumot yo\'q')}."
+        naqd = lines.get('Naqd', "ma'lumot yo'q")
+        return f"Bugungi naqd pul tushumi: {naqd}."
 
     if "karta" in msg or "card" in msg:
-        return f"Bugungi karta orqali tushum: {lines.get('Karta', 'ma\'lumot yo\'q')}."
+        karta = lines.get('Karta', "ma'lumot yo'q")
+        return f"Bugungi karta orqali tushum: {karta}."
 
     if "ko'p sotil" in msg or "top" in msg or "bestseller" in msg:
-        return f"Bugun eng ko'p sotilgan mahsulot: {lines.get('Eng ko\'p sotilgan', 'aniqlanmadi')}."
+        val = lines.get("Eng ko'p sotilgan", "aniqlanmadi")
+        return f"Bugun eng ko'p sotilgan mahsulot: {val}."
 
     return ""
 

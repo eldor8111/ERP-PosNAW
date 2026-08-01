@@ -294,9 +294,11 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
         ${sh('show_exact_discounts') ? `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">Chegirma:</td><td style="padding:4px 0;">-${fmtVal(sale.discount_amount || 0)}</td></tr>` : ''}
         ${sh('show_percent_discount') ? `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">% Chegirma:</td><td style="padding:4px 0;">${sale.percent_discount || '___'}%</td></tr>` : ''}
         ${sh('show_payment_amounts') ? (
-          sale.payment_types_array && sale.payment_types_array.length > 0
-            ? sale.payment_types_array.map(pt => `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">To'lov (${pt.type}):</td><td style="padding:4px 0;">${fmtVal(pt.amount)}</td></tr>`).join('')
-            : `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">To'langan:</td><td style="padding:4px 0;">${fmtVal(sale.paid_amount)}</td></tr>`
+          sale.payment_currencies && sale.payment_currencies.length > 0
+            ? sale.payment_currencies.map(pt => `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">To'lov (${pt.type || pt.currency}):</td><td style="padding:4px 0;">${fmtCurrencyAmt(pt.amount, pt.currency || 'UZS')}</td></tr>`).join('')
+            : (sale.payment_types_array && sale.payment_types_array.length > 0
+              ? sale.payment_types_array.map(pt => `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">To'lov (${pt.type}):</td><td style="padding:4px 0;">${fmtVal(pt.amount)}</td></tr>`).join('')
+              : `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">To'langan:</td><td style="padding:4px 0;">${fmtVal(sale.paid_amount)}</td></tr>`)
         ) : ''}
 
         ${sh('show_contractor_debts') ? `<tr style="border-bottom: 1px dashed #ccc;"><td style="color:red; vertical-align:top; padding:4px 0;">Joriy qarz:</td><td style="color:red; padding:4px 0;">${currentDebtStr}</td></tr>` : ''}
@@ -464,9 +466,11 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   </div>
   <hr class="dash"/>
 
-  ${sale.payment_types_array && sale.payment_types_array.length > 0
-    ? sale.payment_types_array.map(pt => `<div class="flex"><span>To'lov (${pt.type}):</span><span>${fmtVal(pt.amount)}</span></div>`).join('') 
-    : `<div class="flex"><span>To'lov:</span><span>${fmtVal(paidAmount)}</span></div>`
+  ${sale.payment_currencies && sale.payment_currencies.length > 0
+    ? sale.payment_currencies.map(pt => `<div class="flex"><span>To'lov (${pt.type || pt.currency}):</span><span>${fmtCurrencyAmt(pt.amount, pt.currency || 'UZS')}</span></div>`).join('')
+    : (sale.payment_types_array && sale.payment_types_array.length > 0
+      ? sale.payment_types_array.map(pt => `<div class="flex"><span>To'lov (${pt.type}):</span><span>${fmtVal(pt.amount)}</span></div>`).join('') 
+      : `<div class="flex"><span>To'lov:</span><span>${fmtVal(paidAmount)}</span></div>`)
   }
   <hr class="dash"/>
 
