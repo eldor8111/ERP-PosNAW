@@ -28,3 +28,4 @@ from .tovarlar_catalog import TovarlarCatalog  # type: ignore
 from .sms_log import SMSLog
 from app.admin_tg_bot.models import CompanyBot
 from .tg_phone_chat import TgPhoneChat  # type: ignore
+from .ai_chat_history import AiChatHistory  # type: ignore

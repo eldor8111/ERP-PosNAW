@@ -174,6 +174,18 @@ def _run_auto_migrations(engine):
             updated_at  TIMESTAMP DEFAULT NOW()
         );""",
         "CREATE INDEX IF NOT EXISTS ix_tg_phone_chats_phone ON tg_phone_chats(phone);",
+        # ── AI Chat Tarix ──
+        """CREATE TABLE IF NOT EXISTS ai_chat_history (
+            id         SERIAL PRIMARY KEY,
+            user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            role       VARCHAR(10) NOT NULL,
+            message    TEXT NOT NULL,
+            intent     VARCHAR(50),
+            created_at TIMESTAMP DEFAULT NOW()
+        );""",
+        "CREATE INDEX IF NOT EXISTS ix_chat_history_user_company ON ai_chat_history(user_id, company_id);",
+        "CREATE INDEX IF NOT EXISTS ix_chat_history_created ON ai_chat_history(created_at);",
     ]
     _sa_text = __import__('sqlalchemy').text
     for sql in migrations:
@@ -192,8 +204,10 @@ async def lifespan(app: FastAPI):
     from app.database import engine
     from app.models.bot_session import BotSession
     from app.models.tg_phone_chat import TgPhoneChat
+    from app.models.ai_chat_history import AiChatHistory
     BotSession.__table__.create(bind=engine, checkfirst=True)
     TgPhoneChat.__table__.create(bind=engine, checkfirst=True)
+    AiChatHistory.__table__.create(bind=engine, checkfirst=True)
     # 1. Alembic migratsiyalar
     # _run_alembic_upgrade()
     # 2. Qo'shimcha SQL migratsiyalar (Payme va boshqalar)
