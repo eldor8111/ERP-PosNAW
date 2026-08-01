@@ -119,17 +119,26 @@ async def _process_bot_update(update: dict, bot_token: str):
         # DB ga ham saqlash — server restart bo'lsa ham saqlansin
         try:
             from app.database import SessionLocal
+            from app.models.tg_phone_chat import TgPhoneChat
             db = SessionLocal()
             try:
                 for p in possible_phones:
                     if not p:
                         continue
+                    # Mavjud foydalanuvchining tg_chat_id ni yangilaymiz
                     db_user = db.query(User).filter(User.phone == p, User.status == UserStatus.active).first()
                     if db_user:
                         db_user.tg_chat_id = chat_id
                         db.commit()
-                        print(f"[OTP Bot] DB ga saqlandi: {p} → chat_id {chat_id}")
-                        break
+                        print(f"[OTP Bot] User DB ga saqlandi: {p} → chat_id {chat_id}")
+                    # TgPhoneChat ga ham saqlaymiz (ro'yxatdan o'tmagan uchun ham)
+                    existing = db.query(TgPhoneChat).filter(TgPhoneChat.phone == p).first()
+                    if existing:
+                        existing.chat_id = chat_id
+                    else:
+                        db.add(TgPhoneChat(phone=p, chat_id=chat_id))
+                db.commit()
+                print(f"[OTP Bot] TgPhoneChat DB ga saqlandi: {phone_digits} → chat_id {chat_id}")
             finally:
                 db.close()
         except Exception as e:
@@ -212,17 +221,53 @@ async def run_otp_bot_polling():
             await asyncio.sleep(5)
 
 
-def _find_chat_id_by_phone(phone_normalized: str) -> str | None:
-    """_phone_to_chat_id dan chat_id qidiradi (turli formatlar bo'yicha)."""
-    # To'liq match
+def _find_chat_id_by_phone(phone_normalized: str, db=None) -> str | None:
+    """chat_id qidiradi: avval memory, keyin DB (TgPhoneChat va User)."""
+    # 1. In-memory (to'liq match)
     if phone_normalized in _phone_to_chat_id:
         return _phone_to_chat_id[phone_normalized]
-    # Oxirgi 9 raqam bilan match
+    # 2. In-memory (oxirgi 9 raqam bilan match)
     short = phone_normalized[-9:] if len(phone_normalized) >= 9 else phone_normalized
     for stored_phone, chat_id in _phone_to_chat_id.items():
         stored_short = stored_phone[-9:] if len(stored_phone) >= 9 else stored_phone
         if stored_short == short:
             return chat_id
+    # 3. DB dan qidirish (server restart bo'lsa ham ishlaydi)
+    try:
+        from app.models.tg_phone_chat import TgPhoneChat
+        close_db = False
+        if db is None:
+            from app.database import SessionLocal
+            db = SessionLocal()
+            close_db = True
+        try:
+            # TgPhoneChat jadvalidan qidirish
+            record = db.query(TgPhoneChat).filter(TgPhoneChat.phone == phone_normalized).first()
+            if record:
+                # Memory ga ham saqlab qo'yamiz
+                _phone_to_chat_id[phone_normalized] = record.chat_id
+                return record.chat_id
+            # Oxirgi 9 raqam bilan qidirish
+            if len(phone_normalized) >= 9:
+                suffix = phone_normalized[-9:]
+                records = db.query(TgPhoneChat).all()
+                for r in records:
+                    if r.phone.endswith(suffix):
+                        _phone_to_chat_id[phone_normalized] = r.chat_id
+                        return r.chat_id
+            # User.tg_chat_id dan qidirish
+            db_user = db.query(User).filter(
+                User.phone == phone_normalized,
+                User.status == UserStatus.active
+            ).first()
+            if db_user and db_user.tg_chat_id:
+                _phone_to_chat_id[phone_normalized] = db_user.tg_chat_id
+                return db_user.tg_chat_id
+        finally:
+            if close_db:
+                db.close()
+    except Exception as e:
+        print(f"[OTP] DB dan chat_id qidirishda xato: {e}")
     return None
 
 
@@ -321,7 +366,7 @@ async def send_otp(request: Request, data: SendOtpRequest, db: Session = Depends
         if is_dev_mode:
             print(f"[DEV] Register OTP for {normalized}: {otp}")
         else:
-            chat_id = _find_chat_id_by_phone(normalized)
+            chat_id = _find_chat_id_by_phone(normalized, db)
             if not chat_id:
                 bot_username = _get_bot_username(bot_token)
                 return {

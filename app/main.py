@@ -165,6 +165,15 @@ def _run_auto_migrations(engine):
         "ALTER TABLE products ADD COLUMN IF NOT EXISTS expiry_date DATE;",
         # ── Sales multi-currency debt tracking ──
         "ALTER TABLE sales ADD COLUMN IF NOT EXISTS debt_amounts JSON DEFAULT '{}'::json;",
+        # ── Telegram OTP Phone-Chat mapping ──
+        """CREATE TABLE IF NOT EXISTS tg_phone_chats (
+            id          SERIAL PRIMARY KEY,
+            phone       VARCHAR(30) NOT NULL UNIQUE,
+            chat_id     VARCHAR(50) NOT NULL,
+            created_at  TIMESTAMP DEFAULT NOW(),
+            updated_at  TIMESTAMP DEFAULT NOW()
+        );""",
+        "CREATE INDEX IF NOT EXISTS ix_tg_phone_chats_phone ON tg_phone_chats(phone);",
     ]
     _sa_text = __import__('sqlalchemy').text
     for sql in migrations:
@@ -182,7 +191,9 @@ async def lifespan(app: FastAPI):
     from app.admin_tg_bot.bot_manager import main as run_admin_bot_polling
     from app.database import engine
     from app.models.bot_session import BotSession
+    from app.models.tg_phone_chat import TgPhoneChat
     BotSession.__table__.create(bind=engine, checkfirst=True)
+    TgPhoneChat.__table__.create(bind=engine, checkfirst=True)
     # 1. Alembic migratsiyalar
     # _run_alembic_upgrade()
     # 2. Qo'shimcha SQL migratsiyalar (Payme va boshqalar)
