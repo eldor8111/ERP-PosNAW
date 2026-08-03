@@ -22,14 +22,24 @@ WRITE_ROLES = (UserRole.admin, UserRole.director, UserRole.warehouse, UserRole.m
 from app.utils.product_filters import name_filter as _name_filter  # noqa: E402
 
 
-def _attach_stock(product: Product) -> ProductOut:
+def _attach_stock(product: Product, db: Session = None, warehouse_id: int = None) -> ProductOut:
     out = ProductOut.model_validate(product)
     if product.category:
         out.category_name = product.category.name
-    if product.stock_level:
+
+    out.stock_quantity = Decimal("0")
+    if db:
+        from app.models.inventory import StockLevel
+        from sqlalchemy import func
+        q = db.query(func.coalesce(func.sum(StockLevel.quantity), 0)).filter(StockLevel.product_id == product.id)
+        if warehouse_id:
+            q = q.filter(StockLevel.warehouse_id == warehouse_id)
+        total_qty = q.scalar()
+        if total_qty is not None:
+            out.stock_quantity = Decimal(str(total_qty))
+    elif product.stock_level:
         out.stock_quantity = product.stock_level.quantity
-    else:
-        out.stock_quantity = Decimal("0")
+
     if product.conversion:
         from app.schemas.product import ProductConversionOut
         src = product.conversion.source_product
@@ -199,6 +209,7 @@ def list_products(
 @router.get("/barcode/{barcode}", response_model=ProductOut)
 def get_by_barcode(
         barcode: str,
+        warehouse_id: Optional[int] = Query(None, description="Ombor bo'yicha filter (ixtiyoriy)"),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
 ):
@@ -252,12 +263,13 @@ def get_by_barcode(
     if not product:
         raise HTTPException(status_code=404, detail=f"Barcode '{barcode}' bo'yicha mahsulot topilmadi")
 
-    return _attach_stock(product)
+    return _attach_stock(product, db=db, warehouse_id=warehouse_id)
 
 
 @router.get("/{product_id}", response_model=ProductOut)
 def get_product(
         product_id: int,
+        warehouse_id: Optional[int] = Query(None, description="Ombor bo'yicha filter (ixtiyoriy)"),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
 ):
@@ -270,7 +282,7 @@ def get_product(
     product = q.first()
     if not product:
         raise HTTPException(status_code=404, detail="Mahsulot topilmadi")
-    return _attach_stock(product)
+    return _attach_stock(product, db=db, warehouse_id=warehouse_id)
 
 
 def _generate_sku(db: Session) -> str:
@@ -389,7 +401,7 @@ def create_product(
     )
     db.commit()
     db.refresh(product)
-    return _attach_stock(product)
+    return _attach_stock(product, db=db)
 
 
 @router.put("/{product_id}", response_model=ProductOut)
@@ -534,7 +546,7 @@ def update_product(
     )
     db.commit()
     db.refresh(product)
-    return _attach_stock(product)
+    return _attach_stock(product, db=db)
 
 
 @router.patch("/{product_id}/status", response_model=ProductOut)
@@ -552,7 +564,7 @@ def toggle_product_status(
     product.status = data.status
     db.commit()
     db.refresh(product)
-    return _attach_stock(product)
+    return _attach_stock(product, db=db)
 
 
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
