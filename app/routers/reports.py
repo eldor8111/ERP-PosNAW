@@ -295,36 +295,129 @@ def sales_report(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
     branch_id: Optional[int] = Query(None),
+    include_returns: bool = Query(True, description="Vazvratlarni ham ko'rsatish"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
 ):
-    """Sotuvlar ro'yxati"""
+    """Sotuvlar ro'yxati (vazvratlar manfiy summa sifatida qo'shiladi)"""
     start, end = _date_range(date_from, date_to)
+
+    statuses = [SaleStatus.completed]
+    if include_returns:
+        statuses.append(SaleStatus.refunded)
+
     q = (
         db.query(Sale, User)
         .options(joinedload(Sale.currency))
         .join(User, User.id == Sale.cashier_id)
-        .filter(Sale.created_at >= start, Sale.created_at < end, Sale.status == SaleStatus.completed)
+        .filter(
+            Sale.created_at >= start,
+            Sale.created_at < end,
+            Sale.status.in_(statuses),
+        )
+    )
+    q = q.filter(Sale.company_id == current_user.company_id)
+    if branch_id:
+        branch_wh_ids = [wh.id for wh in db.query(Warehouse.id).filter(Warehouse.branch_id == branch_id).all()]
+        q = q.filter(Sale.warehouse_id.in_(branch_wh_ids))
+    rows = q.order_by(Sale.created_at.desc()).limit(1000).all()
+
+    items = []
+    total_sales = 0.0
+    total_returns = 0.0
+    for s, u in rows:
+        is_return = s.status == SaleStatus.refunded
+        amt = float(s.total_amount / (s.exchange_rate or 1))
+        if is_return:
+            total_returns += amt
+        else:
+            total_sales += amt
+        items.append({
+            "id": s.id,
+            "number": s.number,
+            "cashier_name": u.name,
+            "total_amount": amt,
+            "discount_amount": float(s.discount_amount / (s.exchange_rate or 1)),
+            "currency_code": s.currency.code if s.currency else "UZS",
+            "payment_type": s.payment_type,
+            "status": s.status,
+            "type": "return" if is_return else "sale",
+            "customer_id": s.customer_id,
+            "created_at": s.created_at.isoformat(),
+        })
+
+    return {
+        "items": items,
+        "summary": {
+            "total_sales": round(total_sales, 2),
+            "total_returns": round(total_returns, 2),
+            "net_total": round(total_sales - total_returns, 2),
+        },
+    }
+
+
+# ─── Vazvratlar ro'yxati ─────────────────────────────────────────────────────
+
+@router.get("/returns")
+def returns_report(
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+    branch_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*REPORT_ROLES)),
+):
+    """Vazvratlar (Qaytarishlar) ro'yxati va xulosa"""
+    start, end = _date_range(date_from, date_to)
+
+    from app.models.customer import Customer as Cust
+    q = (
+        db.query(Sale, User)
+        .options(joinedload(Sale.currency))
+        .join(User, User.id == Sale.cashier_id)
+        .filter(
+            Sale.created_at >= start,
+            Sale.created_at < end,
+            Sale.status == SaleStatus.refunded,
+        )
     )
     q = q.filter(Sale.company_id == current_user.company_id)
     if branch_id:
         branch_wh_ids = [wh.id for wh in db.query(Warehouse.id).filter(Warehouse.branch_id == branch_id).all()]
         q = q.filter(Sale.warehouse_id.in_(branch_wh_ids))
     rows = q.order_by(Sale.created_at.desc()).limit(500).all()
-    return [
-        {
+
+    # Mijoz nomlarini bir so'rovda olish
+    cust_ids = list({s.customer_id for s, u in rows if s.customer_id})
+    cust_map = {}
+    if cust_ids:
+        for c in db.query(Cust.id, Cust.name).filter(Cust.id.in_(cust_ids)).all():
+            cust_map[c.id] = c.name
+
+    items = []
+    total_by_currency: dict = {}
+    for s, u in rows:
+        curr = s.currency.code if s.currency else "UZS"
+        amt = float(s.total_amount / (s.exchange_rate or 1))
+        total_by_currency[curr] = total_by_currency.get(curr, 0.0) + amt
+        items.append({
             "id": s.id,
             "number": s.number,
             "cashier_name": u.name,
-            "total_amount": float(s.total_amount / (s.exchange_rate or 1)),
-            "discount_amount": float(s.discount_amount / (s.exchange_rate or 1)),
-            "currency_code": s.currency.code if s.currency else "UZS",
+            "customer_id": s.customer_id,
+            "customer_name": cust_map.get(s.customer_id) if s.customer_id else None,
+            "total_amount": amt,
+            "paid_amount": float(s.paid_amount),
             "payment_type": s.payment_type,
-            "status": s.status,
+            "currency_code": curr,
+            "note": s.note,
             "created_at": s.created_at.isoformat(),
-        }
-        for s, u in rows
-    ]
+        })
+
+    return {
+        "total_returns": total_by_currency,
+        "count": len(items),
+        "items": items,
+    }
 
 
 # ─── Ombor qoldiqlari ─────────────────────────────────────────────────────────

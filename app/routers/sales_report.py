@@ -6,7 +6,7 @@ from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Response
-from sqlalchemy import func
+from sqlalchemy import func, case
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import require_roles
@@ -34,15 +34,33 @@ def daily_sales_report(
     q = (
         db.query(
             func.date(Sale.created_at).label("day"),
-            func.count(Sale.id).label("sales_count"),
+            func.sum(case((Sale.status == SaleStatus.completed, 1), else_=0)).label("sales_count"),
+            func.sum(case((Sale.status == SaleStatus.refunded, 1), else_=0)).label("returns_count"),
             func.coalesce(Currency.code, 'UZS').label("currency"),
-            func.sum(Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)).label("total_amount"),
-            func.sum(Sale.discount_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)).label("total_discount"),
-            func.avg(Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)).label("avg_check"),
+            func.sum(
+                case(
+                    (Sale.status == SaleStatus.completed, Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)),
+                    (Sale.status == SaleStatus.refunded, -Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)),
+                    else_=0
+                )
+            ).label("total_amount"),
+            func.sum(
+                case(
+                    (Sale.status == SaleStatus.completed, Sale.discount_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)),
+                    (Sale.status == SaleStatus.refunded, -Sale.discount_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)),
+                    else_=0
+                )
+            ).label("total_discount"),
+            func.avg(
+                case(
+                    (Sale.status == SaleStatus.completed, Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)),
+                    else_=None
+                )
+            ).label("avg_check"),
         )
         .select_from(Sale)
         .outerjoin(Currency, Currency.id == Sale.currency_id)
-        .filter(Sale.created_at >= start, Sale.created_at < end, Sale.status == SaleStatus.completed)
+        .filter(Sale.created_at >= start, Sale.created_at < end, Sale.status.in_([SaleStatus.completed, SaleStatus.refunded]))
     )
     q = q.filter(Sale.company_id == current_user.company_id)
     rows = (
@@ -59,13 +77,15 @@ def daily_sales_report(
             day_map[d] = {
                 "date": d,
                 "sales_count": 0,
+                "returns_count": 0,
                 "total_amount": {},
                 "total_discount": {},
                 "avg_check": {}
             }
         
         curr = r.currency
-        day_map[d]["sales_count"] += r.sales_count
+        day_map[d]["sales_count"] += (r.sales_count or 0)
+        day_map[d]["returns_count"] += (r.returns_count or 0)
         day_map[d]["total_amount"][curr] = float(r.total_amount or 0)
         day_map[d]["total_discount"][curr] = float(r.total_discount or 0)
         day_map[d]["avg_check"][curr] = float(r.avg_check or 0)
@@ -144,15 +164,33 @@ def cashier_report(
         db.query(
             User.id,
             User.name,
-            func.count(Sale.id).label("sales_count"),
+            func.sum(case((Sale.status == SaleStatus.completed, 1), else_=0)).label("sales_count"),
+            func.sum(case((Sale.status == SaleStatus.refunded, 1), else_=0)).label("returns_count"),
             func.coalesce(Currency.code, 'UZS').label("currency"),
-            func.coalesce(func.sum(Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)), 0).label("total_amount"),
-            func.coalesce(func.sum(Sale.discount_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)), 0).label("total_discount"),
-            func.coalesce(func.avg(Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)), 0).label("avg_check"),
+            func.coalesce(func.sum(
+                case(
+                    (Sale.status == SaleStatus.completed, Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)),
+                    (Sale.status == SaleStatus.refunded, -Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)),
+                    else_=0
+                )
+            ), 0).label("total_amount"),
+            func.coalesce(func.sum(
+                case(
+                    (Sale.status == SaleStatus.completed, Sale.discount_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)),
+                    (Sale.status == SaleStatus.refunded, -Sale.discount_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)),
+                    else_=0
+                )
+            ), 0).label("total_discount"),
+            func.coalesce(func.avg(
+                case(
+                    (Sale.status == SaleStatus.completed, Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)),
+                    else_=None
+                )
+            ), 0).label("avg_check"),
         )
         .join(Sale, Sale.cashier_id == User.id)
         .outerjoin(Currency, Currency.id == Sale.currency_id)
-        .filter(Sale.created_at >= start, Sale.created_at < end, Sale.status == SaleStatus.completed)
+        .filter(Sale.created_at >= start, Sale.created_at < end, Sale.status.in_([SaleStatus.completed, SaleStatus.refunded]))
     )
     q = q.filter(Sale.company_id == current_user.company_id)
     rows = (
@@ -170,13 +208,15 @@ def cashier_report(
                 "cashier_id": r.id,
                 "cashier_name": r.name,
                 "sales_count": 0,
+                "returns_count": 0,
                 "total_amount": {},
                 "total_discount": {},
                 "avg_check": {}
             }
         
         curr = r.currency
-        cashier_map[cid]["sales_count"] += r.sales_count
+        cashier_map[cid]["sales_count"] += (r.sales_count or 0)
+        cashier_map[cid]["returns_count"] += (r.returns_count or 0)
         cashier_map[cid]["total_amount"][curr] = float(r.total_amount or 0)
         cashier_map[cid]["total_discount"][curr] = float(r.total_discount or 0)
         cashier_map[cid]["avg_check"][curr] = float(r.avg_check or 0)

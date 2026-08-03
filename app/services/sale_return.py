@@ -80,7 +80,12 @@ def create_return_sale(
         if currency:
             exchange_rate = currency.rate
 
-    # Mijoz qarzi qaytarish
+    # ─── Mijoz qarz mantig'i ─────────────────────────────────────────────────
+    # Qaytarishda:
+    #   payment_type = "debt"   → barcha tovar qiymati qarzdan ayiriladi (naqd berilmaydi)
+    #   payment_type = "cash"   → paid_amount kassadan chiqariladi (mijoz naqd oladi)
+    #   Qisman to'lov           → paid_amount naqd, qolgan (total - paid) qarzdan ayiriladi
+    # ─────────────────────────────────────────────────────────────────────────
     if data.customer_id:
         customer = db.query(Customer).filter(
             Customer.id == data.customer_id,
@@ -88,11 +93,21 @@ def create_return_sale(
         ).with_for_update().first()
         if not customer:
             raise HTTPException(status_code=404, detail="Mijoz topilmadi")
-        if data.paid_amount < total_amount:
-            debt_amount = (total_amount - data.paid_amount) * exchange_rate
-            customer.debt_balance = max(Decimal("0"), customer.debt_balance - debt_amount)
 
-            # Sync with multi-currency debt_balances
+        # Qarzdan ayiriladigan qism: qarzga yopilgan vazvrat uchun
+        # "debt" to'lov turida paid_amount = 0, debt_reduction = total_amount
+        # Naqd to'lovda paid_amount = total_amount, debt_reduction = 0
+        _paid = data.paid_amount
+        if data.payment_type == PaymentType.debt:
+            # Qarzga yopiladigan vazvrat: kassaga hech narsa berilmaydi
+            _paid = Decimal("0")
+
+        debt_reduction = (total_amount - _paid) * exchange_rate
+
+        if debt_reduction > Decimal("0"):
+            customer.debt_balance = max(Decimal("0"), customer.debt_balance - debt_reduction)
+
+            # Ko'p valyutali debt_balances ni ham yangilash
             if not customer.debt_balances:
                 customer.debt_balances = {}
 
@@ -101,13 +116,17 @@ def create_return_sale(
                     curr_val = float(customer.debt_balances.get(curr_code, 0))
                     customer.debt_balances[curr_code] = max(0, curr_val - float(curr_debt))
             else:
-                actual_debt_in_currency = total_amount - data.paid_amount
+                actual_debt_in_currency = total_amount - _paid
                 sale_currency = currency.code if currency else "UZS"
-
                 curr_val = float(customer.debt_balances.get(sale_currency, 0))
                 customer.debt_balances[sale_currency] = max(0, curr_val - float(actual_debt_in_currency))
 
             flag_modified(customer, "debt_balances")
+
+        # Kassa uchun asl paid_amount ni qayta belgilash
+        # debt tipida paid_amount 0 bo'lishi kerak
+        if data.payment_type == PaymentType.debt:
+            data = data.model_copy(update={"paid_amount": Decimal("0"), "paid_cash": Decimal("0"), "paid_card": Decimal("0")})
 
     sale = Sale(
         number=generate_return_number(db),
