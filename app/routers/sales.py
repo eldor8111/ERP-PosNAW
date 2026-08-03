@@ -277,6 +277,9 @@ def list_sales(
         q = q.filter(Sale.created_at < datetime.combine(date_to + timedelta(days=1), datetime.min.time()))
     if status:
         q = q.filter(Sale.status == status)
+    else:
+        # Default: vazvratlarni (refunded) ro'yxatdan chiqarib tashlash
+        q = q.filter(Sale.status != SaleStatus.refunded)
     if search:
         CustomerQ = aliased(Customer, name='customer_q')
         q = q.outerjoin(CustomerQ, Sale.customer_id == CustomerQ.id)
