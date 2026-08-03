@@ -188,7 +188,7 @@ export default function Reports() {
   const [branches, setBranches] = useState([]);
 
   // Ma'lumotlar
-  const [salesData, setSalesData] = useState([]);
+  const [salesData, setSalesData] = useState({ items: [], summary: null });
   const [expenseData, setExpenseData] = useState(null);
   const [profitData, setProfitData] = useState([]);
   const [cashierData, setCashierData] = useState([]);
@@ -226,7 +226,16 @@ export default function Reports() {
     try {
       if (tab === 'sales') {
         const r = await api.get(`/reports/sales${qs()}`);
-        setSalesData(r.data);
+        // Backend { items: [...], summary: {...} } qaytaradi
+        const data = r.data;
+        if (data && Array.isArray(data.items)) {
+          setSalesData(data);
+        } else if (Array.isArray(data)) {
+          // Eski format uchun fallback
+          setSalesData({ items: data, summary: null });
+        } else {
+          setSalesData({ items: [], summary: null });
+        }
       } else if (tab === 'expenses') {
         const r = await api.get(`/reports/expenses${qs()}`);
         setExpenseData(r.data);
@@ -359,15 +368,30 @@ export default function Reports() {
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
 
         {/* ── Sotuvlar ── */}
-        {tab === 'sales' && (
+        {tab === 'sales' && (() => {
+          const items = salesData?.items || [];
+          const summary = salesData?.summary || null;
+          const saleItems = items.filter(s => s.type !== 'return');
+          const returnItems = items.filter(s => s.type === 'return');
+          return (
           <>
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
-              <span className="text-sm font-semibold text-slate-700">Sotuvlar ro'yxati</span>
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-semibold text-slate-700">Sotuvlar ro'yxati</span>
+                {returnItems.length > 0 && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 text-rose-600 text-xs font-semibold rounded-lg border border-rose-100">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                    {returnItems.length} ta vazvrat
+                  </span>
+                )}
+              </div>
               <ExportBtns
                 onExcel={() => {
-                  const ws = XLSX.utils.json_to_sheet(salesData.map(s => ({
+                  const ws = XLSX.utils.json_to_sheet(items.map(s => ({
+                    'Tur': s.type === 'return' ? 'Vazvrat' : 'Sotuv',
                     'Raqam': s.number, 'Kassir': s.cashier_name,
-                    'Summa': s.total_amount, 'Chegirma': s.discount_amount,
+                    'Summa': s.type === 'return' ? -s.total_amount : s.total_amount,
+                    'Chegirma': s.discount_amount,
                     "To'lov": s.payment_type, 'Sana': new Date(s.created_at).toLocaleString('uz-UZ'),
                   })));
                   const wb = XLSX.utils.book_new();
@@ -375,9 +399,15 @@ export default function Reports() {
                   saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `sotuvlar_${today()}.xlsx`);
                 }}
                 onPdf={() => printTable('Sotuvlar hisoboti',
-                  ['Raqam', 'Kassir', 'Summa', "To'lov", 'Sana'],
-                  salesData.map(s => [s.number, s.cashier_name, fmtRowDebt(s.total_amount, s.currency_code), s.payment_type, new Date(s.created_at).toLocaleDateString('uz-UZ')]),
-                  ['', 'JAMI', fmtS(salesData.reduce((a, s) => a + s.total_amount, 0)), '', '']
+                  ['Tur', 'Raqam', 'Kassir', 'Summa', "To'lov", 'Sana'],
+                  items.map(s => [
+                    s.type === 'return' ? 'Vazvrat' : 'Sotuv',
+                    s.number, s.cashier_name,
+                    (s.type === 'return' ? '-' : '') + fmtRowDebt(s.total_amount, s.currency_code),
+                    s.payment_type,
+                    new Date(s.created_at).toLocaleDateString('uz-UZ')
+                  ]),
+                  summary ? ['', '', 'SOF JAMI', fmtS(summary.net_total), '', ''] : null
                 )}
                 on1c={async () => {
                   const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo, format: 'csv' });
@@ -389,42 +419,75 @@ export default function Reports() {
             <DateFilter dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} onSearch={load} loading={loading} />
             {loading ? <Spinner /> : (
               <>
+                {/* Summary cards */}
+                {summary && (
+                  <div className="grid grid-cols-3 gap-4 px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                    <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
+                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Sotuvlar</div>
+                      <div className="text-xl font-black text-emerald-600">{fmtS(summary.total_sales)}</div>
+                      <div className="text-xs text-slate-400 mt-0.5">{saleItems.length} ta tranzaksiya</div>
+                    </div>
+                    <div className="bg-white rounded-xl border border-rose-100 p-4 shadow-sm">
+                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Qaytarishlar</div>
+                      <div className="text-xl font-black text-rose-500">-{fmtS(summary.total_returns)}</div>
+                      <div className="text-xs text-slate-400 mt-0.5">{returnItems.length} ta vazvrat</div>
+                    </div>
+                    <div className="bg-white rounded-xl border border-indigo-100 p-4 shadow-sm">
+                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Sof jami (Net)</div>
+                      <div className={`text-xl font-black ${summary.net_total >= 0 ? 'text-indigo-600' : 'text-red-600'}`}>{fmtS(summary.net_total)}</div>
+                      <div className="text-xs text-slate-400 mt-0.5">{items.length} ta jami</div>
+                    </div>
+                  </div>
+                )}
                 <div className="overflow-x-auto">
                   <table className="min-w-full">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-100">
-                        {['Raqam', 'Kassir', 'Summa', 'Chegirma', "To'lov", 'Sana'].map(h => (
+                        {['Tur', 'Raqam', 'Kassir', 'Summa', 'Chegirma', "To'lov", 'Sana'].map(h => (
                           <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
-                      {salesData.map(s => (
-                        <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                          <td className="px-5 py-3.5 text-sm font-mono font-semibold text-indigo-600">{s.number}</td>
-                          <td className="px-5 py-3.5 text-sm text-slate-700">{s.cashier_name}</td>
-                          <td className="px-5 py-3.5 text-sm font-semibold text-slate-800">{fmtRowDebt(s.total_amount, s.currency_code)}</td>
-                          <td className="px-5 py-3.5 text-sm text-slate-500">{s.discount_amount > 0 ? fmtRowDebt(s.discount_amount, s.currency_code) : '—'}</td>
-                          <td className="px-5 py-3.5">
-                            <span className="inline-flex px-2 py-0.5 bg-blue-50 text-blue-600 text-xs font-medium rounded-lg">{s.payment_type}</span>
-                          </td>
-                          <td className="px-5 py-3.5 text-sm text-slate-400">{new Date(s.created_at).toLocaleString('uz-UZ')}</td>
-                        </tr>
-                      ))}
-                      {salesData.length === 0 && <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-400">{t('common.noData')}</td></tr>}
+                      {items.map(s => {
+                        const isReturn = s.type === 'return';
+                        return (
+                          <tr key={s.id} className={`transition-colors ${isReturn ? 'bg-rose-50/40 hover:bg-rose-50' : 'hover:bg-slate-50'}`}>
+                            <td className="px-5 py-3.5">
+                              {isReturn ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-100 text-rose-700 text-xs font-bold rounded-lg">
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                                  Vazvrat
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-lg">
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                                  Sotuv
+                                </span>
+                              )}
+                            </td>
+                            <td className={`px-5 py-3.5 text-sm font-mono font-semibold ${isReturn ? 'text-rose-600' : 'text-indigo-600'}`}>{s.number}</td>
+                            <td className="px-5 py-3.5 text-sm text-slate-700">{s.cashier_name}</td>
+                            <td className={`px-5 py-3.5 text-sm font-semibold ${isReturn ? 'text-rose-600' : 'text-slate-800'}`}>
+                              {isReturn && <span className="mr-0.5">-</span>}{fmtRowDebt(s.total_amount, s.currency_code)}
+                            </td>
+                            <td className="px-5 py-3.5 text-sm text-slate-500">{s.discount_amount > 0 ? fmtRowDebt(s.discount_amount, s.currency_code) : '—'}</td>
+                            <td className="px-5 py-3.5">
+                              <span className="inline-flex px-2 py-0.5 bg-blue-50 text-blue-600 text-xs font-medium rounded-lg">{s.payment_type}</span>
+                            </td>
+                            <td className="px-5 py-3.5 text-sm text-slate-400">{new Date(s.created_at).toLocaleString('uz-UZ')}</td>
+                          </tr>
+                        );
+                      })}
+                      {items.length === 0 && <tr><td colSpan={7} className="px-6 py-12 text-center text-sm text-slate-400">{t('common.noData')}</td></tr>}
                     </tbody>
                   </table>
                 </div>
-                {salesData.length > 0 && (
-                  <div className="px-6 py-3 border-t border-slate-100 flex justify-between text-sm text-slate-500 bg-slate-50">
-                    <span>Jami <strong className="text-slate-700">{salesData.length}</strong> ta sotuv</span>
-                    <span>Umumiy: <strong className="text-emerald-600">{fmtS(salesData.reduce((a, s) => a + s.total_amount, 0))}</strong></span>
-                  </div>
-                )}
               </>
             )}
           </>
-        )}
+          );
+        })()}
 
         {/* ── Foyda (mahsulot bo'yicha) ── */}
         {tab === 'profit' && (
