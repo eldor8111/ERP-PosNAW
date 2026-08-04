@@ -189,6 +189,11 @@ def _run_auto_migrations(engine):
         # ── FCM and Notifications ──
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS fcm_token VARCHAR(255);",
         "ALTER TABLE companies ADD COLUMN IF NOT EXISTS daily_report_time VARCHAR(10) DEFAULT '17:30';",
+        "ALTER TABLE companies ADD COLUMN IF NOT EXISTS low_stock_alert BOOLEAN DEFAULT TRUE;",
+        "ALTER TABLE companies ADD COLUMN IF NOT EXISTS expiration_alert BOOLEAN DEFAULT TRUE;",
+        "ALTER TABLE companies ADD COLUMN IF NOT EXISTS debt_deadline_alert BOOLEAN DEFAULT TRUE;",
+        "ALTER TABLE companies ADD COLUMN IF NOT EXISTS daily_report_enabled BOOLEAN DEFAULT TRUE;",
+        "ALTER TABLE companies ADD COLUMN IF NOT EXISTS daily_report_recipients VARCHAR(50) DEFAULT 'owners_and_admins';",
     ]
     _sa_text = __import__('sqlalchemy').text
     for sql in migrations:

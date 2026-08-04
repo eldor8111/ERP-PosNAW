@@ -97,6 +97,10 @@ async def process_daily_debts():
             if not company or not company.tg_bot_token:
                 continue
 
+            # Agar qarz muddati bildirishnomasi o'chirilgan bo'lsa, xabar yubormaslik
+            if company.debt_deadline_alert is False:
+                continue
+
             due = sale.debt_due_date
             diff_days = (due - today).days
 
@@ -159,6 +163,10 @@ async def notify_managers_overdue():
 
         for company in companies:
             if not company.tg_bot_token:
+                continue
+
+            # Agar qarz muddati bildirishnomasi o'chirilgan bo'lsa, rahbarlarga ham xabar yubormaslik
+            if company.debt_deadline_alert is False:
                 continue
 
             overdue_sales = db.query(Sale).filter(
@@ -275,6 +283,10 @@ async def check_and_send_reports():
             # daily_report_time ustuni mavjud bo'lmasa yoki None bo'lsa
             report_time = getattr(company, "daily_report_time", None) or "17:30"
             if report_time == current_hhmm:
+                # Kunlik hisobot ruxsat etilganligini tekshirish
+                if getattr(company, "daily_report_enabled", True) is False:
+                    continue
+                
                 print(
                     f"[Scheduler] {company.name} uchun kunlik hisobot vaqti keldi "
                     f"({current_hhmm}). Yuborilmoqda..."
@@ -346,6 +358,11 @@ async def start_scheduler():
                         report_time == current_hhmm
                         and last_report_dates.get(company.id) != today
                     ):
+                        # Kunlik hisobot ruxsat etilganligini tekshirish
+                        if getattr(company, "daily_report_enabled", True) is False:
+                            last_report_dates[company.id] = today
+                            continue
+
                         print(
                             f"[Scheduler] {company.name} — hisobot vaqti keldi "
                             f"({current_hhmm}). Yuborilmoqda..."

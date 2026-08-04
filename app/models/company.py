@@ -26,6 +26,13 @@ class Company(Base):
                         onupdate=lambda: datetime.now(timezone.utc))
     receipt_templates = Column(JSON, default=lambda: {"r58": {}, "r80": {}, "nak": {}})
     daily_report_time = Column(String(10), default="17:30")  # Kunlik hisobot yuborilish vaqti
+    
+    # ── Bildirishnomalar (Push Notifications) ──
+    low_stock_alert = Column(Boolean, default=True)
+    expiration_alert = Column(Boolean, default=True)
+    debt_deadline_alert = Column(Boolean, default=True)
+    daily_report_enabled = Column(Boolean, default=True)
+    daily_report_recipients = Column(String(50), default="owners_and_admins")
     # bot = relationship("CompanyBot", back_populates="company", uselist=False)
     # ── Billing ──────────────────────────────────────────────
     tariff_id = Column(Integer, ForeignKey("tariffs.id"), nullable=True)
