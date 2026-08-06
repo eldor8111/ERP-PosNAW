@@ -157,54 +157,66 @@ async def process_daily_debts():
 async def notify_managers_overdue():
     """Muddati o'tgan qarzdorlar haqida rahbarlarga xabar yuboradi."""
     db = SessionLocal()
-            try:
-                from app.admin_tg_bot.models import CompanyBot
-                from app.services.ai_service import build_daily_report
-                companies = db.query(Company).filter(Company.is_active == True).all()
-                for company in companies:
-                    # 1. FCM (Ilova) orqali yuborish
-                    fcm_report_time = getattr(company, "daily_report_time", None) or "17:30"
-                    if fcm_report_time == current_hhmm and getattr(company, "daily_report_enabled", True) is not False:
-                        if last_report_dates.get(f"{company.id}_fcm") != today:
-                            print(f"[Scheduler] {company.name} - ilova hisobot vaqti keldi ({current_hhmm}). Yuborilmoqda...")
-                            _send_fcm_to_managers(
-                                company=company,
-                                db=db,
-                                title=f"?? {company.name} - Kunlik Hisobot",
-                                body="Bugungi savdo hisoboti tayyor. Ko'rish uchun bosing.",
-                                data={"type": "daily_report", "company_id": str(company.id)},
-                            )
-                            last_report_dates[f"{company.id}_fcm"] = today
+    try:
+        today = date.today()
+        companies = db.query(Company).filter(Company.is_active == True).all()
 
-                    # 2. Telegram (Admin Bot) orqali yuborish
-                    admin_bot = db.query(CompanyBot).filter(
-                        CompanyBot.company_id == company.id,
-                        CompanyBot.bot_type == "admin",
-                        CompanyBot.is_active == True
-                    ).first()
-                    
-                    if admin_bot and admin_bot.notify_scheduled:
-                        tg_report_time = admin_bot.scheduled_time or "20:00"
-                        if tg_report_time == current_hhmm and last_report_dates.get(f"{company.id}_tg") != today:
-                            print(f"[Scheduler] {company.name} - Telegram hisobot vaqti keldi ({current_hhmm}). Yuborilmoqda...")
-                            try:
-                                report_text = build_daily_report(db, company.id, company.name)
-                            except Exception as e:
-                                report_text = f"?? <b>{company.name} - Kunlik Hisobot</b>\n\nXatolik yuz berdi."
-                                
-                            managers_tg = db.query(User).filter(
-                                User.company_id == company.id,
-                                User.role.in_([UserRole.admin, UserRole.director]),
-                                User.tg_chat_id.isnot(None),
-                            ).all()
-                            
-                            for manager in managers_tg:
-                                ok = await send_tg_msg_async(admin_bot.bot_token, manager.tg_chat_id, report_text)
-                                if ok:
-                                    print(f"[Scheduler][TG] Hisobot: {company.name} -> {manager.name}")
-                                    
-                            last_report_dates[f"{company.id}_tg"] = today
-            finally:
+        for company in companies:
+            if not company.tg_bot_token:
+                continue
+
+            # Agar qarz muddati bildirishnomasi o'chirilgan bo'lsa, rahbarlarga ham xabar yubormaslik
+            if company.debt_deadline_alert is False:
+                continue
+
+            overdue_sales = db.query(Sale).filter(
+                Sale.company_id == company.id,
+                Sale.status == SaleStatus.completed,
+                Sale.payment_type == PaymentType.debt,
+                Sale.paid_amount < Sale.total_amount,
+                Sale.debt_due_date < today,
+                Sale.debt_due_date.isnot(None)
+            ).all()
+
+            if not overdue_sales:
+                continue
+
+            total_overdue = sum(
+                float(s.total_amount or 0) - float(s.paid_amount or 0)
+                for s in overdue_sales
+            )
+
+            managers = db.query(User).filter(
+                User.company_id == company.id,
+                User.role.in_([UserRole.admin, UserRole.director]),
+                User.tg_chat_id.isnot(None)
+            ).all()
+
+            msg = (
+                f"🔴 <b>Muddati o'tgan qarzlar — {today.strftime('%d.%m.%Y')}</b>\n\n"
+                f"<b>{company.name}</b> do'konida:\n"
+                f"• Qarzdorlar soni: <b>{len(overdue_sales)} ta</b>\n"
+                f"• Umumiy qarz: <b>{total_overdue:,.0f} so'm</b>\n\n"
+                f"Iltimos, mijozlar bilan bog'laning!"
+            )
+
+            for manager in managers:
+                await send_tg_msg_async(company.tg_bot_token, manager.tg_chat_id, msg)
+
+            # FCM push ham yuborish
+            _send_fcm_to_managers(
+                company=company,
+                db=db,
+                title=f"⚠️ {company.name}: Muddati o'tgan qarzlar",
+                body=f"{len(overdue_sales)} ta mijozda jami {total_overdue:,.0f} so'm muddati o'tgan qarz bor.",
+                data={"type": "overdue_debt", "company_id": str(company.id)},
+            )
+
+        print("[Scheduler] Muddati o'tgan qarzlar haqida rahbarlarga xabar yuborildi")
+
+    except Exception as e:
+        print(f"[Scheduler] notify_managers_overdue xatolik: {e}")
+    finally:
         db.close()
 
 
@@ -346,24 +358,52 @@ async def start_scheduler():
             # (Telegram + FCM Push)
             db = SessionLocal()
             try:
+                from app.admin_tg_bot.models import CompanyBot
+                from app.services.ai_service import build_daily_report
                 companies = db.query(Company).filter(Company.is_active == True).all()
                 for company in companies:
-                    report_time = getattr(company, "daily_report_time", None) or "17:30"
-                    if (
-                        report_time == current_hhmm
-                        and last_report_dates.get(company.id) != today
-                    ):
-                        # Kunlik hisobot ruxsat etilganligini tekshirish
-                        if getattr(company, "daily_report_enabled", True) is False:
-                            last_report_dates[company.id] = today
-                            continue
+                    # 1. FCM (Ilova) orqali yuborish
+                    fcm_report_time = getattr(company, "daily_report_time", None) or "17:30"
+                    if fcm_report_time == current_hhmm and getattr(company, "daily_report_enabled", True) is not False:
+                        if last_report_dates.get(f"{company.id}_fcm") != today:
+                            print(f"[Scheduler] {company.name} - ilova hisobot vaqti keldi ({current_hhmm}). Yuborilmoqda...")
+                            _send_fcm_to_managers(
+                                company=company,
+                                db=db,
+                                title=f"📊 {company.name} - Kunlik Hisobot",
+                                body="Bugungi savdo hisoboti tayyor. Ko'rish uchun bosing.",
+                                data={"type": "daily_report", "company_id": str(company.id)},
+                            )
+                            last_report_dates[f"{company.id}_fcm"] = today
 
-                        print(
-                            f"[Scheduler] {company.name} — hisobot vaqti keldi "
-                            f"({current_hhmm}). Yuborilmoqda..."
-                        )
-                        await send_daily_report_for_company(company, db)
-                        last_report_dates[company.id] = today
+                    # 2. Telegram (Admin Bot) orqali yuborish
+                    admin_bot = db.query(CompanyBot).filter(
+                        CompanyBot.company_id == company.id,
+                        CompanyBot.bot_type == "admin",
+                        CompanyBot.is_active == True
+                    ).first()
+                    
+                    if admin_bot and admin_bot.notify_scheduled:
+                        tg_report_time = admin_bot.scheduled_time or "20:00"
+                        if tg_report_time == current_hhmm and last_report_dates.get(f"{company.id}_tg") != today:
+                            print(f"[Scheduler] {company.name} - Telegram hisobot vaqti keldi ({current_hhmm}). Yuborilmoqda...")
+                            try:
+                                report_text = build_daily_report(db, company.id, company.name)
+                            except Exception as e:
+                                report_text = f"📊 <b>{company.name} - Kunlik Hisobot</b>\n\nXatolik yuz berdi."
+                                
+                            managers_tg = db.query(User).filter(
+                                User.company_id == company.id,
+                                User.role.in_([UserRole.admin, UserRole.director]),
+                                User.tg_chat_id.isnot(None),
+                            ).all()
+                            
+                            for manager in managers_tg:
+                                ok = await send_tg_msg_async(admin_bot.bot_token, manager.tg_chat_id, report_text)
+                                if ok:
+                                    print(f"[Scheduler][TG] Hisobot: {company.name} -> {manager.name}")
+                                    
+                            last_report_dates[f"{company.id}_tg"] = today
             finally:
                 db.close()
 
