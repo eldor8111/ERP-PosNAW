@@ -176,7 +176,7 @@ const navigate = useNavigate();
     const handleKeyDown = (e) => {
       const isInput = ['INPUT', 'TEXTAREA'].includes(e.target.tagName);
       const currentTime = Date.now();
-      if (currentTime - lastKeyTime > 50) {
+      if (currentTime - lastKeyTime > 200) {
          barcodeBuffer = '';
       }
       lastKeyTime = currentTime;

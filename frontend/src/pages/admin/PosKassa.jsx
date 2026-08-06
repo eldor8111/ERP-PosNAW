@@ -164,11 +164,11 @@ const navigate = useNavigate();
   useEffect(() => {
     let buf = '';
     let lastTime = Date.now();
-    const handler = (e) => {
+    const handleKeyDown = (e) => {
       if (showCheckout || showNewProduct) return;
       const isInput = ['INPUT', 'TEXTAREA'].includes(e.target.tagName);
       const now = Date.now();
-      if (now - lastTime > 60) buf = '';
+      if (now - lastTime > 200) buf = '';
       lastTime = now;
 
       if (e.key === 'Enter') {
@@ -213,8 +213,8 @@ const navigate = useNavigate();
       }
       if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) buf += e.key;
     };
-    window.addEventListener('keydown', handler, true);
-    return () => window.removeEventListener('keydown', handler, true);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [products, showCheckout, showNewProduct]);
 
   // Yangi mahsulotni bazaga saqlash va savatga qo'shish
