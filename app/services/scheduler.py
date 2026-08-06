@@ -241,7 +241,14 @@ async def send_daily_report_for_company(company: Company, db):
         )
 
     # Telegram orqali
-    if company.tg_bot_token:
+    from app.admin_tg_bot.models import CompanyBot
+    admin_bot = db.query(CompanyBot).filter(
+        CompanyBot.company_id == company.id,
+        CompanyBot.bot_type == "admin",
+        CompanyBot.is_active == True
+    ).first()
+    
+    if admin_bot and admin_bot.bot_token:
         managers_tg = db.query(User).filter(
             User.company_id == company.id,
             User.role.in_([UserRole.admin, UserRole.director]),
@@ -249,9 +256,9 @@ async def send_daily_report_for_company(company: Company, db):
         ).all()
         for manager in managers_tg:
             ok = await send_tg_msg_async(
-                company.tg_bot_token,
+                admin_bot.bot_token,
                 manager.tg_chat_id,
-                report_text,
+                report_text
             )
             if ok:
                 print(f"[Scheduler][TG] Hisobot: {company.name} → {manager.name}")

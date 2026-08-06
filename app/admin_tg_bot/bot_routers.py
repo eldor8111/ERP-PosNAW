@@ -83,13 +83,6 @@ async def get_admin_bot(company_id: int, db: Session = Depends(get_db)):
 
 @admin_router.put("", response_model=CompanyBotOut)
 async def update_admin_bot(company_id: int, payload: CompanyBotCreate, db: Session = Depends(get_db)):
-    admin_bot = db.query(CompanyBot).filter(
-        CompanyBot.company_id == company_id,
-        CompanyBot.bot_type == "admin"
-    ).first()
-    if not admin_bot:
-        raise HTTPException(404, "Bu kompaniyaga admin bot ulanmagan")
-
     # Validate new token
     bot = Bot(token=payload.bot_token)
     try:
@@ -99,8 +92,24 @@ async def update_admin_bot(company_id: int, payload: CompanyBotCreate, db: Sessi
     finally:
         await bot.session.close()
 
-    admin_bot.bot_token = payload.bot_token
-    admin_bot.bot_username = me.username
+    admin_bot = db.query(CompanyBot).filter(
+        CompanyBot.company_id == company_id,
+        CompanyBot.bot_type == "admin"
+    ).first()
+    
+    if not admin_bot:
+        admin_bot = CompanyBot(
+            company_id=company_id,
+            bot_token=payload.bot_token,
+            bot_username=me.username,
+            bot_type="admin",
+            is_active=True,
+        )
+        db.add(admin_bot)
+    else:
+        admin_bot.bot_token = payload.bot_token
+        admin_bot.bot_username = me.username
+        
     db.commit()
     db.refresh(admin_bot)
     return admin_bot
