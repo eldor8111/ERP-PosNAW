@@ -76,16 +76,21 @@ def link_admin_by_phone(phone: str, tg_id: str, tg_full_name: str | None, compan
         normalized_phone = normalize_phone(phone)
         user = db.query(User).filter(User.phone.like(f"%{normalized_phone}"), User.company_id == company_id).first()
 
-        # Check if an admin is already registered
-        existing_admin = db.query(User).filter(User.company_id == company_id, User.tg_chat_id.isnot(None), User.role == UserRole.director).first()
-        if existing_admin and existing_admin.id != (user.id if user else 0):
-            return None, "already_registered"
-
         if not user:
             return None, "not_found"
 
-        if user.role != UserRole.director:
+        # Faqat admin yoki direktor ro'yxatdan o'ta oladi
+        if user.role not in (UserRole.director, UserRole.admin):
             return None, "not_allowed"
+
+        # Agar allaqachon boshqa birov (tg_chat_id bo'lgan) ro'yxatdan o'tgan bo'lsa — to'xtat
+        existing_registered = db.query(User).filter(
+            User.company_id == company_id,
+            User.tg_chat_id.isnot(None),
+            User.role.in_([UserRole.director, UserRole.admin])
+        ).first()
+        if existing_registered and existing_registered.id != user.id:
+            return None, "already_registered"
 
         if user.tg_chat_id and user.tg_chat_id != tg_id:
             return None, "already_linked"
@@ -114,17 +119,21 @@ def create_new_user(phone: str, tg_id: str, name: str, company_id: int, password
         if not company:
             return None, "company_not_found"
 
-        # Check if company already has a director
-        existing_director = db.query(User).filter(User.company_id == company_id, User.role == UserRole.director).first()
-        if existing_director:
-            return None, "director_exists"
+        # Agar allaqachon botdan biri ro'yxatdan o'tgan bo'lsa — to'xtat
+        existing_registered = db.query(User).filter(
+            User.company_id == company_id,
+            User.tg_chat_id.isnot(None),
+            User.role.in_([UserRole.director, UserRole.admin])
+        ).first()
+        if existing_registered:
+            return None, "already_registered"
 
-        # Create new user with director role
+        # Create new user with admin role
         user = User(
             name=name,
             phone=phone,
             hashed_password=hash_password(password),
-            role=UserRole.director,
+            role=UserRole.admin,
             company_id=company.id,
             tg_chat_id=tg_id,
             status="active"
@@ -319,8 +328,8 @@ async def handle_daily_report(message: Message, company_id: int) -> None:
         await message.answer("❌ Iltimos, avval ro'yxatdan o'ting.")
         return
 
-    if admin.role != UserRole.director:
-        await message.answer("❌ Kechirasiz, hisobotlarni faqat direktorlar ko'ra oladi.")
+    if admin.role not in (UserRole.director, UserRole.admin):
+        await message.answer("❌ Kechirasiz, hisobotlarni faqat rahbarlar ko'ra oladi.")
         return
 
     report = await asyncio.to_thread(get_daily_sales_report, company_id)
@@ -345,8 +354,8 @@ async def handle_monthly_report(message: Message, company_id: int) -> None:
         await message.answer("❌ Iltimos, avval ro'yxatdan o'ting.")
         return
 
-    if admin.role != UserRole.director:
-        await message.answer("❌ Kechirasiz, hisobotlarni faqat direktorlar ko'ra oladi.")
+    if admin.role not in (UserRole.director, UserRole.admin):
+        await message.answer("❌ Kechirasiz, hisobotlarni faqat rahbarlar ko'ra oladi.")
         return
 
     report = await asyncio.to_thread(get_monthly_sales_report, company_id)
@@ -379,32 +388,45 @@ async def process_contact(message: Message, state: FSMContext, company_id: int) 
         link_admin_by_phone, contact.phone_number, tg_id, message.from_user.full_name, company_id
     )
 
+    if status == "already_registered":
+        await message.answer(
+            "❌ Kompaniyangizda allaqachon biror kishi botdan ro'yxatdan o'tgan.\n"
+            "Faqat bitta rahbar ro'yxatdan o'ta oladi.",
+            reply_markup=ReplyKeyboardRemove(),
+        )
+        await state.clear()
+        return
+
     if status == "not_allowed":
         await message.answer(
-            "❌ Kechirasiz, ushbu botdan faqat kompaniya direktori foydalana oladi.",
+            "❌ Kechirasiz, ushbu botdan faqat kompaniya admini yoki direktori foydalana oladi.",
             reply_markup=ReplyKeyboardRemove(),
         )
         await state.clear()
         return
 
     if status == "not_found":
-        # Check if director already exists before starting new registration
+        # Allaqachon biri ro'yxatdan o'tganmi tekshir
         db = SessionLocal()
         try:
-            director_exists = db.query(User).filter(User.company_id == company_id,
-                                                    User.role == UserRole.director).first()
+            already_registered = db.query(User).filter(
+                User.company_id == company_id,
+                User.tg_chat_id.isnot(None),
+                User.role.in_([UserRole.director, UserRole.admin])
+            ).first()
         finally:
             db.close()
 
-        if director_exists:
+        if already_registered:
             await message.answer(
-                "❌ Kechirasiz, ushbu botdan faqat kompaniya direktori foydalana oladi va kompaniyada allaqachon direktor ro'yxatdan o'tgan.",
+                "❌ Kompaniyangizda allaqachon biror kishi botdan ro'yxatdan o'tgan.\n"
+                "Faqat bitta rahbar ro'yxatdan o'ta oladi.",
                 reply_markup=ReplyKeyboardRemove(),
             )
             await state.clear()
             return
 
-        # Start new registration process
+        # Yangi foydalanuvchi sifatida ro'yxatdan o'tish
         await state.update_data(phone=contact.phone_number)
         await state.set_state(RegisterStates.waiting_for_name)
         await message.answer(
@@ -482,9 +504,10 @@ async def process_password(message: Message, state: FSMContext, company_id: int)
         await state.clear()
         return
 
-    if status == "director_exists":
+    if status == "already_registered":
         await message.answer(
-            "❌ Kompaniyada allaqachon direktor mavjud. Siz yangi direktor bo'lib ro'yxatdan o'ta olmaysiz.",
+            "❌ Kompaniyangizda allaqachon biror kishi botdan ro'yxatdan o'tgan.\n"
+            "Faqat bitta rahbar ro'yxatdan o'ta oladi.",
             reply_markup=ReplyKeyboardRemove(),
         )
         await state.clear()

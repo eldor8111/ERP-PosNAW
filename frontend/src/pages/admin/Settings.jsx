@@ -7,6 +7,46 @@ import { Search, Zap } from 'lucide-react';
 import axios from 'axios';
 import { getFiscalModules } from '../../api/hippoLocal';
 
+// ── Default chek shablon konfiguratsiyalari ───────────────────────────────────
+const defaultReceiptCfg = {
+  company: '', address: '', phone: '', inn: '', logo: '', logo_size: 40,
+  header: '', footer: 'Xaridingiz uchun rahmat!',
+  show_number: true, show_date: true, show_status: false,
+  show_account_name: true, show_employee: true,
+  show_ordering_number: false, show_unit: false, show_warehouse: false,
+  show_package: false, show_price_per_unit: true, show_discount: true,
+  show_price_with_discount: false, show_currency: false,
+  show_total: true, show_net_price: false, show_total_quantity: false,
+  show_total_national: false, show_payment_type: true,
+  show_debt: true, show_before_debt: false, show_last_payment: false,
+  show_note: false, show_contractor_contact: false,
+  show_cashier: true, show_barcode: false, show_qr: false,
+  copies: '1',
+};
+
+const defaultNakladnoyCfg = {
+  company: '', inn: '', address: '', phone: '', logo: '', logo_size: 50,
+  logo_position: 'center', bank: '', account: '', mfo: '',
+  director: '', accountant: '', storekeeper: '', footer_note: '',
+  show_contractor_name: true, show_account_name: true,
+  show_account_username: false, show_employee: true,
+  show_status: false, show_number: true, show_date: true,
+  show_ordering_number: true, show_measurement: true,
+  show_package: false, show_quantity_in_package: false,
+  show_price: true, show_discount: false, show_price_with_discount: false,
+  show_currency: false, show_net_price: false, show_warehouse: false,
+  show_sku: false, show_image: false, show_category: false,
+  show_totals: true, show_total_national: false, show_total_quantity: false,
+  show_total_quantity_package: false, show_payment_amounts: true,
+  show_exact_discounts: false, show_percent_discount: false,
+  show_contractor_debts: false, show_before_debts: false,
+  show_last_payment: false, show_debts: false,
+  show_contractor_contacts: false, show_note: false,
+  show_director: true, show_accountant: false, show_storekeeper: false,
+};
+
+
+
 // ── Valyutalar tab ────────────────────────────────────────────────────────────
 function CurrenciesTab() {
   const { t } = useLang();
