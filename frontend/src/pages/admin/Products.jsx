@@ -1597,10 +1597,10 @@ export default function Products() {
         // PLU satri (A_150.TMS ga aynan mos):
         // 4-ustun: bo'sh qoldiriladi
         // 5-ustun: Barcode turi 0 (Tarozi sozlamasidagi tayyor 'System Default' ni ishlatadi)
-        // 15-ustun (Label Format): 11000 (Dasturdagi 60x40mm standart shtrixkodli zavod formati)
+        // 15-ustun (Label Format): 0
         const row = [
           'PLU', plu, plu, '', 0, price, '0,0', '0,0',
-          0, 0, 0, 0, 0, 0, 11000, name,
+          0, 0, 0, 0, 0, 0, 0, name,
           '', '', '', '', '', '', '', '',
           0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
           '0,0', '0,0', 0, 127, '0,0', '0,0', '0,0', 0,
