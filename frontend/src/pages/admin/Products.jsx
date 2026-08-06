@@ -1596,11 +1596,12 @@ export default function Products() {
         const price = priceRaw.toFixed(1).replace('.', ',');
 
         // PLU satri (A_150.TMS ga aynan mos):
-        // 4-ustun (barcode) = barcode qiymati
-        // 5-ustun (barcode turi) = 0 (Tarozi o'zining standart sozlamasini ishlatadi. 3 bo'lsa ba'zida xato beradi)
+        // 4-ustun: bo'sh qoldiriladi (aks holda tarozi xato berishi mumkin)
+        // 5-ustun: Barcode turini (3) qaytaramiz.
+        // 15-ustun (Label Format): 9 o'rniga 0 (tarozining standart formati) qilamiz, shu orqali shtrixkod chiqishi ehtimoli oshadi.
         const row = [
-          'PLU', plu, plu, barcode, 0, price, '0,0', '0,0',
-          0, 0, 0, 0, 0, 0, 9, name,
+          'PLU', plu, plu, '', 3, price, '0,0', '0,0',
+          0, 0, 0, 0, 0, 0, 0, name,
           '', '', '', '', '', '', '', '',
           0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
           '0,0', '0,0', 0, 127, '0,0', '0,0', '0,0', 0,
