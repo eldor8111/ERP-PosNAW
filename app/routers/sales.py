@@ -128,7 +128,7 @@ def make_sale(
     # Header bo'lmasa — xato ko'tarilmaydi, sotuv normal saqlanadi.
     _factory_id = request.headers.get("X-Hippo-Factory-Id", "").strip()
     if _factory_id:
-        background_tasks.add_task(fiscalize_sale, db, sale.id, _factory_id)
+        background_tasks.add_task(fiscalize_sale, db, sale.id, _factory_id)  # type: ignore[arg-type]
     # ─────────────────────────────────────────────────────────────────────────
 
     return SaleListOut(
