@@ -1560,73 +1560,60 @@ export default function Products() {
         return;
       }
 
-      // TM-A xA haqiqiy .TMS fayl formati (A_150.TMS asosida)
-      // Tab bilan ajratilgan, PLU satri: PLU\tid\tid\t\t3\tnarx,0\t0,0\t0,0\t0\t0\t0\t0\t0\t0\t9\tnom\t...
-      // Barcode type 3 => tarozi EAN-13: 2 + PLU(5) + og'irlik(5) + check(1)
-      // PLU raqami = mahsulot ID (tarozi shu raqamni barcodega yozadi)
-      const T = '\t'; // tab
+      // Sotuvchi taqdim etgan format (taroz_kod.txt)
+      // FILE_PLU#S;#@Number#S;#@Name#S;#S;#@Price#S;#S;#S;#S;#@ItemCode
+      const separator = '#S;';
       const lines = [];
+      
+      // Sarlavha (Zavod bergan kod)
+      lines.push(`FILE_PLU${separator}#@Number${separator}#@Name${separator}${separator}#@Price${separator}${separator}${separator}${separator}#@ItemCode`);
 
-      lines.push('');
-      lines.push(`ECS${T}VER${T}100${T}`);
-      lines.push(`DWL${T}PLU${T}`);
-
-      filteredData.forEach((prod, idx) => {
-        // PLU raqami: artikul (SKU) dan faqat raqamlar ishlatiladi, yo'q bo'lsa ID
-        const rawPlu = prod.sku && prod.sku.trim()
-          ? prod.sku.trim().replace(/\D/g, '')  // SKU dan faqat raqamlar
-          : String(prod.id);
+      filteredData.forEach((prod, index) => {
+        const number = index + 1; // 1 dan boshlanadi
         
-        // Taroziga tushadigan PLU (Shtrix-M da bo'lgani kabi 5 xonali qilinadi, chunki Barcode turi buni talab qiladi)
-        const plu = rawPlu ? rawPlu.slice(-5).padStart(5, '0') : String(prod.id).padStart(5, '0');
-        
-        // Agar maxsus barkod bo'lsa uni olamiz, yo'qsa PLU ni o'zini qo'yamiz.
-        const barcode = prod.barcode && prod.barcode.trim() ? prod.barcode.trim() : plu;
-
-
-        // Nom: tab va maxsus belgilarni tozalash
+        // Ism (bo'shliq, enterni tozalash)
         const name = (prod.name || 'Nomsiz')
-          .replace(/[\t\r\n]/g, ' ')
+          .replace(/[\t\r\n#;]/g, ' ')
           .trim()
           .substring(0, 28);
 
-        // Narx: vergul bilan kasrli (15000,0 shaklida) - taroziga mos
+        // Narx (tarozi dasturi tushunishi uchun nuqta bilan yozamiz)
         const priceRaw = prod.sale_price ? parseFloat(prod.sale_price) : 0;
-        const price = priceRaw.toFixed(1).replace('.', ',');
+        const price = priceRaw.toFixed(2);
 
-        // PLU satri (A_150.TMS ga aynan mos):
-        // 4-ustun: bo'sh qoldiriladi
-        // 5-ustun: Barcode turi 0 (Tarozi sozlamasidagi tayyor 'System Default' ni ishlatadi)
-        // 15-ustun (Label Format): 28 (Foydalanuvchining o'z kompyuterida tayyorlagan va shtrixkodi bor aniq formati)
+        // ItemCode (5 xonali raqam, shtrixkod shu asosda shakllanadi)
+        const rawPlu = prod.sku && prod.sku.trim()
+          ? prod.sku.trim().replace(/\D/g, '')
+          : String(prod.id);
+        const itemCode = rawPlu ? rawPlu.slice(-5).padStart(5, '0') : String(prod.id).padStart(5, '0');
+
+        // Qatorni yig'ish: FILE_PLU, Number, Name, (empty), Price, (empty), (empty), (empty), ItemCode
         const row = [
-          'PLU', plu, plu, '', 0, price, '0,0', '0,0',
-          0, 0, 0, 0, 0, 0, 28, name,
-          '', '', '', '', '', '', '', '',
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          '0,0', '0,0', 0, 127, '0,0', '0,0', '0,0', 0,
-          127, '0,0', '0,0', '0,0', 0,
-          127, '0,0', '0,0', '0,0', 0,
-          127, '0,0', '0,0', '0,0', 0,
-          0, 0, 0, 0, 0, 0, '', 0, 0, 0, ''
-        ].join(T);
+          'FILE_PLU',
+          number,
+          name,
+          '',
+          price,
+          '',
+          '',
+          '',
+          itemCode
+        ].join(separator);
+
         lines.push(row);
       });
 
-      lines.push(`END${T}PLU${T}`);
-      lines.push(`END${T}ECS${T}`);
-      lines.push('');
-
-      const tmsContent = lines.join('\r\n');
-      const blob = new Blob([tmsContent], { type: 'text/plain;charset=utf-8' });
+      const txtContent = lines.join('\r\n');
+      const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', 'A_000.TMS');
+      link.setAttribute('download', 'TMA_import.txt');
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-      toast.success(`${filteredData.length} ta mahsulot A_000.TMS ga eksport qilindi!`);
+      toast.success(`${filteredData.length} ta mahsulot TMA_import.txt ga eksport qilindi!`);
     } catch (error) {
       toast.error("Eksport qilishda xatolik yuz berdi");
     }
