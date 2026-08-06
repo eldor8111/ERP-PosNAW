@@ -206,7 +206,11 @@ const navigate = useNavigate();
               const weightGram = parseInt(scannedCode.substring(7, 12), 10) || 0;
               const weightKg = weightGram / 1000;
               
-              const scaleProduct = products.find(p => p.sku === itemCode || p.barcode === itemCode);
+              const scaleProduct = products.find(p => {
+                const rawPlu = p.sku && String(p.sku).trim() ? String(p.sku).trim().replace(/\\D/g, '') : String(p.id);
+                const pCode = rawPlu ? rawPlu.slice(-5).padStart(5, '0') : String(p.id).padStart(5, '0');
+                return pCode === itemCode || p.barcode === itemCode;
+              });
               if (scaleProduct) {
                  setCart(prev => {
                    const ex = prev.find(x => x.product_id === scaleProduct.id);

@@ -177,6 +177,25 @@ const navigate = useNavigate();
            const code = buf;
            buf = '';
            if (isInput) e.target.blur();
+
+           // Tarozi barkodi logikasi
+           if (code.length === 13 && (code.startsWith('21') || code.startsWith('22'))) {
+             const itemCode = code.substring(2, 7);
+             const weightGram = parseInt(code.substring(7, 12), 10) || 0;
+             const weightKg = weightGram / 1000;
+             
+             const scaleProduct = products.find(x => {
+               const rawPlu = x.sku && String(x.sku).trim() ? String(x.sku).trim().replace(/\\D/g, '') : String(x.id);
+               const pCode = rawPlu ? rawPlu.slice(-5).padStart(5, '0') : String(x.id).padStart(5, '0');
+               return pCode === itemCode || x.barcode === itemCode;
+             });
+             
+             if (scaleProduct) {
+               addToCart(scaleProduct, weightKg);
+               return;
+             }
+           }
+
            const p = products.find(x =>
              x.barcode === code ||
              x.sku === code ||
@@ -246,12 +265,12 @@ const navigate = useNavigate();
   }, [filteredProducts, search, activeCat]);
 
   // Savat boshqaruvi
-  const addToCart = (p) => {
+  const addToCart = (p, overrideQty) => {
     setCart(prev => {
       const idx = prev.findIndex(x => x.product_id === p.id);
       if (idx >= 0) {
         const next = [...prev];
-        next[idx].qty_ordered += 1;
+        next[idx].qty_ordered += overrideQty !== undefined ? overrideQty : 1;
         return next;
       }
       return [{
