@@ -1577,9 +1577,8 @@ export default function Products() {
           ? prod.sku.trim().replace(/\D/g, '')  // SKU dan faqat raqamlar
           : String(prod.id);
         
-        // Taroziga tushadigan PLU (faqat raqam).
-        // Tarozi o'zi kerakli formatga moslaydi.
-        const plu = rawPlu || String(prod.id);
+        // Taroziga tushadigan PLU (Shtrix-M da bo'lgani kabi 5 xonali qilinadi, chunki Barcode turi buni talab qiladi)
+        const plu = rawPlu ? rawPlu.slice(-5).padStart(5, '0') : String(prod.id).padStart(5, '0');
         
         // Agar maxsus barkod bo'lsa uni olamiz, yo'qsa PLU ni o'zini qo'yamiz.
         const barcode = prod.barcode && prod.barcode.trim() ? prod.barcode.trim() : plu;
@@ -1596,11 +1595,11 @@ export default function Products() {
         const price = priceRaw.toFixed(1).replace('.', ',');
 
         // PLU satri (A_150.TMS ga aynan mos):
-        // 4-ustun: bo'sh qoldiriladi (aks holda tarozi xato berishi mumkin)
-        // 5-ustun: Barcode turini 0 (Tarozi o'zining standart sozlamasini ishlatadi) qilamiz. 3 ko'pincha 6-xonali PLU kutadi.
+        // 4-ustun: bo'sh qoldiriladi
+        // 5-ustun: Barcode turi 2 (5-xonali kod + og'irlik formati EAN-13)
         // 15-ustun (Label Format): 0
         const row = [
-          'PLU', plu, plu, '', 0, price, '0,0', '0,0',
+          'PLU', plu, plu, '', 2, price, '0,0', '0,0',
           0, 0, 0, 0, 0, 0, 0, name,
           '', '', '', '', '', '', '', '',
           0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
