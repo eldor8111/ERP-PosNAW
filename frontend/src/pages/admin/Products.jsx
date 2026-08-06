@@ -1573,10 +1573,16 @@ export default function Products() {
 
       filteredData.forEach((prod, idx) => {
         // PLU raqami: artikul (SKU) dan faqat raqamlar ishlatiladi, yo'q bo'lsa ID
+        // TM-A tarozi EAN-13 = "2" + PLU(5 xona) + og'irlik(5) + tekshiruv(1)
+        // PLU ALBATTA 5 xonali bo'lishi kerak, aks holda barkod noto'g'ri shakllanadi!
         const rawPlu = prod.sku && prod.sku.trim()
           ? prod.sku.trim().replace(/\D/g, '')  // SKU dan faqat raqamlar
           : String(prod.id);
-        const plu = rawPlu || String(prod.id);  // bo'sh bo'lsa ID ga qaytamiz
+        const pluDigits = rawPlu || String(prod.id);  // bo'sh bo'lsa ID ga qaytamiz
+        // 5 xonali qilish: 5 dan uzun bo'lsa oxirgi 5 raqam, qisqa bo'lsa olddan 0 qo'shiladi
+        const plu = pluDigits.length > 5
+          ? pluDigits.slice(-5)
+          : pluDigits.padStart(5, '0');
 
 
         // Nom: tab va maxsus belgilarni tozalash
