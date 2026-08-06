@@ -541,7 +541,7 @@ function TelegramBotTab({ companyId }) {
       }
     }).catch(e => toast.error(e.response?.data?.detail || e.message));
 
-    api.get(/companies//admin-bot).then(r => {
+    api.get(`/companies/${companyId}/admin-bot`).then(r => {
       if (r.data?.bot_token) {
         setAdminBot({ bot_token: r.data.bot_token, bot_username: r.data.bot_username });
       }
@@ -561,7 +561,7 @@ function TelegramBotTab({ companyId }) {
     if (botType === "admin") {
       setSaving(true); setErr('');
       try {
-        const res = await api.put(/companies//admin-bot, { bot_token: token });
+        const res = await api.put(`/companies/${companyId}/admin-bot`, { bot_token: token });
         toast.success('Admin bot ulandi!');
         setAdminBot({ bot_token: res.data?.bot_token, bot_username: res.data?.bot_username });
         setToken('');
@@ -574,7 +574,7 @@ function TelegramBotTab({ companyId }) {
     } else {
       setSaving(true); setErr('');
       try {
-        const res = await api.put(/companies/, { tg_bot_token: token });
+        const res = await api.put(`/companies/${companyId}`, { tg_bot_token: token });
         toast.success('Mijoz boti ulandi!');
         setUserBot({ bot_token: res.data?.tg_bot_token, bot_username: res.data?.tg_bot_username });
         setToken('');
@@ -591,11 +591,11 @@ function TelegramBotTab({ companyId }) {
     if (!confirm("Tasdiqlaysizmi? Bot uzilib, xabarlar to'xtatiladi.")) return;
     try {
       if (type === 'admin') {
-         await api.delete(/companies//admin-bot);
+         await api.delete(`/companies/${companyId}/admin-bot`);
          setAdminBot(null);
          toast.success("Admin bot uzib qo'yildi.");
       } else {
-         await api.put(/companies/, { tg_bot_token: null });
+         await api.put(`/companies/${companyId}`, { tg_bot_token: null });
          setUserBot(null);
          toast.success("Mijoz bot uzib qo'yildi.");
       }
@@ -1832,5 +1832,6 @@ export default function Settings() {
     </div>
   );
 }
+
 
 
