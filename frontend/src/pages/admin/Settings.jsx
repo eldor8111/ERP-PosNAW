@@ -558,7 +558,166 @@ function PasswordTab() {
 
 // ── Telegram Bot Tab ───────────────────────────────────────────────────────────
 const TG_PATH = "M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a5.962 5.962 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.699 1.201-1.22 1.28-.106.016-.215.023-.324.023-.329 0-.655-.078-.962-.23-.09-.045-2.072-1.373-2.91-2.133-.255-.23-.55-.664-.047-1.12.13-.12 2.4-2.2 4.414-4.043.203-.186.417-.384.417-.61 0-.306-.275-.417-.463-.384l-.536.09-5.694 3.447c-.382.235-.905.39-1.424.39-.17 0-.339-.022-.505-.065L4.053 12.55c-.71-.225-.71-.708.15-1.047 2.768-1.196 9.2-3.953 11.233-4.279.172-.027.35-.042.508-.042z";
-const TG_ICON_SM = <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH} /></svg>;
+
+function ToggleSwitch({ checked, onChange, disabled = false }) {
+  return (
+    <button
+      type="button"
+      onClick={() => !disabled && onChange(!checked)}
+      disabled={disabled}
+      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none shrink-0
+        ${checked ? 'bg-indigo-500' : 'bg-slate-200'}
+        ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+    >
+      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
+    </button>
+  );
+}
+
+function AdminBotSettings({ companyId, onClose }) {
+  const [settings, setSettings] = useState({
+    notify_instant_sales: true,
+    notify_instant_finance: true,
+    notify_scheduled: false,
+    scheduled_time: '21:00',
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    api.get(`/companies/${companyId}/admin-bot`)
+      .then(r => {
+        setSettings({
+          notify_instant_sales:   r.data.notify_instant_sales   ?? true,
+          notify_instant_finance: r.data.notify_instant_finance ?? true,
+          notify_scheduled:       r.data.notify_scheduled       ?? false,
+          scheduled_time:         r.data.scheduled_time         ?? '21:00',
+        });
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [companyId]);
+
+  const upd = (key, val) => setSettings(s => ({ ...s, [key]: val }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.put(`/companies/${companyId}/admin-bot/settings`, settings);
+      setSaved(true);
+      setTimeout(() => { setSaved(false); }, 2500);
+      toast.success('Sozlamalar saqlandi!');
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Xatolik yuz berdi');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return (
+    <div className="py-8 text-center text-slate-400 text-sm animate-pulse">Yuklanmoqda...</div>
+  );
+
+  return (
+    <div className="space-y-4 pt-4 border-t border-slate-100 mt-4">
+      <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Bot sozlamalari</p>
+
+      {/* === Joyida yuborish === */}
+      <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-base">⚡</span>
+              <p className="text-sm font-bold text-slate-800">Joyida yuborish</p>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5 ml-6">
+              Har bir operatsiya sodir bo'lganda darhol xabar yuboriladi
+            </p>
+          </div>
+          <ToggleSwitch
+            checked={settings.notify_instant_sales || settings.notify_instant_finance}
+            onChange={(v) => { upd('notify_instant_sales', v); upd('notify_instant_finance', v); }}
+          />
+        </div>
+
+        {/* Sub toggles */}
+        {(settings.notify_instant_sales || settings.notify_instant_finance) && (
+          <div className="ml-6 space-y-2 pt-2 border-t border-slate-200">
+            <label className="flex items-center justify-between gap-3 cursor-pointer">
+              <div>
+                <p className="text-xs font-semibold text-slate-700">🛒 Yangi sotuv</p>
+                <p className="text-[11px] text-slate-400">Sotuv amalga oshganda xabar yuborilsin</p>
+              </div>
+              <ToggleSwitch checked={settings.notify_instant_sales} onChange={v => upd('notify_instant_sales', v)} />
+            </label>
+            <label className="flex items-center justify-between gap-3 cursor-pointer">
+              <div>
+                <p className="text-xs font-semibold text-slate-700">💰 Moliyaviy operatsiyalar</p>
+                <p className="text-[11px] text-slate-400">Qarz berish, to'lov qabul qilish va boshqalar</p>
+              </div>
+              <ToggleSwitch checked={settings.notify_instant_finance} onChange={v => upd('notify_instant_finance', v)} />
+            </label>
+          </div>
+        )}
+      </div>
+
+      {/* === Kunlik hisobot === */}
+      <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-base">📊</span>
+              <p className="text-sm font-bold text-slate-800">Kunlik hisobot</p>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5 ml-6">
+              Har kuni belgilangan vaqtda umumiy kunlik hisobot yuboriladi
+            </p>
+          </div>
+          <ToggleSwitch checked={settings.notify_scheduled} onChange={v => upd('notify_scheduled', v)} />
+        </div>
+
+        {/* Vaqt input */}
+        {settings.notify_scheduled && (
+          <div className="ml-6 pt-3 border-t border-slate-200">
+            <label className="block text-xs font-bold text-slate-600 mb-2">
+              🕐 Yuborish vaqti
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                type="time"
+                value={settings.scheduled_time}
+                onChange={e => upd('scheduled_time', e.target.value)}
+                className="px-3 py-2 border border-indigo-200 rounded-xl text-sm font-mono font-bold text-indigo-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 w-32"
+              />
+              <p className="text-xs text-slate-400">
+                Har kuni soat <span className="font-bold text-slate-600">{settings.scheduled_time}</span> da hisobot yuboriladi
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Saqlash */}
+      <div className="flex items-center justify-between pt-1">
+        {saved && (
+          <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-semibold">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            Saqlandi!
+          </span>
+        )}
+        {!saved && <span />}
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors"
+        >
+          {saving ? 'Saqlanmoqda...' : 'Saqlash'}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function TelegramBotTab({ companyId }) {
   const [userBot, setUserBot] = useState(null);
@@ -568,6 +727,7 @@ function TelegramBotTab({ companyId }) {
   const [token, setToken] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+  const [showAdminSettings, setShowAdminSettings] = useState(false);
 
   const load = () => {
     api.get('/companies').then(r => {
@@ -582,12 +742,16 @@ function TelegramBotTab({ companyId }) {
     }).catch(e => toast.error(e.response?.data?.detail || e.message));
 
     api.get(`/companies/${companyId}/admin-bot`).then(r => {
-      if (r.data?.bot_token) {
-        setAdminBot({ bot_token: r.data.bot_token, bot_username: r.data.bot_username });
+      if (r.data?.bot_username) {
+        setAdminBot(r.data);
+      } else {
+        setAdminBot(null);
       }
     }).catch(e => {
        if (e.response?.status !== 404) {
           toast.error(e.response?.data?.detail || e.message);
+       } else {
+         setAdminBot(null);
        }
     });
   };
@@ -603,7 +767,7 @@ function TelegramBotTab({ companyId }) {
       try {
         const res = await api.put(`/companies/${companyId}/admin-bot`, { bot_token: token });
         toast.success('Admin bot ulandi!');
-        setAdminBot({ bot_token: res.data?.bot_token, bot_username: res.data?.bot_username });
+        setAdminBot(res.data);
         setToken('');
         setShowModal(false);
       } catch (error) {
@@ -633,6 +797,7 @@ function TelegramBotTab({ companyId }) {
       if (type === 'admin') {
          await api.delete(`/companies/${companyId}/admin-bot`);
          setAdminBot(null);
+         setShowAdminSettings(false);
          toast.success("Admin bot uzib qo'yildi.");
       } else {
          await api.put(`/companies/${companyId}`, { tg_bot_token: null });
@@ -644,67 +809,6 @@ function TelegramBotTab({ companyId }) {
     }
   };
 
-  const BotCard = ({ title, subtitle, botData, type }) => (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-      <div className="flex items-start justify-between mb-4">
-        <div>
-          <h4 className="font-bold text-slate-800">{title}</h4>
-          <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>
-        </div>
-        {!botData?.bot_username ? (
-          <button
-            onClick={() => { setBotType(type); setShowModal(true); setErr(''); setToken(''); }}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-xs font-semibold rounded-lg transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            Ulash
-          </button>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-md">
-            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />Faol
-          </span>
-        )}
-      </div>
-
-      {botData?.bot_username ? (
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
-             <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-blue-500">
-               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH} /></svg>
-             </div>
-             <div className="flex-1 min-w-0">
-               <a href={'https://t.me/' + botData.bot_username} target="_blank" rel="noreferrer" className="text-sm font-bold text-blue-600 hover:underline">
-                 @{botData.bot_username}
-               </a>
-               <div className="flex items-center gap-2 mt-0.5">
-                   <p className="text-xs text-slate-400 font-mono truncate max-w-[150px]" title={botData.bot_token}>{botData.bot_token}</p>
-                   <button onClick={() => { navigator.clipboard.writeText(botData.bot_token); toast.success('Nusxalandi!'); }}
-                      title="Nusxalash" className="text-slate-300 hover:text-indigo-500 shrink-0 transition-colors">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                   </button>
-               </div>
-             </div>
-          </div>
-          <div className="flex gap-2 pt-2 border-t border-slate-50 mt-4">
-             <button onClick={() => { setBotType(type); setShowModal(true); setErr(''); setToken(''); }}
-                className="flex-1 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg transition-colors">
-                Yangilash
-             </button>
-             <button onClick={() => handleDelete(type)}
-                className="flex-1 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-lg transition-colors">
-                O'chirish
-             </button>
-          </div>
-        </div>
-      ) : (
-        <div className="py-6 flex flex-col items-center justify-center border-2 border-dashed border-slate-100 rounded-xl bg-slate-50/50 mt-4">
-           <svg className="w-8 h-8 text-slate-300 mb-2" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH} /></svg>
-           <p className="text-sm font-medium text-slate-500">Bot ulanmagan</p>
-        </div>
-      )}
-    </div>
-  );
-
   return (
     <div className="space-y-6">
       <div>
@@ -712,19 +816,114 @@ function TelegramBotTab({ companyId }) {
         <p className="text-xs text-slate-400 mt-0.5">Mijozlar va rahbarlar uchun botlarni alohida boshqarish</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <BotCard 
-          title="Mijoz boti" 
-          subtitle="Chegirma, aksiya va xarid xabarlarini yuborish uchun" 
-          botData={userBot} 
-          type="user" 
-        />
-        <BotCard 
-          title="Admin boti" 
-          subtitle="Rahbarlar uchun kunlik hisobot va ogohlantirishlar uchun" 
-          botData={adminBot} 
-          type="admin" 
-        />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+
+        {/* ── Mijoz boti ── */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h4 className="font-bold text-slate-800">Mijoz boti</h4>
+              <p className="text-xs text-slate-400 mt-0.5">Chegirma, aksiya va xarid xabarlarini yuborish uchun</p>
+            </div>
+            {!userBot?.bot_username ? (
+              <button
+                onClick={() => { setBotType('user'); setShowModal(true); setErr(''); setToken(''); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-xs font-semibold rounded-lg transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                Ulash
+              </button>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-md">
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />Faol
+              </span>
+            )}
+          </div>
+          {userBot?.bot_username ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-blue-500">
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH} /></svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <a href={'https://t.me/' + userBot.bot_username} target="_blank" rel="noreferrer" className="text-sm font-bold text-blue-600 hover:underline">@{userBot.bot_username}</a>
+                </div>
+              </div>
+              <div className="flex gap-2 pt-2 border-t border-slate-50">
+                <button onClick={() => { setBotType('user'); setShowModal(true); setErr(''); setToken(''); }}
+                  className="flex-1 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg transition-colors">Yangilash</button>
+                <button onClick={() => handleDelete('user')}
+                  className="flex-1 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-lg transition-colors">O'chirish</button>
+              </div>
+            </div>
+          ) : (
+            <div className="py-6 flex flex-col items-center justify-center border-2 border-dashed border-slate-100 rounded-xl bg-slate-50/50 mt-4">
+              <svg className="w-8 h-8 text-slate-300 mb-2" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH} /></svg>
+              <p className="text-sm font-medium text-slate-500">Bot ulanmagan</p>
+            </div>
+          )}
+        </div>
+
+        {/* ── Admin boti ── */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h4 className="font-bold text-slate-800">Admin boti</h4>
+              <p className="text-xs text-slate-400 mt-0.5">Rahbarlar uchun hisobot va ogohlantirishlar</p>
+            </div>
+            {!adminBot?.bot_username ? (
+              <button
+                onClick={() => { setBotType('admin'); setShowModal(true); setErr(''); setToken(''); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-xs font-semibold rounded-lg transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                Ulash
+              </button>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-md">
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />Faol
+              </span>
+            )}
+          </div>
+
+          {adminBot?.bot_username ? (
+            <div className="space-y-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-blue-500">
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH} /></svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <a href={'https://t.me/' + adminBot.bot_username} target="_blank" rel="noreferrer" className="text-sm font-bold text-blue-600 hover:underline">@{adminBot.bot_username}</a>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-3 mt-3 border-t border-slate-50">
+                <button
+                  onClick={() => setShowAdminSettings(v => !v)}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold rounded-lg transition-colors
+                    ${showAdminSettings ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Sozlamalar
+                </button>
+                <button onClick={() => { setBotType('admin'); setShowModal(true); setErr(''); setToken(''); }}
+                  className="flex-1 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg transition-colors">Yangilash</button>
+                <button onClick={() => handleDelete('admin')}
+                  className="flex-1 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-lg transition-colors">O'chirish</button>
+              </div>
+
+              {showAdminSettings && <AdminBotSettings companyId={companyId} />}
+            </div>
+          ) : (
+            <div className="py-6 flex flex-col items-center justify-center border-2 border-dashed border-slate-100 rounded-xl bg-slate-50/50 mt-4">
+              <svg className="w-8 h-8 text-slate-300 mb-2" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH} /></svg>
+              <p className="text-sm font-medium text-slate-500">Bot ulanmagan</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {showModal && (
@@ -744,21 +943,17 @@ function TelegramBotTab({ companyId }) {
                 </svg>
               </button>
             </div>
-
             <form onSubmit={handleSave} className="space-y-4">
               <div>
                 <label className="block text-[13px] font-bold text-slate-700 mb-1.5">Bot Token</label>
                 <input
-                  type="text"
-                  required
-                  value={token}
+                  type="text" required value={token}
                   onChange={e => setToken(e.target.value)}
                   placeholder="1234567890:AAH_abcxyz..."
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-mono transition-all"
                 />
                 <p className="text-xs text-slate-400 mt-1.5">@BotFather orqali olingan API tokenni kiriting</p>
               </div>
-
               {err && (
                 <div className="p-3 bg-red-50 rounded-xl flex gap-2 text-red-600 text-sm">
                   <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -767,10 +962,8 @@ function TelegramBotTab({ companyId }) {
                   <p>{err}</p>
                 </div>
               )}
-
               <button
-                type="submit"
-                disabled={saving || !token.trim()}
+                type="submit" disabled={saving || !token.trim()}
                 className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-sm rounded-xl transition-colors"
               >
                 {saving ? 'Saqlanmoqda...' : 'Saqlash'}

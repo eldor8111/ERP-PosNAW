@@ -17,36 +17,39 @@ async def send_instant_notification(company_id: int, message_text: str, notif_ty
             CompanyBot.bot_type == "admin",
             CompanyBot.is_active == True
         ).first()
-        
+
         if not admin_bot:
             return
-            
+
         # Check settings
         if notif_type == 'sale' and not admin_bot.notify_instant_sales:
             return
         if notif_type == 'finance' and not admin_bot.notify_instant_finance:
             return
-            
-        admin = db.query(User).filter(
+
+        # Admin yoki director rolida bo'lib, tg_chat_id si bo'lgan barcha foydalanuvchilarga yuborish
+        recipients = db.query(User).filter(
             User.company_id == company_id,
             User.tg_chat_id.isnot(None),
-            User.role == UserRole.director
-        ).first()
-        
-        if not admin or not admin.tg_chat_id:
+            User.role.in_([UserRole.director, UserRole.admin])
+        ).all()
+
+        if not recipients:
             return
-            
+
         bot = Bot(
             token=admin_bot.bot_token,
             default=DefaultBotProperties(parse_mode=ParseMode.HTML)
         )
         try:
-            await bot.send_message(chat_id=admin.tg_chat_id, text=message_text)
-        except Exception as e:
-            print(f"Error sending instant notification: {e}")
+            for user in recipients:
+                try:
+                    await bot.send_message(chat_id=user.tg_chat_id, text=message_text)
+                except Exception as e:
+                    print(f"Error sending to {user.tg_chat_id}: {e}")
         finally:
             await bot.session.close()
-            
+
     finally:
         db.close()
 
