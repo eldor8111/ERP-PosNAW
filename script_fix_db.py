@@ -2,7 +2,7 @@ from sqlalchemy import create_engine, text
 from app.config import settings
 
 # Construct the exact database URL from settings
-db_url = f"postgresql://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
+db_url = settings.DATABASE_URL
 engine = create_engine(db_url)
 
 with engine.begin() as conn:
