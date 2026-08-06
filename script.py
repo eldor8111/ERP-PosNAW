@@ -1,11 +1,9 @@
-import os
 import re
 
-versions_dir = r'D:\EcodeWeb\alembic\versions'
-files = [f for f in os.listdir(versions_dir) if f.endswith('.py')]
+file_path = r'D:\EcodeWeb\alembic\versions\t5u6v7w8x9y0_add_bot_to_transfer.py'
+with open(file_path, 'r', encoding='utf-8') as f:
+    text = f.read()
 
-for f in files:
-    with open(os.path.join(versions_dir, f), 'r', encoding='utf-8') as file:
-        content = file.read()
-        if 'd5f717cb38e5' in content:
-            print(f"File {f} mentions d5f717cb38e5")
+down_match = re.search(r"down_revision.*?=\s*['\"]([^'\"]+)['\"]", text)
+print(down_match.group(1) if down_match else None)
+
