@@ -1570,48 +1570,64 @@ export default function Products() {
         
         // Ism (bo'shliq, enterni tozalash)
         const name = (prod.name || 'Nomsiz')
-          .replace(/[\t\r\n#;]/g, ' ')
+          .replace(/[\t\r\n]/g, ' ')
           .trim()
           .substring(0, 28);
 
-        // Narx (tarozi dasturi tushunishi uchun nuqta bilan yozamiz)
+        // Narx (TMS da nuqta emas vergul ko'proq ishlatiladi, masalan 10000,0)
         const priceRaw = prod.sale_price ? parseFloat(prod.sale_price) : 0;
-        const price = priceRaw.toFixed(2);
+        const priceStr = priceRaw.toFixed(1).replace('.', ',');
 
-        // ItemCode (5 xonali raqam, shtrixkod shu asosda shakllanadi)
+        // ItemCode (faqat raqam)
         const rawPlu = prod.sku && String(prod.sku).trim()
           ? String(prod.sku).trim().replace(/\D/g, '')
           : String(prod.id);
-        const itemCode = rawPlu ? rawPlu.slice(-5).padStart(5, '0') : String(prod.id).padStart(5, '0');
+        const itemCodeNum = rawPlu ? parseInt(rawPlu.slice(-5), 10) : parseInt(String(prod.id).slice(-5), 10);
+        const itemCodeStr = String(itemCodeNum || 0);
 
-        // Qatorni yig'ish (Index=28, B1_BarFlag=21, B2_Bar=28)
+        // Qatorni 69 ta ustundan yig'ish (TM-xA standart)
         const row = [
-          'FILE_PLU',
-          number,
-          name,
-          '28',
-          price,
-          '21',
-          '28',
-          '',
-          itemCode
-
-        ].join(separator);
-
-        lines.push(row);
+          'PLU', // 0
+          String(number), // 1
+          '0', // 2
+          '', // 3
+          '3', // 4 (Unit: kg)
+          priceStr, // 5
+          '0,0', '0,0', // 6,7
+          '28', // 8 (Print format: 28)
+          '30', // 9 (Barcode format: 30 kabi standart)
+          '0', '0', '0', '0', // 10-13
+          itemCodeStr, // 14
+          name, // 15
+          '', '', '', '', '', '', '', // 16-22
+          '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', // 23-34
+          '0,0', '0,0', // 35,36
+          '0', '127', '0,0', '0,0', '0,0', // 37-41
+          '0', '127', '0,0', '0,0', '0,0', // 42-46
+          '0', '127', '0,0', '0,0', '0,0', // 47-51
+          '0', '127', '0,0', '0,0', '0,0', // 52-56
+          '0', '0', '0', '0', '0', '0', '0', // 57-63
+          name, // 64
+          '0', '0', '0', '' // 65-68
+        ];
+        lines.push(row.join('\t'));
       });
+      
+      lines.push('END\tPLU\t');
+      lines.push('END\tECS\t');
 
-      const txtContent = lines.join('\r\n');
+      const txtContent = lines.join('\r\n'); // Windows uchun CRLF qatori
       const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', 'TMA_import.txt');
+      link.setAttribute('download', 'TMA_import.tms');
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-      toast.success(`${filteredData.length} ta mahsulot TMA_import.txt ga eksport qilindi!`);
+      
+      toast.success(`${filteredData.length} ta mahsulot TMA_import.tms ga eksport qilindi!`);
     } catch (error) {
       toast.error("Eksport qilishda xatolik yuz berdi");
     }
