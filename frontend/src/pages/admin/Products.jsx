@@ -1573,16 +1573,16 @@ export default function Products() {
 
       filteredData.forEach((prod, idx) => {
         // PLU raqami: artikul (SKU) dan faqat raqamlar ishlatiladi, yo'q bo'lsa ID
-        // TM-A tarozi EAN-13 = "2" + PLU(5 xona) + og'irlik(5) + tekshiruv(1)
-        // PLU ALBATTA 5 xonali bo'lishi kerak, aks holda barkod noto'g'ri shakllanadi!
         const rawPlu = prod.sku && prod.sku.trim()
           ? prod.sku.trim().replace(/\D/g, '')  // SKU dan faqat raqamlar
           : String(prod.id);
-        const pluDigits = rawPlu || String(prod.id);  // bo'sh bo'lsa ID ga qaytamiz
-        // 5 xonali qilish: 5 dan uzun bo'lsa oxirgi 5 raqam, qisqa bo'lsa olddan 0 qo'shiladi
-        const plu = pluDigits.length > 5
-          ? pluDigits.slice(-5)
-          : pluDigits.padStart(5, '0');
+        
+        // Taroziga tushadigan PLU (faqat raqam).
+        // Tarozi o'zi kerakli formatga moslaydi.
+        const plu = rawPlu || String(prod.id);
+        
+        // Agar maxsus barkod bo'lsa uni olamiz, yo'qsa PLU ni o'zini qo'yamiz.
+        const barcode = prod.barcode && prod.barcode.trim() ? prod.barcode.trim() : plu;
 
 
         // Nom: tab va maxsus belgilarni tozalash
@@ -1596,9 +1596,10 @@ export default function Products() {
         const price = priceRaw.toFixed(1).replace('.', ',');
 
         // PLU satri (A_150.TMS ga aynan mos):
-        // PLU\t{plu}\t{plu}\t\t3\t{narx}\t0,0\t0,0\t0\t0\t0\t0\t0\t0\t9\t{nom}\t\t\t\t\t\t\t\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0,0\t0,0\t0\t127\t0,0\t0,0\t0,0\t0\t127\t0,0\t0,0\t0,0\t0\t127\t0,0\t0,0\t0,0\t0\t127\t0,0\t0,0\t0,0\t0\t0\t0\t0\t0\t0\t0\t\t0\t0\t0\t
+        // 4-ustun (barcode) = barcode qiymati
+        // 5-ustun (barcode turi) = 0 (Tarozi o'zining standart sozlamasini ishlatadi. 3 bo'lsa ba'zida xato beradi)
         const row = [
-          'PLU', plu, plu, '', 3, price, '0,0', '0,0',
+          'PLU', plu, plu, barcode, 0, price, '0,0', '0,0',
           0, 0, 0, 0, 0, 0, 9, name,
           '', '', '', '', '', '', '', '',
           0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
