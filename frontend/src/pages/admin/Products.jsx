@@ -1595,7 +1595,7 @@ export default function Products() {
           priceStr, // 5
           '0,0', '0,0', // 6,7
           '28', // 8 (Print format: 28)
-          '30', // 9 (Barcode format: 30 kabi standart)
+          '28', // 9 (Barcode format: 28 standart 5+5)
           '0', '0', '0', '0', // 10-13
           itemCodeStr, // 14
           name, // 15
