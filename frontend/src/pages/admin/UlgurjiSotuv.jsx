@@ -952,25 +952,40 @@ export default function UlgurjiSotuv() {
           weightQty = weightGram / 1000;
         }
 
-        api.get(`/products/barcode/${encodeURIComponent(searchCode)}`)
-          .then(r => {
-            if (r.data?.id) {
-              const prod = r.data;
-              if (weightQty !== 1) prod.qty_ordered = weightQty;
-              addToCartRef.current(prod);
-            } else {
-              toast.error(`Mahsulot topilmadi: ${searchCode}`);
-            }
-          })
-          .catch(() => {
+        const fetchProduct = async () => {
+           try {
+             // 1-urinish: shtrixkod bo'yicha qidirish
+             const r = await api.get(`/products/barcode/${encodeURIComponent(searchCode)}`);
+             if (r.data?.id) return r.data;
+           } catch (e) {
+             // Topilmasa va tarozi barkodi bo'lsa (00001), ehtimol u ID ga teng
+             if (weightQty !== 1 && searchCode.match(/^\d+$/)) {
+               try {
+                  const searchId = parseInt(searchCode, 10);
+                  const res = await api.get(`/products/${searchId}`);
+                  if (res.data?.id) return res.data;
+               } catch (err) {
+                  // ID bo'yicha ham topilmadi
+               }
+             }
+           }
+           return null;
+        };
+
+        fetchProduct().then(prod => {
+          if (prod) {
+            if (weightQty !== 1) prod.qty_ordered = weightQty;
+            addToCartRef.current(prod);
+          } else {
             const el = document.activeElement;
             if (el?.tagName === 'INPUT' && el.value.includes(buf)) {
               el.value = el.value.replace(buf, '').trim();
             }
-            toast.error(`Xatolik yoki topilmadi: ${searchCode}`);
-          });
+            toast.error(`Mahsulot topilmadi yoki xatolik: ${searchCode}`);
+          }
+        });
       } else if (e.key.length === 1) {
-        if (gap > 50) scanBufRef.current = e.key; else scanBufRef.current += e.key;
+        if (gap > 200) scanBufRef.current = e.key; else scanBufRef.current += e.key;
       }
     };
     window.addEventListener('keydown', handle, true);
