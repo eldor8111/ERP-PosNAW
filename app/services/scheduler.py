@@ -360,20 +360,28 @@ async def start_scheduler():
             try:
                 from app.admin_tg_bot.models import CompanyBot
                 from app.services.ai_service import build_daily_report
+                import os
+                import tempfile
+                
                 companies = db.query(Company).filter(Company.is_active == True).all()
                 for company in companies:
                     # 1. FCM (Ilova) orqali yuborish
                     fcm_report_time = getattr(company, "daily_report_time", None) or "17:30"
                     if fcm_report_time == current_hhmm and getattr(company, "daily_report_enabled", True) is not False:
                         if last_report_dates.get(f"{company.id}_fcm") != today:
-                            print(f"[Scheduler] {company.name} - ilova hisobot vaqti keldi ({current_hhmm}). Yuborilmoqda...")
-                            _send_fcm_to_managers(
-                                company=company,
-                                db=db,
-                                title=f"📊 {company.name} - Kunlik Hisobot",
-                                body="Bugungi savdo hisoboti tayyor. Ko'rish uchun bosing.",
-                                data={"type": "daily_report", "company_id": str(company.id)},
-                            )
+                            lock_file = os.path.join(tempfile.gettempdir(), f"erp_fcm_{company.id}_{today.strftime('%Y%m%d')}.lock")
+                            if not os.path.exists(lock_file):
+                                try:
+                                    with open(lock_file, "w") as f: f.write("1")
+                                except: pass
+                                print(f"[Scheduler] {company.name} - ilova hisobot vaqti keldi ({current_hhmm}). Yuborilmoqda...")
+                                _send_fcm_to_managers(
+                                    company=company,
+                                    db=db,
+                                    title=f"📊 {company.name} - Kunlik Hisobot",
+                                    body="Bugungi savdo hisoboti tayyor. Ko'rish uchun bosing.",
+                                    data={"type": "daily_report", "company_id": str(company.id)},
+                                )
                             last_report_dates[f"{company.id}_fcm"] = today
 
                     # 2. Telegram (Admin Bot) orqali yuborish
@@ -386,23 +394,27 @@ async def start_scheduler():
                     if admin_bot and admin_bot.notify_scheduled:
                         tg_report_time = admin_bot.scheduled_time or "20:00"
                         if tg_report_time == current_hhmm and last_report_dates.get(f"{company.id}_tg") != today:
-                            print(f"[Scheduler] {company.name} - Telegram hisobot vaqti keldi ({current_hhmm}). Yuborilmoqda...")
-                            try:
-                                report_text = build_daily_report(db, company.id, company.name)
-                            except Exception as e:
-                                report_text = f"📊 <b>{company.name} - Kunlik Hisobot</b>\n\nXatolik yuz berdi."
-                                
-                            managers_tg = db.query(User).filter(
-                                User.company_id == company.id,
-                                User.role.in_([UserRole.admin, UserRole.director]),
-                                User.tg_chat_id.isnot(None),
-                            ).all()
-                            
-                            for manager in managers_tg:
-                                ok = await send_tg_msg_async(admin_bot.bot_token, manager.tg_chat_id, report_text)
-                                if ok:
-                                    print(f"[Scheduler][TG] Hisobot: {company.name} -> {manager.name}")
+                            lock_file = os.path.join(tempfile.gettempdir(), f"erp_tg_{company.id}_{today.strftime('%Y%m%d')}.lock")
+                            if not os.path.exists(lock_file):
+                                try:
+                                    with open(lock_file, "w") as f: f.write("1")
+                                except: pass
+                                print(f"[Scheduler] {company.name} - Telegram hisobot vaqti keldi ({current_hhmm}). Yuborilmoqda...")
+                                try:
+                                    report_text = build_daily_report(db, company.id, company.name)
+                                except Exception as e:
+                                    report_text = f"📊 <b>{company.name} - Kunlik Hisobot</b>\n\nXatolik yuz berdi."
                                     
+                                managers_tg = db.query(User).filter(
+                                    User.company_id == company.id,
+                                    User.role.in_([UserRole.admin, UserRole.director]),
+                                    User.tg_chat_id.isnot(None),
+                                ).all()
+                                
+                                for manager in managers_tg:
+                                    ok = await send_tg_msg_async(admin_bot.bot_token, manager.tg_chat_id, report_text)
+                                    if ok:
+                                        print(f"[Scheduler][TG] Hisobot: {company.name} -> {manager.name}")
                             last_report_dates[f"{company.id}_tg"] = today
             finally:
                 db.close()

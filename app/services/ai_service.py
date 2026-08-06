@@ -34,11 +34,11 @@ def _fmt(amount: float) -> str:
 
 def _pct_word(pct: float) -> str:
     if pct > 5:
-        return f"📈 {abs(pct):.1f}% o'sdi"
+        return f"🟢 +{abs(pct):.1f}% o'sish"
     elif pct < -5:
-        return f"📉 {abs(pct):.1f}% kamaydi"
+        return f"🔴 -{abs(pct):.1f}% pasayish"
     else:
-        return f"➡️ deyarli o'zgarmadi ({pct:+.1f}%)"
+        return f"⚪️ Barqaror ({pct:+.1f}%)"
 
 
 # ─── Kontekst yig'uvchi ────────────────────────────────────────────────────
@@ -292,63 +292,64 @@ def build_daily_report(db: Session, company_id: int, company_name: str) -> str:
     day_name = day_names[today.weekday()]
 
     lines = [
-        f"📊 <b>{company_name} — Kunlik Hisobot</b>",
-        f"📅 {today.strftime('%d.%m.%Y')} ({day_name})",
-        "━━━━━━━━━━━━━━━━━━━━",
+        f"🏢 <b>{company_name.upper()} | KUNLIK HISOBOT</b>",
+        f"<i>Sana: {today.strftime('%d.%m.%Y')} | {day_name}</i>",
+        "➖➖➖➖➖➖➖➖➖➖➖➖➖",
         "",
-        "💰 <b>Savdo natijasi:</b>",
-        f"  • Jami savdolar: <b>{len(sales)} ta</b>",
-        f"  • Umumiy tushum: <b>{_fmt(total)}</b>",
-        f"  • Naqd pul: {_fmt(cash)}",
-        f"  • Plastik karta: {_fmt(card)}",
+        "<b>[ SAVDO KO'RSATKICHLARI ]</b>",
+        f"▪️ Tranzaksiyalar soni: <b>{len(sales)} ta</b>",
+        f"▪️ Umumiy tushum: <b>{_fmt(total)}</b>",
+        f"    ▫️ Naqd pul: {_fmt(cash)}",
+        f"    ▫️ Karta orqali: {_fmt(card)}",
     ]
 
     if discount > 0:
-        lines.append(f"  • Chegirmalar: {_fmt(discount)}")
+        lines.append(f"    ▫️ Taqdim etilgan chegirma: {_fmt(discount)}")
     if debt_amount > 0:
-        lines.append(f"  • Nasiyaga berildi: {_fmt(debt_amount)}")
+        lines.append(f"    ▫️ Nasiyaga berilgan: {_fmt(debt_amount)}")
     if refunds > 0:
-        lines.append(f"  • Qaytarilgan: {refunds} ta chek")
+        lines.append(f"    ▫️ Qaytarilgan cheklar: {refunds} ta")
 
     # Kechagi bilan taqqoslash
     lines += [
         "",
-        f"📊 Kechagiga nisbatan: <b>{_pct_word(diff_pct)}</b>",
-        f"   (kecha: {_fmt(yest_total)})",
+        "<b>[ O'SISH DINAMIKASI ]</b>",
+        f"▪️ Kechagiga nisbatan: <b>{_pct_word(diff_pct)}</b>",
+        f"    ▫️ Kecha: {_fmt(yest_total)}",
     ]
 
     # Top mahsulotlar
     if top_products:
-        lines += ["", "🏆 <b>Eng ko'p sotilgan mahsulotlar:</b>"]
+        lines += ["", "<b>[ TOP MAHSULOTLAR ]</b>"]
         for i, (name, qty, rev) in enumerate(top_products, 1):
-            lines.append(f"  {i}. {name} — {_sf(qty):.0f} dona ({_fmt(_sf(rev))})")
+            lines.append(f" {i}. {name} — {_sf(qty):.0f} dona ({_fmt(_sf(rev))})")
 
     # Zaxira
-    lines += ["", "📦 <b>Ombor holati:</b>"]
+    lines += ["", "<b>[ ZAXIRA HOLATI ]</b>"]
     if low_stock > 0:
-        lines.append(f"  ⚠️ {low_stock} ta mahsulot zaxirasi kritik darajada kam (10 donadan az)!")
+        lines.append(f" ⚠️ Diqqat: {low_stock} turdagi mahsulot zaxirasi kritik darajada!")
     else:
-        lines.append("  ✅ Barcha mahsulotlar zaxirasi me'yorda")
+        lines.append(" ✔️ Ombor zaxiralari barqaror holatda.")
 
     # Qarz
-    lines += ["", "🤝 <b>Mijozlar va qarzlar:</b>"]
+    lines += ["", "<b>[ MOLIYAVIY HOLAT (Nasiya) ]</b>"]
     if total_debtors > 0:
-        lines.append(f"  • Nasiyadorlar: {total_debtors} ta mijoz")
-        lines.append(f"  • Umumiy nasiya: {_fmt(total_debt_all)}")
+        lines.append(f"▪️ Faol qarzdorlar: <b>{total_debtors} ta</b>")
+        lines.append(f"▪️ Umumiy nasiya: <b>{_fmt(total_debt_all)}</b>")
         if overdue_count > 0:
-            lines.append(f"  ⚠️ Muddati o'tgan: {overdue_count} ta mijoz — eslatma yuboring!")
+            lines.append(f" ❗️ Muddati o'tgan: <b>{overdue_count} ta mijoz</b>")
         else:
-            lines.append("  ✅ Muddati o'tgan nasiya yo'q")
+            lines.append(" ✔️ Muddati o'tgan qarzlar yo'q.")
     else:
-        lines.append("  ✅ Faol nasiya yo'q")
+        lines.append(" ✔️ Tizimda faol qarzdorlik mavjud emas.")
 
     # Umumiy baho va maslahat
-    lines += ["", "━━━━━━━━━━━━━━━━━━━━", "💡 <b>AI Tavsiyasi:</b>"]
+    lines += ["", "➖➖➖➖➖➖➖➖➖➖➖➖➖", "<b>[ AI-TAHLIL VA TAVSIYALAR ]</b>"]
     tip = _generate_tip(diff_pct, low_stock, overdue_count, total, _get_peak_hour(db, company_id, today))
-    lines.append(f"  {tip}")
+    lines.append(f"💡 <i>{tip}</i>")
 
-    lines += ["", "━━━━━━━━━━━━━━━━━━━━",
-              "🤖 <i>E-Code ERP tizimi — Avtomatik hisobot</i>"]
+    lines += ["", "➖➖➖➖➖➖➖➖➖➖➖➖➖",
+              "💼 <i>E-Code ERP tizimi orqali avtomatlashtirilgan</i>"]
 
     return "\n".join(lines)
 
