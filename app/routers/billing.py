@@ -140,7 +140,7 @@ def list_tariffs(
     """Barcha faol tariflar (hamma foydalanuvchilar ko'ra oladi)"""
     query = db.query(Tariff)
     if not all:
-        query = query.filter(Tariff.is_active == True, Tariff.name.notilike('%sinov%'))
+        query = query.filter(Tariff.is_active == True, Tariff.price_per_month > 0)
     tariffs = query.order_by(Tariff.sort_order).all()
     return [_tariff_out(t) for t in tariffs]
 
