@@ -1560,13 +1560,13 @@ export default function Products() {
         return;
       }
 
-      // Sotuvchi taqdim etgan format (taroz_kod.txt)
-      // FILE_PLU#S;#@Number#S;#@Name#S;#S;#@Price#S;#S;#S;#S;#@ItemCode
+      // TMA Custom File Format:
+      // FILE_PLU#S;#@Number#S;#@Name#S;#@Index#S;#@Price#S;#@B1_BarFlag#S;#@B2_Bar#S;#S;#@ItemCode
       const separator = '#S;';
       const lines = [];
       
       // Sarlavha (Zavod bergan kod)
-      lines.push(`FILE_PLU${separator}#@Number${separator}#@Name${separator}${separator}#@Price${separator}${separator}${separator}${separator}#@ItemCode`);
+      lines.push(`FILE_PLU${separator}#@Number${separator}#@Name${separator}#@Index${separator}#@Price${separator}#@B1_BarFlag${separator}#@B2_Bar${separator}${separator}#@ItemCode`);
 
       filteredData.forEach((prod, index) => {
         const number = index + 1; // 1 dan boshlanadi
@@ -1582,22 +1582,23 @@ export default function Products() {
         const price = priceRaw.toFixed(2);
 
         // ItemCode (5 xonali raqam, shtrixkod shu asosda shakllanadi)
-        const rawPlu = prod.sku && prod.sku.trim()
-          ? prod.sku.trim().replace(/\D/g, '')
+        const rawPlu = prod.sku && String(prod.sku).trim()
+          ? String(prod.sku).trim().replace(/\D/g, '')
           : String(prod.id);
         const itemCode = rawPlu ? rawPlu.slice(-5).padStart(5, '0') : String(prod.id).padStart(5, '0');
 
-        // Qatorni yig'ish: FILE_PLU, Number, Name, (empty), Price, (empty), (empty), (empty), ItemCode
+        // Qatorni yig'ish (Index=28, B1_BarFlag=21, B2_Bar=28)
         const row = [
           'FILE_PLU',
           number,
           name,
-          '',
+          '28',
           price,
-          '',
-          '',
+          '21',
+          '28',
           '',
           itemCode
+
         ].join(separator);
 
         lines.push(row);
