@@ -958,15 +958,21 @@ export default function UlgurjiSotuv() {
              const r = await api.get(`/products/barcode/${encodeURIComponent(searchCode)}`);
              if (r.data?.id) return r.data;
            } catch (e) {
-             // Topilmasa va tarozi barkodi bo'lsa (00001), ehtimol u ID ga teng
+             // 2-urinish: Agar barkoddan topilmasa, SKU yoki ismidan qidirib ko'rish (umumiy qidiruv)
+             try {
+                const res = await api.get('/products', { params: { search: searchCode, limit: 1 } });
+                if (res.data && res.data.length > 0) return res.data[0];
+             } catch (err) {
+                // Hech qayerdan topilmadi
+             }
+             
+             // 3-urinish: Tarozi barkodi bo'lsa va ID ga teng bo'lishi ehtimoli bo'lsa
              if (weightQty !== 1 && searchCode.match(/^\d+$/)) {
                try {
                   const searchId = parseInt(searchCode, 10);
                   const res = await api.get(`/products/${searchId}`);
                   if (res.data?.id) return res.data;
-               } catch (err) {
-                  // ID bo'yicha ham topilmadi
-               }
+               } catch (err) { }
              }
            }
            return null;
@@ -981,11 +987,11 @@ export default function UlgurjiSotuv() {
             if (el?.tagName === 'INPUT' && el.value.includes(buf)) {
               el.value = el.value.replace(buf, '').trim();
             }
-            toast.error(`Mahsulot topilmadi yoki xatolik: ${searchCode}`);
+            toast.error(`Mahsulot topilmadi: ${searchCode}`);
           }
         });
       } else if (e.key.length === 1) {
-        if (gap > 200) scanBufRef.current = e.key; else scanBufRef.current += e.key;
+        if (gap > 500) scanBufRef.current = e.key; else scanBufRef.current += e.key;
       }
     };
     window.addEventListener('keydown', handle, true);
