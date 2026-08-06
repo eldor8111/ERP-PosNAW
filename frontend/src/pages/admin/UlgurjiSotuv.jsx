@@ -503,7 +503,11 @@ export default function UlgurjiSotuv() {
     } catch { return []; }
   });
   const [note, setNote] = useState('');
-  const [useWholesale, setUseWholesale] = useState(true);
+  const [useWholesale, setUseWholesale] = useState(() => localStorage.getItem('ulgurji_useWholesale') !== 'false');
+
+  useEffect(() => {
+    localStorage.setItem('ulgurji_useWholesale', String(useWholesale));
+  }, [useWholesale]);
   const [showPayment, setShowPayment] = useState(false);
   const [saving, setSaving] = useState(false);
   const { hasShift, reload: reloadShift } = useActiveShift();
@@ -961,7 +965,12 @@ export default function UlgurjiSotuv() {
              // 2-urinish: Agar barkoddan topilmasa, SKU yoki ismidan qidirib ko'rish (umumiy qidiruv)
              try {
                 const res = await api.get('/products', { params: { search: searchCode, limit: 1 } });
-                if (res.data && res.data.length > 0) return res.data[0];
+                if (res.data && res.data.length > 0) {
+                   const p = res.data[0];
+                   if (p.barcode === searchCode || p.sku === searchCode || String(p.id) === searchCode) {
+                       return p;
+                   }
+                }
              } catch (err) {
                 // Hech qayerdan topilmadi
              }

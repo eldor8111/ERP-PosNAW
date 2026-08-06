@@ -14,7 +14,7 @@ router = APIRouter(prefix="/mobile/dashboard", tags=["Mobile Dashboard"])
 @router.get("/summary")
 def get_mobile_summary(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director))
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
 ):
     today = date.today()
     base = db.query(Sale).filter(
@@ -40,7 +40,7 @@ def get_mobile_summary(
 @router.get("/top-products")
 def get_top_products(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director))
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
 ):
     """Eng ko'p sotilgan 10 ta mahsulot — JOIN bilan bir so'rovda"""
     rows = (

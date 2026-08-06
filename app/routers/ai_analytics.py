@@ -49,7 +49,7 @@ def get_ai_status():
 @router.get("/daily-summary")
 def get_daily_summary(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director))
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
 ):
     """Bugungi kun xulosasi va mahalliy AI tahlili."""
     def sf(v):
@@ -92,7 +92,7 @@ def get_daily_summary(
 @router.get("/weekly-chart")
 def get_weekly_chart(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director))
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
 ):
     """7 kunlik savdo grafik ma'lumotlari."""
     today = date.today()
@@ -128,7 +128,7 @@ def get_weekly_chart(
 @router.get("/insights")
 def get_ai_insights(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director))
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
 ):
     """Mahalliy AI xulosalari (O'sish, zaxira, tavsiya)."""
     return {"insights": get_insights(db, current_user.company_id)}
@@ -139,7 +139,7 @@ def get_ai_insights(
 @router.get("/debt-analytics")
 def get_debt_analytics(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director))
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
 ):
     """Qarz tahlili, toifalar va mahalliy AI maslahati."""
     data = categorize_customers(db, current_user.company_id)
@@ -171,7 +171,7 @@ def get_debt_analytics(
 @router.get("/daily-report")
 def get_daily_report(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director))
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
 ):
     """Kunlik to'liq hisobotni ko'rish (Telegram ga yuborilgani bilan bir xil matn)."""
     from app.models.company import Company
@@ -190,7 +190,7 @@ def get_daily_report(
 def chat_with_copilot(
     request: ChatRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director))
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
 ):
     """
     AI Copilot bilan chat.
