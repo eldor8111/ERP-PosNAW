@@ -200,7 +200,7 @@ const navigate = useNavigate();
                 }];
               });
               setSearch('');
-           } else if (scannedCode.length === 13 && (scannedCode.startsWith('21') || scannedCode.startsWith('22'))) {
+           } else if (scannedCode.length === 13 && (scannedCode.startsWith('20') || scannedCode.startsWith('21') || scannedCode.startsWith('22'))) {
               // Tarozi barkodi: 21 + 5(SKU) + 5(Vazn grammda) + 1(Checksum)
               const itemCode = scannedCode.substring(2, 7);
               const weightGram = parseInt(scannedCode.substring(7, 12), 10) || 0;

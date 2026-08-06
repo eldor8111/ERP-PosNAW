@@ -179,7 +179,7 @@ const navigate = useNavigate();
            if (isInput) e.target.blur();
 
            // Tarozi barkodi logikasi
-           if (code.length === 13 && (code.startsWith('21') || code.startsWith('22'))) {
+           if (code.length === 13 && (code.startsWith('20') || code.startsWith('21') || code.startsWith('22'))) {
              const itemCode = code.substring(2, 7);
              const weightGram = parseInt(code.substring(7, 12), 10) || 0;
              const weightKg = weightGram / 1000;

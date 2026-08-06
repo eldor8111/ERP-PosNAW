@@ -946,7 +946,7 @@ export default function UlgurjiSotuv() {
         let searchCode = buf;
         let weightQty = 1;
 
-        if (buf.length === 13 && (buf.startsWith('21') || buf.startsWith('22'))) {
+        if (buf.length === 13 && (buf.startsWith('20') || buf.startsWith('21') || buf.startsWith('22'))) {
           searchCode = buf.substring(2, 7);
           const weightGram = parseInt(buf.substring(7, 12), 10) || 0;
           weightQty = weightGram / 1000;
