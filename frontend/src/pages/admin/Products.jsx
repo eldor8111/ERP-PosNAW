@@ -1560,13 +1560,10 @@ export default function Products() {
         return;
       }
 
-      // TMA Custom File Format:
-      // FILE_PLU#S;#@Number#S;#@Name#S;#@Index#S;#@Price#S;#@@B1_BarFlag#S;#@B2_Bar#S;#S;#@ItemCode
-      const separator = '#S;';
+      // TMA rasmiy TMS File Formati (Tab bilan ajratiladi)
       const lines = [];
-      
-      // Sarlavha (Zavod bergan kod)
-      lines.push(`FILE_PLU${separator}#@Number${separator}#@Name${separator}#@Index${separator}#@Price${separator}#@@B1_BarFlag${separator}#@B2_Bar${separator}${separator}#@ItemCode`);
+      lines.push('ECS\tVER\t100\t');
+      lines.push('DWL\tPLU\t');
 
       filteredData.forEach((prod, index) => {
         const number = index + 1; // 1 dan boshlanadi
