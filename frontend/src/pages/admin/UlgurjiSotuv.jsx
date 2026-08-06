@@ -941,6 +941,10 @@ export default function UlgurjiSotuv() {
       if (e.key === 'Enter') {
         const buf = scanBufRef.current.trim(); scanBufRef.current = '';
         if (buf.length < 3) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const active = document.activeElement;
+        if (active && active.tagName === 'INPUT') { active.value = ''; active.dispatchEvent(new Event('input', { bubbles: true })); }
 
         toast.info(`Skanerlandi: ${buf}`, { autoClose: 1500 });
 
@@ -1600,7 +1604,8 @@ export default function UlgurjiSotuv() {
                       <button
                         onClick={() => {
                           const next = !useWholesale;
-                          setUseWholesale(next);
+                            setUseWholesale(next);
+                            localStorage.setItem('ulgurji_useWholesale', String(next));
                           setCart(prev => prev.map(it => ({ ...it, price: (next && it.wholesale_price) ? it.wholesale_price : it.sale_price })));
                         }}
                         className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border transition-all ${useWholesale ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-200 text-slate-500'}`}>
@@ -2712,3 +2717,4 @@ function SaleDetailContent({ saleId }) {
     </div>
   );
 }
+

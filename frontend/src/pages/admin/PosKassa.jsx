@@ -176,7 +176,8 @@ const navigate = useNavigate();
            e.preventDefault();
            const code = buf;
            buf = '';
-           if (isInput) e.target.blur();
+           e.stopPropagation();
+           if (isInput) { e.target.blur(); e.target.value = ''; e.target.dispatchEvent(new Event('input', { bubbles: true })); }
 
            // Tarozi barkodi logikasi
            if (code.length === 13 && (code.startsWith('20') || code.startsWith('21') || code.startsWith('22'))) {

@@ -186,7 +186,8 @@ const navigate = useNavigate();
            e.preventDefault();
            const scannedCode = barcodeBuffer;
            barcodeBuffer = '';
-           if (isInput) e.target.blur();
+           e.stopPropagation();
+           if (isInput) { e.target.blur(); e.target.value = ''; e.target.dispatchEvent(new Event('input', { bubbles: true })); }
            
            const found = products.find(p => p.barcode === scannedCode || p.sku === scannedCode);
            if (found) {
