@@ -14,7 +14,8 @@ from app.models.currency import Currency
 from app.models.company import Company
 from app.models.moliya import Transaction, KassaMovement
 from app.models.product import Product, ProductConversion, ProductStatus
-from app.models.sale import Sale, SaleItem, SaleStatus, PaymentType, SaleItemBatch, SalePayment
+from app.models.sale import Sale, SaleItem, SaleStatus
+from app.admin_tg_bot.notifications import trigger_instant_notification, PaymentType, SaleItemBatch, SalePayment
 from app.models.user import User
 from app.schemas.sale import SaleCreate
 from app.services.sale_helpers import (

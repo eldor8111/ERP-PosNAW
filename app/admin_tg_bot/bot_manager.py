@@ -76,6 +76,11 @@ def link_admin_by_phone(phone: str, tg_id: str, tg_full_name: str | None, compan
         normalized_phone = normalize_phone(phone)
         user = db.query(User).filter(User.phone.like(f"%{normalized_phone}"), User.company_id == company_id).first()
 
+        # Check if an admin is already registered
+        existing_admin = db.query(User).filter(User.company_id == company_id, User.tg_chat_id.isnot(None), User.role == UserRole.director).first()
+        if existing_admin and existing_admin.id != (user.id if user else 0):
+            return None, "already_registered"
+
         if not user:
             return None, "not_found"
 

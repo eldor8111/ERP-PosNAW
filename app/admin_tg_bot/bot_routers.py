@@ -5,7 +5,7 @@ from aiogram import Bot
 
 from app.database import get_db
 from app.admin_tg_bot.models import CompanyBot
-from app.admin_tg_bot.bot_schemas import CompanyBotCreate, CompanyBotOut
+from app.admin_tg_bot.bot_schemas import CompanyBotCreate, CompanyBotOut, CompanyBotSettingsUpdate
 
 router = APIRouter(prefix="/companies/{company_id}/bot", tags=["Company Bot"])
 
@@ -128,3 +128,22 @@ async def delete_admin_bot(company_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Admin bot o'chirildi"}
 
+
+@admin_router.put("/settings", response_model=CompanyBotOut)
+async def update_admin_bot_settings(company_id: int, payload: CompanyBotSettingsUpdate, db: Session = Depends(get_db)):
+    admin_bot = db.query(CompanyBot).filter(
+        CompanyBot.company_id == company_id,
+        CompanyBot.bot_type == "admin"
+    ).first()
+    
+    if not admin_bot:
+        raise HTTPException(404, "Bu kompaniyaga admin bot ulanmagan")
+        
+    admin_bot.notify_instant_sales = payload.notify_instant_sales
+    admin_bot.notify_instant_finance = payload.notify_instant_finance
+    admin_bot.notify_scheduled = payload.notify_scheduled
+    admin_bot.scheduled_time = payload.scheduled_time
+    
+    db.commit()
+    db.refresh(admin_bot)
+    return admin_bot
