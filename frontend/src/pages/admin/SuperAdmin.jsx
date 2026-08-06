@@ -958,7 +958,7 @@ function BillingTab() {
     setLoading(true);
     Promise.all([
       api.get('/billing/companies'),
-      api.get('/billing/tariffs'),
+      api.get('/billing/tariffs?all=true'),
     ]).then(([r1, r2]) => {
       setList(r1.data);
       setTariffs(r2.data);
@@ -1469,7 +1469,7 @@ function TariffsTab() {
 
   const load = () => {
     setLoading(true);
-    api.get('/billing/tariffs').then(r => setTariffs(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") }).finally(() => setLoading(false));
+    api.get('/billing/tariffs?all=true').then(r => setTariffs(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") }).finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, []);
 

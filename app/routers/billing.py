@@ -133,11 +133,15 @@ def get_payment_settings(
 
 @router.get("/tariffs")
 def list_tariffs(
+        all: bool = False,
         db: Session = Depends(get_db),
         # _: User = Depends(get_current_user_allow_expired),
 ):
     """Barcha faol tariflar (hamma foydalanuvchilar ko'ra oladi)"""
-    tariffs = db.query(Tariff).order_by(Tariff.sort_order).all()
+    query = db.query(Tariff)
+    if not all:
+        query = query.filter(Tariff.is_active == True, Tariff.name.notilike('%sinov%'))
+    tariffs = query.order_by(Tariff.sort_order).all()
     return [_tariff_out(t) for t in tariffs]
 
 
@@ -215,7 +219,7 @@ def delete_tariff(
         raise HTTPException(status_code=404, detail="Tarif topilmadi")
 
     # Nullify referencing companies' tariff_id to prevent FK IntegrityError
-    db.query(Company).filter(Company.tariff_id == tariff_id).update({Company.tariff_id: None})
+    db.query(Company).filter(Company.tariff_id == tariff_id).update({Company.tariff_id: None}, synchronize_session=False)
 
     db.delete(t)
     db.commit()
