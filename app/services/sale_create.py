@@ -15,9 +15,9 @@ from app.models.company import Company
 from app.models.moliya import Transaction, KassaMovement
 from app.models.product import Product, ProductConversion, ProductStatus
 from app.models.sale import Sale, SaleItem, SaleStatus
-from app.admin_tg_bot.notifications import trigger_instant_notification, PaymentType, SaleItemBatch, SalePayment
+from app.admin_tg_bot.notifications import trigger_instant_notification
 from app.models.user import User
-from app.schemas.sale import SaleCreate
+from app.schemas.sale import SaleCreate, PaymentType, SaleItemBatch, SalePayment
 from app.services.sale_helpers import (
     generate_sale_number, send_tg_sync, resolve_price, resolve_branch_id
 )
