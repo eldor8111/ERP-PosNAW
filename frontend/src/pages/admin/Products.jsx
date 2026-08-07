@@ -1562,15 +1562,9 @@ export default function Products() {
 
       const lines = [];
       
-      // 1. Dastlab Tarozi Sozlamalarini (TMS) yuklaymiz
-      // Bu tarozi avtomatik tarzda Print=1100 va Barcode=10 qolipiga o'tishini ta'minlaydi
+      // 1. Mahsulotlar (PLU) ro'yxatini yuklaymiz
+      // Tarozi sozlamalari (Print=1100, Barcode=10) har bir mahsulot qatorida (8, 9 ustunlar) yuboriladi
       lines.push('ECS\tVER\t100\t');
-      lines.push('DWL\tTMS\t');
-      lines.push('TMS\t0\t1100\t');
-      lines.push('TMS\t1\t10\t');
-      lines.push('END\tTMS\t');
-
-      // 2. Mahsulotlar (PLU) ro'yxatini yuklaymiz
       lines.push('DWL\tPLU\t');
 
       filteredData.forEach((prod) => {
