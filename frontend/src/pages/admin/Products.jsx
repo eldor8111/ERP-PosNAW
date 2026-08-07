@@ -1560,59 +1560,82 @@ export default function Products() {
         return;
       }
 
-      const separator = '#S;';
       const lines = [];
       
-      // Siz xohlagan aniq qolip (format)
-      lines.push(`FILE_PLU${separator}#@Number${separator}#@Name${separator}${separator}#@Price${separator}${separator}${separator}${separator}#@ItemCode`);
+      // 1. Dastlab Tarozi Sozlamalarini (TMS) yuklaymiz
+      // Bu tarozi avtomatik tarzda Print=1100 va Barcode=10 qolipiga o'tishini ta'minlaydi
+      lines.push('ECS\tVER\t100\t');
+      lines.push('DWL\tTMS\t');
+      lines.push('TMS\t0\t1100\t');
+      lines.push('TMS\t1\t10\t');
+      lines.push('END\tTMS\t');
 
-      filteredData.forEach((prod, index) => {
-        const number = index + 1; // 1 dan boshlanadi
-        
+      // 2. Mahsulotlar (PLU) ro'yxatini yuklaymiz
+      lines.push('DWL\tPLU\t');
+
+      filteredData.forEach((prod) => {
         // Ism (bo'shliq, enterni tozalash)
         const name = (prod.name || 'Nomsiz')
-          .replace(/[\t\r\n#;]/g, ' ')
+          .replace(/[\t\r\n]/g, ' ')
           .trim()
           .substring(0, 28);
 
-        // Narx
+        // Narx (TMS formatida vergul bilan)
         const priceRaw = prod.sale_price ? parseFloat(prod.sale_price) : 0;
-        const price = priceRaw.toFixed(2);
+        const priceStr = priceRaw.toFixed(1).replace('.', ',');
 
-        // ItemCode (5 xonali raqam)
+        // ItemCode (5 xonali raqam, PLU raqami sifatida ishlashiga moslangan)
         const rawPlu = prod.sku && String(prod.sku).trim()
           ? String(prod.sku).trim().replace(/\D/g, '')
           : String(prod.id);
         const itemCode = rawPlu ? rawPlu.slice(-5).padStart(5, '0') : String(prod.id).padStart(5, '0');
+        const itemCodeNum = parseInt(itemCode, 10);
+        const itemCodeStr = String(itemCodeNum || 0);
 
-        // Qatorni yig'ish (faqat kerakli ustunlar bilan)
+        // Qatorni TM-xA 69 ustunli to'liq formatida yig'amiz
         const row = [
-          'FILE_PLU',
-          number,
-          name,
-          '',       // bo'sh (Index o'rniga)
-          price,
-          '',       // bo'sh (B1_BarFlag o'rniga, tarozi o'zi 20 ga sozlangan)
-          '',       // bo'sh (B2_Bar o'rniga)
-          '',       // bo'sh
-          itemCode
-        ].join(separator);
+          'PLU', // 0
+          itemCodeStr, // 1 (PLU Number: Barcode-10 aynan shu yerdan kodni oladi!)
+          '0', // 2
+          '', // 3
+          '3', // 4 (Unit: kg)
+          priceStr, // 5
+          '0,0', '0,0', // 6,7
+          '1100', // 8 (Print format)
+          '10', // 9 (Barcode format)
+          '0', '0', '0', '0', // 10-13
+          itemCodeStr, // 14 (Item Code)
+          name, // 15 (Name)
+          '', '', '', '', '', '', '', // 16-22
+          '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', // 23-34
+          '0,0', '0,0', // 35,36
+          '0', '127', '0,0', '0,0', '0,0', // 37-41
+          '0', '127', '0,0', '0,0', '0,0', // 42-46
+          '0', '127', '0,0', '0,0', '0,0', // 47-51
+          '0', '127', '0,0', '0,0', '0,0', // 52-56
+          '0', '0', '0', '0', '0', '0', '0', // 57-63
+          name, // 64 (Name 2)
+          '0', '0', '0', '' // 65-68
+        ];
 
-        lines.push(row);
+        lines.push(row.join('\t'));
       });
 
-      const txtContent = lines.join('\r\n');
-      const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8' });
+      lines.push('END\tPLU\t');
+      lines.push('END\tECS\t');
+
+      const tmsContent = lines.join('\r\n');
+      const blob = new Blob([tmsContent], { type: 'text/plain;charset=utf-8' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', 'TMA_import.txt');
+      link.setAttribute('download', 'TMA_import.tms');
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       
-      toast.success(`${filteredData.length} ta mahsulot TMA_import.txt ga eksport qilindi!`);
+      toast.success(`${filteredData.length} ta mahsulot TMA_import.tms ga eksport qilindi!`);
     } catch (error) {
       toast.error("Eksport qilishda xatolik yuz berdi");
     }
