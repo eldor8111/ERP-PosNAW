@@ -200,7 +200,6 @@ def bulk_import_suppliers(
                 except:
                     pass
 
-        # check specific constraints if needed
         if "name" not in kwargs:
             kwargs["name"] = name
 
@@ -211,6 +210,7 @@ def bulk_import_suppliers(
 
     db.commit()
     return {"created": created, "updated": updated, "skipped": len(errors), "errors": errors}
+
 
 @router.delete("/{supplier_id}", status_code=204)
 def delete_supplier(
@@ -254,21 +254,17 @@ def pay_supplier_debt(
         raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
     if data.amount <= 0:
         raise HTTPException(status_code=400, detail="To'lov miqdori musbat bo'lishi kerak")
-    
+
     currency = data.currency or "UZS"
 
-    # Ensure debt_balances is initialised before any reads
+    # ✅ KRITIK-4 TUZATILDI: Legacy migration to'g'ri ishlaydi
     if not supplier.debt_balances:
-        supplier.debt_balances = {}
+        if float(supplier.debt_balance or 0) > 0:
+            legacy_currency = (supplier.debt_currency or "UZS").strip().upper() or "UZS"
+            supplier.debt_balances = {legacy_currency: float(supplier.debt_balance)}
+        else:
+            supplier.debt_balances = {}
 
-    # --- LEGACY MIGRATION ---
-    if not supplier.debt_balances and float(supplier.debt_balance or 0) > 0:
-        legacy_currency = (supplier.debt_currency or "UZS").strip().upper() or "UZS"
-        supplier.debt_balances = {legacy_currency: float(supplier.debt_balance)}
-
-    # Update the currency-specific balance in debt_balances JSON
-    from decimal import Decimal
-    from sqlalchemy.orm.attributes import flag_modified
     from app.models.currency import Currency as CurrencyModel
 
     def get_rate(cur: str) -> Decimal:
@@ -278,12 +274,12 @@ def pay_supplier_debt(
         obj = db.query(CurrencyModel).filter(CurrencyModel.code == cur).first()
         return Decimal(str(obj.rate)) if obj else Decimal("1")
 
-    payment_currency = currency          # to'lov valyutasi
+    payment_currency = currency
     payment_amount   = Decimal(str(data.amount))
     payment_rate     = get_rate(payment_currency)
-    payment_in_uzs   = payment_amount * payment_rate  # to'lov UZS ekvivalenti
+    payment_in_uzs   = payment_amount * payment_rate
 
-    remaining_uzs = payment_in_uzs  # hali qoplash kerak bo'lgan UZS
+    remaining_uzs = payment_in_uzs
 
     # 1) Avval to'lov valyutasidagi qarzdan ayiramiz
     if payment_currency in supplier.debt_balances and float(supplier.debt_balances[payment_currency]) > 0:
@@ -303,13 +299,10 @@ def pay_supplier_debt(
             if debt_amount <= 0:
                 continue
             debt_rate = get_rate(debt_cur)
-            # Bu valyutadagi qarz UZS ekvivalenti
             debt_in_uzs = debt_amount * debt_rate
             if debt_in_uzs <= Decimal("0.001"):
                 continue
-            # Necha UZS qoplanadi bu qarzdan
             uzs_to_cover = min(remaining_uzs, debt_in_uzs)
-            # UZS dan ushbu valyutaga o'tkazamiz
             amount_in_debt_cur = uzs_to_cover / debt_rate
             supplier.debt_balances[debt_cur] = float(
                 max(Decimal("0"), debt_amount - amount_in_debt_cur)
@@ -318,17 +311,14 @@ def pay_supplier_debt(
 
     flag_modified(supplier, "debt_balances")
 
-    # Update aggregate debt_balance (always in UZS)
-    exchange_rate = payment_rate
+    # Agregat UZS balansini kamaytirish
     amount_in_uzs = payment_in_uzs
     supplier.debt_balance = max(Decimal("0"), Decimal(str(supplier.debt_balance or 0)) - amount_in_uzs)
-
-
 
     from app.models.moliya import Transaction, Wallet, KassaMovement
     from app.models.branch import Branch as _Branch
 
-    # Wallet balansini yangilash (agar wallet tanlangan bo'lsa)
+    # Wallet balansini yangilash
     if data.wallet_id:
         wallet = db.get(Wallet, data.wallet_id)
         if wallet:
@@ -343,7 +333,7 @@ def pay_supplier_debt(
     tx_desc = data.reason or ""
     if currency != "UZS":
         tx_desc = tx_desc + f" ({data.amount} {currency})"
-        
+
     # Tranzaksiya DOIM yoziladi (wallet_id bo'lmasa ham)
     tx = Transaction(
         company_id=current_user.company_id,
@@ -356,7 +346,7 @@ def pay_supplier_debt(
         reference_type="supplier_payment",
         reference_id=supplier_id,
         description=tx_desc.strip(),
-        user_id=current_user.id
+        user_id=current_user.id,
     )
     db.add(tx)
 
@@ -388,7 +378,11 @@ def pay_supplier_debt(
 
 
 @router.get("/{supplier_id}/stats")
-def get_supplier_stats(supplier_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_roles(*ALLOWED))):
+def get_supplier_stats(
+    supplier_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*ALLOWED)),
+):
     q = db.query(Supplier).filter(Supplier.id == supplier_id)
     q = q.filter(Supplier.company_id == current_user.company_id)
     supplier = q.first()
@@ -401,12 +395,22 @@ def get_supplier_stats(supplier_id: int, db: Session = Depends(get_db), current_
         PurchaseOrder.supplier_id == supplier_id,
         PurchaseOrder.company_id == current_user.company_id
     ).all()
-    
+
     active_pos = [p for p in all_pos if p.status != POStatus.cancelled]
-    
+
     balances = dict(supplier.debt_balances or {})
     if not balances and float(supplier.debt_balance or 0) > 0:
-        balances["UZS"] = float(supplier.debt_balance)
+        legacy_cur = (supplier.debt_currency or "UZS").strip().upper() or "UZS"
+        balances[legacy_cur] = float(supplier.debt_balance)
+
+    # ✅ Valyuta kurslarini qo'shamiz (SupplierDetail sub qatori uchun)
+    from app.models.currency import Currency as CurrencyModel
+    currency_objs = db.query(CurrencyModel).filter(
+        CurrencyModel.company_id == current_user.company_id,
+        CurrencyModel.is_active == True,
+    ).all()
+    rates = {c.code: float(c.rate) for c in currency_objs}
+    rates["UZS"] = 1.0
 
     return {
         "id": supplier.id,
@@ -417,6 +421,7 @@ def get_supplier_stats(supplier_id: int, db: Session = Depends(get_db), current_
         "payment_terms": supplier.payment_terms,
         "debt_balance": float(supplier.debt_balance or 0),
         "debt_balances": balances,
+        "rates": rates,
         "total_purchases_count": len(active_pos),
         "total_purchases_amount": sum(float(p.total_amount) for p in active_pos),
         "total_paid_amount": sum(float(p.paid_amount) for p in active_pos),
@@ -424,7 +429,11 @@ def get_supplier_stats(supplier_id: int, db: Session = Depends(get_db), current_
 
 
 @router.get("/{supplier_id}/history")
-def get_supplier_history(supplier_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_roles(*ALLOWED))):
+def get_supplier_history(
+    supplier_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*ALLOWED)),
+):
     q = db.query(Supplier).filter(Supplier.id == supplier_id)
     q = q.filter(Supplier.company_id == current_user.company_id)
     supplier = q.first()
@@ -440,7 +449,7 @@ def get_supplier_history(supplier_id: int, db: Session = Depends(get_db), curren
         PurchaseOrder.company_id == current_user.company_id
     ).order_by(PurchaseOrder.created_at.desc()).all()
 
-    # 2) Barcha to'lovlar (supplier_payment va purchase_order reference bilan bo'lgan chiqimlar)
+    # 2) Barcha to'lovlar
     payments = db.query(Transaction).filter(
         Transaction.reference_type.in_(["supplier_payment", "purchase_order"]),
         Transaction.reference_id == supplier_id,
@@ -451,17 +460,31 @@ def get_supplier_history(supplier_id: int, db: Session = Depends(get_db), curren
     history = []
 
     for p in purchases:
-        total = float(p.total_amount or 0)
-        paid = float(p.paid_amount or 0)
-        debt_added = max(0.0, total - paid)
+        total_uzs = float(p.total_amount or 0)
+        paid_uzs  = float(p.paid_amount or 0)
+        po_currency = (getattr(p, "currency", "UZS") or "UZS").strip().upper()
+
+        # ✅ O'RTA-8 TUZATILDI: Original valyutada to'g'ri summa
+        if po_currency != "UZS":
+            orig_total = float(p.original_total_amount or 0) if hasattr(p, 'original_total_amount') and p.original_total_amount else None
+            orig_paid  = float(p.original_paid_amount or 0)  if hasattr(p, 'original_paid_amount')  and p.original_paid_amount  else None
+            display_total = orig_total if orig_total else total_uzs
+            display_paid  = orig_paid  if orig_paid  else paid_uzs
+        else:
+            display_total = total_uzs
+            display_paid  = paid_uzs
+
+        debt_added = max(0.0, display_total - display_paid)
         history.append({
             "id": p.id,
             "op_type": "purchase",
             "date": p.created_at.isoformat(),
-            "amount": total,
-            "paid": paid,
+            "amount": display_total,
+            "amount_uzs": total_uzs,
+            "paid": display_paid,
+            "paid_uzs": paid_uzs,
             "debt": debt_added,
-            "currency": getattr(p, "currency", "UZS") or "UZS",
+            "currency": po_currency,
             "payment_type": "",
             "cashier": getattr(p.creator, "name", "") if p.creator else "",
             "sale_number": getattr(p, "number", ""),

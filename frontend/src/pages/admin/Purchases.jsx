@@ -1049,7 +1049,8 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
 
   const activeItems = poItems;
   const totalNet = activeItems.reduce((s, i) => s + i.qty_ordered * (i.net_cost || 0), 0);
-  const hasCurrency = activeItems.some(i => i.currency === 'USD');
+  // ✅ O'RTA-3 TUZATILDI: faqat USD emas, barcha chet el valyutalar
+  const hasCurrency = activeItems.some(i => i.currency && i.currency !== 'UZS');
 
   const [showPay, setShowPay] = useState(false);
   const [payForm, setPayForm] = useState({ discType: 'amt', discVal: '', cash: '', info: '', wallet_id: '', currency: 'UZS' });
@@ -1412,9 +1413,19 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                           <input type="number" min="0" value={it.unit_cost}
                             onChange={e => updFn(i, 'unit_cost', e.target.value)}
                             className="w-24 text-right border border-slate-200 rounded-lg px-1.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                          <button onClick={() => updFn(i, 'currency', it.currency === 'UZS' ? 'USD' : 'UZS')}
-                            className={`text-[10px] font-bold px-1.5 py-1 rounded-md transition-colors ${it.currency === 'USD' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                            {it.currency}
+                          {/* ✅ O'RTA-4 TUZATILDI: Barcha currencies orqali aylanadi */}
+                          <button onClick={() => {
+                            const curList = currencies.length > 0 ? currencies.map(c => c.code) : ['UZS', 'USD'];
+                            const idx = curList.indexOf(it.currency || 'UZS');
+                            const nextCur = curList[(idx + 1) % curList.length];
+                            updFn(i, 'currency', nextCur);
+                          }}
+                            className={`text-[10px] font-bold px-1.5 py-1 rounded-md transition-colors ${
+                              it.currency && it.currency !== 'UZS'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-slate-100 text-slate-500'
+                            }`}>
+                            {it.currency || 'UZS'}
                           </button>
                         </div>
                       </td>
@@ -1810,7 +1821,8 @@ function KirimlarTab({ products, warehouses, suppliers }) {
             </div>
             <div className="flex justify-end gap-3 px-6 py-4 border-t">
               <Btn v="ghost" onClick={() => setDetail(null)}>{t('admin.dict.close') || 'Yopish'}</Btn>
-              {['draft', 'ordered', 'partial'].includes(detail.status) && (
+              {/* ✅ O'RTA-2 TUZATILDI: 'ordered' yo'q, to'g'risi 'sent' */}
+              {['draft', 'sent', 'partial'].includes(detail.status) && (
                 <Btn v="green" onClick={() => { setRec(detail); setDetail(null); }}>Qabul qilish</Btn>
               )}
             </div>
@@ -2049,11 +2061,18 @@ function SuppliersTab() {
       });
       if (Object.keys(debtBalances).length > 0) {
         p.debt_balances = debtBalances;
-        // Also set primary debt_balance / debt_currency for legacy compatibility
-        const mainEntry = form.debtEntries.find(e => e.currency === 'UZS') || form.debtEntries[0];
-        if (mainEntry) {
-          p.debt_balance = Number(mainEntry.amount) || 0;
-          p.debt_currency = mainEntry.currency;
+        // ✅ O'RTA-6 TUZATILDI: UZS mavjud bo'lsa uni olish, bo'lmasa birinchi entry
+        const uzsEntry = form.debtEntries.find(e => e.currency === 'UZS');
+        const firstEntry = form.debtEntries.find(e => e.currency && Number(e.amount) > 0);
+        if (uzsEntry && Number(uzsEntry.amount) >= 0) {
+          // UZS mavjud → to'g'ridan-to'g'ri
+          p.debt_balance = Number(uzsEntry.amount) || 0;
+          p.debt_currency = 'UZS';
+        } else if (firstEntry) {
+          // Chet el valyutasi → UZS ekvivalentini hisoblash
+          const rate = currencies.find(c => c.code === firstEntry.currency)?.rate || 1;
+          p.debt_balance = Math.round(Number(firstEntry.amount) * Number(rate));
+          p.debt_currency = firstEntry.currency;
         }
       } else {
         p.debt_balance = 0;
@@ -2090,9 +2109,23 @@ function SuppliersTab() {
 
         <button
           onClick={() => {
-            const ws = XLSX.utils.json_to_sheet(list.map(s => ({
-              "Ta'minotchi": s.name, 'INN': s.inn || '—', 'Telefon': s.phone || '—', 'Email': s.email || '—', 'Qarz': s.debt_balance || 0
-            })));
+            const ws = XLSX.utils.json_to_sheet(list.map(s => {
+              // ✅ Kichik-14 TUZATILDI: har bir valyuta alohida ustun
+              const base = {
+                "Ta'minotchi": s.name,
+                'INN': s.inn || '—',
+                'Telefon': s.phone || '—',
+                'Email': s.email || '—',
+              };
+              if (s.debt_balances && typeof s.debt_balances === 'object' && Object.keys(s.debt_balances).length > 0) {
+                Object.entries(s.debt_balances).forEach(([cur, amt]) => {
+                  if (Number(amt) > 0) base[`Qarz (${cur})`] = Number(amt);
+                });
+              } else {
+                base['Qarz (UZS)'] = s.debt_balance || 0;
+              }
+              return base;
+            }));
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Ta'minotchilar");
             saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `taminotchilar_${new Date().toISOString().slice(0, 10)}.xlsx`);

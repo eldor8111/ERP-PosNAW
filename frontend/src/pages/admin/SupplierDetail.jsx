@@ -74,12 +74,14 @@ export default function SupplierDetail() {
     if (!window.confirm("Rostdan ham o'chirasizmi?")) return
     try {
       await api.delete(`/finance/transactions/${id}`)
+      // ✅ KRITIK-5 TUZATILDI: Tranzaksiya o'chirilgandan keyin stats va history qayta yuklanadi
       loadHistory()
-      // yangi statlarni olish
       const r = await api.get(`/suppliers/${supplierId}/stats`)
       setStats(r.data)
     } catch (err) {
       console.error(err)
+      // Xato bo'lsa ham ro'yxatni yangilaymiz
+      loadHistory()
     }
   }
 
@@ -127,12 +129,28 @@ export default function SupplierDetail() {
         {tab === 'umumiy' && (
           <div className="space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-5">
-              <StatCard
-                color={stats.debt_balance > 0 ? 'red' : 'emerald'}
-                icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-                label="Joriy Qarz"
-                value={fmt(stats.debt_balance)}
-              />
+              {/* ✅ O'RTA-7 TUZATILDI: Valyuta bo'yicha qarzlar alohida ko'rsatiladi */}
+              {stats.debt_balances && Object.keys(stats.debt_balances).filter(k => Number(stats.debt_balances[k]) > 0).length > 0 ? (
+                Object.entries(stats.debt_balances)
+                  .filter(([, v]) => Number(v) > 0)
+                  .map(([cur, amt]) => (
+                    <StatCard
+                      key={cur}
+                      color={Number(amt) > 0 ? 'red' : 'emerald'}
+                      icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                      label={`Joriy Qarz (${cur})`}
+                      value={`${fmt(amt)} ${cur}`}
+                      sub={cur !== 'UZS' ? `≈ ${fmt(Math.round(Number(amt) * (stats.rates?.[cur] || 1)))} UZS` : null}
+                    />
+                  ))
+              ) : (
+                <StatCard
+                  color={stats.debt_balance > 0 ? 'red' : 'emerald'}
+                  icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                  label="Joriy Qarz"
+                  value={fmt(stats.debt_balance)}
+                />
+              )}
               <StatCard color="indigo"
                 icon={<ListOrdered className="w-6 h-6" />}
                 label="Jami Xaridlar soni"
