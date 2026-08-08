@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Check } from 'lucide-react';
-import api from '../../../services/api';
+import api from '../../api/axios';
 import { toast } from 'react-hot-toast';
 
 function fmt(n) {
