@@ -83,6 +83,7 @@ class SaleItem(Base):
     cost_price = Column(Numeric(16, 4), nullable=False)
     discount = Column(Numeric(16, 4), default=0)
     subtotal = Column(Numeric(20, 4), nullable=False)
+    returned_quantity = Column(Numeric(12, 3), nullable=True, default=0)
     currency_code = Column(String(10), default="UZS")
     exchange_rate = Column(Numeric(14, 2), default=1)
 
