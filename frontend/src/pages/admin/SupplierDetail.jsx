@@ -233,7 +233,12 @@ export default function SupplierDetail() {
                   {loadingTab ? <tr><td colSpan={3} className="text-center py-10">Yuklanmoqda...</td></tr> : history.filter(i => i.op_type === (tab === 'xaridlar' ? 'purchase' : 'payment')).map(h => (
                     <tr key={`${h.op_type}-${h.id}`} className="hover:bg-slate-50">
                       <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">{fmtDate(h.date)}</td>
-                      <td className="px-4 py-3 font-semibold text-slate-800">{fmt(h.amount)} {h.currency}</td>
+                      <td className="px-4 py-3 font-semibold text-slate-800">
+                        <div>{fmt(h.amount)} <span className="text-xs font-bold text-slate-500">{h.currency}</span></div>
+                        {h.currency !== 'UZS' && h.amount_uzs && (
+                          <div className="text-[11px] text-slate-400 font-normal">≈ {fmt(h.amount_uzs)} so'm</div>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-slate-600 text-xs">{h.description}</td>
                     </tr>
                   ))}
