@@ -464,12 +464,23 @@ def get_supplier_history(
         paid_uzs  = float(p.paid_amount or 0)
         po_currency = (getattr(p, "currency", "UZS") or "UZS").strip().upper()
 
-        # ✅ O'RTA-8 TUZATILDI: Original valyutada to'g'ri summa
+        # ✅ O'RTA-8 TO'LIQ TUZATILDI:
+        # total_amount bazada DOIM UZS da saqlanadi.
+        # Chet el valyutasida ko'rsatish uchun joriy kursga bo'lamiz:
+        # misol: 70,992,000 UZS ÷ 12,000 (USD kursi) = 5,916 USD ✓
         if po_currency != "UZS":
-            orig_total = float(p.original_total_amount or 0) if hasattr(p, 'original_total_amount') and p.original_total_amount else None
-            orig_paid  = float(p.original_paid_amount or 0)  if hasattr(p, 'original_paid_amount')  and p.original_paid_amount  else None
-            display_total = orig_total if orig_total else total_uzs
-            display_paid  = orig_paid  if orig_paid  else paid_uzs
+            from app.models.currency import Currency as CurrencyModel
+            rate_obj = db.query(CurrencyModel).filter(
+                CurrencyModel.code == po_currency,
+                CurrencyModel.company_id == current_user.company_id,
+            ).first()
+            rate = float(rate_obj.rate) if rate_obj and rate_obj.rate else 1.0
+            if rate > 0:
+                display_total = round(total_uzs / rate, 2)
+                display_paid  = round(paid_uzs  / rate, 2)
+            else:
+                display_total = total_uzs
+                display_paid  = paid_uzs
         else:
             display_total = total_uzs
             display_paid  = paid_uzs
