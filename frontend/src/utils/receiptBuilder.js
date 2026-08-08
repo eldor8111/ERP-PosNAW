@@ -63,8 +63,24 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
       const retQty = Number(i.returned_quantity || 0);
       const newQty = Math.max(0, origQty - retQty);
       const sub = origQty > 0 ? (Number(i.subtotal || 0) / origQty) * newQty : 0;
-      return { ...i, quantity: newQty, qty_ordered: newQty, subtotal: sub };
-    }).filter(i => i.quantity > 0.001);
+      
+      let pName = i.product_name || i.product?.name || `ID=${i.product_id}`;
+      if (retQty > 0) {
+        if (newQty === 0) {
+          pName += ` (To'liq vozvrat qilingan: ${retQty})`;
+        } else {
+          pName += ` (Qisman vozvrat: ${retQty})`;
+        }
+      }
+      
+      return { 
+        ...i, 
+        product_name: pName,
+        quantity: newQty, 
+        qty_ordered: newQty, 
+        subtotal: sub 
+      };
+    }); // we do NOT filter out zero quantities, so they appear on the receipt as returned
   }
 
   // sh — cfg[key] qiymatini qaytaradi, aniqlanmagan bo'lsa def qaytaradi
@@ -260,7 +276,7 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
           case 'show_sku':             val = i.sku || ''; break;
           case 'show_price':           val = itemUseCur ? up.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : up.toLocaleString('uz-UZ'); break;
           case 'show_discount':        val = disc > 0 ? (itemUseCur ? `-${disc.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}` : `-${disc.toLocaleString('uz-UZ')}`) : ''; break;
-          case 'show_price_with_discount': val = itemUseCur ? (up - disc/qty).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : (up - disc/qty).toLocaleString('uz-UZ'); break;
+          case 'show_price_with_discount': val = itemUseCur ? (up - (qty > 0 ? disc/qty : 0)).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : (up - (qty > 0 ? disc/qty : 0)).toLocaleString('uz-UZ'); break;
           case 'show_net_price':       val = itemUseCur ? sub.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : sub.toLocaleString('uz-UZ'); break;
           case 'show_currency':        val = itemCurr === 'USD' ? '$' : (itemCurr === 'RUB' ? '₽' : (itemCurr === 'UZS' ? "so'm" : itemCurr)); break;
           case 'item_qty':             val = qty; break;
