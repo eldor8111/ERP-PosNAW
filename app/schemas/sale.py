@@ -139,6 +139,7 @@ class SaleOut(BaseModel):
     currency_code: Optional[str] = "UZS"
     exchange_rate: Optional[Decimal] = Decimal("1.0")
     debt_amounts: Optional[dict] = None
+    before_debt_balances: Optional[dict] = None
 
     model_config = {"from_attributes": True}
 
@@ -162,6 +163,7 @@ class SaleListOut(BaseModel):
     debt_due_date: Optional[date] = None
     currency_code: Optional[str] = "UZS"
     debt_amounts: Optional[dict] = None
+    before_debt_balances: Optional[dict] = None
 
     model_config = {"from_attributes": True}
 
@@ -184,3 +186,20 @@ class SaleUpdate(BaseModel):
     currency_id: Optional[int] = None
     currency_code: Optional[str] = None
     exchange_rate: Optional[Decimal] = None
+
+
+class PartialReturnItem(BaseModel):
+    sale_item_id: int
+    quantity: Decimal
+    
+    @field_validator("quantity")
+    @classmethod
+    def qty_positive(cls, v):
+        if v <= 0:
+            raise ValueError("Qaytarish miqdori musbat bo'lishi kerak")
+        return v
+
+class SaleReturnRequest(BaseModel):
+    items: List[PartialReturnItem]
+    payment_type: PaymentType = PaymentType.cash
+    note: Optional[str] = None

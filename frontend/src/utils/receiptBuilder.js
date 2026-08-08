@@ -56,6 +56,17 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   const isNak = tpl === 'nak' || tpl === 'A4';
   const width = isNak ? '100%' : (narrow ? '320px' : '420px');
 
+  sale = { ...sale };
+  if (sale.items) {
+    sale.items = sale.items.map(i => {
+      const origQty = Number(i.quantity || i.qty_ordered || 0);
+      const retQty = Number(i.returned_quantity || 0);
+      const newQty = Math.max(0, origQty - retQty);
+      const sub = origQty > 0 ? (Number(i.subtotal || 0) / origQty) * newQty : 0;
+      return { ...i, quantity: newQty, qty_ordered: newQty, subtotal: sub };
+    }).filter(i => i.quantity > 0.001);
+  }
+
   // sh — cfg[key] qiymatini qaytaradi, aniqlanmagan bo'lsa def qaytaradi
   // isNak bloki ichida ham, tashqarida ham ishlatilishi mumkin
   const sh = (key, def = true) => cfg[key] !== undefined ? cfg[key] : def;

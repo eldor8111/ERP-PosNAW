@@ -210,8 +210,16 @@ def create_sale(
 
     loyalty_earned = 0
     prev_debt_balance = 0.0
+    prev_debt_balances = None
     if data.customer_id:
         prev_debt_balance = float(customer.debt_balance or 0)
+        
+        # Legacy support
+        if not customer.debt_balances and prev_debt_balance > 0:
+            legacy_curr = (getattr(customer, "debt_currency", "UZS") or "UZS").strip().upper()
+            customer.debt_balances = {legacy_curr: float(prev_debt_balance)}
+            
+        prev_debt_balances = dict(customer.debt_balances or {})
 
         if data.loyalty_points_used > 0:
             if data.loyalty_points_used > customer.loyalty_points:
@@ -330,6 +338,7 @@ def create_sale(
         loyalty_points_used=data.loyalty_points_used,
         debt_due_date=data.debt_due_date,
         debt_amounts=sale_debt_amounts,
+        before_debt_balances=prev_debt_balances,
     )
     db.add(sale)
     db.flush()

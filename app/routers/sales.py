@@ -11,8 +11,9 @@ from app.database import get_db
 from app.models.customer import Customer
 from app.models.sale import Sale, SaleItem, SaleStatus
 from app.models.user import User, UserRole
-from app.schemas.sale import SaleCreate, SaleItemOut, SaleListOut, SaleOut, SaleUpdate
+from app.schemas.sale import SaleCreate, SaleItemOut, SaleListOut, SaleOut, SaleUpdate, SaleReturnRequest
 from app.services.sale_service import create_sale, create_return_sale, delete_sale, update_sale, create_pending_sale
+from app.services.sale_partial_return import process_partial_return
 from app.services.hippo_fiscalize import fiscalize_sale, fiscalize_return
 
 router = APIRouter(prefix="/sales", tags=["Sales (POS)"])
@@ -94,6 +95,7 @@ def _build_sale_out(sale: Sale) -> SaleOut:
         currency_code=sale.currency.code if getattr(sale, 'currency', None) else "UZS",
         exchange_rate=getattr(sale, 'exchange_rate', 1.0) or 1.0,
         debt_amounts=getattr(sale, 'debt_amounts', None),
+        before_debt_balances=getattr(sale, 'before_debt_balances', None),
     )
 
 
@@ -148,6 +150,8 @@ def make_sale(
         items_count=len(data.items),
         created_at=sale.created_at,  # type: ignore
         currency_code=sale.currency.code if getattr(sale, 'currency', None) else "UZS",
+        debt_amounts=getattr(sale, 'debt_amounts', None),
+        before_debt_balances=getattr(sale, 'before_debt_balances', None),
     )
 
 
@@ -180,7 +184,28 @@ def make_pending_sale(
         created_at=sale.created_at,  # type: ignore
         currency_code=sale.currency.code if getattr(sale, 'currency', None) else "UZS",
         debt_amounts=getattr(sale, 'debt_amounts', None),
+        before_debt_balances=getattr(sale, 'before_debt_balances', None),
     )
+
+
+@router.post("/{sale_id}/return-items", response_model=SaleOut)
+def partial_return(
+    sale_id: int,
+    data: SaleReturnRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*POS_ROLES)),
+):
+    ip = request.client.host if request.client else None
+    updated_sale = process_partial_return(
+        db=db,
+        sale_id=sale_id,
+        data=data,
+        current_user=current_user,
+        ip=ip
+    )
+    return _build_sale_out(updated_sale)
+
 
 
 @router.post("/return", response_model=SaleListOut)
@@ -211,6 +236,7 @@ def make_return_sale(
         created_at=sale.created_at,  # type: ignore
         currency_code=sale.currency.code if getattr(sale, 'currency', None) else "UZS",
         debt_amounts=getattr(sale, 'debt_amounts', None),
+        before_debt_balances=getattr(sale, 'before_debt_balances', None),
     )
 
 

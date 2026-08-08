@@ -710,9 +710,20 @@ def get_customer_history(customer_id: int, db: Session = Depends(get_db),
     history = []
 
     for s in sales:
-        total = float(s.total_amount or 0)
-        paid = float(s.paid_amount or 0)
+        exr = float(s.exchange_rate or 1.0)
+        total = float(s.total_amount or 0) / exr
+        paid = float(s.paid_amount or 0) / exr
         debt_added = max(0.0, total - paid)
+        
+        curr_code = "UZS"
+        if hasattr(s, "currency") and s.currency:
+            curr_code = s.currency.code
+        elif hasattr(s, "currency_id") and s.currency_id:
+            from app.models.currency import Currency
+            curr_obj = db.query(Currency).filter(Currency.id == s.currency_id).first()
+            if curr_obj:
+                curr_code = curr_obj.code
+
         history.append({
             "id": s.id,
             "op_type": "sale",                       # sotuv
@@ -720,7 +731,7 @@ def get_customer_history(customer_id: int, db: Session = Depends(get_db),
             "amount": total,
             "paid": paid,
             "debt": debt_added,
-            "currency": getattr(s, "currency", "UZS") or "UZS",
+            "currency": curr_code,
             "payment_type": getattr(s, "payment_type", ""),
             "cashier": getattr(s, "cashier_name", ""),
             "sale_number": getattr(s, "number", ""),
@@ -737,7 +748,7 @@ def get_customer_history(customer_id: int, db: Session = Depends(get_db),
             "amount": float(p.amount or 0),
             "paid": float(p.amount or 0),
             "debt": 0,
-            "currency": "UZS",
+            "currency": p.currency or "UZS",
             "payment_type": p.payment_type or "cash",
             "cashier": "",
             "description": p.description or "Qarz to'lovi",
@@ -896,32 +907,61 @@ def pay_debt(customer_id: int, data: DebtUpdate, db: Session = Depends(get_db),
             )
         ]
 
-    for p in payments_to_process:
-        p_currency = p.currency or "UZS"
-        # Update the currency-specific balance in debt_balances JSON
-        curr_val = Decimal(str(cust.debt_balances.get(p_currency, 0)))
-        cust.debt_balances[p_currency] = float(max(Decimal("0"), curr_val - p.amount))
-        
-        # Determine exchange rate
-        exchange_rate = Decimal("1")
-        if p_currency != "UZS":
-            curr_obj = db.query(CurrencyModel).filter(CurrencyModel.code == p_currency).first()
-            if curr_obj:
-                exchange_rate = Decimal(str(curr_obj.rate))
-            elif getattr(p, "rate", None):
-                exchange_rate = Decimal(str(p.rate))
+    def get_rate(cur: str) -> Decimal:
+        if cur == "UZS":
+            return Decimal("1")
+        obj = db.query(CurrencyModel).filter(CurrencyModel.code == cur).first()
+        return Decimal(str(obj.rate)) if obj else Decimal("1")
 
-        amount_in_uzs = p.amount * exchange_rate
-        cust.debt_balance = max(Decimal("0"), (cust.debt_balance or Decimal("0")) - amount_in_uzs)
+    for p in payments_to_process:
+        payment_currency = p.currency or "UZS"
+        payment_amount = Decimal(str(p.amount))
+        payment_rate = get_rate(payment_currency)
+        if getattr(p, "rate", None):
+            payment_rate = Decimal(str(p.rate))
+            
+        payment_in_uzs = payment_amount * payment_rate
+        remaining_uzs = payment_in_uzs
+
+        # 1) Avval to'lov valyutasidagi qarzdan ayiramiz
+        if payment_currency in cust.debt_balances and float(cust.debt_balances[payment_currency]) > 0:
+            debt_in_pay_cur = Decimal(str(cust.debt_balances[payment_currency]))
+            deducted = min(debt_in_pay_cur, payment_amount)
+            cust.debt_balances[payment_currency] = float(debt_in_pay_cur - deducted)
+            remaining_uzs -= deducted * payment_rate
+
+        # 2) Qolgan summa bo'lsa, boshqa valyutalardagi qarzlardan kurs bo'yicha ayiramiz
+        if remaining_uzs > Decimal("0.001"):
+            for debt_cur, debt_val in list(cust.debt_balances.items()):
+                if remaining_uzs <= Decimal("0.001"):
+                    break
+                if debt_cur == payment_currency:
+                    continue
+                debt_amount = Decimal(str(debt_val))
+                if debt_amount <= 0:
+                    continue
+
+                debt_rate = get_rate(debt_cur)
+                debt_in_uzs = debt_amount * debt_rate
+
+                if remaining_uzs >= debt_in_uzs:
+                    remaining_uzs -= debt_in_uzs
+                    cust.debt_balances[debt_cur] = 0.0
+                else:
+                    deducted_in_target = remaining_uzs / debt_rate
+                    cust.debt_balances[debt_cur] = float(debt_amount - deducted_in_target)
+                    remaining_uzs = Decimal("0")
+
+        cust.debt_balance = max(Decimal("0"), (cust.debt_balance or Decimal("0")) - payment_in_uzs)
 
         if wallet:
             wallet.balance = float(wallet.balance or 0) + float(p.amount)
             
             tx_desc = data.reason or f"Mijoz to'lovi: {cust.name}"
-            if p_currency != "UZS":
-                tx_desc = tx_desc + f" ({p.amount} {p_currency})"
+            if payment_currency != "UZS":
+                tx_desc = tx_desc + f" ({p.amount} {payment_currency})"
             elif data.payments and len(data.payments) > 1:
-                tx_desc = tx_desc + f" ({p.amount} {p_currency})"
+                tx_desc = tx_desc + f" ({p.amount} {payment_currency})"
 
             tx = Transaction(
                 company_id=current_user.company_id,
@@ -929,7 +969,7 @@ def pay_debt(customer_id: int, data: DebtUpdate, db: Session = Depends(get_db),
                 wallet_id=target_wallet_id,
                 type="income",
                 amount=p.amount,
-                currency_code=p_currency,
+                currency_code=payment_currency,
                 payment_type=p.payment_type or "cash",
                 reference_type="customer_payment",
                 reference_id=customer_id,

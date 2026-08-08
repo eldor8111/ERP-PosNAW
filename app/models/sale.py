@@ -55,6 +55,7 @@ class Sale(Base):
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
     debt_due_date = Column(Date, nullable=True)
     debt_amounts = Column(JSON, nullable=True, server_default='{}')
+    before_debt_balances = Column(JSON, nullable=True)
 
     currency = relationship("Currency")
     warehouse = relationship("Warehouse")

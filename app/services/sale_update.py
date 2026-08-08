@@ -201,33 +201,67 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 Customer.company_id == current_user.company_id,
             ).first()
             if new_customer:
-                new_debt = max(Decimal("0"), (total_amount - paid_amount) * (sale.exchange_rate or Decimal("1")))
-                if new_debt > 0:
-                    new_customer.debt_balance = (new_customer.debt_balance or Decimal("0")) + new_debt  # type: ignore
+                new_debt_uzs = max(Decimal("0"), total_amount - paid_amount)
+                if new_debt_uzs > Decimal("0.01"):
+                    new_customer.debt_balance = (new_customer.debt_balance or Decimal("0")) + new_debt_uzs  # type: ignore
 
                     # Sync with multi-currency debt_balances
                     if not new_customer.debt_balances:
                         new_customer.debt_balances = {}  # type: ignore
                     
+                    final_debts = {}
                     if hasattr(data, "currency_totals") and data.currency_totals:
-                        for curr_code, curr_debt in data.currency_totals.items():
-                            curr_val = float(new_customer.debt_balances.get(curr_code, 0))
-                            new_customer.debt_balances[curr_code] = curr_val + float(curr_debt)
+                        final_debts = {k: Decimal(str(v)) for k, v in data.currency_totals.items()}
                     else:
-                        sale_currency = "UZS"
+                        currency_rates = {"UZS": Decimal("1.0")}
+                        remain = {}
+                        for sid in sale_items_data:
+                            curr = sid["currency_code"]
+                            currency_rates[curr] = sid.get("exchange_rate", Decimal("1.0"))
+                            remain[curr] = remain.get(curr, Decimal("0")) + sid["subtotal"]
+                        
+                        if getattr(data, "payments", None):
+                            for p in data.payments:
+                                if getattr(p, "currency", None):
+                                    currency_rates[p.currency] = getattr(p, "rate", Decimal("1.0")) or Decimal("1.0")
+                                if p.type.value not in ("debt", "cashback"):
+                                    p_curr = getattr(p, "currency", "UZS") or "UZS"
+                                    remain[p_curr] = remain.get(p_curr, Decimal("0")) - p.amount
+
                         if sale.currency_id:
                             from app.models.currency import Currency
                             curr_obj = db.query(Currency).filter(Currency.id == sale.currency_id).first()
                             if curr_obj:
-                                sale_currency = curr_obj.code
-                                
-                        curr_val = float(new_customer.debt_balances.get(sale_currency, 0))
-                        # Note: we need to use the raw debt without exchange rate multiplication for the specific currency
-                        raw_debt = max(Decimal("0"), total_amount - paid_amount)
-                        new_customer.debt_balances[sale_currency] = curr_val + float(raw_debt)
+                                currency_rates[curr_obj.code] = sale.exchange_rate or Decimal("1")
+
+                        if disc_amount > 0:
+                            remain["UZS"] = remain.get("UZS", Decimal("0")) - disc_amount
+
+                        overpaid_uzs = Decimal("0")
+                        for c in list(remain.keys()):
+                            if remain[c] < Decimal("-0.001"):
+                                overpaid_uzs += abs(remain[c]) * currency_rates.get(c, Decimal("1"))
+                                del remain[c]
+                        
+                        for c in list(remain.keys()):
+                            if remain[c] > Decimal("0.001") and overpaid_uzs > Decimal("0.001"):
+                                need_uzs = remain[c] * currency_rates.get(c, Decimal("1"))
+                                if overpaid_uzs >= need_uzs:
+                                    overpaid_uzs -= need_uzs
+                                    del remain[c]
+                                else:
+                                    remain[c] -= overpaid_uzs / currency_rates.get(c, Decimal("1"))
+                                    overpaid_uzs = Decimal("0")
+                        
+                        final_debts = {c: amt for c, amt in remain.items() if amt > Decimal("0.01")}
+
+                    for curr_code, curr_debt in final_debts.items():
+                        curr_val = float(new_customer.debt_balances.get(curr_code, 0))
+                        new_customer.debt_balances[curr_code] = curr_val + float(curr_debt)
 
                     from sqlalchemy.orm.attributes import flag_modified
                     flag_modified(new_customer, "debt_balances")
+                    sale.debt_amounts = {c: float(amt) for c, amt in final_debts.items()}
 
                 exr = sale.exchange_rate or Decimal("1")
                 if getattr(new_customer, "cashback_percent", 0) > 0:

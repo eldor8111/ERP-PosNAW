@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ListOrdered, ChevronsUpDown, CheckIcon, X, RotateCcw } from 'lucide-react';
+import PartialReturnModal from './PartialReturnModal';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ')
 const fmtDate = (d) => d ? new Date(d).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
@@ -418,6 +419,8 @@ function SalesTable({ rows, stats, salesData, loading, emptyText = "Sotuvlar yo'
     }
   }
 
+  const [openPartialReturnModal, setOpenPartialReturnModal] = useState(false);
+
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(() => Number(localStorage.getItem('sales_limit')) || 10);
 
@@ -544,6 +547,20 @@ function SalesTable({ rows, stats, salesData, loading, emptyText = "Sotuvlar yo'
               {paginatedSales.length > 0 ? (
                 paginatedSales.map(s => {
                   const debt = Number(s.total_amount) - Number(s.paid_amount)
+                  
+                  // Har bir valyuta uchun to'g'ri ko'rsatish
+                  let debtStr = '—';
+                  if (s.debt_amounts && Object.keys(s.debt_amounts).length > 0) {
+                    const validDebts = Object.entries(s.debt_amounts).filter(([, v]) => Math.abs(v) > 0.001);
+                    if (validDebts.length > 0) {
+                      debtStr = validDebts.map(([k, v]) => `${fmt(v)} ${k === 'USD' ? '$' : k}`).join(', ');
+                    }
+                  } else if (debt > 0.01) {
+                    debtStr = `${fmt(debt)} ${s.currency_code === 'USD' ? '$' : "so'm"}`;
+                  }
+                  
+                  const curr = s.currency_code || s.currency || 'UZS';
+                  const currSign = curr === 'USD' ? '$' : "so'm";
                   return (
                     <tr key={s.id} onClick={() => openSaleDetail(s.id)} className="hover:bg-slate-50 transition-colors cursor-pointer">
                       <td className="px-4 py-4 font-mono text-xs text-slate-600">{s.number}</td>
@@ -557,10 +574,10 @@ function SalesTable({ rows, stats, salesData, loading, emptyText = "Sotuvlar yo'
                           {PAY_LABELS[s.payment_type] || s.payment_type}
                         </span>
                       </td>
-                      <td className="px-4 py-4 text-left font-semibold text-slate-800">{fmt(s.total_amount)} {s.currency === 'USD' ? '$' : "so'm"}</td>
-                      <td className="px-4 py-4 text-left text-emerald-600 font-medium">{fmt(s.paid_amount)} {s.currency === 'USD' ? '$' : "so'm"}</td>
-                      <td className={`px-4 py-4 text-left font-medium ${debt > 0 ? 'text-red-500' : 'text-slate-400'}`}>
-                        {debt > 0 ? fmt(debt) : '—'}
+                      <td className="px-4 py-4 text-left font-semibold text-slate-800">{fmt(s.total_amount)} {currSign}</td>
+                      <td className="px-4 py-4 text-left text-emerald-600 font-medium">{fmt(s.paid_amount)} {currSign}</td>
+                      <td className={`px-4 py-4 text-left font-medium ${debtStr !== '—' ? 'text-red-500' : 'text-slate-400'}`}>
+                        {debtStr}
                       </td>
                       <td className="px-4 py-4 text-slate-500 whitespace-nowrap">{fmtDate(s.created_at)}</td>
                     </tr>
@@ -668,8 +685,19 @@ function SalesTable({ rows, stats, salesData, loading, emptyText = "Sotuvlar yo'
 
             {/* Header */}
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
-              <div>
+              <div className="flex items-center gap-4">
                 <h3 className="text-xl font-bold text-slate-800">Sotuv tafsilotlari</h3>
+                {saleDetailData?.status !== 'refunded' && saleDetailData?.status !== 'cancelled' && (
+                  <button
+                    onClick={() => {
+                      setOpenPartialReturnModal(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors border border-red-100/50"
+                  >
+                    <RotateCcw size={14} />
+                    Vozvrat qilish
+                  </button>
+                )}
               </div>
               <button
                 onClick={() => setOpenSaleDetailModal(false)}
@@ -756,6 +784,19 @@ function SalesTable({ rows, stats, salesData, loading, emptyText = "Sotuvlar yo'
 
           </div>
         </div>
+      )}
+
+      {openPartialReturnModal && (
+        <PartialReturnModal
+          sale={saleDetailData}
+          onClose={() => setOpenPartialReturnModal(false)}
+          onSuccess={() => {
+            setOpenPartialReturnModal(false);
+            setOpenSaleDetailModal(false);
+            // Sahifani yangilash uchun fetchData yuboriladi agar kerak bo'lsa
+            // Ammo bu yerda window.location.reload yoki prop chaqirish mumkin
+          }}
+        />
       )}
     </div>
   )
@@ -864,6 +905,7 @@ function AktSverka({ stats, sales, loading, history }) {
   const [selectedCashier, setSelectedCashier] = useState('all')
   const [openSaleDetailModal, setOpenSaleDetailModal] = useState(false)
   const [saleDetailData, setSaleDetailData] = useState(null)
+  const [openPartialReturnModal, setOpenPartialReturnModal] = useState(false)
 
   async function openSaleDetail(id) {
     try {
@@ -1180,8 +1222,19 @@ function AktSverka({ stats, sales, loading, history }) {
 
             {/* Header */}
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
-              <div>
+              <div className="flex items-center gap-4">
                 <h3 className="text-xl font-bold text-slate-800">Sotuv tafsilotlari</h3>
+                {saleDetailData?.status !== 'refunded' && saleDetailData?.status !== 'cancelled' && (
+                  <button
+                    onClick={() => {
+                      setOpenPartialReturnModal(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors border border-red-100/50"
+                  >
+                    <RotateCcw size={14} />
+                    Vozvrat qilish
+                  </button>
+                )}
               </div>
               <button
                 onClick={() => setOpenSaleDetailModal(false)}
@@ -1265,6 +1318,17 @@ function AktSverka({ stats, sales, loading, history }) {
 
           </div>
         </div>
+      )}
+
+      {openPartialReturnModal && (
+        <PartialReturnModal
+          sale={saleDetailData}
+          onClose={() => setOpenPartialReturnModal(false)}
+          onSuccess={() => {
+            setOpenPartialReturnModal(false);
+            setOpenSaleDetailModal(false);
+          }}
+        />
       )}
     </div>
   )
