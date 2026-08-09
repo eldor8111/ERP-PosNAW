@@ -772,9 +772,13 @@ def record_customer_debt_payment(
     currency = data.currency or "UZS"
     pay = data.amount
 
-    # Ensure debt_balances is initialised
+    # Ensure debt_balances is initialised and migrate legacy debt
     if not customer.debt_balances:
-        customer.debt_balances = {}  # type: ignore[assignment]
+        legacy_curr = (getattr(customer, "debt_currency", "UZS") or "UZS").strip().upper()
+        if customer.debt_balance:
+            customer.debt_balances = {legacy_curr: float(customer.debt_balance)}
+        else:
+            customer.debt_balances = {}  # type: ignore[assignment]
 
     # Update currency-specific balance
     curr_val = Decimal(str(customer.debt_balances.get(currency, 0)))
@@ -963,9 +967,13 @@ def record_supplier_debt_payment(
     paid = float(data.amount)
     currency = data.currency or "UZS"
 
-    # Ensure debt_balances is initialised
+    # Ensure debt_balances is initialised and migrate legacy debt
     if not supplier.debt_balances:
-        supplier.debt_balances = {}  # type: ignore[assignment]
+        legacy_curr = (getattr(supplier, "debt_currency", "UZS") or "UZS").strip().upper()
+        if supplier.debt_balance:
+            supplier.debt_balances = {legacy_curr: float(supplier.debt_balance)}
+        else:
+            supplier.debt_balances = {}  # type: ignore[assignment]
     
     # Update currency-specific balance
     from decimal import Decimal

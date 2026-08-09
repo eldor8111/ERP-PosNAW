@@ -243,14 +243,14 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
       { key: 'show_ordering_number', label: '№',            align: 'center' },
       { key: 'show_item',            label: 'Mahsulot nomi',align: 'left',  always: true },
       { key: 'show_measurement',     label: "O'lchov",      align: 'center' },
-      { key: 'show_warehouse',       label: 'Ombor',        align: 'left'   },
-      { key: 'show_sku',             label: 'SKU',          align: 'left'   },
+      { key: 'item_qty',             label: 'Soni',         align: 'right', always: true },
       { key: 'show_price',           label: 'Narxi',        align: 'right'  },
       { key: 'show_discount',        label: 'Chegirma',     align: 'right'  },
       { key: 'show_price_with_discount', label: 'Chegirmali narx', align: 'right' },
       { key: 'show_net_price',       label: 'Sof narx',     align: 'right'  },
       { key: 'show_currency',        label: 'Valyuta',      align: 'center' },
-      { key: 'item_qty',             label: 'Soni',         align: 'right', always: true },
+      { key: 'show_warehouse',       label: 'Ombor',        align: 'left'   },
+      { key: 'show_sku',             label: 'SKU',          align: 'left'   },
       { key: 'item_total',           label: 'Jami',         align: 'right', always: true },
     ];
     const visibleCols = cols.filter(col => col.always || sh(col.key, col.key === 'show_ordering_number' || col.key === 'show_price'));

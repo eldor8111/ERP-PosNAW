@@ -215,7 +215,7 @@ def create_sale(
         prev_debt_balance = float(customer.debt_balance or 0)
         
         # Legacy support
-        if not customer.debt_balances and prev_debt_balance > 0:
+        if not customer.debt_balances and prev_debt_balance != 0:
             legacy_curr = (getattr(customer, "debt_currency", "UZS") or "UZS").strip().upper()
             customer.debt_balances = {legacy_curr: float(prev_debt_balance)}
             
