@@ -316,7 +316,7 @@ function Ic({ d, cls = 'w-4 h-4' }) {
   );
 }));
 
-const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeholder, onOpenAdd, warehouseId, disabled }, fwdRef) {
+const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeholder, onOpenAdd, warehouseId, disabled, customerPriceType }, fwdRef) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
   const [open, setOpen] = useState(false);
@@ -443,15 +443,22 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
               </div>
               <div className="text-right shrink-0">
                 <div className="text-sm font-black text-indigo-700">
-                  {fmt(p.wholesale_price || p.sale_price)} {' '}
                   {(() => {
-                    const cur = p.wholesale_price ? (p.wholesale_currency || p.sale_currency) : p.sale_currency;
-                    return cur === 'USD' ? '$' : (cur || 's');
+                    let displayPrice = p.sale_price;
+                    let displayCur = p.sale_currency || 'UZS';
+                    if (customerPriceType === 'wholesale' && p.wholesale_price) {
+                      displayPrice = p.wholesale_price;
+                      displayCur = p.wholesale_currency || p.sale_currency || 'UZS';
+                    } else if (customerPriceType === 'cost' && p.cost_price) {
+                      displayPrice = p.cost_price;
+                      displayCur = p.cost_currency || 'UZS';
+                    }
+                    return `${fmt(displayPrice)} ${displayCur === 'USD' ? '$' : displayCur === 'UZS' ? 's' : displayCur}`;
                   })()}
                 </div>
-                {p.wholesale_price && p.sale_price !== p.wholesale_price && (
+                {p.wholesale_price && p.sale_price !== p.wholesale_price && customerPriceType !== 'wholesale' && customerPriceType !== 'cost' && (
                   <div className="text-xs text-slate-400 line-through">
-                    {fmt(p.sale_price)} {p.sale_currency === 'USD' ? '$' : (p.sale_currency || 's')}
+                    {fmt(p.wholesale_price)} {p.wholesale_currency === 'USD' ? '$' : (p.wholesale_currency || 's')} (Ulgurji)
                   </div>
                 )}
                 <div className={`text-xs font-semibold mt-0.5 ${Number(p.stock_quantity) <= 0 ? 'text-red-500' : 'text-emerald-600'}`}>{fmt(p.stock_quantity)} {p.unit || 'dona'}</div>
@@ -495,6 +502,9 @@ export default function UlgurjiSotuv() {
   const [custId, setCustId] = useState(() => sessionStorage.getItem('ulgurji_customer') || localStorage.getItem('ulgurji_defaultCustomer') || '');
   const [warehouseId, setWarehouseId] = useState('');
 
+  // Promotions
+  const [promotions, setPromotions] = useState([]);
+
   // SessionStorage dan savatni tiklash (sahifa yangilanganda ham saqlanadi)
   const [cart, setCart] = useState(() => {
     try {
@@ -503,11 +513,6 @@ export default function UlgurjiSotuv() {
     } catch { return []; }
   });
   const [note, setNote] = useState('');
-  const [useWholesale, setUseWholesale] = useState(() => localStorage.getItem('ulgurji_useWholesale') !== 'false');
-
-  useEffect(() => {
-    localStorage.setItem('ulgurji_useWholesale', String(useWholesale));
-  }, [useWholesale]);
   const [showPayment, setShowPayment] = useState(false);
   const [saving, setSaving] = useState(false);
   const { hasShift, reload: reloadShift } = useActiveShift();
@@ -550,14 +555,26 @@ export default function UlgurjiSotuv() {
     } catch { /* ignore */ }
   }, [cart]);
 
-  // Mijoz o'zgarganda sessionStorage ga saqlash
+  // Mijoz o'zgarganda sessionStorage ga saqlash va savat narxlarini yangilash
   useEffect(() => {
     if (custId) {
       sessionStorage.setItem('ulgurji_customer', custId);
+      // Savatdagi mahsulot narxlarini yangi mijoz narx turiga qarab yangilash
+      const cust = customers.find(c => String(c.id) === String(custId));
+      if (cust && cart.length > 0) {
+        const pt = cust.price_type || 'sale';
+        setCart(prev => prev.map(it => {
+          let newPrice = it.price;
+          if (pt === 'wholesale' && it.wholesale_price > 0) newPrice = it.wholesale_price;
+          else if (pt === 'cost' && it.cost_price > 0) newPrice = it.cost_price;
+          else if (pt === 'sale' && it.sale_price > 0) newPrice = it.sale_price;
+          return { ...it, price: newPrice };
+        }));
+      }
     } else {
       sessionStorage.removeItem('ulgurji_customer');
     }
-  }, [custId]);
+  }, [custId, customers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveSettings = () => {
     localStorage.setItem('ulgurji_autoPrint', autoPrint);
@@ -630,6 +647,8 @@ export default function UlgurjiSotuv() {
     api.get('/customers/?limit=200').then(r => setCustomers(Array.isArray(r.data) ? r.data : (r.data?.items || []))).catch(() => { });
     api.get('/warehouses/').then(r => setWarehouses(Array.isArray(r.data) ? r.data : [])).catch(() => { });
     api.get('/currencies/').then(r => setCurrencies(Array.isArray(r.data) ? r.data : [])).catch(() => { });
+    // Faol aksiyalarni yuklash
+    api.get('/promotions/').then(r => setPromotions(Array.isArray(r.data) ? r.data.filter(p => p.is_active) : [])).catch(() => { });
     api.get('/companies/me/receipt_templates').then(r => {
       const d = r.data?.receipt_templates || {};
       if (Object.keys(d).length) {
@@ -808,15 +827,51 @@ export default function UlgurjiSotuv() {
     return cur ? (parseFloat(cur.rate) || 1) : 1;
   }, [currencies]);
 
+  // Mijoz narx turiga qarab mahsulot narxini olish
+  const getProductPrice = useCallback((p, custOverride) => {
+    const cust = custOverride || customers.find(c => String(c.id) === String(custIdRef.current));
+    const priceType = cust?.price_type || 'sale';
+    if (priceType === 'wholesale' && p.wholesale_price) {
+      return { price: Number(p.wholesale_price), currency: p.wholesale_currency || p.sale_currency || 'UZS' };
+    } else if (priceType === 'cost' && p.cost_price) {
+      return { price: Number(p.cost_price), currency: p.cost_currency || 'UZS' };
+    }
+    // Default: sale (chakana)
+    return { price: Number(p.sale_price || 0), currency: p.sale_currency || 'UZS' };
+  }, [customers]);
+
+  // Aksiya chegirmasini topish (product_id bo'yicha)
+  const getPromoDiscount = useCallback((productId, basePrice) => {
+    const now = new Date();
+    const activePrs = promotions.filter(pr => {
+      if (!pr.is_active) return false;
+      if (pr.start_date && new Date(pr.start_date) > now) return false;
+      if (pr.end_date && new Date(pr.end_date) < now) return false;
+      // Mahsulot ro'yxatida bo'lsa yoki universal aksiya bo'lsa
+      if (!pr.products || pr.products.length === 0) return true;
+      return pr.products.some(pp => pp.product_id === productId || pp.id === productId);
+    });
+    if (!activePrs.length) return { discount: 0, promo: null };
+    // Eng katta chegirmani olish
+    let bestDiscount = 0;
+    let bestPromo = null;
+    for (const pr of activePrs) {
+      let disc = pr.discount_type === 'percent'
+        ? basePrice * (Number(pr.discount_value) / 100)
+        : Number(pr.discount_value);
+      if (disc > bestDiscount) { bestDiscount = disc; bestPromo = pr; }
+    }
+    return { discount: bestDiscount, promo: bestPromo };
+  }, [promotions]);
+
   const addToCart = useCallback((p) => {
-    // custIdRef.current ishlatamiz — closure eskirgan custId ni o'qimaydi
     const currentCustId = custIdRef.current;
     if (!currentCustId) {
       toast.error('Avval mijozni tanlang!');
       return;
     }
-    let price = useWholesale && p.wholesale_price ? Number(p.wholesale_price) : Number(p.sale_price || 0);
-    let currency = (useWholesale && p.wholesale_price) ? (p.wholesale_currency || 'UZS') : (p.sale_currency || 'UZS');
+    // Mijoz narx turiga qarab narxni olish
+    let { price, currency } = getProductPrice(p);
     let rate = getRate(currency);
 
     if (onlySom && currency !== 'UZS') {
@@ -825,10 +880,12 @@ export default function UlgurjiSotuv() {
       rate = 1;
     }
 
+    // Aksiya chegirmasini tekshirish
+    const { discount: promoDisc, promo } = getPromoDiscount(p.id, price);
+
     setCart(prev => {
       const ex = prev.find(i => i.product_id === p.id);
       if (ex) {
-        // Narxni ham yangilaymiz (eski noto'g'ri narx qolmasin)
         return prev.map(i => i.product_id === p.id
           ? { ...i, qty: i.qty + 1 }
           : i);
@@ -836,11 +893,13 @@ export default function UlgurjiSotuv() {
       return [...prev, {
         product_id: p.id, name: p.name, unit: p.unit || 'dona', qty: 1, price,
         currency, rate,
-        discount_type: 'pct', discount_val: 0,
+        discount_type: promoDisc > 0 ? 'sum' : 'pct',
+        discount_val: promoDisc > 0 ? promoDisc : 0,
+        promo_name: promo?.name || null,
         wholesale_price: (onlySom && p.sale_currency !== 'UZS') ? Number(p.wholesale_price || 0) * getRate(p.sale_currency) : Number(p.wholesale_price || 0),
         sale_price: (onlySom && p.sale_currency !== 'UZS') ? Number(p.sale_price || 0) * getRate(p.sale_currency) : Number(p.sale_price || 0),
+        cost_price: Number(p.cost_price || 0),
         stock_quantity: Number(p.stock_quantity || 0), image_url: p.image_url,
-        // Fiskal maydonlar
         mxik_code:    p.mxik_code    || '',
         package_code: p.parent_code || p.package_code || '',
         barcode:      p.barcode      || '',
@@ -849,16 +908,16 @@ export default function UlgurjiSotuv() {
         addedAt: Date.now(),
       }];
     });
-  }, [useWholesale, getRate, onlySom]);
+    if (promo) toast.success(`🎁 "${promo.name}" aksiyasi qo'llandi!`, { duration: 2000 });
+  }, [getProductPrice, getPromoDiscount, getRate, onlySom]);
 
   const updateItem = useCallback((idx, field, val) => setCart(prev => prev.map((it, i) => i === idx ? { ...it, [field]: val } : it)), []);
   const removeItem = useCallback((idx) => setCart(prev => prev.filter((_, i) => i !== idx)), []);
 
-  // Select product into form — narxni mahsulot o'z valyutasida ko'rsatadi
+  // Select product into form — mijoz narx turiga qarab narxni ko'rsatadi
   const selectFormProduct = useCallback((p) => {
     setFormProduct(p);
-    let price = useWholesale && p.wholesale_price ? Number(p.wholesale_price) : Number(p.sale_price || 0);
-    let currency = (useWholesale && p.wholesale_price) ? (p.wholesale_currency || p.sale_currency || 'UZS') : (p.sale_currency || 'UZS');
+    let { price, currency } = getProductPrice(p);
 
     if (onlySom && currency !== 'UZS') {
       const rate = getRate(currency);
@@ -866,31 +925,36 @@ export default function UlgurjiSotuv() {
       currency = 'UZS';
     }
 
+    // Aksiya chegirmasini avtomatik qo'llash
+    const { discount: promoDisc, promo } = getPromoDiscount(p.id, price);
+    if (promoDisc > 0) {
+      setFormDiscType('sum');
+      setFormDiscVal(String(Math.round(promoDisc)));
+      toast.success(`🎁 "${promo.name}" aksiyasi: -${Math.round(promoDisc).toLocaleString()} so'm`, { duration: 2500 });
+    } else {
+      setFormDiscType('pct');
+      setFormDiscVal('');
+    }
+
     setFormPrice(String(price));
     setFormCurrency(currency);
     setFormQty('1');
-    setFormDiscVal('');
     setTimeout(() => {
       if (formQtyRef.current) {
         formQtyRef.current.focus();
         formQtyRef.current.select();
       }
     }, 100);
-  }, [useWholesale, onlySom, getRate]);
+  }, [getProductPrice, getPromoDiscount, onlySom, getRate]);
 
 
-  // Faqat useWholesale toggle bo'lganda narxni yangilash (valyuta o'zgarmaydi)
-  const prevUseWholesaleRef = useRef(useWholesale);
+  // Mijoz o'zgarganda form narxini yangilash
   useEffect(() => {
-    if (prevUseWholesaleRef.current !== useWholesale && formProduct) {
-      // Ulgurji/chakana toggle da faqat narxni o'zgar, valyuta o'zgarmasin
-      const rawPrice = useWholesale && formProduct.wholesale_price
-        ? Number(formProduct.wholesale_price)
-        : Number(formProduct.sale_price || 0);
-      setFormPrice(String(rawPrice));
+    if (formProduct) {
+      const { price } = getProductPrice(formProduct);
+      setFormPrice(String(price));
     }
-    prevUseWholesaleRef.current = useWholesale;
-  }, [useWholesale]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [custId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addFormToCart = () => {
     if (!custId) return toast.error('Avval mijozni tanlang!');
@@ -1351,12 +1415,12 @@ export default function UlgurjiSotuv() {
       if (activeSaleId) {
         const wid = editingSale?.warehouse_id || payload.warehouse_id;
         await api.put(`/sales/${activeSaleId}`, { ...payload, warehouse_id: wid });
-        sessionStorage.setItem('ulgurji_session_sale_id', String(activeSaleId));
+        sessionStorage.removeItem('ulgurji_session_sale_id');
         if (editingSale) setEditingSale(null);
         if (!silently) toast.success('Sotuv yangilandi!');
       } else {
         const res = await api.post('/sales/pending', payload);
-        sessionStorage.setItem('ulgurji_session_sale_id', String(res.data.id));
+        sessionStorage.removeItem('ulgurji_session_sale_id');
         if (!silently) toast.success('Sotuv "Tasdiqlash kutulmoqda" holatda saqlandi!');
       }
 
@@ -1505,6 +1569,28 @@ export default function UlgurjiSotuv() {
           <span className="text-sm font-bold font-mono tracking-tight">{currentTime.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
 
+        {/* Mijoz narx turi badge */}
+        {selected && (() => {
+          const pt = selected.price_type || 'sale';
+          const cfg = {
+            sale: { label: '🔵 Chakana', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
+            wholesale: { label: '🟢 Ulgurji', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+            cost: { label: '🟠 Tannarx', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+          }[pt] || { label: '🔵 Chakana', cls: 'bg-blue-50 text-blue-700 border-blue-200' };
+          return (
+            <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold ${cfg.cls}`}>
+              {cfg.label} narx
+            </div>
+          );
+        })()}
+
+        {/* Faol aksiyalar */}
+        {promotions.length > 0 && (
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-violet-200 bg-violet-50 text-violet-700 text-xs font-bold">
+            🎁 {promotions.length} aksiya faol
+          </div>
+        )}
+
         <div className="flex items-center gap-1.5 md:gap-3">
           {[
             { id: 'new', label: 'Yangi', icon: 'M12 4v16m8-8H4' },
@@ -1600,18 +1686,21 @@ export default function UlgurjiSotuv() {
                         className="flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-xs font-bold border border-emerald-200 transition-colors">
                         <span className="text-base leading-none">+</span> Yangi
                       </button>
-                      {/* Ulgurji toggle */}
-                      <button
-                        onClick={() => {
-                          const next = !useWholesale;
-                            setUseWholesale(next);
-                            localStorage.setItem('ulgurji_useWholesale', String(next));
-                          setCart(prev => prev.map(it => ({ ...it, price: (next && it.wholesale_price) ? it.wholesale_price : it.sale_price })));
-                        }}
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border transition-all ${useWholesale ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-200 text-slate-500'}`}>
-                        <Ic d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 012-2z" cls="w-3 h-3" />
-                        Ulgurji
-                      </button>
+                      {/* Mijoz narx turi ko'rsatgichi */}
+                      {(() => {
+                        const pt = selected?.price_type || 'sale';
+                        const cfg = {
+                          sale: { label: 'Chakana', cls: 'bg-blue-600 border-blue-600 text-white' },
+                          wholesale: { label: 'Ulgurji', cls: 'bg-emerald-600 border-emerald-600 text-white' },
+                          cost: { label: 'Tannarx', cls: 'bg-amber-500 border-amber-500 text-white' },
+                        }[pt] || { label: 'Chakana', cls: 'bg-blue-600 border-blue-600 text-white' };
+                        return (
+                          <div className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border ${cfg.cls}`}>
+                            <Ic d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 012-2z" cls="w-3 h-3" />
+                            {cfg.label}
+                          </div>
+                        );
+                      })()}
                       {/* Ombor */}
                       {warehouses.length > 0 && (
                         <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)}
@@ -1623,7 +1712,7 @@ export default function UlgurjiSotuv() {
                     </div>
                   </div>
 
-                  <ProductSearch disabled={!custId} ref={prodSearchRef} onSelect={selectFormProduct} placeholder="Mahsulot nomi, SKU, barkod..." onOpenAdd={() => setShowProdAddModal(true)} warehouseId={warehouseId} />
+                  <ProductSearch customerPriceType={selected?.price_type || 'sale'} disabled={!custId} ref={prodSearchRef} onSelect={selectFormProduct} placeholder="Mahsulot nomi, SKU, barkod..." onOpenAdd={() => setShowProdAddModal(true)} warehouseId={warehouseId} />
 
                   {/* Mijoz tanlanmagan ogohlantirish */}
                   {!custId && (
@@ -1651,6 +1740,16 @@ export default function UlgurjiSotuv() {
                               <span className={`font-semibold ${Number(formProduct.stock_quantity) <= 0 ? 'text-red-500' : 'text-emerald-600'}`}>
                                 Ombor: {fmt(formProduct.stock_quantity)}
                               </span>
+                            </div>
+                            <div className="flex justify-between items-end mt-1 text-xs">
+                                <span className="text-slate-500 line-through">
+                                  Asl narxi: {fmt((() => {
+                                    const pt = selected?.price_type || 'sale';
+                                    if (pt === 'wholesale' && formProduct.wholesale_price) return formProduct.wholesale_price;
+                                    if (pt === 'cost' && formProduct.cost_price) return formProduct.cost_price;
+                                    return formProduct.sale_price;
+                                  })())}
+                                </span>
                             </div>
                             {formProduct.sale_currency !== 'UZS' && (
                               <div className="text-[10px] font-black text-indigo-500 bg-white px-1.5 py-0.5 rounded border border-indigo-100 shadow-sm">
@@ -1888,7 +1987,7 @@ export default function UlgurjiSotuv() {
                             <td className="px-3 py-2.5 text-xs text-slate-400 font-mono">{idx + 1}</td>
                             <td className="px-2 py-2.5">
                               <div className="font-semibold text-slate-800 text-sm leading-tight">{it.name}</div>
-                              <div className="flex items-center gap-2 ">
+                              <div className="flex flex-wrap items-center gap-2 mt-1">
                                 <span className="text-xs text-slate-400">{it.unit}</span>
                                 {it.warehouse_name && (
                                   <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1">
@@ -1898,6 +1997,11 @@ export default function UlgurjiSotuv() {
                                 )}
                                 {it.currency && it.currency !== 'UZS' && (
                                   <span className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-1 py-0.5 rounded uppercase">{it.currency}</span>
+                                )}
+                                {it.promo_name && (
+                                  <span className="bg-violet-50 text-violet-600 border border-violet-200 text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                                    🎁 {it.promo_name}
+                                  </span>
                                 )}
                               </div>
                             </td>
