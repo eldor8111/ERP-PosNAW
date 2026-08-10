@@ -765,7 +765,14 @@ export default function UlgurjiSotuv() {
       // Agar sotuv allaqachon bajarilgan bo'lsa, mijoz balansi yangilangan —
       // shuning uchun `debt_amounts`ni hisobga olib, avvalgi holatni tiklashga harakat qilamiz.
       let prevBalances = null;
-      if (selectedCust) {
+      let rawBeforeDebtBalances = data.before_debt_balances || s.before_debt_balances;
+      if (typeof rawBeforeDebtBalances === 'string') {
+        try { rawBeforeDebtBalances = JSON.parse(rawBeforeDebtBalances); } catch (e) { rawBeforeDebtBalances = null; }
+      }
+
+      if (rawBeforeDebtBalances && Object.keys(rawBeforeDebtBalances).length > 0) {
+        prevBalances = rawBeforeDebtBalances;
+      } else if (selectedCust) {
         const currBalances = selectedCust.debt_balances || { UZS: Number(selectedCust.debt_balance || 0) };
         let saleDebtAmounts = data.debt_amounts || {};
         if (typeof saleDebtAmounts === 'string') {
@@ -814,7 +821,8 @@ export default function UlgurjiSotuv() {
           data.debt_amounts = saleDebtAmounts;
         }
 
-        // Avvalgi balans = hozirgi balans - joriy sotuv qarzi
+        // Fallback: Avvalgi balans = hozirgi balans - joriy sotuv qarzi
+        // (Bu faqatgina eng so'nggi sotuv uchun aniq ishlaydi, eski sotuvlar uchun noaniq)
         if (Object.keys(saleDebtAmounts).length > 0) {
           prevBalances = { ...currBalances };
           for (const [curr, amt] of Object.entries(saleDebtAmounts)) {
@@ -1285,9 +1293,14 @@ export default function UlgurjiSotuv() {
               if (typeof d === 'string') { try { d = JSON.parse(d); } catch (e) { d = null; } }
               return d;
             })(),
-            // Qarz ma'lumotlari — auto-print: before_debt_balances = hozirgi - joriy
+            // Qarz ma'lumotlari — auto-print: before_debt_balances = backend dan to'g'ridan to'g'ri olinadi
             before_debt: 0,
             before_debt_balances: (() => {
+              let raw = res.data.before_debt_balances;
+              if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch (e) { raw = null; } }
+              if (raw && Object.keys(raw).length > 0) return raw;
+
+              // Fallback (eskiroq sotuvlar uchun, amalda bu yerda kerak bo'lmaydi chunki auto-print yangi sotuvda ishlaydi)
               if (!selectedCust) return null;
               const currBalances = selectedCust.debt_balances || { UZS: Number(selectedCust.debt_balance || 0) };
               let saleDebtAmounts = res.data.debt_amounts || {};

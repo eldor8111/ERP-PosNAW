@@ -138,8 +138,11 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   // before_debt_balances = { USD: 12.5, UZS: 140000 }
   // USD → "$ 12.50", UZS → "140,000 so'm" — ARALASHTIRILMAYDI
   const oldDebtsList = [];
-  if (sale.before_debt_balances && Object.keys(sale.before_debt_balances).length > 0) {
-    for (const [curr, amt] of Object.entries(sale.before_debt_balances)) {
+  let rawBefore = sale.before_debt_balances;
+  if (typeof rawBefore === 'string') { try { rawBefore = JSON.parse(rawBefore); } catch(e) { rawBefore = null; } }
+
+  if (rawBefore && Object.keys(rawBefore).length > 0) {
+    for (const [curr, amt] of Object.entries(rawBefore)) {
       const a = Number(amt || 0);
       if (Math.abs(a) > 0.01) {
         oldDebtsList.push({ currency: curr, amount: a });
@@ -154,9 +157,12 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   // debt_amounts = { USD: 5.5, UZS: 500000 }
   // USD → "$ 5.50", UZS → "500,000 so'm" — ARALASHTIRILMAYDI
   const currentDebtsList = [];
-  if (sale.debt_amounts && Object.keys(sale.debt_amounts).length > 0) {
+  let rawCurrent = sale.debt_amounts;
+  if (typeof rawCurrent === 'string') { try { rawCurrent = JSON.parse(rawCurrent); } catch(e) { rawCurrent = null; } }
+
+  if (rawCurrent && Object.keys(rawCurrent).length > 0) {
     // Backend dan to'g'ri qarz ma'lumoti bor
-    for (const [curr, amt] of Object.entries(sale.debt_amounts)) {
+    for (const [curr, amt] of Object.entries(rawCurrent)) {
       const a = Number(amt || 0);
       if (Math.abs(a) > 0.001) {
         currentDebtsList.push({ currency: curr, amount: a });
