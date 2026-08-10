@@ -500,19 +500,7 @@ export default function UlgurjiSotuv() {
   const [defaultCustomerId, setDefaultCustomerId] = useState(localStorage.getItem('ulgurji_defaultCustomer') || '');
 
   const [custId, setCustId] = useState(() => sessionStorage.getItem('ulgurji_customer') || localStorage.getItem('ulgurji_defaultCustomer') || '');
-  const [isWholesaleMode, setIsWholesaleMode] = useState(false);
-
-  // Mijoz o'zgarganda narx turini yangilash
-  useEffect(() => {
-    if (custId) {
-      const c = customers.find(x => String(x.id) === String(custId));
-      if (c && c.price_type === 'wholesale') {
-        setIsWholesaleMode(true);
-      } else {
-        setIsWholesaleMode(false);
-      }
-    }
-  }, [custId, customers]);
+  const [isWholesaleMode, setIsWholesaleMode] = useState(localStorage.getItem('ulgurji_isWholesale') === 'true');
   const [warehouseId, setWarehouseId] = useState('');
 
   // Promotions
@@ -1731,7 +1719,13 @@ export default function UlgurjiSotuv() {
                       </button>
                       {/* Mijoz narx turi ko'rsatgichi / o'zgartirgichi */}
                       <button
-                        onClick={() => setIsWholesaleMode(prev => !prev)}
+                        onClick={() => {
+                          setIsWholesaleMode(prev => {
+                            const next = !prev;
+                            localStorage.setItem('ulgurji_isWholesale', next ? 'true' : 'false');
+                            return next;
+                          });
+                        }}
                         className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer select-none ${isWholesaleMode ? 'bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700' : 'bg-blue-600 border-blue-600 text-white hover:bg-blue-700'}`}
                       >
                         <Ic d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 012-2z" cls="w-3 h-3" />
