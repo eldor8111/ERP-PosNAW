@@ -648,7 +648,7 @@ export default function UlgurjiSotuv() {
     api.get('/warehouses/').then(r => setWarehouses(Array.isArray(r.data) ? r.data : [])).catch(() => { });
     api.get('/currencies/').then(r => setCurrencies(Array.isArray(r.data) ? r.data : [])).catch(() => { });
     // Faol aksiyalarni yuklash
-    api.get('/promotions/').then(r => setPromotions(Array.isArray(r.data) ? r.data.filter(p => p.is_active) : [])).catch(() => { });
+    api.get('/promotions/', { _suppressToast: true }).then(r => setPromotions(Array.isArray(r.data) ? r.data.filter(p => p.is_active) : [])).catch(() => { });
     api.get('/companies/me/receipt_templates').then(r => {
       const d = r.data?.receipt_templates || {};
       if (Object.keys(d).length) {
