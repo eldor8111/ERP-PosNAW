@@ -500,6 +500,19 @@ export default function UlgurjiSotuv() {
   const [defaultCustomerId, setDefaultCustomerId] = useState(localStorage.getItem('ulgurji_defaultCustomer') || '');
 
   const [custId, setCustId] = useState(() => sessionStorage.getItem('ulgurji_customer') || localStorage.getItem('ulgurji_defaultCustomer') || '');
+  const [isWholesaleMode, setIsWholesaleMode] = useState(false);
+
+  // Mijoz o'zgarganda narx turini yangilash
+  useEffect(() => {
+    if (custId) {
+      const c = customers.find(x => String(x.id) === String(custId));
+      if (c && c.price_type === 'wholesale') {
+        setIsWholesaleMode(true);
+      } else {
+        setIsWholesaleMode(false);
+      }
+    }
+  }, [custId, customers]);
   const [warehouseId, setWarehouseId] = useState('');
 
   // Promotions
@@ -829,16 +842,12 @@ export default function UlgurjiSotuv() {
 
   // Mijoz narx turiga qarab mahsulot narxini olish
   const getProductPrice = useCallback((p, custOverride) => {
-    const cust = custOverride || customers.find(c => String(c.id) === String(custIdRef.current));
-    const priceType = cust?.price_type || 'sale';
-    if (priceType === 'wholesale' && p.wholesale_price) {
+    if (isWholesaleMode && p.wholesale_price) {
       return { price: Number(p.wholesale_price), currency: p.wholesale_currency || p.sale_currency || 'UZS' };
-    } else if (priceType === 'cost' && p.cost_price) {
-      return { price: Number(p.cost_price), currency: p.cost_currency || 'UZS' };
     }
     // Default: sale (chakana)
     return { price: Number(p.sale_price || 0), currency: p.sale_currency || 'UZS' };
-  }, [customers]);
+  }, [isWholesaleMode]);
 
   // Aksiya chegirmasini topish (product_id bo'yicha)
   const getPromoDiscount = useCallback((productId, basePrice) => {
@@ -1686,21 +1695,14 @@ export default function UlgurjiSotuv() {
                         className="flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-xs font-bold border border-emerald-200 transition-colors">
                         <span className="text-base leading-none">+</span> Yangi
                       </button>
-                      {/* Mijoz narx turi ko'rsatgichi */}
-                      {(() => {
-                        const pt = selected?.price_type || 'sale';
-                        const cfg = {
-                          sale: { label: 'Chakana', cls: 'bg-blue-600 border-blue-600 text-white' },
-                          wholesale: { label: 'Ulgurji', cls: 'bg-emerald-600 border-emerald-600 text-white' },
-                          cost: { label: 'Tannarx', cls: 'bg-amber-500 border-amber-500 text-white' },
-                        }[pt] || { label: 'Chakana', cls: 'bg-blue-600 border-blue-600 text-white' };
-                        return (
-                          <div className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border ${cfg.cls}`}>
-                            <Ic d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 012-2z" cls="w-3 h-3" />
-                            {cfg.label}
-                          </div>
-                        );
-                      })()}
+                      {/* Mijoz narx turi ko'rsatgichi / o'zgartirgichi */}
+                      <button
+                        onClick={() => setIsWholesaleMode(prev => !prev)}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer select-none ${isWholesaleMode ? 'bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700' : 'bg-blue-600 border-blue-600 text-white hover:bg-blue-700'}`}
+                      >
+                        <Ic d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 012-2z" cls="w-3 h-3" />
+                        {isWholesaleMode ? 'Ulgurji' : 'Chakana'}
+                      </button>
                       {/* Ombor */}
                       {warehouses.length > 0 && (
                         <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)}
@@ -1712,7 +1714,7 @@ export default function UlgurjiSotuv() {
                     </div>
                   </div>
 
-                  <ProductSearch customerPriceType={selected?.price_type || 'sale'} disabled={!custId} ref={prodSearchRef} onSelect={selectFormProduct} placeholder="Mahsulot nomi, SKU, barkod..." onOpenAdd={() => setShowProdAddModal(true)} warehouseId={warehouseId} />
+                  <ProductSearch customerPriceType={isWholesaleMode ? 'wholesale' : 'sale'} disabled={!custId} ref={prodSearchRef} onSelect={selectFormProduct} placeholder="Mahsulot nomi, SKU, barkod..." onOpenAdd={() => setShowProdAddModal(true)} warehouseId={warehouseId} />
 
                   {/* Mijoz tanlanmagan ogohlantirish */}
                   {!custId && (
@@ -1743,17 +1745,12 @@ export default function UlgurjiSotuv() {
                             </div>
                             <div className="flex justify-between items-end mt-1 text-xs">
                                 <span className="text-slate-500 line-through">
-                                  Asl narxi: {fmt((() => {
-                                    const pt = selected?.price_type || 'sale';
-                                    if (pt === 'wholesale' && formProduct.wholesale_price) return formProduct.wholesale_price;
-                                    if (pt === 'cost' && formProduct.cost_price) return formProduct.cost_price;
-                                    return formProduct.sale_price;
-                                  })())}
+                                  Asl narxi: {fmt(isWholesaleMode ? (formProduct.wholesale_price || formProduct.sale_price) : formProduct.sale_price)}
                                 </span>
                             </div>
                             {formProduct.sale_currency !== 'UZS' && (
                               <div className="text-[10px] font-black text-indigo-500 bg-white px-1.5 py-0.5 rounded border border-indigo-100 shadow-sm">
-                                Asl narxi: {fmt(useWholesale ? formProduct.wholesale_price : formProduct.sale_price)} {formProduct.sale_currency === 'USD' ? '$' : formProduct.sale_currency}
+                                Asl narxi: {fmt(isWholesaleMode ? formProduct.wholesale_price : formProduct.sale_price)} {formProduct.sale_currency === 'USD' ? '$' : formProduct.sale_currency}
                               </div>
                             )}
                           </div>
