@@ -58,8 +58,33 @@ def _reverse_sale_effects(db: Session, sale: Sale) -> None:
             Customer.company_id == sale.company_id,
         ).first()
         if customer:
-            from app.services.loyalty_service import restore_customer_after_sale
-            restore_customer_after_sale(customer, sale)
+            # Qarzni tiklash: sale.debt_amounts JSON dan aniq valyuta miqdorlarini ishlatamiz
+            # Bu _reverse_sale_effects dan keyin yangi qarz to'g'ri yozilishini ta'minlaydi
+            debt_amounts = getattr(sale, 'debt_amounts', None) or {}
+            if isinstance(debt_amounts, dict) and debt_amounts:
+                # Multi-currency: har bir valyuta uchun alohida ayirish
+                from sqlalchemy.orm.attributes import flag_modified
+                if not customer.debt_balances:
+                    customer.debt_balances = {}
+                for curr_code, amt in debt_amounts.items():
+                    amt_d = Decimal(str(amt))
+                    if amt_d > Decimal("0.001"):
+                        curr_val = Decimal(str(customer.debt_balances.get(curr_code, 0)))
+                        customer.debt_balances[curr_code] = float(
+                            max(Decimal("0"), curr_val - amt_d)
+                        )
+                        # Aggregate UZS balance
+                        exr = Decimal(str(sale.exchange_rate or 1))
+                        uzs_equiv = amt_d * (Decimal("1") if curr_code == "UZS" else exr)
+                        customer.debt_balance = max(
+                            Decimal("0"),
+                            (customer.debt_balance or Decimal("0")) - uzs_equiv,
+                        )
+                flag_modified(customer, "debt_balances")
+            else:
+                # Eski sotuvlar uchun fallback: loyalty_service orqali tiklash
+                from app.services.loyalty_service import restore_customer_after_sale
+                restore_customer_after_sale(customer, sale)
 
     for otx in db.query(Transaction).filter(
         Transaction.reference_type == "sale",
