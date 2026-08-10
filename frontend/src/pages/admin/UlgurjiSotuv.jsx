@@ -557,6 +557,33 @@ export default function UlgurjiSotuv() {
     return () => clearInterval(t);
   }, []);
 
+  // Mijoz narx turini o'zgartirish (Chakana ↔ Ulgurji ↔ Tannarx)
+  const changePriceType = useCallback(() => {
+    if (!custId) return;
+    const ORDER = ['sale', 'wholesale', 'cost'];
+    setCustomers(prev => prev.map(c => {
+      if (String(c.id) !== String(custId)) return c;
+      const cur = c.price_type || 'sale';
+      const next = ORDER[(ORDER.indexOf(cur) + 1) % ORDER.length];
+      return { ...c, price_type: next };
+    }));
+    // Savatni ham yangilash (useEffect custId+customers ga bog'liq emas, shuning uchun manual)
+    setCart(prev => {
+      const cust = customers.find(c => String(c.id) === String(custId));
+      if (!cust) return prev;
+      const cur = cust.price_type || 'sale';
+      const ORDER2 = ['sale', 'wholesale', 'cost'];
+      const next = ORDER2[(ORDER2.indexOf(cur) + 1) % ORDER2.length];
+      return prev.map(it => {
+        let newPrice = it.price;
+        if (next === 'wholesale' && it.wholesale_price > 0) newPrice = it.wholesale_price;
+        else if (next === 'cost' && it.cost_price > 0) newPrice = it.cost_price;
+        else if (it.sale_price > 0) newPrice = it.sale_price;
+        return { ...it, price: newPrice };
+      });
+    });
+  }, [custId, customers]);
+
   // Cart o'zgargan har bir holda sessionStorage ga saqlash
   useEffect(() => {
     try {
@@ -1578,18 +1605,25 @@ export default function UlgurjiSotuv() {
           <span className="text-sm font-bold font-mono tracking-tight">{currentTime.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
 
-        {/* Mijoz narx turi badge */}
+        {/* Mijoz narx turi badge — bosib o'zgartirish mumkin */}
         {selected && (() => {
           const pt = selected.price_type || 'sale';
           const cfg = {
-            sale: { label: '🔵 Chakana', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
-            wholesale: { label: '🟢 Ulgurji', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-            cost: { label: '🟠 Tannarx', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-          }[pt] || { label: '🔵 Chakana', cls: 'bg-blue-50 text-blue-700 border-blue-200' };
+            sale: { label: '🔵 Chakana', cls: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' },
+            wholesale: { label: '🟢 Ulgurji', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' },
+            cost: { label: '🟠 Tannarx', cls: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' },
+          }[pt] || { label: '🔵 Chakana', cls: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' };
           return (
-            <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold ${cfg.cls}`}>
+            <button
+              onClick={changePriceType}
+              title="Bosib narx turini o'zgartiring: Chakana → Ulgurji → Tannarx"
+              className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition-colors ${cfg.cls}`}
+            >
               {cfg.label} narx
-            </div>
+              <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+            </button>
           );
         })()}
 
