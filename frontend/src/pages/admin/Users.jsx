@@ -23,7 +23,7 @@ const ROLE_COLORS = {
   cashier: 'bg-indigo-100 text-indigo-700',
 };
 
-const BLANK_FORM = { name: '', phone: '', email: '', password: '', role: 'cashier', branch_id: '', permissions: {} };
+const BLANK_FORM = { name: '', phone: '', email: '', password: '', role: 'cashier', role_id: null, branch_id: '', permissions: {} };
 
 const inp = "w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500";
 
@@ -49,11 +49,32 @@ function Field({ label, children }) {
   );
 }
 
-function RoleSelect({ value, onChange, roles, roleLabels }) {
+function RoleSelect({ form, setField, roles, roleLabels, dynamicRoles }) {
+  const val = form.role_id ? `dyn_${form.role_id}` : form.role;
+
+  const handleChange = (e) => {
+    const v = e.target.value;
+    if (v.startsWith('dyn_')) {
+      const rId = parseInt(v.split('_')[1]);
+      setField('role_id', rId);
+      setField('role', 'cashier'); // default base role
+    } else {
+      setField('role_id', null);
+      setField('role', v);
+    }
+  };
+
   return (
     <Field label="Rol">
-      <select value={value} onChange={e => onChange(e.target.value)} className={inp}>
-        {roles.map(r => <option key={r} value={r}>{roleLabels[r]}</option>)}
+      <select value={val} onChange={handleChange} className={inp}>
+        <optgroup label="Tizim rollari">
+          {roles.map(r => <option key={r} value={r}>{roleLabels[r]}</option>)}
+        </optgroup>
+        {dynamicRoles && dynamicRoles.length > 0 && (
+          <optgroup label="Maxsus rollar">
+            {dynamicRoles.map(r => <option key={`dyn_${r.id}`} value={`dyn_${r.id}`}>{r.name}</option>)}
+          </optgroup>
+        )}
       </select>
     </Field>
   );
@@ -110,6 +131,7 @@ export default function Users() {
   const [users, setUsers] = useState([]);
   const [branches, setBranches] = useState([]);
   const [wallets, setWallets] = useState([]);
+  const [dynamicRoles, setDynamicRoles] = useState([]);
   const [userWallets, setUserWallets] = useState([]); // {wallet_id, is_default}
   const [modal, setModal] = useState(null); // 'create' | 'edit' | 'password' | 'kassa'
   const [selected, setSelected] = useState(null);
@@ -128,6 +150,7 @@ export default function Users() {
     load();
     api.get('/branches').then(r => setBranches(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
     api.get('/kassa').then(r => setWallets(r.data)).catch(() => { });
+    api.get('/roles/').then(r => setDynamicRoles(r.data)).catch(() => { });
   }, [load]);
 
   const openCreate = () => {
@@ -136,7 +159,7 @@ export default function Users() {
     setModal('create');
   };
   const openEdit = (u) => {
-    setForm({ name: u.name, phone: u.phone, email: u.email || '', password: '', role: u.role, branch_id: u.branch_id ?? '', permissions: u.permissions || {} });
+    setForm({ name: u.name, phone: u.phone, email: u.email || '', password: '', role: u.role, role_id: u.role_id || null, branch_id: u.branch_id ?? '', permissions: u.permissions || {} });
     setSelected(u); setError(''); setModal('edit');
   };
   const openKassa = async (u) => {
@@ -204,6 +227,7 @@ export default function Users() {
         email: form.email || null,
         password: form.password,
         role: form.role,
+        role_id: form.role_id,
         permissions: form.permissions,
         branch_id: form.branch_id ? Number(form.branch_id) : null,
       };
@@ -223,6 +247,7 @@ export default function Users() {
         phone: form.phone,
         email: form.email || null,
         role: form.role,
+        role_id: form.role_id,
         permissions: form.permissions,
         branch_id: form.branch_id ? Number(form.branch_id) : null,
       };
@@ -304,7 +329,7 @@ export default function Users() {
                 </td>
                 <td className="px-6 py-4">
                   <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${ROLE_COLORS[u.role] || 'bg-slate-100 text-slate-600'}`}>
-                    {ROLE_LABELS[u.role] || u.role}
+                    {u.role_id ? (dynamicRoles.find(r => r.id === u.role_id)?.name || 'Maxsus rol') : (ROLE_LABELS[u.role] || u.role)}
                   </span>
                 </td>
                 <td className="px-6 py-4">
@@ -348,7 +373,7 @@ export default function Users() {
       {/* ── CREATE MODAL ─────────────────────────────────────── */}
       {modal === 'create' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-100 shrink-0">
               <h3 className="text-lg font-bold text-slate-800">{t('user.newUser')}</h3>
               <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
@@ -357,45 +382,50 @@ export default function Users() {
                 </svg>
               </button>
             </div>
-            <form onSubmit={handleCreate} className="p-6 space-y-4 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
+            <form onSubmit={handleCreate} className="p-6 overflow-y-auto flex flex-col gap-6" style={{ scrollbarWidth: 'thin' }}>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Ism */}
+                <Field label={`${t('common.name')} *`}>
+                  <input
+                    type="text" required value={form.name}
+                    onChange={e => setField('name', e.target.value)}
+                    placeholder={t('common.name')} className={inp}
+                    autoFocus
+                  />
+                </Field>
 
-              {/* Ism */}
-              <Field label={`${t('common.name')} *`}>
-                <input
-                  type="text" required value={form.name}
-                  onChange={e => setField('name', e.target.value)}
-                  placeholder={t('common.name')} className={inp}
-                  autoFocus
-                />
-              </Field>
+                {/* Telefon */}
+                <Field label={`${t('common.phone')} *`}>
+                  <input
+                    type="text" required value={form.phone}
+                    onChange={e => setField('phone', e.target.value)}
+                    placeholder="+998901234567" className={inp}
+                  />
+                </Field>
 
-              {/* Telefon */}
-              <Field label={`${t('common.phone')} *`}>
-                <input
-                  type="text" required value={form.phone}
-                  onChange={e => setField('phone', e.target.value)}
-                  placeholder="+998901234567" className={inp}
-                />
-              </Field>
+                <Field label="Email">
+                  <input
+                    type="email" value={form.email}
+                    onChange={e => setField('email', e.target.value)}
+                    placeholder="email@example.com" className={inp}
+                  />
+                </Field>
 
-              <Field label="Email">
-                <input
-                  type="email" value={form.email}
-                  onChange={e => setField('email', e.target.value)}
-                  placeholder="email@example.com" className={inp}
-                />
-              </Field>
-              <Field label={`${t('user.password')} *`}>
-                <input
-                  type="password" required minLength={6} value={form.password}
-                  onChange={e => setField('password', e.target.value)}
-                  placeholder="Kamida 6 ta belgi" className={inp}
-                />
-              </Field>
-              <RoleSelect value={form.role} onChange={v => setField('role', v)} roles={ROLES} roleLabels={ROLE_LABELS} />
-              {branches.length > 0 && (
-                <BranchSelect value={form.branch_id} onChange={v => setField('branch_id', v)} branches={branches} />
-              )}
+                <Field label={`${t('user.password')} *`}>
+                  <input
+                    type="password" required minLength={6} value={form.password}
+                    onChange={e => setField('password', e.target.value)}
+                    placeholder="Kamida 6 ta belgi" className={inp}
+                  />
+                </Field>
+
+                <RoleSelect form={form} setField={setField} roles={ROLES} roleLabels={ROLE_LABELS} dynamicRoles={dynamicRoles} />
+                
+                {branches.length > 0 && (
+                  <BranchSelect value={form.branch_id} onChange={v => setField('branch_id', v)} branches={branches} />
+                )}
+              </div>
               
               <PermissionsList form={form} setField={setField} />
 
@@ -415,7 +445,7 @@ export default function Users() {
       {/* ── EDIT MODAL ─────────────────────────────────────── */}
       {modal === 'edit' && selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-100 shrink-0">
               <h3 className="text-lg font-bold text-slate-800">{t('user.editUser')}</h3>
               <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
@@ -424,20 +454,22 @@ export default function Users() {
                 </svg>
               </button>
             </div>
-            <form onSubmit={handleEdit} className="p-6 space-y-4 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-              <Field label={`${t('common.name')} *`}>
-                <input type="text" required value={form.name} onChange={e => setField('name', e.target.value)} className={inp} autoFocus />
-              </Field>
-              <Field label={`${t('common.phone')} *`}>
-                <input type="text" required value={form.phone} onChange={e => setField('phone', e.target.value)} className={inp} />
-              </Field>
-              <Field label="Email">
-                <input type="email" value={form.email} onChange={e => setField('email', e.target.value)} className={inp} />
-              </Field>
-              <RoleSelect value={form.role} onChange={v => setField('role', v)} roles={ROLES} roleLabels={ROLE_LABELS} />
-              {branches.length > 0 && (
-                <BranchSelect value={form.branch_id} onChange={v => setField('branch_id', v)} branches={branches} />
-              )}
+            <form onSubmit={handleEdit} className="p-6 overflow-y-auto flex flex-col gap-6" style={{ scrollbarWidth: 'thin' }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label={`${t('common.name')} *`}>
+                  <input type="text" required value={form.name} onChange={e => setField('name', e.target.value)} className={inp} autoFocus />
+                </Field>
+                <Field label={`${t('common.phone')} *`}>
+                  <input type="text" required value={form.phone} onChange={e => setField('phone', e.target.value)} className={inp} />
+                </Field>
+                <Field label="Email">
+                  <input type="email" value={form.email} onChange={e => setField('email', e.target.value)} className={inp} />
+                </Field>
+                <RoleSelect form={form} setField={setField} roles={ROLES} roleLabels={ROLE_LABELS} dynamicRoles={dynamicRoles} />
+                {branches.length > 0 && (
+                  <BranchSelect value={form.branch_id} onChange={v => setField('branch_id', v)} branches={branches} />
+                )}
+              </div>
               
               <PermissionsList form={form} setField={setField} />
 
