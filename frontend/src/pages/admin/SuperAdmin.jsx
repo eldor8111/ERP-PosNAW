@@ -645,6 +645,7 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
   const [foundCompany, setFoundCompany] = useState(null);   // { id, name, org_code }
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchErr, setSearchErr] = useState('');
+  const [editCompany, setEditCompany] = useState(null);
 
   const handleSearchCompany = async (e) => {
     e.preventDefault();
@@ -692,6 +693,17 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
   const loadCompanies = () => {
     setLoading(true);
     api.get('/super-admin/companies').then(r => setCompanies(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") }).finally(() => setLoading(false));
+  };
+
+  const handleDeleteCompany = async (id) => {
+    if (!window.confirm("Korxonani o'chirishni tasdiqlaysizmi? Bu amalni ortga qaytarib bo'lmaydi!")) return;
+    try {
+      await api.delete(`/super-admin/companies/${id}`);
+      toast.success("Korxona o'chirildi");
+      loadCompanies();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi");
+    }
   };
 
   useEffect(() => {
@@ -902,7 +914,23 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
                         </span>
                       </td>
                       <td className="px-5 py-3 text-slate-300">
-                        <Ic d="M9 5l7 7-7 7" cls="w-4 h-4" />
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setEditCompany(c); }}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
+                            title="Tahrirlash"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteCompany(c.id); }}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                            title="O'chirish"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
+                          <Ic d="M9 5l7 7-7 7" cls="w-4 h-4 ml-2" />
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -928,6 +956,15 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
           companyId={selectedCompany.id}
           companyName={selectedCompany.name}
           onClose={() => setSelectedCompany(null)}
+        />
+      )}
+
+      {/* Edit Company Modal */}
+      {editCompany && (
+        <CompanyEditModal
+          company={editCompany}
+          onClose={() => setEditCompany(null)}
+          onSuccess={() => { setEditCompany(null); loadCompanies(); }}
         />
       )}
     </div>
@@ -1619,4 +1656,91 @@ function TariffsTab() {
   );
 }
 
+/* ─── Company Edit Modal ─────────────────────────────── */
+function CompanyEditModal({ company, onClose, onSuccess }) {
+  const [form, setForm] = useState({
+    name: company.name || '',
+    org_code: company.org_code || '',
+    phone: company.phone || '',
+    email: company.email || '',
+    region: company.region || '',
+    district: company.district || '',
+    address: company.address || '',
+    is_active: company.is_active ?? true,
+  });
+  const [saving, setSaving] = useState(false);
 
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.put(`/super-admin/companies/${company.id}`, form);
+      toast.success("Korxona ma'lumotlari yangilandi");
+      onSuccess();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || err.message || "Xatolik");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inp = "w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-300";
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="font-bold text-slate-800">Korxonani tahrirlash</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <Ic d="M6 18L18 6M6 6l12 12" />
+          </button>
+        </div>
+        <form onSubmit={handleSave} className="space-y-3">
+          <div>
+            <label className="block text-xs font-bold text-slate-500 mb-1">Korxona nomi</label>
+            <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} className={inp} required />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 mb-1">Kod (org_code)</label>
+            <input value={form.org_code} onChange={e => setForm(p => ({ ...p, org_code: e.target.value }))} className={inp} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">Telefon</label>
+              <input value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} className={inp} />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">Email</label>
+              <input value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} className={inp} />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">Viloyat</label>
+              <input value={form.region} onChange={e => setForm(p => ({ ...p, region: e.target.value }))} className={inp} />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">Tuman</label>
+              <input value={form.district} onChange={e => setForm(p => ({ ...p, district: e.target.value }))} className={inp} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 mb-1">Manzil</label>
+            <input value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} className={inp} />
+          </div>
+          <div className="pt-2">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={form.is_active} onChange={e => setForm(p => ({ ...p, is_active: e.target.checked }))} className="w-4 h-4 text-indigo-600 rounded" />
+              <span className="text-sm font-semibold text-slate-700">Korxona faol</span>
+            </label>
+          </div>
+          
+          <div className="flex gap-2 mt-5 pt-3 border-t border-slate-100">
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-sm transition-all">Bekor qilish</button>
+            <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm shadow-lg shadow-indigo-200 transition-all disabled:opacity-50">
+              {saving ? 'Saqlanmoqda...' : 'Saqlash'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

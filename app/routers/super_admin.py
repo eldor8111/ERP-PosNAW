@@ -413,3 +413,52 @@ def update_platform_settings(
     db.commit()
     return {"ok": True, "message": "Sozlamalar saqlandi"}
 
+
+# ── Update / Delete Companies ─────────────────────────────────────────────
+
+class CompanyUpdate(BaseModel):
+    name: Optional[str] = None
+    org_code: Optional[str] = None
+    region: Optional[str] = None
+    district: Optional[str] = None
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    is_active: Optional[bool] = None
+
+@router.put("/companies/{company_id}")
+def update_company_super(
+    company_id: int,
+    payload: CompanyUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_super_admin)
+):
+    c = db.query(Company).filter(Company.id == company_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Korxona topilmadi")
+    
+    if payload.name is not None: c.name = payload.name
+    if payload.org_code is not None: c.org_code = payload.org_code
+    if payload.region is not None: c.region = payload.region
+    if payload.district is not None: c.district = payload.district
+    if payload.address is not None: c.address = payload.address
+    if payload.phone is not None: c.phone = payload.phone
+    if payload.email is not None: c.email = payload.email
+    if payload.is_active is not None: c.is_active = payload.is_active
+    
+    db.commit()
+    return {"ok": True, "message": "Korxona ma'lumotlari yangilandi"}
+
+@router.delete("/companies/{company_id}")
+def delete_company_super(
+    company_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_super_admin)
+):
+    c = db.query(Company).filter(Company.id == company_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Korxona topilmadi")
+    
+    db.delete(c)
+    db.commit()
+    return {"ok": True, "message": "Korxona o'chirildi"}
