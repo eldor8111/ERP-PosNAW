@@ -631,17 +631,17 @@ def update_company_super(
     if not c:
         raise HTTPException(status_code=404, detail="Korxona topilmadi")
     
-    if payload.name is not None: c.name = payload.name
-    if payload.org_code is not None: c.org_code = payload.org_code.strip() or None
-    if payload.region is not None: c.region = payload.region.strip() or None
-    if payload.district is not None: c.district = payload.district.strip() or None
-    if payload.address is not None: c.address = payload.address.strip() or None
-    if payload.phone is not None: c.phone = payload.phone.strip() or None
-    if payload.email is not None: c.email = payload.email.strip() or None
-    if payload.is_active is not None: c.is_active = payload.is_active
-    
     import sqlalchemy.exc
     try:
+        if payload.name is not None: c.name = str(payload.name)
+        if payload.org_code is not None: c.org_code = str(payload.org_code).strip() or None
+        if payload.region is not None: c.region = str(payload.region).strip() or None
+        if payload.district is not None: c.district = str(payload.district).strip() or None
+        if payload.address is not None: c.address = str(payload.address).strip() or None
+        if payload.phone is not None: c.phone = str(payload.phone).strip() or None
+        if payload.email is not None: c.email = str(payload.email).strip() or None
+        if payload.is_active is not None: c.is_active = payload.is_active
+        
         db.commit()
         return {"ok": True, "message": "Korxona ma'lumotlari yangilandi"}
     except sqlalchemy.exc.IntegrityError:
