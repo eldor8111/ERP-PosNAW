@@ -643,10 +643,13 @@ def update_company_super(
     import sqlalchemy.exc
     try:
         db.commit()
+        return {"ok": True, "message": "Korxona ma'lumotlari yangilandi"}
     except sqlalchemy.exc.IntegrityError:
         db.rollback()
         raise HTTPException(status_code=400, detail="Bu ma'lumotlar (masalan: Kod) allaqachon boshqa korxonaga biriktirilgan.")
-    return {"ok": True, "message": "Korxona ma'lumotlari yangilandi"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=f"Xatolik: {str(e)}")
 
 @router.delete("/companies/{company_id}")
 def delete_company_super(
@@ -669,3 +672,6 @@ def delete_company_super(
             status_code=400, 
             detail="Bu korxonaga tegishli ma'lumotlar (xodimlar, filiallar va h.k.) mavjud bo'lganligi sababli uni o'chirib bo'lmaydi. Iltimos, tahrirlash tugmasi orqali 'Korxona faol' holatini o'chirib qo'ying (nofaol qiling)."
         )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=f"Xatolik: {str(e)}")
