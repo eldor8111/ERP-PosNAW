@@ -489,7 +489,7 @@ def get_supplier_history(
         history.append({
             "id": p.id,
             "op_type": "purchase",
-            "date": p.created_at.isoformat(),
+            "date": p.created_at.isoformat() if p.created_at else "",
             "amount": display_total,
             "amount_uzs": total_uzs,
             "paid": display_paid,
@@ -507,7 +507,7 @@ def get_supplier_history(
         history.append({
             "id": pay.id,
             "op_type": "payment",
-            "date": pay.created_at.isoformat(),
+            "date": pay.created_at.isoformat() if pay.created_at else "",
             "amount": float(pay.amount or 0),
             "paid": float(pay.amount or 0),
             "debt": 0,
@@ -519,4 +519,4 @@ def get_supplier_history(
             "type": "payment",
         })
 
-    return sorted(history, key=lambda x: x["date"], reverse=True)
+    return sorted(history, key=lambda x: x.get("date") or "", reverse=True)
