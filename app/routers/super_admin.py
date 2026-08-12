@@ -632,15 +632,20 @@ def update_company_super(
         raise HTTPException(status_code=404, detail="Korxona topilmadi")
     
     if payload.name is not None: c.name = payload.name
-    if payload.org_code is not None: c.org_code = payload.org_code
-    if payload.region is not None: c.region = payload.region
-    if payload.district is not None: c.district = payload.district
-    if payload.address is not None: c.address = payload.address
-    if payload.phone is not None: c.phone = payload.phone
-    if payload.email is not None: c.email = payload.email
+    if payload.org_code is not None: c.org_code = payload.org_code.strip() or None
+    if payload.region is not None: c.region = payload.region.strip() or None
+    if payload.district is not None: c.district = payload.district.strip() or None
+    if payload.address is not None: c.address = payload.address.strip() or None
+    if payload.phone is not None: c.phone = payload.phone.strip() or None
+    if payload.email is not None: c.email = payload.email.strip() or None
     if payload.is_active is not None: c.is_active = payload.is_active
     
-    db.commit()
+    import sqlalchemy.exc
+    try:
+        db.commit()
+    except sqlalchemy.exc.IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Bu ma'lumotlar (masalan: Kod) allaqachon boshqa korxonaga biriktirilgan.")
     return {"ok": True, "message": "Korxona ma'lumotlari yangilandi"}
 
 @router.delete("/companies/{company_id}")
