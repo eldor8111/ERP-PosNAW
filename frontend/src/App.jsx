@@ -66,49 +66,43 @@ function PageLoader() {
 
 function AdminIndex() {
   const { user } = useAuth();
-  const navigate = useNavigate();
+  
+  if (user?.role === 'super_admin') {
+    return <Navigate to="/admin/super-admin" replace />;
+  }
 
-  useEffect(() => {
-    if (user?.role === 'super_admin') {
-      navigate('/admin/super-admin', { replace: true });
-      return;
-    }
+  const isAllowed = (key, defaultRoles) => {
+    const val = user?.permissions?.[key];
+    if (val === false || val === 'false') return false;
+    if (val === true || val === 'true') return true;
+    return defaultRoles?.includes(user?.role);
+  };
 
-    const isAllowed = (key, defaultRoles) => {
-      const val = user?.permissions?.[key];
-      if (val === false || val === 'false') return false;
-      if (val === true || val === 'true') return true;
-      return defaultRoles?.includes(user?.role);
-    };
+  const routes = [
+    { key: 'sotuv', path: '/admin/sotuv', roles: ROLE_GROUPS.SALES },
+    { key: 'products', path: '/admin/products', roles: ROLE_GROUPS.WAREHOUSE_ACCESS },
+    { key: 'customers', path: '/admin/customers', roles: ROLE_GROUPS.SALES },
+    { key: 'shifts', path: '/admin/shifts', roles: ROLE_GROUPS.SALES },
+    { key: 'filiallar', path: '/admin/filiallar', roles: ROLE_GROUPS.WAREHOUSE_ACCESS },
+    { key: 'purchases', path: '/admin/purchases', roles: ROLE_GROUPS.REPORTS_ACCESS },
+    { key: 'warehouse', path: '/admin/warehouse', roles: ROLE_GROUPS.WAREHOUSE_ACCESS },
+    { key: 'operations', path: '/admin/operations', roles: ROLE_GROUPS.OPS_ACCESS },
+    { key: 'finance', path: '/admin/finance', roles: ROLE_GROUPS.FINANCE_ACCESS },
+    { key: 'chiqim-tolovlar', path: '/admin/chiqim-tolovlar', roles: ROLE_GROUPS.FINANCE_ACCESS },
+    { key: 'kirim-tolovlar', path: '/admin/kirim-tolovlar', roles: ROLE_GROUPS.FINANCE_ACCESS },
+    { key: 'kassa', path: '/admin/kassa', roles: ROLE_GROUPS.FINANCE_ACCESS },
+    { key: 'reports', path: '/admin/reports', roles: ROLE_GROUPS.REPORTS_ACCESS },
+    { key: 'employees', path: '/admin/employees', roles: ROLE_GROUPS.MANAGEMENT },
+    { key: 'settings', path: '/admin/settings', roles: ROLE_GROUPS.MANAGEMENT },
+  ];
 
-    const routes = [
-      { key: 'sotuv', path: '/admin/sotuv', roles: ROLE_GROUPS.SALES },
-      { key: 'products', path: '/admin/products', roles: ROLE_GROUPS.WAREHOUSE_ACCESS },
-      { key: 'customers', path: '/admin/customers', roles: ROLE_GROUPS.SALES },
-      { key: 'shifts', path: '/admin/shifts', roles: ROLE_GROUPS.SALES },
-      { key: 'filiallar', path: '/admin/filiallar', roles: ROLE_GROUPS.WAREHOUSE_ACCESS },
-      { key: 'purchases', path: '/admin/purchases', roles: ROLE_GROUPS.REPORTS_ACCESS },
-      { key: 'warehouse', path: '/admin/warehouse', roles: ROLE_GROUPS.WAREHOUSE_ACCESS },
-      { key: 'operations', path: '/admin/operations', roles: ROLE_GROUPS.OPS_ACCESS },
-      { key: 'finance', path: '/admin/finance', roles: ROLE_GROUPS.FINANCE_ACCESS },
-      { key: 'chiqim-tolovlar', path: '/admin/chiqim-tolovlar', roles: ROLE_GROUPS.FINANCE_ACCESS },
-      { key: 'kirim-tolovlar', path: '/admin/kirim-tolovlar', roles: ROLE_GROUPS.FINANCE_ACCESS },
-      { key: 'kassa', path: '/admin/kassa', roles: ROLE_GROUPS.FINANCE_ACCESS },
-      { key: 'reports', path: '/admin/reports', roles: ROLE_GROUPS.REPORTS_ACCESS },
-      { key: 'employees', path: '/admin/employees', roles: ROLE_GROUPS.MANAGEMENT },
-      { key: 'settings', path: '/admin/settings', roles: ROLE_GROUPS.MANAGEMENT },
-    ];
+  const firstAllowed = routes.find(r => isAllowed(r.key, r.roles));
+  
+  if (firstAllowed) {
+    return <Navigate to={firstAllowed.path} replace />;
+  }
 
-    const firstAllowed = routes.find(r => isAllowed(r.key, r.roles));
-    
-    if (firstAllowed) {
-      navigate(firstAllowed.path, { replace: true });
-    } else {
-      navigate('/admin/profile', { replace: true });
-    }
-  }, [user, navigate]);
-
-  return <PageLoader />;
+  return <Navigate to="/admin/profile" replace />;
 }
 
 export default function App() {
