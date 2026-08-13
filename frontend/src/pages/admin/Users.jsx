@@ -49,7 +49,7 @@ function Field({ label, children }) {
   );
 }
 
-function RoleSelect({ form, setField, roles, roleLabels, dynamicRoles }) {
+function RoleSelect({ form, setField, roles, roleLabels, dynamicRoles, onAddDynamicRole }) {
   const val = form.role_id ? `dyn_${form.role_id}` : form.role;
 
   const handleChange = (e) => {
@@ -66,16 +66,25 @@ function RoleSelect({ form, setField, roles, roleLabels, dynamicRoles }) {
 
   return (
     <Field label="Rol">
-      <select value={val} onChange={handleChange} className={inp}>
-        <optgroup label="Tizim rollari">
-          {roles.map(r => <option key={r} value={r}>{roleLabels[r]}</option>)}
-        </optgroup>
-        {dynamicRoles && dynamicRoles.length > 0 && (
-          <optgroup label="Maxsus rollar">
-            {dynamicRoles.map(r => <option key={`dyn_${r.id}`} value={`dyn_${r.id}`}>{r.name}</option>)}
+      <div className="flex gap-2">
+        <select value={val} onChange={handleChange} className={inp}>
+          <optgroup label="Tizim rollari">
+            {roles.map(r => <option key={r} value={r}>{roleLabels[r]}</option>)}
           </optgroup>
-        )}
-      </select>
+          {dynamicRoles && dynamicRoles.length > 0 && (
+            <optgroup label="Maxsus rollar">
+              {dynamicRoles.map(r => <option key={`dyn_${r.id}`} value={`dyn_${r.id}`}>{r.name}</option>)}
+            </optgroup>
+          )}
+        </select>
+        <button
+          type="button"
+          onClick={onAddDynamicRole}
+          className="px-3 py-2 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 whitespace-nowrap text-sm font-semibold transition-colors"
+        >
+          + Yangi
+        </button>
+      </div>
     </Field>
   );
 }
@@ -211,6 +220,23 @@ export default function Users() {
 
   const close = () => {
     setModal(null); setSelected(null); setError('');
+  };
+
+  const handleAddDynamicRole = async () => {
+    const roleName = window.prompt("Yangi rol nomini kiriting (Tanlangan maxsus huquqlar saqlanadi):");
+    if (!roleName) return;
+    try {
+      const res = await api.post('/roles/', {
+        name: roleName,
+        permissions: form.permissions || {}
+      });
+      setDynamicRoles(prev => [...prev, res.data]);
+      setField('role_id', res.data.id);
+      setField('role', 'cashier');
+      toast.success("Yangi rol muvaffaqiyatli saqlandi!");
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Rol qo'shishda xatolik yuz berdi");
+    }
   };
 
   const setField = useCallback((key, val) => {
@@ -420,7 +446,7 @@ export default function Users() {
                   />
                 </Field>
 
-                <RoleSelect form={form} setField={setField} roles={ROLES} roleLabels={ROLE_LABELS} dynamicRoles={dynamicRoles} />
+                <RoleSelect form={form} setField={setField} roles={ROLES} roleLabels={ROLE_LABELS} dynamicRoles={dynamicRoles} onAddDynamicRole={handleAddDynamicRole} />
                 
                 {branches.length > 0 && (
                   <BranchSelect value={form.branch_id} onChange={v => setField('branch_id', v)} branches={branches} />
@@ -465,7 +491,7 @@ export default function Users() {
                 <Field label="Email">
                   <input type="email" value={form.email} onChange={e => setField('email', e.target.value)} className={inp} />
                 </Field>
-                <RoleSelect form={form} setField={setField} roles={ROLES} roleLabels={ROLE_LABELS} dynamicRoles={dynamicRoles} />
+                <RoleSelect form={form} setField={setField} roles={ROLES} roleLabels={ROLE_LABELS} dynamicRoles={dynamicRoles} onAddDynamicRole={handleAddDynamicRole} />
                 {branches.length > 0 && (
                   <BranchSelect value={form.branch_id} onChange={v => setField('branch_id', v)} branches={branches} />
                 )}

@@ -16,7 +16,7 @@ from app.routers import (
     reports, sales_report, finance_report, sales, users,
     suppliers, purchase_orders, transfers, inventory_counts,
     finance, customers, shifts, dashboard_mobile, currencies, api_keys,
-    warehouses, branches, super_admin, companies, dashboard
+    warehouses, branches, super_admin, companies, dashboard, roles
 )
 from app.admin_tg_bot.bot_routers import admin_router
 from app.routers import bin_locations, uploads, agents, telegram, lead  # type: ignore
@@ -194,6 +194,14 @@ def _run_auto_migrations(engine):
         "ALTER TABLE companies ADD COLUMN IF NOT EXISTS debt_deadline_alert BOOLEAN DEFAULT TRUE;",
         "ALTER TABLE companies ADD COLUMN IF NOT EXISTS daily_report_enabled BOOLEAN DEFAULT TRUE;",
         "ALTER TABLE companies ADD COLUMN IF NOT EXISTS daily_report_recipients VARCHAR(50) DEFAULT 'owners_and_admins';",
+        # ── Custom Roles ──
+        """CREATE TABLE IF NOT EXISTS custom_roles (
+            id SERIAL PRIMARY KEY,
+            company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            name VARCHAR(100) NOT NULL,
+            permissions JSONB DEFAULT '{}'::jsonb
+        );""",
+        "CREATE INDEX IF NOT EXISTS ix_custom_roles_company_id ON custom_roles(company_id);",
     ]
     _sa_text = __import__('sqlalchemy').text
     for sql in migrations:
@@ -285,6 +293,7 @@ from app.routers import ai_analytics
 
 app.include_router(auth.router, prefix=API_PREFIX)
 app.include_router(users.router, prefix=API_PREFIX)
+app.include_router(roles.router, prefix=API_PREFIX + "/roles")
 app.include_router(categories.router, prefix=API_PREFIX)
 app.include_router(product_search.router, prefix=API_PREFIX)
 app.include_router(product_import.router, prefix=API_PREFIX)

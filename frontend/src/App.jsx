@@ -74,11 +74,30 @@ function AdminIndex() {
   if (user?.role === 'super_admin') {
     return <Navigate to="super-admin" replace />
   }
-  if (user?.role === 'cashier') {
-    // cashier default tab handles sotuv or pos-kassa
+
+  const isAllowed = (key, defaultRoles) => {
+    if (user?.permissions?.[key] === false) return false;
+    if (user?.permissions?.[key] === true) return true;
+    return defaultRoles.includes(user?.role);
+  };
+
+  if (isAllowed('sotuv', ROLE_GROUPS.SALES)) {
     return <Navigate to="sotuv" replace />
   }
-  return <Navigate to="products" replace />
+  if (isAllowed('products', ROLE_GROUPS.WAREHOUSE_ACCESS)) {
+    return <Navigate to="products" replace />
+  }
+  if (isAllowed('finance', ROLE_GROUPS.FINANCE_ACCESS)) {
+    return <Navigate to="finance" replace />
+  }
+  if (isAllowed('reports', ROLE_GROUPS.REPORTS_ACCESS)) {
+    return <Navigate to="reports" replace />
+  }
+  if (isAllowed('employees', ROLE_GROUPS.MANAGEMENT)) {
+    return <Navigate to="employees" replace />
+  }
+
+  return <Navigate to="profile" replace />
 }
 
 export default function App() {
