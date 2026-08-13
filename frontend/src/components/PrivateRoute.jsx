@@ -17,7 +17,8 @@ export default function PrivateRoute({ children, roles }) {
     // pathParts[0] == 'admin', pathParts[1] == module name (e.g., 'finance', 'customers')
     if (pathParts.length >= 2 && pathParts[0] === 'admin') {
       const permKey = pathParts[1];
-      if (user.permissions[permKey] === false) {
+      const permVal = user.permissions[permKey];
+      if (permVal === false || permVal === 'false') {
         return <Navigate to="/admin" replace />
       }
     }

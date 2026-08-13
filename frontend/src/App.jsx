@@ -1,5 +1,5 @@
-import { lazy, Suspense } from 'react'
-import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { lazy, Suspense, useEffect } from 'react'
+import { BrowserRouter, HashRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import PrivateRoute from './components/PrivateRoute'
 import { ROLE_GROUPS } from './constants/roles'
@@ -50,6 +50,8 @@ const Yangiliklar     = lazy(() => import('./pages/Yangiliklar'))
 const Profile         = lazy(() => import('./pages/admin/Profile'))
 const NotFound        = lazy(() => import('./pages/NotFound'))
 
+import { useAuth } from './context/AuthContext'
+
 // Sahifa almashinayotganda ko'rinadigan loading spinner
 function PageLoader() {
   return (
@@ -63,41 +65,38 @@ function PageLoader() {
 }
 
 function AdminIndex() {
-  const userStr = localStorage.getItem('user')
-  let user = null
-  try {
-    user = JSON.parse(userStr || '{}')
-  } catch {
-    // ignore error
-  }
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
-  if (user?.role === 'super_admin') {
-    return <Navigate to="super-admin" replace />
-  }
+  useEffect(() => {
+    if (user?.role === 'super_admin') {
+      navigate('/admin/super-admin', { replace: true });
+      return;
+    }
 
-  const isAllowed = (key, defaultRoles) => {
-    if (user?.permissions?.[key] === false) return false;
-    if (user?.permissions?.[key] === true) return true;
-    return defaultRoles.includes(user?.role);
-  };
+    const isAllowed = (key, defaultRoles) => {
+      const val = user?.permissions?.[key];
+      if (val === false || val === 'false') return false;
+      if (val === true || val === 'true') return true;
+      return defaultRoles?.includes(user?.role);
+    };
 
-  if (isAllowed('sotuv', ROLE_GROUPS.SALES)) {
-    return <Navigate to="sotuv" replace />
-  }
-  if (isAllowed('products', ROLE_GROUPS.WAREHOUSE_ACCESS)) {
-    return <Navigate to="products" replace />
-  }
-  if (isAllowed('finance', ROLE_GROUPS.FINANCE_ACCESS)) {
-    return <Navigate to="finance" replace />
-  }
-  if (isAllowed('reports', ROLE_GROUPS.REPORTS_ACCESS)) {
-    return <Navigate to="reports" replace />
-  }
-  if (isAllowed('employees', ROLE_GROUPS.MANAGEMENT)) {
-    return <Navigate to="employees" replace />
-  }
+    if (isAllowed('sotuv', ROLE_GROUPS.SALES)) {
+      navigate('/admin/sotuv', { replace: true });
+    } else if (isAllowed('products', ROLE_GROUPS.WAREHOUSE_ACCESS)) {
+      navigate('/admin/products', { replace: true });
+    } else if (isAllowed('finance', ROLE_GROUPS.FINANCE_ACCESS)) {
+      navigate('/admin/finance', { replace: true });
+    } else if (isAllowed('reports', ROLE_GROUPS.REPORTS_ACCESS)) {
+      navigate('/admin/reports', { replace: true });
+    } else if (isAllowed('employees', ROLE_GROUPS.MANAGEMENT)) {
+      navigate('/admin/employees', { replace: true });
+    } else {
+      navigate('/admin/profile', { replace: true });
+    }
+  }, [user, navigate]);
 
-  return <Navigate to="profile" replace />
+  return <PageLoader />;
 }
 
 export default function App() {

@@ -387,10 +387,8 @@ export default function Login() {
       
       if (userRes?.role === 'super_admin') {
         navigate('/admin/super-admin')
-      } else if (userRes?.role === 'cashier') {
-        navigate('/admin/ulgurji-sotuv')
       } else {
-        navigate('/admin/products')
+        navigate('/admin')
       }
     } catch (err) {
       // 202 = OTP talab qilinadi (kassir/sub-foydalanuvchi)
