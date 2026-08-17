@@ -10,12 +10,12 @@ from app.models.user import User, UserRole
 from app.models.sale import Sale, SaleStatus
 from app.services.ai_service import (
     build_daily_context,
-    call_gemini,
-    get_insights,
-    parse_copilot_intent,
     execute_copilot_action,
     build_daily_report,
 )
+from app.services.bytez_copilot_service import call_copilot_ai
+import os
+
 from app.services.debt_scoring import categorize_customers
 
 router = APIRouter(prefix="/ai", tags=["AI Analytics & Copilot"])
@@ -199,19 +199,30 @@ def chat_with_copilot(
     - Nasiya yozish: «Vali 30000 so'm nasiya oldi»
     - Savdo savollari: «Bugungi tushum qancha?»
     """
+    # Qat'iy tenant izolyatsiyasi (Prompt Injection himoyasi)
+    forbidden_words = ["boshqa korxona", "admin", "barcha korxona", "unut", "ignore"]
+    msg_lower = request.message.lower()
+    if any(word in msg_lower for word in forbidden_words):
+        return {"reply": "Kechirasiz, faqat o'z korxonangizga tegishli ma'lumotlarga javob bera olaman."}
+        
     context = build_daily_context(db, current_user.company_id)
-    intent_data = parse_copilot_intent(request.message, context)
+    api_key = os.getenv("BYTEZ_API_KEY", "42444b53b260f17105d68352fe7e9b3f")
+    
+    # AI ga so'rov yuboramiz
+    intent_data = call_copilot_ai(request.message, context, api_key)
 
+    # Agar AI funksiya (tool) tanlagan bo'lsa, uni bajarish
     if intent_data.get("intent") in ["debt_payment", "add_debt"]:
+        # execute_copilot_action ichida company_id qat'iy ravishda tokendan(current_user) olinadi!
         result = execute_copilot_action(
             intent_data, db, current_user.company_id, current_user.id
         )
         return result
 
+    # Agar xato bo'lsa yoki shunchaki matnli javob bo'lsa
     return {
         "reply": intent_data.get(
             "reply",
-            "Kechirasiz, bu so'rovni tushunmadim. "
-            "Masalan: «Ali 50000 so'm qarzini to'ladi» deb yozing."
+            "Kechirasiz, men bu so'rovni tushunmadim."
         )
     }
