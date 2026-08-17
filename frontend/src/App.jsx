@@ -14,10 +14,12 @@ import AdminLayout from './components/AdminLayout'
 const Products        = lazy(() => import('./pages/admin/Products'))
 const Purchases       = lazy(() => import('./pages/admin/Purchases'))
 const Warehouse       = lazy(() => import('./pages/admin/Warehouse'))
+const Alerts          = lazy(() => import('./pages/admin/Alerts'))
 const InventoryCounts = lazy(() => import('./pages/admin/InventoryCounts'))
 const Finance         = lazy(() => import('./pages/admin/Finance'))
 const Reports         = lazy(() => import('./pages/admin/Reports'))
 const Customers       = lazy(() => import('./pages/admin/Customers'))
+const Promotions      = lazy(() => import('./pages/admin/Promotions'))
 const CustomerDetail  = lazy(() => import('./pages/admin/CustomerDetail'))
 const SupplierDetail  = lazy(() => import('./pages/admin/SupplierDetail'))
 // const SotuvMijozlar   = lazy(() => import('./pages/admin/SotuvMijozlar'))
@@ -55,8 +57,8 @@ function PageLoader() {
   return (
     <div className="flex items-center justify-center h-64">
       <div className="relative">
-        <div className="w-10 h-10 border-4 border-indigo-100 rounded-full" />
-        <div className="absolute inset-0 w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-10 h-10 border-4 border-blue-100 rounded-full" />
+        <div className="absolute inset-0 w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
       </div>
     </div>
   )
@@ -104,6 +106,7 @@ export default function App() {
             <Route path="profile" element={<Suspense fallback={<PageLoader />}><Profile /></Suspense>} />
             <Route path="purchases" element={<Suspense fallback={<PageLoader />}><Purchases /></Suspense>} />
             <Route path="warehouse" element={<Suspense fallback={<PageLoader />}><Warehouse /></Suspense>} />
+            <Route path="alerts" element={<Suspense fallback={<PageLoader />}><Alerts /></Suspense>} />
             <Route path="inventory-counts" element={<Suspense fallback={<PageLoader />}><InventoryCounts /></Suspense>} />
             <Route path="finance" element={<Suspense fallback={<PageLoader />}><Finance /></Suspense>} />
             <Route path="kirim-tolovlar" element={<Suspense fallback={<PageLoader />}><KirimTolovlar /></Suspense>} />
@@ -113,6 +116,7 @@ export default function App() {
             <Route path="customers/:customerId" element={<Suspense fallback={<PageLoader />}><CustomerDetail /></Suspense>} />
             <Route path="suppliers/:supplierId" element={<Suspense fallback={<PageLoader />}><SupplierDetail /></Suspense>} />
             <Route path="customers" element={<Suspense fallback={<PageLoader />}><Customers /></Suspense>} />
+            <Route path="promotions" element={<Suspense fallback={<PageLoader />}><Promotions /></Suspense>} />
             <Route path="sotuv" element={<Suspense fallback={<PageLoader />}><UlgurjiSotuv /></Suspense>} />
             <Route path="pos-kassa" element={<Suspense fallback={<PageLoader />}><PosKassa /></Suspense>} />
             <Route path="pos-return" element={<Suspense fallback={<PageLoader />}><PosReturn /></Suspense>} />

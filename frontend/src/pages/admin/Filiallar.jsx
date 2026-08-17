@@ -56,19 +56,19 @@ function BranchModal({ branch, warehouses, onSave, onClose }) {
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Filial nomi *</label>
             <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
               placeholder="Masalan: Asosiy filial, Chilonzor bo'limi..."
-              className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+              className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
           </div>
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Manzil</label>
             <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })}
               placeholder="Ko'cha, uy raqami..."
-              className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+              className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
           </div>
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Telefon</label>
             <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
               placeholder="+998 90 123 45 67"
-              className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+              className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
           </div>
           {isEdit && (
             <div className="flex items-center gap-3">
@@ -85,7 +85,7 @@ function BranchModal({ branch, warehouses, onSave, onClose }) {
               Bekor qilish
             </button>
             <button type="submit" disabled={saving}
-              className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm disabled:opacity-50">
+              className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm disabled:opacity-50">
               {saving ? 'Saqlanmoqda...' : isEdit ? 'Yangilash' : "Qo'shish"}
             </button>
           </div>
@@ -149,12 +149,12 @@ function WarehouseModal({ branches, editWh, onSave, onClose }) {
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Ombor nomi *</label>
             <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
               placeholder="Masalan: Asosiy sklad, Do'kon ombori..."
-              className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+              className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
           </div>
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Filial *</label>
             <select value={form.branch_id} onChange={e => setForm({ ...form, branch_id: e.target.value })}
-              className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white">
+              className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white">
               <option value="">— Filialsiz (umumiy) —</option>
               {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
@@ -164,7 +164,7 @@ function WarehouseModal({ branches, editWh, onSave, onClose }) {
             <div className="grid grid-cols-2 gap-2">
               {WH_TYPES.map(t => (
                 <button key={t.value} type="button" onClick={() => setForm({ ...form, type: t.value })}
-                  className={`py-2 rounded-xl text-sm font-semibold border-2 transition-all ${form.type === t.value ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-200 text-slate-600 hover:border-indigo-300'}`}>
+                  className={`py-2 rounded-xl text-sm font-semibold border-2 transition-all ${form.type === t.value ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-200 text-slate-600 hover:border-blue-300'}`}>
                   {t.label}
                 </button>
               ))}
@@ -185,7 +185,7 @@ function WarehouseModal({ branches, editWh, onSave, onClose }) {
               Bekor qilish
             </button>
             <button type="submit" disabled={saving}
-              className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm disabled:opacity-50">
+              className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm disabled:opacity-50">
               {saving ? 'Saqlanmoqda...' : isEdit ? 'Yangilash' : "Qo'shish"}
             </button>
           </div>
@@ -245,10 +245,10 @@ export default function Filiallar() {
 
   const WH_TYPE_LABEL = { main: 'Asosiy', shop: "Do'kon", transit: 'Tranzit', returns: 'Qaytarish' };
   const WH_TYPE_COLOR = {
-    main: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    main: 'bg-blue-50 text-blue-700 border-blue-200',
     shop: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     transit: 'bg-amber-50 text-amber-700 border-amber-200',
-    returns: 'bg-rose-50 text-rose-700 border-rose-200',
+    returns: 'bg-blue-50 text-blue-700 border-blue-200',
   };
 
   return (
@@ -261,12 +261,12 @@ export default function Filiallar() {
         </div>
         <div className="flex gap-2">
           <button onClick={() => setWhModal('create')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-700 hover:border-indigo-300 font-semibold text-sm transition-all">
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-700 hover:border-blue-300 font-semibold text-sm transition-all">
             <Ic d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" cls="w-4 h-4" />
             Ombor qo'shish
           </button>
           <button onClick={() => setBranchModal('create')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md shadow-indigo-200 transition-all">
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md shadow-blue-200 transition-all">
             <Ic d="M12 4v16m8-8H4" cls="w-4 h-4" />
             Filial qo'shish
           </button>
@@ -276,10 +276,10 @@ export default function Filiallar() {
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'Jami filiallar', value: branches.filter(b => b.is_active).length, icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', color: 'bg-indigo-50 text-indigo-700' },
+          { label: 'Jami filiallar', value: branches.filter(b => b.is_active).length, icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', color: 'bg-blue-50 text-blue-700' },
           { label: 'Jami omborlar', value: warehouses.filter(w => w.is_active).length, icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4', color: 'bg-emerald-50 text-emerald-700' },
           { label: 'Bog\'liq omborlar', value: warehouses.filter(w => w.branch_id && w.is_active).length, icon: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1', color: 'bg-amber-50 text-amber-700' },
-          { label: "Bog'liqsiz omborlar", value: unassignedWhs.filter(w => w.is_active).length, icon: 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636', color: 'bg-rose-50 text-rose-700' },
+          { label: "Bog'liqsiz omborlar", value: unassignedWhs.filter(w => w.is_active).length, icon: 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636', color: 'bg-blue-50 text-blue-700' },
         ].map(c => (
           <div key={c.label} className={`rounded-2xl p-4 border border-slate-100 ${c.color}`}>
             <div className="flex items-center gap-2 mb-1">
@@ -293,7 +293,7 @@ export default function Filiallar() {
 
       {loading ? (
         <div className="flex justify-center items-center py-20">
-          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
         <div className="space-y-3">
@@ -302,10 +302,10 @@ export default function Filiallar() {
             const bWhs = warehouses.filter(w => w.branch_id === branch.id);
             const isExpanded = expandedBranch === branch.id;
             return (
-              <div key={branch.id} className={`bg-white rounded-2xl border-2 transition-all ${branch.is_active ? 'border-slate-100 hover:border-indigo-100' : 'border-slate-100 opacity-60'}`}>
+              <div key={branch.id} className={`bg-white rounded-2xl border-2 transition-all ${branch.is_active ? 'border-slate-100 hover:border-blue-100' : 'border-slate-100 opacity-60'}`}>
                 {/* Branch header */}
                 <div className="flex items-center gap-3 p-4 cursor-pointer" onClick={() => setExpandedBranch(isExpanded ? null : branch.id)}>
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${branch.is_active ? 'bg-indigo-600' : 'bg-slate-300'}`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${branch.is_active ? 'bg-blue-600' : 'bg-slate-300'}`}>
                     <Ic d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" cls="w-5 h-5 text-white" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -316,12 +316,12 @@ export default function Filiallar() {
                     <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500 flex-wrap">
                       {branch.address && <span>📍 {branch.address}</span>}
                       {branch.phone && <span>📞 {branch.phone}</span>}
-                      <span className="font-semibold text-indigo-600">{bWhs.length} ta ombor</span>
+                      <span className="font-semibold text-blue-600">{bWhs.length} ta ombor</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <button onClick={e => { e.stopPropagation(); setWhModal({ branchId: branch.id }); }}
-                      className="p-2 rounded-xl text-indigo-500 hover:bg-indigo-50 transition-colors" title="Ombor qo'shish">
+                      className="p-2 rounded-xl text-blue-500 hover:bg-blue-50 transition-colors" title="Ombor qo'shish">
                       <Ic d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" cls="w-4 h-4" />
                     </button>
                     <button onClick={e => { e.stopPropagation(); setBranchModal(branch); }}
@@ -330,7 +330,7 @@ export default function Filiallar() {
                     </button>
                     {branch.is_active && (
                       <button onClick={e => { e.stopPropagation(); handleDeactivateBranch(branch); }}
-                        className="p-2 rounded-xl text-rose-400 hover:bg-rose-50 transition-colors" title="Nofaol qilish">
+                        className="p-2 rounded-xl text-blue-400 hover:bg-blue-50 transition-colors" title="Nofaol qilish">
                         <Ic d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" cls="w-4 h-4" />
                       </button>
                     )}
@@ -346,14 +346,14 @@ export default function Filiallar() {
                         <Ic d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" cls="w-8 h-8" />
                         <p className="text-sm">Bu filialda hali ombor yo'q</p>
                         <button onClick={() => setWhModal({ branchId: branch.id })}
-                          className="text-sm font-bold text-indigo-600 hover:text-indigo-700">
+                          className="text-sm font-bold text-blue-600 hover:text-blue-700">
                           + Ombor qo'shish
                         </button>
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                         {bWhs.map(wh => (
-                          <div key={wh.id} className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${wh.is_active ? 'border-slate-100 bg-slate-50 hover:border-indigo-200' : 'border-slate-100 bg-slate-50 opacity-50'}`}>
+                          <div key={wh.id} className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${wh.is_active ? 'border-slate-100 bg-slate-50 hover:border-blue-200' : 'border-slate-100 bg-slate-50 opacity-50'}`}>
                             <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
                               <Ic d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" cls="w-4 h-4 text-slate-500" />
                             </div>
@@ -388,7 +388,7 @@ export default function Filiallar() {
               <p className="text-slate-500 font-semibold mb-1">Hali filial qo'shilmagan</p>
               <p className="text-sm text-slate-400 mb-4">Filial yaratib, unga omborlarni bog'lang</p>
               <button onClick={() => setBranchModal('create')}
-                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm">
+                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm">
                 + Birinchi filial qo'shish
               </button>
             </div>
@@ -407,7 +407,7 @@ export default function Filiallar() {
                     <Ic d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" cls="w-4 h-4 text-amber-600" />
                     <span className="flex-1 text-sm font-semibold text-slate-700 truncate">{wh.name}</span>
                     <button onClick={() => setWhModal(wh)}
-                      className="text-xs font-bold text-indigo-600 hover:text-indigo-700 shrink-0">
+                      className="text-xs font-bold text-blue-600 hover:text-blue-700 shrink-0">
                       Bog'lash →
                     </button>
                   </div>

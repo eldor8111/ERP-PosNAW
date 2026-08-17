@@ -14,22 +14,22 @@ const getRoleLabels = (t) => ({
 });
 
 const ROLE_COLORS = {
-  super_admin: 'bg-purple-100 text-purple-700',
+  super_admin: 'bg-blue-100 text-blue-700',
   admin: 'bg-red-100 text-red-700',
-  director: 'bg-purple-100 text-purple-700',
+  director: 'bg-blue-100 text-blue-700',
   manager: 'bg-blue-100 text-blue-700',
   accountant: 'bg-emerald-100 text-emerald-700',
   warehouse: 'bg-amber-100 text-amber-700',
-  cashier: 'bg-indigo-100 text-indigo-700',
+  cashier: 'bg-blue-100 text-blue-700',
 };
 
 const BLANK_FORM = { name: '', phone: '', email: '', password: '', role: 'cashier', role_id: null, branch_id: '', permissions: {} };
 
-const inp = "w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500";
+const inp = "w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
 
 function StatCard({ label, value, color = 'slate' }) {
   const txt = {
-    indigo: 'text-indigo-600', emerald: 'text-emerald-600',
+    indigo: 'text-blue-600', emerald: 'text-emerald-600',
     violet: 'text-violet-600', slate: 'text-slate-700',
   };
   return (
@@ -49,7 +49,7 @@ function Field({ label, children }) {
   );
 }
 
-function RoleSelect({ form, setField, roles, roleLabels, dynamicRoles }) {
+function RoleSelect({ form, setField, dynamicRoles }) {
   const val = form.role_id ? `dyn_${form.role_id}` : form.role;
 
   const handleChange = (e) => {
@@ -66,15 +66,12 @@ function RoleSelect({ form, setField, roles, roleLabels, dynamicRoles }) {
 
   return (
     <Field label="Rol">
-      <select value={val} onChange={handleChange} className={inp}>
-        <optgroup label="Tizim rollari">
-          {roles.map(r => <option key={r} value={r}>{roleLabels[r]}</option>)}
-        </optgroup>
-        {dynamicRoles && dynamicRoles.length > 0 && (
-          <optgroup label="Maxsus rollar">
-            {dynamicRoles.map(r => <option key={`dyn_${r.id}`} value={`dyn_${r.id}`}>{r.name}</option>)}
-          </optgroup>
-        )}
+      <select value={val || ''} onChange={handleChange} className={inp} required>
+        <option value="" disabled>-- Rol tanlang --</option>
+        <option value="admin">Admin (Barcha huquqlar)</option>
+        {dynamicRoles && dynamicRoles.map(r => (
+          <option key={`dyn_${r.id}`} value={`dyn_${r.id}`}>{r.name}</option>
+        ))}
       </select>
     </Field>
   );
@@ -91,39 +88,7 @@ function BranchSelect({ value, onChange, branches }) {
   );
 }
 
-function PermissionsList({ form, setField }) {
-  const handlePerm = (k, v) => {
-    const newPerms = { ...(form.permissions || {}) };
-    if (v === 'default') delete newPerms[k];
-    else newPerms[k] = (v === 'allow');
-    setField('permissions', newPerms);
-  };
-  return (
-    <div className="pt-2 border-t border-slate-100 mt-4">
-      <h4 className="text-sm font-bold text-slate-700 mb-2">Maxsus huquqlar</h4>
-      <p className="text-xs text-slate-500 mb-3">Tizim bo'limlariga kirishni alohida belgilashingiz mumkin.</p>
-      <div className="max-h-60 overflow-y-auto space-y-2 pr-1" style={{ scrollbarWidth: 'thin' }}>
-        {Object.entries(PERMISSIONS).map(([k, p]) => (
-          <div key={k} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 bg-slate-50 border border-slate-100 rounded-xl">
-            <div>
-              <div className="text-xs font-semibold text-slate-700">{p.label}</div>
-              <div className="text-[10px] text-slate-500 leading-tight mt-0.5">{p.desc}</div>
-            </div>
-            <select
-              value={form.permissions?.[k] === true ? 'allow' : form.permissions?.[k] === false ? 'deny' : 'default'}
-              onChange={e => handlePerm(k, e.target.value)}
-              className="text-xs py-1.5 px-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium"
-            >
-              <option value="default">Standart (Rolga qarab)</option>
-              <option value="allow" className="text-emerald-600 font-semibold">Ruxsat berish</option>
-              <option value="deny" className="text-red-600 font-semibold">Taqiqlash</option>
-            </select>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+
 
 // OTP bosqichlari: 'form' → 'otp_sent' → 'otp_verified'
 export default function Users() {
@@ -135,6 +100,7 @@ export default function Users() {
   const [userWallets, setUserWallets] = useState([]); // {wallet_id, is_default}
   const [modal, setModal] = useState(null); // 'create' | 'edit' | 'password' | 'kassa'
   const [selected, setSelected] = useState(null);
+  const [activeMenu, setActiveMenu] = useState(null); // 3-dots action menu
   const [form, setForm] = useState(BLANK_FORM);
   const [newPwd, setNewPwd] = useState('');
   const [saving, setSaving] = useState(false);
@@ -144,6 +110,12 @@ export default function Users() {
 
   const load = useCallback(() => {
     api.get('/users/').then(r => setUsers(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+  }, []);
+
+  useEffect(() => {
+    const handleClick = () => setActiveMenu(null);
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
   }, []);
 
   useEffect(() => {
@@ -284,7 +256,7 @@ export default function Users() {
         </div>
         <button
           onClick={openCreate}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
@@ -302,7 +274,7 @@ export default function Users() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto" style={{ minHeight: users.length < 5 ? '350px' : 'auto' }}>
         <table className="min-w-full">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
@@ -316,7 +288,7 @@ export default function Users() {
               <tr key={u.id} className="hover:bg-slate-50 transition-colors">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-sm font-bold shrink-0">
+                    <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold shrink-0">
                       {u.name?.[0]?.toUpperCase()}
                     </div>
                     <span className="text-sm font-semibold text-slate-800">{u.name}</span>
@@ -328,7 +300,7 @@ export default function Users() {
                   {u.branch_id ? (branches.find(b => b.id === u.branch_id)?.name || '—') : '—'}
                 </td>
                 <td className="px-6 py-4">
-                  <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${ROLE_COLORS[u.role] || 'bg-slate-100 text-slate-600'}`}>
+                  <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${u.role_id ? 'bg-blue-50 text-blue-700' : (ROLE_COLORS[u.role] || 'bg-slate-100 text-slate-600')}`}>
                     {u.role_id ? (dynamicRoles.find(r => r.id === u.role_id)?.name || 'Maxsus rol') : (ROLE_LABELS[u.role] || u.role)}
                   </span>
                 </td>
@@ -338,27 +310,45 @@ export default function Users() {
                   </span>
                 </td>
                 <td className="px-6 py-4">
-                  <div className="flex items-center gap-1 justify-end">
-                    <button onClick={() => openEdit(u)} title={t('common.edit')} className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  <div className="relative inline-block text-left" onClick={e => e.stopPropagation()}>
+                    <button 
+                      onClick={() => setActiveMenu(activeMenu === u.id ? null : u.id)}
+                      className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
                       </svg>
                     </button>
-                    <button onClick={() => openKassa(u)} title="Kassa biriktirish" className="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-                      </svg>
-                    </button>
-                    <button onClick={() => openPwd(u)} title={t('user.changePassword')} className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg transition-colors">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                      </svg>
-                    </button>
-                    <button onClick={() => handleDeactivate(u)} title={t('common.delete')} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
+                    
+                    {activeMenu === u.id && (
+                      <div className="absolute right-0 mt-2 w-52 bg-white border border-slate-100 rounded-2xl shadow-xl py-2 z-50">
+                        <button onClick={() => { setActiveMenu(null); openEdit(u); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors">
+                          <svg className="w-5 h-5 text-slate-400 group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          Tahrirlash
+                        </button>
+                        <button onClick={() => { setActiveMenu(null); openKassa(u); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-emerald-600 transition-colors">
+                          <svg className="w-5 h-5 text-slate-400 group-hover:text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                          </svg>
+                          Kassa biriktirish
+                        </button>
+                        <button onClick={() => { setActiveMenu(null); openPwd(u); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-amber-600 transition-colors">
+                          <svg className="w-5 h-5 text-slate-400 group-hover:text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                          </svg>
+                          Parol o'zgartirish
+                        </button>
+                        <div className="h-px bg-slate-100 my-1 mx-2"></div>
+                        <button onClick={() => { setActiveMenu(null); handleDeactivate(u); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors">
+                          <svg className="w-5 h-5 text-red-400 group-hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          O'chirish
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -420,20 +410,20 @@ export default function Users() {
                   />
                 </Field>
 
-                <RoleSelect form={form} setField={setField} roles={ROLES} roleLabels={ROLE_LABELS} dynamicRoles={dynamicRoles} />
+                <RoleSelect form={form} setField={setField} dynamicRoles={dynamicRoles} />
                 
                 {branches.length > 0 && (
                   <BranchSelect value={form.branch_id} onChange={v => setField('branch_id', v)} branches={branches} />
                 )}
               </div>
               
-              <PermissionsList form={form} setField={setField} />
+
 
               {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
 
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
-                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
                   {saving ? t('common.saving') : t('common.add')}
                 </button>
               </div>
@@ -465,18 +455,18 @@ export default function Users() {
                 <Field label="Email">
                   <input type="email" value={form.email} onChange={e => setField('email', e.target.value)} className={inp} />
                 </Field>
-                <RoleSelect form={form} setField={setField} roles={ROLES} roleLabels={ROLE_LABELS} dynamicRoles={dynamicRoles} />
+                <RoleSelect form={form} setField={setField} dynamicRoles={dynamicRoles} />
                 {branches.length > 0 && (
                   <BranchSelect value={form.branch_id} onChange={v => setField('branch_id', v)} branches={branches} />
                 )}
               </div>
               
-              <PermissionsList form={form} setField={setField} />
+
 
               {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
-                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
                   {saving ? t('common.saving') : t('common.save')}
                 </button>
               </div>

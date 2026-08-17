@@ -110,7 +110,7 @@ export default function BizHaqimizda() {
 
             <div className="bg-white p-8 md:p-10 rounded-3xl border border-slate-200/80 shadow-sm flex flex-col justify-between hover:border-emerald-500/50 transition-all">
               <div>
-                <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center mb-6">
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-6">
                   <Target className="w-6 h-6" />
                 </div>
                 <h2 className="text-2xl font-bold text-slate-900 mb-4">Kompaniyamizning Maqsadi</h2>

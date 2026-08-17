@@ -393,7 +393,7 @@ function TemplateCard({ tpl, product, selected, onSelect, isSaved }) {
   return (
     <button
       onClick={() => onSelect(tpl)}
-      className={`flex flex-col items-start gap-2 p-3 rounded-xl border-2 text-left transition-all w-full ${selected ? 'border-indigo-500 bg-indigo-50 shadow-md' : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
+      className={`flex flex-col items-start gap-2 p-3 rounded-xl border-2 text-left transition-all w-full ${selected ? 'border-blue-500 bg-blue-50 shadow-md' : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50'
         }`}
     >
       {/* badge */}
@@ -403,7 +403,7 @@ function TemplateCard({ tpl, product, selected, onSelect, isSaved }) {
           {tpl.size} mm
         </span>
         {isSaved && <span className="text-xs text-amber-500">⭐ Saqlangan</span>}
-        {selected && <span className="ml-auto text-indigo-600">✓</span>}
+        {selected && <span className="ml-auto text-blue-600">✓</span>}
       </div>
       {/* name */}
       <div className="text-sm font-semibold text-slate-800">{tpl.name}</div>
@@ -1160,7 +1160,7 @@ export default function BarcodePrintModal({ product, onClose }) {
                   max="500"
                   value={qty}
                   onChange={e => setQty(Math.max(1, Math.min(500, +e.target.value)))}
-                  className="flex-1 text-center border border-slate-200 rounded-md py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="flex-1 text-center border border-slate-200 rounded-md py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button
                   type="button"
@@ -1175,7 +1175,7 @@ export default function BarcodePrintModal({ product, onClose }) {
                 type="button"
                 onClick={handlePrint}
                 disabled={!selectedTpl}
-                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-md cursor-pointer transition-colors flex items-center justify-center gap-2"
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-md cursor-pointer transition-colors flex items-center justify-center gap-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
@@ -1202,7 +1202,7 @@ export default function BarcodePrintModal({ product, onClose }) {
             <p className="text-xs text-slate-400 mb-4">"{selectedTpl?.name}" asosida yangi shablon</p>
             <input
               autoFocus
-              className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-4"
+              className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
               placeholder="Shablon nomi..."
               value={saveName}
               onChange={e => setSaveName(e.target.value)}

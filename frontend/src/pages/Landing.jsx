@@ -68,7 +68,7 @@ function DashboardMinimal() {
       </div>
       <div className="flex h-[360px]">
         <div className="w-[70px] border-r border-black/[0.08] p-4 flex flex-col gap-4 bg-white/40">
-          <div className="h-7 rounded-lg bg-gradient-to-br from-blue-600 to-purple-500 shadow-[0_4px_10px_rgba(37,99,235,0.3)] transition-all duration-300 hover:scale-105" />
+          <div className="h-7 rounded-lg bg-gradient-to-br from-blue-600 to-blue-500 shadow-[0_4px_10px_rgba(37,99,235,0.3)] transition-all duration-300 hover:scale-105" />
           <div className="h-7 rounded-lg bg-slate-100 transition-all duration-300 hover:scale-105" />
           <div className="h-7 rounded-lg bg-slate-100 transition-all duration-300 hover:scale-105" />
           <div className="h-7 rounded-lg bg-slate-100 transition-all duration-300 hover:scale-105" />
@@ -89,13 +89,13 @@ function DashboardMinimal() {
             </div>
           </div>
           <div className="flex-1 bg-white border border-black/[0.08] rounded-xl p-5 flex items-end gap-3">
-            <div className="flex-1 bg-slate-200 rounded-t-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] hover:bg-purple-500 hover:scale-y-110 origin-bottom h-[40%]" />
-            <div className="flex-1 bg-slate-200 rounded-t-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] hover:bg-purple-500 hover:scale-y-110 origin-bottom h-[70%]" />
-            <div className="flex-1 bg-slate-200 rounded-t-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] hover:bg-purple-500 hover:scale-y-110 origin-bottom h-[55%]" />
-            <div className="flex-1 bg-slate-200 rounded-t-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] hover:bg-purple-500 hover:scale-y-110 origin-bottom h-[90%]" />
-            <div className="flex-1 bg-slate-200 rounded-t-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] hover:bg-purple-500 hover:scale-y-110 origin-bottom h-[65%]" />
-            <div className="flex-1 bg-gradient-to-t from-emerald-500 to-teal-400 shadow-[0_4px_15px_rgba(16,185,129,0.3)] rounded-t-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] hover:bg-purple-500 hover:scale-y-110 origin-bottom h-[100%]" />
-            <div className="flex-1 bg-slate-200 rounded-t-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] hover:bg-purple-500 hover:scale-y-110 origin-bottom h-[80%]" />
+            <div className="flex-1 bg-slate-200 rounded-t-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] hover:bg-blue-500 hover:scale-y-110 origin-bottom h-[40%]" />
+            <div className="flex-1 bg-slate-200 rounded-t-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] hover:bg-blue-500 hover:scale-y-110 origin-bottom h-[70%]" />
+            <div className="flex-1 bg-slate-200 rounded-t-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] hover:bg-blue-500 hover:scale-y-110 origin-bottom h-[55%]" />
+            <div className="flex-1 bg-slate-200 rounded-t-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] hover:bg-blue-500 hover:scale-y-110 origin-bottom h-[90%]" />
+            <div className="flex-1 bg-slate-200 rounded-t-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] hover:bg-blue-500 hover:scale-y-110 origin-bottom h-[65%]" />
+            <div className="flex-1 bg-gradient-to-t from-emerald-500 to-blue-400 shadow-[0_4px_15px_rgba(16,185,129,0.3)] rounded-t-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] hover:bg-blue-500 hover:scale-y-110 origin-bottom h-[100%]" />
+            <div className="flex-1 bg-slate-200 rounded-t-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] hover:bg-blue-500 hover:scale-y-110 origin-bottom h-[80%]" />
           </div>
         </div>
       </div>
@@ -140,7 +140,7 @@ function TabbedModules({ t }) {
       title: t('land.tab3.title') || "Audit va Xavfsizlik",
       desc: t('land.tab3.desc') || "Xodimlarning barcha harakatlari va tranzaksiya o'zgarishlari tizim loglariga muhrlanadi. To'liq ichki nazorat va ruxsatlar tizimi (RBAC).",
       visual: <VisualAudit />,
-      iconBg: "bg-purple-50 text-purple-600 border-purple-200"
+      iconBg: "bg-blue-50 text-blue-600 border-blue-200"
     }
   ];
 
@@ -364,7 +364,7 @@ export default function Landing() {
             </div>
             <h1 style={{ animationDelay: '200ms' }} className="animate-slide-up text-[clamp(32px,9vw,55px)] lg:text-[clamp(48px,6vw,68px)] font-black leading-[1.05] tracking-[-0.04em] m-0 mb-6 text-slate-900">
               {t('land.erp')} <br />
-              <span className="bg-gradient-to-r from-emerald-600 via-teal-500 to-blue-600 bg-clip-text text-transparent inline-block">
+              <span className="bg-gradient-to-r from-emerald-600 via-blue-500 to-blue-600 bg-clip-text text-transparent inline-block">
                 {t('land.eco')}
               </span>
             </h1>

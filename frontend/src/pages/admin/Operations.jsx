@@ -104,13 +104,13 @@ const payMeta = {
   card: { l: 'Karta', c: 'bg-blue-100 text-blue-700' },
   uzcard: { l: 'Uzcard', c: 'bg-blue-100 text-blue-700' },
   humo: { l: 'Humo', c: 'bg-violet-100 text-violet-700' },
-  bank: { l: "Bank o'tkazmasi", c: 'bg-cyan-100 text-cyan-700' },
-  click: { l: 'Click', c: 'bg-indigo-100 text-indigo-700' },
+  bank: { l: "Bank o'tkazmasi", c: 'bg-blue-100 text-blue-700' },
+  click: { l: 'Click', c: 'bg-blue-100 text-blue-700' },
   payme: { l: 'Payme', c: 'bg-sky-100 text-sky-700' },
   visa: { l: 'Visa', c: 'bg-blue-100 text-blue-700' },
   uzum: { l: 'Uzum', c: 'bg-orange-100 text-orange-700' },
   debt: { l: 'Qarz', c: 'bg-amber-100 text-amber-700' },
-  mixed: { l: 'Aralash', c: 'bg-purple-100 text-purple-700' },
+  mixed: { l: 'Aralash', c: 'bg-blue-100 text-blue-700' },
 };
 const saleMeta = {
   completed: { l: 'Yakunlandi', c: 'bg-emerald-100 text-emerald-700' },
@@ -124,11 +124,11 @@ function Badge({ meta, val }) {
   const m = meta[val] || { l: val, c: 'bg-slate-100 text-slate-600' };
   return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${m.c}`}>{m.l}</span>;
 }
-const ic = 'border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white transition-colors hover:border-slate-300';
+const ic = 'border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white transition-colors hover:border-slate-300';
 function Btn({ v = 'primary', sm, children, ...p }) {
   const { t } = useLang();
   const cl = {
-    primary: 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shadow-indigo-200',
+    primary: 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-200',
     green: 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-200',
     red: 'bg-red-500 hover:bg-red-600 text-white shadow-sm shadow-red-200',
     ghost: 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200',
@@ -145,7 +145,7 @@ function CreateHeader({ title, onBack, right }) {
   const { t } = useLang();
   return (
     <div className="flex items-center gap-3 px-6 py-3.5 border-b border-slate-100 bg-white shrink-0 shadow-sm">
-      <button onClick={onBack} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-indigo-600 px-3 py-2 rounded-xl hover:bg-indigo-50 transition-all text-sm font-semibold">
+      <button onClick={onBack} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-blue-600 px-3 py-2 rounded-xl hover:bg-blue-50 transition-all text-sm font-semibold">
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
         </svg>
@@ -168,12 +168,12 @@ function Pager({ skip, limit, count, onChange }) {
       </span>
       <div className="flex gap-1.5">
         <button disabled={skip === 0} onClick={() => onChange(Math.max(0, skip - limit))}
-          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white disabled:opacity-40 hover:border-indigo-300 hover:text-indigo-600 transition-all text-xs font-semibold shadow-sm">
+          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white disabled:opacity-40 hover:border-blue-300 hover:text-blue-600 transition-all text-xs font-semibold shadow-sm">
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           Oldingi
         </button>
         <button disabled={count < limit} onClick={() => onChange(skip + limit)}
-          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white disabled:opacity-40 hover:border-indigo-300 hover:text-indigo-600 transition-all text-xs font-semibold shadow-sm">
+          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white disabled:opacity-40 hover:border-blue-300 hover:text-blue-600 transition-all text-xs font-semibold shadow-sm">
           Keyingi
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
         </button>
@@ -218,7 +218,7 @@ function Tbl({ cols, rows, onRow, loading, skip = 0, limit, onChange }) {
           <tbody className="divide-y divide-slate-50">
             {rows.map((row, i) => (
               <tr key={i} onClick={onRow ? () => onRow(row) : undefined}
-                className={`transition-colors ${onRow ? 'cursor-pointer hover:bg-indigo-50/70 active:bg-indigo-100/50' : 'hover:bg-slate-50/80'}`}>
+                className={`transition-colors ${onRow ? 'cursor-pointer hover:bg-blue-50/70 active:bg-blue-100/50' : 'hover:bg-slate-50/80'}`}>
                 <td className="px-5 py-4 text-slate-300 text-xs font-medium">{skip + i + 1}</td>
                 {cols.map(c => (
                   <td key={c.k} className="px-5 py-4 text-slate-700 text-sm">
@@ -281,13 +281,13 @@ function ProdSearch({ products, onSelect, placeholder = 'Mahsulot qidiring...' }
             <>
               {filtered.map(p => (
                 <button key={p.id} onMouseDown={() => { onSelect(p); setQ(''); setOpen(false); }}
-                  className="w-full text-left px-4 py-2.5 hover:bg-indigo-50 border-b border-slate-100 last:border-0 flex justify-between items-center gap-3">
+                  className="w-full text-left px-4 py-2.5 hover:bg-blue-50 border-b border-slate-100 last:border-0 flex justify-between items-center gap-3">
                   <div className="min-w-0">
                     <div className="font-medium text-slate-800 text-sm truncate">{p.name}</div>
                     <div className="text-xs text-slate-400">{p.sku}{p.barcode ? ` · ${p.barcode}` : ''}</div>
                   </div>
                   <div className="text-right shrink-0 text-xs">
-                    <div className="font-semibold text-indigo-600">{fmt(p.sale_price)} so'm</div>
+                    <div className="font-semibold text-blue-600">{fmt(p.sale_price)} so'm</div>
                     {p.wholesale_price > 0 && <div className="text-amber-600">Ulg: {fmt(p.wholesale_price)}</div>}
                     <div className="text-slate-400">Qoldiq: {fmt(p.stock_quantity)}</div>
                   </div>
@@ -329,7 +329,7 @@ function SupSearch({ suppliers, value, onChange, placeholder = "Ta'minotchi tanl
 
   return (
     <div className="relative" ref={ref}>
-      <div className={`flex items-center border rounded-xl bg-white overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 transition-colors ${selected ? 'border-indigo-300' : 'border-slate-200'}`}>
+      <div className={`flex items-center border rounded-xl bg-white overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 transition-colors ${selected ? 'border-blue-300' : 'border-slate-200'}`}>
         <svg className="w-4 h-4 ml-3 shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
         </svg>
@@ -350,7 +350,7 @@ function SupSearch({ suppliers, value, onChange, placeholder = "Ta'minotchi tanl
             <div className="px-4 py-3 text-sm text-slate-400">Topilmadi</div>
           ) : filtered.map(s => (
             <button key={s.id} onMouseDown={() => pick(s)}
-              className="w-full text-left px-4 py-2.5 hover:bg-indigo-50 border-b border-slate-50 last:border-0">
+              className="w-full text-left px-4 py-2.5 hover:bg-blue-50 border-b border-slate-50 last:border-0">
               <div className="text-sm font-medium text-slate-800">{s.name}</div>
               {s.phone && <div className="text-xs text-slate-400">{s.phone}</div>}
             </button>
@@ -386,7 +386,7 @@ function CustSearch({ customers, value, onChange, placeholder = 'Ism yoki telefo
 
   return (
     <div className="relative" ref={ref}>
-      <div className="flex items-center border border-slate-200 rounded-lg bg-white overflow-hidden focus-within:ring-2 focus-within:ring-indigo-400">
+      <div className="flex items-center border border-slate-200 rounded-lg bg-white overflow-hidden focus-within:ring-2 focus-within:ring-blue-400">
         <input
           value={open ? q : (selected ? selected.name : '')}
           onChange={e => { setQ(e.target.value); setOpen(true); if (!e.target.value) onChange(''); }}
@@ -404,7 +404,7 @@ function CustSearch({ customers, value, onChange, placeholder = 'Ism yoki telefo
             <div className="px-4 py-3 text-sm text-slate-400">Topilmadi</div>
           ) : filtered.map(c => (
             <button key={c.id} onMouseDown={() => select(c)}
-              className="w-full text-left px-4 py-2.5 hover:bg-indigo-50 border-b border-slate-50 last:border-0 flex items-center justify-between">
+              className="w-full text-left px-4 py-2.5 hover:bg-blue-50 border-b border-slate-50 last:border-0 flex items-center justify-between">
               <div>
                 <div className="text-sm font-medium text-slate-800">{c.name}</div>
                 {c.phone && <div className="text-xs text-slate-400">{c.phone}</div>}
@@ -452,17 +452,17 @@ function PayModal({ total, onPay, onClose }) {
         </div>
         <div className="p-6 space-y-4">
           {/* Total display */}
-          <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 text-center">
-            <div className="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-1">To'lov summasi</div>
-            <div className="text-3xl font-black text-indigo-700">{fmt(total)} <span className="text-lg font-normal text-indigo-400">so'm</span></div>
+          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-center">
+            <div className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-1">To'lov summasi</div>
+            <div className="text-3xl font-black text-blue-700">{fmt(total)} <span className="text-lg font-normal text-blue-400">so'm</span></div>
           </div>
           {/* Payment type */}
           <div className="grid grid-cols-5 gap-1.5">
             {PAY_OPTS.map(({ v, l }) => (
               <button key={v} onClick={() => setType(v)}
                 className={`px-2 py-2.5 rounded-xl text-xs font-semibold border transition-all ${type === v
-                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200'
-                  : 'bg-white border-slate-200 text-slate-700 hover:border-indigo-300 hover:bg-indigo-50'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200'
+                  : 'bg-white border-slate-200 text-slate-700 hover:border-blue-300 hover:bg-blue-50'
                   }`}>
                 {l}
               </button>
@@ -473,7 +473,7 @@ function PayModal({ total, onPay, onClose }) {
             <div>
               <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">Qabul qilindi (so'm)</label>
               <input type="number" value={paid} onChange={e => setPaid(e.target.value)} autoFocus
-                className="w-full border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 text-2xl font-bold text-center text-slate-800 focus:outline-none transition-colors" />
+                className="w-full border-2 border-slate-200 focus:border-blue-500 rounded-xl px-4 py-3 text-2xl font-bold text-center text-slate-800 focus:outline-none transition-colors" />
               {change > 0 && Number(paid) > 0 && (
                 <div className="mt-2 flex items-center justify-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl py-2.5">
                   <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
@@ -486,7 +486,7 @@ function PayModal({ total, onPay, onClose }) {
           <div className="flex gap-3">
             <Btn v="ghost" onClick={onClose}>{t('common.cancel')}</Btn>
             <button onClick={() => onPay(type, type === 'debt' ? 0 : Number(paid))}
-              className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-indigo-200 active:scale-95">
+              className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-blue-200 active:scale-95">
               Tasdiqlash
             </button>
           </div>
@@ -503,14 +503,14 @@ function PayModal({ total, onPay, onClose }) {
               </button>
             </div>
             <div className="p-6 space-y-4">
-              <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 text-center">
-                <div className="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-1">Qaytarilayotgan summa</div>
-                <div className="text-3xl font-black text-indigo-700">{fmt(items.reduce((s, i) => s + (i.qty * i.cost), 0))} <span className="text-lg font-normal text-indigo-400">so'm</span></div>
+              <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-center">
+                <div className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-1">Qaytarilayotgan summa</div>
+                <div className="text-3xl font-black text-blue-700">{fmt(items.reduce((s, i) => s + (i.qty * i.cost), 0))} <span className="text-lg font-normal text-blue-400">so'm</span></div>
               </div>
               
               <div>
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">To'lov turi</label>
-                <select value={form.payment_type} onChange={e => setForm({ ...form, payment_type: e.target.value })} className="w-full border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:outline-none transition-colors">
+                <select value={form.payment_type} onChange={e => setForm({ ...form, payment_type: e.target.value })} className="w-full border-2 border-slate-200 focus:border-blue-500 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:outline-none transition-colors">
                   <option value="cash">Naqd</option>
                   <option value="card">Plastik karta</option>
                   <option value="mixed">Aralash</option>
@@ -521,11 +521,11 @@ function PayModal({ total, onPay, onClose }) {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 block">Naqd</label>
-                    <input type="number" min="0" value={form.paid_cash} onChange={e => setForm({ ...form, paid_cash: e.target.value })} className="w-full border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-3 py-2 text-lg font-bold text-slate-800 focus:outline-none" />
+                    <input type="number" min="0" value={form.paid_cash} onChange={e => setForm({ ...form, paid_cash: e.target.value })} className="w-full border-2 border-slate-200 focus:border-blue-500 rounded-xl px-3 py-2 text-lg font-bold text-slate-800 focus:outline-none" />
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 block">Karta</label>
-                    <input type="number" min="0" value={form.paid_card} onChange={e => setForm({ ...form, paid_card: e.target.value })} className="w-full border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-3 py-2 text-lg font-bold text-slate-800 focus:outline-none" />
+                    <input type="number" min="0" value={form.paid_card} onChange={e => setForm({ ...form, paid_card: e.target.value })} className="w-full border-2 border-slate-200 focus:border-blue-500 rounded-xl px-3 py-2 text-lg font-bold text-slate-800 focus:outline-none" />
                   </div>
                 </div>
               )}
@@ -533,7 +533,7 @@ function PayModal({ total, onPay, onClose }) {
               {form.payment_type !== 'debt' && (
                 <div>
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">Kassa / Hisob</label>
-                  <select value={form.wallet_id} onChange={e => setForm({ ...form, wallet_id: e.target.value })} className="w-full border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:outline-none transition-colors">
+                  <select value={form.wallet_id} onChange={e => setForm({ ...form, wallet_id: e.target.value })} className="w-full border-2 border-slate-200 focus:border-blue-500 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:outline-none transition-colors">
                     <option value="">Tanlang...</option>
                     {wallets.map(w => <option key={w.id} value={w.id}>{w.name} ({fmt(w.balance)})</option>)}
                   </select>
@@ -542,7 +542,7 @@ function PayModal({ total, onPay, onClose }) {
 
               <div className="flex gap-3 pt-2">
                 <Btn v="ghost" onClick={() => setShowPay(false)}>Bekor qilish</Btn>
-                <button onClick={() => save(form.payment_type)} disabled={saving} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-indigo-200 active:scale-95">
+                <button onClick={() => save(form.payment_type)} disabled={saving} className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-blue-200 active:scale-95">
                   {saving ? 'Tasdiqlanmoqda...' : 'Tasdiqlash'}
                 </button>
               </div>
@@ -624,7 +624,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
     <div className="fixed inset-0 z-40 bg-slate-50 flex flex-col">
       {/* Header */}
       <div className="flex items-center gap-4 px-5 py-3 bg-white border-b border-slate-100 shrink-0 shadow-sm">
-        <button onClick={onBack} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-indigo-600 px-3 py-2 rounded-xl hover:bg-indigo-50 transition-all text-sm font-semibold shrink-0">
+        <button onClick={onBack} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-blue-600 px-3 py-2 rounded-xl hover:bg-blue-50 transition-all text-sm font-semibold shrink-0">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
           </svg>
@@ -650,7 +650,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
           </button>
           {/* Note */}
           <input value={note} onChange={e => setNote(e.target.value)} placeholder="Izoh (ixtiyoriy)..."
-            className="flex-1 max-w-sm border border-slate-200 rounded-xl px-3.5 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 placeholder-slate-400" />
+            className="flex-1 max-w-sm border border-slate-200 rounded-xl px-3.5 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-slate-400" />
         </div>
         <div className="text-xs text-slate-400 shrink-0 font-medium">{new Date().toLocaleString('uz-UZ')}</div>
       </div>
@@ -668,7 +668,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
               </svg>
               <input value={prodQ} onChange={e => setProdQ(e.target.value)}
                 placeholder="Mahsulot nomi, barkod yoki SKU..."
-                className="w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
+                className="w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white" />
             </div>
             <div className="flex items-center justify-between mt-2 px-1">
               <span className="text-xs text-slate-400 font-medium">{filteredProducts.length} ta mahsulot</span>
@@ -697,10 +697,10 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                 <button key={p.id}
                   onClick={() => setQaItem({ product: p, qty: 1, price: displayPrice, discount: 0 })}
                   className={`w-full text-left px-3 py-2.5 rounded-xl border transition-all flex items-center gap-3 group ${inCart
-                    ? 'bg-indigo-50 border-indigo-200'
+                    ? 'bg-blue-50 border-blue-200'
                     : 'border-transparent hover:bg-slate-50 hover:border-slate-200'
                     }`}>
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 ${inCart ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-600'
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 ${inCart ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-600'
                     }`}>
                     {inCart ? inCart.qty : p.name.slice(0, 2).toUpperCase()}
                   </div>
@@ -714,7 +714,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="text-sm font-bold text-indigo-600">{fmt(displayPrice)}</div>
+                    <div className="text-sm font-bold text-blue-600">{fmt(displayPrice)}</div>
                     {wholesale && p.wholesale_price && Number(p.wholesale_price) !== Number(p.sale_price) && (
                       <div className="text-xs text-slate-400 line-through">{fmt(p.sale_price)}</div>
                     )}
@@ -735,7 +735,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
               <span className="text-sm font-bold text-slate-700">
-                Savat {cart.length > 0 && <span className="text-indigo-600 ml-1">({cart.length} tur)</span>}
+                Savat {cart.length > 0 && <span className="text-blue-600 ml-1">({cart.length} tur)</span>}
               </span>
             </div>
             {cart.length > 0 && (
@@ -783,7 +783,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                             className="w-6 h-6 rounded border border-slate-200 text-slate-500 hover:bg-slate-100 flex items-center justify-center text-sm leading-none">−</button>
                           <input type="number" min="0.001" step="any" value={c.qty}
                             onChange={e => setCart(p => p.map((x, idx) => idx === i ? { ...x, qty: Number(e.target.value) || 1 } : x))}
-                            className="w-14 text-center border border-slate-200 rounded px-1 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                            className="w-14 text-center border border-slate-200 rounded px-1 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
                           <button onClick={() => setCart(p => p.map((x, idx) => idx === i ? { ...x, qty: x.qty + 1 } : x))}
                             className="w-6 h-6 rounded border border-slate-200 text-slate-500 hover:bg-slate-100 flex items-center justify-center text-sm leading-none">+</button>
                         </div>
@@ -791,7 +791,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                       <td className="px-3 py-3 text-center">
                         <input type="number" min="0" value={c.price}
                           onChange={e => setCart(p => p.map((x, idx) => idx === i ? { ...x, price: Number(e.target.value) || 0 } : x))}
-                          className="w-28 text-center border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                          className="w-28 text-center border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
                       </td>
                       <td className="px-3 py-3 text-center">
                         <input type="number" min="0" value={c.discount || 0}
@@ -816,7 +816,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
               <span className="text-sm text-slate-500">{cart.length} xil, {cart.reduce((s, c) => s + c.qty, 0)} ta mahsulot</span>
               <div className="text-right">
                 <span className="text-xs text-slate-400 mr-2">{t('admin.dict.total_colon') || 'Jami:'}</span>
-                <span className="text-xl font-bold text-indigo-600">{fmt(subtotal)} so'm</span>
+                <span className="text-xl font-bold text-blue-600">{fmt(subtotal)} so'm</span>
               </div>
             </div>
           )}
@@ -840,7 +840,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
             Qarzga saqlash
           </Btn>
           <button disabled={saving || !cart.length} onClick={() => { setErr(''); setShowPay(true); }}
-            className="inline-flex items-center gap-2.5 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-indigo-200 active:scale-95">
+            className="inline-flex items-center gap-2.5 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-blue-200 active:scale-95">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
             To'lovga o'tish
             {cart.length > 0 && <span className="bg-white/20 px-2 py-0.5 rounded-lg text-xs font-bold">{fmt(subtotal)}</span>}
@@ -853,7 +853,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4" onClick={() => setQaItem(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
             <div className="flex items-start gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center text-sm font-bold shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold shrink-0">
                 {qaItem.product.name.slice(0, 2).toUpperCase()}
               </div>
               <div>
@@ -868,27 +868,27 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                   autoFocus
                   onChange={e => setQaItem(v => ({ ...v, qty: e.target.value }))}
                   onKeyDown={e => e.key === 'Enter' && addToCart(qaItem.product, qaItem.qty, qaItem.price, qaItem.discount)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-center font-bold" />
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-center font-bold" />
               </div>
               <div>
                 <label className="text-xs font-medium text-slate-500 mb-1 block">Narxi (so'm)</label>
                 <input type="number" min="0" value={qaItem.price}
                   onChange={e => setQaItem(v => ({ ...v, price: e.target.value }))}
                   onKeyDown={e => e.key === 'Enter' && addToCart(qaItem.product, qaItem.qty, qaItem.price, qaItem.discount)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-center font-bold" />
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-center font-bold" />
               </div>
               <div>
                 <label className="text-xs font-medium text-slate-500 mb-1 block">Chegirma (so'm)</label>
                 <input type="number" min="0" value={qaItem.discount}
                   onChange={e => setQaItem(v => ({ ...v, discount: e.target.value }))}
                   onKeyDown={e => e.key === 'Enter' && addToCart(qaItem.product, qaItem.qty, qaItem.price, qaItem.discount)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-center font-bold" />
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-center font-bold" />
               </div>
             </div>
             {qaItem.product.wholesale_price && (
               <div className="flex gap-2 mb-4">
                 <button onClick={() => setQaItem(v => ({ ...v, price: Number(v.product.sale_price) }))}
-                  className={`flex-1 py-1.5 text-xs rounded-lg border transition-all ${Number(qaItem.price) === Number(qaItem.product.sale_price) ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-600 hover:border-indigo-300'}`}>
+                  className={`flex-1 py-1.5 text-xs rounded-lg border transition-all ${Number(qaItem.price) === Number(qaItem.product.sale_price) ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-600 hover:border-blue-300'}`}>
                   Chakana: {fmt(qaItem.product.sale_price)}
                 </button>
                 <button onClick={() => setQaItem(v => ({ ...v, price: Number(v.product.wholesale_price) }))}
@@ -899,12 +899,12 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
             )}
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs text-slate-400">{t('admin.dict.total_colon') || 'Jami:'}</span>
-              <span className="text-lg font-bold text-indigo-600">{fmt(Number(qaItem.qty) * Number(qaItem.price) - Number(qaItem.discount))} so'm</span>
+              <span className="text-lg font-bold text-blue-600">{fmt(Number(qaItem.qty) * Number(qaItem.price) - Number(qaItem.discount))} so'm</span>
             </div>
             <div className="flex gap-2">
               <Btn v="ghost" onClick={() => setQaItem(null)} sm>{t('common.cancel')}</Btn>
               <button onClick={() => addToCart(qaItem.product, qaItem.qty, qaItem.price, qaItem.discount)}
-                className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm transition-colors">
+                className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-colors">
                 + Savatga qo'shish
               </button>
             </div>
@@ -990,7 +990,7 @@ function SaleDetailView({ saleId, onBack }) {
             {Number(sale.discount_amount) > 0 && <div className="flex justify-between"><span className="text-slate-500">Chegirma:</span><span className="text-red-500 font-medium">−{fmt(sale.discount_amount)}</span></div>}
             <div className="flex justify-between"><span className="text-slate-500">To'lov miqdori:</span><span className="font-medium">{fmt(sale.paid_amount)}</span></div>
             {debt > 0 && <div className="flex justify-between border-t pt-2"><span className="text-slate-500">Qarzga:</span><span className="text-red-500 font-bold">{fmt(debt)}</span></div>}
-            <div className="flex justify-between border-t pt-2"><span className="font-bold text-slate-700">Chegirma bilan summa:</span><span className="font-bold text-xl text-indigo-600">{fmt(sale.total_amount)}</span></div>
+            <div className="flex justify-between border-t pt-2"><span className="font-bold text-slate-700">Chegirma bilan summa:</span><span className="font-bold text-xl text-blue-600">{fmt(sale.total_amount)}</span></div>
           </div>
         </div>
       </div>
@@ -1036,7 +1036,7 @@ function SalesTab({ products, customers }) {
     { k: 'items_count', l: 'Mahsulotlar', r: v => `${v} ta` },
     { k: 'total_amount', l: 'Umumiy summa', r: v => fmt(v) },
     { k: 'discount_amount', l: 'Chegirma', r: v => Number(v) > 0 ? `−${fmt(v)}` : '—' },
-    { k: 'total_amount', l: 'Chegirma bilan summa', r: v => <strong className="text-indigo-600">{fmt(v)}</strong> },
+    { k: 'total_amount', l: 'Chegirma bilan summa', r: v => <strong className="text-blue-600">{fmt(v)}</strong> },
     { k: 'paid_amount', l: "To'lov miqdori", r: v => fmt(v) },
     { k: 'paid_amount', l: 'Qarzga', r: (v, row) => { const d = Number(row.total_amount) - Number(v); return d > 0 ? <span className="text-red-500 font-semibold">{fmt(d)}</span> : '—'; } },
     { k: 'payment_type', l: "To'lov turi", r: v => <Badge meta={payMeta} val={v} /> },
@@ -1214,7 +1214,7 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
           <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
             {[['po', 'Buyurtma (PO)'], ['manual', "Qo'lda kirim"]].map(([v, l]) => (
               <button key={v} onClick={() => { setSub(v); setErr(''); setDiscVal('0'); }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${sub === v ? 'bg-white shadow text-indigo-700' : 'text-slate-600'}`}>{l}</button>
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${sub === v ? 'bg-white shadow text-blue-700' : 'text-slate-600'}`}>{l}</button>
             ))}
           </div>
         }
@@ -1265,17 +1265,17 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
           </Lbl>
 
           {sel ? (
-            <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 space-y-3">
+            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 space-y-3">
               {/* Product info */}
               <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
                   {sel.name.slice(0, 2).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-slate-800 text-sm truncate">{sel.name}</div>
                   <div className="text-xs text-slate-500 mt-0.5">
                     Qoldiq: <strong>{fmt(sel.stock_quantity)}</strong> {sel.unit || 'dona'}
-                    &nbsp;·&nbsp; Chakana: <strong className="text-indigo-600">{fmt(sel.sale_price)}</strong>
+                    &nbsp;·&nbsp; Chakana: <strong className="text-blue-600">{fmt(sel.sale_price)}</strong>
                   </div>
                 </div>
               </div>
@@ -1283,13 +1283,13 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
               {/* Cost price + currency */}
               <div>
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Tan narxi</label>
-                <div className="flex rounded-xl border border-slate-200 bg-white focus-within:ring-2 focus-within:ring-indigo-500 overflow-hidden">
+                <div className="flex rounded-xl border border-slate-200 bg-white focus-within:ring-2 focus-within:ring-blue-500 overflow-hidden">
                   <input type="number" min="0" value={cost} onChange={e => setCost(e.target.value)}
                     className="flex-1 min-w-0 px-3 py-2 text-sm focus:outline-none bg-transparent" />
                   <div className="flex border-l border-slate-200">
                     {['UZS', 'USD'].map(c => (
                       <button key={c} type="button" onClick={() => setCurrency(c)}
-                        className={`px-2.5 py-2 text-xs font-bold transition-colors ${currency === c ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>
+                        className={`px-2.5 py-2 text-xs font-bold transition-colors ${currency === c ? 'bg-blue-600 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>
                         {c}
                       </button>
                     ))}
@@ -1300,7 +1300,7 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
               {/* Discount */}
               <div>
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Chegirma</label>
-                <div className="flex rounded-xl border border-slate-200 bg-white focus-within:ring-2 focus-within:ring-indigo-500 overflow-hidden">
+                <div className="flex rounded-xl border border-slate-200 bg-white focus-within:ring-2 focus-within:ring-blue-500 overflow-hidden">
                   <input type="number" min="0" value={discVal} onChange={e => setDiscVal(e.target.value)}
                     className="flex-1 min-w-0 px-3 py-2 text-sm focus:outline-none bg-transparent" />
                   <div className="flex border-l border-slate-200">
@@ -1333,7 +1333,7 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
 
               {/* Total preview */}
               <div className="text-xs text-slate-500 text-right">
-                Jami: <strong className="text-indigo-700">{fmt(Math.round(selNet * Number(qty)))} so'm</strong>
+                Jami: <strong className="text-blue-700">{fmt(Math.round(selNet * Number(qty)))} so'm</strong>
               </div>
             </div>
           ) : (
@@ -1346,13 +1346,13 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
           )}
 
           <button onClick={addItem} disabled={!sel || !qty}
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl font-bold text-sm transition-all shadow-sm shadow-indigo-200 active:scale-95">
+            className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl font-bold text-sm transition-all shadow-sm shadow-blue-200 active:scale-95">
             <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             Ro'yxatga qo'shish
           </button>
 
           {activeItems.length > 0 && (
-            <div className="bg-indigo-600 rounded-2xl p-4 text-white">
+            <div className="bg-blue-600 rounded-2xl p-4 text-white">
               <div className="text-xs font-semibold opacity-70 uppercase tracking-wide">Jami summa</div>
               <div className="text-2xl font-black mt-1">{fmt(Math.round(totalNet))} <span className="text-sm font-normal opacity-70">so'm</span></div>
               <div className="text-xs opacity-60 mt-1">{activeItems.length} ta mahsulot</div>
@@ -1364,12 +1364,12 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
               <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">To'lov (Ixtiyoriy)</div>
               <div>
                 <input type="number" min="0" value={poForm.paid_amount} onChange={e => setPoForm(f => ({ ...f, paid_amount: e.target.value }))}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="To'langan summa..." />
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="To'langan summa..." />
               </div>
               {Number(poForm.paid_amount) > 0 && (
                 <div>
                   <select value={poForm.wallet_id} onChange={e => setPoForm(f => ({ ...f, wallet_id: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                     <option value="">Kassani tanlang...</option>
                     {wallets.map(w => <option key={w.id} value={w.id}>{w.name} ({fmt(w.balance)})</option>)}
                   </select>
@@ -1419,13 +1419,13 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
                       <td className="px-3 py-2.5 text-center">
                         <input type="number" min="1" value={qty_n}
                           onChange={e => updFn(i, sub === 'po' ? 'qty_ordered' : 'quantity', Number(e.target.value))}
-                          className="w-16 text-center border border-slate-200 rounded-lg px-1.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                          className="w-16 text-center border border-slate-200 rounded-lg px-1.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                       </td>
                       <td className="px-3 py-2.5 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <input type="number" min="0" value={it.unit_cost}
                             onChange={e => updFn(i, 'unit_cost', e.target.value)}
-                            className="w-24 text-right border border-slate-200 rounded-lg px-1.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                            className="w-24 text-right border border-slate-200 rounded-lg px-1.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                           <button onClick={() => updFn(i, 'currency', it.currency === 'UZS' ? 'USD' : 'UZS')}
                             className={`text-[10px] font-bold px-1.5 py-1 rounded-md transition-colors ${it.currency === 'USD' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
                             {it.currency}
@@ -1436,7 +1436,7 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
                         <div className="flex items-center justify-center gap-1">
                           <input type="number" min="0" value={it.discount_val}
                             onChange={e => updFn(i, 'discount_val', e.target.value)}
-                            className="w-14 text-center border border-slate-200 rounded-lg px-1 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                            className="w-14 text-center border border-slate-200 rounded-lg px-1 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
                           <button onClick={() => updFn(i, 'discount_type', it.discount_type === 'pct' ? 'amt' : 'pct')}
                             className={`text-[10px] font-bold px-1.5 py-1 rounded-md min-w-[28px] transition-colors ${it.discount_type === 'pct' ? 'bg-amber-100 text-amber-700' : 'bg-violet-100 text-violet-700'}`}>
                             {it.discount_type === 'pct' ? '%' : 'so\'m'}
@@ -1497,7 +1497,7 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
         <div className="flex items-center gap-3">
           <span className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Narx yangilash:</span>
           <button onClick={() => setAutoRet(v => !v)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${autoRetail ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'}`}>
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${autoRetail ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'}`}>
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 012-2z" /></svg>
             Chakana narx
           </button>
@@ -1729,7 +1729,7 @@ function KirimlarTab({ products, warehouses, suppliers, users }) {
               {recModal.items?.filter(i => Number(i.qty_ordered) > Number(i.qty_received)).map(item => (
                 <div key={item.id} className="flex justify-between px-4 py-3">
                   <span className="font-medium text-sm">{item.product_name}</span>
-                  <span className="text-indigo-600 font-semibold">+{Number(item.qty_ordered) - Number(item.qty_received)}</span>
+                  <span className="text-blue-600 font-semibold">+{Number(item.qty_ordered) - Number(item.qty_received)}</span>
                 </div>
               ))}
             </div>
@@ -1913,9 +1913,9 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, cu
             <ProdSearch products={products} onSelect={p => { setSel(p); setQty('1'); }} />
           </Lbl>
           {sel ? (
-            <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 space-y-3">
+            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 space-y-3">
               <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
                   {sel.name.slice(0, 2).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -1943,7 +1943,7 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, cu
             </div>
           )}
           <button onClick={addItem} disabled={!sel || !qty}
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl font-bold text-sm transition-all shadow-sm shadow-indigo-200 active:scale-95">
+            className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl font-bold text-sm transition-all shadow-sm shadow-blue-200 active:scale-95">
             <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             {t('ops.addToList') || "Ro'yxatga qo'shish"}
           </button>
@@ -1982,7 +1982,7 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, cu
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right text-slate-600">{fmt(it.cost)}</td>
-                    <td className="px-4 py-3 text-right font-bold text-indigo-700">{fmt(it.qty * it.cost)}</td>
+                    <td className="px-4 py-3 text-right font-bold text-blue-700">{fmt(it.qty * it.cost)}</td>
                     <td className="pr-3">
                       <button onClick={() => setItems(p => p.filter((_, idx) => idx !== i))} className="p-1.5 text-slate-300 hover:text-red-500 rounded">✕</button>
                     </td>
@@ -2010,7 +2010,7 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, cu
             Qarzga yopish
           </Btn>
           <button disabled={saving || !items.length} onClick={() => { setErr(''); setShowPay(true); }}
-            className="inline-flex items-center gap-2.5 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-indigo-200 active:scale-95">
+            className="inline-flex items-center gap-2.5 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-blue-200 active:scale-95">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
             To'lovga o'tish
           </button>
@@ -2025,14 +2025,14 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, cu
               </button>
             </div>
             <div className="p-6 space-y-4">
-              <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 text-center">
-                <div className="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-1">Qaytarilayotgan summa</div>
-                <div className="text-3xl font-black text-indigo-700">{fmt(items.reduce((s, i) => s + (i.qty * i.cost), 0))} <span className="text-lg font-normal text-indigo-400">so'm</span></div>
+              <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-center">
+                <div className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-1">Qaytarilayotgan summa</div>
+                <div className="text-3xl font-black text-blue-700">{fmt(items.reduce((s, i) => s + (i.qty * i.cost), 0))} <span className="text-lg font-normal text-blue-400">so'm</span></div>
               </div>
               
               <div>
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">To'lov turi</label>
-                <select value={form.payment_type} onChange={e => setForm({ ...form, payment_type: e.target.value })} className="w-full border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:outline-none transition-colors">
+                <select value={form.payment_type} onChange={e => setForm({ ...form, payment_type: e.target.value })} className="w-full border-2 border-slate-200 focus:border-blue-500 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:outline-none transition-colors">
                   <option value="cash">Naqd</option>
                   <option value="card">Plastik karta</option>
                   <option value="mixed">Aralash</option>
@@ -2043,11 +2043,11 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, cu
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 block">Naqd</label>
-                    <input type="number" min="0" step="any" value={form.paid_cash} onChange={e => setForm({ ...form, paid_cash: e.target.value })} className="w-full border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-3 py-2 text-lg font-bold text-slate-800 focus:outline-none" />
+                    <input type="number" min="0" step="any" value={form.paid_cash} onChange={e => setForm({ ...form, paid_cash: e.target.value })} className="w-full border-2 border-slate-200 focus:border-blue-500 rounded-xl px-3 py-2 text-lg font-bold text-slate-800 focus:outline-none" />
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 block">Karta</label>
-                    <input type="number" min="0" step="any" value={form.paid_card} onChange={e => setForm({ ...form, paid_card: e.target.value })} className="w-full border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-3 py-2 text-lg font-bold text-slate-800 focus:outline-none" />
+                    <input type="number" min="0" step="any" value={form.paid_card} onChange={e => setForm({ ...form, paid_card: e.target.value })} className="w-full border-2 border-slate-200 focus:border-blue-500 rounded-xl px-3 py-2 text-lg font-bold text-slate-800 focus:outline-none" />
                   </div>
                 </div>
               )}
@@ -2055,7 +2055,7 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, cu
               {form.payment_type !== 'debt' && (
                 <div>
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">Kassa / Hisob</label>
-                  <select value={form.wallet_id} onChange={e => setForm({ ...form, wallet_id: e.target.value })} className="w-full border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:outline-none transition-colors">
+                  <select value={form.wallet_id} onChange={e => setForm({ ...form, wallet_id: e.target.value })} className="w-full border-2 border-slate-200 focus:border-blue-500 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:outline-none transition-colors">
                     <option value="">Tanlang...</option>
                     {wallets.map(w => <option key={w.id} value={w.id}>{w.name} ({fmt(w.balance)})</option>)}
                   </select>
@@ -2064,7 +2064,7 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, cu
 
               <div className="flex gap-3 pt-2">
                 <Btn v="ghost" onClick={() => setShowPay(false)}>Bekor qilish</Btn>
-                <button onClick={() => save(form.payment_type)} disabled={saving} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-indigo-200 active:scale-95">
+                <button onClick={() => save(form.payment_type)} disabled={saving} className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-blue-200 active:scale-95">
                   {saving ? 'Tasdiqlanmoqda...' : 'Tasdiqlash'}
                 </button>
               </div>
@@ -2139,7 +2139,7 @@ function QaytarishlarTab({ products, suppliers, warehouses, customers }) {
           <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
             {[['customer', t('ops.returnFromCustomer') || 'Mijozdan qaytarish'], ['supplier', t('ops.returnToSupplier') || "Ta'minotchiga qaytarish"]].map(([v, l]) => (
               <button key={v} onClick={() => setSub(v)}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${sub === v ? 'bg-white shadow text-indigo-700' : 'text-slate-500 hover:text-slate-700'}`}>{l}</button>
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${sub === v ? 'bg-white shadow text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}>{l}</button>
             ))}
           </div>
           <div className="ml-auto">
@@ -2153,7 +2153,7 @@ function QaytarishlarTab({ products, suppliers, warehouses, customers }) {
 
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         {loading ? (
-          <div className="py-16 text-center"><div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto" /></div>
+          <div className="py-16 text-center"><div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" /></div>
         ) : returns.length === 0 ? (
           <div className="py-16 text-center">
             <svg className="w-12 h-12 mx-auto mb-3 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2181,7 +2181,7 @@ function QaytarishlarTab({ products, suppliers, warehouses, customers }) {
                   <td className="px-5 py-3.5 text-slate-500 text-xs">{r.reason}</td>
                   <td className="px-5 py-4 text-slate-700 text-sm">
                     <div className="flex gap-2">
-                      <button onClick={() => handleEditReturn(r.id)} className="flex items-center gap-1 px-3 py-1 text-xs rounded-sm font-semibold border transition-all cursor-pointer border-indigo-300 text-indigo-600">
+                      <button onClick={() => handleEditReturn(r.id)} className="flex items-center gap-1 px-3 py-1 text-xs rounded-sm font-semibold border transition-all cursor-pointer border-blue-300 text-blue-600">
                         <Pen size={16} />
                         Tahrirlash
                       </button>
@@ -2323,7 +2323,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
 
       {/* ── Header ── */}
       <div className="flex items-center gap-4 px-6 py-3.5 bg-white border-b border-slate-100 shadow-sm shrink-0">
-        <button onClick={onBack} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-indigo-600 px-3 py-2 rounded-xl hover:bg-indigo-50 transition-all text-sm font-semibold">
+        <button onClick={onBack} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-blue-600 px-3 py-2 rounded-xl hover:bg-blue-50 transition-all text-sm font-semibold">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
           Orqaga
         </button>
@@ -2338,7 +2338,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
             const active = step === n;
             return (
               <div key={n} className="flex items-center">
-                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${active ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' :
+                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${active ? 'bg-blue-600 text-white shadow-md shadow-blue-200' :
                   done ? 'bg-emerald-100 text-emerald-700' :
                     'bg-slate-100 text-slate-400'
                   }`}>
@@ -2364,8 +2364,8 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
         <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-center">
           <div className="w-full max-w-2xl">
             <div className="text-center mb-8">
-              <div className="w-14 h-14 bg-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                <svg className="w-7 h-7 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <svg className="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                 </svg>
               </div>
@@ -2382,10 +2382,10 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                     <button key={w.id} onClick={() => setForm(f => ({ ...f, from_warehouse_id: String(w.id) }))}
                       disabled={String(form.to_warehouse_id) === String(w.id)}
                       className={`w-full text-left px-4 py-3.5 rounded-2xl border-2 transition-all flex items-center gap-3 ${String(form.from_warehouse_id) === String(w.id)
-                        ? 'border-indigo-500 bg-indigo-50 shadow-md shadow-indigo-100'
-                        : 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/30 disabled:opacity-30 disabled:cursor-not-allowed'
+                        ? 'border-blue-500 bg-blue-50 shadow-md shadow-blue-100'
+                        : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/30 disabled:opacity-30 disabled:cursor-not-allowed'
                         }`}>
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-bold text-sm ${String(form.from_warehouse_id) === String(w.id) ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-bold text-sm ${String(form.from_warehouse_id) === String(w.id) ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'
                         }`}>
                         {w.name.slice(0, 2).toUpperCase()}
                       </div>
@@ -2394,7 +2394,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                         {w.location && <div className="text-xs text-slate-400 truncate">{w.location}</div>}
                       </div>
                       {String(form.from_warehouse_id) === String(w.id) && (
-                        <svg className="w-5 h-5 text-indigo-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                        <svg className="w-5 h-5 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
                       )}
                     </button>
                   ))}
@@ -2404,7 +2404,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
               {/* Arrow */}
               <div className="flex flex-col items-center gap-2 shrink-0">
                 <div className="w-12 h-12 bg-white border-2 border-slate-200 rounded-full flex items-center justify-center shadow-sm">
-                  <svg className="w-6 h-6 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                   </svg>
                 </div>
@@ -2446,7 +2446,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Izoh (ixtiyoriy)</label>
               <input placeholder="Transfer sababi yoki qo'shimcha ma'lumot..." value={form.note}
                 onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
-                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
 
             {/* Next btn */}
@@ -2454,7 +2454,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
               <button
                 disabled={!form.from_warehouse_id || !form.to_warehouse_id || form.from_warehouse_id === form.to_warehouse_id}
                 onClick={() => setStep(2)}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-indigo-200">
+                className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-blue-200">
                 Davom etish
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </button>
@@ -2469,9 +2469,9 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
           {/* LEFT — Product search panel */}
           <div className="w-[500px] border-r border-slate-200 bg-white flex flex-col gap-4 p-5 overflow-y-auto shrink-0 shadow-sm">
             {/* Route badge */}
-            <div className="bg-indigo-50 border border-indigo-100 rounded-2xl px-4 py-3 flex items-center gap-2.5">
-              <div className="text-xs font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-lg truncate max-w-[90px]">{fromWh?.name}</div>
-              <svg className="w-4 h-4 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+            <div className="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3 flex items-center gap-2.5">
+              <div className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-lg truncate max-w-[90px]">{fromWh?.name}</div>
+              <svg className="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
               <div className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-lg truncate max-w-[90px]">{toWh?.name}</div>
             </div>
 
@@ -2480,9 +2480,9 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
             </Lbl>
 
             {sel ? (
-              <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 space-y-3">
+              <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 space-y-3">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
                     {sel.name.slice(0, 2).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2524,15 +2524,15 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                 )}
 
                 {/* ── Maqsad mahsulot (ixtiyoriy mapping) ── */}
-                <div className="border-t border-indigo-200 pt-3">
+                <div className="border-t border-blue-200 pt-3">
                   <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                    <svg className="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                     </svg>
                     Maqsad omborda boshqa mahsulotga (ixtiyoriy)
                   </div>
                   <div className="relative" ref={targetRef}>
-                    <div className={`flex items-center border rounded-xl bg-white overflow-hidden focus-within:ring-2 focus-within:ring-indigo-400 transition-colors ${selTargetProd ? 'border-indigo-300' : 'border-slate-200'}`}>
+                    <div className={`flex items-center border rounded-xl bg-white overflow-hidden focus-within:ring-2 focus-within:ring-blue-400 transition-colors ${selTargetProd ? 'border-blue-300' : 'border-slate-200'}`}>
                       <svg className="w-3.5 h-3.5 ml-3 shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
                       </svg>
@@ -2557,7 +2557,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                           .slice(0, 15)
                           .map(p => (
                             <button key={p.id} onMouseDown={() => { setSelTargetProd(p); setTargetQ(''); setTargetOpen(false); }}
-                              className="w-full text-left px-3 py-2 hover:bg-indigo-50 border-b border-slate-100 last:border-0 flex justify-between items-center gap-2">
+                              className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-0 flex justify-between items-center gap-2">
                               <span className="text-xs font-medium text-slate-800 truncate">{p.name}</span>
                               <span className="text-[10px] text-slate-400 shrink-0">{p.sku}</span>
                             </button>
@@ -2571,12 +2571,12 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                     )}
                   </div>
                   {selTargetProd && (
-                    <div className="mt-1.5 flex items-center gap-1.5 text-xs text-indigo-700 font-semibold bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-200">
+                    <div className="mt-1.5 flex items-center gap-1.5 text-xs text-blue-700 font-semibold bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200">
                       <span className="text-slate-500">{sel.name}</span>
-                      <svg className="w-3.5 h-3.5 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-3.5 h-3.5 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                       </svg>
-                      <span className="text-indigo-700">{selTargetProd.name}</span>
+                      <span className="text-blue-700">{selTargetProd.name}</span>
                     </div>
                   )}
                 </div>
@@ -2592,7 +2592,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
             )}
 
             <button onClick={addItem} disabled={!sel || !qty || Number(sel?.stock_quantity) <= 0}
-              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl font-bold text-sm transition-all shadow-sm shadow-indigo-200 active:scale-95">
+              className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl font-bold text-sm transition-all shadow-sm shadow-blue-200 active:scale-95">
               <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
               Ro'yxatga qo'shish
             </button>
@@ -2600,7 +2600,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
             {items.length > 0 && (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center">
                 <div className="text-xs text-slate-400 font-medium">{items.length} xil mahsulot</div>
-                <div className="text-lg font-bold text-indigo-600 mt-1">{items.reduce((s, i) => s + Number(i.quantity), 0)} dona</div>
+                <div className="text-lg font-bold text-blue-600 mt-1">{items.reduce((s, i) => s + Number(i.quantity), 0)} dona</div>
               </div>
             )}
           </div>
@@ -2642,11 +2642,11 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                           {it.target_product_name ? (
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="font-semibold text-slate-700 text-sm">{it.product_name}</span>
-                              <svg className="w-3.5 h-3.5 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-3.5 h-3.5 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                               </svg>
-                              <span className="font-bold text-indigo-700 text-sm">{it.target_product_name}</span>
-                              <span className="text-[10px] bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded font-semibold">mapping</span>
+                              <span className="font-bold text-blue-700 text-sm">{it.target_product_name}</span>
+                              <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-semibold">mapping</span>
                             </div>
                           ) : (
                             <div className="font-semibold text-slate-800">{it.product_name}</div>
@@ -2662,7 +2662,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                               className="w-6 h-6 rounded border border-slate-200 text-slate-500 hover:bg-slate-100 flex items-center justify-center leading-none">−</button>
                             <input type="number" min="0.001" step="any" value={it.quantity}
                               onChange={e => setItems(p => p.map((x, idx) => idx === i ? { ...x, quantity: Number(e.target.value) || 1 } : x))}
-                              className="w-16 text-center border border-slate-200 rounded px-1 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 font-bold" />
+                              className="w-16 text-center border border-slate-200 rounded px-1 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 font-bold" />
                             <button onClick={() => setItems(p => p.map((x, idx) => idx === i ? { ...x, quantity: x.quantity + 1 } : x))}
                               className="w-6 h-6 rounded border border-slate-200 text-slate-500 hover:bg-slate-100 flex items-center justify-center leading-none">+</button>
                           </div>
@@ -2684,12 +2684,12 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
 
             {/* Footer nav */}
             <div className="flex items-center justify-between px-6 py-3.5 bg-white border-t border-slate-200 shrink-0">
-              <button onClick={() => setStep(1)} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-indigo-600 px-4 py-2 rounded-xl hover:bg-indigo-50 text-sm font-semibold transition-all">
+              <button onClick={() => setStep(1)} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-blue-600 px-4 py-2 rounded-xl hover:bg-blue-50 text-sm font-semibold transition-all">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                 Orqaga
               </button>
               <button disabled={items.length === 0} onClick={() => setStep(3)}
-                className="inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-indigo-200">
+                className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-blue-200">
                 Tasdiqlashga o'tish
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </button>
@@ -2706,16 +2706,16 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
             {/* Transfer route summary card */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
-                <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
                 <span className="text-sm font-bold text-slate-700">Ko'chirish marshuruti</span>
               </div>
               <div className="p-5 flex items-center gap-4">
-                <div className="flex-1 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3 text-center">
-                  <div className="text-xs text-indigo-500 font-bold uppercase tracking-wide mb-1">Kimdan</div>
-                  <div className="font-bold text-indigo-800 text-base">{fromWh?.name}</div>
+                <div className="flex-1 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-center">
+                  <div className="text-xs text-blue-500 font-bold uppercase tracking-wide mb-1">Kimdan</div>
+                  <div className="font-bold text-blue-800 text-base">{fromWh?.name}</div>
                 </div>
                 <div className="flex flex-col items-center gap-1 shrink-0">
-                  <svg className="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+                  <svg className="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
                   <span className="text-[10px] text-slate-400 font-bold">TRANZIT</span>
                 </div>
                 <div className="flex-1 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-center">
@@ -2749,7 +2749,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                 <span className="text-sm font-bold text-slate-700">Ko'chiriladigan mahsulotlar</span>
-                <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">{items.length} xil · {items.reduce((s, i) => s + i.quantity, 0)} dona</span>
+                <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">{items.length} xil · {items.reduce((s, i) => s + i.quantity, 0)} dona</span>
               </div>
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 border-b border-slate-100">
@@ -2768,16 +2768,16 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                         {it.target_product_name ? (
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-medium text-slate-600 text-sm">{it.product_name}</span>
-                            <svg className="w-3.5 h-3.5 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-3.5 h-3.5 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                             </svg>
-                            <span className="font-bold text-indigo-700 text-sm">{it.target_product_name}</span>
+                            <span className="font-bold text-blue-700 text-sm">{it.target_product_name}</span>
                           </div>
                         ) : (
                           <span className="font-medium text-slate-800">{it.product_name}</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-center font-bold text-indigo-600">{it.quantity}</td>
+                      <td className="px-4 py-3 text-center font-bold text-blue-600">{it.quantity}</td>
                       <td className="px-4 py-3 text-center text-slate-400 text-xs">{it.unit}</td>
                     </tr>
                   ))}
@@ -2795,7 +2795,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
 
             {/* Actions */}
             <div className="flex items-center justify-between">
-              <button onClick={() => setStep(2)} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-indigo-600 px-4 py-2.5 rounded-xl hover:bg-indigo-50 text-sm font-semibold transition-all">
+              <button onClick={() => setStep(2)} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-blue-600 px-4 py-2.5 rounded-xl hover:bg-blue-50 text-sm font-semibold transition-all">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                 Orqaga
               </button>
@@ -3107,7 +3107,7 @@ function ChiqimCreateView({ products, warehouses = [], onBack, onSaved, editItem
   return (
     <div className="fixed inset-0 z-40 bg-slate-100 flex flex-col">
       <div className="flex items-center gap-4 px-6 py-3.5 bg-white border-b border-slate-100 shadow-sm shrink-0">
-        <button onClick={onBack} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-indigo-600 px-3 py-2 rounded-xl hover:bg-indigo-50 transition-all text-sm font-semibold">
+        <button onClick={onBack} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-blue-600 px-3 py-2 rounded-xl hover:bg-blue-50 transition-all text-sm font-semibold">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
           Orqaga
         </button>
@@ -3124,9 +3124,9 @@ function ChiqimCreateView({ products, warehouses = [], onBack, onSaved, editItem
           </Lbl>
 
           {sel ? (
-            <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 space-y-4">
+            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 space-y-4">
               <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
                   {sel.name.slice(0, 2).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -3177,7 +3177,7 @@ function ChiqimCreateView({ products, warehouses = [], onBack, onSaved, editItem
                 </div>
               )}
 
-              <button onClick={addItem} disabled={!qty || Number(qty) <= 0} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-2xl font-bold text-sm transition-all shadow-sm active:scale-95">
+              <button onClick={addItem} disabled={!qty || Number(qty) <= 0} className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-2xl font-bold text-sm transition-all shadow-sm active:scale-95">
                 Ro'yxatga qo'shish
               </button>
             </div>
@@ -3218,7 +3218,7 @@ function ChiqimCreateView({ products, warehouses = [], onBack, onSaved, editItem
                       <td className="px-5 py-3.5 text-slate-400 text-xs">{i + 1}</td>
                       <td className="px-5 py-3.5 font-semibold text-slate-800">{it.product.name}</td>
                       <td className="px-5 py-3.5">
-                        <div className="text-xs font-semibold text-indigo-600">{CHIQIM_TYPES.find(t => t.v === it.type)?.l?.split('—')[0]?.trim() || it.type}</div>
+                        <div className="text-xs font-semibold text-blue-600">{CHIQIM_TYPES.find(t => t.v === it.type)?.l?.split('—')[0]?.trim() || it.type}</div>
                         <div className="text-[10px] text-slate-400 mt-0.5">{[it.doc_num, it.reason].filter(Boolean).join(' | ')}</div>
                       </td>
                       <td className="px-4 py-3.5 text-center font-bold text-red-500">−{it.qty} {it.product.unit}</td>
@@ -3348,7 +3348,7 @@ function ChiqimlarTab({ products, users = [], warehouses = [] }) {
 
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         {movLoad ? (
-          <div className="py-16 text-center"><div className="w-6 h-6 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin mx-auto" /></div>
+          <div className="py-16 text-center"><div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto" /></div>
         ) : movements.length === 0 ? (
           <div className="text-center py-20 text-slate-400 text-sm">Chiqimlar yo'q</div>
         ) : (
@@ -3373,12 +3373,12 @@ function ChiqimlarTab({ products, users = [], warehouses = [] }) {
                     <td className="px-6 py-4 text-slate-500">{fmtDt(m.created_at)}</td>
                     <td className="px-6 py-4">
                       {firstType && <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 mb-1">{firstType.l.split('—')[0].trim()}</span>}
-                      {m.doc_nums.length > 0 && <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-50 text-indigo-600 mb-1 ml-1">Hujjat: {m.doc_nums[0]}</span>}
+                      {m.doc_nums.length > 0 && <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-600 mb-1 ml-1">Hujjat: {m.doc_nums[0]}</span>}
                       <div className="text-xs text-slate-500 line-clamp-1">{m.reasons.join(', ') || '—'}</div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col items-center justify-center">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-bold text-xs border border-indigo-100/50">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 font-bold text-xs border border-blue-100/50">
                           <svg className="w-3.5 h-3.5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
                           {m.item_count} xil
                         </span>
@@ -3387,7 +3387,7 @@ function ChiqimlarTab({ products, users = [], warehouses = [] }) {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => openDetail(m.reference_id)} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors border border-indigo-100/50">
+                        <button onClick={() => openDetail(m.reference_id)} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors border border-blue-100/50">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                           Ko'rish
                         </button>
@@ -3424,7 +3424,7 @@ function ChiqimlarTab({ products, users = [], warehouses = [] }) {
             </div>
             <div className="p-6 overflow-y-auto">
               {loadingDetail ? (
-                <div className="py-10 text-center"><div className="w-6 h-6 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin mx-auto" /></div>
+                <div className="py-10 text-center"><div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto" /></div>
               ) : (
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50">
@@ -3538,7 +3538,7 @@ function QoldiqTab() {
           <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
             {[['low', 'Kam qoldiq'], ['zero', "Qoldiq yo'q"], ['dead', "O'lik qoldiq"], ['all', 'Barchasi']].map(([v, l]) => (
               <button key={v} onClick={() => { setSubtab(v); setPage(1); }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${subtab === v ? 'bg-white shadow text-indigo-700' : 'text-slate-500 hover:text-slate-700'}`}>
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${subtab === v ? 'bg-white shadow text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}>
                 {l}
                 {v === 'low' && lowCount > 0 && <span className="ml-1.5 bg-amber-500 text-white rounded-full text-[10px] px-1.5 py-0.5">{lowCount}</span>}
                 {v === 'zero' && zeroCount > 0 && <span className="ml-1.5 bg-red-500 text-white rounded-full text-[10px] px-1.5 py-0.5">{zeroCount}</span>}
@@ -3563,7 +3563,7 @@ function QoldiqTab() {
       {/* Table */}
       <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
         {loading ? (
-          <div className="py-16 text-center"><div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto" /></div>
+          <div className="py-16 text-center"><div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" /></div>
         ) : (
           <>
             <table className="w-full text-sm">
@@ -3624,14 +3624,14 @@ function QoldiqTab() {
                   <button
                     disabled={page === 1}
                     onClick={() => setPage(page - 1)}
-                    className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold bg-white text-slate-600 disabled:opacity-40 hover:border-indigo-300 transition-all"
+                    className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold bg-white text-slate-600 disabled:opacity-40 hover:border-blue-300 transition-all"
                   >
                     Oldingi
                   </button>
                   <button
                     disabled={page === Math.ceil(filtered.length / rowsPerPage)}
                     onClick={() => setPage(page + 1)}
-                    className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold bg-white text-slate-600 disabled:opacity-40 hover:border-indigo-300 transition-all"
+                    className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold bg-white text-slate-600 disabled:opacity-40 hover:border-blue-300 transition-all"
                   >
                     Keyingi
                   </button>
@@ -3707,7 +3707,7 @@ export default function Operations() {
         {TABS.map(tab_item => (
           <button key={tab_item.id} onClick={() => setTab(tab_item.id)}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${tab === tab_item.id
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+              ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
               : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
               }`}>
             {tab_item.icon}<span>{tab_item.label}</span>

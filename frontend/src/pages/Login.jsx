@@ -23,7 +23,7 @@ function LoginLangSwitcher({ lang, setLang, dark = false }) {
           className={`px-2 py-1 rounded-lg text-xs font-bold transition-all ${
             dark
               ? lang === l.code ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white hover:bg-white/10'
-              : lang === l.code ? 'bg-indigo-100 text-indigo-700' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+              : lang === l.code ? 'bg-blue-100 text-blue-700' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
           }`}
         >
           {l.short}
@@ -68,8 +68,8 @@ function OtpInput({ value, onChange }) {
           onKeyDown={(e) => handleKey(e, i)}
           onFocus={e => e.target.select()}
           className="w-11 h-13 text-center text-xl font-bold border-2 rounded-xl
-            border-slate-200 bg-white text-slate-800 focus:outline-none focus:border-indigo-500
-            focus:ring-2 focus:ring-indigo-200 transition-all caret-transparent select-none
+            border-slate-200 bg-white text-slate-800 focus:outline-none focus:border-blue-500
+            focus:ring-2 focus:ring-blue-200 transition-all caret-transparent select-none
             focus:scale-105"
           style={{ width: 44, height: 52 }}
         />
@@ -206,7 +206,7 @@ function ForgotPasswordModal({ onClose, t }) {
             </div>
             <h3 className="text-lg font-bold text-slate-800 mb-1">{t('auth.passUpdated')}</h3>
             <p className="text-sm text-slate-500 mb-5">{t('auth.loginWithNewPass')}</p>
-            <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-colors">
+            <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-colors">
               {t('common.back')}
             </button>
           </div>
@@ -223,12 +223,12 @@ function ForgotPasswordModal({ onClose, t }) {
               {/* Step indicator */}
               <div className="flex gap-1 mt-3">
                 {stepLabels.map((_, i) => (
-                  <div key={i} className={`h-1 flex-1 rounded-full transition-all ${i < step ? 'bg-indigo-600' : 'bg-slate-200'}`} />
+                  <div key={i} className={`h-1 flex-1 rounded-full transition-all ${i < step ? 'bg-blue-600' : 'bg-slate-200'}`} />
                 ))}
               </div>
               <div className="flex justify-between mt-1">
                 {stepLabels.map((label, i) => (
-                  <span key={i} className={`text-[10px] font-semibold ${i < step ? 'text-indigo-500' : 'text-slate-400'}`}>{label}</span>
+                  <span key={i} className={`text-[10px] font-semibold ${i < step ? 'text-blue-500' : 'text-slate-400'}`}>{label}</span>
                 ))}
               </div>
             </div>
@@ -240,7 +240,7 @@ function ForgotPasswordModal({ onClose, t }) {
                   {error}
                   {botLink && (
                     <a href={botLink} target="_blank" rel="noreferrer"
-                      className="block mt-1.5 text-indigo-600 font-semibold underline hover:text-indigo-700">
+                      className="block mt-1.5 text-blue-600 font-semibold underline hover:text-blue-700">
                       📱 Botni ochish →
                     </a>
                   )}
@@ -258,11 +258,11 @@ function ForgotPasswordModal({ onClose, t }) {
                       <Icon d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                     </div>
                     <input type="text" placeholder="998901234567" value={phone} onChange={e => setPhone(e.target.value)} required
-                      className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl bg-white text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition-all" />
+                      className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl bg-white text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400 transition-all" />
                   </div>
                 </div>
                 <button type="submit" disabled={loading}
-                  className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2">
+                  className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2">
                   {loading ? t('common.loading') : <>{t('common.next')} <Icon d="M13 7l5 5m0 0l-5 5m5-5H6" /></>}
                 </button>
               </form>
@@ -279,17 +279,17 @@ function ForgotPasswordModal({ onClose, t }) {
                 )}
                 <div>
                   <p className="text-xs text-slate-500 text-center mb-3">
-                    <span className="font-semibold text-indigo-600">Telegram</span> botdagi 6 xonali kodni kiriting
+                    <span className="font-semibold text-blue-600">Telegram</span> botdagi 6 xonali kodni kiriting
                   </p>
                   <OtpInput value={otp} onChange={setOtp} />
                 </div>
                 <button type="submit" disabled={loading || otp.length < 6}
-                  className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2">
+                  className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2">
                   {loading ? t('common.loading') : <>Tasdiqlash <Icon d="M5 13l4 4L19 7" /></>}
                 </button>
                 <div className="text-center">
                   <button type="button" onClick={resendOtp} disabled={resendTimer > 0 || loading}
-                    className="text-sm text-indigo-600 hover:text-indigo-700 disabled:text-slate-400 font-medium transition-colors">
+                    className="text-sm text-blue-600 hover:text-blue-700 disabled:text-slate-400 font-medium transition-colors">
                     {resendTimer > 0 ? `Qayta yuborish (${resendTimer}s)` : 'Kodni qayta yuborish'}
                   </button>
                 </div>
@@ -310,7 +310,7 @@ function ForgotPasswordModal({ onClose, t }) {
                       <Icon d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                     </div>
                     <input type={showNew ? 'text' : 'password'} placeholder="••••••" value={newPass} onChange={e => setNewPass(e.target.value)} required
-                      className="w-full pl-10 pr-10 py-2.5 border border-slate-200 rounded-xl bg-white text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition-all" />
+                      className="w-full pl-10 pr-10 py-2.5 border border-slate-200 rounded-xl bg-white text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400 transition-all" />
                     <button type="button" onClick={() => setShowNew(!showNew)} className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-slate-600">
                       <Icon d={showNew ? "M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" : "M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"} />
                     </button>
@@ -323,7 +323,7 @@ function ForgotPasswordModal({ onClose, t }) {
                       <Icon d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </div>
                     <input type={showConfirm ? 'text' : 'password'} placeholder="••••••" value={confirmPass} onChange={e => setConfirmPass(e.target.value)} required
-                      className="w-full pl-10 pr-10 py-2.5 border border-slate-200 rounded-xl bg-white text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition-all" />
+                      className="w-full pl-10 pr-10 py-2.5 border border-slate-200 rounded-xl bg-white text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400 transition-all" />
                     <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-slate-600">
                       <Icon d={showConfirm ? "M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" : "M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"} />
                     </button>
@@ -335,7 +335,7 @@ function ForgotPasswordModal({ onClose, t }) {
                     {t('common.back')}
                   </button>
                   <button type="submit" disabled={loading}
-                    className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold text-sm transition-colors">
+                    className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-sm transition-colors">
                     {loading ? t('common.saving') : t('common.save')}
                   </button>
                 </div>
@@ -475,14 +475,14 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-slate-50 via-white to-indigo-50/40 flex">
+    <div className="min-h-screen bg-linear-to-br from-slate-50 via-white to-blue-50/40 flex">
 
       {/* ── Left panel ── */}
-      <div className="hidden lg:flex lg:w-[260px] xl:w-[300px] bg-linear-to-br from-indigo-600 via-indigo-700 to-purple-700 flex-col justify-between p-10 relative overflow-hidden shrink-0">
+      <div className="hidden lg:flex lg:w-[260px] xl:w-[300px] bg-linear-to-br from-blue-600 via-blue-700 to-blue-700 flex-col justify-between p-10 relative overflow-hidden shrink-0">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-white/5" />
           <div className="absolute -bottom-20 -left-20 w-80 h-80 rounded-full bg-white/5" />
-          <div className="absolute top-1/2 right-0 w-40 h-40 rounded-full bg-purple-500/20" />
+          <div className="absolute top-1/2 right-0 w-40 h-40 rounded-full bg-blue-500/20" />
         </div>
 
         <div onClick={() => navigate('/landing')} className="relative cursor-pointer w-max">
@@ -492,18 +492,18 @@ export default function Login() {
         <div className="relative">
           <h2 className="text-2xl font-black text-white leading-tight mb-2">
             {lang === 'ru' ? 'Управляйте' : lang === 'en' ? 'Manage your' : 'Biznesingizni'}<br />
-            <span className="text-indigo-200">
+            <span className="text-blue-200">
               {lang === 'ru' ? 'своим бизнесом' : lang === 'en' ? 'business' : 'boshqaring'}
             </span>
           </h2>
-          <p className="text-indigo-300/80 text-xs leading-relaxed mt-3">
+          <p className="text-blue-300/80 text-xs leading-relaxed mt-3">
             {lang === 'ru' ? 'Управляйте продажами, складом, финансами и отчётами в одной системе.' :
              lang === 'en' ? 'Manage sales, warehouse, finance and reports in one system.' :
              'Savdo, ombor, moliya va hisobotlarni bitta tizimda boshqaring.'}
           </p>
         </div>
 
-        <p className="relative text-indigo-300/50 text-xs">{t('common.copyright')}</p>
+        <p className="relative text-blue-300/50 text-xs">{t('common.copyright')}</p>
       </div>
 
       {/* ── Right panel (form) ── */}
@@ -540,17 +540,17 @@ export default function Login() {
                     onClick={() => handleSelectCompany(c.company_id)}
                     disabled={companyLoading || !c.is_active}
                     className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-center justify-between group
-                      ${companyLoading ? 'opacity-50 cursor-not-allowed' : 'hover:border-indigo-500 hover:shadow-md hover:shadow-indigo-100'} 
+                      ${companyLoading ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500 hover:shadow-md hover:shadow-blue-100'} 
                       ${!c.is_active ? 'opacity-50 grayscale bg-slate-50 border-slate-200' : 'bg-white border-slate-200'}`}
                   >
                     <div>
-                      <h3 className="font-bold text-slate-800 text-lg group-hover:text-indigo-700 transition-colors">{c.company_name}</h3>
+                      <h3 className="font-bold text-slate-800 text-lg group-hover:text-blue-700 transition-colors">{c.company_name}</h3>
                       <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 mt-1 inline-block uppercase tracking-wider">
                         {c.role} {c.is_active ? '' : '(Bloklangan)'}
                       </span>
                     </div>
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors
-                      ${!c.is_active ? 'bg-slate-200 text-slate-400' : 'bg-indigo-50 text-indigo-500 group-hover:bg-indigo-600 group-hover:text-white'}`}>
+                      ${!c.is_active ? 'bg-slate-200 text-slate-400' : 'bg-blue-50 text-blue-500 group-hover:bg-blue-600 group-hover:text-white'}`}>
                       <Icon d="M9 5l7 7-7 7" cls="w-4 h-4" />
                     </div>
                   </button>
@@ -582,12 +582,12 @@ export default function Login() {
               <form onSubmit={handleOtpVerify} className="space-y-5">
                 <div>
                   <p className="text-xs text-slate-500 text-center mb-3">
-                    <span className="font-semibold text-indigo-600">Telegram</span> botdagi 6 xonali kodni kiriting
+                    <span className="font-semibold text-blue-600">Telegram</span> botdagi 6 xonali kodni kiriting
                   </p>
                   <OtpInput value={otp} onChange={setOtp} />
                 </div>
                 <button type="submit" disabled={otpLoading || otp.length < 6}
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 text-white font-bold text-sm transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2">
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 disabled:opacity-50 text-white font-bold text-sm transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2">
                   {otpLoading ? (
                     <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Tekshirilmoqda...</>
                   ) : (
@@ -634,7 +634,7 @@ export default function Login() {
                     if (e.key === 'Backspace' && form.phone.length <= 4) e.preventDefault();
                   }}
                   required
-                  className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl bg-white text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition-all" />
+                  className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl bg-white text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400 transition-all" />
               </div>
             </div>
 
@@ -642,7 +642,7 @@ export default function Login() {
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-sm font-semibold text-slate-700">{t('login.password')}</label>
                 <button type="button" onClick={() => setShowForgot(true)}
-                  className="text-sm text-indigo-600 hover:text-indigo-700 font-semibold hover:underline transition-colors">
+                  className="text-sm text-blue-600 hover:text-blue-700 font-semibold hover:underline transition-colors">
                   {t('login.forgotPass')}
                 </button>
               </div>
@@ -652,7 +652,7 @@ export default function Login() {
                 </div>
                 <input type={showPass ? 'text' : 'password'} placeholder="••••••••" value={form.password}
                   onChange={e => setForm({ ...form, password: e.target.value })} required
-                  className="w-full pl-10 pr-10 py-2.5 border border-slate-200 rounded-xl bg-white text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition-all" />
+                  className="w-full pl-10 pr-10 py-2.5 border border-slate-200 rounded-xl bg-white text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400 transition-all" />
                 <button type="button" onClick={() => setShowPass(!showPass)}
                   className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-slate-600">
                   {showPass
@@ -663,7 +663,7 @@ export default function Login() {
             </div>
 
             <button type="submit" disabled={loading}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 text-white font-bold text-sm transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 mt-2">
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 disabled:opacity-50 text-white font-bold text-sm transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2 mt-2">
               {loading ? (
                 <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -678,7 +678,7 @@ export default function Login() {
           <div className="mt-8 text-center">
             <p className="text-base text-slate-500">
               {lang === 'ru' ? 'Нет вашей организации?' : lang === 'en' ? "Don't have a company?" : "Korxonangiz yo'qmi?"}{' '}
-              <Link to="/register" className="text-indigo-600 font-bold hover:text-indigo-800 hover:underline transition-colors text-base">
+              <Link to="/register" className="text-blue-600 font-bold hover:text-blue-800 hover:underline transition-colors text-base">
                 {lang === 'ru' ? 'Зарегистрируйтесь' : lang === 'en' ? 'Register' : "Ro'yxatdan o'ting"}
               </Link>
             </p>

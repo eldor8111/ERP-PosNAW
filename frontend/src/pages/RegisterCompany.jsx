@@ -43,17 +43,17 @@ function Steps({ current }) {
         <div key={s.n} className="flex items-center flex-1">
           <div className="flex flex-col items-center">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all
-              ${current > s.n ? 'bg-indigo-600 text-white' :
-                current === s.n ? 'bg-indigo-600 text-white ring-4 ring-indigo-100' :
+              ${current > s.n ? 'bg-blue-600 text-white' :
+                current === s.n ? 'bg-blue-600 text-white ring-4 ring-blue-100' :
                 'bg-slate-100 text-slate-400'}`}>
               {current > s.n ? <Icon d="M5 13l4 4L19 7" cls="w-3.5 h-3.5" /> : s.n}
             </div>
-            <span className={`text-xs mt-1.5 font-medium whitespace-nowrap ${current >= s.n ? 'text-indigo-600' : 'text-slate-400'}`}>
+            <span className={`text-xs mt-1.5 font-medium whitespace-nowrap ${current >= s.n ? 'text-blue-600' : 'text-slate-400'}`}>
               {s.label}
             </span>
           </div>
           {i < arr.length - 1 && (
-            <div className={`flex-1 h-0.5 mx-3 mb-5 rounded ${current > s.n ? 'bg-indigo-500' : 'bg-slate-200'}`} />
+            <div className={`flex-1 h-0.5 mx-3 mb-5 rounded ${current > s.n ? 'bg-blue-500' : 'bg-slate-200'}`} />
           )}
         </div>
       ))}
@@ -65,7 +65,7 @@ function InputField({ label, icon, error, hint, children }) {
   return (
     <div>
       <label className="flex text-sm font-semibold text-slate-700 mb-1.5 items-center gap-1.5">
-        {icon && <span className="text-indigo-500">{icon}</span>}
+        {icon && <span className="text-blue-500">{icon}</span>}
         {label}
       </label>
       {children}
@@ -76,7 +76,7 @@ function InputField({ label, icon, error, hint, children }) {
 }
 
 const inputBase = `w-full border rounded-xl px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400
-  focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400
+  focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400
   transition-all bg-white`
 
 function TInput({ icon, right, err, ...props }) {
@@ -113,14 +113,14 @@ function FloatingSelect({ label, value, onChange, options, disabled, error }) {
           type="button"
           onClick={() => { if (!disabled) setOpen(o => !o) }}
           className={`w-full border rounded-xl px-4 text-left text-sm transition-all relative
-            focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400
-            ${error ? 'border-red-300 bg-red-50/30' : open ? 'border-indigo-400 ring-2 ring-indigo-100 bg-white' : 'border-slate-200 bg-white hover:border-slate-300'}
+            focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400
+            ${error ? 'border-red-300 bg-red-50/30' : open ? 'border-blue-400 ring-2 ring-blue-100 bg-white' : 'border-slate-200 bg-white hover:border-slate-300'}
             ${disabled ? 'opacity-50 cursor-not-allowed bg-slate-50' : 'cursor-pointer'}
             ${hasValue ? 'pt-5 pb-2' : 'py-3.5'}`}
         >
           <span className={`absolute left-4 transition-all duration-150 pointer-events-none font-medium
             ${hasValue
-              ? 'top-1.5 text-[10px] text-indigo-500 uppercase tracking-wide'
+              ? 'top-1.5 text-[10px] text-blue-500 uppercase tracking-wide'
               : 'top-1/2 -translate-y-1/2 text-sm text-slate-400'}`}>
             {label}
           </span>
@@ -141,8 +141,8 @@ function FloatingSelect({ label, value, onChange, options, disabled, error }) {
                 onClick={() => { onChange(opt); setOpen(false) }}
                 className={`w-full text-left px-4 py-2.5 text-sm transition-colors
                   ${value === opt
-                    ? 'bg-indigo-50 text-indigo-700 font-semibold'
-                    : 'text-slate-700 hover:bg-slate-50 hover:text-indigo-600'}`}
+                    ? 'bg-blue-50 text-blue-700 font-semibold'
+                    : 'text-slate-700 hover:bg-slate-50 hover:text-blue-600'}`}
               >
                 {opt}
               </button>
@@ -238,12 +238,12 @@ export default function RegisterCompany() {
   /* ── SUCCESS ── */
   if (done) {
     return (
-      <div className="min-h-screen bg-linear-to-br from-indigo-600 via-indigo-700 to-purple-700 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-linear-to-br from-blue-600 via-blue-700 to-blue-700 flex items-center justify-center p-4">
         <div className="w-full max-w-lg">
           <div className="bg-white rounded-3xl shadow-2xl p-10 text-center">
 
             {/* Icon */}
-            <div className="w-24 h-24 mx-auto mb-6 rounded-3xl bg-linear-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-xl shadow-emerald-200">
+            <div className="w-24 h-24 mx-auto mb-6 rounded-3xl bg-linear-to-br from-emerald-400 to-blue-500 flex items-center justify-center shadow-xl shadow-emerald-200">
               <Icon d="M5 13l4 4L19 7" cls="w-12 h-12 text-white" />
             </div>
 
@@ -257,9 +257,9 @@ export default function RegisterCompany() {
             </div>
 
             {/* Org Code */}
-            <div className="mb-5 bg-linear-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200 rounded-2xl px-6 py-5">
-              <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-3">{t('settings.orgCode')}</p>
-              <div className="text-6xl font-black text-indigo-700 tracking-[0.25em] leading-none">{done.org_code}</div>
+            <div className="mb-5 bg-linear-to-br from-blue-50 to-blue-50 border-2 border-blue-200 rounded-2xl px-6 py-5">
+              <p className="text-xs font-bold text-blue-400 uppercase tracking-widest mb-3">{t('settings.orgCode')}</p>
+              <div className="text-6xl font-black text-blue-700 tracking-[0.25em] leading-none">{done.org_code}</div>
               <div className="flex items-center justify-center gap-2 text-sm text-amber-700 bg-amber-50 rounded-xl px-4 py-2.5 mt-4 border border-amber-200 font-semibold">
                 <Icon d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" cls="w-5 h-5 shrink-0 text-amber-600" />
                 {t('auth.saveThisCode') || "Ushbu kodni albatta saqlab qo'ying!"}
@@ -279,7 +279,7 @@ export default function RegisterCompany() {
 
             <button
               onClick={() => window.location.href = '/admin/'}
-              className="w-full py-4 rounded-2xl bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-base transition-all shadow-lg shadow-indigo-300 flex items-center justify-center gap-2"
+              className="w-full py-4 rounded-2xl bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white font-bold text-base transition-all shadow-lg shadow-blue-300 flex items-center justify-center gap-2"
             >
               {t('login.enter') || "Tizimga kirish"}
               <Icon d="M13 7l5 5m0 0l-5 5m5-5H6" />
@@ -291,14 +291,14 @@ export default function RegisterCompany() {
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-slate-50 via-white to-indigo-50/40 flex">
+    <div className="min-h-screen bg-linear-to-br from-slate-50 via-white to-blue-50/40 flex">
 
       {/* ── Left panel ── */}
-      <div className="hidden lg:flex lg:w-[260px] xl:w-[300px] bg-linear-to-br from-indigo-600 via-indigo-700 to-purple-700 flex-col justify-between p-10 relative overflow-hidden shrink-0">
+      <div className="hidden lg:flex lg:w-[260px] xl:w-[300px] bg-linear-to-br from-blue-600 via-blue-700 to-blue-700 flex-col justify-between p-10 relative overflow-hidden shrink-0">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-white/5" />
           <div className="absolute -bottom-20 -left-20 w-80 h-80 rounded-full bg-white/5" />
-          <div className="absolute top-1/2 right-0 w-40 h-40 rounded-full bg-purple-500/20" />
+          <div className="absolute top-1/2 right-0 w-40 h-40 rounded-full bg-blue-500/20" />
         </div>
 
         {/* Logo */}
@@ -311,9 +311,9 @@ export default function RegisterCompany() {
           <div>
             <h2 className="text-2xl font-black text-white leading-tight mb-2">
               {t('auth.manageYour') || 'Biznesingizni'}<br />
-              <span className="text-indigo-200">{t('auth.manageBusiness')}</span>
+              <span className="text-blue-200">{t('auth.manageBusiness')}</span>
             </h2>
-            <p className="text-indigo-300/80 text-xs leading-relaxed mt-3">
+            <p className="text-blue-300/80 text-xs leading-relaxed mt-3">
               {t('auth.registerDesc')}
             </p>
           </div>
@@ -327,15 +327,15 @@ export default function RegisterCompany() {
             ].map(item => (
               <div key={item.label} className="flex items-center gap-3">
                 <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
-                  <Icon d={item.icon} cls="w-3.5 h-3.5 text-indigo-200" />
+                  <Icon d={item.icon} cls="w-3.5 h-3.5 text-blue-200" />
                 </div>
-                <span className="text-indigo-100 text-xs">{item.label}</span>
+                <span className="text-blue-100 text-xs">{item.label}</span>
               </div>
             ))}
           </div>
         </div>
 
-        <p className="relative text-indigo-300/50 text-xs">{t('common.copyright')}</p>
+        <p className="relative text-blue-300/50 text-xs">{t('common.copyright')}</p>
       </div>
 
       {/* ── Right panel (form) ── */}
@@ -391,7 +391,7 @@ export default function RegisterCompany() {
 
               <button
                 onClick={() => { if (validateStep1()) setStep(2) }}
-                className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-all shadow-md shadow-indigo-200 flex items-center justify-center gap-2 mt-2"
+                className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm transition-all shadow-md shadow-blue-200 flex items-center justify-center gap-2 mt-2"
               >
                 {t('common.nextStep') || "Keyingi qadam"}
                 <Icon d="M13 7l5 5m0 0l-5 5m5-5H6" />
@@ -399,7 +399,7 @@ export default function RegisterCompany() {
 
               <p className="text-center text-sm text-slate-500">
                 {t('auth.alreadyHaveAcc') || "Allaqachon hisobingiz bormi?"}{' '}
-                <Link to="/login" className="text-indigo-600 font-semibold hover:underline">{t('land.nav.login')}</Link>
+                <Link to="/login" className="text-blue-600 font-semibold hover:underline">{t('land.nav.login')}</Link>
               </p>
             </div>
           )}
@@ -516,7 +516,7 @@ export default function RegisterCompany() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-sm transition-all shadow-md shadow-indigo-200 flex items-center justify-center gap-2"
+                  className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-sm transition-all shadow-md shadow-blue-200 flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>{t('auth.loadingNext') || "Yuklanmoqda..."}</>
@@ -526,7 +526,7 @@ export default function RegisterCompany() {
 
               <p className="text-center text-sm text-slate-500">
                 {t('auth.alreadyHaveAcc') || "Allaqachon hisobingiz bormi?"}{' '}
-                <Link to="/login" className="text-indigo-600 font-semibold hover:underline">{t('land.nav.login')}</Link>
+                <Link to="/login" className="text-blue-600 font-semibold hover:underline">{t('land.nav.login')}</Link>
               </p>
             </form>
           )}
