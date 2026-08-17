@@ -143,6 +143,8 @@ async def update_admin_bot_settings(company_id: int, payload: CompanyBotSettings
     admin_bot.notify_instant_finance = payload.notify_instant_finance
     admin_bot.notify_scheduled = payload.notify_scheduled
     admin_bot.scheduled_time = payload.scheduled_time
+    admin_bot.notify_expired_products = payload.notify_expired_products
+    admin_bot.expired_days_before = payload.expired_days_before
     
     db.commit()
     db.refresh(admin_bot)

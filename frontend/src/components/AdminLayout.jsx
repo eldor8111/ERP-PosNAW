@@ -4,13 +4,14 @@ import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import { ROLES, ROLE_GROUPS, ROLE_LABELS, ROLE_GRADIENTS } from '../constants/roles';
+import { getSettingsMenus } from '../constants/settingsMenus';
 import ECodeLogo, { ECodeIcon } from './ECodeLogo';
 import toast from 'react-hot-toast';
 import { BriefcaseBusiness, CircleChevronLeft, Copy, Minus, TextAlignJustify, X } from 'lucide-react';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU');
 
-function buildNavGroups(t) {
+function buildNavGroups(t, expiredCount = 0) {
   return [
     {
       key: 'sales_group',
@@ -35,40 +36,38 @@ function buildNavGroups(t) {
           icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>,
         },
         {
-          name: t('nav.shifts'),
-          path: '/admin/shifts',
-          roles: ROLE_GROUPS.SALES,
-          icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+          name: 'Aksiyalar',
+          path: '/admin/promotions',
+          roles: ROLE_GROUPS.MANAGEMENT,
+          icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>,
         },
+
       ],
     },
     {
       key: 'warehouse_group',
       label: t('nav.warehouse_group'),
       links: [
-        {
-          name: 'Filiallar',
-          path: '/admin/filiallar',
-          roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
-          icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>,
-        },
+
         {
           name: t('nav.purchases'),
           path: '/admin/purchases',
           roles: ROLE_GROUPS.REPORTS_ACCESS,
           icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
         },
-        {
-          name: t('nav.warehouse'),
-          path: '/admin/warehouse',
-          roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
-          icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>,
-        },
+
         {
           name: t('nav.operations'),
           path: '/admin/operations',
           roles: ROLE_GROUPS.OPS_ACCESS,
           icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>,
+        },
+        {
+          name: t('nav.alerts') || 'Ogohlantirishlar',
+          path: '/admin/alerts',
+          roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
+          icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>,
+          badge: expiredCount > 0 ? `⚠ ${expiredCount}` : null,
         },
       ],
     },
@@ -112,24 +111,14 @@ function buildNavGroups(t) {
       key: 'management_group',
       label: t('nav.management_group'),
       links: [
-        {
-          name: 'Xodimlar',
-          path: '/admin/employees',
-          roles: ROLE_GROUPS.MANAGEMENT,
-          icon: <BriefcaseBusiness className="w-[22px] h-[22px]" />
-        },
+
         {
           name: t('nav.settings'),
           path: '/admin/settings',
           roles: ROLE_GROUPS.MANAGEMENT,
           icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
         },
-        {
-          name: t('nav.tariffs'),
-          path: '/admin/tariflar',
-          roles: ROLE_GROUPS.MANAGEMENT,
-          icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" /></svg>,
-        },
+
       ],
     },
     {
@@ -175,10 +164,10 @@ function LangSwitcher({ t, lang, setLang, LANGUAGES }) {
         className="flex items-center cursor-pointer gap-1.5 px-2 md:px-3 py-1 xl:py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-full transition-all duration-150 group"
       >
         {/* Globe icon */}
-        <svg className="w-4 h-4 text-slate-500 group-hover:text-indigo-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-4 h-4 text-slate-500 group-hover:text-blue-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
         </svg>
-        <span className="text-[10px] xl:text-[12px] font-bold text-slate-600 group-hover:text-indigo-700">{current.short}</span>
+        <span className="text-[10px] xl:text-[12px] font-bold text-slate-600 group-hover:text-blue-700">{current.short}</span>
         <svg className={`w-3 h-3 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
         </svg>
@@ -190,12 +179,12 @@ function LangSwitcher({ t, lang, setLang, LANGUAGES }) {
             <button
               key={l.code}
               onClick={() => { setLang(l.code); setOpen(false); }}
-              className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs xl:text-sm font-medium hover:bg-indigo-50 hover:text-indigo-700 transition-colors ${lang === l.code ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-700'}`}
+              className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs xl:text-sm font-medium hover:bg-blue-50 hover:text-blue-700 transition-colors ${lang === l.code ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-700'}`}
             >
               <span className="text-base">{l.flag}</span>
               <span>{l.label}</span>
               {lang === l.code && (
-                <svg className="w-3.5 h-3.5 ml-auto text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="w-3.5 h-3.5 ml-auto text-blue-600" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
               )}
@@ -214,6 +203,22 @@ export default function AdminLayout() {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
+  const settingsTimeout = useRef(null);
+
+  const handleSettingsEnter = useCallback(() => {
+    if (settingsTimeout.current) clearTimeout(settingsTimeout.current);
+    setSettingsMenuOpen(true);
+  }, []);
+
+  const handleSettingsLeave = useCallback(() => {
+    settingsTimeout.current = setTimeout(() => {
+      setSettingsMenuOpen(false);
+    }, 150);
+  }, []);
+
+  const SETTINGS_MENUS = getSettingsMenus(t);
 
   // Eski localStorage flagni tozalaymiz (oldingi implementatsiyadan qolgan)
   useState(() => { localStorage.removeItem('subscription_expired'); });
@@ -239,6 +244,7 @@ export default function AdminLayout() {
 
   const [orgData, setOrgData] = useState({ name: user?.company_name || 'Tizim', code: '...', balance: 0 });
   const [lowStockCount, setLowStockCount] = useState(0);
+  const [expiredCount, setExpiredCount] = useState(0);
 
   const refreshBalance = useCallback(() => {
     api.get('/finance/cash-balance').then(r => {
@@ -255,6 +261,10 @@ export default function AdminLayout() {
     api.get('/inventory/low-stock-count').then(r => {
       setLowStockCount(r.data.count || 0);
     }).catch(() => { /* sust qoldiq yuklanmadi — kritik emas */ });
+    
+    api.get('/inventory/expiring-batches').then(r => {
+      setExpiredCount(r.data?.length || 0);
+    }).catch(() => {});
   }, [user?.role]);
 
   useEffect(() => {
@@ -276,7 +286,7 @@ export default function AdminLayout() {
   }, [logout, navigate]);
 
   // Rebuild navGroups on lang change
-  const navGroups = useMemo(() => buildNavGroups(t), [t]);
+  const navGroups = useMemo(() => buildNavGroups(t, expiredCount), [t, expiredCount]);
 
   const currentPage = useMemo(() => {
     const allLinks = navGroups.flatMap(g => g.links);
@@ -354,17 +364,19 @@ export default function AdminLayout() {
                       to={isBlocked ? '/admin/tariflar' : link.path}
                       onClick={() => setMobileMenuOpen(false)}
                       title={collapsed ? link.name : undefined}
+                      onMouseEnter={link.path === '/admin/settings' ? handleSettingsEnter : undefined}
+                      onMouseLeave={link.path === '/admin/settings' ? handleSettingsLeave : undefined}
                       className={`flex items-center gap-1 sm:gap-2 px-2.25 py-1.75 rounded-lg transition-all duration-150 group mb-0.5 ${isBlocked
                         ? 'opacity-35 cursor-not-allowed pointer-events-none'
                         : isActive
-                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+                          ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
                           : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800'
                         } `}
                     >
                       <span className={`shrink-0 relative [&>svg]:h-[18px] sm:[&>svg]:h-[20px] xl:[&>svg]:h-[22px] ${collapsed && 'xl:scale-110'} ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-700'}`}>
                         {link.icon}
                         {collapsed && link.path === '/admin/warehouse' && lowStockCount > 0 && (
-                          <span className="absolute -top-1 -right-1 w-2 h-2 bg-rose-500 rounded-full" />
+                          <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full" />
                         )}
                       </span>
                       {!collapsed && (
@@ -372,8 +384,13 @@ export default function AdminLayout() {
                           {link.name}
                         </span>
                       )}
-                      {!collapsed && link.path === '/admin/warehouse' && lowStockCount > 0 && (
-                        <span className={`min-w-[14px] h-[14px] sm:min-w-[18px] sm:h-[18px] px-1 text-white text-[8px] sm:text-[10px] font-bold rounded-full flex items-center justify-center shrink-0 ${isActive ? 'bg-white/30' : 'bg-rose-500'}`}>
+                      {!collapsed && link.badge && (
+                        <span className="bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                          {link.badge}
+                        </span>
+                      )}
+                      {!collapsed && link.path === '/admin/warehouse' && lowStockCount > 0 && !link.badge && (
+                        <span className={`min-w-[14px] h-[14px] sm:min-w-[18px] sm:h-[18px] px-1 text-white text-[8px] sm:text-[10px] font-bold rounded-full flex items-center justify-center shrink-0 ${isActive ? 'bg-white/30' : 'bg-blue-500'}`}>
                           {lowStockCount > 99 ? '99+' : lowStockCount}
                         </span>
                       )}
@@ -389,7 +406,7 @@ export default function AdminLayout() {
         <div className="border-t border-slate-100 p-3 space-y-1">
           {!collapsed && (
             <Link to={'/admin/profile'} className="flex items-center gap-2.5 px-2 py-2 rounded-xl bg-slate-50">
-              <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-linear-to-br ${ROLE_GRADIENTS[user?.role] || 'from-indigo-500 to-indigo-700'} flex items-center justify-center text-white text-xs font-bold shrink-0`}>
+              <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-linear-to-br ${ROLE_GRADIENTS[user?.role] || 'from-blue-500 to-blue-700'} flex items-center justify-center text-white text-xs font-bold shrink-0`}>
                 {initials}
               </div>
               <div className="flex-1 min-w-0">
@@ -400,7 +417,7 @@ export default function AdminLayout() {
           )}
           {collapsed && (
             <Link to={'/admin/profile'} className="flex py-1">
-              <div className={`w-8 ml-1 h-8 rounded-xl bg-linear-to-br ${ROLE_GRADIENTS[user?.role] || 'from-indigo-500 to-indigo-700'} flex items-center justify-center text-white text-xs font-bold`}>
+              <div className={`w-8 ml-1 h-8 rounded-xl bg-linear-to-br ${ROLE_GRADIENTS[user?.role] || 'from-blue-500 to-blue-700'} flex items-center justify-center text-white text-xs font-bold`}>
                 {initials}
               </div>
             </Link>
@@ -410,7 +427,7 @@ export default function AdminLayout() {
           <button
             onClick={handleLogout}
             title={t('header.logout')}
-            className={`w-full cursor-pointer flex items-center gap-2 sm:gap-3 px-3 py-2.5 rounded-xl text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-all duration-150`}
+            className={`w-full cursor-pointer flex items-center gap-2 sm:gap-3 px-3 py-2.5 rounded-xl text-blue-500 hover:bg-blue-50 hover:text-blue-600 transition-all duration-150`}
           >
             <svg className="w-[18px] h-[18px] sm:w-[20px] sm:h-[20px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -418,6 +435,40 @@ export default function AdminLayout() {
             {!collapsed && <span className="text-[12px] sm:text-[14px] font-semibold">{t('header.logout')}</span>}
           </button>
         </div>
+
+        {/* Settings Flyout Sidebar */}
+        {settingsMenuOpen && (
+          <div 
+            onMouseEnter={handleSettingsEnter}
+            onMouseLeave={handleSettingsLeave}
+            className={`absolute top-0 bottom-0 z-50 bg-white border-r border-slate-200 shadow-2xl flex flex-col w-[280px] transition-all overflow-y-auto ${collapsed ? 'left-[64px]' : 'left-[220px] xl:left-[280px]'}`}
+          >
+            <div className="p-5 flex items-center gap-3 border-b border-slate-100 sticky top-0 bg-white z-10">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              </div>
+              <h2 className="text-[17px] font-bold text-slate-800">Sozlamalar</h2>
+            </div>
+            <div className="flex-1 py-2 space-y-0.5">
+              {SETTINGS_MENUS.map(m => {
+                const isActive = m.path ? location.pathname.startsWith(m.path) : location.search.includes(`tab=${m.id}`);
+                return (
+                <Link
+                  key={m.id}
+                  to={m.path || `/admin/settings?tab=${m.id}`}
+                  onClick={() => { setSettingsMenuOpen(false); setMobileMenuOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-6 py-3 text-[14px] font-medium transition-colors text-left ${isActive ? 'bg-blue-50/50 text-blue-700 border-r-2 border-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}
+                >
+                  <div className={isActive ? 'text-blue-600' : 'text-slate-500'}>
+                    {m.icon}
+                  </div>
+                  {m.label}
+                </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </aside>
 
       {/* ── MAIN CONTENT ─────────────────────────────── */}
@@ -467,7 +518,7 @@ export default function AdminLayout() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
                 <span className="hidden sm:inline text-amber-700 text-[10px] xl:text-[12px] font-semibold">{t('header.lowStock')}</span>
-                <span className="min-w-[16px] xl:min-w-[18px] h-[16px] xl:h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                <span className="min-w-[16px] xl:min-w-[18px] h-[16px] xl:h-[18px] px-1 bg-blue-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                   {lowStockCount > 99 ? '99+' : lowStockCount}
                 </span>
               </button>
@@ -495,13 +546,13 @@ export default function AdminLayout() {
             </div>
 
             {/* User */}
-            <Link to={'/admin/profile'} className="flex items-center gap-2.5 bg-indigo-600 rounded-lg sm:rounded-xl px-1.5 sm:px-3 py-1.5 sm:py-2 shadow-md shadow-indigo-200">
+            <Link to={'/admin/profile'} className="flex items-center gap-2.5 bg-blue-600 rounded-lg sm:rounded-xl px-1.5 sm:px-3 py-1.5 sm:py-2 shadow-md shadow-blue-200">
               <div className="w-5 h-5 sm:w-6 sm:h-6 rounded sm:rounded-lg bg-white/20 flex items-center justify-center text-white text-[11px] font-black shrink-0">
                 {initials}
               </div>
               <div className="hidden sm:flex flex-col">
                 <span className="text-white text-[12px] font-bold leading-none">{orgData.name}</span>
-                <span className="text-indigo-200 text-[10px] font-medium leading-none mt-0.25">{ROLE_LABELS[user?.role] || user?.role}</span>
+                <span className="text-blue-200 text-[10px] font-medium leading-none mt-0.25">{ROLE_LABELS[user?.role] || user?.role}</span>
               </div>
             </Link>
           </div>
@@ -524,7 +575,7 @@ export default function AdminLayout() {
                 <p className="text-sm text-slate-500 mb-6">{subExpiredMsg || "Tizimdan foydalanish uchun obunani yangilang."}</p>
                 <button
                   onClick={() => navigate('/admin/tariflar')}
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold text-sm hover:opacity-90 transition-all shadow-lg"
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-600 text-white font-bold text-sm hover:opacity-90 transition-all shadow-lg"
                 >
                   To'lovga o'tish →
                 </button>

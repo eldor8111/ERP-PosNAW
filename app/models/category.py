@@ -13,6 +13,7 @@ class Category(Base):
     parent_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
     sort_order = Column(Integer, default=0)
+    is_perishable = Column(Boolean, default=False)
     is_deleted = Column(Boolean, default=False, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),

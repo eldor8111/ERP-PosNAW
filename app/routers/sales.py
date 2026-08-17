@@ -15,6 +15,7 @@ from app.schemas.sale import SaleCreate, SaleItemOut, SaleListOut, SaleOut, Sale
 from app.services.sale_service import create_sale, create_return_sale, delete_sale, update_sale, create_pending_sale
 from app.services.sale_partial_return import process_partial_return
 from app.services.hippo_fiscalize import fiscalize_sale, fiscalize_return
+from app.admin_tg_bot.notifications import trigger_instant_notification
 
 router = APIRouter(prefix="/sales", tags=["Sales (POS)"])
 
@@ -132,6 +133,16 @@ def make_sale(
     if _factory_id:
         background_tasks.add_task(fiscalize_sale, db, sale.id, _factory_id)  # type: ignore[arg-type]
     # ─────────────────────────────────────────────────────────────────────────
+
+    # ── Telegram bildirishnoma ──
+    try:
+        msg = f"🛒 <b>Yangi Sotuv!</b>\n🧾 Chek: #{sale.number}\n👤 Kassir: {current_user.name}\n"
+        if cust_name:
+            msg += f"🤝 Mijoz: {cust_name}\n"
+        msg += f"💰 Summa: {float(sale.total_amount):,.0f} UZS"
+        trigger_instant_notification(current_user.company_id, msg, "sale")
+    except Exception as e:
+        print(f"Telegram notification error: {e}")
 
     return SaleListOut(
         id=sale.id,  # type: ignore

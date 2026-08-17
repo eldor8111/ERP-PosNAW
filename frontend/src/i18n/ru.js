@@ -27,6 +27,7 @@ export default {
   'nav.inventory_counts': 'Инвентаризация',
   'nav.pos_desktop': 'POS Desktop',
   'nav.kontragentlar': 'Контрагенты',
+  'nav.alerts': 'Оповещения',
 
   // === HEADER ===
   'header.systemActive': 'Система активна',

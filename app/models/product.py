@@ -45,25 +45,39 @@ class Product(Base):
     weight = Column(Numeric(10, 3), nullable=True)
     dimensions = Column(String(100), nullable=True)
     status = Column(Enum(ProductStatus), default=ProductStatus.active)
-    product_type = Column(String(10), nullable=False, default="stock")
+    product_type = Column(String(20), nullable=False, default="simple") # simple, variant, service, bundle
     is_deleted = Column(Boolean, default=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
     expiry_date = Column(Date, nullable=True)
+    attributes = Column(JSON, nullable=True, default=list) # e.g. [{"key": "Material", "value": "Cotton"}]
+    tags = Column(JSON, nullable=True, default=list) # e.g. ["New", "Discount"]
 
     category = relationship("Category", back_populates="products")
     stock_level = relationship("StockLevel", back_populates="product", uselist=False)
     stock_movements = relationship("StockMovement", back_populates="product")
     sale_items = relationship("SaleItem", back_populates="product")
     customer_prices = relationship("CustomerPrice", back_populates="product", cascade="all, delete-orphan")
+    variants = relationship("ProductVariant", back_populates="product", cascade="all, delete-orphan")
+    batches = relationship("Batch", back_populates="product", cascade="all, delete-orphan")
+    supplier_products = relationship("SupplierProduct", back_populates="product", cascade="all, delete-orphan")
 
     # MXIK / Fiskal
     mxik_code = Column(String(20), nullable=True, index=True) # mxik_code
     mxik_reference_id = Column(Integer, ForeignKey("mxik_references.id"), nullable=True, index=True)
     package_code = Column(Integer, nullable=True)  # operator tanlagan paket kodi
     parent_code = Column(Integer, nullable=True)
-    unit_id = Column(Integer, nullable=True)
+    unit_id = Column(Integer, nullable=True) # unit_id for MXIK
+
+    @property
+    def category_name(self):
+        return self.category.name if self.category else None
+
+    @property
+    def category_is_perishable(self):
+        return self.category.is_perishable if self.category else False
+
     labels = Column(JSON, nullable=True)
 
     # QQS — mxik_reference dan ko'chirib saqlanadi (tez kirish uchun)

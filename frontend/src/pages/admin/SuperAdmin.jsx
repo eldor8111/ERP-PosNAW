@@ -10,10 +10,10 @@ const ROLE_LABELS = {
   manager: 'Menejer', accountant: 'Buxgalter', warehouse: 'Omborchi', cashier: 'Kassir',
 };
 const ROLE_COLORS = {
-  super_admin: 'bg-purple-100 text-purple-700', admin: 'bg-red-100 text-red-700',
+  super_admin: 'bg-blue-100 text-blue-700', admin: 'bg-red-100 text-red-700',
   director: 'bg-violet-100 text-violet-700', manager: 'bg-blue-100 text-blue-700',
   accountant: 'bg-green-100 text-green-700', warehouse: 'bg-amber-100 text-amber-700',
-  cashier: 'bg-indigo-100 text-indigo-700',
+  cashier: 'bg-blue-100 text-blue-700',
 };
 
 const Ic = ({ d, cls = "w-4 h-4" }) => (
@@ -59,7 +59,7 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
       <div className={`w-full max-w-2xl bg-white h-full flex flex-col shadow-2xl transition-transform duration-300 ease-out ${visible ? 'translate-x-0' : 'translate-x-full'}`}>
 
         {/* ── Header ── */}
-        <div className="shrink-0 bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-5 text-white">
+        <div className="shrink-0 bg-gradient-to-r from-blue-600 to-violet-600 px-6 py-5 text-white">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center font-black text-xl">
@@ -114,7 +114,7 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
             { id: 'tariff', label: 'Tarif hisoboti', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
           ].map(tb => (
             <button key={tb.id} onClick={() => setTab(tb.id)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${tab === tb.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}>
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${tab === tb.id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}>
               <Ic d={tb.icon} cls="w-3.5 h-3.5" />
               {tb.label}
             </button>
@@ -124,7 +124,7 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
         {/* ── Body ── */}
         {loading ? (
           <div className="flex-1 flex justify-center items-center">
-            <div className="w-9 h-9 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+            <div className="w-9 h-9 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : loadError ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 text-slate-400 px-6">
@@ -134,7 +134,7 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
             <p className="text-sm font-semibold text-slate-600">Ma'lumotlarni yuklashda xatolik</p>
             <button
               onClick={() => { setLoadError(false); setLoading(true); api.get(`/super-admin/companies/${companyId}`).then(r => setDetail(r.data)).catch(() => setLoadError(true)).finally(() => setLoading(false)); }}
-              className="text-xs px-4 py-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-xl font-semibold transition-all"
+              className="text-xs px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-xl font-semibold transition-all"
             >
               Qayta urinish
             </button>
@@ -151,7 +151,7 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
                   <div className="text-center text-slate-400 py-16">Filiallar yo'q</div>
                 )}
                 {detail.branches?.map((b) => (
-                  <div key={b.id} className="flex items-center gap-3 p-4 bg-slate-50 hover:bg-indigo-50/50 rounded-2xl border border-slate-100 transition-colors">
+                  <div key={b.id} className="flex items-center gap-3 p-4 bg-slate-50 hover:bg-blue-50/50 rounded-2xl border border-slate-100 transition-colors">
                     <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm shrink-0">
                       {b.name?.[0]?.toUpperCase()}
                     </div>
@@ -176,7 +176,7 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
                       )}
                     </div>
                     <div className="text-right shrink-0">
-                      <div className="text-sm font-bold text-indigo-700">{b.users_count}</div>
+                      <div className="text-sm font-bold text-blue-700">{b.users_count}</div>
                       <div className="text-xs text-slate-400">xodim</div>
                     </div>
                   </div>
@@ -219,7 +219,7 @@ function DrawerBranchUsers({ branches }) {
   return (
     <div className="space-y-3">
       <select value={branchId} onChange={e => setBranchId(e.target.value)}
-        className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-slate-50">
+        className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-slate-50">
         <option value="">— Filialni tanlang —</option>
         {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
       </select>
@@ -230,7 +230,7 @@ function DrawerBranchUsers({ branches }) {
           <p className="text-sm">Filialni tanlang</p>
         </div>
       )}
-      {loading && <div className="flex justify-center py-10"><div className="w-7 h-7 border-4 border-indigo-400 border-t-transparent rounded-full animate-spin" /></div>}
+      {loading && <div className="flex justify-center py-10"><div className="w-7 h-7 border-4 border-blue-400 border-t-transparent rounded-full animate-spin" /></div>}
       {!loading && fetchError && (
         <div className="flex flex-col items-center justify-center py-10 gap-2">
           <div className="w-10 h-10 rounded-xl bg-red-100 text-red-500 flex items-center justify-center">
@@ -238,7 +238,7 @@ function DrawerBranchUsers({ branches }) {
           </div>
           <p className="text-sm text-red-500 font-semibold">Xodimlarni yuklab bo'lmadi</p>
           <button onClick={() => { const id = branchId; setBranchId(''); setTimeout(() => setBranchId(id), 50); }}
-            className="text-xs px-3 py-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg font-semibold">
+            className="text-xs px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-semibold">
             Qayta urinish
           </button>
         </div>
@@ -247,8 +247,8 @@ function DrawerBranchUsers({ branches }) {
         <p className="text-slate-400 text-sm text-center py-10">Bu filialda xodimlar yo'q</p>
       )}
       {!loading && users.map(u => (
-        <div key={u.id} className="flex items-center gap-3 p-4 bg-slate-50 hover:bg-indigo-50/50 rounded-2xl border border-slate-100 transition-colors">
-          <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-sm font-bold shrink-0">
+        <div key={u.id} className="flex items-center gap-3 p-4 bg-slate-50 hover:bg-blue-50/50 rounded-2xl border border-slate-100 transition-colors">
+          <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold shrink-0">
             {u.name?.[0]?.toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
@@ -280,14 +280,14 @@ function DrawerTariffReport({ detail }) {
   return (
     <div className="space-y-4">
       {/* Tarif kartasi */}
-      <div className="bg-gradient-to-br from-indigo-50 to-violet-50 rounded-2xl border border-indigo-100 p-5">
+      <div className="bg-gradient-to-br from-blue-50 to-violet-50 rounded-2xl border border-blue-100 p-5">
         <div className="flex items-center justify-between mb-3">
           <h4 className="font-bold text-slate-700 text-sm">Joriy tarif</h4>
           {detail.is_trial && (
             <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">Sinov muddati</span>
           )}
         </div>
-        <div className="text-2xl font-black text-indigo-700 mb-1">
+        <div className="text-2xl font-black text-blue-700 mb-1">
           {detail.tariff_name || 'Tarif belgilanmagan'}
         </div>
         <div className="flex items-center gap-2 mt-3">
@@ -400,7 +400,7 @@ function AgentsTab() {
     finally { setPinDeleting(false); }
   };
 
-  const modalInput = "w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-300 transition-all";
+  const modalInput = "w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition-all";
 
   return (
     <div className="space-y-4">
@@ -409,7 +409,7 @@ function AgentsTab() {
           <h3 className="font-bold text-slate-800">Agentlar ro'yxati</h3>
           <p className="text-xs text-slate-400 mt-0.5">Har bir agent uchun unikal kod avtomatik yaratiladi</p>
         </div>
-        <button onClick={openModal} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm shadow-indigo-200 transition-all">
+        <button onClick={openModal} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm shadow-blue-200 transition-all">
           <Ic d="M12 4v16m8-8H4" />
           Agent qo'shish
         </button>
@@ -437,7 +437,7 @@ function AgentsTab() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
                   <Ic d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </div>
                 <h4 className="font-bold text-slate-800">Yangi agent qo'shish</h4>
@@ -466,7 +466,7 @@ function AgentsTab() {
             </div>
             <div className="px-6 py-4 border-t border-slate-100 flex gap-2 justify-end">
               <button onClick={closeModal} className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold rounded-xl transition-all">{t('common.cancel')}</button>
-              <button onClick={handleCreate} disabled={saving} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm disabled:opacity-50 transition-all">
+              <button onClick={handleCreate} disabled={saving} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm disabled:opacity-50 transition-all">
                 {saving ? 'Saqlanmoqda...' : 'Saqlash'}
               </button>
             </div>
@@ -485,7 +485,7 @@ function AgentsTab() {
                 </div>
                 <div>
                   <h4 className="font-bold text-slate-800">Agentni tahrirlash</h4>
-                  <p className="text-xs text-slate-400">Kod: <span className="font-mono font-bold text-indigo-600">{editAgent.code}</span></p>
+                  <p className="text-xs text-slate-400">Kod: <span className="font-mono font-bold text-blue-600">{editAgent.code}</span></p>
                 </div>
               </div>
               <button onClick={closeEdit} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600">
@@ -496,12 +496,12 @@ function AgentsTab() {
               <div>
                 <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Ismi *</label>
                 <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} autoFocus
-                  className={modalInput.replace('indigo-300', 'amber-300')} />
+                  className={modalInput.replace('blue-300', 'amber-300')} />
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Telefon raqami *</label>
                 <input value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
-                  className={modalInput.replace('indigo-300', 'amber-300')} />
+                  className={modalInput.replace('blue-300', 'amber-300')} />
               </div>
               {editError && <div className="text-xs text-red-600 bg-red-50 px-4 py-2.5 rounded-xl border border-red-100">{editError}</div>}
             </div>
@@ -553,12 +553,12 @@ function AgentsTab() {
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-700">
-            Agentlar <span className="text-indigo-600 font-black">({agents.length})</span>
+            Agentlar <span className="text-blue-600 font-black">({agents.length})</span>
           </h3>
           <button onClick={load} className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-medium transition-all">{t('common.refresh')}</button>
         </div>
         {loading ? (
-          <div className="py-16 flex justify-center"><div className="w-7 h-7 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div>
+          <div className="py-16 flex justify-center"><div className="w-7 h-7 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : (
           <table className="min-w-full">
             <thead><tr className="bg-slate-50 border-b border-slate-100">
@@ -571,11 +571,11 @@ function AgentsTab() {
                 <tr key={a.id} className="hover:bg-slate-50/80 transition-colors">
                   <td className="px-5 py-4 text-xs text-slate-400">{i + 1}</td>
                   <td className="px-5 py-4">
-                    <span className="font-black text-indigo-700 bg-indigo-50 px-3 py-1 rounded-lg tracking-widest text-sm border border-indigo-100">{a.code}</span>
+                    <span className="font-black text-blue-700 bg-blue-50 px-3 py-1 rounded-lg tracking-widest text-sm border border-blue-100">{a.code}</span>
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold">{a.name?.[0]?.toUpperCase()}</div>
+                      <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold">{a.name?.[0]?.toUpperCase()}</div>
                       <span className="text-sm font-semibold text-slate-800">{a.name}</span>
                     </div>
                   </td>
@@ -587,7 +587,7 @@ function AgentsTab() {
                     </button>
                   </td>
                   <td className="px-5 py-4">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-100 shadow-sm">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg border border-blue-100 shadow-sm">
                       {a.companies_count || 0} ta
                     </span>
                   </td>
@@ -711,24 +711,24 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
       {/* Header Stats */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-700 flex items-center justify-center shadow-lg shadow-indigo-200 shrink-0">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-200 shrink-0">
             <Ic d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" cls="w-5 h-5 text-white" />
           </div>
           <div>
             <h1 className="text-base font-black text-slate-800">Super Admin Panel</h1>
             <p className="text-xs text-slate-400">Tizim bo'yicha to'liq boshqaruv</p>
           </div>
-          <span className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-100 text-purple-700 text-xs font-bold rounded-full">
-            <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-pulse" />
+          <span className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 text-blue-700 text-xs font-bold rounded-full">
+            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
             Super Admin
           </span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {[
-            { label: 'Korxonalar', value: overview?.companies ?? '—', color: 'text-indigo-700 bg-indigo-50' },
+            { label: 'Korxonalar', value: overview?.companies ?? '—', color: 'text-blue-700 bg-blue-50' },
             { label: 'Filiallar', value: overview?.branches ?? '—', color: 'text-emerald-700 bg-emerald-50' },
             { label: 'Xodimlar', value: overview?.users ?? '—', color: 'text-blue-700 bg-blue-50' },
-            { label: 'Jami sotuv', value: overview ? `${Number(overview.total_revenue || 0).toLocaleString('uz-UZ')} s` : '—', color: 'text-purple-700 bg-purple-50' },
+            { label: 'Jami sotuv', value: overview ? `${Number(overview.total_revenue || 0).toLocaleString('uz-UZ')} s` : '—', color: 'text-blue-700 bg-blue-50' },
             {
               label: "Bugun tariflar",
               value: overview ? `${overview.today_subscriptions ?? 0} ta` : '—',
@@ -738,7 +738,7 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
             {
               label: "Bugun tushum",
               value: overview ? `${Number(overview.today_sub_revenue || 0).toLocaleString('uz-UZ')} s` : '—',
-              color: 'text-rose-700 bg-rose-50',
+              color: 'text-blue-700 bg-blue-50',
             },
           ].map(s => (
             <div key={s.label} className={`rounded-xl p-3 ${s.color} border border-white/60`}>
@@ -755,7 +755,7 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
           {tabs.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all
-                ${tab === t.id ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'text-slate-600 hover:bg-slate-100'}`}>
+                ${tab === t.id ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'text-slate-600 hover:bg-slate-100'}`}>
               <Ic d={t.icon} cls="w-3.5 h-3.5" />
               {t.label}
             </button>
@@ -784,14 +784,14 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
                     value={topUp.org_code}
                     onChange={e => { setTopUp(p => ({ ...p, org_code: e.target.value.toUpperCase() })); setSearchErr(''); }}
                     placeholder="Masalan: 12345678"
-                    className="border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono font-bold text-indigo-700 w-44 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                    className="border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono font-bold text-blue-700 w-44 focus:outline-none focus:ring-2 focus:ring-blue-300"
                     autoFocus
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={searchLoading || !topUp.org_code.trim()}
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-all disabled:opacity-60 flex items-center gap-2"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-all disabled:opacity-60 flex items-center gap-2"
                 >
                   {searchLoading
                     ? <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>Qidirilmoqda...</>
@@ -803,13 +803,13 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
               /* Step 2 — confirm & enter amount */
               <div className="space-y-4">
                 {/* Company confirmation card */}
-                <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-base shrink-0">
+                <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+                  <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-base shrink-0">
                     {foundCompany.name?.[0]?.toUpperCase()}
                   </div>
                   <div className="flex-1">
                     <div className="font-bold text-slate-800 text-sm">{foundCompany.name}</div>
-                    <div className="text-xs text-indigo-500 font-mono font-bold mt-0.5">Kod: {foundCompany.code}</div>
+                    <div className="text-xs text-blue-500 font-mono font-bold mt-0.5">Kod: {foundCompany.code}</div>
                   </div>
                   <button
                     onClick={() => { setFoundCompany(null); setTopUp(p => ({ ...p, amount: '' })); setTopUpMsg(null); }}
@@ -859,12 +859,12 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-700">
-                Korxonalar ro'yxati <span className="text-indigo-600 font-black">({companies.length})</span>
+                Korxonalar ro'yxati <span className="text-blue-600 font-black">({companies.length})</span>
               </h3>
               <button onClick={loadCompanies} className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-medium transition-all">{t('common.refresh')}</button>
             </div>
             {loading ? (
-              <div className="flex justify-center py-16"><div className="w-7 h-7 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div>
+              <div className="flex justify-center py-16"><div className="w-7 h-7 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
             ) : companies.length === 0 ? (
               <div className="py-16 text-center text-slate-400 text-sm">Korxonalar topilmadi</div>
             ) : (
@@ -879,19 +879,19 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
                 <tbody className="divide-y divide-slate-50">
                   {companies.map((c, i) => (
                     <tr key={c.id}
-                      className="hover:bg-indigo-50/40 cursor-pointer transition-colors"
+                      className="hover:bg-blue-50/40 cursor-pointer transition-colors"
                       onClick={() => setSelectedCompany(c)}>
                       <td className="px-5 py-3 text-xs text-slate-400">{i + 1}</td>
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm shrink-0">
+                          <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm shrink-0">
                             {c.name?.[0]?.toUpperCase()}
                           </div>
                           <span className="font-semibold text-slate-800 text-sm">{c.name}</span>
                         </div>
                       </td>
                       <td className="px-5 py-3">
-                        <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg text-xs border border-indigo-100 tracking-widest">
+                        <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg text-xs border border-blue-100 tracking-widest">
                           {c.code || '—'}
                         </span>
                       </td>
@@ -1211,7 +1211,7 @@ function BillingTab() {
             </div>
 
             <div className="bg-slate-50 rounded-xl p-3 mb-4 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-sm">
+              <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-black text-sm">
                 {actionModal.company.name?.[0]?.toUpperCase()}
               </div>
               <div>
@@ -1345,7 +1345,7 @@ function SettingsTab() {
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 max-w-2xl">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-200">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-md shadow-blue-200">
               <Ic d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" cls="w-5 h-5 text-white" />
             </div>
             <div>
@@ -1356,7 +1356,7 @@ function SettingsTab() {
           <button
             onClick={openEdit}
             disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-bold rounded-xl shadow-sm shadow-indigo-200 transition-all"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-bold rounded-xl shadow-sm shadow-blue-200 transition-all"
           >
             <Ic d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" cls="w-3.5 h-3.5" />
             Tahrirlash
@@ -1365,7 +1365,7 @@ function SettingsTab() {
 
         {loading ? (
           <div className="flex justify-center py-10">
-            <div className="w-7 h-7 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+            <div className="w-7 h-7 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
           <>
@@ -1424,14 +1424,14 @@ function SettingsTab() {
                         placeholder={f.placeholder}
                         maxLength={19}
                         inputMode="numeric"
-                        className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono tracking-widest"
+                        className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono tracking-widest"
                       />
                     ) : (
                       <input
                         value={draft[f.key] || ''}
                         onChange={e => setDraft(v => ({ ...v, [f.key]: e.target.value }))}
                         placeholder={f.placeholder}
-                        className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono"
+                        className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
                       />
                     )}
                   </div>
@@ -1447,7 +1447,7 @@ function SettingsTab() {
                 Bekor
               </button>
               <button onClick={handleSave} disabled={saving}
-                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 text-sm transition-all">
+                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-lg shadow-blue-200 text-sm transition-all">
                 {saving ? 'Saqlanmoqda...' : '💾 Saqlash'}
               </button>
             </div>
@@ -1507,28 +1507,28 @@ function TariffsTab() {
     load();
   };
 
-  const inp = "w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-300";
+  const inp = "w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-300";
 
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
           <h3 className="font-bold text-slate-800 flex items-center gap-2">
-            <span className="w-7 h-7 bg-indigo-100 rounded-lg flex items-center justify-center">
-              <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" cls="w-4 h-4 text-indigo-600" />
+            <span className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center">
+              <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" cls="w-4 h-4 text-blue-600" />
             </span>
             Tariflar
           </h3>
-          <button onClick={openNew} className="text-xs px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all flex items-center gap-1.5">
+          <button onClick={openNew} className="text-xs px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all flex items-center gap-1.5">
             <Ic d="M12 4v16m8-8H4" cls="w-3.5 h-3.5" /> Yangi tarif
           </button>
         </div>
         {loading ? (
-          <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div>
+          <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 p-5">
             {tariffs.map(tariff => (
-              <div key={tariff.id} className="border border-slate-200 rounded-2xl p-5 flex flex-col gap-3 hover:border-indigo-300 hover:shadow-md transition-all">
+              <div key={tariff.id} className="border border-slate-200 rounded-2xl p-5 flex flex-col gap-3 hover:border-blue-300 hover:shadow-md transition-all">
                 <div className="flex items-start justify-between">
                   <div>
                     <h4 className="font-black text-slate-800 text-base">{tariff.name}</h4>
@@ -1538,7 +1538,7 @@ function TariffsTab() {
                     {tariff.is_active ? 'Faol' : 'Nofaol'}
                   </span>
                 </div>
-                <div className="text-2xl font-black text-indigo-700">
+                <div className="text-2xl font-black text-blue-700">
                   {tariff.price_per_month === 0 ? 'Bepul' : `${fmtMoney(tariff.price_per_month)} s`}
                   {tariff.price_per_month > 0 && <span className="text-sm font-semibold text-slate-400">/oy</span>}
                 </div>
@@ -1547,7 +1547,7 @@ function TariffsTab() {
                   <div>👤 Max xodim: <span className="font-bold text-slate-700">{tariff.max_users >= 9999 ? 'Cheksiz' : tariff.max_users}</span></div>
                   <div>🏢 Max filial: <span className="font-bold text-slate-700">{tariff.max_branches >= 9999 ? 'Cheksiz' : tariff.max_branches}</span></div>
                   {tariff.bhm_percent != null && (
-                    <div>📊 BHM: <span className="font-bold text-indigo-600">{tariff.bhm_percent}% ({(tariff.bhm_percent / 100).toFixed(2)} BHM)</span></div>
+                    <div>📊 BHM: <span className="font-bold text-blue-600">{tariff.bhm_percent}% ({(tariff.bhm_percent / 100).toFixed(2)} BHM)</span></div>
                   )}
                 </div>
                 <div className="flex gap-2 mt-auto pt-2 border-t border-slate-100">
@@ -1608,7 +1608,7 @@ function TariffsTab() {
             </div>
             <div className="flex gap-2 mt-5">
               <button onClick={() => setShowForm(false)} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-sm transition-all">{t('common.cancel')}</button>
-              <button onClick={save} disabled={saving} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm shadow-lg shadow-indigo-200 transition-all disabled:opacity-50">
+              <button onClick={save} disabled={saving} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm shadow-lg shadow-blue-200 transition-all disabled:opacity-50">
                 {saving ? 'Saqlanmoqda...' : 'Saqlash'}
               </button>
             </div>

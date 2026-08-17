@@ -82,7 +82,7 @@ function TabBtn({ label, icon, active, onClick }) {
 return (
     <button onClick={onClick}
       className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
-        active ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+        active ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
       }`}>
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={icon} />
@@ -108,7 +108,7 @@ const presets = [
           <button key={p.label} onClick={() => { setDateFrom(p.from); setDateTo(p.to); }}
             className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
               dateFrom === p.from && dateTo === p.to
-                ? 'bg-indigo-100 text-indigo-700'
+                ? 'bg-blue-100 text-blue-700'
                 : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
             }`}>{p.label}</button>
         ))}
@@ -117,15 +117,15 @@ const presets = [
         <div>
           <label className="block text-xs font-medium text-slate-500 mb-1">{t('reports.date.from')}</label>
           <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-            className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
         <div>
           <label className="block text-xs font-medium text-slate-500 mb-1">{t('reports.date.to')}</label>
           <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-            className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
         <button onClick={onSearch} disabled={loading}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors">
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors">
           {loading ? t('reports.loading') : t('reports.search')}
         </button>
       </div>
@@ -149,7 +149,7 @@ return (
       )}
       {onPdf && (
         <button onClick={onPdf}
-          className="inline-flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-sm font-semibold rounded-xl transition-colors">
+          className="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-semibold rounded-xl transition-colors">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
           </svg>
@@ -172,7 +172,7 @@ return (
 // ─── Spinner ───────────────────────────────────────────────────────────────────
 const Spinner = () => (
   <div className="flex justify-center py-16">
-    <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+    <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
   </div>
 );
 
@@ -342,7 +342,7 @@ export default function Reports() {
           <select
             value={branchId}
             onChange={e => { setBranchId(e.target.value); }}
-            className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+            className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           >
             <option value="">🏢 Barcha filiallar</option>
             {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
@@ -412,7 +412,7 @@ export default function Reports() {
                     <tbody className="divide-y divide-slate-50">
                       {items.map(s => (
                         <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                          <td className="px-5 py-3.5 text-sm font-mono font-semibold text-indigo-600">{s.number}</td>
+                          <td className="px-5 py-3.5 text-sm font-mono font-semibold text-blue-600">{s.number}</td>
                           <td className="px-5 py-3.5 text-sm text-slate-700">{s.cashier_name}</td>
                           <td className="px-5 py-3.5 text-sm font-semibold text-slate-800">{fmtRowDebt(s.total_amount, s.currency_code)}</td>
                           <td className="px-5 py-3.5 text-sm text-slate-500">{s.discount_amount > 0 ? fmtRowDebt(s.discount_amount, s.currency_code) : '—'}</td>
@@ -476,7 +476,7 @@ export default function Reports() {
                     {profitData.map((r, i) => (
                       <tr key={r.product_id} className={i % 2 ? 'bg-slate-50/50 hover:bg-slate-100 transition-colors' : 'bg-white hover:bg-slate-50 transition-colors'}>
                         <td className="px-5 py-3.5 text-sm font-medium text-slate-800">{r.product_name}</td>
-                        <td className="px-5 py-3.5"><span className="text-xs px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-lg">{r.category_name}</span></td>
+                        <td className="px-5 py-3.5"><span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-lg">{r.category_name}</span></td>
                         <td className="px-5 py-3.5 text-sm text-slate-600">{fmt(r.qty_sold)}</td>
                         <td className="px-5 py-3.5 text-sm font-semibold text-slate-800">{fmtDebt(r.revenue)}</td>
                         <td className="px-5 py-3.5 text-sm text-slate-500">{fmtDebt(r.cost)}</td>
@@ -495,7 +495,7 @@ export default function Reports() {
                   </tbody>
                   {profitData.length > 0 && (
                     <tfoot>
-                      <tr className="bg-indigo-50 font-bold">
+                      <tr className="bg-blue-50 font-bold">
                         <td className="px-5 py-3 text-sm text-slate-700">{t('admin.dict.th_total') || 'JAMI'}</td>
                         <td />
                         <td className="px-5 py-3 text-sm">{fmt(profitData.reduce((a, r) => a + r.qty_sold, 0))}</td>
@@ -544,7 +544,7 @@ export default function Reports() {
                     {productSalesData.map((r, i) => (
                       <tr key={r.product_id} className={i % 2 ? 'bg-slate-50/50 hover:bg-slate-100 transition-colors' : 'bg-white hover:bg-slate-50 transition-colors'}>
                         <td className="px-5 py-3.5 text-sm font-medium text-slate-800">{r.product_name}</td>
-                        <td className="px-5 py-3.5 text-sm font-mono text-indigo-600">{r.sku}</td>
+                        <td className="px-5 py-3.5 text-sm font-mono text-blue-600">{r.sku}</td>
                         <td className="px-5 py-3.5 text-sm text-slate-600 font-bold">{fmt(r.total_qty)}</td>
                         <td className="px-5 py-3.5 text-sm font-semibold text-emerald-600">{fmtDebt(r.total_revenue)}</td>
                         <td className="px-5 py-3.5 text-sm font-semibold text-blue-600">{fmtDebt(r.total_profit)}</td>
@@ -554,7 +554,7 @@ export default function Reports() {
                   </tbody>
                   {productSalesData.length > 0 && (
                     <tfoot>
-                      <tr className="bg-indigo-50 font-bold">
+                      <tr className="bg-blue-50 font-bold">
                         <td className="px-5 py-3 text-sm text-slate-700">{t('admin.dict.th_total') || 'JAMI'}</td>
                         <td />
                         <td className="px-5 py-3 text-sm">{fmt(productSalesData.reduce((a, r) => a + r.total_qty, 0))}</td>
@@ -574,35 +574,35 @@ export default function Reports() {
           const OP_MAP = {
             // IN variants
             'IN_purchase_order':        { label: 'Kirim (Xarid)',          bg: 'bg-emerald-100', text: 'text-emerald-700' },
-            'IN_manual_receive':        { label: "Qo'lda kirim",           bg: 'bg-teal-100',    text: 'text-teal-700'   },
+            'IN_manual_receive':        { label: "Qo'lda kirim",           bg: 'bg-blue-100',    text: 'text-blue-700'   },
             'IN_return_from_customer':  { label: 'Qaytarma (Mijoz)',        bg: 'bg-blue-100',    text: 'text-blue-700'   },
             'IN_customer_return':       { label: 'Qaytarma (Mijoz)',        bg: 'bg-blue-100',    text: 'text-blue-700'   },
-            'IN_inventory_count':       { label: 'Inventarizatsiya (+)',    bg: 'bg-purple-100',  text: 'text-purple-700' },
-            'IN_stock_transfer':        { label: "Ko'chirma (Kirim)",       bg: 'bg-cyan-100',    text: 'text-cyan-700'   },
-            'IN_transfer':              { label: "Ko'chirma (Kirim)",       bg: 'bg-cyan-100',    text: 'text-cyan-700'   },
+            'IN_inventory_count':       { label: 'Inventarizatsiya (+)',    bg: 'bg-blue-100',  text: 'text-blue-700' },
+            'IN_stock_transfer':        { label: "Ko'chirma (Kirim)",       bg: 'bg-blue-100',    text: 'text-blue-700'   },
+            'IN_transfer':              { label: "Ko'chirma (Kirim)",       bg: 'bg-blue-100',    text: 'text-blue-700'   },
             'IN_':                      { label: 'Kirim',                   bg: 'bg-emerald-100', text: 'text-emerald-700' },
             // OUT variants
-            'OUT_sale':                 { label: 'Sotuv',                   bg: 'bg-indigo-100',  text: 'text-indigo-700' },
+            'OUT_sale':                 { label: 'Sotuv',                   bg: 'bg-blue-100',  text: 'text-blue-700' },
             'OUT_chiqim':               { label: 'Chiqim',                  bg: 'bg-orange-100',  text: 'text-orange-700' },
             'OUT_return_to_supplier':   { label: "Qaytarma (Ta'm.)",        bg: 'bg-amber-100',   text: 'text-amber-700'  },
-            'OUT_inventory_count':      { label: 'Inventarizatsiya (\u2212)', bg: 'bg-purple-100', text: 'text-purple-700' },
+            'OUT_inventory_count':      { label: 'Inventarizatsiya (\u2212)', bg: 'bg-blue-100', text: 'text-blue-700' },
             'OUT_stock_transfer':       { label: "Ko'chirma (Chiqim)",      bg: 'bg-slate-100',   text: 'text-slate-600'  },
             'OUT_transfer':             { label: "Ko'chirma (Chiqim)",      bg: 'bg-slate-100',   text: 'text-slate-600'  },
             'OUT_':                     { label: 'Chiqim',                  bg: 'bg-orange-100',  text: 'text-orange-700' },
             // ADJUST
             'ADJUST_adjustment':        { label: 'Tuzatish',               bg: 'bg-slate-100',   text: 'text-slate-700'  },
-            'ADJUST_inventory_count':   { label: 'Inventarizatsiya',        bg: 'bg-purple-100',  text: 'text-purple-700' },
+            'ADJUST_inventory_count':   { label: 'Inventarizatsiya',        bg: 'bg-blue-100',  text: 'text-blue-700' },
             'ADJUST_':                  { label: 'Tuzatish',               bg: 'bg-slate-100',   text: 'text-slate-700'  },
             // TRANSFER
-            'TRANSFER_IN_transfer':     { label: "Ko'chirma (Kirim)",       bg: 'bg-cyan-100',    text: 'text-cyan-700'   },
-            'TRANSFER_IN_stock_transfer':{ label: "Ko'chirma (Kirim)",      bg: 'bg-cyan-100',    text: 'text-cyan-700'   },
-            'TRANSFER_IN_':             { label: "Ko'chirma (Kirim)",       bg: 'bg-cyan-100',    text: 'text-cyan-700'   },
+            'TRANSFER_IN_transfer':     { label: "Ko'chirma (Kirim)",       bg: 'bg-blue-100',    text: 'text-blue-700'   },
+            'TRANSFER_IN_stock_transfer':{ label: "Ko'chirma (Kirim)",      bg: 'bg-blue-100',    text: 'text-blue-700'   },
+            'TRANSFER_IN_':             { label: "Ko'chirma (Kirim)",       bg: 'bg-blue-100',    text: 'text-blue-700'   },
             'TRANSFER_OUT_transfer':    { label: "Ko'chirma (Chiqim)",      bg: 'bg-slate-100',   text: 'text-slate-600'  },
             'TRANSFER_OUT_stock_transfer':{ label: "Ko'chirma (Chiqim)",    bg: 'bg-slate-100',   text: 'text-slate-600'  },
             'TRANSFER_OUT_':            { label: "Ko'chirma (Chiqim)",      bg: 'bg-slate-100',   text: 'text-slate-600'  },
             // RETURN
-            'RETURN_return':            { label: 'Qaytarma',                bg: 'bg-rose-100',    text: 'text-rose-700'   },
-            'RETURN_':                  { label: 'Qaytarma',                bg: 'bg-rose-100',    text: 'text-rose-700'   },
+            'RETURN_return':            { label: 'Qaytarma',                bg: 'bg-blue-100',    text: 'text-blue-700'   },
+            'RETURN_':                  { label: 'Qaytarma',                bg: 'bg-blue-100',    text: 'text-blue-700'   },
           };
           const getOp = (m) => {
             const key = `${m.type}_${m.reference_type || ''}`;
@@ -708,7 +708,7 @@ export default function Reports() {
                     <button key={p.l} onClick={() => { setMovDateFrom(p.f); setMovDateTo(p.t); }}
                       className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
                         movDateFrom === p.f && movDateTo === p.t
-                          ? 'bg-indigo-100 text-indigo-700' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                          ? 'bg-blue-100 text-blue-700' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
                       }`}>{p.l}</button>
                   ))}
                 </div>
@@ -716,28 +716,28 @@ export default function Reports() {
                   <div>
                     <label className="block text-xs font-medium text-slate-500 mb-1">Sana dan</label>
                     <input type="date" value={movDateFrom} onChange={e => setMovDateFrom(e.target.value)}
-                      className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-500 mb-1">Sana ga</label>
                     <input type="date" value={movDateTo} onChange={e => setMovDateTo(e.target.value)}
-                      className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-500 mb-1">Mahsulot</label>
                     <input value={movSearch} onChange={e => setMovSearch(e.target.value)}
                       placeholder="Nom yoki SKU..."
-                      className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-44" />
+                      className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-44" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-500 mb-1">Operatsiya turi</label>
                     <select value={movRefType} onChange={e => setMovRefType(e.target.value)}
-                      className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                      className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                       {REF_TYPES.map(r => <option key={r.v} value={r.v}>{r.l}</option>)}
                     </select>
                   </div>
                   <button onClick={load} disabled={loading}
-                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-colors">
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-colors">
                     {loading ? 'Yuklanmoqda...' : '🔍 Izlash'}
                   </button>
                 </div>
@@ -792,7 +792,7 @@ export default function Reports() {
                             </td>
                             <td className="px-4 py-3">
                               <div className="text-sm font-medium text-slate-800">{m.product_name}</div>
-                              {m.product_sku && <div className="text-xs text-indigo-500 font-mono">{m.product_sku}</div>}
+                              {m.product_sku && <div className="text-xs text-blue-500 font-mono">{m.product_sku}</div>}
                               {m.reason && (() => {
                                 // "(Dumba → Butun qo'y x1.0000)" formatdan sell mahsulot nomini ajratib olamiz
                                 const match = m.reason.match(/\(([^→\u2192]+)[→\u2192]/);
@@ -872,7 +872,7 @@ export default function Reports() {
                     { label: 'Vazvratlar (−)', value: -plData.returns, cls: 'text-orange-500', pctV: plData.revenue > 0 ? plData.returns / plData.gross_revenue * 100 : 0, bg: '' },
                     { label: 'Net daromad', value: plData.revenue, cls: 'font-semibold text-slate-800', pctV: 100, bg: 'bg-slate-50' },
                     { label: 'Tannarx/COGS (FIFO)', value: -plData.cogs, cls: 'text-red-500', pctV: plData.revenue > 0 ? plData.cogs / plData.revenue * 100 : 0, bg: '' },
-                    { label: 'Brutto foyda', value: plData.gross_profit, cls: 'font-bold text-indigo-600', pctV: plData.gross_margin_pct, bg: 'bg-indigo-50' },
+                    { label: 'Brutto foyda', value: plData.gross_profit, cls: 'font-bold text-blue-600', pctV: plData.gross_margin_pct, bg: 'bg-blue-50' },
                     { label: 'Xarajatlar (−)', value: -plData.expenses?.total, cls: 'text-red-500', pctV: plData.revenue > 0 ? plData.expenses?.total / plData.revenue * 100 : 0, bg: '' },
                     { label: 'Net foyda', value: plData.net_profit, cls: `font-bold ${plData.net_profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`, pctV: plData.net_margin_pct, bg: plData.net_profit >= 0 ? 'bg-emerald-50' : 'bg-red-50' },
                   ].map(row => (
@@ -999,9 +999,9 @@ export default function Reports() {
             {loading ? <Spinner /> : deadStockData ? (
               <>
                 <div className="grid grid-cols-3 gap-4 p-6 border-b border-slate-100">
-                  <div className="bg-rose-50 rounded-xl p-4">
-                    <div className="text-xs font-semibold text-rose-500 mb-1">Jami mahsulot</div>
-                    <div className="text-2xl font-bold text-rose-700">{deadStockData.total_items} ta</div>
+                  <div className="bg-blue-50 rounded-xl p-4">
+                    <div className="text-xs font-semibold text-blue-500 mb-1">Jami mahsulot</div>
+                    <div className="text-2xl font-bold text-blue-700">{deadStockData.total_items} ta</div>
                   </div>
                   <div className="bg-amber-50 rounded-xl p-4">
                     <div className="text-xs font-semibold text-amber-600 mb-1">Umumiy qiymat</div>
@@ -1025,10 +1025,10 @@ export default function Reports() {
                       {deadStockData.items.map((i) => (
                         <tr key={i.product_id} className="hover:bg-slate-50 transition-colors">
                           <td className="px-5 py-3.5 text-sm font-medium text-slate-800">{i.product_name}</td>
-                          <td className="px-5 py-3.5 text-sm font-mono text-indigo-600">{i.sku}</td>
+                          <td className="px-5 py-3.5 text-sm font-mono text-blue-600">{i.sku}</td>
                           <td className="px-5 py-3.5 text-sm text-slate-600">{i.quantity}</td>
                           <td className="px-5 py-3.5 text-sm text-slate-500">{fmtRowDebt(i.cost_price, i.currency)}</td>
-                          <td className="px-5 py-3.5 text-sm font-semibold text-rose-600">{fmtRowDebt(i.value, i.currency)}</td>
+                          <td className="px-5 py-3.5 text-sm font-semibold text-blue-600">{fmtRowDebt(i.value, i.currency)}</td>
                         </tr>
                       ))}
                       {deadStockData.items.length === 0 && (
@@ -1087,7 +1087,7 @@ export default function Reports() {
                     <tbody className="divide-y divide-slate-50">
                       {expenseData.items.map((e, i) => (
                         <tr key={e.id} className={i % 2 ? 'bg-slate-50/50' : 'bg-white'}>
-                          <td className="px-5 py-3.5"><span className="text-xs px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-lg">{e.category}</span></td>
+                          <td className="px-5 py-3.5"><span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-lg">{e.category}</span></td>
                           <td className="px-5 py-3.5 text-sm font-semibold text-red-500">{fmtS(e.amount)}</td>
                           <td className="px-5 py-3.5 text-sm text-slate-500">{e.description || '—'}</td>
                           <td className="px-5 py-3.5 text-sm text-slate-400">{new Date(e.created_at).toLocaleDateString('uz-UZ')}</td>
@@ -1141,7 +1141,7 @@ export default function Reports() {
                         <td className="px-5 py-3.5 text-sm font-medium text-slate-800">{r.supplier_name}</td>
                         <td className="px-5 py-3.5 text-sm text-slate-500">{r.phone || '—'}</td>
                         <td className="px-5 py-3.5 text-sm text-slate-600">{r.po_count} ta</td>
-                        <td className="px-5 py-3.5 text-sm font-bold text-indigo-600">{fmtS(r.total_amount)}</td>
+                        <td className="px-5 py-3.5 text-sm font-bold text-blue-600">{fmtS(r.total_amount)}</td>
                       </tr>
                     ))}
                     {purchasesData.length === 0 && <tr><td colSpan={4} className="px-6 py-12 text-center text-sm text-slate-400">{t('common.noData')}</td></tr>}
@@ -1329,13 +1329,13 @@ export default function Reports() {
                         </td>
                         <td className="px-5 py-3.5">
                           <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                            r.xyz === 'X' ? 'bg-indigo-100 text-indigo-700' : r.xyz === 'Y' ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-500'
+                            r.xyz === 'X' ? 'bg-blue-100 text-blue-700' : r.xyz === 'Y' ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-500'
                           }`}>{r.xyz}</span>
                         </td>
                         <td className="px-5 py-3.5">
                           <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${
                             r.group === 'AX' ? 'bg-emerald-100 text-emerald-700' :
-                            r.group === 'AY' || r.group === 'BX' ? 'bg-indigo-100 text-indigo-700' :
+                            r.group === 'AY' || r.group === 'BX' ? 'bg-blue-100 text-blue-700' :
                             r.group.startsWith('C') || r.group.endsWith('Z') ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-700'
                           }`}>{r.group}</span>
                         </td>
@@ -1379,7 +1379,7 @@ export default function Reports() {
             {!loading && batchData.length > 0 && (
               <div className="grid grid-cols-4 gap-4 px-6 py-4 border-b border-slate-100 bg-slate-50">
                 {[
-                  { label: 'Jami partiyalar', val: batchData.length + ' ta', cls: 'text-indigo-600' },
+                  { label: 'Jami partiyalar', val: batchData.length + ' ta', cls: 'text-blue-600' },
                   { label: 'Jami sotildi', val: fmt(batchData.reduce((a, r) => a + r.sold_qty, 0)) + ' dona', cls: 'text-slate-700' },
                   { label: 'Jami daromad', val: fmtS(batchData.reduce((a, r) => a + r.revenue, 0)), cls: 'text-emerald-600' },
                   { label: 'Jami foyda', val: fmtS(batchData.reduce((a, r) => a + r.profit, 0)), cls: 'text-emerald-700' },
@@ -1408,7 +1408,7 @@ export default function Reports() {
                         <td className="px-5 py-3.5">
                           <span className="text-xs font-mono px-2 py-0.5 bg-slate-100 text-slate-600 rounded">{r.lot_number || '—'}</span>
                         </td>
-                        <td className="px-5 py-3.5 text-sm font-bold text-indigo-700">{fmtS(r.purchase_price)}</td>
+                        <td className="px-5 py-3.5 text-sm font-bold text-blue-700">{fmtS(r.purchase_price)}</td>
                         <td className="px-5 py-3.5 text-sm text-slate-500">{fmt(r.initial_quantity)}</td>
                         <td className="px-5 py-3.5">
                           <span className={`text-sm font-bold ${r.remaining_quantity > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>

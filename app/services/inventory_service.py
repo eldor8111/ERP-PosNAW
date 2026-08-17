@@ -14,17 +14,46 @@ def _deduct_batches_fifo(
     quantity: Decimal,
     warehouse_id: Optional[int],
     company_id: int,
+    variant_id: Optional[int] = None,
 ) -> None:
-    """FIFO tartibida Batch qoldiqlarini kamaytirish (chiqim/boshqa chiqim turlari uchun)."""
+    """FEFO yoki FIFO tartibida Batch qoldiqlarini kamaytirish (chiqim/boshqa chiqim turlari uchun)."""
     from app.models.batch import Batch
+    from datetime import date
+    from sqlalchemy import nulls_last
+    
+    product = db.query(Product).filter(Product.id == product_id).first()
+    is_perishable = False
+    if product and product.category:
+        is_perishable = product.category.is_perishable
+
     q = db.query(Batch).filter(
         Batch.product_id == product_id,
         Batch.quantity > 0,
         Batch.company_id == company_id,
     )
+    if variant_id is not None:
+        q = q.filter(Batch.variant_id == variant_id)
+    else:
+        q = q.filter(Batch.variant_id.is_(None))
     if warehouse_id is not None:
         q = q.filter(Batch.warehouse_id == warehouse_id)
-    batches = q.order_by(Batch.created_at.asc(), Batch.id.asc()).with_for_update().all()
+        
+    if is_perishable:
+        today_date = date.today()
+        q = q.filter((Batch.expiry_date == None) | (Batch.expiry_date >= today_date))
+        q = q.order_by(nulls_last(Batch.expiry_date.asc()), Batch.id.asc())
+    else:
+        q = q.order_by(Batch.created_at.asc(), Batch.id.asc())
+        
+    batches = q.with_for_update().all()
+    
+    total_available = sum(b.quantity for b in batches)
+    if total_available < quantity:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Sotuv uchun yetarli yaroqli mahsulot (yoki yaroqlilik muddati o'tmagan qoldiq) yo'q. Hozirgi imkoniyat: {total_available}"
+        )
+        
     remaining = quantity
     for batch in batches:
         if remaining <= 0:
@@ -34,14 +63,18 @@ def _deduct_batches_fifo(
         remaining -= take
 
 
-def get_or_create_stock(db: Session, product_id: int, warehouse_id: Optional[int] = None) -> StockLevel:
+def get_or_create_stock(db: Session, product_id: int, warehouse_id: Optional[int] = None, variant_id: Optional[int] = None) -> StockLevel:
     q = db.query(StockLevel).filter(StockLevel.product_id == product_id)
     if warehouse_id is not None:
         q = q.filter(StockLevel.warehouse_id == warehouse_id)
+    if variant_id is not None:
+        q = q.filter(StockLevel.variant_id == variant_id)
+    else:
+        q = q.filter(StockLevel.variant_id.is_(None))
     # with_for_update() — qatorni DB darajasida bloklaydi (race condition oldini oladi)
     stock = q.with_for_update().first()
     if not stock:
-        stock = StockLevel(product_id=product_id, warehouse_id=warehouse_id, quantity=Decimal("0"))
+        stock = StockLevel(product_id=product_id, variant_id=variant_id, warehouse_id=warehouse_id, quantity=Decimal("0"))
         db.add(stock)
         db.flush()
     return stock
@@ -58,6 +91,8 @@ def receive_stock(
     warehouse_id: Optional[int] = None,
     purchase_price: Optional[Decimal] = None,
     company_id: Optional[int] = None,
+    variant_id: Optional[int] = None,
+    expiry_date: Optional[date] = None,
 ) -> StockMovement:
     product = db.query(Product).filter(Product.id == product_id, Product.is_deleted == False).first()
     if not product:
@@ -65,7 +100,7 @@ def receive_stock(
     if getattr(product, "product_type", "stock") == "sell":
         raise HTTPException(status_code=400, detail=f"Virtual mahsulotga ({product.name}) to'g'ridan-to'g'ri kirim qilish mumkin emas. Asosiy mahsulotiga kirim qiling.")
 
-    stock = get_or_create_stock(db, product_id, warehouse_id)
+    stock = get_or_create_stock(db, product_id, warehouse_id, variant_id)
     qty_before = stock.quantity
     stock.quantity += quantity
 
@@ -73,6 +108,7 @@ def receive_stock(
 
     movement = StockMovement(
         product_id=product_id,
+        variant_id=variant_id,
         type=MovementType.IN,
         qty_before=qty_before,
         qty_after=stock.quantity,
@@ -91,12 +127,14 @@ def receive_stock(
         lot = f"{reference_type}-{reference_id}" if reference_type and reference_id else "manual"
         batch = Batch(
             product_id=product_id,
+            variant_id=variant_id,
             warehouse_id=warehouse_id,
             lot_number=lot,
             initial_quantity=quantity,
             quantity=quantity,
             purchase_price=purchase_price,
             company_id=company_id,
+            expiry_date=expiry_date,
         )
         db.add(batch)
 
@@ -113,13 +151,14 @@ def deduct_stock(
     reference_id: Optional[int] = None,
     warehouse_id: Optional[int] = None,
     allow_negative: bool = False,
+    variant_id: Optional[int] = None,
 ):
     """
     TZ talabi: minus qoldiqqa yo'l qo'ymaslik — agar qoldiq yetarli bo'lmasa BLOKLASH.
     Agar warehouse_id ko'rsatilmagan bo'lsa, barcha omborlardagi haqiqiy qoldiqdan chegiradi.
     """
     if warehouse_id is not None:
-        stock = get_or_create_stock(db, product_id, warehouse_id)
+        stock = get_or_create_stock(db, product_id, warehouse_id, variant_id)
 
         if not allow_negative and stock.quantity < quantity:
             product = db.query(Product).filter(Product.id == product_id).first()
@@ -135,6 +174,7 @@ def deduct_stock(
 
         movement = StockMovement(
             product_id=product_id,
+            variant_id=variant_id,
             type=MovementType.OUT,
             qty_before=qty_before,
             qty_after=stock.quantity,
@@ -148,10 +188,16 @@ def deduct_stock(
         db.flush()
         return movement
     else:
-        stocks = db.query(StockLevel).filter(
+        q_stocks = db.query(StockLevel).filter(
             StockLevel.product_id == product_id,
             StockLevel.quantity > 0
-        ).order_by(StockLevel.quantity.desc()).with_for_update().all()
+        )
+        if variant_id is not None:
+            q_stocks = q_stocks.filter(StockLevel.variant_id == variant_id)
+        else:
+            q_stocks = q_stocks.filter(StockLevel.variant_id.is_(None))
+            
+        stocks = q_stocks.order_by(StockLevel.quantity.desc()).with_for_update().all()
 
         total_available = sum((s.quantity for s in stocks), Decimal("0"))
         if not allow_negative and total_available < quantity:
@@ -171,7 +217,7 @@ def deduct_stock(
         if total_available < quantity and allow_negative:
             # Agar umuman stock yo'q bo'lsa, bitta dummy stock yaratamiz default warehouse bilan (yo'q bo'lsa warehouse_id=None)
             if not stocks:
-                stock = get_or_create_stock(db, product_id, None)
+                stock = get_or_create_stock(db, product_id, None, variant_id)
                 stocks = [stock]
             
             diff = quantity - total_available
@@ -183,6 +229,7 @@ def deduct_stock(
             
             movement = StockMovement(
                 product_id=product_id,
+                variant_id=variant_id,
                 type=MovementType.OUT,
                 qty_before=qty_before_diff,
                 qty_after=stocks[0].quantity,
@@ -209,6 +256,7 @@ def deduct_stock(
 
             movement = StockMovement(
                 product_id=product_id,
+                variant_id=variant_id,
                 type=MovementType.OUT,
                 qty_before=qty_before,
                 qty_after=stock.quantity,
@@ -232,6 +280,7 @@ def adjust_stock(
     user_id: int,
     reason: str,
     warehouse_id: Optional[int] = None,
+    variant_id: Optional[int] = None,
 ) -> StockMovement:
     from app.models.product import Product
     from fastapi import HTTPException
@@ -240,13 +289,14 @@ def adjust_stock(
     if p and p.product_type == 'sell':
         raise HTTPException(status_code=400, detail="Tarkibiy (Kalkulyatsiya) mahsulot qoldig'ini o'zgartirib bo'lmaydi")
 
-    stock = get_or_create_stock(db, product_id, warehouse_id)
+    stock = get_or_create_stock(db, product_id, warehouse_id, variant_id)
     qty_before = stock.quantity
     diff = new_quantity - qty_before
     stock.quantity = new_quantity
 
     movement = StockMovement(
         product_id=product_id,
+        variant_id=variant_id,
         type=MovementType.ADJUST,
         qty_before=qty_before,
         qty_after=new_quantity,
@@ -298,10 +348,11 @@ def create_chiqim_batch(
                     reference_type="chiqim",
                     reference_id=ref_id,
                     allow_negative=True,
-                    warehouse_id=warehouse_id
+                    warehouse_id=warehouse_id,
+                    variant_id=getattr(item, 'variant_id', None)
                 )
                 if company_id is not None and qty_needed > 0:
-                    _deduct_batches_fifo(db, conv.source_product_id, qty_needed, None, company_id)
+                    _deduct_batches_fifo(db, conv.source_product_id, qty_needed, None, company_id, variant_id=getattr(item, 'variant_id', None))
         else:
             # Oddiy mahsulot
             deduct_stock(
@@ -313,10 +364,11 @@ def create_chiqim_batch(
                 reference_type="chiqim",
                 reference_id=ref_id,
                 allow_negative=True,
-                warehouse_id=warehouse_id
+                warehouse_id=warehouse_id,
+                variant_id=getattr(item, 'variant_id', None)
             )
             if company_id is not None and item.quantity > 0:
-                _deduct_batches_fifo(db, item.product_id, item.quantity, None, company_id)
+                _deduct_batches_fifo(db, item.product_id, item.quantity, None, company_id, variant_id=getattr(item, 'variant_id', None))
 
     db.flush()
     return ref_id
@@ -352,22 +404,31 @@ def delete_chiqim_batch(db: Session, reference_id: int, user_id: int, company_id
                 reason=f"Chiqim bekor qilindi (ID: {reference_id})",
                 reference_type="chiqim_revert",
                 reference_id=reference_id,
-                warehouse_id=wh_id
+                warehouse_id=wh_id,
+                variant_id=mov.variant_id
             )
 
             # FIFO: bekor qilingan chiqimni so'nggi Batch'ga qaytarish
             if company_id is not None:
                 from app.models.batch import Batch
-                last_batch = db.query(Batch).filter(
+                q_last_batch = db.query(Batch).filter(
                     Batch.product_id == product_id,
                     Batch.company_id == company_id,
-                ).order_by(Batch.created_at.desc(), Batch.id.desc()).first()
+                )
+                if mov.variant_id is not None:
+                    q_last_batch = q_last_batch.filter(Batch.variant_id == mov.variant_id)
+                else:
+                    q_last_batch = q_last_batch.filter(Batch.variant_id.is_(None))
+                    
+                last_batch = q_last_batch.order_by(Batch.created_at.desc(), Batch.id.desc()).first()
+                
                 if last_batch:
                     last_batch.quantity += total_qty
                 else:
                     product_obj = db.query(Product).filter(Product.id == product_id).first()
                     db.add(Batch(
                         product_id=product_id,
+                        variant_id=mov.variant_id,
                         warehouse_id=wh_id,
                         lot_number="chiqim-revert",
                         initial_quantity=total_qty,

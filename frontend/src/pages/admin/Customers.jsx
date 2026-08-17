@@ -10,7 +10,7 @@ import toast from 'react-hot-toast';
 import { ChevronDown, CreditCard, Users, ListOrdered, ChevronsUpDown, CheckIcon, AlertTriangle, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, EllipsisVertical, History, Star, Banknote, Layers, CircleCheck, Plus, Minus } from 'lucide-react';
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
 
-const getEmptyForm = () => ({ name: '', phone: '', debt_limit: '', loyalty_points: 0, card_number: '', cashback_percent: 0, debts: [{ amount: '', currency: 'UZS' }] });
+const getEmptyForm = () => ({ name: '', phone: '', debt_limit: '', loyalty_points: 0, card_number: '', cashback_percent: 0, price_type: 'retail', debts: [{ amount: '', currency: 'UZS' }] });
 const emptyForm = getEmptyForm();
 
 const TIERS = {
@@ -31,7 +31,7 @@ const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 
 const Avatar = ({ name, size = 'sm' }) => {
   const sizes = { sm: 'w-8 h-8 text-sm', lg: 'w-12 h-12 text-lg' };
-  const colors = ['bg-indigo-100 text-indigo-600', 'bg-emerald-100 text-emerald-600', 'bg-violet-100 text-violet-600', 'bg-rose-100 text-rose-600', 'bg-amber-100 text-amber-600'];
+  const colors = ['bg-blue-100 text-blue-600', 'bg-emerald-100 text-emerald-600', 'bg-violet-100 text-violet-600', 'bg-blue-100 text-blue-600', 'bg-amber-100 text-amber-600'];
   const color = colors[(name?.charCodeAt(0) || 0) % colors.length];
   return (
     <div className={`${sizes[size]} ${color} rounded-full flex items-center justify-center font-bold shrink-0`}>
@@ -40,7 +40,7 @@ const Avatar = ({ name, size = 'sm' }) => {
   );
 };
 
-const inputCls = 'w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white';
+const inputCls = 'w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white';
 
 
 function CustSearch({ customers, value, onChange, onAfterSelect }) {
@@ -53,14 +53,14 @@ function CustSearch({ customers, value, onChange, onAfterSelect }) {
   const select = (c) => { onChange(c ? c.id : ''); setQ(''); setOpen(false); if (c) onAfterSelect?.(); };
   return (
     <div className="relative" ref={ref}>
-      <div className="flex items-center border border-slate-200 rounded-lg bg-white overflow-hidden focus-within:ring-2 focus-within:ring-indigo-400">
+      <div className="flex items-center border border-slate-200 rounded-lg bg-white overflow-hidden focus-within:ring-2 focus-within:ring-blue-400">
         <input value={open ? q : (selected ? selected.name : '')} onChange={e => { setQ(e.target.value); setOpen(true); if (!e.target.value) onChange(''); }} onFocus={() => setOpen(true)} placeholder="Mijoz: ism yoki telefon..." className="flex-1 px-3 py-1.5 text-sm outline-none bg-transparent min-w-0" />
         {selected && <button onClick={() => select(null)} className="px-2 text-slate-400 hover:text-red-400 text-lg leading-none">×</button>}
       </div>
       {open && (
         <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 overflow-hidden max-h-64 overflow-y-auto">
           {filtered.length === 0 ? <div className="px-4 py-3 text-sm text-slate-400">Topilmadi</div> : filtered.map(c => (
-            <button key={c.id} onMouseDown={() => select(c)} className="w-full text-left px-4 py-2.5 hover:bg-indigo-50 border-b border-slate-50 last:border-0 flex items-center justify-between">
+            <button key={c.id} onMouseDown={() => select(c)} className="w-full text-left px-4 py-2.5 hover:bg-blue-50 border-b border-slate-50 last:border-0 flex items-center justify-between">
               <div><div className="text-sm font-medium text-slate-800">{c.name}</div>{c.phone && <div className="text-xs text-slate-400">{c.phone}</div>}</div>
               {hasAnyDebt(c) && (
                 <span className="text-xs text-red-500 font-medium ml-2">
@@ -117,7 +117,7 @@ function RowMenu({ onEdit, onDelete, onPay, onPoints, onHistory, hasDebt }) {
       <button
         ref={btnRef}
         onClick={openMenu}
-        className="w-8 lg:w-10 cursor-pointer h-8 lg:h-10 flex items-center justify-center rounded-md lg:rounded-xl text-indigo-600 hover:text-indigo-800 bg-indigo-50 transition-colors border border-indigo-100"
+        className="w-8 lg:w-10 cursor-pointer h-8 lg:h-10 flex items-center justify-center rounded-md lg:rounded-xl text-blue-600 hover:text-blue-800 bg-blue-50 transition-colors border border-blue-100"
         title={t('common.actions')}>
         <EllipsisVertical className="w-4 h-4 lg:w-5 lg:h-5" />
       </button>
@@ -147,7 +147,7 @@ function RowMenu({ onEdit, onDelete, onPay, onPoints, onHistory, hasDebt }) {
           <div className="mx-3 my-1 border-t border-slate-100" />
           <button onClick={() => { onEdit(); setOpen(false); }}
             className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
-            <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
             {t('common.edit')}
@@ -432,6 +432,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
       loyalty_points: c.loyalty_points || 0,
       card_number: c.card_number || '',
       cashback_percent: c.cashback_percent || 0,
+      price_type: c.price_type || 'sale',
       debts
     });
     setSelected(c); setError(''); setModal('edit');
@@ -485,7 +486,8 @@ export function SotuvMijozlar({ stats, reloadStats }) {
         debt_limit: form.debt_limit ? Number(form.debt_limit) : 0,
         loyalty_points: form.loyalty_points ? Number(form.loyalty_points) : 0,
         card_number: form.card_number || null,
-        cashback_percent: form.cashback_percent ? Number(form.cashback_percent) : 0
+        cashback_percent: form.cashback_percent ? Number(form.cashback_percent) : 0,
+        price_type: form.price_type || 'retail',
       };
       if (modal === 'add') await api.post('/customers', payload);
       else await api.put(`/customers/${selected.id}`, payload);
@@ -639,7 +641,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
           </button>
           <button
             onClick={openImport}
-            className="inline-flex items-center leading-none gap-1 xl:gap-2 px-2.5 xl:px-4 py-1.5 xl:py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs xl:text-sm font-semibold rounded-md xl:rounded-xl transition-colors border border-indigo-200"
+            className="inline-flex items-center leading-none gap-1 xl:gap-2 px-2.5 xl:px-4 py-1.5 xl:py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs xl:text-sm font-semibold rounded-md xl:rounded-xl transition-colors border border-blue-200"
           >
             <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -648,7 +650,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
           </button>
           <button
             onClick={openAdd}
-            className="inline-flex items-center leading-none gap-1 xl:gap-2 px-2.5 xl:px-4 py-1.5 xl:py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs xl:text-sm font-semibold rounded-md xl:rounded-xl shadow-sm transition-colors"
+            className="inline-flex items-center leading-none gap-1 xl:gap-2 px-2.5 xl:px-4 py-1.5 xl:py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs xl:text-sm font-semibold rounded-md xl:rounded-xl shadow-sm transition-colors"
           >
             <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
@@ -665,7 +667,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
         }}
         className='fixed bottom-5 group -right-12 flex justify-left items-center z-30 hover:-right-5 transition-all w-18 h-11 text-white'
       >
-        <div className='flex bg-indigo-600 items-center pl-0 group-hover:pl-2.5 transition-all w-11 h-11 rounded-lg shadow-md cursor-pointer'>
+        <div className='flex bg-blue-600 items-center pl-0 group-hover:pl-2.5 transition-all w-11 h-11 rounded-lg shadow-md cursor-pointer'>
           <ChevronDown className='size-6 rotate-90 group-hover:rotate-0 transition-all' />
         </div>
       </div>
@@ -673,12 +675,12 @@ export function SotuvMijozlar({ stats, reloadStats }) {
       {/* Stats */}
       <div className="grid sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-lg lg:rounded-2xl shadow-sm border border-slate-100 p-2.25 lg:p-3 xl:p-5 flex items-center gap-4">
-          <div className="w-10 h-10 xl:w-12 xl:h-12 rounded-lg lg:rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
-            <Users className="size-5 xl:size-6 text-indigo-600" />
+          <div className="w-10 h-10 xl:w-12 xl:h-12 rounded-lg lg:rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+            <Users className="size-5 xl:size-6 text-blue-600" />
           </div>
           <div className='flex flex-col gap-1'>
             <div className="text-[10px] lg:text-xs leading-none font-semibold text-slate-400 uppercase tracking-wider">{t('customer.totalCustomers')}</div>
-            <div className="text-[16px] leading-none lg:text-xl font-bold text-indigo-600 mt-0.5">{(stats?.total_customers || 0).toLocaleString()}</div>
+            <div className="text-[16px] leading-none lg:text-xl font-bold text-blue-600 mt-0.5">{(stats?.total_customers || 0).toLocaleString()}</div>
           </div>
         </div>
         <div className="bg-white rounded-lg lg:rounded-2xl shadow-sm border border-slate-100 p-2.25 lg:p-3 xl:p-5 flex items-center gap-4">
@@ -729,7 +731,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
             setSortOrder(val.sort_order);
           }}>
             <div className="relative">
-              <ListboxButton className="w-full cursor-pointer flex items-center px-3 py-2 xl:px-4 xl:py-3 justify-between rounded-xl border border-slate-200 text-sm xl:text-base bg-white text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm text-left">
+              <ListboxButton className="w-full cursor-pointer flex items-center px-3 py-2 xl:px-4 xl:py-3 justify-between rounded-xl border border-slate-200 text-sm xl:text-base bg-white text-slate-800 outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm text-left">
                 <span className="flex items-center gap-2">
                   <ListOrdered className="size-4 xl:size-5 shrink-0 text-slate-400" />
                   <span className="block truncate">
@@ -740,10 +742,10 @@ export function SotuvMijozlar({ stats, reloadStats }) {
               </ListboxButton>
               <ListboxOptions transition className="absolute z-30 mt-2 max-h-72 w-full overflow-auto rounded-xl bg-white border border-slate-100 transition duration-100 ease-in data-[closed]:opacity-0 shadow-xl py-1">
                 {sortOptions.map((opt, idx) => (
-                  <ListboxOption key={idx} value={opt} className="group relative py-2 px-3 sm:px-4 select-none cursor-pointer text-slate-700 data-[focus]:bg-indigo-50 data-[focus]:text-indigo-700 outline-none">
+                  <ListboxOption key={idx} value={opt} className="group relative py-2 px-3 sm:px-4 select-none cursor-pointer text-slate-700 data-[focus]:bg-blue-50 data-[focus]:text-blue-700 outline-none">
                     <div className="flex items-center gap-2 sm:gap-3">
-                      <CircleCheck className={`size-4 xl:size-5 shrink-0 ${currentSort.label === opt.label ? 'text-indigo-600' : 'text-slate-300'}`} />
-                      <span className={`text-xs sm:text-sm truncate ${currentSort.label === opt.label ? 'font-bold text-indigo-700' : 'font-normal'}`}>
+                      <CircleCheck className={`size-4 xl:size-5 shrink-0 ${currentSort.label === opt.label ? 'text-blue-600' : 'text-slate-300'}`} />
+                      <span className={`text-xs sm:text-sm truncate ${currentSort.label === opt.label ? 'font-bold text-blue-700' : 'font-normal'}`}>
                         {opt.label}
                       </span>
                     </div>
@@ -756,7 +758,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
 
         {/* Debt Filter */}
         <div className="w-full sm:w-auto min-w-[300px] flex-1 sm:flex-none">
-          <div className="flex items-center px-3 py-2 xl:px-4 xl:py-3 rounded-xl border border-slate-200 bg-white shadow-sm focus-within:ring-2 focus-within:ring-indigo-500 transition-all">
+          <div className="flex items-center px-3 py-2 xl:px-4 xl:py-3 rounded-xl border border-slate-200 bg-white shadow-sm focus-within:ring-2 focus-within:ring-blue-500 transition-all">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <Banknote className="size-4 xl:size-5 shrink-0 text-slate-400" />
               <input
@@ -780,10 +782,10 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                   </ListboxButton>
                   <ListboxOptions transition className="absolute z-30 mt-3 max-h-72 w-56 -right-3 xl:-right-4 overflow-auto rounded-xl bg-white border border-slate-100 transition duration-100 ease-in data-[closed]:opacity-0 shadow-xl py-1">
                     {filterOptions.map((opt) => (
-                      <ListboxOption key={opt.key} value={opt} className="group relative py-2.5 px-4 select-none cursor-pointer text-slate-700 data-[focus]:bg-indigo-50 data-[focus]:text-indigo-700 outline-none">
+                      <ListboxOption key={opt.key} value={opt} className="group relative py-2.5 px-4 select-none cursor-pointer text-slate-700 data-[focus]:bg-blue-50 data-[focus]:text-blue-700 outline-none">
                         <div className="flex items-center gap-3">
-                          <CircleCheck className={`size-4 shrink-0 ${filterType === opt.key ? 'text-indigo-600' : 'text-slate-200'}`} />
-                          <span className={`text-xs sm:text-sm truncate ${filterType === opt.key ? 'font-bold text-indigo-700' : 'font-normal'}`}>
+                          <CircleCheck className={`size-4 shrink-0 ${filterType === opt.key ? 'text-blue-600' : 'text-slate-200'}`} />
+                          <span className={`text-xs sm:text-sm truncate ${filterType === opt.key ? 'font-bold text-blue-700' : 'font-normal'}`}>
                             {opt.label}
                           </span>
                         </div>
@@ -820,7 +822,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                         className="flex items-center gap-3 hover:opacity-75 transition-opacity text-left"
                       >
                         <Avatar name={c.name} />
-                        <span className="text-xs cursor-pointer md:text-sm font-medium text-indigo-700 hover:underline">{c.name}</span>
+                        <span className="text-xs cursor-pointer md:text-sm font-medium text-blue-700 hover:underline">{c.name}</span>
                       </button>
                     </td>
                     <td className="px-6 py-4 text-xs md:text-sm text-slate-500">{c.phone || '—'}</td>
@@ -851,7 +853,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                           {fmt(c.bonus_balance || 0)} so'm
                         </span>
                         {(c.cashback_percent > 0) && (
-                          <span className={`text-[10px] whitespace-nowrap md:text-xs font-semibold px-2 py-0.5 rounded-full w-fit bg-indigo-100 text-indigo-700`}>
+                          <span className={`text-[10px] whitespace-nowrap md:text-xs font-semibold px-2 py-0.5 rounded-full w-fit bg-blue-100 text-blue-700`}>
                             {Number(c.cashback_percent)}% keshbek
                           </span>
                         )}
@@ -934,7 +936,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                   }}
                 >
                   <div className="relative min-w-[90px] sm:min-w-[120px]">
-                    <ListboxButton className="w-full cursor-pointer flex items-center py-1 px-2 xl:px-3 xl:py-1.5 justify-between rounded-lg border border-slate-200 text-[13px] xl:text-[14px] bg-white text-slate-900 outline-none hover:border-indigo-400 focus:border-indigo-500 transition-colors shadow-sm text-left">
+                    <ListboxButton className="w-full cursor-pointer flex items-center py-1 px-2 xl:px-3 xl:py-1.5 justify-between rounded-lg border border-slate-200 text-[13px] xl:text-[14px] bg-white text-slate-900 outline-none hover:border-blue-400 focus:border-blue-500 transition-colors shadow-sm text-left">
                       <span className="flex items-center gap-2">
                         <ListOrdered className="size-4 shrink-0 text-slate-400" />
                         <span>{limit} {t('common.item')}</span>
@@ -946,9 +948,9 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                       className="z-50 min-w-[120px] mb-1 overflow-auto rounded-xl bg-white border border-slate-200 p-1 shadow-2xl focus:outline-none [--anchor-gap:4px]"
                     >
                       {[5, 10, 20, 50, 100, 500].map((n) => (
-                        <ListboxOption key={n} value={n} className="group flex cursor-pointer items-center gap-2 rounded-lg py-2 px-3 select-none data-[focus]:bg-indigo-50">
-                          <CheckIcon className="size-4 text-indigo-600 group-not-data-[selected]:invisible" />
-                          <div className="text-[13px] font-medium text-slate-700 group-data-[selected]:text-indigo-700">{n} {t('common.item')}</div>
+                        <ListboxOption key={n} value={n} className="group flex cursor-pointer items-center gap-2 rounded-lg py-2 px-3 select-none data-[focus]:bg-blue-50">
+                          <CheckIcon className="size-4 text-blue-600 group-not-data-[selected]:invisible" />
+                          <div className="text-[13px] font-medium text-slate-700 group-data-[selected]:text-blue-700">{n} {t('common.item')}</div>
                         </ListboxOption>
                       ))}
                     </ListboxOptions>
@@ -983,7 +985,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                     value={form.name}
                     onChange={e => setForm({ ...form, name: e.target.value })}
                     placeholder="Javohir Toshmatov"
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div className="col-span-2">
@@ -1005,7 +1007,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                     <button
                       type="button"
                       onClick={() => setForm({ ...form, debts: [...form.debts, { amount: '', currency: 'UZS' }] })}
-                      className="text-xs text-indigo-600 hover:text-indigo-700 font-bold flex items-center gap-1 bg-indigo-50 px-2 py-1 rounded-lg"
+                      className="text-xs text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1 bg-blue-50 px-2 py-1 rounded-lg"
                     >
                       <Plus className="size-3" /> Qo'shish
                     </button>
@@ -1013,7 +1015,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                   <div className="space-y-2">
                     {form.debts.map((debt, idx) => (
                       <div key={idx} className="flex gap-2 items-center group">
-                        <div className="flex flex-1 cursor-pointer bg-white items-center border border-slate-200 rounded-xl focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500 transition-all">
+                        <div className="flex flex-1 cursor-pointer bg-white items-center border border-slate-200 rounded-xl focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500 transition-all">
                           <Listbox value={debt.currency} onChange={(val) => {
                             const newDebts = form.debts.map((d, i) => i === idx ? { ...d, currency: val } : d);
                             setForm({ ...form, debts: newDebts });
@@ -1025,9 +1027,9 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                               </ListboxButton>
                               <ListboxOptions className="absolute z-[100] top-full mt-1 left-0 max-h-60 w-[120px] overflow-auto rounded-xl outline-none bg-white text-sm border border-slate-200 shadow-2xl p-1">
                                 {currencies?.map((c) => (
-                                  <ListboxOption key={c.code} value={c.code} className="group relative py-2 px-3 select-none cursor-pointer rounded-lg text-slate-700 data-[focus]:bg-indigo-50 data-[focus]:text-indigo-700 outline-none flex items-center justify-between transition-colors">
+                                  <ListboxOption key={c.code} value={c.code} className="group relative py-2 px-3 select-none cursor-pointer rounded-lg text-slate-700 data-[focus]:bg-blue-50 data-[focus]:text-blue-700 outline-none flex items-center justify-between transition-colors">
                                     <span className="block truncate font-medium group-data-[selected]:font-bold">{c.code}</span>
-                                    <CheckIcon className="size-3.5 text-indigo-600 invisible group-data-[selected]:visible" />
+                                    <CheckIcon className="size-3.5 text-blue-600 invisible group-data-[selected]:visible" />
                                   </ListboxOption>
                                 ))}
                               </ListboxOptions>
@@ -1067,7 +1069,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                     value={form.debt_limit}
                     onChange={e => setForm({ ...form, debt_limit: e.target.value })}
                     placeholder="1000000"
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
@@ -1077,7 +1079,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                     value={form.loyalty_points}
                     onChange={e => setForm({ ...form, loyalty_points: e.target.value })}
                     placeholder="0"
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
@@ -1086,7 +1088,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                     <button
                       type="button"
                       onClick={() => setForm({ ...form, card_number: generateCard() })}
-                      className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                      className="text-xs text-blue-600 hover:text-blue-700 font-medium"
                     >
                       Generatsiya qilish
                     </button>
@@ -1095,7 +1097,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                     value={form.card_number}
                     onChange={e => setForm({ ...form, card_number: e.target.value })}
                     placeholder="Masalan: 8888 1234 5678 9012"
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
                   />
                 </div>
                 <div>
@@ -1105,8 +1107,38 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                     value={form.cashback_percent}
                     onChange={e => setForm({ ...form, cashback_percent: e.target.value })}
                     placeholder="Misol: 3.5"
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                </div>
+              </div>
+
+              {/* Narx turi */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">Narx turi (Sotuv narxi)</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {[
+                    { val: 'sale', label: 'Chakana', desc: 'Oddiy sotuv narxi', color: 'blue', icon: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z' },
+                    { val: 'wholesale', label: 'Ulgurji', desc: 'Ulgurji narx', color: 'emerald', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' },
+                    { val: 'cost', label: 'Tannarx', desc: 'Sotib olish narxi', color: 'amber', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+                  ].map(({ val, label, desc, color, icon }) => {
+                    const isActive = form.price_type === val;
+                    return (
+                      <button key={val} type="button"
+                        onClick={() => setForm(f => ({ ...f, price_type: val }))}
+                        className={`relative p-3 rounded-xl border text-left transition-all overflow-hidden ${isActive ? `border-${color}-500 bg-${color}-50 ring-4 ring-${color}-500/10` : 'border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300'}`}>
+                        {isActive && <div className={`absolute top-0 left-0 w-1 h-full bg-${color}-500`} />}
+                        <div className="flex items-start gap-2.5">
+                          <div className={`mt-0.5 shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${isActive ? `bg-${color}-500 text-white` : 'bg-slate-100 text-slate-400'}`}>
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d={isActive ? "M5 13l4 4L19 7" : icon} /></svg>
+                          </div>
+                          <div>
+                            <div className={`font-bold text-sm leading-none ${isActive ? `text-${color}-700` : 'text-slate-700'}`}>{label}</div>
+                            <div className={`text-[11px] mt-1 ${isActive ? `text-${color}-600/70` : 'text-slate-400'}`}>{desc}</div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
@@ -1114,7 +1146,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                 <button type="button" onClick={closeModal} className="flex-1 cursor-pointer py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">
                   {t('common.cancel')}
                 </button>
-                <button type="submit" disabled={saving} className="flex-1 cursor-pointer py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
+                <button type="submit" disabled={saving} className="flex-1 cursor-pointer py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
                   {saving ? t('common.saving') : t('common.save')}
                 </button>
               </div>
@@ -1189,7 +1221,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                 <div className="space-y-1.5 md:space-y-2">
                   <label className="text-xs md:text-sm font-semibold text-slate-700">Kassa / Hisob</label>
                   <select value={payWallet} onChange={e => setPayWallet(e.target.value)}
-                    className="w-full h-11 md:h-12 px-3 md:px-4 border border-slate-200 rounded-xl bg-white text-xs md:text-sm font-medium focus:border-indigo-500 outline-none transition-all">
+                    className="w-full h-11 md:h-12 px-3 md:px-4 border border-slate-200 rounded-xl bg-white text-xs md:text-sm font-medium focus:border-blue-500 outline-none transition-all">
                     <option value="">Asosiy kassa</option>
                     {wallets.map(w => <option key={w.id} value={w.id}>{w.name} — {fmt(w.balance)} so'm</option>)}
                   </select>
@@ -1208,7 +1240,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                           onChange={(val) => handleInputChange(index, 'payType', val)}
                         >
                           <div className="relative">
-                            <ListboxButton className="w-full cursor-pointer flex items-center pl-4 pr-8 py-3 justify-between rounded-lg border border-slate-200 text-[14px] xl:text-[16px] bg-white text-slate-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors shadow-xs text-left font-medium h-11 md:h-12">
+                            <ListboxButton className="w-full cursor-pointer flex items-center pl-4 pr-8 py-3 justify-between rounded-lg border border-slate-200 text-[14px] xl:text-[16px] bg-white text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors shadow-xs text-left font-medium h-11 md:h-12">
                               <span className="block truncate">
                                 {PAY_TYPES.find(pt => pt.key === item.payType)?.label || "Tanlang..."}
                               </span>
@@ -1224,11 +1256,11 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                                 <ListboxOption
                                   key={pt.key}
                                   value={pt.key}
-                                  className="group relative py-1.5 xl:py-2 px-3 select-none cursor-pointer rounded-md text-slate-800 data-[focus]:bg-indigo-600 data-[focus]:text-white outline-none transition-colors"
+                                  className="group relative py-1.5 xl:py-2 px-3 select-none cursor-pointer rounded-md text-slate-800 data-[focus]:bg-blue-600 data-[focus]:text-white outline-none transition-colors"
                                 >
                                   <div className="flex items-center justify-between">
                                     <span className="block truncate font-normal group-data-[selected]:font-semibold">{pt.label}</span>
-                                    <span className="text-indigo-600 group-data-[focus]:text-white group-not-data-[selected]:hidden">
+                                    <span className="text-blue-600 group-data-[focus]:text-white group-not-data-[selected]:hidden">
                                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="size-4">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                                       </svg>
@@ -1249,13 +1281,13 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                             type="number"
                             value={item.payAmount}
                             onChange={e => handleInputChange(index, 'payAmount', e.target.value)}
-                            className="flex-1 min-w-0 h-full border border-slate-200 rounded-l-xl px-3 md:px-4 text-sm md:text-base font-medium outline-none focus:border-indigo-500 transition-all"
+                            className="flex-1 min-w-0 h-full border border-slate-200 rounded-l-xl px-3 md:px-4 text-sm md:text-base font-medium outline-none focus:border-blue-500 transition-all"
                             placeholder="0"
                           />
                           {/* <select
                             value={item.currencyType || 'UZS'}
                             onChange={(e) => handleInputChange(index, 'currencyType', e.target.value)}
-                            className="px-2 md:px-3 flex items-center border-y border-slate-200 text-indigo-600 text-xs md:text-sm font-bold bg-white">
+                            className="px-2 md:px-3 flex items-center border-y border-slate-200 text-blue-600 text-xs md:text-sm font-bold bg-white">
                             {currencies.map((cur) => (
                               <option key={cur.code} value={cur.code}>{cur.code}</option>
                             ))}
@@ -1282,11 +1314,11 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                                   <ListboxOption
                                     key={pt.code}
                                     value={pt.code}
-                                    className="group relative py-1.5 xl:py-2 px-3 select-none cursor-pointer rounded-md text-slate-800 data-[focus]:bg-indigo-600 data-[focus]:text-white outline-none transition-colors"
+                                    className="group relative py-1.5 xl:py-2 px-3 select-none cursor-pointer rounded-md text-slate-800 data-[focus]:bg-blue-600 data-[focus]:text-white outline-none transition-colors"
                                   >
                                     <div className="flex items-center justify-between">
                                       <span className="block truncate font-normal group-data-[selected]:font-semibold">{pt.code}</span>
-                                      <span className="text-indigo-600 group-data-[focus]:text-white group-not-data-[selected]:hidden">
+                                      <span className="text-blue-600 group-data-[focus]:text-white group-not-data-[selected]:hidden">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="size-4">
                                           <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                                         </svg>
@@ -1306,7 +1338,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                                 : (Number(selected.debt_balances?.[item.currencyType]) || 0);
                               handleInputChange(index, 'payAmount', String(currDebt));
                             }}
-                            className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-slate-200 border-l-0 font-bold px-3 md:px-4 h-full rounded-r-xl transition-colors whitespace-nowrap text-xs md:text-sm"
+                            className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-slate-200 border-l-0 font-bold px-3 md:px-4 h-full rounded-r-xl transition-colors whitespace-nowrap text-xs md:text-sm"
                           >
                             Barchasi
                           </button>
@@ -1329,10 +1361,10 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                   <button
                     type="button"
                     onClick={handleAddRow}
-                    className='cursor-pointer flex ml-auto items-center gap-1 hover:bg-indigo-50 w-max px-2 py-0.5 rounded-xl'
+                    className='cursor-pointer flex ml-auto items-center gap-1 hover:bg-blue-50 w-max px-2 py-0.5 rounded-xl'
                   >
-                    <Plus className='size-5 text-indigo-600' />
-                    <span className='text-xs md:text-sm font-semibold text-indigo-600'>to'lov qo'shish</span>
+                    <Plus className='size-5 text-blue-600' />
+                    <span className='text-xs md:text-sm font-semibold text-blue-600'>to'lov qo'shish</span>
                   </button>
                 </div>
 
@@ -1340,7 +1372,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                 <div className="space-y-1.5 md:space-y-2">
                   <label className="text-xs md:text-sm font-semibold text-slate-700">Izoh</label>
                   <textarea rows={2} value={payInfo} onChange={e => setPayInfo(e.target.value)}
-                    className="w-full p-3 md:p-4 border border-slate-200 rounded-xl text-xs md:text-sm leading-relaxed focus:ring-2 focus:ring-indigo-500 outline-none resize-none transition-all"
+                    className="w-full p-3 md:p-4 border border-slate-200 rounded-xl text-xs md:text-sm leading-relaxed focus:ring-2 focus:ring-blue-500 outline-none resize-none transition-all"
                     placeholder="Ixtiyoriy..." />
                 </div>
 
@@ -1348,7 +1380,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
 
                 {/* Summary */}
                 <div className="flex justify-end">
-                  <div className="w-full md:w-auto min-w-64 space-y-2 bg-indigo-50/50 rounded-xl p-4 border border-indigo-100/50 backdrop-blur-sm">
+                  <div className="w-full md:w-auto min-w-64 space-y-2 bg-blue-50/50 rounded-xl p-4 border border-blue-100/50 backdrop-blur-sm">
                     <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Qarz holati</div>
                     {/* Per-currency debt and payment breakdown */}
                     {Object.entries(paidPerCurrency).map(([curr, payAmt]) => {
@@ -1358,7 +1390,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                       const currRemaining = Math.max(0, currDebt - payAmt);
                       const currChange = Math.max(0, payAmt - currDebt);
                       return (
-                        <div key={curr} className="space-y-1 pb-2 border-b border-indigo-100/50 last:border-0">
+                        <div key={curr} className="space-y-1 pb-2 border-b border-blue-100/50 last:border-0">
                           <div className="flex justify-between text-xs items-center">
                             <span className="text-slate-500 font-medium">{curr} qarzi:</span>
                             <span className="font-bold text-slate-700">{fmt(currDebt)} {curr}</span>
@@ -1420,7 +1452,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                     saving ||
                     !payDebtLength.some(item => item.payAmount && Number(item.payAmount) > 0 && item.payType)
                   } onClick={handlePay}
-                    className="flex-1 cursor-pointer sm:flex-none px-6 md:px-8 py-2 md:py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2">
+                    className="flex-1 cursor-pointer sm:flex-none px-6 md:px-8 py-2 md:py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all shadow-lg shadow-blue-200 disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2">
                     {saving ? (
                       <span className="flex items-center gap-2"><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>...</span>
                     ) : (
@@ -1527,7 +1559,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
 
               {loadingHistory ? (
                 <div className="py-12 flex justify-center">
-                  <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                  <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
                 </div>
               ) : error ? (
                 <div className="p-4 bg-red-50 text-red-600 rounded-xl text-center text-sm">{error}</div>
@@ -1547,7 +1579,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                       <div key={idx} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
                         <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-slate-50 shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 shadow-sm">
                           {isSale ? (
-                            <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                             </svg>
                           ) : (
@@ -1558,7 +1590,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                         </div>
                         <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border border-slate-100 bg-white shadow-sm">
                           <div className="flex items-center justify-between mb-1">
-                            <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-md ${isSale ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                            <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-md ${isSale ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
                               {isSale ? 'Xarid' : "To'lov"}
                             </span>
                             <span className="text-xs text-slate-400 font-medium">
@@ -1629,7 +1661,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
               <button
                 onClick={handleImport}
                 disabled={!buildPayload().length || importLoading || !(Object.values(colMap).includes('Ism') || (allowUpdate && (Object.values(colMap).includes('Telefon') || Object.values(colMap).includes('Karta raqami'))))}
-                className="inline-flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors border border-transparent"
+                className="inline-flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors border border-transparent"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
                 {importLoading ? `Saqlanmoqda... ${importProgress}%` : 'Saqlash'}
@@ -1651,10 +1683,10 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                 <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shadow-sm bg-white shrink-0">
                   <div className="flex items-center gap-6">
                     <label className="flex items-center gap-2 cursor-pointer group" onClick={() => setAllowUpdate(a => !a)}>
-                      <div className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${allowUpdate ? 'bg-indigo-600' : 'bg-slate-200'}`}>
+                      <div className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${allowUpdate ? 'bg-blue-600' : 'bg-slate-200'}`}>
                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${allowUpdate ? 'translate-x-6' : 'translate-x-1'}`} />
                       </div>
-                      <span className="text-sm font-semibold text-slate-700 group-hover:text-indigo-600 transition-colors">Mijozlarni yangilash (agar mavjud bo'lsa)</span>
+                      <span className="text-sm font-semibold text-slate-700 group-hover:text-blue-600 transition-colors">Mijozlarni yangilash (agar mavjud bo'lsa)</span>
                     </label>
                   </div>
                   <div className="flex items-center gap-4">
@@ -1703,7 +1735,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                                       setColMap(m => ({ ...m, [col]: newField }));
                                     }}
                                     className={`w-full px-2 py-1.5 text-xs font-bold rounded-lg border outline-none cursor-pointer transition-colors ${mappedField && mappedField !== '__SKIP__'
-                                      ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                                      ? 'border-blue-300 bg-blue-50 text-blue-700'
                                       : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
                                       }`}
                                   >
@@ -1764,7 +1796,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                                           newRows[absIdx] = { ...newRows[absIdx], [col]: e.target.value };
                                           setImportRows(newRows);
                                         }}
-                                        className="w-full px-3 py-2 text-sm outline-none transition-all font-medium text-slate-700 bg-transparent focus:bg-indigo-50/30 focus:shadow-inner"
+                                        className="w-full px-3 py-2 text-sm outline-none transition-all font-medium text-slate-700 bg-transparent focus:bg-blue-50/30 focus:shadow-inner"
                                       />
                                     </td>
                                   ))}
@@ -1794,7 +1826,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                           <button
                             key={p}
                             onClick={() => setImportPage(p)}
-                            className={`w-9 h-9 rounded-lg text-sm font-semibold transition-colors ${p === importPage ? 'bg-indigo-600 text-white font-bold' : 'border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                            className={`w-9 h-9 rounded-lg text-sm font-semibold transition-colors ${p === importPage ? 'bg-blue-600 text-white font-bold' : 'border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                           >{p}</button>
                         ))}
                         <button
@@ -1817,11 +1849,11 @@ export function SotuvMijozlar({ stats, reloadStats }) {
               <div className="px-6 py-4 border-t border-slate-100 bg-white shrink-0 animate-fadeIn">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-slate-600">Yuklanmoqda...</span>
-                  <span className="text-sm font-bold text-indigo-600">{importProgress}%</span>
+                  <span className="text-sm font-bold text-blue-600">{importProgress}%</span>
                 </div>
                 <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
                   <div
-                    className="bg-indigo-500 h-3 rounded-full transition-all duration-300"
+                    className="bg-blue-500 h-3 rounded-full transition-all duration-300"
                     style={{ width: `${importProgress}%` }}
                   />
                 </div>
@@ -1840,9 +1872,9 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                     <div className="text-sm font-semibold text-emerald-500">Yangi qo'shildi</div>
                   </div>
                   {importResult.updated > 0 && (
-                    <div className="px-5 py-3 bg-indigo-50 rounded-xl text-center min-w-[120px]">
-                      <div className="text-3xl font-black text-indigo-600">{importResult.updated}</div>
-                      <div className="text-sm font-semibold text-indigo-500">Yangilandi</div>
+                    <div className="px-5 py-3 bg-blue-50 rounded-xl text-center min-w-[120px]">
+                      <div className="text-3xl font-black text-blue-600">{importResult.updated}</div>
+                      <div className="text-sm font-semibold text-blue-500">Yangilandi</div>
                     </div>
                   )}
                   <div className={`px-5 py-3 rounded-xl text-center min-w-[120px] ${importResult.skipped > 0 ? 'bg-amber-50' : 'bg-slate-50'}`}>
@@ -2012,7 +2044,7 @@ function TolovTab({ customers, stats, reloadStats }) {
       <div className="flex gap-3">
         <div className="relative flex-1">
           <svg className="absolute shrink-0 left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-          <input className="w-full pl-10 pr-4 py-2 md:py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          <input className="w-full pl-10 pr-4 py-2 md:py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Mijoz ismi yoki telefon..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <button onClick={() => openModal()}
@@ -2124,7 +2156,7 @@ function TolovTab({ customers, stats, reloadStats }) {
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">Kassa/Hamyon</label>
                 <select value={form.wallet_id} onChange={e => setForm(f => ({ ...f, wallet_id: e.target.value }))}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500">
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500">
                   {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                 </select>
               </div>
@@ -2147,7 +2179,7 @@ function TolovTab({ customers, stats, reloadStats }) {
                       )}
                     </div>
                   ))}
-                  <button type="button" onClick={addPayment} className="w-full mt-2 py-2 border-2 border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-bold text-sm rounded-xl transition-all">
+                  <button type="button" onClick={addPayment} className="w-full mt-2 py-2 border-2 border-dashed border-blue-200 text-blue-600 hover:bg-blue-50 font-bold text-sm rounded-xl transition-all">
                     + Yana qo'shish
                   </button>
                 </div>
@@ -2157,7 +2189,7 @@ function TolovTab({ customers, stats, reloadStats }) {
                 <div className="text-xs text-slate-500 mt-2 font-medium bg-slate-50 p-3 rounded-xl border border-slate-200">
                   <div className="mb-1 flex justify-between">
                     <span>Jami (UZS ekvivalentida):</span>
-                    <span className="font-bold text-indigo-700">
+                    <span className="font-bold text-blue-700">
                       {fmt(payments.reduce((acc, p) => {
                         const r = p.currency === 'UZS' ? 1 : (currencies.find(c => c.code === p.currency)?.rate || 1);
                         return acc + (parseAmt(p.amount) * r);
@@ -2202,8 +2234,8 @@ export default function Customers() {
   const { t } = useLang();
   const [tab, setTab] = useState('mijozlar');
   const TABS = [
-    { id: 'mijozlar', label: t('customer.customers'), icon: <Users className='size-4 text-indigo-600' /> },
-    { id: 'tolov', label: "To'lov qabul qilish", icon: <CreditCard className='size-4 text-indigo-600' /> },
+    { id: 'mijozlar', label: t('customer.customers'), icon: <Users className='size-4 text-blue-600' /> },
+    { id: 'tolov', label: "To'lov qabul qilish", icon: <CreditCard className='size-4 text-blue-600' /> },
   ];
   const [customers, setCustomers] = useState([]);
   const [currencies, setCurrencies] = useState([]);

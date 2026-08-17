@@ -19,6 +19,9 @@ class CompanyBot(Base):
     notify_scheduled = Column(Boolean, default=True)
     scheduled_time = Column(String(5), default="20:00")
     
+    notify_expired_products = Column(Boolean, default=True)
+    expired_days_before = Column(Integer, default=7)
+    
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

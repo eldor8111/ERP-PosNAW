@@ -35,7 +35,7 @@ export default function TelegramBotlar() {
     { icon: '🤖', color: '#2563eb', bg: 'bg-blue-600/10', borderActive: 'border-l-blue-600 text-blue-600 bg-blue-600/10', gradient: 'from-blue-600/80 to-blue-600', btnBg: 'from-blue-600 to-blue-600/80', title: t('tg.b2.t') || 'Avtomatizatsiya Botlari', desc: t('tg.b2.d'), examples: [t('tg.b2.f1'), t('tg.b2.f2'), t('tg.b2.f3'), t('tg.b2.f4'), t('tg.b2.f5')], popular: true },
     { icon: '📢', color: '#f59e0b', bg: 'bg-amber-500/10', borderActive: 'border-l-amber-500 text-amber-500 bg-amber-500/10', gradient: 'from-amber-500/80 to-amber-500', btnBg: 'from-amber-500 to-amber-500/80', title: t('tg.b3.t') || 'Kanal va Guruh Botlari', desc: t('tg.b3.d'), examples: [t('tg.b3.f1'), t('tg.b3.f2'), t('tg.b3.f3'), t('tg.b3.f4'), t('tg.b3.f5')], popular: false },
     { icon: '📊', color: '#8b5cf6', bg: 'bg-violet-500/10', borderActive: 'border-l-violet-500 text-violet-500 bg-violet-500/10', gradient: 'from-violet-500/80 to-violet-500', btnBg: 'from-violet-500 to-violet-500/80', title: t('tg.b4.t') || 'CRM & Data Botlar', desc: t('tg.b4.d'), examples: [t('tg.b4.f1'), t('tg.b4.f2'), t('tg.b4.f3'), t('tg.b4.f4'), t('tg.b4.f5')], popular: false },
-    { icon: '🎓', color: '#0891b2', bg: 'bg-cyan-600/10', borderActive: 'border-l-cyan-600 text-cyan-600 bg-cyan-600/10', gradient: 'from-cyan-600/80 to-cyan-600', btnBg: 'from-cyan-600 to-cyan-600/80', title: t('tg.b5.t') || 'Ta\'lim va Kurs Botlari', desc: t('tg.b5.d'), examples: [t('tg.b5.f1'), t('tg.b5.f2'), t('tg.b5.f3'), t('tg.b5.f4'), t('tg.b5.f5')], popular: false },
+    { icon: '🎓', color: '#0891b2', bg: 'bg-blue-600/10', borderActive: 'border-l-blue-600 text-blue-600 bg-blue-600/10', gradient: 'from-blue-600/80 to-blue-600', btnBg: 'from-blue-600 to-blue-600/80', title: t('tg.b5.t') || 'Ta\'lim va Kurs Botlari', desc: t('tg.b5.d'), examples: [t('tg.b5.f1'), t('tg.b5.f2'), t('tg.b5.f3'), t('tg.b5.f4'), t('tg.b5.f5')], popular: false },
     { icon: '💼', color: '#ef4444', bg: 'bg-red-500/10', borderActive: 'border-l-red-500 text-red-500 bg-red-500/10', gradient: 'from-red-500/80 to-red-500', btnBg: 'from-red-500 to-red-500/80', title: t('tg.b6.t') || 'Shaxsiy Brend Botlari', desc: t('tg.b6.d'), examples: [t('tg.b6.f1'), t('tg.b6.f2'), t('tg.b6.f3'), t('tg.b6.f4'), t('tg.b6.f5')], popular: false },
   ]
 
@@ -272,7 +272,7 @@ export default function TelegramBotlar() {
       {/* Showcase / Portfolio Section */}
       <section className="py-24 max-w-[1400px] mx-auto px-4">
         <div className="text-center mb-16">
-          <div className="inline-block px-4 py-1 bg-indigo-600/10 border border-indigo-600/15 rounded-full text-xs font-bold text-indigo-600 mb-4 uppercase tracking-wider">
+          <div className="inline-block px-4 py-1 bg-blue-600/10 border border-blue-600/15 rounded-full text-xs font-bold text-blue-600 mb-4 uppercase tracking-wider">
             {t('tg.port.tag') || 'Keyslar'}
           </div>
           <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">
@@ -366,7 +366,7 @@ export default function TelegramBotlar() {
 
       {/* CTA Section */}
       <section className="py-16 max-w-[1400px] mx-auto px-4 mb-12" id="sp-contact">
-        <div className="bg-linear-to-br from-emerald-950 via-teal-900 to-slate-900 text-white rounded-[32px] p-8 md:p-16 text-center relative overflow-hidden shadow-xl">
+        <div className="bg-linear-to-br from-emerald-950 via-blue-900 to-slate-900 text-white rounded-[32px] p-8 md:p-16 text-center relative overflow-hidden shadow-xl">
           <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
           
           <div className="relative z-10 max-w-2xl mx-auto">

@@ -11,6 +11,7 @@ class Batch(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False, index=True)
+    variant_id = Column(Integer, ForeignKey("product_variants.id"), nullable=True, index=True)
     warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=True, index=True)
     lot_number = Column(String(100), nullable=True) # made nullable for auto-generated batches
     manufacture_date = Column(DateTime, nullable=True)
@@ -23,7 +24,7 @@ class Batch(Base):
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
-    product = relationship("Product")
+    product = relationship("Product", back_populates="batches")
     warehouse = relationship("Warehouse")
     purchase_order = relationship("PurchaseOrder")
 

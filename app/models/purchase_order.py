@@ -47,11 +47,13 @@ class POItem(Base):
     id = Column(Integer, primary_key=True, index=True)
     po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=False)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    variant_id = Column(Integer, ForeignKey("product_variants.id"), nullable=True)
     qty_ordered = Column(Numeric(12, 3), nullable=False)
     qty_received = Column(Numeric(12, 3), default=0)
     unit_cost = Column(Numeric(12, 2), nullable=False)  # Always UZS (net)
     original_unit_cost = Column(Numeric(12, 4), nullable=True)  # Original currency amount
     cost_currency = Column(String(3), nullable=True, default='UZS')  # Original currency code
+    expiry_date = Column(DateTime, nullable=True)
 
     po = relationship("PurchaseOrder", back_populates="items")
     product = relationship("Product")

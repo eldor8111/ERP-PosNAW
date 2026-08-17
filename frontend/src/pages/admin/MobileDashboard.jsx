@@ -7,7 +7,7 @@ const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 function KpiCard({ label, value, sub, color = 'indigo', icon }) {
   const { t } = useLang();
   const colors = {
-    indigo: 'bg-indigo-50 text-indigo-600 border-indigo-100',
+    indigo: 'bg-blue-50 text-blue-600 border-blue-100',
     emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100',
     red: 'bg-red-50 text-red-500 border-red-100',
     amber: 'bg-amber-50 text-amber-600 border-amber-100',
@@ -59,7 +59,7 @@ export default function MobileDashboard() {
   if (loading && !summary) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+        <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
       </div>
     );
   }
@@ -93,7 +93,7 @@ export default function MobileDashboard() {
       </div>
 
       {/* Date badge */}
-      <div className="bg-indigo-600 text-white rounded-2xl p-4 flex items-center gap-3">
+      <div className="bg-blue-600 text-white rounded-2xl p-4 flex items-center gap-3">
         <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -193,7 +193,7 @@ export default function MobileDashboard() {
                   </div>
                   <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-indigo-500 rounded-full transition-all duration-700"
+                      className="h-full bg-blue-500 rounded-full transition-all duration-700"
                       style={{ width: `${(p.sold_quantity / maxQty) * 100}%` }}
                     />
                   </div>
@@ -218,7 +218,7 @@ export default function MobileDashboard() {
               key={path}
               href={path}
               className={`flex items-center justify-center py-3 rounded-xl text-sm font-semibold transition-colors ${
-                color === 'indigo' ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100' :
+                color === 'indigo' ? 'bg-blue-50 text-blue-700 hover:bg-blue-100' :
                 color === 'violet' ? 'bg-violet-50 text-violet-700 hover:bg-violet-100' :
                 color === 'emerald' ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' :
                 'bg-amber-50 text-amber-700 hover:bg-amber-100'

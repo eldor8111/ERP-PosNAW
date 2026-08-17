@@ -285,6 +285,7 @@ def create_user(
         user.email = data.email
         user.hashed_password = hash_password(data.password)
         user.role = data.role
+        user.role_id = getattr(data, 'role_id', None)
         user.permissions = data.permissions or {}
         user.branch_id = data.branch_id
         user.company_id = company_id
@@ -304,6 +305,7 @@ def create_user(
             email=data.email,
             hashed_password=hash_password(data.password),
             role=data.role,
+            role_id=data.role_id,
             permissions=data.permissions or {},
             branch_id=data.branch_id,
             company_id=company_id,
@@ -373,6 +375,8 @@ def update_user(
         user.role = data.role
         if uc:
             uc.role = data.role
+    if getattr(data, 'role_id', None) is not None:
+        user.role_id = data.role_id
             
     if data.permissions is not None:
         user.permissions = data.permissions

@@ -28,11 +28,11 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
           <p className="text-xs text-slate-400 mt-0.5">{t('tariffs.subtitle')}</p>
         </div>
         {hasBhm && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-100 rounded-xl">
-            <svg className="w-3.5 h-3.5 text-indigo-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-xl">
+            <svg className="w-3.5 h-3.5 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <span className="text-xs text-indigo-600 font-medium">
+            <span className="text-xs text-blue-600 font-medium">
               Tariflar O'zbekiston Respublikasi <span className="font-bold">BHM</span> asosida tuzilgan
             </span>
           </div>
@@ -71,10 +71,10 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
         {tariffs.map(tariff => (
           <div
             key={tariff.id}
-            className={`relative rounded-2xl border-2 bg-linear-to-br p-4 flex flex-col transition-all hover:shadow-md ${bgAccent(tariff.price_per_month)} ${isCurrent(tariff) ? 'ring-2 ring-offset-2 ring-indigo-400' : ''}`}
+            className={`relative rounded-2xl border-2 bg-linear-to-br p-4 flex flex-col transition-all hover:shadow-md ${bgAccent(tariff.price_per_month)} ${isCurrent(tariff) ? 'ring-2 ring-offset-2 ring-blue-400' : ''}`}
           >
             {isCurrent(tariff) && (
-              <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-indigo-600 text-white text-[10px] font-black rounded-full whitespace-nowrap shadow">
+              <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-blue-600 text-white text-[10px] font-black rounded-full whitespace-nowrap shadow">
                 {t('tariffs.currentPlan')}
               </span>
             )}
@@ -116,9 +116,9 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
             {/* BHM ko'rsatkichi */}
             {tariff.bhm_percent != null && tariff.price_per_month > 0 && (
               <div className="mt-2.5 pt-2.5 border-t border-dashed border-slate-200/80">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 border border-indigo-100 rounded-lg text-[10px] text-indigo-600 font-semibold">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 border border-blue-100 rounded-lg text-[10px] text-blue-600 font-semibold">
                   BHMning <span className="font-black">{tariff.bhm_percent}%</span>
-                  <span className="text-indigo-400">({(tariff.bhm_percent / 100).toFixed(2)} qism)</span>
+                  <span className="text-blue-400">({(tariff.bhm_percent / 100).toFixed(2)} qism)</span>
                 </span>
               </div>
             )}
@@ -147,13 +147,21 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
 
               {/* Tugma */}
               <div className="">
-                <button
-                  onClick={() => handleBuyTariff(tariff)}
-                  disabled={trialLoading || isCurrent(tariff) || (hasActiveSub && !isCurrent(tariff))}
-                  className={`w-full py-2.5 text-white font-bold rounded-lg text-xs cursor-pointer shadow-md transition-all ${btnColor(tariff.price_per_month)} disabled:opacity-60`}
-                >
-                  {isCurrent(tariff) ? "Aktiv" : t('tariffs.buy')}
-                </button>
+                {isCurrent(tariff) ? (
+                  // Faol tarif — faqat "Aktiv" badge ko'rsatamiz
+                  <div className="w-full py-2.5 text-center font-bold rounded-lg text-xs bg-emerald-100 text-emerald-700 border border-emerald-300">
+                    ✓ Aktiv
+                  </div>
+                ) : (
+                  // Obuna yo'q yoki boshqa tarif — sotib olish tugmasi
+                  <button
+                    onClick={() => handleBuyTariff(tariff)}
+                    disabled={trialLoading || (hasActiveSub && !isCurrent(tariff))}
+                    className={`w-full py-2.5 text-white font-bold rounded-lg text-xs cursor-pointer shadow-md transition-all ${btnColor(tariff.price_per_month)} disabled:opacity-60`}
+                  >
+                    {trialLoading ? "Kuting..." : t('tariffs.buy')}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -507,7 +515,7 @@ export default function Tariflar() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -515,24 +523,25 @@ export default function Tariflar() {
   const priceColor = (price) => {
     if (!price) return 'text-emerald-600';
     if (price <= 150000) return 'text-blue-600';
-    if (price <= 300000) return 'text-indigo-600';
-    return 'text-purple-600';
+    if (price <= 300000) return 'text-blue-600';
+    return 'text-blue-600';
   };
 
   const bgAccent = (price) => {
-    if (!price) return 'from-emerald-50 to-teal-50 border-emerald-200';
+    if (!price) return 'from-emerald-50 to-blue-50 border-emerald-200';
     if (price <= 150000) return 'from-blue-50 to-sky-50 border-blue-200';
-    if (price <= 300000) return 'from-indigo-50 to-violet-50 border-indigo-200';
-    return 'from-purple-50 to-pink-50 border-purple-200';
+    if (price <= 300000) return 'from-blue-50 to-violet-50 border-blue-200';
+    return 'from-blue-50 to-pink-50 border-blue-200';
   };
 
   const btnColor = (price) => {
     if (price <= 150000) return 'bg-blue-600 hover:bg-blue-700 shadow-blue-200';
-    if (price <= 300000) return 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200';
-    return 'bg-purple-600 hover:bg-purple-700 shadow-purple-200';
+    if (price <= 300000) return 'bg-blue-600 hover:bg-blue-700 shadow-blue-200';
+    return 'bg-blue-600 hover:bg-blue-700 shadow-blue-200';
   };
 
-  const isCurrent = (tariff) => billing?.tariff_id == tariff.id;
+  // isCurrent: tarif ham mos, ham obuna FAOL bo'lishi kerak
+  const isCurrent = (tariff) => billing?.tariff_id == tariff.id && billing?.subscription_active;
   const hasActiveSub = billing?.subscription_active && !billing?.is_trial;
 
   const hasBhm = tariffs.some(tr => tr.bhm_percent != null && tr.price_per_month > 0);

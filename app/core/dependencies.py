@@ -110,15 +110,55 @@ def get_current_user_allow_expired(
 
 
 def require_roles(*roles: UserRole):
+    # Flatten: agar kimdir require_roles([role1, role2]) kabi chaqirsa
+    flat_roles = []
+    for r in roles:
+        if isinstance(r, (list, tuple)):
+            flat_roles.extend(r)
+        else:
+            flat_roles.append(r)
+
     def checker(current_user: User = Depends(get_current_user)) -> User:
         # super_admin barcha amallardan o'ta oladi
         if current_user.role == UserRole.super_admin:
             return current_user
-        if current_user.role not in roles:
+        if current_user.role not in flat_roles:
+            role_names = [r.value if hasattr(r, 'value') else str(r) for r in flat_roles]
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Bu amal uchun ruxsat yo'q. Kerakli rol: {[r.value for r in roles]}",
+                detail=f"Bu amal uchun ruxsat yo'q. Kerakli rol: {role_names}",
             )
         return current_user
 
+    return checker
+
+
+def require_permissions(module: str, action: str):
+    """
+    Yangi granular huquqlarni tekshiruvchi dependency.
+    module: masalan 'products', 'sales'
+    action: masalan 'view', 'create', 'edit', 'delete'
+    """
+    def checker(current_user: User = Depends(get_current_user)) -> User:
+        if current_user.role == UserRole.super_admin:
+            return current_user
+
+        # user.permissions orqali individual huquqlarni tekshiramiz (e.g. override)
+        user_perms = current_user.permissions or {}
+        if module in user_perms:
+            if user_perms[module].get(action) is True:
+                return current_user
+            elif user_perms[module].get(action) is False:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sizda ushbu amalni bajarish uchun huquq yo'q (Maxsus cheklov).")
+
+        # Agar individual override bo'lmasa, user.custom_role (dynamic role) dan qaraymiz
+        if current_user.custom_role:
+            role_perms = current_user.custom_role.permissions or {}
+            if role_perms.get(module, {}).get(action) is True:
+                return current_user
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Bu amal uchun ruxsat yo'q. Ruxsat etilmagan: {module}.{action}",
+        )
     return checker

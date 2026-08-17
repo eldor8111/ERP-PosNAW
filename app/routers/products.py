@@ -40,6 +40,29 @@ def _attach_stock(product: Product, db: Session = None, warehouse_id: int = None
     elif product.stock_level:
         out.stock_quantity = product.stock_level.quantity
 
+    
+    if product.product_type == 'parent' and db:
+        from app.models.product_variant import ProductVariant
+        from app.schemas.product_variant import ProductVariantOut
+        children = db.query(ProductVariant).filter(ProductVariant.product_id == product.id).options(joinedload(ProductVariant.attribute_values).joinedload(VariantAttributeValue.attribute_value).joinedload(AttributeValue.attribute)).all()
+        v_out = []
+        for c in children:
+            color = next((val.attribute_value.value for val in c.attribute_values if val.attribute_value.attribute.name in ("Rang", "Color")), None)
+            size = next((val.attribute_value.value for val in c.attribute_values if val.attribute_value.attribute.name in ("O'lcham", "Size")), None)
+            v_out.append(ProductVariantOut(
+                id=c.id,
+                product_id=product.id,
+                name=c.name,
+                sku=c.sku,
+                barcode=c.barcode,
+                color=color,
+                size=size,
+                cost_price=c.cost_price,
+                sale_price=c.sale_price,
+                wholesale_price=c.wholesale_price,
+            ))
+        out.variants = v_out
+
     if product.conversion:
         from app.schemas.product import ProductConversionOut
         src = product.conversion.source_product
@@ -70,6 +93,68 @@ def _attach_stock(product: Product, db: Session = None, warehouse_id: int = None
     return out
 
 
+@router.get("/{product_id}/variants")
+def get_product_variants(
+    product_id: int,
+    warehouse_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Parent mahsulotning barcha variantlarini stock bilan qaytaradi."""
+    from app.models.product_variant import ProductVariant
+    from app.models.inventory import StockLevel
+    from app.models.attribute import AttributeValue, VariantAttributeValue, Attribute
+    from sqlalchemy.orm import joinedload
+
+    product = db.query(Product).filter(
+        Product.id == product_id,
+        Product.company_id == current_user.company_id,
+        Product.is_deleted == False,
+    ).first()
+    if not product:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Mahsulot topilmadi")
+
+    children = db.query(ProductVariant).filter(
+        ProductVariant.product_id == product_id
+    ).options(
+        joinedload(ProductVariant.attribute_values)
+            .joinedload(VariantAttributeValue.attribute_value)
+            .joinedload(AttributeValue.attribute)
+    ).all()
+
+    result = []
+    for c in children:
+        color = next((val.attribute_value.value for val in c.attribute_values
+                      if val.attribute_value.attribute.name in ("Rang", "Color")), None)
+        size = next((val.attribute_value.value for val in c.attribute_values
+                     if val.attribute_value.attribute.name in ("O'lcham", "Size")), None)
+
+        sq = db.query(StockLevel).filter(
+            StockLevel.variant_id == c.id,
+            StockLevel.product_id == product_id,
+        )
+        if warehouse_id:
+            sq = sq.filter(StockLevel.warehouse_id == warehouse_id)
+        stock_qty = sum(float(s.quantity) for s in sq.all())
+
+        result.append({
+            "id": c.id,
+            "product_id": product_id,
+            "name": c.name,
+            "sku": c.sku,
+            "barcode": c.barcode,
+            "color": color,
+            "size": size,
+            "cost_price": float(c.cost_price or 0),
+            "sale_price": float(c.sale_price or product.sale_price or 0),
+            "wholesale_price": float(c.wholesale_price or product.wholesale_price or 0),
+            "stock_quantity": stock_qty,
+            "unit": product.unit or "dona",
+        })
+    return result
+
+
 @router.get("/", response_model=List[ProductListOut])
 def list_products(
         search: Optional[str] = Query(None, description="Nomi yoki SKU bo'yicha qidiruv"),
@@ -93,6 +178,8 @@ def list_products(
     q = q.options(
         joinedload(Product.conversion).joinedload(ProductConversion.source_product),
         joinedload(Product.sell_conversions).joinedload(ProductConversion.sell_product),
+        joinedload(Product.variants),
+        joinedload(Product.category),
     )
 
     if search:
@@ -278,6 +365,8 @@ def get_product(
     q = q.options(
         joinedload(Product.conversion).joinedload(ProductConversion.source_product).joinedload(Product.stock_level),
         joinedload(Product.sell_conversions).joinedload(ProductConversion.sell_product),
+        joinedload(Product.variants),
+        joinedload(Product.category),
     )
     product = q.first()
     if not product:
@@ -306,7 +395,7 @@ def create_product(
     initial_stock = data.initial_stock or Decimal("0")
     initial_warehouse_id = data.initial_warehouse_id
     conversion_data = data.conversion
-    product_data = data.model_dump(exclude={"initial_stock", "initial_warehouse_id", "conversion"})
+    product_data = data.model_dump(exclude={"initial_stock", "initial_warehouse_id", "conversion", "variants"})
 
     # Serialize images list → JSON string for DB storage
     if product_data.get("images") is not None:
@@ -356,20 +445,106 @@ def create_product(
         raise HTTPException(status_code=400,
                             detail="Virtual (sell) mahsulot uchun asosiy mahsulot va nisbatni kiriting")
 
+    product_data.pop("variants", None)
+    # attributes va tags None bo'lsa bo'sh list bilan almashtir
+    if product_data.get("attributes") is None:
+        product_data["attributes"] = []
+    if product_data.get("tags") is None:
+        product_data["tags"] = []
     product = Product(**product_data)
     db.add(product)
     db.flush()
 
-    # sell mahsulot uchun StockLevel YARATILMAYDI — faqat stock mahsulotlar uchun
-    if product_type == "stock":
+    # Variantlarni saqlash
+    if getattr(data, "variants", None) and len(data.variants) > 0 and product_type in ["stock", "variant"]:
+        product.product_type = "parent" # Asosiy mahsulot 'parent' turiga o'tadi
+        db.flush()
+        
+        # Har bir variantni alohida tovar sifatida saqlaymiz
+        import time
+        from app.models.product_variant import ProductVariant
+        for idx, v in enumerate(data.variants):
+            child_sku = v.sku or f"{product.sku}-{idx+1}"
+            child_barcode = v.barcode or f"200{int(time.time())}{idx}"[-13:]
+            
+            child = ProductVariant(
+                product_id=product.id,
+                name=f"{product.name} ({v.size or ''} {v.color or ''})".strip(),
+                sku=child_sku,
+                barcode=child_barcode,
+                cost_price=v.cost_price if v.cost_price is not None else product.cost_price,
+                sale_price=v.sale_price if v.sale_price is not None else product.sale_price,
+                wholesale_price=v.wholesale_price if v.wholesale_price is not None else product.wholesale_price,
+            )
+            db.add(child)
+            db.flush()
+            
+            # Create attributes
+            from app.models.attribute import Attribute, AttributeValue, VariantAttributeValue
+            if v.color:
+                attr = db.query(Attribute).filter(Attribute.name == "Rang", Attribute.company_id == current_user.company_id).first()
+                if not attr:
+                    attr = Attribute(name="Rang", company_id=current_user.company_id)
+                    db.add(attr)
+                    db.flush()
+                val = db.query(AttributeValue).filter(AttributeValue.attribute_id == attr.id, AttributeValue.value == v.color).first()
+                if not val:
+                    val = AttributeValue(attribute_id=attr.id, value=v.color)
+                    db.add(val)
+                    db.flush()
+                db.add(VariantAttributeValue(variant_id=child.id, attribute_value_id=val.id))
+            if v.size:
+                attr = db.query(Attribute).filter(Attribute.name == "O'lcham", Attribute.company_id == current_user.company_id).first()
+                if not attr:
+                    attr = Attribute(name="O'lcham", company_id=current_user.company_id)
+                    db.add(attr)
+                    db.flush()
+                val = db.query(AttributeValue).filter(AttributeValue.attribute_id == attr.id, AttributeValue.value == v.size).first()
+                if not val:
+                    val = AttributeValue(attribute_id=attr.id, value=v.size)
+                    db.add(val)
+                    db.flush()
+                db.add(VariantAttributeValue(variant_id=child.id, attribute_value_id=val.id))
+            
+            if not initial_warehouse_id:
+                from app.models.warehouse import Warehouse
+                first_wh = db.query(Warehouse).filter(Warehouse.company_id == current_user.company_id).order_by(Warehouse.id.asc()).first()
+                if first_wh:
+                    initial_warehouse_id = first_wh.id
+            if initial_warehouse_id:
+                # Razmer matritsasidan kelgan miqdor (v.quantity) ustunlik qiladi
+                variant_stock_qty = v.quantity if v.quantity is not None else initial_stock
+                if variant_stock_qty > 0:
+                    stock = StockLevel(
+                        product_id=product.id,
+                        variant_id=child.id,
+                        quantity=variant_stock_qty,
+                        warehouse_id=initial_warehouse_id
+                    )
+                    db.add(stock)
+                    # Batch ham yaratamiz (FIFO uchun)
+                    from app.models.batch import Batch
+                    db.add(Batch(
+                        product_id=product.id,
+                        variant_id=child.id,
+                        warehouse_id=initial_warehouse_id,
+                        lot_number=f"initial-variant-{child.id}",
+                        initial_quantity=variant_stock_qty,
+                        quantity=variant_stock_qty,
+                        purchase_price=child.cost_price or product.cost_price or 0,
+                        company_id=current_user.company_id,
+                    ))
+
+    elif product_type == "stock":
         if not initial_warehouse_id:
             from app.models.warehouse import Warehouse
             first_wh = db.query(Warehouse).filter(Warehouse.company_id == current_user.company_id).order_by(
                 Warehouse.id.asc()).first()
             if first_wh:
                 initial_warehouse_id = first_wh.id
-        stock = StockLevel(product_id=product.id, quantity=initial_stock, warehouse_id=initial_warehouse_id)
-        db.add(stock)
+        if initial_warehouse_id:
+            stock = StockLevel(product_id=product.id, quantity=initial_stock, warehouse_id=initial_warehouse_id)
+            db.add(stock)
 
     # Virtual mahsulot uchun ProductConversion yozuvi
     if product_type == "sell" and conversion_data:
@@ -428,7 +603,7 @@ def update_product(
     initial_stock_val = data.initial_stock
     initial_wh_id = data.initial_warehouse_id
     
-    update_data = data.model_dump(exclude_none=True, exclude={"conversion", "initial_stock", "initial_warehouse_id"})
+    update_data = data.model_dump(exclude_none=True, exclude={"conversion", "initial_stock", "initial_warehouse_id", "variants"})
 
     # Stock update logic
     if initial_stock_sent and product.product_type == 'stock':
@@ -482,10 +657,81 @@ def update_product(
         epc = update_data["extra_product_codes"]
         update_data["extra_product_codes"] = json.dumps([c.strip() for c in epc if c.strip()]) if epc else None
 
+    update_data.pop("variants", None)
     for field, value in update_data.items():
         setattr(product, field, value)
 
     product_type = product.product_type or "stock"
+
+    # Variantlarni yangilash
+    if product_type == "parent" and "variants" in fields_set:
+        from app.models.product_variant import ProductVariant
+        from app.models.inventory import StockLevel
+        from sqlalchemy import func
+        from app.models.attribute import Attribute, AttributeValue, VariantAttributeValue
+        
+        existing_variants = db.query(ProductVariant).filter(ProductVariant.product_id == product_id).all()
+        existing_by_id = {v.id: v for v in existing_variants}
+        
+        if data.variants:
+            for idx, v in enumerate(data.variants):
+                child_name = f"{product.name} ({v.size or ''} {v.color or ''})".strip()
+                if v.id and v.id in existing_by_id:
+                    child = existing_by_id[v.id]
+                    child.name = child_name
+                    child.sku = v.sku
+                    child.barcode = v.barcode
+                    child.cost_price = v.cost_price
+                    child.wholesale_price = v.wholesale_price
+                    child.sale_price = v.sale_price
+                    db.query(VariantAttributeValue).filter(VariantAttributeValue.variant_id == child.id).delete()
+                    existing_by_id.pop(v.id)
+                else:
+                    child = ProductVariant(
+                        product_id=product_id,
+                        name=child_name,
+                        sku=v.sku,
+                        barcode=v.barcode,
+                        cost_price=v.cost_price,
+                        wholesale_price=v.wholesale_price,
+                        sale_price=v.sale_price,
+                    )
+                    db.add(child)
+                
+                db.flush()
+                
+                if v.color:
+                    attr = db.query(Attribute).filter(Attribute.name == "Rang", Attribute.company_id == current_user.company_id).first()
+                    if not attr:
+                        attr = Attribute(name="Rang", company_id=current_user.company_id)
+                        db.add(attr)
+                        db.flush()
+                    val = db.query(AttributeValue).filter(AttributeValue.attribute_id == attr.id, AttributeValue.value == v.color).first()
+                    if not val:
+                        val = AttributeValue(attribute_id=attr.id, value=v.color)
+                        db.add(val)
+                        db.flush()
+                    db.add(VariantAttributeValue(variant_id=child.id, attribute_value_id=val.id))
+                if v.size:
+                    attr = db.query(Attribute).filter(Attribute.name == "O'lcham", Attribute.company_id == current_user.company_id).first()
+                    if not attr:
+                        attr = Attribute(name="O'lcham", company_id=current_user.company_id)
+                        db.add(attr)
+                        db.flush()
+                    val = db.query(AttributeValue).filter(AttributeValue.attribute_id == attr.id, AttributeValue.value == v.size).first()
+                    if not val:
+                        val = AttributeValue(attribute_id=attr.id, value=v.size)
+                        db.add(val)
+                        db.flush()
+                    db.add(VariantAttributeValue(variant_id=child.id, attribute_value_id=val.id))
+        
+        # Qolganlarini o'chirishga harakat qilamiz, agar qoldiq bo'lsa xato qaytaramiz
+        for old_v in existing_by_id.values():
+            stock_qty = db.query(func.coalesce(func.sum(StockLevel.quantity), 0)).filter(StockLevel.variant_id == old_v.id).scalar()
+            if stock_qty > 0:
+                raise HTTPException(status_code=400, detail=f"'{old_v.name}' variantida {stock_qty} ta qoldiq mavjud. Uni o'chirib bo'lmaydi.")
+            db.delete(old_v)
+
 
     if conversion_sent and conversion_data is not None:
         product.product_type = "sell"

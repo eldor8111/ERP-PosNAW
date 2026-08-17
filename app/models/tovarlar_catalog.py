@@ -14,8 +14,3 @@ class TovarlarCatalog(Base):
     group_name = Column(Text, nullable=True)
     attribute_name = Column(Text, nullable=True)
     lgota_id = Column(Integer, nullable=True)
-
-    __table_args__ = (
-        Index("ix_tovarlar_catalog_barcode", "barcode", unique=True),
-        Index("ix_tovarlar_catalog_mxik_code", "mxik_code"),
-    )

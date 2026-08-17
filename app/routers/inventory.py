@@ -19,6 +19,7 @@ from app.schemas.inventory import (
     StockMovementOut,
     StockReceiveRequest,
     ChiqimBatchRequest,
+    ExpiringBatchOut,
     ChiqimDocumentOut,
     ChiqimDetailOut,
     SupplierReturnRequest, StockMovementUpdate
@@ -69,6 +70,7 @@ def get_stock_levels(
         result.append(
             StockLevelOut(
                 product_id=s.product_id,
+                variant_id=s.variant_id,
                 product_name=s.product.name,
                 product_sku=s.product.sku,
                 product_barcode=s.product.barcode,
@@ -189,6 +191,7 @@ def get_movements(
         StockMovementOut(
             id=m.id,
             product_id=m.product_id,
+            variant_id=m.variant_id,
             product_name=m.product.name,
             product_sku=m.product.sku,
             product_unit=getattr(m.product, "unit", None),
@@ -226,6 +229,7 @@ def get_movement(
     return StockMovementOut(
         id=m.id,
         product_id=m.product_id,
+        variant_id=m.variant_id,
         product_name=m.product.name,
         product_sku=m.product.sku,
         product_unit=getattr(m.product, "unit", None),
@@ -401,8 +405,10 @@ def receive_goods(
             reference_type="manual_receive",
             purchase_price=item.purchase_price,
             company_id=current_user.company_id if item.purchase_price is not None else None,
+            variant_id=item.variant_id,
+            expiry_date=item.expiry_date,
         )
-        movements.append({"product_id": item.product_id, "qty_added": str(item.quantity), "new_qty": str(m.qty_after)})
+        movements.append({"product_id": item.product_id, "variant_id": item.variant_id, "qty_added": str(item.quantity), "new_qty": str(m.qty_after)})
 
     db.commit()
     return {"message": f"{len(movements)} ta mahsulot qabul qilindi", "details": movements}
@@ -436,7 +442,8 @@ def return_to_supplier(
             reason=f"Ta'minotchiga qaytarish: {supplier.name}. {data.note or ''}".strip(),
             reference_type="return_to_supplier",
             reference_id=supplier.id,
-            warehouse_id=data.warehouse_id
+            warehouse_id=data.warehouse_id,
+            variant_id=item.variant_id
         )
         total_return_value += (item.quantity * item.unit_cost)
 
@@ -592,6 +599,7 @@ def get_chiqim_details(
         out.append(ChiqimDetailOut(
             id=m.id,
             product_id=m.product_id,
+            variant_id=m.variant_id,
             product_name=m.product.name,
             product_sku=m.product.sku,
             product_unit=m.product.unit or "dona",
@@ -637,6 +645,7 @@ def adjust_stock_level(
         new_quantity=data.new_quantity,
         user_id=current_user.id,
         reason=data.reason,
+        variant_id=data.variant_id,
     )
     db.commit()
     return {
@@ -658,3 +667,94 @@ def list_warehouses(
         wq = wq.filter(Warehouse.branch_id == current_user.branch_id)
     warehouses = wq.order_by(Warehouse.name).all()
     return [{"id": w.id, "name": w.name, "type": w.type} for w in warehouses]
+
+
+@router.get("/expiring-batches", response_model=List[ExpiringBatchOut])
+def get_expiring_batches(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    from datetime import date
+    from app.models.category import Category
+    from app.models.product_variant import ProductVariant
+    from app.models.batch import Batch
+    
+    today_date = date.today()
+    
+    batches = db.query(Batch, Product.name, ProductVariant.name)\
+        .join(Product, Product.id == Batch.product_id)\
+        .join(Category, Category.id == Product.category_id)\
+        .outerjoin(ProductVariant, ProductVariant.id == Batch.variant_id)\
+        .filter(Batch.company_id == current_user.company_id)\
+        .filter(Batch.quantity > 0)\
+        .filter(Category.is_perishable == True)\
+        .filter(Batch.expiry_date != None)\
+        .all()
+        
+    result = []
+    for b, p_name, v_name in batches:
+        expiry = b.expiry_date.date() if hasattr(b.expiry_date, 'date') else b.expiry_date
+        delta = (expiry - today_date).days
+        if delta <= 30:
+            result.append(ExpiringBatchOut(
+                batch_id=b.id,
+                product_name=p_name,
+                variant_name=v_name,
+                expiry_date=expiry,
+                days_left=delta,
+                quantity=b.quantity,
+                is_expired=delta < 0
+            ))
+            
+    result.sort(key=lambda x: x.days_left)
+    return result
+
+
+@router.post("/write-off-expired")
+def write_off_expired(
+    data: WriteOffExpiredRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles([UserRole.super_admin, UserRole.admin, UserRole.director, UserRole.manager]))
+):
+    from app.models.batch import Batch
+    
+    batch = db.query(Batch).filter(Batch.id == data.batch_id, Batch.company_id == current_user.company_id).first()
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch topilmadi")
+        
+    if batch.quantity <= 0:
+        raise HTTPException(status_code=400, detail="Qoldiq yo'q")
+        
+    qty_to_write_off = batch.quantity
+    
+    stock_level = db.query(StockLevel).filter(
+        StockLevel.product_id == batch.product_id,
+        StockLevel.warehouse_id == batch.warehouse_id,
+        StockLevel.variant_id == batch.variant_id
+    ).with_for_update().first()
+    
+    if stock_level:
+        qty_before = stock_level.quantity
+        stock_level.quantity -= qty_to_write_off
+        qty_after = stock_level.quantity
+    else:
+        raise HTTPException(status_code=400, detail="StockLevel topilmadi")
+        
+    batch.quantity = 0
+    
+    movement = StockMovement(
+        product_id=batch.product_id,
+        variant_id=batch.variant_id,
+        type=MovementType.EXPIRED,
+        qty_before=qty_before,
+        qty_after=qty_after,
+        quantity=qty_to_write_off,
+        reference_type="batch_write_off",
+        reference_id=batch.id,
+        user_id=current_user.id,
+        reason=f"Muddati o'tgan (xodim: {current_user.name})"
+    )
+    db.add(movement)
+    db.commit()
+    
+    return {"message": "Muddati o'tgan mahsulot hisobdan chiqarildi"}

@@ -30,7 +30,8 @@ class User(Base):
     phone = Column(String(20), unique=True, nullable=False)
     email = Column(String(100), unique=True, nullable=True)
     hashed_password = Column(String(200), nullable=False)
-    role = Column(Enum(UserRole), default=UserRole.cashier)
+    role = Column(Enum(UserRole), default=UserRole.cashier) # Legacy enum role for backward compatibility
+    role_id = Column(Integer, ForeignKey("roles.id"), nullable=True) # New dynamic role
     permissions = Column(JSON, nullable=True, default={})
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
@@ -40,6 +41,7 @@ class User(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     branch = relationship("Branch", back_populates="users")
+    custom_role = relationship("Role", back_populates="users")
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     # Multi-korxona bog'lanish (company_id backward compat. uchun saqlanadi)
     user_companies = relationship("UserCompany", back_populates="user", lazy="dynamic")

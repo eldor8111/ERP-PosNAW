@@ -8,12 +8,14 @@ class CategoryCreate(BaseModel):
     name: str
     parent_id: Optional[int] = None
     sort_order: int = 0
+    is_perishable: bool = False
 
 
 class CategoryUpdate(BaseModel):
     name: Optional[str] = None
     parent_id: Optional[int] = None
     sort_order: Optional[int] = None
+    is_perishable: Optional[bool] = None
 
 
 class CategoryOut(BaseModel):
@@ -21,6 +23,7 @@ class CategoryOut(BaseModel):
     name: str
     parent_id: Optional[int]
     sort_order: int
+    is_perishable: bool
     created_at: datetime
     children: List["CategoryOut"] = []
     products_count: int = 0

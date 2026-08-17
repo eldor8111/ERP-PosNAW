@@ -6,6 +6,7 @@ from .inventory import StockLevel, StockMovement  # type: ignore
 from .product import Product, ProductConversion  # type: ignore
 from .sale import Sale, SaleItem, SaleItemBatch  # type: ignore
 from .user import User  # type: ignore
+from .role import Role  # type: ignore
 from .user_company import UserCompany  # type: ignore  # multi-korxona
 from .warehouse import Warehouse  # type: ignore
 from .supplier import Supplier  # type: ignore
@@ -29,3 +30,8 @@ from .sms_log import SMSLog
 from app.admin_tg_bot.models import CompanyBot
 from .tg_phone_chat import TgPhoneChat  # type: ignore
 from .ai_chat_history import AiChatHistory  # type: ignore
+from .bot_session import BotSession  # type: ignore
+from .product_variant import ProductVariant
+from .promotion import Promotion, PromotionProduct
+from .supplier_product import SupplierProduct
+from .attribute import Attribute, AttributeValue, VariantAttributeValue

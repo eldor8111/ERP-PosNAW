@@ -52,7 +52,7 @@ function ExportBtns({ onExcel, onPdf }) {
       )}
       {onPdf && (
         <button onClick={onPdf}
-          className="inline-flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-sm font-semibold rounded-xl transition-colors">
+          className="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-semibold rounded-xl transition-colors">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
           </svg>
@@ -65,7 +65,7 @@ function ExportBtns({ onExcel, onPdf }) {
 
 const Spinner = () => (
   <div className="flex justify-center py-16">
-    <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+    <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
   </div>
 );
 
@@ -73,7 +73,7 @@ function TabBtn({ label, icon, active, onClick }) {
   return (
     <button onClick={onClick}
       className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
-        active ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+        active ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
       }`}>
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={icon} />
@@ -218,9 +218,9 @@ export default function Warehouse() {
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {inventoryData.map(i => (
-                      <tr key={i.product_id} className={`hover:bg-slate-50 transition-colors ${i.is_low ? 'bg-rose-50/30' : ''}`}>
+                      <tr key={i.product_id} className={`hover:bg-slate-50 transition-colors ${i.is_low ? 'bg-blue-50/30' : ''}`}>
                         <td className="px-5 py-3.5 text-sm font-medium text-slate-800">{i.product_name}</td>
-                        <td className="px-5 py-3.5 text-sm font-mono text-indigo-600">{i.sku}</td>
+                        <td className="px-5 py-3.5 text-sm font-mono text-blue-600">{i.sku}</td>
                         <td className="px-5 py-3.5">
                           <span className={`text-sm font-bold ${i.is_low ? 'text-red-500' : 'text-slate-800'}`}>{i.quantity}</span>
                         </td>

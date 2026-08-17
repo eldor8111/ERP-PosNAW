@@ -9,6 +9,7 @@ from app.models.sale import PaymentType, SaleStatus  # type: ignore
 
 class SaleItemCreate(BaseModel):
     product_id: int
+    variant_id: Optional[int] = None
     quantity: Decimal
     unit_price: Optional[Decimal] = None  # None bo'lsa mahsulot narxidan oladi
     discount: Decimal = Decimal("0")
@@ -93,6 +94,7 @@ class SaleCreate(BaseModel):
 class SaleItemOut(BaseModel):
     id: int
     product_id: int
+    variant_id: Optional[int] = None
     product_name: str
     quantity: Decimal
     unit_price: Decimal

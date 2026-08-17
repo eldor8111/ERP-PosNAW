@@ -56,18 +56,21 @@ def get_dashboard(
 
     wh_filter = get_warehouse_filter(warehouse_id)
     # currency_code bo'yicha guruhlash
-    import logging
-    _log = logging.getLogger(__name__)
-    _log.warning(f"[DASHBOARD] cid={cid}, today_start={today_start}, today_end={today_end}")
+    # NOTE: PostgreSQL outerjoin+coalesce GROUP BY xatosi sababli Sale.currency_id ishlatiladi
+    # Valyuta kodi Python da resolve qilinadi
+
+    # Barcha valyutalarni bir so'rovda yuklash
+    all_currencies = {c.id: c.code for c in db.query(Currency.id, Currency.code).filter(Currency.company_id == cid).all()}
+    def _cur_code(cid_val):
+        return all_currencies.get(cid_val, 'UZS') if cid_val else 'UZS'
 
     today_rows = (
         db.query(
-            func.coalesce(Currency.code, 'UZS').label("cur"),
+            Sale.currency_id,
             func.count(Sale.id).label("cnt"),
             func.coalesce(func.sum(Sale.total_amount), 0).label("total"),
         )
         .select_from(Sale)
-        .outerjoin(Currency, Currency.id == Sale.currency_id)
         .filter(
             Sale.company_id == cid,
             Sale.created_at >= today_start,
@@ -75,12 +78,11 @@ def get_dashboard(
             Sale.status == SaleStatus.completed,
             *wh_filter,
         )
-        .group_by(func.coalesce(Currency.code, 'UZS'))
+        .group_by(Sale.currency_id)
         .all()
     )
-    _log.warning(f"[DASHBOARD] today_rows count={len(today_rows)}, rows={today_rows}")
     today_count = sum(row.cnt for row in today_rows)
-    today_by_currency = {(row.cur or 'UZS'): float(row.total) for row in today_rows}
+    today_by_currency = {_cur_code(row.currency_id): float(row.total) for row in today_rows}
     today_total = sum(today_by_currency.values())  # for change_pct calc only
 
 
@@ -127,17 +129,17 @@ def get_dashboard(
     month_start = datetime(_now.year, _now.month, 1, 0, 0, 0, tzinfo=timezone.utc)
     # Oylik savdolar valyuta bo'yicha
     month_rows = db.query(
-        func.coalesce(Currency.code, 'UZS'),
+        Sale.currency_id,
         func.count(Sale.id),
         func.coalesce(func.sum(Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)), 0)
-    ).outerjoin(Currency, Currency.id == Sale.currency_id).filter(
+    ).filter(
         Sale.company_id == cid,
         Sale.created_at >= month_start,
         Sale.status == SaleStatus.completed,
         *wh_filter
-    ).group_by(func.coalesce(Currency.code, 'UZS')).all()
+    ).group_by(Sale.currency_id).all()
     month_count = sum(row[1] for row in month_rows)
-    month_by_currency = {(row[0] or 'UZS'): float(row[2]) for row in month_rows}
+    month_by_currency = {_cur_code(row[0]): float(row[2]) for row in month_rows}
     month_profit = db.query(func.coalesce(
         func.sum(
             case(
@@ -192,14 +194,13 @@ def get_dashboard(
     dead_stock_count = dead_q.scalar()
 
     cashier_q = (
-        db.query(User.name, func.count(Sale.id).label("cnt"),
-                 func.coalesce(Currency.code, 'UZS').label("currency_code"),
+        db.query(User.id.label("uid"), User.name, func.count(Sale.id).label("cnt"),
+                 Sale.currency_id,
                  func.coalesce(func.sum(Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)), 0).label("total"))
         .join(Sale, Sale.cashier_id == User.id)
-        .outerjoin(Currency, Currency.id == Sale.currency_id)
         .filter(Sale.company_id == cid, Sale.created_at >= month_start, Sale.status == SaleStatus.completed, *wh_filter)
     )
-    cashier_rows = cashier_q.group_by(User.id, User.name, func.coalesce(Currency.code, 'UZS')).order_by(func.sum(Sale.total_amount).desc()).limit(30).all()
+    cashier_rows = cashier_q.group_by(User.id, User.name, Sale.currency_id).order_by(func.sum(Sale.total_amount).desc()).limit(30).all()
 
     # Merge by cashier name grouping currencies
     cashier_map = {}
@@ -208,7 +209,7 @@ def get_dashboard(
         if nm not in cashier_map:
             cashier_map[nm] = {"name": nm, "count": 0, "totals": {}}
         cashier_map[nm]["count"] += row.cnt
-        curr = row.currency_code or "UZS"
+        curr = _cur_code(row.currency_id)
         cashier_map[nm]["totals"][curr] = cashier_map[nm]["totals"].get(curr, 0) + float(row.total)
     cashier_perf = list(cashier_map.values())[:10]
 

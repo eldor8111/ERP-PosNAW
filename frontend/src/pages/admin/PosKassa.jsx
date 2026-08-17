@@ -102,6 +102,7 @@ const navigate = useNavigate();
   const [custId, setCustId] = useState('');
   const [search, setSearch] = useState('');
   const [activeCat, setActiveCat] = useState(null);
+  const [variantParent, setVariantParent] = useState(null);
   
   const [showSettings, setShowSettings] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
@@ -709,8 +710,21 @@ const navigate = useNavigate();
             )}
             <div className="grid grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
               {displayedProducts.map(p => (
-                <button key={p.id} onClick={() => addToCart(p)} className="bg-white rounded-2xl border-2 border-transparent hover:border-blue-500 p-4 shadow-sm hover:shadow-xl transition-all text-left flex flex-col active:scale-95 relative overflow-hidden group h-[160px]">
+                <button key={p.id}
+                  onClick={() => {
+                    if (p.product_type === 'parent') {
+                      setVariantParent(p);
+                    } else {
+                      addToCart(p);
+                    }
+                  }}
+                  className="bg-white rounded-2xl border-2 border-transparent hover:border-blue-500 p-4 shadow-sm hover:shadow-xl transition-all text-left flex flex-col active:scale-95 relative overflow-hidden group h-[160px]">
                   <div className="absolute -top-10 -right-10 w-24 h-24 bg-blue-50 rounded-full group-hover:scale-[2] transition-transform duration-500 ease-out z-0"></div>
+                  {p.product_type === 'parent' && (
+                    <span className="absolute top-2 right-2 bg-blue-100 text-blue-700 text-[9px] font-black px-1.5 py-0.5 rounded-md z-10 uppercase tracking-wide">
+                      Razmer
+                    </span>
+                  )}
                   <h3 className="font-extrabold text-slate-800 text-base leading-tight mb-auto z-10 line-clamp-3">{p.name}</h3>
                   <div className="z-10 mt-2">
                     <div className="text-xl font-black text-blue-700 tracking-tight">{fmt(p.sale_price)}</div>
@@ -779,7 +793,7 @@ const navigate = useNavigate();
                          </select>
                          <div className={`flex-1 text-right text-3xl font-black tracking-tight ${p.amount?'text-emerald-500':'text-slate-300'}`}>{p.amount ? fmt(parseAmt(p.amount)) : "0"}</div>
                          {payments.length > 1 && (
-                            <button onClick={(e)=>{ e.stopPropagation(); setPayments(prev => prev.filter((_, i) => i !== idx)); setActiveInputIdx(0); }} className="text-rose-400 hover:text-white hover:bg-rose-500 w-8 h-8 rounded-xl flex items-center justify-center transition-colors">
+                            <button onClick={(e)=>{ e.stopPropagation(); setPayments(prev => prev.filter((_, i) => i !== idx)); setActiveInputIdx(0); }} className="text-blue-400 hover:text-white hover:bg-blue-500 w-8 h-8 rounded-xl flex items-center justify-center transition-colors">
                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                          )}
@@ -819,7 +833,7 @@ const navigate = useNavigate();
                              nxt[activeInputIdx].amount = String(Math.max(0, totalNet - otherSum));
                              return nxt; 
                           });
-                       }} className="flex-1 bg-indigo-50 hover:bg-indigo-100 border-[3px] border-indigo-200 text-indigo-600 rounded-2xl flex items-center justify-center active:scale-95 transition-all font-black text-sm uppercase px-2 text-center leading-tight">{t('pos.exactAmount')}</button>
+                       }} className="flex-1 bg-blue-50 hover:bg-blue-100 border-[3px] border-blue-200 text-blue-600 rounded-2xl flex items-center justify-center active:scale-95 transition-all font-black text-sm uppercase px-2 text-center leading-tight">{t('pos.exactAmount')}</button>
                     </div>
                  </div>
                </div>
@@ -839,7 +853,7 @@ const navigate = useNavigate();
                         </div>
                         
                         {/* Qaytim or Qarz indikatori */}
-                        <div className={`flex justify-between items-center mt-4 p-4 rounded-2xl border-[3px] ${isEnough ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-rose-50 border-rose-500 text-rose-700'}`}>
+                        <div className={`flex justify-between items-center mt-4 p-4 rounded-2xl border-[3px] ${isEnough ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-blue-50 border-blue-500 text-blue-700'}`}>
                            <span className="uppercase font-black text-lg tracking-widest">{isEnough ? t('pos.change').toUpperCase()+':' : t('pos.shortage')}</span>
                            <span className="font-black text-3xl">{isEnough ? fmt(changeAmt) : fmt(remaining)}</span>
                         </div>
@@ -1046,7 +1060,7 @@ const navigate = useNavigate();
       {showDebtModal && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm flex flex-col overflow-hidden">
-             <div className="bg-rose-500 px-6 py-4 flex items-center justify-between">
+             <div className="bg-blue-500 px-6 py-4 flex items-center justify-between">
                <h2 className="text-xl font-black text-white">Qarz Muddatini Belgilang</h2>
                <button onClick={()=>setShowDebtModal(false)} className="text-white opacity-70 hover:opacity-100 transition-colors">
                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -1055,7 +1069,7 @@ const navigate = useNavigate();
              <div className="p-6 space-y-4">
                 <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex justify-between items-center">
                    <span className="font-bold text-slate-500 uppercase text-xs">Qarz Summasi</span>
-                   <span className="font-black text-xl text-rose-600">{fmt(remaining)} UZS</span>
+                   <span className="font-black text-xl text-blue-600">{fmt(remaining)} UZS</span>
                 </div>
                 <div>
                    <label className="block text-xs font-bold text-slate-500 mb-2 uppercase">Qaytarish Sanasi</label>
@@ -1068,7 +1082,7 @@ const navigate = useNavigate();
              </div>
              <div className="p-6 pt-0 flex gap-3">
                 <button onClick={()=>setShowDebtModal(false)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl active:scale-95 transition-all">{t('common.back')}</button>
-                <button onClick={()=>checkout(true)} disabled={isPaying || !debtDueDate} className="flex-1 py-3 bg-rose-500 hover:bg-rose-600 disabled:opacity-50 text-white font-black rounded-xl active:scale-95 transition-all text-sm uppercase tracking-widest">
+                <button onClick={()=>checkout(true)} disabled={isPaying || !debtDueDate} className="flex-1 py-3 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white font-black rounded-xl active:scale-95 transition-all text-sm uppercase tracking-widest">
                   {isPaying ? 'To\'lanmoqda...' : 'Tasdiqlash'}
                 </button>
              </div>
@@ -1076,7 +1090,40 @@ const navigate = useNavigate();
         </div>
       )}
 
-    </div>
+    
+      {variantParent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-slate-100">
+              <h2 className="text-xl font-black text-slate-800">{variantParent.name} - Variantlar</h2>
+              <button onClick={() => setVariantParent(null)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-4">
+              {products.filter(p => p.parent_code === variantParent.id).map(v => {
+                const size = v.attributes?.find(a => a.key === 'Size' || a.key === "O'lcham")?.value || '';
+                const color = v.attributes?.find(a => a.key === 'Color' || a.key === 'Rang')?.value || '';
+                const label = [size, color].filter(Boolean).join(' | ') || v.name;
+                return (
+                  <button key={v.id} onClick={() => { addToCart(v); setVariantParent(null); }} className="p-4 border border-slate-200 rounded-2xl hover:border-blue-400 hover:bg-blue-50 hover:shadow-lg transition-all text-left flex flex-col gap-2 group">
+                    <span className="font-bold text-slate-700 group-hover:text-blue-700">{label}</span>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-bold text-blue-600">{Number(v.sale_price).toLocaleString()} UZS</span>
+                      <span className="text-slate-500">{v.stock_quantity || 0} {v.unit}</span>
+                    </div>
+                  </button>
+                );
+              })}
+              {products.filter(p => p.parent_code === variantParent.id).length === 0 && (
+                <div className="col-span-full py-8 text-center text-slate-400">Ushbu mahsulotning variantlari topilmadi</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+</div>
   );
 }
 

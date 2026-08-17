@@ -1,9 +1,9 @@
 import axios from 'axios'
 import { toast } from '../utils/toast'
 
-const DEFAULT_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+const DEFAULT_URL = import.meta.env.VITE_API_URL || 'http://localhost:8010/api'
 const getBaseUrl = () => {
-  return 'http://localhost:8000/api';
+  return 'http://localhost:8010/api';
 }
 
 // ── Stale-While-Revalidate cache ─────────────────────────────────────────

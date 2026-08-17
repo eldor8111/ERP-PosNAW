@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel, field_validator
 
 from app.models.product import ProductStatus
+from app.schemas.product_variant import ProductVariantOut, ProductVariantCreate
 
 
 class ProductConversionIn(BaseModel):
@@ -72,8 +73,14 @@ class ProductCreate(BaseModel):
     wholesale_currency: str = "UZS"
     sale_currency: str = "UZS"
     expiry_date: Optional[date] = None
+    
+    # Universal ERP Fields
+    product_type: str = "simple"  # simple, variant, service, bundle
+    attributes: Optional[list] = None
+    tags: Optional[list] = None
+    variants: Optional[List[ProductVariantCreate]] = None
+    
     # Virtual Products
-    product_type: str = "stock"  # 'stock' yoki 'sell'
     conversion: Optional[ProductConversionIn] = None  # faqat product_type='sell' uchun
     initial_stock: Optional[Decimal] = None
     initial_warehouse_id: Optional[int] = None
@@ -115,8 +122,14 @@ class ProductUpdate(BaseModel):
     wholesale_currency: Optional[str] = None
     sale_currency: Optional[str] = None
     expiry_date: Optional[date] = None
+    
+    # Universal ERP Fields
+    product_type: Optional[str] = None
+    attributes: Optional[list] = None
+    tags: Optional[list] = None
+    variants: Optional[List[ProductVariantCreate]] = None
+    
     # Virtual Products
-    product_type: Optional[str] = None  # 'stock' yoki 'sell'
     conversion: Optional[ProductConversionIn] = None
     initial_stock: Optional[Decimal] = None
     initial_warehouse_id: Optional[int] = None
@@ -150,6 +163,9 @@ class ProductOut(BaseModel):
     brand: Optional[str] = None
     status: ProductStatus
     product_type: str = "stock"
+    attributes: Optional[list] = None
+    tags: Optional[list] = None
+    variants: List[ProductVariantOut] = []
     category_name: Optional[str] = None
     conversion: Optional[ProductConversionOut] = None
     sell_conversions: List[ProductConversionReverseOut] = []
@@ -162,6 +178,7 @@ class ProductOut(BaseModel):
     wholesale_currency: str = "UZS"
     sale_currency: str = "UZS"
     expiry_date: Optional[date] = None
+    category_is_perishable: Optional[bool] = False
 
     model_config = {"from_attributes": True}
 
@@ -214,6 +231,9 @@ class ProductListOut(BaseModel):
     brand: Optional[str] = None
     status: ProductStatus
     product_type: str = "stock"
+    attributes: Optional[list] = None
+    tags: Optional[list] = None
+    variants: List[ProductVariantOut] = []
     conversion: Optional[ProductConversionOut] = None
     sell_conversions: List[ProductConversionReverseOut] = []
     stock_quantity: Optional[Decimal] = None
@@ -226,6 +246,8 @@ class ProductListOut(BaseModel):
     sale_currency: str = "UZS"
     category_id: Optional[int] = None
     category_name: Optional[str] = None
+    category_is_perishable: Optional[bool] = False
+    expiry_date: Optional[date] = None
 
     model_config = {"from_attributes": True}
 

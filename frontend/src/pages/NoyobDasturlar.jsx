@@ -53,10 +53,10 @@ export default function NoyobDasturlar() {
     },
     {
       icon: '🏥',
-      color: 'text-cyan-600',
-      borderColor: 'border-l-cyan-600',
-      bg: 'bg-cyan-600/10',
-      gradient: 'from-cyan-600 to-cyan-600/80',
+      color: 'text-blue-600',
+      borderColor: 'border-l-blue-600',
+      bg: 'bg-blue-600/10',
+      gradient: 'from-blue-600 to-blue-600/80',
       title: t('nd.tibbiyti.t') || 'Tibbiy Tizimlar',
       desc: t('nd.klinikal.d') || 'Klinikalar, laboratoriyalar va tibbiyot markazlari uchun maxsus tizimlar.',
       features: ['Bemor qabul tizimi', 'Tibbiy tarix (EHR)', 'Laboratoriya natijalari', 'Navbat boshqaruvi', 'To\'lov integratsiyasi', 'Hisobot va analitika'],
@@ -136,14 +136,14 @@ export default function NoyobDasturlar() {
 
           {/* Tag Badge */}
           <div
-            className="inline-block px-5 ml-3 py-2 bg-violet-500/30 text-purple-200 border border-violet-500/40 rounded-full text-sm font-bold mb-8 animate-fadeIn"
+            className="inline-block px-5 ml-3 py-2 bg-violet-500/30 text-blue-200 border border-violet-500/40 rounded-full text-sm font-bold mb-8 animate-fadeIn"
             dangerouslySetInnerHTML={{ __html: t('nd.tag') || '💻 &nbsp;Custom Software Development' }}
           />
 
           {/* Title */}
           <h1 className="text-[clamp(44px,7vw,72px)] font-black leading-[1.08] tracking-tight text-white mb-7 animate-[fadeInUp_0.7s_ease-out_0.1s_both]">
             {t('nd.hero.title1') || 'G\'oyangizni'}<br />
-            <span className="bg-gradient-to-r from-purple-200 to-purple-400 bg-clip-text text-transparent inline-block">
+            <span className="bg-gradient-to-r from-blue-200 to-blue-400 bg-clip-text text-transparent inline-block">
               {t('nd.hero.title2') || 'kuchli dasturga'}
             </span> {t('nd.hero.title3') || 'aylantiramiz'}
           </h1>
@@ -179,7 +179,7 @@ export default function NoyobDasturlar() {
           {/* CTAs */}
           <div className="flex flex-wrap gap-4 justify-center animate-[fadeInUp_0.7s_ease-out_0.4s_both]">
             <button
-              className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-violet-500 text-white font-bold text-base px-8 py-4 rounded-xl cursor-pointer transition-all duration-300 shadow-lg shadow-purple-600/35 hover:-translate-y-1 hover:scale-[1.02] hover:shadow-purple-600/40"
+              className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-violet-500 text-white font-bold text-base px-8 py-4 rounded-xl cursor-pointer transition-all duration-300 shadow-lg shadow-blue-600/35 hover:-translate-y-1 hover:scale-[1.02] hover:shadow-blue-600/40"
               onClick={() => { const el = document.getElementById('sp-contact'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }}
             >
               {t('nd.hero.btn1') || 'Loyiha muhokamasi'} <ArrowRight />
@@ -197,7 +197,7 @@ export default function NoyobDasturlar() {
       {/* Solutions Section */}
       <section className="py-24 max-w-[1400px] mx-auto">
         <div className="text-center mb-16">
-          <div className="inline-block py-1 bg-purple-600/10 border border-purple-600/15 rounded-full text-xs font-bold text-purple-600 mb-4 uppercase tracking-wider">
+          <div className="inline-block py-1 bg-blue-600/10 border border-blue-600/15 rounded-full text-xs font-bold text-blue-600 mb-4 uppercase tracking-wider">
             {t('nd.sol.tag') || 'Yechim turlari'}
           </div>
           <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight mb-3">
@@ -306,7 +306,7 @@ export default function NoyobDasturlar() {
       {/* Development Process */}
       <section className="py-24 max-w-[1400px] mx-auto">
         <div className="text-center mb-16">
-          <div className="inline-block px-4 py-1 bg-purple-600/10 border border-purple-600/15 rounded-full text-xs font-bold text-purple-600 mb-4 uppercase tracking-wider">
+          <div className="inline-block px-4 py-1 bg-blue-600/10 border border-blue-600/15 rounded-full text-xs font-bold text-blue-600 mb-4 uppercase tracking-wider">
             Jarayon
           </div>
           <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight mb-3">
@@ -321,7 +321,7 @@ export default function NoyobDasturlar() {
           {devProcess.map((step, i) => (
             <div key={i} className="relative group flex flex-col justify-between bg-white border border-slate-100 p-6 rounded-3xl shadow-sm hover:shadow-md transition-all">
               <div>
-                <div className="absolute top-4 right-6 text-4xl font-black text-slate-100 group-hover:text-purple-100/70 transition-colors pointer-events-none">
+                <div className="absolute top-4 right-6 text-4xl font-black text-slate-100 group-hover:text-blue-100/70 transition-colors pointer-events-none">
                   {step.num}
                 </div>
                 <div className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center text-xl mb-5 shadow-inner">
@@ -330,7 +330,7 @@ export default function NoyobDasturlar() {
                 <h3 className="text-base font-bold text-slate-800 mb-2">{step.title}</h3>
                 <p className="text-slate-500 text-xs leading-relaxed mb-4">{step.desc}</p>
               </div>
-              <div className="inline-flex w-max items-center gap-1.5 text-xs font-bold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-md">
+              <div className="inline-flex w-max items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md">
                 <Clock size={16} /> {step.time}
               </div>
             </div>
@@ -342,7 +342,7 @@ export default function NoyobDasturlar() {
       <section className="py-24 bg-gradient-to-b from-slate-50 to-white border-y border-black/[0.04]">
         <div className="max-w-[1400px] mx-auto">
           <div className="text-center mb-16">
-            <div className="inline-block px-4 py-1 bg-indigo-600/10 border border-indigo-600/15 rounded-full text-xs font-bold text-indigo-600 mb-4 uppercase tracking-wider">
+            <div className="inline-block px-4 py-1 bg-blue-600/10 border border-blue-600/15 rounded-full text-xs font-bold text-blue-600 mb-4 uppercase tracking-wider">
               Texnologiyalar
             </div>
             <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">
@@ -402,7 +402,7 @@ export default function NoyobDasturlar() {
 
       {/* CTA Section */}
       <section className="py-16 max-w-[1400px] mx-auto px-4 mb-12" id="sp-contact">
-        <div className="bg-gradient-to-br from-purple-950 via-violet-900 to-slate-900 text-white rounded-[32px] p-8 md:p-16 text-center relative overflow-hidden shadow-xl">
+        <div className="bg-gradient-to-br from-blue-950 via-violet-900 to-slate-900 text-white rounded-[32px] p-8 md:p-16 text-center relative overflow-hidden shadow-xl">
           <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
 
           <div className="relative z-10 max-w-2xl mx-auto">

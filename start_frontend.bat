@@ -18,5 +18,5 @@ echo [OK] Frontend tayyor.
 echo [INFO] Vite dev server 5173-portda ishga tushmoqda...
 echo [INFO] Brauzerda: http://localhost:5173
 echo.
-call npx vite
+call npm run dev
 pause

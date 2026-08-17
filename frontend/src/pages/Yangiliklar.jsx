@@ -45,7 +45,7 @@ export default function Yangiliklar() {
               <Newspaper className="w-4 h-4" /> So'nggi Yangiliklar
             </span>
             <h1 className="text-4xl md:text-5xl font-black text-slate-900 leading-tight mb-4">
-              Tizimimizdagi yangiliklar va <span className="bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">muhim e'lonlar</span>
+              Tizimimizdagi yangiliklar va <span className="bg-gradient-to-r from-emerald-600 to-blue-500 bg-clip-text text-transparent">muhim e'lonlar</span>
             </h1>
             <p className="text-lg text-slate-600">
               ERP POS tizimi yangilanishlari, yangi funksiyalar va biznesni rivojlantirish bo'yicha maslahatlar

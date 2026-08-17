@@ -9,6 +9,8 @@ class CompanyBotSettingsUpdate(BaseModel):
     notify_instant_finance: bool = True
     notify_scheduled: bool = True
     scheduled_time: str = "20:00"
+    notify_expired_products: bool = True
+    expired_days_before: int = 7
 
 class CompanyBotOut(BaseModel):
     id: int
@@ -19,6 +21,8 @@ class CompanyBotOut(BaseModel):
     notify_instant_finance: Optional[bool] = True
     notify_scheduled: Optional[bool] = True
     scheduled_time: Optional[str] = "20:00"
+    notify_expired_products: Optional[bool] = True
+    expired_days_before: Optional[int] = 7
 
     class Config:
         from_attributes = True

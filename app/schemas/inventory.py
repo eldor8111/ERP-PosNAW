@@ -1,17 +1,31 @@
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
 from typing import List, Optional
 
 from pydantic import BaseModel, field_validator
+
+class ExpiringBatchOut(BaseModel):
+    batch_id: int
+    product_name: str
+    variant_name: Optional[str] = None
+    expiry_date: Optional[date] = None
+    days_left: Optional[int] = None
+    quantity: Decimal
+    is_expired: bool
+
+class WriteOffExpiredRequest(BaseModel):
+    batch_id: int
 
 from app.models.inventory import MovementType
 
 
 class StockReceiveItem(BaseModel):
     product_id: int
+    variant_id: Optional[int] = None
     quantity: Decimal
     reason: Optional[str] = None
-    purchase_price: Optional[Decimal] = None  # FIFO uchun tannarx (ixtiyoriy)
+    purchase_price: Optional[Decimal] = None  # FIFO/FEFO uchun tannarx (ixtiyoriy)
+    expiry_date: Optional[date] = None
 
     @field_validator("quantity")
     @classmethod
@@ -28,6 +42,7 @@ class StockReceiveRequest(BaseModel):
 
 class StockAdjustRequest(BaseModel):
     product_id: int
+    variant_id: Optional[int] = None
     new_quantity: Decimal
     reason: str
 
@@ -41,6 +56,7 @@ class StockAdjustRequest(BaseModel):
 
 class StockLevelOut(BaseModel):
     product_id: int
+    variant_id: Optional[int] = None
     product_name: str
     product_sku: str
     product_barcode: str
@@ -55,6 +71,7 @@ class StockLevelOut(BaseModel):
 class StockMovementOut(BaseModel):
     id: int
     product_id: int
+    variant_id: Optional[int] = None
     product_name: str
     product_sku: Optional[str] = None
     product_unit: Optional[str] = None
@@ -82,6 +99,7 @@ class StockMovementUpdate(BaseModel):
 
 class ChiqimBatchItem(BaseModel):
     product_id: int
+    variant_id: Optional[int] = None
     quantity: Decimal
     type: str
     doc_num: Optional[str] = None
@@ -114,6 +132,7 @@ class ChiqimDocumentOut(BaseModel):
 class ChiqimDetailOut(BaseModel):
     id: int  # movement id
     product_id: int
+    variant_id: Optional[int] = None
     product_name: str
     product_sku: str
     product_unit: str
@@ -125,6 +144,7 @@ class ChiqimDetailOut(BaseModel):
 
 class SupplierReturnItem(BaseModel):
     product_id: int
+    variant_id: Optional[int] = None
     quantity: Decimal
     unit_cost: Decimal  # The price at which the item is being returned
 

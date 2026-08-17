@@ -1,8 +1,7 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 from pydantic import BaseModel, EmailStr, field_validator
-from typing import List, Optional
 
 from app.models.user import UserRole, UserStatus
 
@@ -20,7 +19,8 @@ class UserCreate(BaseModel):
     email: Optional[str] = None
     password: str
     role: UserRole = UserRole.cashier
-    permissions: Optional[dict] = None
+    role_id: Optional[int] = None
+    permissions: Optional[Dict[str, Any]] = {}
     branch_id: Optional[int] = None
     otp_verified_token: Optional[str] = None
 
@@ -35,9 +35,10 @@ class UserUpdate(BaseModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     role: Optional[UserRole] = None
-    permissions: Optional[dict] = None
-    status: Optional[UserStatus] = None
+    role_id: Optional[int] = None
+    permissions: Optional[Dict[str, Any]] = None
     branch_id: Optional[int] = None
+    status: Optional[UserStatus] = None
 
 
 class UserPasswordChange(BaseModel):
@@ -50,7 +51,8 @@ class UserOut(BaseModel):
     phone: str
     email: Optional[str] = None
     role: UserRole
-    permissions: Optional[dict] = None
+    role_id: Optional[int] = None
+    permissions: Optional[Dict[str, Any]] = {}
     status: UserStatus
     branch_id: Optional[int] = None
     company_id: Optional[int] = None

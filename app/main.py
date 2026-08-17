@@ -12,11 +12,12 @@ from slowapi.errors import RateLimitExceeded  # type: ignore
 from app.core.limiter import limiter  # type: ignore
 
 from app.routers import (
+    roles,
     auth, categories, inventory, products, product_search, product_import,
     reports, sales_report, finance_report, sales, users,
     suppliers, purchase_orders, transfers, inventory_counts,
     finance, customers, shifts, dashboard_mobile, currencies, api_keys,
-    warehouses, branches, super_admin, companies, dashboard
+    warehouses, branches, super_admin, companies, dashboard, promotions
 )
 from app.admin_tg_bot.bot_routers import admin_router
 from app.routers import bin_locations, uploads, agents, telegram, lead  # type: ignore
@@ -283,6 +284,7 @@ from app.routers import hippo as hippo_router  # type: ignore
 from app.admin_tg_bot.bot_routers import admin_router
 from app.routers import ai_analytics, ai_products, ai_reports
 app.include_router(auth.router, prefix=API_PREFIX)
+app.include_router(roles.router, prefix=API_PREFIX)
 app.include_router(users.router, prefix=API_PREFIX)
 app.include_router(categories.router, prefix=API_PREFIX)
 app.include_router(product_search.router, prefix=API_PREFIX)
@@ -323,6 +325,7 @@ app.include_router(admin_router, prefix=API_PREFIX)
 app.include_router(ai_analytics.router, prefix=API_PREFIX)
 app.include_router(ai_products.router, prefix=API_PREFIX)
 app.include_router(ai_reports.router, prefix=API_PREFIX)
+app.include_router(promotions.router, prefix=API_PREFIX)
 
 # Serve uploaded static files
 import os

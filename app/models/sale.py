@@ -76,6 +76,7 @@ class SaleItem(Base):
     id = Column(Integer, primary_key=True, index=True)
     sale_id = Column(Integer, ForeignKey("sales.id"), nullable=False)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    variant_id = Column(Integer, ForeignKey("product_variants.id"), nullable=True)
     warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=True)  # Qaysi ombordan sotildi
     unit = Column(String(20), nullable=True, default="dona")  # Mahsulot o'lchov birligi
     quantity = Column(Numeric(12, 3), nullable=False)
@@ -104,6 +105,7 @@ class SaleItemBatch(Base):
     id = Column(Integer, primary_key=True, index=True)
     sale_item_id = Column(Integer, ForeignKey("sale_items.id"), nullable=False)
     batch_id = Column(Integer, ForeignKey("batches.id"), nullable=False)
+    variant_id = Column(Integer, ForeignKey("product_variants.id"), nullable=True)
     quantity = Column(Numeric(12, 3), nullable=False)
     unit_cost = Column(Numeric(14, 2), nullable=False)
 

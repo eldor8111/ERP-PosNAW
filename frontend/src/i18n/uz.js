@@ -27,6 +27,7 @@ export default {
   'nav.inventory_counts': 'Inventarizatsiya',
   'nav.pos_desktop': 'POS Desktop',
   'nav.kontragentlar': 'Kontragentlar',
+  'nav.alerts': 'Ogohlantirishlar',
 
   // === HEADER ===
   'header.systemActive': 'Tizim faol',

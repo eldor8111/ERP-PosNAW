@@ -14,16 +14,20 @@ class MovementType(str, enum.Enum):
     TRANSFER_IN = "TRANSFER_IN"
     TRANSFER_OUT = "TRANSFER_OUT"
     RETURN = "RETURN"
+    EXPIRED = "EXPIRED"
 
 
 class StockLevel(Base):
     __tablename__ = "stock_levels"
     __table_args__ = (
-        UniqueConstraint("product_id", "warehouse_id", name="uq_stock_product_warehouse"),
+        # Unique index DB darajasida: (product_id, warehouse_id, COALESCE(variant_id, 0))
+        # Migration: 93e64f6f907e — uq_stock_product_variant_warehouse
+        # Variantli mahsulotlar uchun alohida yozuvga ruxsat beradi
     )
 
     id = Column(Integer, primary_key=True, index=True)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False, index=True)
+    variant_id = Column(Integer, ForeignKey("product_variants.id"), nullable=True, index=True)
     warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=True, index=True)
     quantity = Column(Numeric(12, 3), default=0)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -39,6 +43,7 @@ class StockMovement(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    variant_id = Column(Integer, ForeignKey("product_variants.id"), nullable=True)
     type = Column(Enum(MovementType), nullable=False)
     qty_before = Column(Numeric(12, 3), nullable=False)
     qty_after = Column(Numeric(12, 3), nullable=False)

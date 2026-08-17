@@ -24,7 +24,7 @@ const payMeta = {
   debt: { l: 'Qarz', c: 'bg-amber-100 text-amber-700' },
 };
 
-const ic = 'border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white transition-colors hover:border-slate-300';
+const ic = 'border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white transition-colors hover:border-slate-300';
 
 const poMeta = {
   draft: { lKey: 'purchase.statusDraft', c: 'bg-slate-100 text-slate-600' },
@@ -43,7 +43,7 @@ function Badge({ meta, val }) {
 function Btn({ v = 'primary', sm, children, ...p }) {
   const { t } = useLang();
   const cl = {
-    primary: 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shadow-indigo-200',
+    primary: 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-200',
     green: 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-200',
     red: 'bg-red-500 hover:bg-red-600 text-white shadow-sm shadow-red-200',
     ghost: 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200',
@@ -73,7 +73,7 @@ function CreateHeader({ title, onBack, right }) {
   const { t } = useLang();
   return (
     <div className="flex items-center gap-3 px-6 py-3.5 border-b border-slate-100 bg-white shrink-0 shadow-sm">
-      <button onClick={onBack} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-indigo-600 px-3 py-2 rounded-xl hover:bg-indigo-50 transition-all text-sm font-semibold">
+      <button onClick={onBack} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-blue-600 px-3 py-2 rounded-xl hover:bg-blue-50 transition-all text-sm font-semibold">
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
         </svg>
@@ -96,12 +96,12 @@ function Pager({ skip, limit, count, onChange }) {
       </span>
       <div className="flex gap-1.5">
         <button disabled={skip === 0} onClick={() => onChange(Math.max(0, skip - limit))}
-          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white disabled:opacity-40 hover:border-indigo-300 hover:text-indigo-600 transition-all text-xs font-semibold shadow-sm">
+          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white disabled:opacity-40 hover:border-blue-300 hover:text-blue-600 transition-all text-xs font-semibold shadow-sm">
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           Oldingi
         </button>
         <button disabled={count < limit} onClick={() => onChange(skip + limit)}
-          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white disabled:opacity-40 hover:border-indigo-300 hover:text-indigo-600 transition-all text-xs font-semibold shadow-sm">
+          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white disabled:opacity-40 hover:border-blue-300 hover:text-blue-600 transition-all text-xs font-semibold shadow-sm">
           Keyingi
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
         </button>
@@ -146,7 +146,7 @@ function Tbl({ cols, rows, onRow, loading, skip = 0, limit, onChange }) {
           <tbody className="divide-y divide-slate-50">
             {rows.map((row, i) => (
               <tr key={i} onClick={onRow ? () => onRow(row) : undefined}
-                className={`transition-colors ${onRow ? 'cursor-pointer hover:bg-indigo-50/70 active:bg-indigo-100/50' : 'hover:bg-slate-50/80'}`}>
+                className={`transition-colors ${onRow ? 'cursor-pointer hover:bg-blue-50/70 active:bg-blue-100/50' : 'hover:bg-slate-50/80'}`}>
                 <td className="px-5 py-4 text-slate-300 text-xs font-medium">{skip + i + 1}</td>
                 {cols.map(c => (
                   <td key={c.k} className="px-5 py-4 text-slate-700 text-sm">
@@ -242,26 +242,26 @@ function ProdSearch({ products, onSelect, inputRef, placeholder = 'Mahsulot qidi
 
   return (
     <div className="relative" ref={ref}>
-      <div className={`flex items-center gap-2 border border-slate-200 rounded-xl px-3.5 py-2 bg-white transition-all ${open ? 'border-indigo-400 ring-2 ring-indigo-50' : 'hover:border-slate-300'}`}>
+      <div className={`flex items-center gap-2 border border-slate-200 rounded-xl px-3.5 py-2 bg-white transition-all ${open ? 'border-blue-400 ring-2 ring-blue-50' : 'hover:border-slate-300'}`}>
         <input value={q} onChange={e => { setQ(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
           ref={inputRef}
           placeholder={placeholder}
           className="w-full text-sm outline-none bg-transparent" />
-        {loading && <div className="w-3.5 h-3.5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin shrink-0" />}
+        {loading && <div className="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin shrink-0" />}
       </div>
       {open && displayList.length > 0 && (
         <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-60 overflow-hidden max-h-72 overflow-y-auto">
           {displayList.map((p, i) => (
             <button key={p.id} onMouseDown={() => { onSelect(p); setQ(''); setOpen(false); }}
-              className={`w-full text-left px-4 py-2.5 hover:bg-indigo-50 border-b border-slate-100 last:border-0 flex justify-between items-center gap-3 ${navIdx === i ? 'bg-indigo-50' : ''}`}>
+              className={`w-full text-left px-4 py-2.5 hover:bg-blue-50 border-b border-slate-100 last:border-0 flex justify-between items-center gap-3 ${navIdx === i ? 'bg-blue-50' : ''}`}>
               <div className="min-w-0">
                 <div className="font-medium text-slate-800 text-sm truncate">{p.name}</div>
                 <div className="text-xs text-slate-400">{p.sku}{p.barcode ? ` · ${p.barcode}` : ''}</div>
               </div>
               <div className="text-right shrink-0 text-xs">
-                <div className="font-semibold text-indigo-600">{fmt(p.sale_price)} so'm</div>
+                <div className="font-semibold text-blue-600">{fmt(p.sale_price)} so'm</div>
                 {p.wholesale_price > 0 && <div className="text-amber-600">Ulg: {fmt(p.wholesale_price)}</div>}
                 <div className="text-slate-400">Qoldiq: {fmt(p.stock_quantity)}</div>
               </div>
@@ -298,7 +298,7 @@ function SupSearch({ suppliers, value, onChange, placeholder = "Ta'minotchi tanl
 
   return (
     <div className="relative" ref={ref}>
-      <div className={`flex items-center border rounded-xl bg-white overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 transition-colors ${selected ? 'border-indigo-300' : 'border-slate-200'}`}>
+      <div className={`flex items-center border rounded-xl bg-white overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 transition-colors ${selected ? 'border-blue-300' : 'border-slate-200'}`}>
         <svg className="w-4 h-4 ml-3 shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
         </svg>
@@ -319,7 +319,7 @@ function SupSearch({ suppliers, value, onChange, placeholder = "Ta'minotchi tanl
             <div className="px-4 py-3 text-sm text-slate-400">Topilmadi</div>
           ) : filtered.map(s => (
             <button key={s.id} onMouseDown={() => pick(s)}
-              className="w-full text-left px-4 py-2.5 hover:bg-indigo-50 border-b border-slate-50 last:border-0">
+              className="w-full text-left px-4 py-2.5 hover:bg-blue-50 border-b border-slate-50 last:border-0">
               <div className="text-sm font-medium text-slate-800">{s.name}</div>
               {s.phone && <div className="text-xs text-slate-400">{s.phone}</div>}
             </button>
@@ -355,7 +355,7 @@ function CustSearch({ customers, value, onChange, placeholder = 'Ism yoki telefo
 
   return (
     <div className="relative" ref={ref}>
-      <div className="flex items-center border border-slate-200 rounded-lg bg-white overflow-hidden focus-within:ring-2 focus-within:ring-indigo-400">
+      <div className="flex items-center border border-slate-200 rounded-lg bg-white overflow-hidden focus-within:ring-2 focus-within:ring-blue-400">
         <input
           value={open ? q : (selected ? selected.name : '')}
           onChange={e => { setQ(e.target.value); setOpen(true); if (!e.target.value) onChange(''); }}
@@ -373,7 +373,7 @@ function CustSearch({ customers, value, onChange, placeholder = 'Ism yoki telefo
             <div className="px-4 py-3 text-sm text-slate-400">Topilmadi</div>
           ) : filtered.map(c => (
             <button key={c.id} onMouseDown={() => select(c)}
-              className="w-full text-left px-4 py-2.5 hover:bg-indigo-50 border-b border-slate-50 last:border-0 flex items-center justify-between">
+              className="w-full text-left px-4 py-2.5 hover:bg-blue-50 border-b border-slate-50 last:border-0 flex items-center justify-between">
               <div>
                 <div className="text-sm font-medium text-slate-800">{c.name}</div>
                 {c.phone && <div className="text-xs text-slate-400">{c.phone}</div>}
@@ -426,17 +426,17 @@ function PayModal({ total, onPay, onClose }) {
         </div>
         <div className="p-6 space-y-4">
           {/* Total display */}
-          <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 text-center">
-            <div className="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-1">To'lov summasi</div>
-            <div className="text-3xl font-black text-indigo-700">{fmt(total)} <span className="text-lg font-normal text-indigo-400">so'm</span></div>
+          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-center">
+            <div className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-1">To'lov summasi</div>
+            <div className="text-3xl font-black text-blue-700">{fmt(total)} <span className="text-lg font-normal text-blue-400">so'm</span></div>
           </div>
           {/* Payment type */}
           <div className="grid grid-cols-2 gap-2">
             {PAY_OPTS.map(({ v, l, icon }) => (
               <button key={v} onClick={() => setType(v)}
                 className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold border transition-all ${type === v
-                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200'
-                  : 'bg-white border-slate-200 text-slate-700 hover:border-indigo-300 hover:bg-indigo-50'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200'
+                  : 'bg-white border-slate-200 text-slate-700 hover:border-blue-300 hover:bg-blue-50'
                   }`}>
                 {icon} {l}
               </button>
@@ -447,7 +447,7 @@ function PayModal({ total, onPay, onClose }) {
             <div>
               <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">Qabul qilindi (so'm)</label>
               <input type="number" value={paid} onChange={e => setPaid(e.target.value)} autoFocus
-                className="w-full border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 text-2xl font-bold text-center text-slate-800 focus:outline-none transition-colors" />
+                className="w-full border-2 border-slate-200 focus:border-blue-500 rounded-xl px-4 py-3 text-2xl font-bold text-center text-slate-800 focus:outline-none transition-colors" />
               {change > 0 && Number(paid) > 0 && (
                 <div className="mt-2 flex items-center justify-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl py-2.5">
                   <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
@@ -460,7 +460,7 @@ function PayModal({ total, onPay, onClose }) {
           <div className="flex gap-3">
             <Btn v="ghost" onClick={onClose}>{t('common.cancel')}</Btn>
             <button onClick={() => onPay(type, type === 'debt' ? 0 : Number(paid))}
-              className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-indigo-200 active:scale-95">
+              className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-blue-200 active:scale-95">
               Tasdiqlash
             </button>
           </div>
@@ -544,7 +544,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
     <div className="fixed inset-0 z-40 bg-slate-50 flex flex-col">
       {/* Header */}
       <div className="flex items-center gap-4 px-5 py-3 bg-white border-b border-slate-100 shrink-0 shadow-sm">
-        <button onClick={onBack} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-indigo-600 px-3 py-2 rounded-xl hover:bg-indigo-50 transition-all text-sm font-semibold shrink-0">
+        <button onClick={onBack} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-blue-600 px-3 py-2 rounded-xl hover:bg-blue-50 transition-all text-sm font-semibold shrink-0">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
           </svg>
@@ -570,7 +570,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
           </button>
           {/* Note */}
           <input value={note} onChange={e => setNote(e.target.value)} placeholder="Izoh (ixtiyoriy)..."
-            className="flex-1 max-w-sm border border-slate-200 rounded-xl px-3.5 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 placeholder-slate-400" />
+            className="flex-1 max-w-sm border border-slate-200 rounded-xl px-3.5 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-slate-400" />
         </div>
         <div className="text-xs text-slate-400 shrink-0 font-medium">{new Date().toLocaleString('uz-UZ')}</div>
       </div>
@@ -588,7 +588,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
               </svg>
               <input value={prodQ} onChange={e => setProdQ(e.target.value)}
                 placeholder="Mahsulot nomi, barkod yoki SKU..."
-                className="w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
+                className="w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white" />
             </div>
             <div className="flex items-center justify-between mt-2 px-1">
               <span className="text-xs text-slate-400 font-medium">{filteredProducts.length} ta mahsulot</span>
@@ -617,10 +617,10 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                 <button key={p.id}
                   onClick={() => setQaItem({ product: p, qty: 1, price: displayPrice, discount: 0 })}
                   className={`w-full text-left px-3 py-2.5 rounded-xl border transition-all flex items-center gap-3 group ${inCart
-                    ? 'bg-indigo-50 border-indigo-200'
+                    ? 'bg-blue-50 border-blue-200'
                     : 'border-transparent hover:bg-slate-50 hover:border-slate-200'
                     }`}>
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 ${inCart ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-600'
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 ${inCart ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-600'
                     }`}>
                     {inCart ? inCart.qty : p.name.slice(0, 2).toUpperCase()}
                   </div>
@@ -634,7 +634,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="text-sm font-bold text-indigo-600">{fmt(displayPrice)}</div>
+                    <div className="text-sm font-bold text-blue-600">{fmt(displayPrice)}</div>
                     {wholesale && p.wholesale_price && Number(p.wholesale_price) !== Number(p.sale_price) && (
                       <div className="text-xs text-slate-400 line-through">{fmt(p.sale_price)}</div>
                     )}
@@ -655,7 +655,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
               <span className="text-sm font-bold text-slate-700">
-                Savat {cart.length > 0 && <span className="text-indigo-600 ml-1">({cart.length} tur)</span>}
+                Savat {cart.length > 0 && <span className="text-blue-600 ml-1">({cart.length} tur)</span>}
               </span>
             </div>
             {cart.length > 0 && (
@@ -703,7 +703,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                             className="w-6 h-6 rounded border border-slate-200 text-slate-500 hover:bg-slate-100 flex items-center justify-center text-sm leading-none">−</button>
                           <input type="number" min="0.001" step="any" value={c.qty}
                             onChange={e => setCart(p => p.map((x, idx) => idx === i ? { ...x, qty: Number(e.target.value) || 1 } : x))}
-                            className="w-14 text-center border border-slate-200 rounded px-1 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                            className="w-14 text-center border border-slate-200 rounded px-1 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
                           <button onClick={() => setCart(p => p.map((x, idx) => idx === i ? { ...x, qty: x.qty + 1 } : x))}
                             className="w-6 h-6 rounded border border-slate-200 text-slate-500 hover:bg-slate-100 flex items-center justify-center text-sm leading-none">+</button>
                         </div>
@@ -711,7 +711,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                       <td className="px-3 py-3 text-center">
                         <input type="number" min="0" value={c.price}
                           onChange={e => setCart(p => p.map((x, idx) => idx === i ? { ...x, price: Number(e.target.value) || 0 } : x))}
-                          className="w-28 text-center border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                          className="w-28 text-center border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
                       </td>
                       <td className="px-3 py-3 text-center">
                         <input type="number" min="0" value={c.discount || 0}
@@ -736,7 +736,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
               <span className="text-sm text-slate-500">{cart.length} xil, {cart.reduce((s, c) => s + c.qty, 0)} ta mahsulot</span>
               <div className="text-right">
                 <span className="text-xs text-slate-400 mr-2">{t('admin.dict.total_colon') || 'Jami:'}</span>
-                <span className="text-xl font-bold text-indigo-600">{fmt(subtotal)} so'm</span>
+                <span className="text-xl font-bold text-blue-600">{fmt(subtotal)} so'm</span>
               </div>
             </div>
           )}
@@ -760,7 +760,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
             Qarzga saqlash
           </Btn>
           <button disabled={saving || !cart.length} onClick={() => { setErr(''); setShowPay(true); }}
-            className="inline-flex items-center gap-2.5 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-indigo-200 active:scale-95">
+            className="inline-flex items-center gap-2.5 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-blue-200 active:scale-95">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
             To'lovga o'tish
             {cart.length > 0 && <span className="bg-white/20 px-2 py-0.5 rounded-lg text-xs font-bold">{fmt(subtotal)}</span>}
@@ -773,7 +773,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4" onClick={() => setQaItem(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
             <div className="flex items-start gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center text-sm font-bold shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold shrink-0">
                 {qaItem.product.name.slice(0, 2).toUpperCase()}
               </div>
               <div>
@@ -788,27 +788,27 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                   autoFocus
                   onChange={e => setQaItem(v => ({ ...v, qty: e.target.value }))}
                   onKeyDown={e => e.key === 'Enter' && addToCart(qaItem.product, qaItem.qty, qaItem.price, qaItem.discount)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-center font-bold" />
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-center font-bold" />
               </div>
               <div>
                 <label className="text-xs font-medium text-slate-500 mb-1 block">Narxi (so'm)</label>
                 <input type="number" min="0" value={qaItem.price}
                   onChange={e => setQaItem(v => ({ ...v, price: e.target.value }))}
                   onKeyDown={e => e.key === 'Enter' && addToCart(qaItem.product, qaItem.qty, qaItem.price, qaItem.discount)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-center font-bold" />
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-center font-bold" />
               </div>
               <div>
                 <label className="text-xs font-medium text-slate-500 mb-1 block">Chegirma (so'm)</label>
                 <input type="number" min="0" value={qaItem.discount}
                   onChange={e => setQaItem(v => ({ ...v, discount: e.target.value }))}
                   onKeyDown={e => e.key === 'Enter' && addToCart(qaItem.product, qaItem.qty, qaItem.price, qaItem.discount)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-center font-bold" />
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-center font-bold" />
               </div>
             </div>
             {qaItem.product.wholesale_price && (
               <div className="flex gap-2 mb-4">
                 <button onClick={() => setQaItem(v => ({ ...v, price: Number(v.product.sale_price) }))}
-                  className={`flex-1 py-1.5 text-xs rounded-lg border transition-all ${Number(qaItem.price) === Number(qaItem.product.sale_price) ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-600 hover:border-indigo-300'}`}>
+                  className={`flex-1 py-1.5 text-xs rounded-lg border transition-all ${Number(qaItem.price) === Number(qaItem.product.sale_price) ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-600 hover:border-blue-300'}`}>
                   Chakana: {fmt(qaItem.product.sale_price)}
                 </button>
                 <button onClick={() => setQaItem(v => ({ ...v, price: Number(v.product.wholesale_price) }))}
@@ -819,12 +819,12 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
             )}
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs text-slate-400">{t('admin.dict.total_colon') || 'Jami:'}</span>
-              <span className="text-lg font-bold text-indigo-600">{fmt(Number(qaItem.qty) * Number(qaItem.price) - Number(qaItem.discount))} so'm</span>
+              <span className="text-lg font-bold text-blue-600">{fmt(Number(qaItem.qty) * Number(qaItem.price) - Number(qaItem.discount))} so'm</span>
             </div>
             <div className="flex gap-2">
               <Btn v="ghost" onClick={() => setQaItem(null)} sm>{t('common.cancel')}</Btn>
               <button onClick={() => addToCart(qaItem.product, qaItem.qty, qaItem.price, qaItem.discount)}
-                className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm transition-colors">
+                className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-colors">
                 + Savatga qo'shish
               </button>
             </div>
@@ -890,7 +890,7 @@ function SaleDetailView({ saleId, onBack }) {
             {Number(sale.discount_amount) > 0 && <div className="flex justify-between"><span className="text-slate-500">Chegirma:</span><span className="text-red-500 font-medium">−{fmt(sale.discount_amount)}</span></div>}
             <div className="flex justify-between"><span className="text-slate-500">To'lov miqdori:</span><span className="font-medium">{fmt(sale.paid_amount)}</span></div>
             {debt > 0 && <div className="flex justify-between border-t pt-2"><span className="text-slate-500">Qarzga:</span><span className="text-red-500 font-bold">{fmt(debt)}</span></div>}
-            <div className="flex justify-between border-t pt-2"><span className="font-bold text-slate-700">Chegirma bilan summa:</span><span className="font-bold text-xl text-indigo-600">{fmt(sale.total_amount)}</span></div>
+            <div className="flex justify-between border-t pt-2"><span className="font-bold text-slate-700">Chegirma bilan summa:</span><span className="font-bold text-xl text-blue-600">{fmt(sale.total_amount)}</span></div>
           </div>
         </div>
       </div>
@@ -963,6 +963,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
   // PO form
   const [poForm, setPoForm] = useState({ supplier_id: '', warehouse_id: '', note: '', expected_date: '' });
   const [poItems, setPoItems] = useState([]);
+  const [variantPickerProduct, setVariantPickerProduct] = useState(null);
 
   // Auto-update price flags
   const [autoRetail, setAutoRet] = useState(false);
@@ -981,8 +982,13 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
   const [discType, setDiscType] = useState('pct');  // 'pct' | 'amt'
   const [discVal, setDiscVal] = useState('0');
   const [currency, setCurrency] = useState('UZS');
+  const [expiryDate, setExpiryDate] = useState('');
 
   const selectProduct = (p) => {
+    if (p.product_type === 'parent') {
+      setVariantPickerProduct(p);
+      return;
+    }
     setSel(p);
     const prodCur = p.cost_currency || 'UZS';
     const prodPrice = Number(p.cost_price) > 0 ? p.cost_price : (Number(p.sale_price) > 0 ? p.sale_price : '');
@@ -990,7 +996,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
     setCost(prodPrice ? String(Number(prodPrice)) : '');
     setNewSalePrice(p.sale_price ? String(Math.round(p.sale_price)) : '');
     setNewWholesalePrice(p.wholesale_price ? String(Math.round(p.wholesale_price)) : '');
-    setQty(''); setDiscVal('0'); setDiscType('pct');
+    setQty(''); setDiscVal('0'); setDiscType('pct'); setExpiryDate('');
     setTimeout(() => { if (qtyRef.current) qtyRef.current.focus(); }, 10);
   };
 
@@ -1009,6 +1015,8 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
     if (!sel || !qty) return;
     const base = {
       product_id: sel.id, product_name: sel.name, unit: sel.unit || 'dona',
+      category_is_perishable: sel.category_is_perishable || false,
+      expiry_date: expiryDate || '',
       unit_cost: Number(cost) || 0, discount_type: discType, discount_val: Number(discVal) || 0,
       currency, net_cost: selNet,
       new_sale_price: newSalePrice ? Number(newSalePrice) : null,
@@ -1022,7 +1030,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
       if (ex) return prev.map(x => x.product_id === sel.id ? { ...x, qty_ordered: x.qty_ordered + Number(qty) } : x);
       return [...prev, { ...base, qty_ordered: Number(qty) }];
     });
-    setSel(null); setQty(''); setCost(''); setDiscVal('0');
+    setSel(null); setQty(''); setCost(''); setDiscVal('0'); setExpiryDate('');
     setTimeout(() => { if (searchRef.current) searchRef.current.focus(); }, 10);
   };
 
@@ -1121,6 +1129,12 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
 
   const savePo = (status = 'draft', paymentInfo = null) => {
     if (!poForm.supplier_id || !poForm.warehouse_id || !poItems.length) { setErr("Barcha majburiy maydonlarni to'ldiring"); return; }
+    // Perishable mahsulotlarda muddatni tekshirish
+    const missingExpiry = poItems.filter(i => i.category_is_perishable && !i.expiry_date);
+    if (missingExpiry.length > 0) {
+      setErr(`"${missingExpiry.map(i => i.product_name).join(', ')}" uchun yaroqlilik muddatini kiriting!`);
+      return;
+    }
     if (saving) return;
     setSaving(true); setErr('');
 
@@ -1140,7 +1154,8 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
         cost_currency: i.currency || 'UZS',
         original_unit_cost: i.currency && i.currency !== 'UZS' ? (Number(i.unit_cost) || 0) : (i.net_cost || 0),
         new_sale_price: i.new_sale_price,
-        new_wholesale_price: i.new_wholesale_price
+        new_wholesale_price: i.new_wholesale_price,
+        expiry_date: i.expiry_date || null
       })),
     };
     console.log('[PO savePo] payload:', JSON.stringify(payload, null, 2));
@@ -1213,10 +1228,10 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
           </Lbl>
 
           {sel ? (
-            <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-5 space-y-4">
+            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 space-y-4">
               {/* Product info */}
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm font-bold shrink-0 shadow-sm">
+                <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center text-sm font-bold shrink-0 shadow-sm">
                   {sel.name.slice(0, 2).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -1224,7 +1239,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                   <div className="text-sm text-slate-600 mt-1">
                     {t('purchase.stockLabel')} <strong>{fmt(sel.stock_quantity)}</strong> {sel.unit || 'dona'}
                     <span className="mx-2 text-slate-300">|</span>
-                    {t('purchase.retailLabel')} <strong className="text-indigo-600">{fmt(sel.sale_price)}</strong>
+                    {t('purchase.retailLabel')} <strong className="text-blue-600">{fmt(sel.sale_price)}</strong>
                   </div>
                 </div>
               </div>
@@ -1232,7 +1247,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
               {/* Cost price + currency */}
               <div>
                 <label className="text-sm font-bold text-slate-600 uppercase tracking-wide mb-2 block">{t('purchase.costPrice')}</label>
-                <div className="flex rounded-xl border border-slate-200 bg-white focus-within:ring-2 focus-within:ring-indigo-500 shadow-sm">
+                <div className="flex rounded-xl border border-slate-200 bg-white focus-within:ring-2 focus-within:ring-blue-500 shadow-sm">
                   <input type="number" min="0" value={cost} onChange={e => setCost(e.target.value)}
                     className="flex-1 min-w-0 px-4 py-3 text-base font-semibold focus:outline-none bg-transparent rounded-l-xl" />
                   {/* Currency Listbox — outside overflow-hidden so dropdown is not clipped */}
@@ -1248,7 +1263,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                     setCurrency(val);
                   }}>
                     <div className="relative border-l border-slate-200">
-                      <ListboxButton className="h-full min-w-[90px] rounded-r-xl cursor-pointer flex items-center gap-1.5 pl-3 pr-7 bg-slate-50 hover:bg-slate-100 text-indigo-600 font-bold text-sm outline-none transition-colors">
+                      <ListboxButton className="h-full min-w-[90px] rounded-r-xl cursor-pointer flex items-center gap-1.5 pl-3 pr-7 bg-slate-50 hover:bg-slate-100 text-blue-600 font-bold text-sm outline-none transition-colors">
                         <span>{currency}</span>
                         <span className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none text-slate-400">
                           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="size-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 15 12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" /></svg>
@@ -1258,11 +1273,11 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                         {currencies.map(c => (
                           <ListboxOption key={c.code} value={c.code}
                             className="group flex items-center justify-between gap-2 py-2 px-3 select-none cursor-pointer rounded-lg text-slate-800 data-focus:bg-slate-100 outline-none transition-colors">
-                            <span className="font-semibold text-sm group-data-selected:text-indigo-600">{c.code}</span>
+                            <span className="font-semibold text-sm group-data-selected:text-blue-600">{c.code}</span>
                             {c.code !== 'UZS' && (
                               <span className="text-[10px] font-medium text-slate-500">{fmt(c.rate)} so'm</span>
                             )}
-                            <span className="ml-auto text-indigo-600 opacity-0 group-data-selected:opacity-100 transition-opacity">
+                            <span className="ml-auto text-blue-600 opacity-0 group-data-selected:opacity-100 transition-opacity">
                               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="size-4"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
                             </span>
                           </ListboxOption>
@@ -1275,7 +1290,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                   <div className="mt-1.5 text-xs text-slate-400 flex items-center gap-1">
                     <span>1 {currency} = <span className="font-semibold text-slate-500">{fmt(getRateFor(currency))} UZS</span></span>
                     {cost && Number(cost) > 0 && <span className="mx-1 text-slate-300">→</span>}
-                    {cost && Number(cost) > 0 && <span className="text-indigo-600 font-semibold">{fmt(Math.round(selNet))} UZS</span>}
+                    {cost && Number(cost) > 0 && <span className="text-blue-600 font-semibold">{fmt(Math.round(selNet))} UZS</span>}
                   </div>
                 )}
               </div>
@@ -1303,7 +1318,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
               {/* Discount */}
               <div>
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">{t('purchase.discount')}</label>
-                <div className="flex rounded-xl border border-slate-200 bg-white focus-within:ring-2 focus-within:ring-indigo-500 overflow-hidden">
+                <div className="flex rounded-xl border border-slate-200 bg-white focus-within:ring-2 focus-within:ring-blue-500 overflow-hidden">
                   <input type="number" min="0" value={discVal} onChange={e => setDiscVal(e.target.value)}
                     className="flex-1 min-w-0 px-3 py-2 text-sm focus:outline-none bg-transparent" />
                   <div className="flex border-l border-slate-200">
@@ -1341,9 +1356,35 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                 </div>
               </Lbl>
 
+              {/* Expiry Date — faqat perishable mahsulotlar uchun */}
+              {sel.category_is_perishable && (
+                <Lbl t="⏰ Yaroqlilik muddati (Majburiy)">
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={expiryDate}
+                      onChange={e => setExpiryDate(e.target.value)}
+                      className={`w-full ${ic} font-semibold text-sm ${
+                        !expiryDate
+                          ? 'border-red-300 bg-red-50 text-red-700 ring-1 ring-red-200 focus:ring-red-400'
+                          : 'border-blue-300 bg-blue-50 text-blue-700 focus:ring-blue-500'
+                      }`}
+                    />
+                    {!expiryDate && (
+                      <div className="absolute -bottom-5 left-0 text-[10px] text-red-500 font-bold flex items-center gap-1">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                        </svg>
+                        Muddat kiritish shart!
+                      </div>
+                    )}
+                  </div>
+                </Lbl>
+              )}
+
               {/* Total preview */}
               <div className="text-xs text-slate-500 text-right">
-                {t('admin.dict.total_colon')} <strong className="text-indigo-700">{fmt(Math.round(selNet * Number(qty)))} {t('purchase.somUnit')}</strong>
+                {t('admin.dict.total_colon')} <strong className="text-blue-700">{fmt(Math.round(selNet * Number(qty)))} {t('purchase.somUnit')}</strong>
               </div>
             </div>
           ) : (
@@ -1356,13 +1397,13 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
           )}
 
           <button onClick={addItem} disabled={!sel || !qty}
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl font-bold text-sm transition-all shadow-sm shadow-indigo-200 active:scale-95">
+            className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl font-bold text-sm transition-all shadow-sm shadow-blue-200 active:scale-95">
             <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             {t('purchase.addToList')}
           </button>
 
           {activeItems.length > 0 && (
-            <div className="bg-indigo-600 rounded-2xl p-4 text-white">
+            <div className="bg-blue-600 rounded-2xl p-4 text-white">
               <div className="text-xs font-semibold opacity-70 uppercase tracking-wide">{t('purchase.totalSum')}</div>
               <div className="text-2xl font-black mt-1">{fmt(Math.round(totalNet))} <span className="text-sm font-normal opacity-70">{t('purchase.somUnit')}</span></div>
               <div className="text-xs opacity-60 mt-1">{activeItems.length} {t('purchase.productCount')}</div>
@@ -1386,6 +1427,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                   <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase w-20">{t('purchase.colQty')}</th>
                   <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('purchase.colPrice')}</th>
                   <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase w-28">{t('purchase.discount')}</th>
+                  <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase">Muddat</th>
                   <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('purchase.colNetPrice')}</th>
                   <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.total') || 'Jami'}</th>
                   <th className="w-8"></th>
@@ -1406,13 +1448,13 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                       <td className="px-3 py-2.5 text-center">
                         <input type="number" min="1" value={qty_n}
                           onChange={e => updFn(i, 'qty_ordered', Number(e.target.value))}
-                          className="w-16 text-center border border-slate-200 rounded-lg px-1.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                          className="w-16 text-center border border-slate-200 rounded-lg px-1.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                       </td>
                       <td className="px-3 py-2.5 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <input type="number" min="0" value={it.unit_cost}
                             onChange={e => updFn(i, 'unit_cost', e.target.value)}
-                            className="w-24 text-right border border-slate-200 rounded-lg px-1.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                            className="w-24 text-right border border-slate-200 rounded-lg px-1.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                           {/* ✅ O'RTA-4 TUZATILDI: Barcha currencies orqali aylanadi */}
                           <button onClick={() => {
                             const curList = currencies.length > 0 ? currencies.map(c => c.code) : ['UZS', 'USD'];
@@ -1433,13 +1475,31 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                         <div className="flex items-center justify-center gap-1">
                           <input type="number" min="0" value={it.discount_val}
                             onChange={e => updFn(i, 'discount_val', e.target.value)}
-                            className="w-14 text-center border border-slate-200 rounded-lg px-1 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                            className="w-14 text-center border border-slate-200 rounded-lg px-1 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
                           <button onClick={() => updFn(i, 'discount_type', it.discount_type === 'pct' ? 'amt' : 'pct')}
                             className={`text-[10px] font-bold px-1.5 py-1 rounded-md min-w-[28px] transition-colors ${it.discount_type === 'pct' ? 'bg-amber-100 text-amber-700' : 'bg-violet-100 text-violet-700'}`}>
                             {it.discount_type === 'pct' ? '%' : 'so\'m'}
                           </button>
                         </div>
                         {Number(it.discount_val) > 0 && <div className="text-[10px] text-amber-600 mt-0.5">–{discPct}%</div>}
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        {it.category_is_perishable ? (
+                          <div className="flex flex-col items-center gap-1">
+                            <input type="date" value={it.expiry_date || ''}
+                              onChange={e => updFn(i, 'expiry_date', e.target.value)}
+                              className={`w-34 text-center border rounded-lg px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+                                !it.expiry_date
+                                  ? 'border-red-300 bg-red-50 text-red-600 ring-1 ring-red-200'
+                                  : 'border-slate-200 hover:border-blue-300'
+                              }`} />
+                            {!it.expiry_date && (
+                              <span className="text-[9px] text-red-500 font-bold">Muddat kiriting!</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )}
                       </td>
                       <td className="px-3 py-2.5 text-right font-semibold text-emerald-700 text-sm">
                         {it.currency && it.currency !== 'UZS' ? (
@@ -1454,7 +1514,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                       <td className="px-3 py-2.5 text-right font-bold text-slate-800">
                         {it.currency && it.currency !== 'UZS' ? (
                           <div>
-                            <div className="text-indigo-600">{fmt(Math.round(it.unit_cost * qty_n * 100) / 100)} <span className="text-xs">{it.currency}</span></div>
+                            <div className="text-blue-600">{fmt(Math.round(it.unit_cost * qty_n * 100) / 100)} <span className="text-xs">{it.currency}</span></div>
                             <div className="text-[10px] text-slate-400 font-normal">≈ {fmt(Math.round(it.net_cost * qty_n))} so'm</div>
                           </div>
                         ) : (
@@ -1480,7 +1540,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
         <div className="flex items-center gap-3">
           <span className="text-xs text-slate-400 font-semibold uppercase tracking-wide">{t('purchase.updatePricesLabel')}</span>
           <button onClick={() => setAutoRet(v => !v)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${autoRetail ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'}`}>
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${autoRetail ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'}`}>
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 012-2z" /></svg>
             {t('purchase.retail')}
           </button>
@@ -1550,12 +1610,12 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                   {/* Naqd label separated */}
                   <div className="bg-slate-50 px-5 flex items-center border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 h-full shadow-sm">{t('purchase.cash')}</div>
                   {/* Input group */}
-                  <div className="flex flex-1 items-center h-full rounded-xl focus-within:ring-2 focus-within:ring-indigo-500 overflow-hidden shadow-sm">
-                    <input type="number" min="0" value={payForm.cash} onChange={e => setPayForm(p => ({ ...p, cash: e.target.value }))} className="flex-1 w-full h-full border border-slate-200 border-r-0 rounded-l-xl px-4 text-base font-bold text-indigo-700 outline-none" placeholder="0" />
-                    <select value={payCur} onChange={e => handlePayCurrencyChange(e.target.value)} className="bg-slate-50 hover:bg-slate-100 px-3 flex items-center border border-slate-200 border-x-0 text-indigo-600 text-sm font-bold h-full outline-none cursor-pointer">
+                  <div className="flex flex-1 items-center h-full rounded-xl focus-within:ring-2 focus-within:ring-blue-500 overflow-hidden shadow-sm">
+                    <input type="number" min="0" value={payForm.cash} onChange={e => setPayForm(p => ({ ...p, cash: e.target.value }))} className="flex-1 w-full h-full border border-slate-200 border-r-0 rounded-l-xl px-4 text-base font-bold text-blue-700 outline-none" placeholder="0" />
+                    <select value={payCur} onChange={e => handlePayCurrencyChange(e.target.value)} className="bg-slate-50 hover:bg-slate-100 px-3 flex items-center border border-slate-200 border-x-0 text-blue-600 text-sm font-bold h-full outline-none cursor-pointer">
                       {currencies.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
                     </select>
-                    <button onClick={() => setPayForm(p => ({ ...p, cash: String(payTotals.finalTotalInPayCur) }))} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-slate-200 border-l-0 font-semibold px-6 h-full rounded-r-xl transition-colors whitespace-nowrap">
+                    <button onClick={() => setPayForm(p => ({ ...p, cash: String(payTotals.finalTotalInPayCur) }))} className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-slate-200 border-l-0 font-semibold px-6 h-full rounded-r-xl transition-colors whitespace-nowrap">
                       {t('purchase.totalBtn')}
                     </button>
                   </div>
@@ -1620,6 +1680,18 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── VARIANT PICKER MODAL ── */}
+      {variantPickerProduct && (
+        <VariantPickerModal
+          parent={variantPickerProduct}
+          onClose={() => setVariantPickerProduct(null)}
+          onSelect={(variant) => {
+            setVariantPickerProduct(null);
+            selectProduct(variant);
+          }}
+        />
       )}
     </div>
   );
@@ -1705,7 +1777,7 @@ function KirimlarTab({ products, warehouses, suppliers }) {
       if (row.currency && row.currency !== 'UZS' && row.original_total_amount != null) {
         return (
           <div>
-            <div className="font-bold text-indigo-600">{fmt(Number(row.original_total_amount))} <span className="text-xs uppercase font-semibold">{row.currency}</span></div>
+            <div className="font-bold text-blue-600">{fmt(Number(row.original_total_amount))} <span className="text-xs uppercase font-semibold">{row.currency}</span></div>
             <div className="text-[10px] text-slate-400">≈ {fmt(Number(v))} so'm</div>
           </div>
         );
@@ -1736,7 +1808,7 @@ function KirimlarTab({ products, warehouses, suppliers }) {
         <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
           {['draft', 'sent'].includes(row.status) && (
             <button onClick={() => handleEdit(row)}
-              className="text-xs px-2 py-1 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 font-medium whitespace-nowrap">
+              className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-medium whitespace-nowrap">
               ✏️ Tahrirlash
             </button>
           )}
@@ -1838,7 +1910,7 @@ function KirimlarTab({ products, warehouses, suppliers }) {
               {recModal.items?.filter(i => Number(i.qty_ordered) > Number(i.qty_received)).map(item => (
                 <div key={item.id} className="flex justify-between px-4 py-3">
                   <span className="font-medium text-sm">{item.product_name}</span>
-                  <span className="text-indigo-600 font-semibold">+{Number(item.qty_ordered) - Number(item.qty_received)}</span>
+                  <span className="text-blue-600 font-semibold">+{Number(item.qty_ordered) - Number(item.qty_received)}</span>
                 </div>
               ))}
             </div>
@@ -1867,7 +1939,7 @@ function StarRating({ value }) {
 }
 function AvatarS({ name }) {
   const { t } = useLang();
-  const cols = ['bg-indigo-100 text-indigo-600', 'bg-emerald-100 text-emerald-600', 'bg-violet-100 text-violet-600', 'bg-rose-100 text-rose-600', 'bg-amber-100 text-amber-600'];
+  const cols = ['bg-blue-100 text-blue-600', 'bg-emerald-100 text-emerald-600', 'bg-violet-100 text-violet-600', 'bg-blue-100 text-blue-600', 'bg-amber-100 text-amber-600'];
   const c = cols[(name?.charCodeAt(0) || 0) % cols.length];
   return <div className={`w-8 h-8 ${c} rounded-full flex items-center justify-center font-bold shrink-0 text-sm`}>{name?.charAt(0).toUpperCase()}</div>;
 }
@@ -1885,7 +1957,7 @@ function SuppliersTab() {
   const [wallets, setWallets] = useState([]);
   const [currencies, setCurrencies] = useState([]);
   const [err, setErr] = useState('');
-  const inp = 'w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white';
+  const inp = 'w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white';
 
   // Multi-row pay state (matches Customers.jsx pattern)
   const [payRows, setPayRows] = useState([{ id: Date.now(), payType: '', payAmount: '', currencyType: 'UZS' }]);
@@ -2105,7 +2177,7 @@ function SuppliersTab() {
     <div className="space-y-4">
       <div className="flex gap-3">
         <div className="relative flex-1"><svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-          <input className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder={t('purchase.searchSupplier')} value={search} onChange={e => setSearch(e.target.value)} /></div>
+          <input className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder={t('purchase.searchSupplier')} value={search} onChange={e => setSearch(e.target.value)} /></div>
 
         <button
           onClick={() => {
@@ -2137,7 +2209,7 @@ function SuppliersTab() {
         </button>
         <button
           onClick={openImport}
-          className="px-4 py-2 text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-2 transition-colors"
+          className="px-4 py-2 text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl flex items-center gap-2 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
           {t('purchase.importExcel')}
@@ -2188,7 +2260,7 @@ function SuppliersTab() {
               const hasDebt = debtMap.length > 0;
               return (
                 <tr key={s.id} className="hover:bg-slate-50">
-                  <td className="px-5 py-4 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => navigate(`/admin/suppliers/${s.id}`)}><div className="flex items-center gap-2.5"><AvatarS name={s.name} /><div><div className="text-sm font-semibold text-indigo-600 hover:underline">{s.name}</div>{s.email && <div className="text-xs text-slate-400">{s.email}</div>}</div></div></td>
+                  <td className="px-5 py-4 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => navigate(`/admin/suppliers/${s.id}`)}><div className="flex items-center gap-2.5"><AvatarS name={s.name} /><div><div className="text-sm font-semibold text-blue-600 hover:underline">{s.name}</div>{s.email && <div className="text-xs text-slate-400">{s.email}</div>}</div></div></td>
                   <td className="px-5 py-4 text-sm font-mono text-slate-600">{s.inn || '\u2014'}</td>
                   <td className="px-5 py-4 text-sm text-slate-500">{s.phone || '\u2014'}</td>
                   <td className="px-5 py-4"><StarRating value={s.rating} /></td>
@@ -2226,7 +2298,7 @@ function SuppliersTab() {
                           Qarz to'lash
                         </button>
                       )}
-                      <button onClick={() => openEdit(s)} className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></button>
+                      <button onClick={() => openEdit(s)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></button>
                       <button onClick={() => del(s.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
                     </div>
                   </td>
@@ -2268,7 +2340,7 @@ function SuppliersTab() {
                             const nextCur = availCurrencies[0];
                             setForm(f => ({ ...f, debtEntries: [...(f.debtEntries || []), { currency: nextCur, amount: '' }] }));
                           }}
-                          className="inline-flex items-center gap-1 px-3 py-1 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors"
+                          className="inline-flex items-center gap-1 px-3 py-1 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
                           Valyuta
@@ -2291,14 +2363,14 @@ function SuppliersTab() {
                               ...f,
                               debtEntries: f.debtEntries.map((en, i) => i === idx ? { ...en, currency: e.target.value } : en)
                             }))}
-                            className="shrink-0 w-24 px-2 py-2 border border-slate-200 rounded-lg text-sm font-bold bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 text-slate-700"
+                            className="shrink-0 w-24 px-2 py-2 border border-slate-200 rounded-lg text-sm font-bold bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 text-slate-700"
                           >
                             {availForThisRow.map(c => <option key={c} value={c}>{c}</option>)}
                           </select>
                           {/* Miqdor input */}
                           <input
                             type="number" min="0"
-                            className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                            className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
                             value={entry.amount}
                             onChange={e => setForm(f => ({
                               ...f,
@@ -2412,7 +2484,7 @@ function SuppliersTab() {
                 <div className="space-y-1.5">
                   <label className="text-sm font-semibold text-slate-700">Kassa / Hisob</label>
                   <select value={payWallet} onChange={e => setPayWallet(e.target.value)}
-                    className="w-full h-11 md:h-12 px-4 border border-slate-200 cursor-pointer rounded-xl bg-white text-sm font-medium focus:border-indigo-500 outline-none transition-all">
+                    className="w-full h-11 md:h-12 px-4 border border-slate-200 cursor-pointer rounded-xl bg-white text-sm font-medium focus:border-blue-500 outline-none transition-all">
                     <option value="">Asosiy kassa</option>
                     {wallets.map(w => <option key={w.id} value={w.id}>{w.name} — {fmt(w.balance)} so'm</option>)}
                   </select>
@@ -2428,7 +2500,7 @@ function SuppliersTab() {
                         {index === 0 && <label className="text-sm font-semibold text-slate-700">To'lov turi *</label>}
                         <Listbox value={row.payType} onChange={val => updatePayRow(index, 'payType', val)}>
                           <div className="relative">
-                            <ListboxButton className="w-full cursor-pointer flex items-center pl-3 pr-8 py-3 justify-between rounded-xl border border-slate-200 text-sm bg-white text-slate-900 outline-none focus:border-indigo-500 transition-colors shadow-xs text-left font-medium h-11 md:h-12">
+                            <ListboxButton className="w-full cursor-pointer flex items-center pl-3 pr-8 py-3 justify-between rounded-xl border border-slate-200 text-sm bg-white text-slate-900 outline-none focus:border-blue-500 transition-colors shadow-xs text-left font-medium h-11 md:h-12">
                               <span className="block truncate">{PAY_TYPES.find(pt => pt.key === row.payType)?.label || 'Tanlang...'}</span>
                               <span className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none text-slate-400">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="size-4"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 15 12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" /></svg>
@@ -2437,10 +2509,10 @@ function SuppliersTab() {
                             <ListboxOptions className="absolute z-30 mt-1 max-h-60 w-full overflow-auto rounded-xl outline-none bg-white text-sm border border-slate-200 shadow-lg p-1">
                               {PAY_TYPES.map(pt => (
                                 <ListboxOption key={pt.key} value={pt.key}
-                                  className="group relative py-2 px-3 select-none cursor-pointer rounded-lg text-slate-800 data-[focus]:bg-indigo-600 data-[focus]:text-white outline-none transition-colors">
+                                  className="group relative py-2 px-3 select-none cursor-pointer rounded-lg text-slate-800 data-[focus]:bg-blue-600 data-[focus]:text-white outline-none transition-colors">
                                   <div className="flex items-center justify-between">
                                     <span className="block truncate font-normal group-data-[selected]:font-semibold">{pt.label}</span>
-                                    <span className="text-indigo-600 group-data-[focus]:text-white group-not-data-[selected]:hidden">
+                                    <span className="text-blue-600 group-data-[focus]:text-white group-not-data-[selected]:hidden">
                                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="size-4"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
                                     </span>
                                   </div>
@@ -2459,7 +2531,7 @@ function SuppliersTab() {
                             type="number"
                             value={row.payAmount}
                             onChange={e => updatePayRow(index, 'payAmount', e.target.value)}
-                            className="flex-1 min-w-0 h-full border border-slate-200 rounded-l-xl px-3 text-sm font-medium outline-none focus:border-indigo-500 transition-all"
+                            className="flex-1 min-w-0 h-full border border-slate-200 rounded-l-xl px-3 text-sm font-medium outline-none focus:border-blue-500 transition-all"
                             placeholder="0"
                             autoFocus={index === 0}
                           />
@@ -2486,7 +2558,7 @@ function SuppliersTab() {
                             if (newAmount !== '') updatePayRow(index, 'payAmount', String(newAmount));
                           }}>
                             <div className="relative">
-                              <ListboxButton className="w-full min-w-[80px] cursor-pointer flex items-center pl-3 pr-7 py-3 justify-between border-l-0 border border-slate-200 text-sm bg-white text-indigo-600 font-bold outline-none transition-colors shadow-xs text-left h-11 md:h-12">
+                              <ListboxButton className="w-full min-w-[80px] cursor-pointer flex items-center pl-3 pr-7 py-3 justify-between border-l-0 border border-slate-200 text-sm bg-white text-blue-600 font-bold outline-none transition-colors shadow-xs text-left h-11 md:h-12">
                                 <span className="block truncate">{row.currencyType || 'UZS'}</span>
                                 <span className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none text-slate-400">
                                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="size-4"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 15 12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" /></svg>
@@ -2495,10 +2567,10 @@ function SuppliersTab() {
                               <ListboxOptions className="absolute z-30 mt-1 max-h-60 right-0 w-28 overflow-auto rounded-xl outline-none bg-white text-sm border border-slate-200 shadow-lg p-1">
                                 {currencies.map(c => (
                                   <ListboxOption key={c.code} value={c.code}
-                                    className="group relative py-2 px-3 select-none cursor-pointer rounded-lg text-slate-800 data-[focus]:bg-indigo-600 data-[focus]:text-white outline-none transition-colors">
+                                    className="group relative py-2 px-3 select-none cursor-pointer rounded-lg text-slate-800 data-[focus]:bg-blue-600 data-[focus]:text-white outline-none transition-colors">
                                     <div className="flex items-center justify-between">
                                       <span className="block truncate font-normal group-data-[selected]:font-semibold">{c.code}</span>
-                                      <span className="text-indigo-600 group-data-[focus]:text-white group-not-data-[selected]:hidden">
+                                      <span className="text-blue-600 group-data-[focus]:text-white group-not-data-[selected]:hidden">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="size-4"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
                                       </span>
                                     </div>
@@ -2513,7 +2585,7 @@ function SuppliersTab() {
                               const d = getDebtForCur(row.currencyType || 'UZS');
                               updatePayRow(index, 'payAmount', String(d > 0 ? d : (Number(debt) || 0)));
                             }}
-                            className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-slate-200 border-l-0 font-bold px-3 h-full rounded-r-xl transition-colors whitespace-nowrap text-xs">
+                            className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-slate-200 border-l-0 font-bold px-3 h-full rounded-r-xl transition-colors whitespace-nowrap text-xs">
                             Hammasi
                           </button>
                         </div>
@@ -2529,9 +2601,9 @@ function SuppliersTab() {
 
                   {/* Qator qo'shish */}
                   <button type="button" onClick={addPayRow}
-                    className="cursor-pointer flex ml-auto items-center gap-1 hover:bg-indigo-50 w-max px-2 py-0.5 rounded-xl">
-                    <Plus className="size-5 text-indigo-600" />
-                    <span className="text-sm font-semibold text-indigo-600">to'lov qo'shish</span>
+                    className="cursor-pointer flex ml-auto items-center gap-1 hover:bg-blue-50 w-max px-2 py-0.5 rounded-xl">
+                    <Plus className="size-5 text-blue-600" />
+                    <span className="text-sm font-semibold text-blue-600">to'lov qo'shish</span>
                   </button>
                 </div>
 
@@ -2539,7 +2611,7 @@ function SuppliersTab() {
                 <div className="space-y-1.5">
                   <label className="text-sm font-semibold text-slate-700">Izoh</label>
                   <textarea rows={2} value={payInfo} onChange={e => setPayInfo(e.target.value)}
-                    className="w-full p-3 border border-slate-200 rounded-xl text-sm leading-relaxed focus:ring-2 focus:ring-indigo-500 outline-none resize-none transition-all"
+                    className="w-full p-3 border border-slate-200 rounded-xl text-sm leading-relaxed focus:ring-2 focus:ring-blue-500 outline-none resize-none transition-all"
                     placeholder="Ixtiyoriy..." />
                 </div>
 
@@ -2547,14 +2619,14 @@ function SuppliersTab() {
 
                 {/* Per-currency summary */}
                 <div className="flex justify-end">
-                  <div className="w-full md:w-auto min-w-64 space-y-2 bg-indigo-50/50 rounded-xl p-4 border border-indigo-100/50">
+                  <div className="w-full md:w-auto min-w-64 space-y-2 bg-blue-50/50 rounded-xl p-4 border border-blue-100/50">
                     <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Qarz holati</div>
                     {Object.entries(paidPerCurrency).map(([cur, payAmt]) => {
                       const currDebt = getDebtForCur(cur);
                       const currRemaining = Math.max(0, currDebt - payAmt);
                       const currChange = Math.max(0, payAmt - currDebt);
                       return (
-                        <div key={cur} className="space-y-1 pb-2 border-b border-indigo-100/50 last:border-0">
+                        <div key={cur} className="space-y-1 pb-2 border-b border-blue-100/50 last:border-0">
                           <div className="flex justify-between text-xs items-center">
                             <span className="text-slate-500 font-medium">{cur} qarzi:</span>
                             <span className="font-bold text-slate-700">{fmt(currDebt)} {cur}</span>
@@ -2611,7 +2683,7 @@ function SuppliersTab() {
                   <button onClick={close} className="flex-1 sm:flex-none px-4 md:px-6 py-2 md:py-2.5 rounded-xl border border-slate-300 text-slate-600 text-sm font-bold bg-white hover:bg-slate-50 transition-all">Bekor qilish</button>
                   <button disabled={saving || !payRows.some(r => r.payAmount && Number(r.payAmount) > 0 && r.payType)}
                     onClick={handlePayDebt}
-                    className="flex-1 cursor-pointer sm:flex-none px-6 md:px-8 py-2 md:py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2 text-sm">
+                    className="flex-1 cursor-pointer sm:flex-none px-6 md:px-8 py-2 md:py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all shadow-lg shadow-blue-200 disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2 text-sm">
                     {saving ? (
                       <span className="flex items-center gap-2"><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>Saqlanmoqda...</span>
                     ) : (
@@ -2647,7 +2719,7 @@ function SuppliersTab() {
               <button
                 onClick={handleImport}
                 disabled={!buildPayload().length || importLoading || !(Object.values(colMap).includes('Nomi') || (allowUpdate && Object.values(colMap).includes('INN')))}
-                className="inline-flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors border border-transparent"
+                className="inline-flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors border border-transparent"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
                 {importLoading ? `Saqlanmoqda... ${importProgress}%` : 'Saqlash'}
@@ -2669,10 +2741,10 @@ function SuppliersTab() {
                 <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shadow-sm bg-white shrink-0">
                   <div className="flex items-center gap-6">
                     <label className="flex items-center gap-2 cursor-pointer group">
-                      <div className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${allowUpdate ? 'bg-indigo-600' : 'bg-slate-200'}`}>
+                      <div className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${allowUpdate ? 'bg-blue-600' : 'bg-slate-200'}`}>
                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${allowUpdate ? 'translate-x-6' : 'translate-x-1'}`} />
                       </div>
-                      <span className="text-sm font-semibold text-slate-700 group-hover:text-indigo-600 transition-colors">Tahrirlash ruxsat</span>
+                      <span className="text-sm font-semibold text-slate-700 group-hover:text-blue-600 transition-colors">Tahrirlash ruxsat</span>
                     </label>
                   </div>
                   <div className="flex items-center gap-4">
@@ -2707,7 +2779,7 @@ function SuppliersTab() {
                               <select
                                 value={colMap[col] || ''}
                                 onChange={e => setColMap(m => ({ ...m, [col]: e.target.value }))}
-                                className="w-full bg-white border border-slate-300 px-2 py-1.5 rounded-lg text-sm font-semibold text-slate-700 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                className="w-full bg-white border border-slate-300 px-2 py-1.5 rounded-lg text-sm font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                               >
                                 {IMPORT_FIELDS.map(f => (
                                   <option key={f.key} value={f.key}>{f.label}</option>
@@ -2754,9 +2826,9 @@ function SuppliersTab() {
                     <div className="text-sm font-semibold text-emerald-500">Yangi qo'shildi</div>
                   </div>
                   {importResult.updated > 0 && (
-                    <div className="px-5 py-3 bg-indigo-50 rounded-xl text-center min-w-[120px]">
-                      <div className="text-3xl font-black text-indigo-600">{importResult.updated}</div>
-                      <div className="text-sm font-semibold text-indigo-500">Yangilandi</div>
+                    <div className="px-5 py-3 bg-blue-50 rounded-xl text-center min-w-[120px]">
+                      <div className="text-3xl font-black text-blue-600">{importResult.updated}</div>
+                      <div className="text-sm font-semibold text-blue-500">Yangilandi</div>
                     </div>
                   )}
                   <div className={`px-5 py-3 rounded-xl text-center min-w-[120px] ${importResult.skipped > 0 ? 'bg-amber-50' : 'bg-slate-50'}`}>
@@ -2802,14 +2874,14 @@ function PurchaseOrdersTab() {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
       {loading ? (
-        <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div>
+        <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
       ) : (
         <table className="min-w-full">
           <thead><tr className="bg-slate-50 border-b border-slate-100">{[t('purchase.colNumber'), t('purchase.supplier'), t('purchase.colWarehouse'), t('purchase.colTotal'), t('purchase.filterStatus')].map(h => <th key={h} className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
           <tbody className="divide-y divide-slate-50">
             {pos.map(p => (
               <tr key={p.id} className="hover:bg-slate-50">
-                <td className="px-6 py-4 text-sm font-mono font-semibold text-indigo-600">{p.number}</td>
+                <td className="px-6 py-4 text-sm font-mono font-semibold text-blue-600">{p.number}</td>
                 <td className="px-6 py-4 text-sm text-slate-700 font-medium">{p.supplier_name}</td>
                 <td className="px-6 py-4 text-sm text-slate-500">{p.warehouse_name}</td>
                 <td className="px-6 py-4 text-sm font-semibold text-slate-800">{Number(p.total_amount).toLocaleString()} <span className="text-slate-400 font-normal">so'm</span></td>
@@ -2826,10 +2898,127 @@ function PurchaseOrdersTab() {
 
 /* ===================== MAIN ===================== */
 const TABS_IDS = [
-  { id: 'kirimlar', key: 'purchase.tabKirimlar', icon: <CircleArrowDown size={18} className='text-indigo-500' /> },
+  { id: 'kirimlar', key: 'purchase.tabKirimlar', icon: <CircleArrowDown size={18} className='text-blue-500' /> },
   { id: 'suppliers', key: 'purchase.tabSuppliers', icon: <PackageCheck size={18} className='text-green-500' /> },
   { id: 'orders', key: 'purchase.tabOrders', icon: <ShoppingCart size={18} className='text-yellow-500' /> },
 ];
+
+/* ═══════════════════════════════════════════ */
+/* Variant tanlash modali                      */
+/* ═══════════════════════════════════════════ */
+function VariantPickerModal({ parent, onClose, onSelect }) {
+  const [variants, setVariants] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    api.get(`/products/${parent.id}/variants`)
+      .then(r => setVariants(Array.isArray(r.data) ? r.data : []))
+      .catch(() => {
+        // fallback
+        api.get('/products', { params: { parent_id: parent.id, limit: 100 } })
+          .then(r => setVariants(Array.isArray(r.data) ? r.data : (r.data?.items || [])))
+          .catch(() => setVariants([]));
+      })
+      .finally(() => setLoading(false));
+  }, [parent.id]);
+
+  const colors = [...new Set(variants.map(v => v.color).filter(Boolean))];
+  const sizes  = [...new Set(variants.map(v => v.size).filter(Boolean))];
+
+  const getVariant = (color, size) =>
+    variants.find(v => v.color === color && v.size === size) ||
+    variants.find(v => v.color === color && !size) ||
+    variants.find(v => !color && v.size === size);
+
+  const fmt = v => Number(v || 0).toLocaleString('uz-UZ');
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-white font-black text-lg">{parent.name}</h2>
+            <p className="text-blue-200 text-xs mt-0.5">Razmer va rangni tanlang</p>
+          </div>
+          <button onClick={onClose} className="w-9 h-9 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center transition-colors">
+            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"/>
+            </div>
+          ) : variants.length === 0 ? (
+            <div className="text-center py-12 text-slate-400">
+              <svg className="w-16 h-16 mx-auto mb-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+              <p className="font-semibold">Variantlar topilmadi</p>
+            </div>
+          ) : colors.length > 0 && sizes.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr>
+                    <th className="text-left text-xs font-bold text-slate-500 pb-3 pr-3">Rang \ Razmer</th>
+                    {sizes.map(s => (
+                      <th key={s} className="text-center text-xs font-bold text-blue-700 bg-blue-50 rounded-lg px-3 py-2 min-w-[80px]">{s}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {colors.map(color => (
+                    <tr key={color}>
+                      <td className="pr-3 py-1.5"><span className="text-sm font-bold text-slate-700">{color}</span></td>
+                      {sizes.map(size => {
+                        const v = getVariant(color, size);
+                        return (
+                          <td key={size} className="text-center py-1.5 px-1">
+                            {v ? (
+                              <button onClick={() => onSelect(v)} className="w-full px-2 py-2 bg-white border-2 border-slate-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl transition-all group">
+                                <div className="text-xs font-black text-blue-700">{fmt(v.sale_price)}</div>
+                                <div className={`text-[10px] font-semibold mt-0.5 ${Number(v.stock_quantity) <= 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                                  {Number(v.stock_quantity) > 0 ? `${fmt(v.stock_quantity)} dona` : 'Tugagan'}
+                                </div>
+                              </button>
+                            ) : (
+                              <div className="px-2 py-2 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-300 text-xs">—</div>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {variants.map(v => (
+                <button key={v.id} onClick={() => onSelect(v)} className="p-4 bg-white border-2 border-slate-200 hover:border-blue-500 hover:bg-blue-50 rounded-2xl transition-all text-left">
+                  <div className="font-bold text-slate-800 text-sm">{v.size || v.color || v.name}</div>
+                  <div className="text-blue-700 font-black mt-1">{fmt(v.sale_price)} UZS</div>
+                  <div className={`text-xs font-semibold mt-1 ${Number(v.stock_quantity) <= 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                    {Number(v.stock_quantity) > 0 ? `${fmt(v.stock_quantity)} dona` : 'Tugagan'}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-100 flex justify-between items-center bg-slate-50">
+          <span className="text-xs text-slate-500 font-medium">{variants.length} ta variant mavjud</span>
+          <button onClick={onClose} className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-sm transition-colors">Bekor qilish</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Purchases() {
   const { t } = useLang();

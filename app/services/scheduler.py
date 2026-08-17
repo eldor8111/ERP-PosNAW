@@ -220,6 +220,127 @@ async def notify_managers_overdue():
         db.close()
 
 
+# ─── 2.2 Muddati tugayotgan mahsulotlar ogohlantirishi (11:00) ────────────
+async def notify_expiring_products():
+    """Muddati tugashiga belgilangan kundan kam qolgan tovarlar haqida rahbarlarga xabar yuboradi."""
+    db = SessionLocal()
+    try:
+        from app.admin_tg_bot.models import CompanyBot
+        from app.models.batch import Batch
+        from app.models.product import Product
+        
+        utc_now = datetime.now(timezone.utc)
+        uz_now = utc_now + timedelta(hours=5)
+        today = uz_now.date()
+        
+        companies = db.query(Company).filter(Company.is_active == True).all()
+        for company in companies:
+            admin_bot = db.query(CompanyBot).filter(
+                CompanyBot.company_id == company.id,
+                CompanyBot.bot_type == "admin",
+                CompanyBot.is_active == True
+            ).first()
+            
+            if not admin_bot or not admin_bot.bot_token or not admin_bot.notify_expired_products:
+                continue
+                
+            days_before = admin_bot.expired_days_before or 7
+            target_date = today + timedelta(days=days_before)
+            
+            expiring_batches = db.query(Batch).join(Product).filter(
+                Batch.company_id == company.id,
+                Batch.quantity > 0,
+                Batch.expiry_date.isnot(None),
+                Batch.expiry_date <= target_date,
+                Batch.expiry_date >= today
+            ).all()
+            
+            if not expiring_batches:
+                continue
+                
+            msg = f"⚠️ <b>Yaroqlilik muddati tugayotgan mahsulotlar!</b>\n\nQuyidagi tovarlarning muddati {days_before} kun ichida tugaydi:\n\n"
+            for b in expiring_batches:
+                # Handle expiry_date whether it's datetime or date
+                b_date = b.expiry_date.date() if isinstance(b.expiry_date, datetime) else b.expiry_date
+                days_left = (b_date - today).days
+                msg += f"📦 <b>{b.product.name}</b>\n   Miqdor: {b.quantity}\n   Muddat: {b_date.strftime('%Y-%m-%d')} ({days_left} kun qoldi)\n\n"
+                
+            managers = db.query(User).filter(
+                User.company_id == company.id,
+                User.role.in_([UserRole.admin, UserRole.director]),
+                User.tg_chat_id.isnot(None)
+            ).all()
+            
+            for manager in managers:
+                await send_tg_msg_async(admin_bot.bot_token, manager.tg_chat_id, msg)
+                
+            print(f"[Scheduler] {company.name} rahbarlariga muddati tugayotgan mahsulotlar yuborildi")
+            
+    except Exception as e:
+        print(f"[Scheduler] notify_expiring_products xatolik: {e}")
+    finally:
+        db.close()
+
+
+# ─── 2.5 Muddati o'tganlarni avtomatik hisobdan chiqarish (00:05) ────────
+async def auto_write_off_expired():
+    """Muddati o'tgan partiyalarni (Batch) avtomatik EXPIRED holatiga o'tkazib, qoldiqdan ayiradi."""
+    db = SessionLocal()
+    try:
+        from app.models.batch import Batch
+        from app.models.inventory import StockLevel, StockMovement, MovementType
+        
+        utc_now = datetime.now(timezone.utc)
+        uz_now = utc_now + timedelta(hours=5)
+        today = uz_now.date()
+        
+        expired_batches = db.query(Batch).filter(
+            Batch.quantity > 0,
+            Batch.expiry_date < today
+        ).all()
+        
+        count = 0
+        for batch in expired_batches:
+            qty_to_write_off = batch.quantity
+            
+            stock_level = db.query(StockLevel).filter(
+                StockLevel.product_id == batch.product_id,
+                StockLevel.warehouse_id == batch.warehouse_id,
+                StockLevel.variant_id == batch.variant_id
+            ).with_for_update().first()
+            
+            if stock_level:
+                qty_before = stock_level.quantity
+                stock_level.quantity -= qty_to_write_off
+                qty_after = stock_level.quantity
+                
+                batch.quantity = 0
+                
+                movement = StockMovement(
+                    product_id=batch.product_id,
+                    variant_id=batch.variant_id,
+                    type=MovementType.EXPIRED,
+                    qty_before=qty_before,
+                    qty_after=qty_after,
+                    quantity=qty_to_write_off,
+                    reference_type="auto_batch_write_off",
+                    reference_id=batch.id,
+                    reason=f"Avtomatik muddat o'tishi (Cron)"
+                )
+                db.add(movement)
+                count += 1
+                
+        if count > 0:
+            db.commit()
+            print(f"[Scheduler] {count} ta muddati o'tgan partiya avtomatik hisobdan chiqarildi.")
+            
+    except Exception as e:
+        print(f"[Scheduler] auto_write_off_expired xatolik: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 # ─── 3. Kunlik hisobot — har bir do'konning o'z vaqtida ─────────────────
 
 async def send_daily_report_for_company(company: Company, db):
@@ -287,13 +408,24 @@ async def check_and_send_reports():
         companies = db.query(Company).filter(Company.is_active == True).all()
 
         for company in companies:
-            # daily_report_time ustuni mavjud bo'lmasa yoki None bo'lsa
+            from app.admin_tg_bot.models import CompanyBot
+            admin_bot = db.query(CompanyBot).filter(
+                CompanyBot.company_id == company.id,
+                CompanyBot.bot_type == "admin",
+                CompanyBot.is_active == True
+            ).first()
+
             report_time = getattr(company, "daily_report_time", None) or "17:30"
+            report_enabled = getattr(company, "daily_report_enabled", True)
+
+            if admin_bot:
+                report_time = admin_bot.scheduled_time or report_time
+                report_enabled = admin_bot.notify_scheduled
+
             if report_time == current_hhmm:
-                # Kunlik hisobot ruxsat etilganligini tekshirish
-                if getattr(company, "daily_report_enabled", True) is False:
+                if not report_enabled:
                     continue
-                
+
                 print(
                     f"[Scheduler] {company.name} uchun kunlik hisobot vaqti keldi "
                     f"({current_hhmm}). Yuborilmoqda..."
@@ -330,10 +462,12 @@ async def start_scheduler():
     """
     last_debt_date = None
     last_overdue_date = None
+    last_expired_date = None
+    last_expired_notify_date = None
     # Hisobot uchun: {company_id: last_report_date}
     last_report_dates: dict = {}
 
-    print("[Scheduler] Ishga tushdi ✅")
+    print("[Scheduler] Ishga tushdi")
 
     while True:
         try:
@@ -353,6 +487,18 @@ async def start_scheduler():
                 print(f"[Scheduler] {uz_now.strftime('%H:%M')} — Muddati o'tgan qarzlar tekshirilmoqda")
                 await notify_managers_overdue()
                 last_overdue_date = today
+                
+            # 11:00 — Muddati tugayotgan mahsulotlar
+            if _is_time(11, 0, uz_now) and last_expired_notify_date != today:
+                print(f"[Scheduler] {uz_now.strftime('%H:%M')} — Muddati tugayotgan mahsulotlar tekshirilmoqda")
+                await notify_expiring_products()
+                last_expired_notify_date = today
+
+            # 00:05 — Muddati o'tgan tovarlarni avtomatik EXPIRED qilish
+            if _is_time(0, 5, uz_now) and last_expired_date != today:
+                print(f"[Scheduler] {uz_now.strftime('%H:%M')} — Muddati o'tgan tovarlar yechilmoqda")
+                await auto_write_off_expired()
+                last_expired_date = today
 
             # Har daqiqa — Har bir do'konning o'z vaqtida kunlik hisobot
             # (Telegram + FCM Push)

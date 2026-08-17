@@ -7,7 +7,8 @@ from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status  # type: ignore
-from pydantic import BaseModel  # type: ignore
+from pydantic import BaseModel, field_validator  # type: ignore
+import re
 from sqlalchemy.orm import Session  # type: ignore
 
 from app.core.audit import log_action  # type: ignore
@@ -428,6 +429,29 @@ class CompanyRegisterRequest(BaseModel):
     agent_code: Optional[str] = None
     otp_verified_token: Optional[str] = None  # OTP tasdiqlash tokeni
 
+    @field_validator('phone')
+    @classmethod
+    def validate_phone(cls, v: str) -> str:
+        val = v.strip().replace("+", "").replace(" ", "").replace("-", "")
+        if not re.match(r'^998\d{9}$', val):
+            raise ValueError("Telefon formati noto'g'ri. +998 bilan boshlanishi kerak.")
+        # Ketma-ket 7 ta bir xil raqam borligini tekshirish (masalan 998977777777)
+        if re.search(r'(\d)\1{6,}', val):
+            raise ValueError("Iltimos, haqiqiy telefon raqamini kiriting")
+        return val
+
+    @field_validator('company_name', 'name')
+    @classmethod
+    def validate_names(cls, v: str) -> str:
+        val = v.strip()
+        if not val:
+            raise ValueError("Maydon bo'sh qolishi mumkin emas")
+        if re.search(r'^(lorem|ipsum|test|excepteur)', val.lower()):
+            raise ValueError("Test ma'lumotlar kiritish taqiqlangan")
+        if len(val) < 2:
+            raise ValueError("Kamida 2 ta belgi bo'lishi kerak")
+        return val
+
 
 @router.post("/register", status_code=201)
 @limiter.limit("3/hour")
@@ -435,7 +459,17 @@ def register_company(request: Request, data: CompanyRegisterRequest, db: Session
     # Telefon normalizatsiya
     data.phone = data.phone.strip().replace("+", "").replace(" ", "").replace("-", "")
 
-    # OTP tekshirish olib tashlandi — to'g'ridan ro'yxatdan o'tish
+    # OTP tasdiqlanishini tekshirish
+    if not data.otp_verified_token:
+        raise HTTPException(status_code=400, detail="Telefon raqam tasdiqlanmagan (OTP token yo'q)")
+        
+    try:
+        from app.core.security import decode_token
+        session_data = decode_token(data.otp_verified_token)
+        if not session_data or session_data.get("type") != "otp_verified" or session_data.get("phone") != data.phone:
+            raise HTTPException(status_code=400, detail="OTP tasdiqlash tokeni xato yoki muddati o'tgan")
+    except Exception:
+        raise HTTPException(status_code=400, detail="OTP tasdiqlash tokeni yaroqsiz")
 
     # Telefon takrorlanishini tekshirish
     existing_user = db.query(User).filter(User.phone == data.phone).first()
@@ -532,6 +566,17 @@ def register_company(request: Request, data: CompanyRegisterRequest, db: Session
 
     access_token = create_access_token({"sub": str(user.id), "role": user.role.value})
     refresh_token = create_refresh_token({"sub": str(user.id)})
+
+    log_action(
+        db=db, 
+        action="REGISTER", 
+        entity_type="company", 
+        entity_id=company.id,
+        user_id=user.id, 
+        ip_address=request.client.host if request.client else None,
+        new_values={"user_agent": request.headers.get("user-agent")}
+    )
+    db.commit()
 
     return {
         "access_token": access_token,

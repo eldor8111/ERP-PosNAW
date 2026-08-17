@@ -41,6 +41,7 @@ class StockTransferItem(Base):
     id = Column(Integer, primary_key=True, index=True)
     transfer_id = Column(Integer, ForeignKey("stock_transfers.id"), nullable=False)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    variant_id = Column(Integer, ForeignKey("product_variants.id"), nullable=True)
     # Ixtiyoriy: maqsad omborda boshqa mahsulotga kirim qilish uchun
     # Agar None bo'lsa, product_id ishlatiladi (odatdagi holat)
     target_product_id = Column(Integer, ForeignKey("products.id"), nullable=True)

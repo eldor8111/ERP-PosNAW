@@ -38,6 +38,7 @@ class InventoryCountItem(Base):
     id = Column(Integer, primary_key=True, index=True)
     count_id = Column(Integer, ForeignKey("inventory_counts.id"), nullable=False)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    variant_id = Column(Integer, ForeignKey("product_variants.id"), nullable=True)
     system_qty = Column(Numeric(12, 3), default=0)
     counted_qty = Column(Numeric(12, 3), nullable=True)
     variance = Column(Numeric(12, 3), nullable=True)

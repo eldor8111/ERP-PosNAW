@@ -60,7 +60,7 @@ def create_category(
         if not parent:
             raise HTTPException(status_code=404, detail="Ota kategoriya topilmadi")
 
-    cat = Category(name=data.name, parent_id=data.parent_id, sort_order=data.sort_order, company_id=current_user.company_id)
+    cat = Category(name=data.name, parent_id=data.parent_id, sort_order=data.sort_order, is_perishable=data.is_perishable, company_id=current_user.company_id)
     db.add(cat)
     db.commit()
     db.refresh(cat)
@@ -86,6 +86,8 @@ def update_category(
         cat.parent_id = data.parent_id
     if data.sort_order is not None:
         cat.sort_order = data.sort_order
+    if data.is_perishable is not None:
+        cat.is_perishable = data.is_perishable
 
     db.commit()
     db.refresh(cat)
@@ -110,3 +112,40 @@ def delete_category(
     
     cat.is_deleted = True
     db.commit()
+
+@router.post("/seed-clothing")
+def seed_clothing_categories(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.super_admin, UserRole.admin, UserRole.director)),
+):
+    """Kiyim-kechak uchun tayyor kategoriyalarni kiritadi."""
+    clothing = [
+        {"name": "Erkaklar kiyimi", "sub": ["Kostyum-shim", "Ko'ylaklar", "T-shirt (Futbolka)", "Jinsi va shimlar", "Kurtka va paltolar", "Poyabzal", "Aksessuarlar"]},
+        {"name": "Ayollar kiyimi", "sub": ["Ko'ylak va yubkalar", "Bluzkalar", "T-shirt va toplar", "Jinsi va shimlar", "Kurtka va paltolar", "Poyabzal", "Aksessuarlar"]},
+        {"name": "Bolalar kiyimi", "sub": ["O'g'il bolalar kiyimi", "Qiz bolalar kiyimi", "Chaqaloqlar kiyimi", "Maktab formasi", "Oyoq kiyimlar"]},
+        {"name": "Sport kiyimlari", "sub": ["Sport kostyumlari", "Krossovkalar", "Sport anjomlari"]},
+        {"name": "Uy kiyimlari", "sub": ["Pijamalar", "Uy shippaklari"]}
+    ]
+    
+    count = 0
+    for idx, main_cat in enumerate(clothing):
+        # Ota kategoriyani qidirish yoki yaratish
+        parent = db.query(Category).filter(Category.name == main_cat["name"], Category.company_id == current_user.company_id, Category.is_deleted == False).first()
+        if not parent:
+            parent = Category(name=main_cat["name"], sort_order=idx*10, company_id=current_user.company_id)
+            db.add(parent)
+            db.flush()
+            count += 1
+            
+        # Quyi kategoriyalarni qidirish yoki yaratish
+        for sub_idx, sub_name in enumerate(main_cat["sub"]):
+            sub = db.query(Category).filter(Category.name == sub_name, Category.parent_id == parent.id, Category.company_id == current_user.company_id, Category.is_deleted == False).first()
+            if not sub:
+                sub = Category(name=sub_name, parent_id=parent.id, sort_order=sub_idx*10, company_id=current_user.company_id)
+                db.add(sub)
+                count += 1
+                
+    if count > 0:
+        db.commit()
+        return {"message": f"{count} ta kategoriya yaratildi"}
+    return {"message": "Barcha kategoriyalar allaqachon mavjud"}

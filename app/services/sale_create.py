@@ -147,6 +147,7 @@ def create_sale(
 
         sale_items_data.append({
             "product": product,
+            "variant_id": getattr(item_data, "variant_id", None),
             "quantity": item_data.quantity,
             "unit_price": unit_price,
             "cost_price": product.cost_price,
@@ -478,15 +479,15 @@ def create_sale(
         Batch.company_id == current_user.company_id,
     ).order_by(Batch.created_at.asc(), Batch.id.asc()).all()
 
-    batches_by_product = defaultdict(list)
+    batches_by_product_variant = defaultdict(list)
     for b in all_batches:
-        batches_by_product[b.product_id].append(b)
+        batches_by_product_variant[(b.product_id, b.variant_id)].append(b)
 
     from app.models.inventory import StockLevel as _SL
-    stocks_by_product = defaultdict(list)
+    stocks_by_product_variant = defaultdict(list)
     if all_stock_ids:
         for s in db.query(_SL).filter(_SL.product_id.in_(all_stock_ids)).order_by(_SL.quantity.desc()).with_for_update().all():
-            stocks_by_product[s.product_id].append(s)
+            stocks_by_product_variant[(s.product_id, s.variant_id)].append(s)
 
     preferred_wh_id = data.warehouse_id
     new_sale_items = []
@@ -494,15 +495,17 @@ def create_sale(
 
     for item_d in sale_items_data:
         product = item_d["product"]
+        variant_id = item_d["variant_id"]
         qty_needed = Decimal(item_d["quantity"])
         is_virtual = item_d.get("conversion") is not None
         source_product = item_d.get("source_product")
         stock_product = source_product if is_virtual else product
+        stock_variant_id = None if is_virtual else variant_id
         ratio = Decimal(str(item_d["conversion"].ratio)) if is_virtual else Decimal("1")
         qty_to_deduct = qty_needed * ratio if is_virtual else qty_needed
 
         item_preferred_wh = item_d.get("item_warehouse_id") or preferred_wh_id
-        stocks = stocks_by_product.get(stock_product.id, [])
+        stocks = stocks_by_product_variant.get((stock_product.id, stock_variant_id), [])
 
         preferred_stock = next((s for s in stocks if s.warehouse_id == item_preferred_wh), None) if item_preferred_wh else None
 
@@ -510,19 +513,19 @@ def create_sale(
             selected_stock = preferred_stock
         elif item_preferred_wh:
             from app.models.inventory import StockLevel as _SL2
-            new_sl = _SL2(product_id=stock_product.id, warehouse_id=item_preferred_wh, quantity=Decimal("0"))
+            new_sl = _SL2(product_id=stock_product.id, variant_id=stock_variant_id, warehouse_id=item_preferred_wh, quantity=Decimal("0"))
             db.add(new_sl)
             stocks.append(new_sl)
-            stocks_by_product[stock_product.id] = stocks
+            stocks_by_product_variant[(stock_product.id, stock_variant_id)] = stocks
             selected_stock = new_sl
         elif stocks:
             selected_stock = max(stocks, key=lambda s: s.quantity)
         else:
             from app.models.inventory import StockLevel as _SL2
-            new_sl = _SL2(product_id=stock_product.id, warehouse_id=None, quantity=Decimal("0"))
+            new_sl = _SL2(product_id=stock_product.id, variant_id=stock_variant_id, warehouse_id=None, quantity=Decimal("0"))
             db.add(new_sl)
             stocks = [new_sl]
-            stocks_by_product[stock_product.id] = stocks
+            stocks_by_product_variant[(stock_product.id, stock_variant_id)] = stocks
             selected_stock = new_sl
 
         item_warehouse_id = selected_stock.warehouse_id
@@ -532,6 +535,7 @@ def create_sale(
         from app.models.inventory import StockMovement, MovementType
         new_movements.append(StockMovement(
             product_id=stock_product.id,
+            variant_id=stock_variant_id,
             type=MovementType.OUT,
             qty_before=qty_before,
             qty_after=selected_stock.quantity,
@@ -542,7 +546,7 @@ def create_sale(
             reason=f"Sotuv #{sale.number}" + (f" ({product.name} → {stock_product.name} x{ratio})" if is_virtual else ""),
         ))
 
-        batches = batches_by_product.get(stock_product.id, [])
+        batches = batches_by_product_variant.get((stock_product.id, stock_variant_id), [])
         remaining = qty_to_deduct
         total_cost = Decimal("0")
         allocated_batches = []
@@ -564,6 +568,7 @@ def create_sale(
         sale_item = SaleItem(
             sale_id=sale.id,
             product_id=product.id,
+            variant_id=variant_id,
             warehouse_id=item_warehouse_id,
             unit=product.unit or "dona",
             quantity=qty_needed,

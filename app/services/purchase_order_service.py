@@ -133,6 +133,7 @@ def create_purchase_order(db: Session, data, current_user: User) -> PurchaseOrde
             unit_cost=item_data.unit_cost,
             cost_currency=getattr(item_data, 'cost_currency', 'UZS') or 'UZS',
             original_unit_cost=getattr(item_data, 'original_unit_cost', None) or item_data.unit_cost,
+            expiry_date=getattr(item_data, 'expiry_date', None),
         )
         db.add(item)
         total += item_data.qty_ordered * item_data.unit_cost
@@ -148,18 +149,14 @@ def create_purchase_order(db: Session, data, current_user: User) -> PurchaseOrde
                 reference_type="purchase_order",
                 reference_id=po.id,
                 warehouse_id=po.warehouse_id,
-            )
-            batch = Batch(
-                product_id=item_data.product_id,
-                warehouse_id=po.warehouse_id,
-                lot_number=f"PO-{po.number}",
-                initial_quantity=item_data.qty_ordered,
-                quantity=item_data.qty_ordered,
                 purchase_price=item_data.unit_cost,
-                po_id=po.id,
-                company_id=current_user.company_id,
+                company_id=po.company_id,
+                expiry_date=getattr(item_data, 'expiry_date', None),
             )
-            db.add(batch)
+            # NOTE: receive_stock() ichida purchase_price+company_id berilganda
+            # Batch avtomatik yaratiladi (inventory_service.py line 124-139).
+            # Shuning uchun bu yerda qo'shimcha Batch yaratish SHART EMAS —
+            # aks holda har bir prixodda IKKITA batch paydo bo'ladi.
 
     # Set amounts on the PO
     po.total_amount = total
@@ -240,7 +237,7 @@ def receive_purchase_order(db: Session, po_id: int, data, current_user: User) ->
 
         po_item.qty_received += receive_item.qty_received
 
-        # Update stock
+        # Update stock — variant_id ni ham uzatamiz (kiyim-kechak uchun)
         receive_stock(
             db=db,
             product_id=po_item.product_id,
@@ -250,12 +247,14 @@ def receive_purchase_order(db: Session, po_id: int, data, current_user: User) ->
             reference_type="purchase_order",
             reference_id=po.id,
             warehouse_id=po.warehouse_id,
+            variant_id=po_item.variant_id,  # ← variant qoldig'iga qo'shish
         )
 
         # Always create a financial batch for FIFO tracking
         lot = receive_item.lot_number or f"PO-{po.number}"
         batch = Batch(
             product_id=po_item.product_id,
+            variant_id=po_item.variant_id,  # ← FIFO da ham variant
             warehouse_id=po.warehouse_id,
             lot_number=lot,
             expiry_date=receive_item.expiry_date,

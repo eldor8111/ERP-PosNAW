@@ -22,6 +22,7 @@ from app.models.supplier import Supplier  # type: ignore
 from app.core.dependencies import get_current_user  # type: ignore
 from app.models.user import User, UserRole  # type: ignore
 from app.core.dependencies import require_roles  # type: ignore
+from app.admin_tg_bot.notifications import trigger_instant_notification
 
 router = APIRouter(prefix="/finance", tags=["Finance"])
 
@@ -237,6 +238,15 @@ def create_expense(
             wallet.balance = (Decimal(str(wallet.balance or 0)) - Decimal(str(data.amount)))
     db.commit()
     db.refresh(expense)
+
+    # ── Telegram bildirishnoma ──
+    try:
+        cat_name = expense.category.name if getattr(expense, 'category', None) else "Noma'lum"
+        msg = f"📉 <b>Yangi Xarajat</b>\n🗂 Kategoriya: {cat_name}\n💰 Summa: {float(expense.amount):,.0f} UZS\n📝 Izoh: {expense.description or '-'}"
+        trigger_instant_notification(user.company_id, msg, "finance")
+    except Exception as e:
+        print(f"Telegram notification error: {e}")
+
     return expense
 
 
@@ -851,6 +861,14 @@ def record_customer_debt_payment(
         ))
 
     db.commit()
+
+    # ── Telegram bildirishnoma ──
+    try:
+        msg = f"💵 <b>Qarz To'lovi</b>\n🤝 Mijoz: {customer.name}\n💰 Summa: {float(pay):,.0f} {currency}\n📈 Qolgan qarz: {float(customer.debt_balance):,.0f} UZS"
+        trigger_instant_notification(user.company_id, msg, "finance")
+    except Exception as e:
+        print(f"Telegram notification error: {e}")
+
     return {
         "customer_id": customer_id,
         "paid": float(pay),

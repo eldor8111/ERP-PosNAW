@@ -13,6 +13,7 @@ class POItemCreate(BaseModel):
     original_unit_cost: Optional[Decimal] = None
     new_sale_price: Optional[Decimal] = None
     new_wholesale_price: Optional[Decimal] = None
+    expiry_date: Optional[datetime] = None
 
 
 class POItemOut(BaseModel):
@@ -24,6 +25,7 @@ class POItemOut(BaseModel):
     unit_cost: Decimal
     cost_currency: Optional[str] = "UZS"
     original_unit_cost: Optional[Decimal] = None
+    expiry_date: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
