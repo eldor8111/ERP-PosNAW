@@ -74,12 +74,12 @@ const ACCENT_CLS = {
   emerald: { active: 'border-emerald-500 bg-emerald-500 text-white shadow-emerald-200', idle: 'border-slate-200 text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50' },
   blue: { active: 'border-blue-500 bg-blue-500 text-white shadow-blue-200', idle: 'border-slate-200 text-blue-600 hover:border-blue-300 hover:bg-blue-50' },
   violet: { active: 'border-violet-500 bg-violet-500 text-white shadow-violet-200', idle: 'border-slate-200 text-violet-600 hover:border-violet-300 hover:bg-violet-50' },
-  cyan: { active: 'border-blue-500 bg-blue-500 text-white shadow-blue-200', idle: 'border-slate-200 text-blue-600 hover:border-blue-300 hover:bg-blue-50' },
-  indigo: { active: 'border-blue-500 bg-blue-500 text-white shadow-blue-200', idle: 'border-slate-200 text-blue-600 hover:border-blue-300 hover:bg-blue-50' },
+  cyan: { active: 'border-cyan-500 bg-cyan-500 text-white shadow-cyan-200', idle: 'border-slate-200 text-cyan-600 hover:border-cyan-300 hover:bg-cyan-50' },
+  indigo: { active: 'border-indigo-500 bg-indigo-500 text-white shadow-indigo-200', idle: 'border-slate-200 text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50' },
   sky: { active: 'border-sky-500 bg-sky-500 text-white shadow-sky-200', idle: 'border-slate-200 text-sky-600 hover:border-sky-300 hover:bg-sky-50' },
   orange: { active: 'border-orange-500 bg-orange-500 text-white shadow-orange-200', idle: 'border-slate-200 text-orange-600 hover:border-orange-300 hover:bg-orange-50' },
   amber: { active: 'border-amber-500 bg-amber-500 text-white shadow-amber-200', idle: 'border-slate-200 text-amber-600 hover:border-amber-300 hover:bg-amber-50' },
-  purple: { active: 'border-blue-500 bg-blue-500 text-white shadow-blue-200', idle: 'border-slate-200 text-blue-600 hover:border-blue-300 hover:bg-blue-50' },
+  purple: { active: 'border-purple-500 bg-purple-500 text-white shadow-purple-200', idle: 'border-slate-200 text-purple-600 hover:border-purple-300 hover:bg-purple-50' },
 };
 
 const STATUS_META = {
@@ -193,7 +193,7 @@ function Ic({ d, cls = 'w-4 h-4' }) {
 
   return (
     <div ref={ref} className="relative">
-      <div className={`flex items-center gap-2 border-2 rounded-lg px-3 py-2.5 bg-white transition-all ${open ? 'border-blue-500 ring-4 ring-blue-100' : 'border-slate-200 hover:border-slate-300'}`}>
+      <div className={`flex items-center gap-2 border-2 rounded-lg px-3 py-2.5 bg-white transition-all ${open ? 'border-indigo-500 ring-4 ring-indigo-100' : 'border-slate-200 hover:border-slate-300'}`}>
         <Ic d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" cls="w-4 h-4 text-slate-400 shrink-0" />
         <input
           ref={inputRef}
@@ -209,12 +209,12 @@ function Ic({ d, cls = 'w-4 h-4' }) {
       </div>
 
       {selected && !open && (
-        <div className="mt-1.5 px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg flex items-center justify-between">
+        <div className="mt-1.5 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-blue-200 text-blue-700 flex items-center justify-center text-xs font-black">{selected.name?.[0]?.toUpperCase()}</div>
+            <div className="w-7 h-7 rounded-full bg-indigo-200 text-indigo-700 flex items-center justify-center text-xs font-black">{selected.name?.[0]?.toUpperCase()}</div>
             <div>
-              <div className="text-xs font-bold text-blue-800">{selected.name}</div>
-              {selected.phone && <div className="text-xs text-blue-500">{selected.phone}</div>}
+              <div className="text-xs font-bold text-indigo-800">{selected.name}</div>
+              {selected.phone && <div className="text-xs text-indigo-500">{selected.phone}</div>}
             </div>
           </div>
           <div className="text-right">
@@ -241,7 +241,7 @@ function Ic({ d, cls = 'w-4 h-4' }) {
             ? <div className="px-4 py-4 text-center text-sm text-slate-400">"{q}" — topilmadi</div>
             : filtered.map((c, i) => (
               <button key={c.id} onMouseDown={() => selectCustomer(c)}
-                className={`w-full flex cursor-pointer items-center justify-between px-4 py-3 border-b border-slate-50 last:border-0 transition-colors ${i === activeIdx ? 'bg-blue-100' : 'hover:bg-blue-50'}`}>
+                className={`w-full flex cursor-pointer items-center justify-between px-4 py-3 border-b border-slate-50 last:border-0 transition-colors ${i === activeIdx ? 'bg-indigo-100' : 'hover:bg-indigo-50'}`}>
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-xs font-bold">{c.name?.[0]?.toUpperCase()}</div>
                   <div className="text-left">
@@ -266,8 +266,8 @@ function Ic({ d, cls = 'w-4 h-4' }) {
           }
           {/* + Yangi mijoz */}
           <button onMouseDown={() => { setShowForm(true); setOpen(false); }}
-            className="w-full flex cursor-pointer items-center gap-2 px-4 py-3 text-blue-600 hover:bg-blue-50 font-bold text-sm border-t border-slate-100 transition-colors">
-            <span className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-base leading-none">+</span>
+            className="w-full flex cursor-pointer items-center gap-2 px-4 py-3 text-indigo-600 hover:bg-indigo-50 font-bold text-sm border-t border-slate-100 transition-colors">
+            <span className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-base leading-none">+</span>
             Yangi mijoz qo'shish
           </button>
         </div>
@@ -286,25 +286,25 @@ function Ic({ d, cls = 'w-4 h-4' }) {
                 <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Ism *</label>
                 <input autoFocus value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
                   placeholder="To'liq ismi..."
-                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Telefon</label>
                 <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
                   placeholder="+998 90 123 45 67"
-                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Qarz limiti (so'm)</label>
                 <input type="number" value={form.debt_limit} onChange={e => setForm({ ...form, debt_limit: e.target.value })}
                   placeholder="0"
-                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
               </div>
               <div className="flex gap-2 pt-1">
                 <button type="button" onClick={() => setShowForm(false)}
                   className="flex-1 py-2.5 rounded-xl border-2 border-slate-200 text-slate-600 font-semibold text-sm">Bekor</button>
                 <button type="submit" disabled={saving}
-                  className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm disabled:opacity-50">
+                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm disabled:opacity-50">
                   {saving ? 'Saqlanmoqda...' : "Qo'shish"}
                 </button>
               </div>
@@ -399,10 +399,10 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
   return (
     <div className="relative">
       <div className={`flex items-center gap-2 border-2 rounded-lg px-3 py-2.5 bg-white transition-all ${disabled ? 'border-slate-100 bg-slate-50 opacity-60' :
-        open || q ? 'border-blue-500 ring-4 ring-blue-100' : 'border-slate-200 hover:border-slate-300'
+        open || q ? 'border-indigo-500 ring-4 ring-indigo-100' : 'border-slate-200 hover:border-slate-300'
         }`}>
         {loading
-          ? <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin shrink-0" />
+          ? <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin shrink-0" />
           : <Ic d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" cls="w-4 h-4 text-slate-400 shrink-0" />
         }
         <input ref={inputRef} value={q}
@@ -421,7 +421,7 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
         <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-[380px] overflow-y-auto">
           {loading && results.length === 0 && (
             <div className="px-4 py-8 text-center">
-              <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+              <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
               <div className="text-xs font-bold text-slate-400">Mahsulotlar yuklanmoqda...</div>
             </div>
           )}
@@ -430,7 +430,7 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
           )}
           {results.length > 0 && results.map((p, i) => (
             <button key={p.id} onMouseDown={() => select(p)}
-              className={`w-full cursor-pointer flex items-center gap-3 px-4 py-3 border-b border-slate-50 last:border-0 transition-colors text-left ${i === activeIdx ? 'bg-blue-50' : 'hover:bg-slate-50'}`}>
+              className={`w-full cursor-pointer flex items-center gap-3 px-4 py-3 border-b border-slate-50 last:border-0 transition-colors text-left ${i === activeIdx ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}>
               <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
                 {p.image_url ? <img src={p.image_url} alt="" className="w-full h-full object-cover" /> : <Ic d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" cls="w-4 h-4 text-slate-400" />}
               </div>
@@ -442,7 +442,7 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
                 </div>
               </div>
               <div className="text-right shrink-0">
-                <div className="text-sm font-black text-blue-700">
+                <div className="text-sm font-black text-indigo-700">
                   {(() => {
                     let displayPrice = p.sale_price;
                     let displayCur = p.sale_currency || 'UZS';
@@ -531,7 +531,6 @@ export default function UlgurjiSotuv() {
   const custSearchRef = useRef(null);
   const prodSearchRef = useRef(null);
   const [showProdAddModal, setShowProdAddModal] = useState(false);
-  const [variantPickerProduct, setVariantPickerProduct] = useState(null); // parent mahsulot tanlanganda
   const formPriceRef = useRef(null);
   const formDiscRef = useRef(null);
 
@@ -898,11 +897,6 @@ export default function UlgurjiSotuv() {
   }, [promotions]);
 
   const addToCart = useCallback((p) => {
-    // Parent mahsulot (variantli) bo'lsa — variant picker modal ochiladi
-    if (p.product_type === 'parent') {
-      setVariantPickerProduct(p);
-      return;
-    }
     const currentCustId = custIdRef.current;
     if (!currentCustId) {
       toast.error('Avval mijozni tanlang!');
@@ -954,11 +948,6 @@ export default function UlgurjiSotuv() {
 
   // Select product into form — mijoz narx turiga qarab narxni ko'rsatadi
   const selectFormProduct = useCallback((p) => {
-    // Parent mahsulot bo'lsa — variant picker ochiladi
-    if (p.product_type === 'parent') {
-      setVariantPickerProduct(p);
-      return;
-    }
     setFormProduct(p);
     let { price, currency } = getProductPrice(p);
 
@@ -1653,7 +1642,7 @@ export default function UlgurjiSotuv() {
             { id: 'drafts', label: 'Arxiv', icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
           ].map(t => (
             <button key={t.id} onClick={() => handleTabChange(t.id)}
-              className={`flex items-center gap-0.5 md:gap-1 px-2 md:px-3.5 py-2 rounded-lg font-semibold transition-all ${tab === t.id ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+              className={`flex items-center gap-0.5 md:gap-1 px-2 md:px-3.5 py-2 rounded-lg font-semibold transition-all ${tab === t.id ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
               <Ic d={t.icon} cls="w-3.5 h-3.5" />
               <span className="text-[10px] md:text-sm">{t.label}</span>
             </button>
@@ -1670,7 +1659,7 @@ export default function UlgurjiSotuv() {
           <div className="w-px h-5 bg-slate-200 mx-1 hidden md:block" />
 
           <button onClick={() => setSettingsOpen(true)}
-            className="shrink-0 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-blue-50 flex items-center justify-center transition-colors">
+            className="shrink-0 rounded-xl text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 flex items-center justify-center transition-colors">
             <Ic d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </button>
         </div>
@@ -1705,7 +1694,7 @@ export default function UlgurjiSotuv() {
                     <div className="flex items-center gap-2">
                       {!custId && <span className="text-xs text-red-400 font-semibold">Tanlanmagan</span>}
                       <button onClick={() => custSearchRef.current?.openForm()}
-                        className="flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold border border-blue-200 transition-colors">
+                        className="flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-bold border border-indigo-200 transition-colors">
                         <span className="text-base leading-none">+</span> Yangi
                       </button>
                     </div>
@@ -1778,13 +1767,13 @@ export default function UlgurjiSotuv() {
 
                   {/* Selected product card */}
                   {formProduct ? (
-                    <div className="mt-3 bg-blue-50 border border-blue-100 rounded-lg p-3">
+                    <div className="mt-3 bg-indigo-50 border border-indigo-100 rounded-lg p-3">
                       {/* Product info */}
                       <div className="flex items-center gap-2.5 mb-3">
-                        <div className="w-10 h-10 rounded-xl bg-white border border-blue-100 flex items-center justify-center shrink-0 overflow-hidden">
+                        <div className="w-10 h-10 rounded-xl bg-white border border-indigo-100 flex items-center justify-center shrink-0 overflow-hidden">
                           {formProduct.image_url
                             ? <img src={formProduct.image_url} alt="" className="w-full h-full object-cover" />
-                            : <span className="font-black text-blue-400 text-sm">{formProduct.name?.[0]}</span>}
+                            : <span className="font-black text-indigo-400 text-sm">{formProduct.name?.[0]}</span>}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="font-bold text-slate-800 text-sm truncate">{formProduct.name}</div>
@@ -1801,7 +1790,7 @@ export default function UlgurjiSotuv() {
                                 </span>
                             </div>
                             {formProduct.sale_currency !== 'UZS' && (
-                              <div className="text-[10px] font-black text-blue-500 bg-white px-1.5 py-0.5 rounded border border-blue-100 shadow-sm">
+                              <div className="text-[10px] font-black text-indigo-500 bg-white px-1.5 py-0.5 rounded border border-indigo-100 shadow-sm">
                                 Asl narxi: {fmt(isWholesaleMode ? formProduct.wholesale_price : formProduct.sale_price)} {formProduct.sale_currency === 'USD' ? '$' : formProduct.sale_currency}
                               </div>
                             )}
@@ -1825,9 +1814,9 @@ export default function UlgurjiSotuv() {
                               onChange={e => setFormQty(e.target.value)}
                               onFocus={e => e.target.select()}
                               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addFormToCart(); } }}
-                              className="flex-1 w-full border border-white rounded-lg py-2 text-center text-base font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white" />
+                              className="flex-1 w-full border border-white rounded-lg py-2 text-center text-base font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
                             <button onClick={() => setFormQty(q => String((parseFloat(q) || 1) + 1))}
-                              className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center font-black text-white text-xl active:bg-blue-700">+</button>
+                              className="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center font-black text-white text-xl active:bg-indigo-700">+</button>
                           </div>
                         </div>
 
@@ -1848,7 +1837,7 @@ export default function UlgurjiSotuv() {
                                     setFormPrice(String(p));
                                     setFormCurrency(c);
                                   }}
-                                  className="text-[9px] font-bold px-1.5 py-0.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded transition-colors" title="Ulgurji narx">U</button>
+                                  className="text-[9px] font-bold px-1.5 py-0.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded transition-colors" title="Ulgurji narx">U</button>
                               )}
                               {formProduct.sale_price > 0 && (
                                 <button
@@ -1882,7 +1871,7 @@ export default function UlgurjiSotuv() {
                                     formDiscRef.current?.focus();
                                   }
                                 }}
-                                className="w-full border border-white rounded-xl px-3 py-2 text-base font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                                className="w-full border border-white rounded-xl px-3 py-2 text-base font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
                               />
                             </div>
                             <select
@@ -1905,7 +1894,7 @@ export default function UlgurjiSotuv() {
                                 }
                                 setFormCurrency(newCode);
                               }}
-                              className="cursor-pointer rounded-lg px-1.5 py-2.5 text-sm font-black text-blue-600 focus:outline-none bg-white">
+                              className="cursor-pointer rounded-lg px-1.5 py-2.5 text-sm font-black text-indigo-600 focus:outline-none bg-white">
                               <option value="UZS">UZS</option>
                               {currencies.filter(c => String(c.code).toUpperCase() !== 'UZS').map((item) => (
                                 <option key={item.id} value={item.code}>{item.code}</option>
@@ -1934,7 +1923,7 @@ export default function UlgurjiSotuv() {
 
                           <div className="flex-[1.2] flex items-end">
                             <button onClick={addFormToCart}
-                              className="w-full h-10 bg-blue-600 cursor-pointer hover:bg-blue-700 active:bg-blue-800 text-white font-black text-[13px] rounded-lg flex items-center justify-center gap-1.5 shadow-md shadow-blue-200 transition-all">
+                              className="w-full h-10 bg-indigo-600 cursor-pointer hover:bg-indigo-700 active:bg-indigo-800 text-white font-black text-[13px] rounded-lg flex items-center justify-center gap-1.5 shadow-md shadow-indigo-200 transition-all">
                               <Ic d="M12 4v16m8-8H4" cls="w-4 h-4" />
                               <span className="hidden sm:inline">Savatga</span> qo'shish
                             </button>
@@ -1957,7 +1946,7 @@ export default function UlgurjiSotuv() {
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5 block">Izoh</label>
                   <textarea value={note} onChange={e => setNote(e.target.value)}
                     placeholder="Shartnoma raqami, izoh..." rows={2}
-                    className="w-full border-2 border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none bg-white" />
+                    className="w-full border-2 border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none bg-white" />
                 </div>
 
                 {/* Sotuv chegirmasi */}
@@ -2045,7 +2034,7 @@ export default function UlgurjiSotuv() {
                                   </span>
                                 )}
                                 {it.currency && it.currency !== 'UZS' && (
-                                  <span className="text-[10px] font-black text-blue-500 bg-blue-50 px-1 py-0.5 rounded uppercase">{it.currency}</span>
+                                  <span className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-1 py-0.5 rounded uppercase">{it.currency}</span>
                                 )}
                                 {it.promo_name && (
                                   <span className="bg-violet-50 text-violet-600 border border-violet-200 text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1">
@@ -2060,7 +2049,7 @@ export default function UlgurjiSotuv() {
                                   className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center font-bold text-slate-600 text-sm">−</button>
                                 <input type="number" value={it.qty}
                                   onChange={e => updateItem(idx, 'qty', Math.max(0, parseFloat(e.target.value) ?? 0))}
-                                  className="w-14 text-center font-black text-slate-800 border border-slate-200 rounded-lg py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                                  className="w-14 text-center font-black text-slate-800 border border-slate-200 rounded-lg py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
                                 <button onClick={() => updateItem(idx, 'qty', it.qty + 1)}
                                   className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center font-bold text-slate-600 text-sm">+</button>
                               </div>
@@ -2072,7 +2061,7 @@ export default function UlgurjiSotuv() {
                                   onChange={e => {
                                     updateItem(idx, 'price', parsePrice(e.target.value));
                                   }}
-                                  className="w-full min-w-20 text-right font-bold text-slate-800 border border-slate-200 rounded-lg py-1 pr-6 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                                  className="w-full min-w-20 text-right font-bold text-slate-800 border border-slate-200 rounded-lg py-1 pr-6 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
                                 <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold ${it.currency === 'USD' ? 'text-green-600' : 'text-slate-400'}`}>{curSym}</span>
                               </div>
                             </td>
@@ -2091,7 +2080,7 @@ export default function UlgurjiSotuv() {
                             <td className="px-3 py-2.5 text-right">
                               <div className="font-black text-slate-800 text-sm whitespace-nowrap">{fmt(net)} {curSym}</div>
                               {hasDisc && <div className="text-xs text-slate-400 line-through whitespace-nowrap">{fmt(it.price * it.qty)} {curSym}</div>}
-                              {it.currency !== 'UZS' && <div className="text-[10px] text-blue-500 font-bold">≈ {fmt(Math.round(net * it.rate))} s</div>}
+                              {it.currency !== 'UZS' && <div className="text-[10px] text-indigo-500 font-bold">≈ {fmt(Math.round(net * it.rate))} s</div>}
                             </td>
                             <td className="pr-2 py-2.5">
                               <button onClick={() => removeItem(idx)}
@@ -2114,7 +2103,7 @@ export default function UlgurjiSotuv() {
                     {Object.entries(totalsByCurrency).map(([cur, amt]) => (
                       <div key={cur} className="flex justify-between items-center group">
                         <span className="text-[14px] font-black text-slate-600 uppercase tracking-widest leading-none">{cur === 'UZS' ? 'Mahsulotlar' : cur} jami:</span>
-                        <span className={`text-[18px] font-black text-blue-600`}>
+                        <span className={`text-[18px] font-black text-indigo-600`}>
                           {fmt(amt)} {cur === 'USD' ? '$' : (cur === 'UZS' ? 'so\'m' : cur)}
                         </span>
                       </div>
@@ -2136,17 +2125,17 @@ export default function UlgurjiSotuv() {
           <div className="md:hidden shrink-0 flex border-t border-slate-200 bg-white">
             <button onClick={() => setMobileTab('form')}
               className={`flex-1 py-2.5 text-sm font-bold flex items-center justify-center gap-1.5 transition-colors
-                ${mobileTab === 'form' ? 'text-blue-600 border-t-2 border-blue-600 -mt-px' : 'text-slate-500 border-t-2 border-transparent -mt-px'}`}>
+                ${mobileTab === 'form' ? 'text-indigo-600 border-t-2 border-indigo-600 -mt-px' : 'text-slate-500 border-t-2 border-transparent -mt-px'}`}>
               <Ic d="M12 4v16m8-8H4" cls="w-4 h-4" />
               Qo'shish
             </button>
             <button onClick={() => setMobileTab('cart')}
               className={`flex-1 py-2.5 text-sm font-bold flex items-center justify-center gap-1.5 transition-colors
-                ${mobileTab === 'cart' ? 'text-blue-600 border-t-2 border-blue-600 -mt-px' : 'text-slate-500 border-t-2 border-transparent -mt-px'}`}>
+                ${mobileTab === 'cart' ? 'text-indigo-600 border-t-2 border-indigo-600 -mt-px' : 'text-slate-500 border-t-2 border-transparent -mt-px'}`}>
               <Ic d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" cls="w-4 h-4" />
               Savat
               {cart.length > 0 && (
-                <span className="bg-blue-600 text-white text-[10px] font-black rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">{cart.length}</span>
+                <span className="bg-indigo-600 text-white text-[10px] font-black rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">{cart.length}</span>
               )}
             </button>
           </div>
@@ -2174,7 +2163,7 @@ export default function UlgurjiSotuv() {
 
                 <button onClick={() => handleDirectAction('debt')}
                   disabled={cart.length === 0 || saving}
-                  className="flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl bg-blue-50 text-blue-600 active:bg-blue-200 disabled:opacity-30 font-bold transition-colors border border-blue-100">
+                  className="flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl bg-rose-50 text-rose-600 active:bg-rose-200 disabled:opacity-30 font-bold transition-colors border border-rose-100">
                   <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" cls="w-4 h-4" />
                   <span className="text-[10px]">Qarzga</span>
                 </button>
@@ -2188,11 +2177,11 @@ export default function UlgurjiSotuv() {
               </div>
 
               {totalsByCurrency && Object.keys(totalsByCurrency).length > 1 && (
-                <div className="px-3 py-2 bg-blue-50/50 border-y border-blue-100 flex flex-wrap gap-x-4 gap-y-1">
+                <div className="px-3 py-2 bg-indigo-50/50 border-y border-indigo-100 flex flex-wrap gap-x-4 gap-y-1">
                   {Object.entries(totalsByCurrency).map(([cur, amt]) => (
                     <div key={cur} className="flex items-center gap-1.5">
                       <span className="text-[10px] font-bold text-slate-400 uppercase">{cur}:</span>
-                      <span className="text-xs font-black text-blue-700">{fmt(amt)} {cur === 'USD' ? '$' : (cur === 'UZS' ? 's' : cur)}</span>
+                      <span className="text-xs font-black text-indigo-700">{fmt(amt)} {cur === 'USD' ? '$' : (cur === 'UZS' ? 's' : cur)}</span>
                     </div>
                   ))}
                 </div>
@@ -2229,7 +2218,7 @@ export default function UlgurjiSotuv() {
 
               <button onClick={() => handleDirectAction('debt')}
                 disabled={cart.length === 0 || saving}
-                className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 active:bg-blue-200 disabled:opacity-30 text-sm font-bold transition-colors border border-blue-100">
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 active:bg-rose-200 disabled:opacity-30 text-sm font-bold transition-colors border border-rose-100">
                 <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" cls="w-4 h-4" />
                 Qarzga
               </button>
@@ -2260,26 +2249,26 @@ export default function UlgurjiSotuv() {
         <div className="flex-1 overflow-hidden flex flex-col p-3 md:p-4 gap-3">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 md:p-4 flex flex-wrap gap-2 items-center">
             <input type="date" value={filters.date_from} onChange={e => setFilters(f => ({ ...f, date_from: e.target.value }))}
-              className="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+              className="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
             <input type="date" value={filters.date_to} onChange={e => setFilters(f => ({ ...f, date_to: e.target.value }))}
-              className="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+              className="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
             <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
-              className="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white">
+              className="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white">
               <option value="">Barcha holatlar</option>
               <option value="completed">Yakunlandi</option>
               <option value="pending">Tasdiqlash kutulmoqda</option>
               <option value="cancelled">Bekor</option>
             </select>
             <input value={filters.search} onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
-              placeholder="Sotuv raqami yoki mijoz ismi..." className="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 w-full max-w-100" />
-            <button onClick={loadSales} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5">
+              placeholder="Sotuv raqami yoki mijoz ismi..." className="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 w-full max-w-100" />
+            <button onClick={loadSales} className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5">
               <Ic d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" cls="w-3.5 h-3.5" />Qidirish
             </button>
           </div>
 
           <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-auto">
             {loadingSales ? (
-              <div className="flex justify-center items-center h-64"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
+              <div className="flex justify-center items-center h-64"><div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div>
             ) : (
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
@@ -2295,9 +2284,9 @@ export default function UlgurjiSotuv() {
                     const dbt = Number(s?.total_amount) - Number(s?.paid_amount);
                     return (
                       <tr key={s.id} onClick={() => { setSelectedSale(s); setOpenMenuId(null); }}
-                        className="hover:bg-blue-50/40 cursor-pointer transition-colors">
+                        className="hover:bg-indigo-50/40 cursor-pointer transition-colors">
                         <td className="px-4 py-3 text-xs text-slate-400">{i + 1 + page * LIMIT}</td>
-                        <td className="px-4 py-3"><span className="font-mono font-black text-blue-700 text-xs bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">{s.number}</span></td>
+                        <td className="px-4 py-3"><span className="font-mono font-black text-indigo-700 text-xs bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">{s.number}</span></td>
                         <td className="px-4 py-3">
                           {s.customer_name
                             ? <div className="flex items-center gap-2"><div className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-xs font-bold">{s.customer_name[0]}</div><span className="font-semibold text-slate-700">{s.customer_name}</span></div>
@@ -2317,15 +2306,15 @@ export default function UlgurjiSotuv() {
                           </button>
                           {openMenuId === s.id && (
                             <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-2xl py-1 min-w-[170px]" onMouseLeave={() => setOpenMenuId(null)}>
-                              <button onClick={() => loadEditSale(s)} className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-blue-50 flex items-center gap-2.5">
-                                <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                              <button onClick={() => loadEditSale(s)} className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-indigo-50 flex items-center gap-2.5">
+                                <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                 Tahrirlash
                               </button>
                               <div className="border-t border-slate-100 my-1" />
                               <div className="px-4 py-1 text-xs font-semibold text-slate-400 uppercase tracking-wide">Chop etish</div>
                               {[{ size: '58', label: '58mm' }, { size: '80', label: '80mm' }, { size: 'nak', label: 'A4 Nakladnoy' }].map(opt => (
                                 <button key={opt.size} onClick={() => { printSale(s, opt.size); setOpenMenuId(null); }}
-                                  className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-blue-50 flex items-center gap-2.5">
+                                  className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-indigo-50 flex items-center gap-2.5">
                                   <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                                   {opt.label}
                                 </button>
@@ -2345,9 +2334,9 @@ export default function UlgurjiSotuv() {
                 </tbody>
                 {sales.length > 0 && (
                   <tfoot>
-                    <tr className="bg-blue-50 border-t-2 border-blue-100">
-                      <td colSpan={3} className="px-4 py-3 text-xs font-bold text-blue-700">{sales.length} ta sotuv</td>
-                      <td className="px-4 py-3 text-right font-black text-blue-800 whitespace-nowrap">{fmt(sales.reduce((s, x) => s + Number(x.total_amount), 0))} s</td>
+                    <tr className="bg-indigo-50 border-t-2 border-indigo-100">
+                      <td colSpan={3} className="px-4 py-3 text-xs font-bold text-indigo-700">{sales.length} ta sotuv</td>
+                      <td className="px-4 py-3 text-right font-black text-indigo-800 whitespace-nowrap">{fmt(sales.reduce((s, x) => s + Number(x.total_amount), 0))} s</td>
                       <td className="px-4 py-3 text-right font-black text-emerald-700 whitespace-nowrap">{fmt(sales.reduce((s, x) => s + Number(x.paid_amount), 0))} s</td>
                       <td className="px-4 py-3 text-right font-black text-red-600 whitespace-nowrap">{fmt(sales.reduce((s, x) => s + Math.max(0, Number(x.total_amount) - Number(x.paid_amount)), 0))} s</td>
                       <td colSpan={5} />
@@ -2388,12 +2377,12 @@ export default function UlgurjiSotuv() {
                     </span>
                     <span className="text-sm font-bold text-slate-800">{d.cart.length} xil mahsulot</span>
                   </div>
-                  <h4 className="text-2xl font-black text-blue-700">{fmt(d.total)} so'm</h4>
+                  <h4 className="text-2xl font-black text-indigo-700">{fmt(d.total)} so'm</h4>
                   {d.note && <p className="text-xs text-slate-500 mt-1">📝 {d.note}</p>}
                 </div>
                 <div className="flex items-center gap-2">
                   <button onClick={() => removeDraft(i)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-sm">O'chirish</button>
-                  <button onClick={() => loadDraft(i)} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm shadow-md shadow-blue-200">Savatga yuklash</button>
+                  <button onClick={() => loadDraft(i)} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm shadow-md shadow-indigo-200">Savatga yuklash</button>
                 </div>
               </div>
             ))}
@@ -2452,12 +2441,12 @@ export default function UlgurjiSotuv() {
             <div className="bg-white w-full md:max-w-lg rounded-t-3xl md:rounded-2xl shadow-2xl overflow-hidden flex flex-col" style={{ maxHeight: '95vh' }}>
               <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center">
                     <Ic d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" cls="w-4 h-4 text-white" />
                   </div>
                   <div>
                     <h2 className="text-base font-black text-slate-800">Kassaga to'lov</h2>
-                    <p className="text-xs text-blue-500 font-mono">{now.toLocaleString('ru-RU').replace(',', '')}</p>
+                    <p className="text-xs text-indigo-500 font-mono">{now.toLocaleString('ru-RU').replace(',', '')}</p>
                   </div>
                 </div>
                 <button onClick={closeModal} className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500">
@@ -2470,7 +2459,7 @@ export default function UlgurjiSotuv() {
                   <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
                     <div>
                       <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-0.5">Mijoz</div>
-                      <div className="text-sm font-black text-blue-700">{selected.name}</div>
+                      <div className="text-sm font-black text-indigo-700">{selected.name}</div>
                     </div>
                     <div className="text-right">
                       <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Mavjud qarz</div>
@@ -2490,7 +2479,7 @@ export default function UlgurjiSotuv() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">To'lov</span>
-                    <button onClick={addLine} className="w-7 h-7 rounded-lg bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shadow-sm">
+                    <button onClick={addLine} className="w-7 h-7 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center shadow-sm">
                       <Ic d="M12 4v16m8-8H4" cls="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -2505,7 +2494,7 @@ export default function UlgurjiSotuv() {
                           <div className="flex items-center gap-2">
                             <div className="relative flex-1">
                               <select value={line.type} onChange={e => updateLine(line.id, 'type', e.target.value)}
-                                className="w-full h-10 pl-3 pr-8 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white appearance-none cursor-pointer">
+                                className="w-full h-10 pl-3 pr-8 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white appearance-none cursor-pointer">
                                 {PAY_TYPES.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
                               </select>
                               <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
@@ -2531,7 +2520,7 @@ export default function UlgurjiSotuv() {
                                   updateLine(line.id, 'currency', newCode);
                                 }
                               }}
-                                className="w-full h-10 pl-3 pr-8 border border-slate-200 rounded-lg text-sm font-black text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white appearance-none cursor-pointer">
+                                className="w-full h-10 pl-3 pr-8 border border-slate-200 rounded-lg text-sm font-black text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white appearance-none cursor-pointer">
                                 <option value="UZS">UZS</option>
                                 {currencies.filter(c => c.code !== 'UZS').map(c => <option key={c.id} value={c.code}>{c.code}</option>)}
                               </select>
@@ -2564,7 +2553,7 @@ export default function UlgurjiSotuv() {
                           </div>
 
                           {line.currency && line.currency !== 'UZS' && amtInUZS > 0 && (
-                            <div className="text-[10px] font-bold text-blue-500 pl-1">
+                            <div className="text-[10px] font-bold text-indigo-500 pl-1">
                               ≈ {fmt(amtInUZS)} so'm (Kurs: {fmt(lineRate)})
                             </div>
                           )}
@@ -2577,7 +2566,7 @@ export default function UlgurjiSotuv() {
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 block">Izoh (ixtiyoriy)</label>
                   <textarea value={payNote} onChange={e => setPayNote(e.target.value)} placeholder="Shartnoma raqami, eslatma..." rows={2}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none" />
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none" />
                 </div>
 
                 {showDebtDate && remaining > 0 && (
@@ -2592,8 +2581,8 @@ export default function UlgurjiSotuv() {
                 )}
 
                 <div className="bg-slate-50 rounded-xl border border-slate-100 divide-y divide-slate-100">
-                  <div className="px-4 py-2 bg-blue-50/50 flex justify-between items-center border-b border-blue-100">
-                    <span className="text-[10px] font-black text-blue-500 uppercase">Valyuta bo'yicha jami</span>
+                  <div className="px-4 py-2 bg-indigo-50/50 flex justify-between items-center border-b border-indigo-100">
+                    <span className="text-[10px] font-black text-indigo-500 uppercase">Valyuta bo'yicha jami</span>
                     <div className="flex gap-3">
                       {Object.entries(totalsByCurrency).map(([cur, amt]) => (
                         <span key={cur} className="text-xs font-black text-slate-700">{fmt(amt)} {cur === 'USD' ? '$' : (cur === 'UZS' ? 's' : cur)}</span>
@@ -2780,7 +2769,7 @@ export default function UlgurjiSotuv() {
                   <h3 className="text-sm font-bold text-slate-800">Faqat so'mda savdo</h3>
                   <p className="text-[12px] text-slate-500 mt-0.5">Valyutalik mahsulotlarni narxini so'mga o'girish</p>
                 </div>
-                <button onClick={() => setOnlySom(!onlySom)} className={`w-12 h-6 min-w-max cursor-pointer rounded-full p-1 transition-colors ${onlySom ? 'bg-blue-500' : 'bg-slate-300'}`}>
+                <button onClick={() => setOnlySom(!onlySom)} className={`w-12 h-6 min-w-max cursor-pointer rounded-full p-1 transition-colors ${onlySom ? 'bg-indigo-500' : 'bg-slate-300'}`}>
                   <div className={`w-4 h-4 bg-white rounded-full transition-transform ${onlySom ? 'translate-x-6' : 'translate-x-0'}`} />
                 </button>
               </div>
@@ -2789,7 +2778,7 @@ export default function UlgurjiSotuv() {
                   <h3 className="text-sm font-bold text-slate-800">Avtomatik chek chiqarish</h3>
                   <p className="text-[12px] text-slate-500 mt-0.5">To'lov tugashi bilan avtomatik print</p>
                 </div>
-                <button onClick={() => setAutoPrint(!autoPrint)} className={`w-12 h-6 cursor-pointer rounded-full p-1 transition-colors ${autoPrint ? 'bg-blue-500' : 'bg-slate-300'}`}>
+                <button onClick={() => setAutoPrint(!autoPrint)} className={`w-12 h-6 cursor-pointer rounded-full p-1 transition-colors ${autoPrint ? 'bg-indigo-500' : 'bg-slate-300'}`}>
                   <div className={`w-4 h-4 bg-white rounded-full transition-transform ${autoPrint ? 'translate-x-6' : 'translate-x-0'}`} />
                 </button>
               </div>
@@ -2798,7 +2787,7 @@ export default function UlgurjiSotuv() {
                 <div className="grid grid-cols-3 gap-2">
                   {[{ id: '58', label: '58 mm' }, { id: '80', label: '80 mm' }, { id: 'A4', label: 'A4' }].map(w => (
                     <button key={w.id} onClick={() => setReceiptWidth(w.id)}
-                      className={`py-2 text-sm font-semibold rounded-xl border-2 transition-colors ${receiptWidth === w.id ? 'border-blue-500 text-blue-700 bg-blue-50' : 'border-slate-100 text-slate-500 hover:border-slate-300'}`}>
+                      className={`py-2 text-sm font-semibold rounded-xl border-2 transition-colors ${receiptWidth === w.id ? 'border-indigo-500 text-indigo-700 bg-indigo-50' : 'border-slate-100 text-slate-500 hover:border-slate-300'}`}>
                       {w.label}
                     </button>
                   ))}
@@ -2807,150 +2796,11 @@ export default function UlgurjiSotuv() {
             </div>
             <div className="px-6 py-4 border-t border-slate-100 flex gap-3">
               <button onClick={() => setSettingsOpen(false)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl text-sm">Bekor</button>
-              <button onClick={saveSettings} className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl text-sm shadow-md shadow-blue-200">Saqlash</button>
+              <button onClick={saveSettings} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl text-sm shadow-md shadow-indigo-200">Saqlash</button>
             </div>
           </div>
         </div>
       )}
-      {/* ── VARIANT PICKER MODAL ── */}
-      {variantPickerProduct && (
-        <VariantPickerModal
-          parent={variantPickerProduct}
-          onClose={() => setVariantPickerProduct(null)}
-          onSelect={(variant) => {
-            setVariantPickerProduct(null);
-            selectFormProduct(variant);
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════ */
-/* Variant tanlash modali                      */
-/* ═══════════════════════════════════════════ */
-function VariantPickerModal({ parent, onClose, onSelect }) {
-  const [variants, setVariants] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setLoading(true);
-    api.get(`/products/${parent.id}/variants`)
-      .then(r => setVariants(Array.isArray(r.data) ? r.data : []))
-      .catch(() => {
-        // fallback: /products?parent_id=X
-        api.get('/products', { params: { parent_id: parent.id, limit: 100 } })
-          .then(r => setVariants(Array.isArray(r.data) ? r.data : (r.data?.items || [])))
-          .catch(() => setVariants([]));
-      })
-      .finally(() => setLoading(false));
-  }, [parent.id]);
-
-  // Rang × Razmer guruhlash
-  const colors = [...new Set(variants.map(v => v.color).filter(Boolean))];
-  const sizes  = [...new Set(variants.map(v => v.size).filter(Boolean))];
-
-  const getVariant = (color, size) =>
-    variants.find(v => v.color === color && v.size === size) ||
-    variants.find(v => v.color === color && !size) ||
-    variants.find(v => !color && v.size === size);
-
-  const fmt = v => Number(v || 0).toLocaleString('uz-UZ');
-
-  return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden">
-
-        {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-white font-black text-lg">{parent.name}</h2>
-            <p className="text-blue-200 text-xs mt-0.5">Razmer va rangni tanlang</p>
-          </div>
-          <button onClick={onClose} className="w-9 h-9 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center transition-colors">
-            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12"/></svg>
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"/>
-            </div>
-          ) : variants.length === 0 ? (
-            <div className="text-center py-12 text-slate-400">
-              <svg className="w-16 h-16 mx-auto mb-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
-              <p className="font-semibold">Variantlar topilmadi</p>
-            </div>
-          ) : colors.length > 0 && sizes.length > 0 ? (
-            /* Jadval ko'rinishi (Rang × Razmer) */
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr>
-                    <th className="text-left text-xs font-bold text-slate-500 pb-3 pr-3">Rang \ Razmer</th>
-                    {sizes.map(s => (
-                      <th key={s} className="text-center text-xs font-bold text-blue-700 bg-blue-50 rounded-lg px-3 py-2 min-w-[80px]">{s}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {colors.map(color => (
-                    <tr key={color}>
-                      <td className="pr-3 py-1.5">
-                        <span className="text-sm font-bold text-slate-700">{color}</span>
-                      </td>
-                      {sizes.map(size => {
-                        const v = getVariant(color, size);
-                        return (
-                          <td key={size} className="text-center py-1.5 px-1">
-                            {v ? (
-                              <button
-                                onClick={() => onSelect(v)}
-                                className="w-full px-2 py-2 bg-white border-2 border-slate-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl transition-all group">
-                                <div className="text-xs font-black text-blue-700">{fmt(v.sale_price)}</div>
-                                <div className={`text-[10px] font-semibold mt-0.5 ${Number(v.stock_quantity) <= 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                                  {Number(v.stock_quantity) > 0 ? `${fmt(v.stock_quantity)} dona` : 'Tugagan'}
-                                </div>
-                              </button>
-                            ) : (
-                              <div className="px-2 py-2 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-300 text-xs">—</div>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            /* Oddiy ro'yxat (faqat size yoki faqat color) */
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {variants.map(v => (
-                <button key={v.id} onClick={() => onSelect(v)}
-                  className="p-4 bg-white border-2 border-slate-200 hover:border-blue-500 hover:bg-blue-50 rounded-2xl transition-all text-left">
-                  <div className="font-bold text-slate-800 text-sm">{v.size || v.color || v.name}</div>
-                  <div className="text-blue-700 font-black mt-1">{fmt(v.sale_price)} UZS</div>
-                  <div className={`text-xs font-semibold mt-1 ${Number(v.stock_quantity) <= 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                    {Number(v.stock_quantity) > 0 ? `${fmt(v.stock_quantity)} dona` : 'Tugagan'}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 flex justify-between items-center bg-slate-50">
-          <span className="text-xs text-slate-500 font-medium">{variants.length} ta variant mavjud</span>
-          <button onClick={onClose} className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-sm transition-colors">
-            Bekor qilish
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
@@ -2963,7 +2813,7 @@ function SaleDetailContent({ saleId }) {
     api.get(`/sales/${saleId}`).then(r => setData(r.data)).catch(() => { }).finally(() => setLoading(false));
   }, [saleId]);
 
-  if (loading) return <div className="flex justify-center py-16"><div className="w-7 h-7 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <div className="flex justify-center py-16"><div className="w-7 h-7 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div>;
   if (!data) return <div className="text-center py-16 text-slate-400">Ma'lumot topilmadi</div>;
 
   const fmtL = v => Number(v || 0).toLocaleString('uz-UZ');

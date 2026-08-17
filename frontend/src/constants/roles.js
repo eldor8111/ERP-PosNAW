@@ -41,11 +41,11 @@ export const ROLE_LABELS = {
 }
 
 export const ROLE_GRADIENTS = {
-  [ROLES.SUPER_ADMIN]: 'from-blue-500 to-blue-700',
+  [ROLES.SUPER_ADMIN]: 'from-purple-500 to-purple-700',
   [ROLES.ADMIN]: 'from-red-500 to-red-700',
-  [ROLES.DIRECTOR]: 'from-blue-500 to-blue-700',
+  [ROLES.DIRECTOR]: 'from-indigo-500 to-indigo-700',
   [ROLES.MANAGER]: 'from-blue-500 to-blue-700',
   [ROLES.ACCOUNTANT]: 'from-green-500 to-green-700',
   [ROLES.WAREHOUSE]: 'from-yellow-500 to-yellow-700',
-  [ROLES.CASHIER]: 'from-blue-500 to-blue-700',
+  [ROLES.CASHIER]: 'from-cyan-500 to-cyan-700',
 }

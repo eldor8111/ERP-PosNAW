@@ -6,16 +6,6 @@ import { saveReceiptSettings } from '../../utils/receiptBuilder';
 import { Search, Zap } from 'lucide-react';
 import axios from 'axios';
 import { getFiscalModules } from '../../api/hippoLocal';
-import RolesTab from './Settings/Roles';
-import UsersTab from './Settings/Users';
-
-// Add placeholder for missing tabs
-const PlaceholderTab = ({ name }) => (
-  <div className="py-12 text-center text-slate-400">
-    <h3 className="text-lg font-bold text-slate-700 mb-2">{name} tez orada ishga tushadi</h3>
-    <p className="text-sm">Bu bo'lim ustida ish olib borilmoqda.</p>
-  </div>
-);
 
 // ── Default chek shablon konfiguratsiyalari ───────────────────────────────────
 const defaultReceiptCfg = {
@@ -143,7 +133,7 @@ function CurrenciesTab() {
               required value={form.name}
               onChange={e => setForm({ ...form, name: e.target.value })}
               placeholder="US Dollar"
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
           <div>
@@ -152,7 +142,7 @@ function CurrenciesTab() {
               required value={form.code} maxLength={5}
               onChange={e => setForm({ ...form, code: e.target.value })}
               placeholder="USD"
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase"
             />
           </div>
           <div>
@@ -161,7 +151,7 @@ function CurrenciesTab() {
               required type="number" min="0.0001" step="any" value={form.rate}
               onChange={e => setForm({ ...form, rate: e.target.value })}
               placeholder="12800"
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
           <div className="flex flex-col justify-end gap-2">
@@ -169,13 +159,13 @@ function CurrenciesTab() {
               <input
                 type="checkbox" checked={form.is_default}
                 onChange={e => setForm({ ...form, is_default: e.target.checked })}
-                className="w-4 h-4 accent-blue-600"
+                className="w-4 h-4 accent-indigo-600"
               />
               {t('settings.primaryCurrency')}
             </label>
             <button
               type="submit" disabled={saving}
-              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors"
+              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors"
             >
               {saving ? t('common.saving') : t('common.add')}
             </button>
@@ -208,7 +198,7 @@ function CurrenciesTab() {
                       <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-semibold rounded">{t('settings.nationalCurrency')}</span>
                     )}
                     {c.is_default && (
-                      <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-semibold rounded">{t('settings.permanent')}</span>
+                      <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-semibold rounded">{t('settings.permanent')}</span>
                     )}
                   </div>
                 </td>
@@ -228,12 +218,12 @@ function CurrenciesTab() {
                         type="number" min="0.0001" step="any"
                         value={editRates[c.id] ?? c.rate}
                         onChange={e => setEditRates(prev => ({ ...prev, [c.id]: e.target.value }))}
-                        className="w-28 px-2.5 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
+                        className="w-28 px-2.5 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold"
                       />
                       <button
                         onClick={() => handleUpdateRate(c)}
                         disabled={updatingId === c.id}
-                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap"
+                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap"
                       >
                         {updatingId === c.id ? '...' : t('settings.updateRate')}
                       </button>
@@ -248,7 +238,7 @@ function CurrenciesTab() {
                     disabled={c.is_default}  // Asosiy valyutani o'chirish mumkin emas
                     onClick={() => api.patch(`/currencies/${c.id}`, { is_active: !c.is_active }).then(() => load()).catch(e => alert(e.response?.data?.detail || 'Xatolik'))}
                     title={c.is_default ? "Asosiy valyutani o'chirib bo'lmaydi" : (c.is_active ? "Faolsizlashtirish" : "Faollashtirish")}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${c.is_active ? 'bg-blue-500' : 'bg-slate-200'
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${c.is_active ? 'bg-indigo-500' : 'bg-slate-200'
                       } ${c.is_default ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                   >
                     <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${c.is_active ? 'translate-x-[18px]' : 'translate-x-0.5'
@@ -259,12 +249,12 @@ function CurrenciesTab() {
                 {/* Doimiy valyuta — Asosiy qilish */}
                 <td className="px-4 py-3.5">
                   {c.is_default ? (
-                    <input type="checkbox" readOnly checked className="w-4 h-4 accent-blue-600 cursor-default" />
+                    <input type="checkbox" readOnly checked className="w-4 h-4 accent-indigo-600 cursor-default" />
                   ) : (
                     <button
                       onClick={() => handleMakeDefault(c)}
                       disabled={makingDefaultId === c.id}
-                      className="px-3 py-1.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 text-slate-500 text-xs font-semibold rounded-lg border border-slate-200 hover:border-blue-300 transition-all disabled:opacity-50 whitespace-nowrap"
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-500 text-xs font-semibold rounded-lg border border-slate-200 hover:border-indigo-300 transition-all disabled:opacity-50 whitespace-nowrap"
                     >
                       {makingDefaultId === c.id ? '...' : t('settings.makeDefault')}
                     </button>
@@ -379,11 +369,11 @@ function ApiKeysTab() {
             required value={name}
             onChange={e => setName(e.target.value)}
             placeholder="Masalan: 1C Integration, Mobile App..."
-            className="flex-1 px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <button
             type="submit" disabled={saving}
-            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors flex items-center gap-2"
+            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors flex items-center gap-2"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
@@ -471,14 +461,14 @@ function PasswordTab() {
     } finally { setSaving(false); }
   };
 
-  const inputCls = 'w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white';
+  const inputCls = 'w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white';
 
   return (
     <div className="max-w-md space-y-6">
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-5">
         <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
+            <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
             </svg>
           </div>
@@ -547,7 +537,7 @@ function PasswordTab() {
           </div>}
 
           <button type="submit" disabled={saving}
-            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
+            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
             {saving ? 'Saqlanmoqda...' : "Parolni o'zgartirish"}
           </button>
         </form>
@@ -576,7 +566,7 @@ function ToggleSwitch({ checked, onChange, disabled = false }) {
       onClick={() => !disabled && onChange(!checked)}
       disabled={disabled}
       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none shrink-0
-        ${checked ? 'bg-blue-500' : 'bg-slate-200'}
+        ${checked ? 'bg-indigo-500' : 'bg-slate-200'}
         ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
     >
       <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
@@ -584,14 +574,12 @@ function ToggleSwitch({ checked, onChange, disabled = false }) {
   );
 }
 
-function AdminBotSettingsModal({ companyId, onClose }) {
+function AdminBotSettings({ companyId, onClose }) {
   const [settings, setSettings] = useState({
     notify_instant_sales: true,
     notify_instant_finance: true,
     notify_scheduled: false,
     scheduled_time: '21:00',
-    notify_expired_products: true,
-    expired_days_before: 7,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -605,8 +593,6 @@ function AdminBotSettingsModal({ companyId, onClose }) {
           notify_instant_finance: r.data.notify_instant_finance ?? true,
           notify_scheduled:       r.data.notify_scheduled       ?? false,
           scheduled_time:         r.data.scheduled_time         ?? '21:00',
-          notify_expired_products: r.data.notify_expired_products ?? true,
-          expired_days_before:    r.data.expired_days_before    ?? 7,
         });
       })
       .catch(() => {})
@@ -629,224 +615,107 @@ function AdminBotSettingsModal({ companyId, onClose }) {
     }
   };
 
+  if (loading) return (
+    <div className="py-8 text-center text-slate-400 text-sm animate-pulse">Yuklanmoqda...</div>
+  );
+
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 bg-slate-900/40 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl flex flex-col"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-6 py-5 flex items-center justify-between border-b border-slate-100 sticky top-0 bg-white/95 backdrop-blur z-10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
+    <div className="space-y-4 pt-4 border-t border-slate-100 mt-4">
+      <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Bot sozlamalari</p>
+
+      {/* === Joyida yuborish === */}
+      <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-base">⚡</span>
+              <p className="text-sm font-bold text-slate-800">Joyida yuborish</p>
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-slate-800">Admin Bot Sozlamalari</h2>
-              <p className="text-sm text-slate-500">Bildirishnoma va hisobotlarni boshqarish</p>
+            <p className="text-xs text-slate-400 mt-0.5 ml-6">
+              Har bir operatsiya sodir bo'lganda darhol xabar yuboriladi
+            </p>
+          </div>
+          <ToggleSwitch
+            checked={settings.notify_instant_sales || settings.notify_instant_finance}
+            onChange={(v) => { upd('notify_instant_sales', v); upd('notify_instant_finance', v); }}
+          />
+        </div>
+
+        {/* Sub toggles */}
+        {(settings.notify_instant_sales || settings.notify_instant_finance) && (
+          <div className="ml-6 space-y-2 pt-2 border-t border-slate-200">
+            <label className="flex items-center justify-between gap-3 cursor-pointer">
+              <div>
+                <p className="text-xs font-semibold text-slate-700">🛒 Yangi sotuv</p>
+                <p className="text-[11px] text-slate-400">Sotuv amalga oshganda xabar yuborilsin</p>
+              </div>
+              <ToggleSwitch checked={settings.notify_instant_sales} onChange={v => upd('notify_instant_sales', v)} />
+            </label>
+            <label className="flex items-center justify-between gap-3 cursor-pointer">
+              <div>
+                <p className="text-xs font-semibold text-slate-700">💰 Moliyaviy operatsiyalar</p>
+                <p className="text-[11px] text-slate-400">Qarz berish, to'lov qabul qilish va boshqalar</p>
+              </div>
+              <ToggleSwitch checked={settings.notify_instant_finance} onChange={v => upd('notify_instant_finance', v)} />
+            </label>
+          </div>
+        )}
+      </div>
+
+      {/* === Kunlik hisobot === */}
+      <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-base">📊</span>
+              <p className="text-sm font-bold text-slate-800">Kunlik hisobot</p>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5 ml-6">
+              Har kuni belgilangan vaqtda umumiy kunlik hisobot yuboriladi
+            </p>
+          </div>
+          <ToggleSwitch checked={settings.notify_scheduled} onChange={v => upd('notify_scheduled', v)} />
+        </div>
+
+        {/* Vaqt input */}
+        {settings.notify_scheduled && (
+          <div className="ml-6 pt-3 border-t border-slate-200">
+            <label className="block text-xs font-bold text-slate-600 mb-2">
+              🕐 Yuborish vaqti
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                type="time"
+                value={settings.scheduled_time}
+                onChange={e => upd('scheduled_time', e.target.value)}
+                className="px-3 py-2 border border-indigo-200 rounded-xl text-sm font-mono font-bold text-indigo-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 w-32"
+              />
+              <p className="text-xs text-slate-400">
+                Har kuni soat <span className="font-bold text-slate-600">{settings.scheduled_time}</span> da hisobot yuboriladi
+              </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+        )}
+      </div>
 
-        {/* Body */}
-        <div className="p-6 flex-1 overflow-y-auto bg-slate-50/50">
-          {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <div className="w-8 h-8 rounded-full border-4 border-slate-200 border-t-blue-600 animate-spin" />
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
-              {/* === 1. Joyida yuborish === */}
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-col">
-                <div className="flex items-start justify-between gap-4 mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-orange-50 text-orange-500 flex items-center justify-center shrink-0">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-slate-800">Tezkor Xabarlar</p>
-                      <p className="text-xs text-slate-500">Amaliyot vaqtida darhol xabar</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex-1 space-y-4">
-                  <label className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:border-blue-100 hover:bg-blue-50/30 cursor-pointer transition-colors group">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-slate-700">Yangi sotuv</p>
-                        <p className="text-xs text-slate-400">Mijoz xarid qilganda</p>
-                      </div>
-                    </div>
-                    <PremiumToggle checked={settings.notify_instant_sales} onChange={v => upd('notify_instant_sales', v)} color="blue" />
-                  </label>
-
-                  <label className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:border-blue-100 hover:bg-blue-50/30 cursor-pointer transition-colors group">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-slate-700">Moliyaviy</p>
-                        <p className="text-xs text-slate-400">Xarajat va qarz to'lovlari</p>
-                      </div>
-                    </div>
-                    <PremiumToggle checked={settings.notify_instant_finance} onChange={v => upd('notify_instant_finance', v)} color="blue" />
-                  </label>
-                </div>
-              </div>
-
-              <div className="space-y-6 flex flex-col">
-                {/* === 2. Kunlik hisobot === */}
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-                  <div className="flex items-start justify-between gap-4 mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-500 flex items-center justify-center shrink-0">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-slate-800">Kunlik Hisobot</p>
-                        <p className="text-xs text-slate-500">Kun yakunida umumiy xulosa</p>
-                      </div>
-                    </div>
-                    <PremiumToggle checked={settings.notify_scheduled} onChange={v => upd('notify_scheduled', v)} color="blue" />
-                  </div>
-                  <div className={`transition-opacity ${settings.notify_scheduled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
-                    <div className="flex items-center gap-3 bg-slate-50 rounded-lg p-3 border border-slate-100">
-                      <input
-                        type="time"
-                        value={settings.scheduled_time}
-                        onChange={e => upd('scheduled_time', e.target.value)}
-                        className="px-3 py-2 rounded-md border border-slate-200 text-sm font-mono font-bold w-32 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white"
-                      />
-                      <p className="text-xs text-slate-500 leading-tight">
-                        Har kuni ko'rsatilgan vaqtda to'liq hisobot botga keladi
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* === 3. Muddati tugayotgan tovarlar === */}
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-                  <div className="flex items-start justify-between gap-4 mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-rose-50 text-rose-500 flex items-center justify-center shrink-0">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-slate-800">Yaroqlilik Muddati</p>
-                        <p className="text-xs text-slate-500">Tugayotgan tovarlar haqida</p>
-                      </div>
-                    </div>
-                    <PremiumToggle checked={settings.notify_expired_products} onChange={v => upd('notify_expired_products', v)} color="blue" />
-                  </div>
-                  
-                  <div className={`transition-opacity ${settings.notify_expired_products ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
-                    <p className="text-xs font-semibold text-slate-600 mb-2">Qancha oldin ogohlantirilsin?</p>
-                    <div className="flex flex-wrap gap-2">
-                      {[3, 5, 7, 14, 30].map(d => {
-                        const isSel = settings.expired_days_before === d;
-                        return (
-                          <button
-                            key={d}
-                            onClick={() => upd('expired_days_before', d)}
-                            className={`px-3 py-1.5 rounded-md text-xs font-semibold border transition-colors ${
-                              isSel ? 'bg-blue-50 border-blue-600 text-blue-700 shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                            }`}
-                          >
-                            {d} kun
-                          </button>
-                        );
-                      })}
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          min="1" max="180"
-                          value={settings.expired_days_before}
-                          onChange={e => upd('expired_days_before', parseInt(e.target.value) || 7)}
-                          className="w-16 px-2 py-1.5 rounded-md text-xs font-semibold text-center focus:outline-none border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white"
-                        />
-                        <span className="text-xs text-slate-400">kun</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-white rounded-b-2xl">
-          {saved ? (
-            <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-              Saqlandi!
-            </span>
-          ) : <span />}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
-            >
-              Bekor qilish
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving || loading}
-              className="px-6 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2 shadow-sm"
-            >
-              {saving ? (
-                <>
-                  <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                  Saqlanmoqda
-                </>
-              ) : 'Saqlash'}
-            </button>
-          </div>
-        </div>
+      {/* Saqlash */}
+      <div className="flex items-center justify-between pt-1">
+        {saved && (
+          <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-semibold">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            Saqlandi!
+          </span>
+        )}
+        {!saved && <span />}
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors"
+        >
+          {saving ? 'Saqlanmoqda...' : 'Saqlash'}
+        </button>
       </div>
     </div>
-  );
-}
-
-// Chiroyli iOS-style toggle
-function PremiumToggle({ checked, onChange, color = 'blue' }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-        checked ? 'bg-blue-600' : 'bg-slate-200'
-      }`}
-    >
-      <span
-        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-          checked ? 'translate-x-5' : 'translate-x-0'
-        }`}
-      />
-    </button>
   );
 }
 
@@ -872,21 +741,19 @@ function TelegramBotTab({ companyId }) {
       }
     }).catch(e => toast.error(e.response?.data?.detail || e.message));
 
-    if (companyId) {
-      api.get(`/companies/${companyId}/admin-bot`).then(r => {
-        if (r.data?.bot_username) {
-          setAdminBot(r.data);
-        } else {
-          setAdminBot(null);
-        }
-      }).catch(e => {
-         if (e.response?.status !== 404) {
-            toast.error(e.response?.data?.detail || e.message);
-         } else {
-           setAdminBot(null);
-         }
-      });
-    }
+    api.get(`/companies/${companyId}/admin-bot`).then(r => {
+      if (r.data?.bot_username) {
+        setAdminBot(r.data);
+      } else {
+        setAdminBot(null);
+      }
+    }).catch(e => {
+       if (e.response?.status !== 404) {
+          toast.error(e.response?.data?.detail || e.message);
+       } else {
+         setAdminBot(null);
+       }
+    });
   };
 
   useEffect(() => { load(); }, [companyId]);
@@ -944,16 +811,7 @@ function TelegramBotTab({ companyId }) {
 
   return (
     <div className="space-y-6">
-      {!companyId && (
-        <div className="flex items-center justify-center py-16">
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"/>
-            <p className="text-sm text-slate-400">Yuklanmoqda...</p>
-          </div>
-        </div>
-      )}
-      {companyId && (
-      <><div>
+      <div>
         <h3 className="text-base font-bold text-slate-800">Telegram Botlar</h3>
         <p className="text-xs text-slate-400 mt-0.5">Mijozlar va rahbarlar uchun botlarni alohida boshqarish</p>
       </div>
@@ -970,7 +828,7 @@ function TelegramBotTab({ companyId }) {
             {!userBot?.bot_username ? (
               <button
                 onClick={() => { setBotType('user'); setShowModal(true); setErr(''); setToken(''); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-semibold rounded-lg transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-xs font-semibold rounded-lg transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                 Ulash
@@ -1016,7 +874,7 @@ function TelegramBotTab({ companyId }) {
             {!adminBot?.bot_username ? (
               <button
                 onClick={() => { setBotType('admin'); setShowModal(true); setErr(''); setToken(''); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-semibold rounded-lg transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-xs font-semibold rounded-lg transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                 Ulash
@@ -1043,7 +901,7 @@ function TelegramBotTab({ companyId }) {
                 <button
                   onClick={() => setShowAdminSettings(v => !v)}
                   className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold rounded-lg transition-colors
-                    ${showAdminSettings ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
+                    ${showAdminSettings ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -1057,12 +915,7 @@ function TelegramBotTab({ companyId }) {
                   className="flex-1 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-lg transition-colors">O'chirish</button>
               </div>
 
-              {showAdminSettings && (
-                <AdminBotSettingsModal
-                  companyId={companyId}
-                  onClose={() => setShowAdminSettings(false)}
-                />
-              )}
+              {showAdminSettings && <AdminBotSettings companyId={companyId} />}
             </div>
           ) : (
             <div className="py-6 flex flex-col items-center justify-center border-2 border-dashed border-slate-100 rounded-xl bg-slate-50/50 mt-4">
@@ -1072,7 +925,6 @@ function TelegramBotTab({ companyId }) {
           )}
         </div>
       </div>
-      </>)}
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
@@ -1098,7 +950,7 @@ function TelegramBotTab({ companyId }) {
                   type="text" required value={token}
                   onChange={e => setToken(e.target.value)}
                   placeholder="1234567890:AAH_abcxyz..."
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono transition-all"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-mono transition-all"
                 />
                 <p className="text-xs text-slate-400 mt-1.5">@BotFather orqali olingan API tokenni kiriting</p>
               </div>
@@ -1112,7 +964,7 @@ function TelegramBotTab({ companyId }) {
               )}
               <button
                 type="submit" disabled={saving || !token.trim()}
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-sm rounded-xl transition-colors"
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-sm rounded-xl transition-colors"
               >
                 {saving ? 'Saqlanmoqda...' : 'Saqlash'}
               </button>
@@ -1335,7 +1187,7 @@ function NakladnoyPreview({ cfg }) {
 }
 
 // ── Receipt field style (module-level so components don't recreate it) ─────────
-const RIC = 'w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white';
+const RIC = 'w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white';
 
 const SUB_TABS = [
   { id: '58', label: 'Chek 58mm', icon: '🧾' },
@@ -1369,7 +1221,7 @@ function LogoUpload({ logo, size, onUpload, onRemove, onSizeChange, positionPick
         <div className="flex-1 space-y-2">
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="file" accept="image/*" className="hidden" onChange={handleFile} />
-            <span className="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-semibold rounded-lg transition-colors">
+            <span className="inline-flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-semibold rounded-lg transition-colors">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
               Rasm yuklash
             </span>
@@ -1386,7 +1238,7 @@ function LogoUpload({ logo, size, onUpload, onRemove, onSizeChange, positionPick
             <input type="range" min={16} max={100} step={4}
               value={size || 40}
               onChange={e => onSizeChange(Number(e.target.value))}
-              className="flex-1 h-1.5 accent-blue-500 cursor-pointer"
+              className="flex-1 h-1.5 accent-indigo-500 cursor-pointer"
             />
             <span className="text-[11px] font-mono text-slate-600 w-8 text-right">{size || 40}px</span>
           </div>
@@ -1396,7 +1248,7 @@ function LogoUpload({ logo, size, onUpload, onRemove, onSizeChange, positionPick
               <div className="flex gap-1">
                 {[['left', '◀ Chap'], ['center', '▪ Markaz'], ['right', "O'ng ▶"]].map(([v, l]) => (
                   <button key={v} onClick={() => onPositionChange(v)}
-                    className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-all ${position === v ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-600 hover:border-blue-300'
+                    className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-all ${position === v ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-600 hover:border-indigo-300'
                       }`}>{l}
                   </button>
                 ))}
@@ -1511,7 +1363,7 @@ function ReceiptFields({ cfg, upd }) {
               {group.fields.map(([key, label]) => (
                 <label key={key} className="flex items-center gap-2.5 cursor-pointer select-none">
                   <div onClick={() => upd(key, !cfg[key])}
-                    className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${cfg[key] ? 'bg-blue-500' : 'bg-slate-300'}`}>
+                    className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${cfg[key] ? 'bg-indigo-500' : 'bg-slate-300'}`}>
                     <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${cfg[key] ? 'translate-x-4' : ''}`} />
                   </div>
                   <span className="text-sm text-slate-700">{label}</span>
@@ -1524,7 +1376,7 @@ function ReceiptFields({ cfg, upd }) {
         <div className="flex items-center gap-2 pt-2 border-t border-slate-200">
           <span className="text-xs font-semibold text-slate-500">Nusxalar soni:</span>
           <select value={cfg.copies} onChange={e => upd('copies', e.target.value)}
-            className="px-2 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+            className="px-2 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
             {['1', '2', '3'].map(n => <option key={n} value={n}>{n} ta</option>)}
           </select>
         </div>
@@ -1541,7 +1393,7 @@ function ToggleGroup({ title, fields, cfg, upd }) {
         {fields.map(([key, label]) => (
           <label key={key} className="flex items-center gap-2.5 cursor-pointer select-none">
             <div onClick={() => upd(key, !cfg[key])}
-              className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${cfg[key] ? 'bg-blue-500' : 'bg-slate-300'}`}>
+              className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${cfg[key] ? 'bg-indigo-500' : 'bg-slate-300'}`}>
               <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${cfg[key] ? 'translate-x-4' : ''}`} />
             </div>
             <span className="text-sm text-slate-700">{label}</span>
@@ -1597,7 +1449,7 @@ function NakladnoyFields({ cfg, upd }) {
             <div className="flex items-center gap-2 mb-1">
               <label className="block text-xs font-semibold text-slate-500">Direktor</label>
               <div onClick={() => upd('show_director', !cfg.show_director)}
-                className={`relative w-7 h-4 rounded-full transition-colors cursor-pointer shrink-0 ${cfg.show_director ? 'bg-blue-500' : 'bg-slate-300'}`}>
+                className={`relative w-7 h-4 rounded-full transition-colors cursor-pointer shrink-0 ${cfg.show_director ? 'bg-indigo-500' : 'bg-slate-300'}`}>
                 <span className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${cfg.show_director ? 'translate-x-3' : ''}`} />
               </div>
             </div>
@@ -1607,7 +1459,7 @@ function NakladnoyFields({ cfg, upd }) {
             <div className="flex items-center gap-2 mb-1">
               <label className="block text-xs font-semibold text-slate-500">Bosh buxgalter</label>
               <div onClick={() => upd('show_accountant', !cfg.show_accountant)}
-                className={`relative w-7 h-4 rounded-full transition-colors cursor-pointer shrink-0 ${cfg.show_accountant ? 'bg-blue-500' : 'bg-slate-300'}`}>
+                className={`relative w-7 h-4 rounded-full transition-colors cursor-pointer shrink-0 ${cfg.show_accountant ? 'bg-indigo-500' : 'bg-slate-300'}`}>
                 <span className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${cfg.show_accountant ? 'translate-x-3' : ''}`} />
               </div>
             </div>
@@ -1617,7 +1469,7 @@ function NakladnoyFields({ cfg, upd }) {
             <div className="flex items-center gap-2 mb-1">
               <label className="block text-xs font-semibold text-slate-500">Omborchi</label>
               <div onClick={() => upd('show_storekeeper', !cfg.show_storekeeper)}
-                className={`relative w-7 h-4 rounded-full transition-colors cursor-pointer shrink-0 ${cfg.show_storekeeper ? 'bg-blue-500' : 'bg-slate-300'}`}>
+                className={`relative w-7 h-4 rounded-full transition-colors cursor-pointer shrink-0 ${cfg.show_storekeeper ? 'bg-indigo-500' : 'bg-slate-300'}`}>
                 <span className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${cfg.show_storekeeper ? 'translate-x-3' : ''}`} />
               </div>
             </div>
@@ -1756,7 +1608,7 @@ function ReceiptTab() {
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
         {SUB_TABS.map(t => (
           <button key={t.id} onClick={() => setSub(t.id)}
-            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-all ${sub === t.id ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-all ${sub === t.id ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
             <span>{t.icon}</span>{t.label}
           </button>
         ))}
@@ -1795,7 +1647,7 @@ function ReceiptTab() {
           </span>
         )}
         <button onClick={handleSave}
-          className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl transition-colors flex items-center gap-2">
+          className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-xl transition-colors flex items-center gap-2">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
           Sozlamalarni saqlash
         </button>
@@ -1842,7 +1694,7 @@ function BranchesTab() {
     catch (err) { alert(err.response?.data?.detail || 'Xatolik'); }
   };
 
-  const inputCls = 'w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
+  const inputCls = 'w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500';
 
   return (
     <div className="space-y-6">
@@ -1867,7 +1719,7 @@ function BranchesTab() {
           </div>
           <div className="md:col-span-3 flex justify-end">
             <button type="submit" disabled={saving}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors">
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors">
               {saving ? 'Saqlanmoqda...' : "➕ Filial qo'shish"}
             </button>
           </div>
@@ -1892,7 +1744,7 @@ function BranchesTab() {
                 <td className="px-4 py-3.5">
                   {editId === b.id ? (
                     <input value={editForm.name ?? b.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
-                      className="px-2 py-1.5 border border-blue-300 rounded-lg text-sm w-40" />
+                      className="px-2 py-1.5 border border-indigo-300 rounded-lg text-sm w-40" />
                   ) : (
                     <span className="text-sm font-semibold text-slate-800">{b.name}</span>
                   )}
@@ -1900,7 +1752,7 @@ function BranchesTab() {
                 <td className="px-4 py-3.5">
                   {editId === b.id ? (
                     <input value={editForm.address ?? (b.address || '')} onChange={e => setEditForm(f => ({ ...f, address: e.target.value }))}
-                      className="px-2 py-1.5 border border-blue-300 rounded-lg text-sm w-36" />
+                      className="px-2 py-1.5 border border-indigo-300 rounded-lg text-sm w-36" />
                   ) : (
                     <span className="text-sm text-slate-500">{b.address || '—'}</span>
                   )}
@@ -1908,7 +1760,7 @@ function BranchesTab() {
                 <td className="px-4 py-3.5">
                   {editId === b.id ? (
                     <input value={editForm.phone ?? (b.phone || '')} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
-                      className="px-2 py-1.5 border border-blue-300 rounded-lg text-sm w-32" />
+                      className="px-2 py-1.5 border border-indigo-300 rounded-lg text-sm w-32" />
                   ) : (
                     <span className="text-sm text-slate-500">{b.phone || '—'}</span>
                   )}
@@ -1932,7 +1784,7 @@ function BranchesTab() {
                     ) : (
                       <>
                         <button onClick={() => { setEditId(b.id); setEditForm({}); }}
-                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Tahrirlash">
+                          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Tahrirlash">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
@@ -2089,8 +1941,8 @@ function FiskalTab() {
                     onClick={() => selectModule(fid)}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all ${
                       isSelected
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-slate-200 bg-slate-50 hover:border-blue-300'
+                        ? 'border-indigo-500 bg-indigo-50'
+                        : 'border-slate-200 bg-slate-50 hover:border-indigo-300'
                     }`}
                   >
                     <div className="text-left">
@@ -2099,7 +1951,7 @@ function FiskalTab() {
                       {m.Description && <p className="text-xs text-slate-400 mt-0.5">{m.Description}</p>}
                     </div>
                     {isSelected && (
-                      <span className="flex items-center gap-1 text-blue-600 text-xs font-bold shrink-0">
+                      <span className="flex items-center gap-1 text-indigo-600 text-xs font-bold shrink-0">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                         </svg>
@@ -2157,80 +2009,62 @@ function FiskalTab() {
   );
 }
 
-import { useSearchParams } from 'react-router-dom';
-import { getSettingsMenus } from '../../constants/settingsMenus';
-
-// ── Main Settings Component ──────────────────────────────────────────────────
+// ── Main Settings page ───
 export default function Settings() {
   const { t } = useLang();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const tab = searchParams.get('tab') || 'users';
+  const [tab, setTab] = useState('valyuta');
   const [companyId, setCompanyId] = useState(null);
 
   const load = () => {
     api.get('/companies').then(r => {
       if (r.data?.length > 0) {
-        setCompanyId(r.data[0].id);
+        const co = r.data[0];
+        setCompanyId(co.id);
       }
-    });
+    })
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, [companyId]);
 
-  const MENUS = getSettingsMenus(t);
+  const TABS = [
+    { id: 'filiyal', label: t('settings.tab.branches'), icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg> },
+    { id: 'valyuta', label: t('settings.tab.currencies'), icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+    { id: 'api', label: t('settings.tab.api'), icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg> },
+    { id: 'chek', label: t('settings.tab.receipt'), icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg> },
+    { id: 'tgbot', label: t('settings.tab.telegram'), icon: <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a5.962 5.962 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.699 1.201-1.22 1.28-.106.016-.215.023-.324.023-.329 0-.655-.078-.962-.23-.09-.045-2.072-1.373-2.91-2.133-.255-.23-.55-.664-.047-1.12.13-.12 2.4-2.2 4.414-4.043.203-.186.417-.384.417-.61 0-.306-.275-.417-.463-.384l-.536.09-5.694 3.447c-.382.235-.905.39-1.424.39-.17 0-.339-.022-.505-.065L4.053 12.55c-.71-.225-.71-.708.15-1.047 2.768-1.196 9.2-3.953 11.233-4.279.172-.027.35-.042.508-.042z" /></svg> },
+    { id: 'parol', label: t('settings.tab.password'), icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg> },
+    { id: 'fiskal', label: 'Fiskal', icon: <Zap size={16} /> },
+  ];
 
   return (
-    <div className="absolute inset-0 flex bg-slate-50 z-10 overflow-hidden">
-      {/* Content Area */}
-      <div className="flex-1 h-full overflow-y-auto p-4 md:p-6 lg:p-8 relative">
-        <div className="max-w-6xl mx-auto">
-          <div className="mb-6 flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-slate-800">{MENUS.find(m => m.id === tab)?.label || 'Sozlamalar'}</h1>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 min-h-[500px]">
-            {tab === 'users' && <UsersTab />}
-            {tab === 'roles' && <RolesTab />}
-            {tab === 'branches' && <BranchesTab />}
-            {tab === 'currencies' && <CurrenciesTab />}
-            {tab === 'api' && <ApiKeysTab />}
-            {tab === 'receipt' && <ReceiptTab />}
-            {tab === 'tgbot' && <TelegramBotTab companyId={companyId} />}
-            {tab === 'password' && <PasswordTab />}
-            {tab === 'fiskal' && <FiskalTab />}
-            
-            {/* Placeholders for unfinished tabs */}
-            {tab === 'tariffs' && <PlaceholderTab name="Tashkilot" />}
-            {tab === 'internet_store' && <PlaceholderTab name="Интернет магазин" />}
-            {tab === 'integrations' && <PlaceholderTab name="Integratsiyalar" />}
-            {tab === 'references' && <PlaceholderTab name="Ma'lumotnoma" />}
-            {tab === 'general' && <PlaceholderTab name="Umumiy" />}
-            {tab === 'org_structure' && <PlaceholderTab name="Tashkilot tuzilmasi" />}
-            {tab === 'auto_reply' && <PlaceholderTab name="Avto javob beruvchilar" />}
-            {tab === 'auto_distribute' && <PlaceholderTab name="Avto-tarqatish qoidalari" />}
-            {tab === 'forms' && <PlaceholderTab name="Formalar" />}
-            {tab === 'shifts' && <PlaceholderTab name="Smena" />}
-            {tab === 'warehouses' && <PlaceholderTab name="Ombor bo'limlari" />}
-          </div>
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-800">{t('settings.title')}</h1>
+        <p className="text-slate-500 text-sm mt-0.5">{t('settings.subtitle')}</p>
       </div>
+
+      <div className="flex gap-1 bg-white border border-slate-200 rounded-2xl p-1.5 w-fit shadow-sm">
+        {TABS.map(tab_item => (
+          <button key={tab_item.id} onClick={() => setTab(tab_item.id)}
+            className={`flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-xl transition-all ${tab === tab_item.id ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+              }`}>
+            {tab_item.icon}<span>{tab_item.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {tab === 'filiyal' && <BranchesTab />}
+      {tab === 'valyuta' && <CurrenciesTab />}
+      {tab === 'api' && <ApiKeysTab />}
+      {tab === 'chek' && <ReceiptTab />}
+      {tab === 'tgbot' && <TelegramBotTab companyId={companyId} />}
+      {tab === 'parol' && <PasswordTab />}
+      {tab === 'fiskal' && <FiskalTab />}
     </div>
   );
 }
-
-// Icon Components for the Sidebar
-const UsersTabIcon = () => <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>;
-const RolesTabIcon = () => <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>;
-const OrgTabIcon = () => <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>;
-const StoreTabIcon = () => <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>;
-const IntegrationTabIcon = () => <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>;
-const RefTabIcon = () => <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>;
-const GeneralTabIcon = () => <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
-const OrgStructTabIcon = () => <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>;
-const BotTabIcon = () => <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
-const DistributeTabIcon = () => <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>;
-const FormsTabIcon = () => <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>;
-
 
 
 

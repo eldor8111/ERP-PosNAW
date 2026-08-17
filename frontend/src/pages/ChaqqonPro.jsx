@@ -107,7 +107,7 @@ export default function ChaqqonPro() {
   return (
     <LandingLayout>
       {/* Hero Section */}
-      <section className="relative py-[100px] md:py-[120px] flex items-center bg-gradient-to-br from-blue-600 via-blue-800 to-blue-600">
+      <section className="relative py-[100px] md:py-[120px] flex items-center bg-gradient-to-br from-indigo-600 via-blue-800 to-indigo-600">
         <div className="inset-0 opacity-10 bg-[radial-gradient(rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:28px_28px] pointer-events-none" />
         <div className="container max-w-[1400px] mx-auto px-4 relative z-10 text-center">
           <div className="inline-flex items-center gap-2 upper text-sm text-white/50 mb-6 font-medium">

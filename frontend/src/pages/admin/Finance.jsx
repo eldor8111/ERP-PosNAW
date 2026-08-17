@@ -12,7 +12,7 @@ const firstOfMonth = () => { const d = new Date(); d.setDate(1); return d.toISOS
 // ─── Spinner ───────────────────────────────────────────────────────────────────
 const Spinner = () => (
   <div className="flex justify-center py-16">
-    <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+    <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
   </div>
 );
 
@@ -273,7 +273,7 @@ export default function Finance() {
             <button key={t.key} onClick={() => setActiveTab(t.key)}
               className={`px-5 py-2.5 text-sm font-medium rounded-t-xl transition-all whitespace-nowrap ${
                 activeTab === t.key
-                  ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-500'
+                  ? 'bg-indigo-50 text-indigo-600 border-b-2 border-indigo-500'
                   : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
               }`}>
               {t.label}
@@ -296,7 +296,7 @@ export default function Finance() {
                   Excel
                 </button>
                 <button onClick={() => setShowAddExpense(!showAddExpense)}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
                   </svg>
@@ -310,15 +310,15 @@ export default function Finance() {
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">{t('common.from')}</label>
                 <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                  className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">{t('common.to')}</label>
                 <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                  className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <button onClick={loadTab}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors">
                 {t('common.filter')}
               </button>
             </div>
@@ -327,7 +327,7 @@ export default function Finance() {
               <form onSubmit={addExpense} className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex flex-wrap gap-3 items-end">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('admin.dict.category') || 'Kategoriya'}</label>
-                  <select required className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  <select required className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     onChange={e => setForm({ ...form, category_id: e.target.value })} value={form.category_id}>
                     <option value="">Tanlang...</option>
                     {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -336,12 +336,12 @@ export default function Finance() {
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('finance.amount') || 'Summa'} ({t('common.sum') || "so'm"})</label>
                   <input type="number" required placeholder="100000"
-                    className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     onChange={e => setForm({ ...form, amount: e.target.value })} value={form.amount} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('finance.wallet') || 'Hamyon'}</label>
-                  <select className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  <select className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     onChange={e => setForm({ ...form, wallet_id: e.target.value })} value={form.wallet_id}>
                     <option value="">(Asosiy kassa)</option>
                     {wallets.map(w => <option key={w.id} value={w.id}>{w.name} ({fmt(w.balance)})</option>)}
@@ -350,11 +350,11 @@ export default function Finance() {
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('admin.dict.comment') || 'Izoh'}</label>
                   <input type="text" placeholder={t('finance.expenseAbout') || "Xarajat haqida..."}
-                    className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     onChange={e => setForm({ ...form, description: e.target.value })} value={form.description} />
                 </div>
                 <button type="submit" disabled={saving}
-                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors">
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors">
                   {saving ? t('common.saving') : t('common.save')}
                 </button>
                 <button type="button" onClick={() => setShowAddExpense(false)}
@@ -377,7 +377,7 @@ export default function Finance() {
                   {expenses.map(e => (
                     <tr key={e.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4">
-                        <span className="inline-flex items-center px-2.5 py-1 bg-blue-50 text-blue-600 text-xs font-medium rounded-lg">{e.category_name}</span>
+                        <span className="inline-flex items-center px-2.5 py-1 bg-indigo-50 text-indigo-600 text-xs font-medium rounded-lg">{e.category_name}</span>
                       </td>
                       <td className="px-6 py-4 text-sm font-semibold text-red-500">{fmt(e.amount, t)}</td>
                       <td className="px-6 py-4 text-sm text-slate-500">{e.description || '—'}</td>
@@ -420,15 +420,15 @@ export default function Finance() {
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">{t('common.from') || 'Dan'}</label>
                 <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                  className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">{t('common.to') || 'Gacha'}</label>
                 <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                  className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <button onClick={loadTab}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">{t('admin.dict.filter') || 'Filtrlash'}</button>
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors">{t('admin.dict.filter') || 'Filtrlash'}</button>
             </div>
             {loading ? <Spinner /> : (
               <table className="min-w-full">
@@ -495,7 +495,7 @@ export default function Finance() {
                 <input
                   value={debtSearch} onChange={e => setDebtSearch(e.target.value)}
                   placeholder={t('finance.searchDebt') || "Ism yoki telefon..."}
-                  className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-300 w-52"
+                  className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-300 w-52"
                 />
                 <button
                   onClick={() => {
@@ -646,7 +646,7 @@ export default function Finance() {
                               setPayModal({ type: 'supplier', id: s.id, name: s.name, balance: s.debt_balance, balances: s.debt_balances });
                               setPayCurrency(s.debt_balances && Object.keys(s.debt_balances)[0] ? Object.keys(s.debt_balances)[0] : 'UZS');
                             }}
-                            className="px-3 py-1.5 text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-colors">
+                            className="px-3 py-1.5 text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition-colors">
                             To'lash
                           </button>
                         </td>
@@ -670,15 +670,15 @@ export default function Finance() {
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">{t('common.from') || 'Dan'}</label>
                 <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                  className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">{t('common.to') || 'Gacha'}</label>
                 <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                  className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <button onClick={loadTab}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors">
                 {t('finance.plCalc') || 'Hisoblash'}
               </button>
             </div>
@@ -691,7 +691,7 @@ export default function Finance() {
                   {[
                     { label: t('finance.revenue') || 'Daromad (sotuv)', value: plData.revenue, cls: 'text-slate-800', pct: 100, bg: 'bg-slate-50' },
                     { label: t('finance.cogs') || 'Tannarx (COGS)', value: plData.cogs, neg: true, cls: 'text-red-500', pct: plData.revenue ? plData.cogs / plData.revenue * 100 : 0, bg: '' },
-                    { label: t('finance.grossProfit') || 'Brutto foyda', value: plData.gross_profit, cls: 'font-bold text-blue-600', pct: plData.gross_margin_pct, bg: 'bg-blue-50' },
+                    { label: t('finance.grossProfit') || 'Brutto foyda', value: plData.gross_profit, cls: 'font-bold text-indigo-600', pct: plData.gross_margin_pct, bg: 'bg-indigo-50' },
                     { label: t('finance.totalExpenses') || 'Jami xarajatlar', value: plData.expenses?.total, neg: true, cls: 'text-red-500', pct: plData.revenue ? plData.expenses?.total / plData.revenue * 100 : 0, bg: '' },
                     { label: t('finance.netProfit') || 'Net foyda', value: plData.net_profit, cls: `font-bold ${plData.net_profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`, pct: plData.net_margin_pct, bg: plData.net_profit >= 0 ? 'bg-emerald-50' : 'bg-red-50' },
                   ].map(row => (
@@ -733,7 +733,7 @@ export default function Finance() {
             {/* STEP 1: Qidirish */}
             {paymeStep === 'search' && (
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="px-6 py-5 bg-gradient-to-r from-blue-600 to-violet-600">
+                <div className="px-6 py-5 bg-gradient-to-r from-indigo-600 to-violet-600">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
                       <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -742,7 +742,7 @@ export default function Finance() {
                     </div>
                     <div>
                       <h3 className="text-base font-bold text-white">Payme orqali to'lov</h3>
-                      <p className="text-xs text-blue-200 mt-0.5">Tashkilot kodini va summani kiriting</p>
+                      <p className="text-xs text-indigo-200 mt-0.5">Tashkilot kodini va summani kiriting</p>
                     </div>
                   </div>
                 </div>
@@ -755,7 +755,7 @@ export default function Finance() {
                       value={paymeOrgCode}
                       onChange={e => { setPaymeOrgCode(e.target.value); setPaymeError(''); }}
                       onKeyDown={e => e.key === 'Enter' && handlePaymeLookup()}
-                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
                     />
                   </div>
                   <div>
@@ -766,7 +766,7 @@ export default function Finance() {
                       value={paymeAmount}
                       onChange={e => { setPaymeAmount(e.target.value); setPaymeError(''); }}
                       onKeyDown={e => e.key === 'Enter' && handlePaymeLookup()}
-                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                     {paymeAmount && parseFloat(paymeAmount) >= 1000 && (
                       <p className="text-xs text-slate-400 mt-1 pl-1">
@@ -786,7 +786,7 @@ export default function Finance() {
                   <button
                     onClick={handlePaymeLookup}
                     disabled={paymeLoading}
-                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
                   >
                     {paymeLoading ? (
                       <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Tekshirilmoqda...</>
@@ -801,7 +801,7 @@ export default function Finance() {
             {/* STEP 2: Tasdiqlash */}
             {paymeStep === 'confirm' && paymeCompany && (
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="px-6 py-5 bg-gradient-to-r from-emerald-500 to-blue-500">
+                <div className="px-6 py-5 bg-gradient-to-r from-emerald-500 to-teal-500">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
                       <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -824,9 +824,9 @@ export default function Finance() {
                       <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tashkilot kodi</span>
                       <span className="text-sm font-bold text-slate-800 font-mono">{paymeCompany.org_code}</span>
                     </div>
-                    <div className="flex items-center justify-between py-3 px-4 bg-blue-50 rounded-xl border border-blue-100">
-                      <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider">To'lov summasi</span>
-                      <span className="text-lg font-bold text-blue-700">{Number(paymeAmount).toLocaleString('uz-UZ')} so'm</span>
+                    <div className="flex items-center justify-between py-3 px-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                      <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wider">To'lov summasi</span>
+                      <span className="text-lg font-bold text-indigo-700">{Number(paymeAmount).toLocaleString('uz-UZ')} so'm</span>
                     </div>
                   </div>
                   {paymeError && (
@@ -876,7 +876,7 @@ export default function Finance() {
                 </p>
                 <button
                   onClick={resetPayme}
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors"
+                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors"
                 >
                   Yangi to'lov
                 </button>
@@ -903,13 +903,13 @@ export default function Finance() {
               <div className="flex gap-2">
                 <input type="number" placeholder="0" 
                   max={payModal.balances ? payModal.balances[payCurrency] : payModal.balance}
-                  className="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   value={payAmount} onChange={e => setPayAmount(e.target.value)} />
                 {payModal.balances && Object.keys(payModal.balances).length > 0 ? (
                   <select
                     value={payCurrency}
                     onChange={e => setPayCurrency(e.target.value)}
-                    className="w-24 px-2 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    className="w-24 px-2 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
                   >
                     {Object.keys(payModal.balances).map(curr => (
                       <option key={curr} value={curr}>{curr}</option>
@@ -920,7 +920,7 @@ export default function Finance() {
             </div>
             <div className="flex gap-2">
               <button onClick={handlePay} disabled={paying || !payAmount}
-                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors">
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors">
                 {paying ? t('common.saving') : t('customer.payDebt')}
               </button>
               <button onClick={() => { setPayModal(null); setPayAmount(''); setPayCurrency('UZS'); }}

@@ -176,8 +176,8 @@ export default function Profile() {
             <div className="flex items-center justify-center h-64">
                 <div className="flex flex-col items-center gap-4">
                     <div className="relative">
-                        <div className="w-14 h-14 border-4 border-blue-100 rounded-full" />
-                        <div className="absolute inset-0 w-14 h-14 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                        <div className="w-14 h-14 border-4 border-indigo-100 rounded-full" />
+                        <div className="absolute inset-0 w-14 h-14 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
                     </div>
                     <p className="text-slate-500 text-sm font-medium">{t('common.loading')}</p>
                 </div>
@@ -189,14 +189,14 @@ export default function Profile() {
         return (
             <div className="flex items-center justify-center h-64">
                 <div className="text-center bg-white rounded-2xl p-8 shadow-sm border border-slate-100 max-w-sm">
-                    <div className="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg className="w-7 h-7 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-14 h-14 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg className="w-7 h-7 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                         </svg>
                     </div>
                     <p className="text-slate-700 font-semibold text-lg">{t('dashboard.errorTitle')}</p>
                     <p className="text-slate-400 text-sm mt-1 mb-5">{t('dashboard.errorDesc')}</p>
-                    <button onClick={load} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-blue-200">
+                    <button onClick={load} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-indigo-200">
                         {t('common.refresh')}
                     </button>
                 </div>
@@ -211,7 +211,7 @@ export default function Profile() {
             value: fmtCurrency(data.today?.sales),
             sub: `${data.today?.orders ?? 0} ${t('common.item')} ${t('sale.title').toLowerCase()}`,
             badge: data.today?.change_pct,
-            gradient: "bg-linear-to-br from-blue-500 to-blue-700",
+            gradient: "bg-linear-to-br from-indigo-500 to-indigo-700",
             iconBg: "bg-white/20",
             icon: (
                 <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -249,7 +249,7 @@ export default function Profile() {
             label: t('dashboard.lowStock'),
             value: `${data.inventory?.low_stock_count ?? 0} ${t('common.item')}`,
             sub: `${t('product.outOfStock')}: ${data.inventory?.dead_stock_count ?? 0} ${t('common.item')}`,
-            gradient: "bg-linear-to-br from-blue-500 to-blue-700",
+            gradient: "bg-linear-to-br from-rose-500 to-rose-700",
             iconBg: "bg-white/20",
             icon: (
                 <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -283,7 +283,7 @@ export default function Profile() {
 
                 {/* Background Dizayn Elementlari: To'rsimon fon va nozik yorug'lik effekti */}
                 <div className="absolute inset-0 opacity-[0.4] pointer-events-none mix-blend-multiply bg-[linear-gradient(to_right,#f0f0f0_1px,transparent_1px),linear-gradient(to_bottom,#f0f0f0_1px,transparent_1px)] bg-[size:2rem_2rem]"></div>
-                <div className="absolute -top-24 -right-24 w-80 h-80 bg-blue-400/10 rounded-full blur-3xl group-hover:bg-blue-400/15 transition-all duration-500 pointer-events-none"></div>
+                <div className="absolute -top-24 -right-24 w-80 h-80 bg-indigo-400/10 rounded-full blur-3xl group-hover:bg-indigo-400/15 transition-all duration-500 pointer-events-none"></div>
                 <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-violet-400/10 rounded-full blur-3xl pointer-events-none"></div>
 
                 {/* Asosiy Kontent - Max-w cheklovisiz, chekkalarga chiroyli padding bilan */}
@@ -294,9 +294,9 @@ export default function Profile() {
 
                         {/* Zamonaviy Avatar halqasi */}
                         <div className="relative flex-shrink-0">
-                            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-tr from-blue-500 via-blue-500 to-pink-500 p-[3px] shadow-md shadow-blue-100">
-                                <div className="w-full h-full rounded-full bg-blue-50 flex items-center justify-center border-2 border-white">
-                                    <span className="text-blue-600 text-2xl sm:text-4xl font-black tracking-wide">
+                            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 p-[3px] shadow-md shadow-indigo-100">
+                                <div className="w-full h-full rounded-full bg-indigo-50 flex items-center justify-center border-2 border-white">
+                                    <span className="text-indigo-600 text-2xl sm:text-4xl font-black tracking-wide">
                                         {user.name?.charAt(0).toUpperCase() || 'U'}
                                     </span>
                                 </div>
@@ -311,22 +311,22 @@ export default function Profile() {
                                 <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
                                     {user.name ? user.name.charAt(0).toUpperCase() + user.name.slice(1) : "Noma'lum foydalanuvchi"}
                                 </h2>
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-blue-50 to-blue-50 text-blue-700 border border-blue-100/60 shadow-sm uppercase tracking-wider">
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 border border-indigo-100/60 shadow-sm uppercase tracking-wider">
                                     {user.role || "Foydalanuvchi"}
                                 </span>
                             </div>
 
                             {/* Ikonkali va tartibli aloqa/sana qismi */}
                             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-3 gap-y-2 text-sm text-gray-500 font-medium">
-                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold text-blue-600 bg-blue-50/70 border border-blue-100 shadow-xs uppercase tracking-widest backdrop-blur-xs">
-                                    <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold text-indigo-600 bg-indigo-50/70 border border-indigo-100 shadow-xs uppercase tracking-widest backdrop-blur-xs">
+                                    <svg className="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h18v3H3V3z" />
                                     </svg>
                                     {companyName || "Kompaniya nomi"}
                                 </div>
 
                                 <div className="flex items-center gap-2 text-gray-700 bg-gray-50/80 px-2.5 py-1 rounded-lg border border-gray-100/50 backdrop-blur-sm">
-                                    <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.387a12.035 12.035 0 01-7.108-7.108c-.155-.44.01-1.29.387-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
                                     </svg>
                                     <span>+{user.phone || "Mavjud emas"}</span>
@@ -343,8 +343,8 @@ export default function Profile() {
                     </div>
 
                     {/* O'ng tomon: Neon effektli Tahrirlash tugmasi */}
-                    <button className="w-full md:w-auto inline-flex items-center justify-center gap-2.5 px-6 py-2 text-sm font-bold text-white bg-gradient-to-r from-blue-600 to-violet-600 rounded-xl shadow-sm hover:from-blue-500 hover:to-violet-500 active:scale-[0.98] transition-all duration-200 cursor-pointer border border-blue-500/10 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
-                        <svg className="w-4 h-4 text-blue-100" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <button className="w-full md:w-auto inline-flex items-center justify-center gap-2.5 px-6 py-2 text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-violet-600 rounded-xl shadow-sm hover:from-indigo-500 hover:to-violet-500 active:scale-[0.98] transition-all duration-200 cursor-pointer border border-indigo-500/10 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+                        <svg className="w-4 h-4 text-indigo-100" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
                         </svg>
                         Tahrirlash
@@ -364,7 +364,7 @@ export default function Profile() {
                                 onChange={(value) => handleBranchChange({ target: { value } })} // Eski handleBranchChange mantiqini buzmaslik uchun
                             >
                                 <div className="relative">
-                                    <ListboxButton className="w-full cursor-pointer flex items-center px-3 py-2 justify-between rounded-lg border border-slate-200 text-[1rem] bg-white text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors shadow-sm text-left">
+                                    <ListboxButton className="w-full cursor-pointer flex items-center px-3 py-2 justify-between rounded-lg border border-slate-200 text-[1rem] bg-white text-slate-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors shadow-sm text-left">
                                         <span className="flex items-center gap-3">
                                             <Building2 className="size-5 shrink-0 text-slate-400" />
                                             <span className="block truncate">
@@ -384,7 +384,7 @@ export default function Profile() {
                                         {/* Barcha filiallar varianti (Bo'sh qiymat uchun) */}
                                         <ListboxOption
                                             value=""
-                                            className="group relative py-2.5 pr-9 pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-blue-600 data-[focus]:text-white outline-hidden"
+                                            className="group relative py-2.5 pr-9 pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-indigo-600 data-[focus]:text-white outline-hidden"
                                         >
                                             <div className="flex items-center gap-3">
                                                 <Building2 className="size-5 shrink-0 text-gray-400 group-data-[focus]:text-white" />
@@ -392,7 +392,7 @@ export default function Profile() {
                                                     {t('common.allBranches')}
                                                 </span>
                                             </div>
-                                            <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600 group-not-data-[selected]:hidden group-data-[focus]:text-white">
+                                            <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-indigo-600 group-not-data-[selected]:hidden group-data-[focus]:text-white">
                                                 <CheckIcon aria-hidden="true" className="size-5" />
                                             </span>
                                         </ListboxOption>
@@ -402,7 +402,7 @@ export default function Profile() {
                                             <ListboxOption
                                                 key={b.id}
                                                 value={b.id}
-                                                className="group relative py-2.5 pr-9 pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-blue-600 data-[focus]:text-white outline-hidden"
+                                                className="group relative py-2.5 pr-9 pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-indigo-600 data-[focus]:text-white outline-hidden"
                                             >
                                                 <div className="flex items-center gap-3">
                                                     <Building2 className="size-5 shrink-0 text-gray-400 group-data-[focus]:text-white" />
@@ -411,7 +411,7 @@ export default function Profile() {
                                                     </span>
                                                 </div>
 
-                                                <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600 group-not-data-[selected]:hidden group-data-[focus]:text-white">
+                                                <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-indigo-600 group-not-data-[selected]:hidden group-data-[focus]:text-white">
                                                     <CheckIcon aria-hidden="true" className="size-5" />
                                                 </span>
                                             </ListboxOption>
@@ -430,7 +430,7 @@ export default function Profile() {
                                 onChange={(value) => handleWarehouseChange({ target: { value } })}
                             >
                                 <div className="relative">
-                                    <ListboxButton className="w-full cursor-pointer flex items-center px-3 py-2 justify-between rounded-lg border border-slate-200 text-[1rem] bg-white text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors shadow-sm text-left">
+                                    <ListboxButton className="w-full cursor-pointer flex items-center px-3 py-2 justify-between rounded-lg border border-slate-200 text-[1rem] bg-white text-slate-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors shadow-sm text-left">
                                         <span className="flex items-center gap-3">
                                             <Warehouse className="size-5 shrink-0 text-slate-400" />
                                             <span className="block truncate">
@@ -450,7 +450,7 @@ export default function Profile() {
                                         {/* Barcha omborlar varianti (Bo'sh qiymat uchun) */}
                                         <ListboxOption
                                             value=""
-                                            className="group relative py-2.5 pr-9 pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-blue-600 data-[focus]:text-white outline-hidden"
+                                            className="group relative py-2.5 pr-9 pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-indigo-600 data-[focus]:text-white outline-hidden"
                                         >
                                             <div className="flex items-center gap-3">
                                                 <Warehouse className="size-5 shrink-0 text-gray-400 group-data-[focus]:text-white" />
@@ -458,7 +458,7 @@ export default function Profile() {
                                                     {t('common.allWarehouses')}
                                                 </span>
                                             </div>
-                                            <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600 group-not-data-[selected]:hidden group-data-[focus]:text-white">
+                                            <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-indigo-600 group-not-data-[selected]:hidden group-data-[focus]:text-white">
                                                 <CheckIcon aria-hidden="true" className="size-5" />
                                             </span>
                                         </ListboxOption>
@@ -468,7 +468,7 @@ export default function Profile() {
                                             <ListboxOption
                                                 key={w.id}
                                                 value={w.id}
-                                                className="group relative py-2.5 pr-9 pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-blue-600 data-[focus]:text-white outline-hidden"
+                                                className="group relative py-2.5 pr-9 pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-indigo-600 data-[focus]:text-white outline-hidden"
                                             >
                                                 <div className="flex items-center gap-3">
                                                     <Warehouse className="size-5 shrink-0 text-gray-400 group-data-[focus]:text-white" />
@@ -477,7 +477,7 @@ export default function Profile() {
                                                     </span>
                                                 </div>
 
-                                                <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600 group-not-data-[selected]:hidden group-data-[focus]:text-white">
+                                                <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-indigo-600 group-not-data-[selected]:hidden group-data-[focus]:text-white">
                                                     <CheckIcon aria-hidden="true" className="size-5" />
                                                 </span>
                                             </ListboxOption>
@@ -492,7 +492,7 @@ export default function Profile() {
 
                 <button
                     onClick={() => load(true)}
-                    className="flex cursor-pointer items-center gap-1.5 text-sm text-slate-500 hover:text-blue-600 bg-white border border-slate-200 hover:border-blue-300 rounded-md px-3 py-2 transition-colors shadow-sm"
+                    className="flex cursor-pointer items-center gap-1.5 text-sm text-slate-500 hover:text-indigo-600 bg-white border border-slate-200 hover:border-indigo-300 rounded-md px-3 py-2 transition-colors shadow-sm"
                 >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -516,8 +516,8 @@ export default function Profile() {
                             <h3 className="text-base font-semibold text-slate-800">{t('dashboard.recentSales')}</h3>
                             <p className="text-sm text-slate-400 mt-0.5">{t('common.today')} - 7 {t('common.date').toLowerCase()}</p>
                         </div>
-                        <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
-                            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center">
+                            <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                             </svg>
                         </div>
@@ -608,8 +608,8 @@ export default function Profile() {
                 {data.cashier_performance?.length > 0 && (
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                         <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100">
-                            <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
-                                <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center">
+                                <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
                             </div>
@@ -652,8 +652,8 @@ export default function Profile() {
                 {data.low_stock?.length > 0 && (
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                         <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100">
-                            <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
-                                <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="w-8 h-8 bg-rose-50 rounded-lg flex items-center justify-center">
+                                <svg className="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                                         d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                 </svg>
@@ -680,15 +680,15 @@ export default function Profile() {
                                                 <span className="text-sm font-medium text-slate-800">{item.name}</span>
                                             </td>
                                             <td className="px-4 py-3.5 text-center">
-                                                <span className={`text-sm font-bold ${item.qty <= 0 ? 'text-blue-600' : 'text-amber-600'}`}>
+                                                <span className={`text-sm font-bold ${item.qty <= 0 ? 'text-rose-600' : 'text-amber-600'}`}>
                                                     {item.qty}
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3.5 text-center text-sm text-slate-400">{item.min_stock}</td>
                                             <td className="px-4 py-3.5 text-center">
                                                 {item.qty <= 0 ? (
-                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />{t('product.outOfStock')}
+                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-rose-100 text-rose-700">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />{t('product.outOfStock')}
                                                     </span>
                                                 ) : (
                                                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">

@@ -145,7 +145,7 @@ export default function Aloqa() {
           
           <h1 className="text-5xl md:text-7xl font-extrabold text-white tracking-[-0.04em] mb-6 leading-[1.1] animate-[fadeInUp_0.7s_ease-out_0.1s_both]">
             {t('aloqa.hero.title1') || "Savollaringiz bormi?"} <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-blue-400 to-emerald-400 inline-block mt-2">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-400 to-emerald-400 inline-block mt-2">
               {t('aloqa.hero.title2') || "Keling, suhbatlashamiz!"}
             </span>
           </h1>
@@ -238,7 +238,7 @@ export default function Aloqa() {
             
             {/* Working Hours - Takes 2 columns */}
             <div className="lg:col-span-2 bg-slate-900 text-white rounded-[32px] p-10 relative overflow-hidden group shadow-2xl">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-blue-600/20 opacity-50 transition-opacity duration-500 group-hover:opacity-100" />
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-purple-600/20 opacity-50 transition-opacity duration-500 group-hover:opacity-100" />
               <div className="relative z-10">
                 <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center text-blue-400 mb-8 backdrop-blur-md">
                   <Clock size={32} />

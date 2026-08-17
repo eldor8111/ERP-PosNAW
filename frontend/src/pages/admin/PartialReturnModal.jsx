@@ -120,10 +120,10 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
                           value={item.returnQty || ''}
                           onChange={(e) => handleQtyChange(idx, e.target.value)}
                           disabled={item.maxReturn <= 0}
-                          className="w-24 px-2 py-1 border border-slate-200 rounded text-right focus:outline-none focus:border-blue-400"
+                          className="w-24 px-2 py-1 border border-slate-200 rounded text-right focus:outline-none focus:border-indigo-400"
                         />
                       </td>
-                      <td className="px-4 py-3 text-right font-semibold text-blue-600 font-mono">
+                      <td className="px-4 py-3 text-right font-semibold text-indigo-600 font-mono">
                         {fmt(itemRefund)} {currLabel}
                       </td>
                     </tr>
@@ -139,7 +139,7 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
               <select
                 value={paymentType}
                 onChange={(e) => setPaymentType(e.target.value)}
-                className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-400 bg-white"
+                className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 bg-white"
               >
                 <option value="cash">Naqd pul qaytarish (Kassadan)</option>
                 <option value="debt">Qarzdan chegirish (Mijoz balansi)</option>
@@ -160,7 +160,7 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
           <button
             onClick={submitReturn}
             disabled={loading || totalRefund <= 0}
-            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors flex items-center gap-2"
+            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors flex items-center gap-2"
           >
             {loading ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span> : <Check size={18} />}
             Tasdiqlash

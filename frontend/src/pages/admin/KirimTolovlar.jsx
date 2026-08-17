@@ -140,9 +140,9 @@ export default function KirimTolovlar() {
         <h1 className="text-2xl font-bold text-slate-800">Kirim to'lovlar</h1>
         <div className="flex items-center gap-3">
           <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-            className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-            className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           <button onClick={exportExcel} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl">
             Excelga Ko'chirish
           </button>
@@ -184,7 +184,7 @@ export default function KirimTolovlar() {
                 data.items.map((i, idx) => (
                   <tr key={i.id} className="hover:bg-slate-50 text-sm">
                     <td className="px-4 py-3 text-slate-500">{idx + 1}</td>
-                    <td className="px-4 py-3 font-semibold text-blue-600">{i.contragent}</td>
+                    <td className="px-4 py-3 font-semibold text-indigo-600">{i.contragent}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded-md text-xs font-medium ${i.turi === 'Mijoz' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
                         {i.turi}
@@ -211,7 +211,7 @@ export default function KirimTolovlar() {
                           <>
                             <button
                               onClick={() => openEdit(i)}
-                              className="px-2 py-1 text-xs font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                              className="px-2 py-1 text-xs font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
                             >
                               Tahrirlash
                             </button>
@@ -255,7 +255,7 @@ export default function KirimTolovlar() {
             <h3 className="text-slate-500 text-sm font-semibold mb-3">Mijozdan to'lovlar summasi (Qarz)</h3>
             {Object.entries(summaryData).length > 0 ? Object.entries(summaryData).map(([cur, sums]) => sums.qarz_yopish > 0 && (
               <div key={cur} className="mb-2 last:mb-0 border-b last:border-b-0 border-slate-50 pb-2">
-                <div className="text-sm flex justify-between font-bold text-blue-600"><span>Umumiy:</span> <span>{fmtCurr(sums.qarz_yopish, cur)}</span></div>
+                <div className="text-sm flex justify-between font-bold text-indigo-600"><span>Umumiy:</span> <span>{fmtCurr(sums.qarz_yopish, cur)}</span></div>
               </div>
             )) : <div className="text-slate-500 text-sm">0 so'm</div>}
           </div>
@@ -301,7 +301,7 @@ export default function KirimTolovlar() {
                   type="number"
                   value={editForm.amount}
                   onChange={e => setEditForm(f => ({ ...f, amount: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   placeholder="Summa"
                 />
               </div>
@@ -312,7 +312,7 @@ export default function KirimTolovlar() {
                 <select
                   value={editForm.payment_type}
                   onChange={e => setEditForm(f => ({ ...f, payment_type: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   {PAYMENT_TYPES.map(pt => (
                     <option key={pt.value} value={pt.value}>{pt.label}</option>
@@ -327,7 +327,7 @@ export default function KirimTolovlar() {
                   value={editForm.description}
                   onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
                   rows={3}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
                   placeholder="Izoh..."
                 />
               </div>
@@ -349,7 +349,7 @@ export default function KirimTolovlar() {
               <button
                 onClick={handleEditSave}
                 disabled={editLoading}
-                className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors"
+                className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors"
               >
                 {editLoading ? 'Saqlanmoqda...' : 'Saqlash'}
               </button>

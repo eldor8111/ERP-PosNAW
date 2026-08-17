@@ -102,8 +102,8 @@ export default function LandingLayout({ children }) {
   const currentLang = LANGUAGES.find(l => l.code === lang)
 
   const isChaqqon = location.pathname === '/chaqqon-pro'
-  const loginUrl = import.meta.env.DEV ? '/login' : (isChaqqon ? 'https://chaqqonpro.e-code.uz/' : 'https://savdo.e-code.uz/login')
-  const registerUrl = import.meta.env.DEV ? '/register' : (isChaqqon ? 'https://chaqqonpro.e-code.uz/' : 'https://savdo.e-code.uz/register')
+  const loginUrl = isChaqqon ? 'https://chaqqonpro.e-code.uz/' : 'https://savdo.e-code.uz/login'
+  const registerUrl = isChaqqon ? 'https://chaqqonpro.e-code.uz/' : 'https://savdo.e-code.uz/register'
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20)
@@ -197,7 +197,7 @@ export default function LandingLayout({ children }) {
                 {t('land.nav.login') || 'Kirish'}
               </button>
               <button
-                className="hidden lg:inline-flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 text-white border-none font-bold px-6 py-2.5 rounded-xl cursor-pointer transition-all duration-300 shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/35 text-[15px] xl:text-[16px] relative overflow-hidden hover:scale-[1.03] hover:from-blue-700 hover:to-blue-700 active:scale-95"
+                className="hidden lg:inline-flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 text-white border-none font-bold px-6 py-2.5 rounded-xl cursor-pointer transition-all duration-300 shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/35 text-[15px] xl:text-[16px] relative overflow-hidden hover:scale-[1.03] hover:from-blue-700 hover:to-indigo-700 active:scale-95"
                 onClick={() => window.location.href = registerUrl}
               >
                 {t('land.nav.register') || 'Boshlash'}

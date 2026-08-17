@@ -28,7 +28,7 @@ const [q, setQ] = useState('');
 
   return (
     <div className="relative w-full" ref={ref}>
-      <div className="flex items-center border-2 border-slate-200 rounded-xl bg-white overflow-hidden focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-500/20 transition-all pr-2">
+      <div className="flex items-center border-2 border-slate-200 rounded-xl bg-white overflow-hidden focus-within:border-rose-500 focus-within:ring-4 focus-within:ring-rose-500/20 transition-all pr-2">
         <div className="pl-3 text-slate-400">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
         </div>
@@ -44,7 +44,7 @@ const [q, setQ] = useState('');
       {open && (
         <div className="absolute top-full mt-2 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 overflow-hidden max-h-64 overflow-y-auto">
           {filtered.length === 0 ? <div className="px-4 py-3 text-sm text-slate-500 text-center font-medium">Topilmadi</div> : filtered.map(c => (
-            <button key={c.id} onMouseDown={() => select(c)} className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-slate-50 last:border-0 flex items-center justify-between transition-colors">
+            <button key={c.id} onMouseDown={() => select(c)} className="w-full text-left px-4 py-3 hover:bg-rose-50 border-b border-slate-50 last:border-0 flex items-center justify-between transition-colors">
               <div><div className="text-sm font-bold text-slate-800">{c.name}</div>{c.phone && <div className="text-xs text-slate-500 font-medium">{c.phone}</div>}</div>
               {hasAnyDebt(c) && (
                 <div className="flex flex-col items-end gap-1">
@@ -350,7 +350,7 @@ const navigate = useNavigate();
       {/* ── 1. THIN LEFT SIDEBAR ── */}
       <div className="w-20 bg-slate-900 flex flex-col items-center py-6 gap-6 shadow-2xl z-20 shrink-0">
         {/* User / Logo */}
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center font-black text-xl shadow-lg shadow-blue-500/30 mb-4">
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-rose-500 to-indigo-600 text-white flex items-center justify-center font-black text-xl shadow-lg shadow-rose-500/30 mb-4">
           POS
         </div>
 
@@ -360,7 +360,7 @@ const navigate = useNavigate();
         </button>
 
         {/* Current: POS */}
-        <button className="w-12 h-12 rounded-xl flex items-center justify-center bg-blue-600 text-white shadow-lg shadow-blue-500/20 transition-all" title="Kassa">
+        <button className="w-12 h-12 rounded-xl flex items-center justify-center bg-rose-600 text-white shadow-lg shadow-rose-500/20 transition-all" title="Kassa">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
         </button>
 
@@ -406,12 +406,12 @@ const navigate = useNavigate();
             cart.map((item, idx) => (
               <div key={idx} className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex items-center relative overflow-hidden group">
                 {/* Colored accent line on the left */}
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500"></div>
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-rose-500"></div>
                 
                 <div className="flex-1 pl-3 pr-2">
                   <div className="font-bold text-slate-800 text-sm leading-tight mb-1 truncate pr-6">{item.product_name}</div>
                   <div className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
-                    <span className="text-blue-600">{fmt(item.unit_price)}</span> 
+                    <span className="text-indigo-600">{fmt(item.unit_price)}</span> 
                     <span>×</span> 
                     <span>{item.qty_ordered} {item.unit}</span>
                   </div>
@@ -449,7 +449,7 @@ const navigate = useNavigate();
           </div>
 
           <div className="h-16 w-full mt-2">
-            <button onClick={() => { if(!cart.length) {setErr("Vazvrat savati bo'sh!"); setTimeout(()=>setErr(''),2000); return;} setShowCheckout(true); if(!paidInput) setPaidInput(String(Math.round(totalNet))); }} className="w-full h-full bg-blue-600 border-2 border-blue-600 text-white rounded-2xl text-xl uppercase tracking-widest font-black hover:bg-blue-700 active:scale-95 transition-all shadow-lg flex items-center justify-center gap-3">
+            <button onClick={() => { if(!cart.length) {setErr("Vazvrat savati bo'sh!"); setTimeout(()=>setErr(''),2000); return;} setShowCheckout(true); if(!paidInput) setPaidInput(String(Math.round(totalNet))); }} className="w-full h-full bg-rose-600 border-2 border-rose-600 text-white rounded-2xl text-xl uppercase tracking-widest font-black hover:bg-rose-700 active:scale-95 transition-all shadow-lg flex items-center justify-center gap-3">
                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg> VAZVRAT QILISH
             </button>
           </div>
@@ -462,7 +462,7 @@ const navigate = useNavigate();
         
         {/* Top bar */}
         <div className="flex items-center justify-between mb-6 shrink-0 gap-6">
-          <div className="flex-1 flex items-center bg-white border border-slate-200 rounded-2xl focus-within:ring-4 focus-within:ring-blue-500/20 focus-within:border-blue-500 shadow-sm px-4 py-3.5 transition-all max-w-2xl">
+          <div className="flex-1 flex items-center bg-white border border-slate-200 rounded-2xl focus-within:ring-4 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 shadow-sm px-4 py-3.5 transition-all max-w-2xl">
             <svg className="w-6 h-6 text-slate-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             <input 
               value={search} 
@@ -485,7 +485,7 @@ const navigate = useNavigate();
         <div className="flex gap-2 overflow-x-auto pb-4 mb-2 scrollbar-hide shrink-0 z-10 w-full snap-x">
           <button 
             onClick={() => setActiveCat(null)} 
-            className={`px-4 py-2.5 rounded-2xl text-sm font-bold whitespace-nowrap transition-all shadow-sm shrink-0 snap-start border-2 ${!activeCat ? 'bg-blue-600 border-blue-600 text-white shadow-blue-200' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-blue-300'}`}
+            className={`px-4 py-2.5 rounded-2xl text-sm font-bold whitespace-nowrap transition-all shadow-sm shrink-0 snap-start border-2 ${!activeCat ? 'bg-indigo-600 border-indigo-600 text-white shadow-indigo-200' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-indigo-300'}`}
           >
             Barchasi
           </button>
@@ -493,7 +493,7 @@ const navigate = useNavigate();
             <button 
               key={c.id} 
               onClick={() => setActiveCat(c.id)} 
-              className={`px-4 py-2.5 rounded-2xl text-sm font-bold whitespace-nowrap transition-all shadow-sm shrink-0 snap-start border-2 ${activeCat === c.id ? 'bg-blue-600 border-blue-600 text-white shadow-blue-200' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-blue-300'}`}
+              className={`px-4 py-2.5 rounded-2xl text-sm font-bold whitespace-nowrap transition-all shadow-sm shrink-0 snap-start border-2 ${activeCat === c.id ? 'bg-indigo-600 border-indigo-600 text-white shadow-indigo-200' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-indigo-300'}`}
             >
               {c.name}
             </button>
@@ -504,21 +504,21 @@ const navigate = useNavigate();
         <div className="flex-1 overflow-y-auto pb-10">
           <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5">
             {filteredProducts.map(p => (
-              <button key={p.id} onClick={() => addToCart(p)} className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col items-start gap-4 hover:border-blue-400 hover:shadow-xl hover:-translate-y-1 transition-all group active:scale-95 text-left relative overflow-hidden">
+              <button key={p.id} onClick={() => addToCart(p)} className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col items-start gap-4 hover:border-indigo-400 hover:shadow-xl hover:-translate-y-1 transition-all group active:scale-95 text-left relative overflow-hidden">
                 {/* Accent shape top right */}
-                <div className="absolute -top-4 -right-4 w-12 h-12 bg-blue-50 rounded-full group-hover:scale-[3] transition-transform duration-500 ease-out z-0"></div>
+                <div className="absolute -top-4 -right-4 w-12 h-12 bg-indigo-50 rounded-full group-hover:scale-[3] transition-transform duration-500 ease-out z-0"></div>
 
                 {/* Picture placeholder / Icon */}
                 <div className="w-full aspect-video bg-slate-50 rounded-xl flex items-center justify-center mb-1 group-hover:bg-white relative z-10 border border-slate-100">
-                  <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-black text-xl shadow-inner">
+                  <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-black text-xl shadow-inner">
                     {p.name.slice(0, 2).toUpperCase()}
                   </div>
                 </div>
 
                 <div className="w-full relative z-10">
-                  <h3 className="font-bold text-slate-800 text-[15px] leading-snug line-clamp-2 mb-2 group-hover:text-blue-900 transition-colors h-10">{p.name}</h3>
+                  <h3 className="font-bold text-slate-800 text-[15px] leading-snug line-clamp-2 mb-2 group-hover:text-indigo-900 transition-colors h-10">{p.name}</h3>
                   <div className="flex items-end justify-between w-full">
-                    <div className="font-black text-blue-600 text-[17px]">{fmt(p.sale_price)} <span className="text-[11px] font-bold text-slate-400">UZS</span></div>
+                    <div className="font-black text-indigo-600 text-[17px]">{fmt(p.sale_price)} <span className="text-[11px] font-bold text-slate-400">UZS</span></div>
                     <div className="text-[11px] font-extrabold text-slate-400 bg-slate-100 px-2 py-1 rounded-md border border-slate-200">
                       {p.stock_quantity > 0 ? `${fmt(p.stock_quantity)} ${p.unit||'dona'}` : '0 ta'}
                     </div>
@@ -555,7 +555,7 @@ const navigate = useNavigate();
               <div className="w-full md:w-[45%] p-6 bg-slate-100 border-r border-slate-200 flex flex-col gap-4">
                 <div className="flex flex-col gap-1 items-center justify-center py-4 bg-white rounded-xl shadow-sm border border-slate-200">
                   <span className="text-slate-400 uppercase tracking-widest text-xs font-bold">Kiritildi</span>
-                  <span className="text-3xl font-black text-blue-700">
+                  <span className="text-3xl font-black text-rose-700">
                      {payType === 'mixed' 
                         ? fmt((Number(mixedAmt1)||0) + (Number(mixedAmt2)||0))
                         : fmt(Number(paidInput)||0)} UZS
@@ -566,7 +566,7 @@ const navigate = useNavigate();
                   <button onClick={()=>handleNumClick('1')} className="bg-white border-2 border-slate-200 rounded-2xl text-3xl font-bold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all shadow-sm">1</button>
                   <button onClick={()=>handleNumClick('2')} className="bg-white border-2 border-slate-200 rounded-2xl text-3xl font-bold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all shadow-sm">2</button>
                   <button onClick={()=>handleNumClick('3')} className="bg-white border-2 border-slate-200 rounded-2xl text-3xl font-bold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all shadow-sm">3</button>
-                  <button onClick={handleBackspace} className="bg-blue-50 border-2 border-blue-200 rounded-2xl text-blue-500 hover:bg-blue-100 active:scale-95 transition-all shadow-sm flex items-center justify-center">
+                  <button onClick={handleBackspace} className="bg-rose-50 border-2 border-rose-200 rounded-2xl text-rose-500 hover:bg-rose-100 active:scale-95 transition-all shadow-sm flex items-center justify-center">
                     <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z"/></svg>
                   </button>
                   
@@ -600,10 +600,10 @@ const navigate = useNavigate();
                   <div className="flex flex-wrap gap-2">
                   {[
                     {v:'cash', l:'Naqd', c:'bg-emerald-50 text-emerald-700 border-emerald-300'},
-                    {v:'uzcard', l:'Uzc', c:'bg-blue-50 text-blue-700 border-blue-300'},
-                    {v:'humo', l:'Humo', c:'bg-blue-50 text-blue-700 border-blue-300'},
+                    {v:'uzcard', l:'Uzc', c:'bg-rose-50 text-rose-700 border-rose-300'},
+                    {v:'humo', l:'Humo', c:'bg-indigo-50 text-indigo-700 border-indigo-300'},
                     {v:'click', l:'Click', c:'bg-sky-50 text-sky-700 border-sky-300'},
-                    {v:'payme', l:'Payme', c:'bg-blue-50 text-blue-700 border-blue-300'},
+                    {v:'payme', l:'Payme', c:'bg-cyan-50 text-cyan-700 border-cyan-300'},
                     {v:'mixed', l:'Aralash', c:'bg-orange-50 text-orange-700 border-orange-300'},
                   ].map(t => (
                     <button key={t.v} onClick={()=>setPayType(t.v)} className={`px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all border-2 shrink-0 active:scale-95 flex-1 ${payType===t.v ? t.c + ' ring-2 ring-offset-1 ring-'+(t.c.includes('slate')?'slate':t.c.split('-')[1])+'-500' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
@@ -649,7 +649,7 @@ const navigate = useNavigate();
 
                 <div className="flex gap-3 mt-auto pt-4">
                   <button onClick={() => setShowCheckout(false)} className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-black rounded-xl transition-colors active:scale-95 uppercase tracking-widest text-sm border-2 border-transparent">{t('common.cancel')}</button>
-                  <button onClick={submitSale} disabled={isPaying || (payType !== 'mixed' && Number(paidInput) < totalNet && !custId) || (payType === 'mixed' && (Number(mixedAmt1)+Number(mixedAmt2)) < totalNet && !custId)} className="flex-2 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2 border-2 border-blue-600 uppercase tracking-widest text-sm disabled:bg-blue-300 disabled:border-blue-300 disabled:shadow-none">
+                  <button onClick={submitSale} disabled={isPaying || (payType !== 'mixed' && Number(paidInput) < totalNet && !custId) || (payType === 'mixed' && (Number(mixedAmt1)+Number(mixedAmt2)) < totalNet && !custId)} className="flex-2 py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl shadow-lg shadow-rose-200 transition-all active:scale-95 flex items-center justify-center gap-2 border-2 border-rose-600 uppercase tracking-widest text-sm disabled:bg-rose-300 disabled:border-rose-300 disabled:shadow-none">
                     {isPaying ? <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>} QAYTARISH VA CHOP ETISH
                   </button>
                 </div>
@@ -680,7 +680,7 @@ const navigate = useNavigate();
                 <div className="grid grid-cols-2 gap-5 mb-6">
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-2">Принтер</label>
-                    <select value={posSettings.printer} onChange={e=>savePosSettings({printer:e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50">
+                    <select value={posSettings.printer} onChange={e=>savePosSettings({printer:e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 bg-slate-50">
                       <option value="XP-80C">XP-80C</option>
                       <option value="XP-58">XP-58</option>
                       <option value="System Default">Системный по умолчанию</option>
@@ -688,14 +688,14 @@ const navigate = useNavigate();
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-2">Размер чека</label>
-                    <select value={posSettings.paper} onChange={e=>savePosSettings({paper:e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50">
+                    <select value={posSettings.paper} onChange={e=>savePosSettings({paper:e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 bg-slate-50">
                       <option value="80mm">80mm</option>
                       <option value="58mm">58mm</option>
                     </select>
                   </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-slate-500 mb-2">Chek Shabloni (Шаблон чека - Bozor)</label>
-                    <select value={posSettings.template || '80'} onChange={e=>savePosSettings({template:e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50">
+                    <select value={posSettings.template || '80'} onChange={e=>savePosSettings({template:e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 bg-slate-50">
                       <option value="80">Chek 80mm Template</option>
                       <option value="58">Chek 58mm Template</option>
                       <option value="nak">A4 Nakladnoy Template</option>
@@ -707,7 +707,7 @@ const navigate = useNavigate();
                   <span className="text-sm font-medium text-slate-600">Автоматическая распечатать</span>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input type="checkbox" className="sr-only peer" checked={posSettings.autoPrint} onChange={e=>savePosSettings({autoPrint:e.target.checked})} />
-                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-600"></div>
                   </label>
                 </div>
               </div>
@@ -721,7 +721,7 @@ const navigate = useNavigate();
                     <span className="text-sm font-medium text-slate-600">Смена</span>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input type="checkbox" className="sr-only peer" checked={posSettings.shift} onChange={e=>savePosSettings({shift:e.target.checked})} />
-                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-600"></div>
                     </label>
                   </div>
 
@@ -729,20 +729,20 @@ const navigate = useNavigate();
                     <span className="text-sm font-medium text-slate-600">Включить создание неизвестного товара</span>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input type="checkbox" className="sr-only peer" checked={posSettings.unknownProduct} onChange={e=>savePosSettings({unknownProduct:e.target.checked})} />
-                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-600"></div>
                     </label>
                   </div>
 
                   <div className="flex items-center">
                     <label className="relative inline-flex items-center cursor-pointer gap-3">
-                      <input type="checkbox" checked={posSettings.fiscal} onChange={e=>savePosSettings({fiscal:e.target.checked})} className="w-5 h-5 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer" />
+                      <input type="checkbox" checked={posSettings.fiscal} onChange={e=>savePosSettings({fiscal:e.target.checked})} className="w-5 h-5 text-rose-600 bg-slate-100 border-slate-300 rounded focus:ring-rose-500 focus:ring-2 cursor-pointer" />
                       <span className="text-sm font-medium text-slate-600">Фискализация</span>
                     </label>
                   </div>
                   
                   <div className="mt-4 border-t border-slate-100 pt-5">
                     <label className="block text-sm font-medium text-slate-500 mb-2">Doimiy mijoz (По умолчанию)</label>
-                    <select value={posSettings.defaultCustomer || ''} onChange={e=>{savePosSettings({defaultCustomer:e.target.value}); setCustId(e.target.value);}} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white">
+                    <select value={posSettings.defaultCustomer || ''} onChange={e=>{savePosSettings({defaultCustomer:e.target.value}); setCustId(e.target.value);}} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 bg-white">
                       <option value="">-- Tanlanmagan --</option>
                       {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
@@ -752,16 +752,16 @@ const navigate = useNavigate();
             </div>
 
             {/* Receipt Template */}
-            <div className="border border-blue-200 rounded-xl p-5 bg-blue-50/50 mb-4 flex items-start gap-3">
-              <svg className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div className="border border-rose-200 rounded-xl p-5 bg-rose-50/50 mb-4 flex items-start gap-3">
+              <svg className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               <div>
-                <p className="text-sm font-semibold text-blue-700">Chek shabloni Nastroykada sozlanadi</p>
-                <p className="text-xs text-blue-500 mt-0.5">Logotip, do'kon nomi, manzil, telefon va boshqalar → <b>Nastroyka → Chek shabloni</b> bo'limidan o'zgartiring.</p>
+                <p className="text-sm font-semibold text-rose-700">Chek shabloni Nastroykada sozlanadi</p>
+                <p className="text-xs text-rose-500 mt-0.5">Logotip, do'kon nomi, manzil, telefon va boshqalar → <b>Nastroyka → Chek shabloni</b> bo'limidan o'zgartiring.</p>
               </div>
             </div>
 
             <div className="flex justify-end pt-2">
-               <button onClick={() => setShowSettings(false)} className="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm transition-colors text-sm">
+               <button onClick={() => setShowSettings(false)} className="px-8 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg shadow-sm transition-colors text-sm">
                  Сохранить
                </button>
             </div>

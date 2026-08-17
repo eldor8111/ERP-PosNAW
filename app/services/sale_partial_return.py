@@ -58,15 +58,15 @@ def process_partial_return(
         if sale_item.product and sale_item.product.type != "service":
             receive_stock(
                 db=db,
+                company_id=current_user.company_id,
+                branch_id=current_user.branch_id or 0,
+                warehouse_id=sale.warehouse_id,
                 product_id=sale_item.product_id,
                 quantity=qty_to_return,
-                user_id=current_user.id,
-                reason=f"Qisman qaytarish (Sotuv #{sale.number})",
+                unit_price=sale_item.cost_price,
                 reference_type="sale_return",
                 reference_id=sale.id,
-                warehouse_id=sale.warehouse_id,
-                purchase_price=sale_item.cost_price,
-                company_id=current_user.company_id
+                note=f"Qisman qaytarish (Sotuv #{sale.number})"
             )
         
         returned_items_info.append(f"{sale_item.product.name} ({qty_to_return} ta)")

@@ -14,40 +14,23 @@ const roleLabels = {
   accountant: 'Buxgalter',
 }
 
-const fmt = (n) => Number(n || 0).toLocaleString('ru-RU');
-const fmtDate = (d) => {
-  if (!d) return '—';
-  return new Date(d).toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' });
-};
-
 export default function Dashboard() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [expiringBatches, setExpiringBatches] = useState([])
-  const [expiryLoading, setExpiryLoading] = useState(true)
 
   useEffect(() => {
     api.get('/reports/dashboard')
       .then(res => setStats(res.data))
       .catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") })
       .finally(() => setLoading(false))
-
-    api.get('/inventory/expiring-batches')
-      .then(res => setExpiringBatches(res.data || []))
-      .catch(() => {})
-      .finally(() => setExpiryLoading(false))
   }, [])
 
   const handleLogout = () => {
     logout()
     navigate('/login')
   }
-
-  const expiredCount = expiringBatches.filter(b => b.is_expired).length;
-  const criticalCount = expiringBatches.filter(b => !b.is_expired && b.days_left <= 7).length;
-  const topExpiring = expiringBatches.slice(0, 5);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -85,34 +68,6 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
           <p className="text-gray-500 text-sm mt-1">Bugungi holat</p>
         </div>
-
-        {/* Expiry Alert Banner */}
-        {!expiryLoading && (expiredCount > 0 || criticalCount > 0) && (
-          <div
-            onClick={() => navigate('/admin/alerts')}
-            className="mb-6 bg-gradient-to-r from-red-500 to-blue-600 rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:from-red-600 hover:to-blue-700 transition-all shadow-lg shadow-red-200"
-          >
-            <div className="flex items-center gap-3 text-white">
-              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
-                    d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                </svg>
-              </div>
-              <div>
-                <p className="font-black text-sm">
-                  {expiredCount > 0 && `${expiredCount} ta mahsulot muddati o'tgan!`}
-                  {expiredCount > 0 && criticalCount > 0 && ' • '}
-                  {criticalCount > 0 && `${criticalCount} ta mahsulot 7 kun ichida tugaydi`}
-                </p>
-                <p className="text-red-100 text-xs mt-0.5">Darhol ko'rish uchun bosing</p>
-              </div>
-            </div>
-            <svg className="w-5 h-5 text-white/70 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </div>
-        )}
 
         {loading ? (
           <div className="flex items-center justify-center py-20">
@@ -155,98 +110,48 @@ export default function Dashboard() {
                     d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 }
               />
-              <div
-                onClick={() => navigate('/admin/alerts')}
-                className={`rounded-2xl shadow-sm p-5 cursor-pointer transition-all hover:shadow-md ${
-                  expiredCount + criticalCount > 0
-                    ? 'bg-gradient-to-br from-red-500 to-blue-600'
-                    : 'bg-white'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <p className={`text-sm ${expiredCount + criticalCount > 0 ? 'text-red-100' : 'text-gray-500'}`}>
-                    Yaroqlilik muddati
-                  </p>
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${expiredCount + criticalCount > 0 ? 'bg-white/20' : 'bg-red-100'}`}>
-                    <svg className={`w-5 h-5 ${expiredCount + criticalCount > 0 ? 'text-white' : 'text-red-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                    </svg>
-                  </div>
-                </div>
-                <p className={`text-2xl font-bold ${expiredCount + criticalCount > 0 ? 'text-white' : 'text-gray-800'}`}>
-                  {expiryLoading ? '...' : (expiredCount + criticalCount)}
-                </p>
-                <p className={`text-xs mt-1 ${expiredCount + criticalCount > 0 ? 'text-red-100' : 'text-gray-400'}`}>
-                  {expiredCount + criticalCount > 0 ? "Ko'rish uchun bosing →" : 'Barcha muddatlar joyida'}
-                </p>
-              </div>
+              <StatCard
+                title="Foydalanuvchilar"
+                value={stats?.total_users ?? '—'}
+                sub="tizimda ro'yxatda"
+                color="purple"
+                icon={
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                }
+              />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Top Products */}
-              {stats?.top_products?.length > 0 && (
-                <div className="bg-white rounded-2xl shadow-sm p-6">
-                  <h2 className="text-lg font-semibold text-gray-800 mb-4">Top mahsulotlar (bugun)</h2>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-left text-gray-500 border-b">
-                          <th className="pb-3 font-medium">#</th>
-                          <th className="pb-3 font-medium">Mahsulot</th>
-                          <th className="pb-3 font-medium text-right">Soni</th>
-                          <th className="pb-3 font-medium text-right">Summa</th>
+            {/* Top Products */}
+            {stats?.top_products?.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-sm p-6">
+                <h2 className="text-lg font-semibold text-gray-800 mb-4">Top mahsulotlar (bugun)</h2>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-gray-500 border-b">
+                        <th className="pb-3 font-medium">#</th>
+                        <th className="pb-3 font-medium">Mahsulot</th>
+                        <th className="pb-3 font-medium text-right">Soni</th>
+                        <th className="pb-3 font-medium text-right">Summa</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {stats.top_products.map((p, i) => (
+                        <tr key={p.product_id} className="hover:bg-gray-50">
+                          <td className="py-3 text-gray-400">{i + 1}</td>
+                          <td className="py-3 font-medium text-gray-800">{p.name}</td>
+                          <td className="py-3 text-right text-gray-600">{p.total_qty}</td>
+                          <td className="py-3 text-right font-semibold text-gray-800">
+                            {Number(p.total_revenue).toLocaleString()} so'm
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
-                        {stats.top_products.map((p, i) => (
-                          <tr key={p.product_id} className="hover:bg-gray-50">
-                            <td className="py-3 text-gray-400">{i + 1}</td>
-                            <td className="py-3 font-medium text-gray-800">{p.name}</td>
-                            <td className="py-3 text-right text-gray-600">{p.total_qty}</td>
-                            <td className="py-3 text-right font-semibold text-gray-800">
-                              {Number(p.total_revenue).toLocaleString()} so'm
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              )}
-
-              {/* Expiring Products Widget */}
-              {!expiryLoading && topExpiring.length > 0 && (
-                <div className="bg-white rounded-2xl shadow-sm p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-gray-800">Muddati tugayotganlar</h2>
-                    <button
-                      onClick={() => navigate('/admin/alerts')}
-                      className="text-xs text-blue-600 font-bold hover:underline"
-                    >
-                      Barchasini ko'rish →
-                    </button>
-                  </div>
-                  <div className="space-y-2">
-                    {topExpiring.map(b => (
-                      <div key={b.batch_id} className={`flex items-center justify-between p-3 rounded-xl ${b.is_expired ? 'bg-red-50' : b.days_left <= 7 ? 'bg-orange-50' : 'bg-amber-50'}`}>
-                        <div className="min-w-0 flex-1">
-                          <div className="font-semibold text-sm text-gray-800 truncate">{b.product_name}</div>
-                          <div className="text-xs text-gray-500 mt-0.5">Muddat: {fmtDate(b.expiry_date)} • {fmt(b.quantity)} dona</div>
-                        </div>
-                        <div className={`ml-3 text-xs font-bold px-2 py-1 rounded-lg flex-shrink-0 ${
-                          b.is_expired ? 'bg-red-100 text-red-700' :
-                          b.days_left <= 7 ? 'bg-orange-100 text-orange-700' :
-                          'bg-amber-100 text-amber-700'
-                        }`}>
-                          {b.is_expired ? "O'tgan" : `${b.days_left} kun`}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Admin links */}
             {(user?.role === 'admin' || user?.role === 'director') && (
@@ -280,7 +185,7 @@ function StatCard({ title, value, sub, color, icon }) {
     blue: 'bg-blue-100 text-blue-600',
     green: 'bg-green-100 text-green-600',
     yellow: 'bg-yellow-100 text-yellow-600',
-    purple: 'bg-blue-100 text-blue-600',
+    purple: 'bg-purple-100 text-purple-600',
   }
 
   return (

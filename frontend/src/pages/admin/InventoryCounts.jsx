@@ -20,7 +20,7 @@ function Loader() {
   const { t } = useLang();
 return (
     <div className="flex items-center justify-center py-24">
-      <div className="w-9 h-9 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      <div className="w-9 h-9 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
     </div>
   );
 }
@@ -184,8 +184,8 @@ const [warehouses, setWarehouses] = useState([]);
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <h2 className="text-base font-bold text-slate-800 flex items-center gap-2.5">
-            <span className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-              <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <span className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
+              <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
             </span>
@@ -198,7 +198,7 @@ const [warehouses, setWarehouses] = useState([]);
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5">Ombor *</label>
             <select
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
               value={form.warehouse_id}
               onChange={e => setForm(f => ({ ...f, warehouse_id: e.target.value }))}
             >
@@ -216,8 +216,8 @@ const [warehouses, setWarehouses] = useState([]);
                   onClick={() => setForm(f => ({ ...f, countType: v, catIds: [] }))}
                   className={`py-2.5 rounded-xl text-xs font-semibold border transition-all flex items-center justify-center gap-1.5 ${
                     form.countType === v
-                      ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
-                      : 'bg-white border-slate-200 text-slate-600 hover:border-blue-300'
+                      ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                      : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'
                   }`}
                 >{ic} {l}</button>
               ))}
@@ -234,14 +234,14 @@ const [warehouses, setWarehouses] = useState([]);
                     onClick={() => toggleCat(cat.id)}
                     className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
                       form.catIds.includes(cat.id)
-                        ? 'bg-blue-600 border-blue-600 text-white'
-                        : 'bg-white border-slate-200 text-slate-600 hover:border-blue-300'
+                        ? 'bg-indigo-600 border-indigo-600 text-white'
+                        : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'
                     }`}
                   >{cat.name}</button>
                 ))}
               </div>
               {form.catIds.length > 0 && (
-                <p className="text-xs text-blue-600 mt-1.5">{form.catIds.length} ta bo'lim tanlandi</p>
+                <p className="text-xs text-indigo-600 mt-1.5">{form.catIds.length} ta bo'lim tanlandi</p>
               )}
             </div>
           )}
@@ -251,7 +251,7 @@ const [warehouses, setWarehouses] = useState([]);
             <input
               type="text"
               placeholder="Ixtiyoriy..."
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               value={form.note}
               onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
             />
@@ -262,7 +262,7 @@ const [warehouses, setWarehouses] = useState([]);
 
         <div className="flex gap-3 px-6 pb-6">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50">{t('common.cancel')}</button>
-          <button onClick={submit} disabled={saving} className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold disabled:opacity-60 shadow-sm">
+          <button onClick={submit} disabled={saving} className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold disabled:opacity-60 shadow-sm">
             {saving ? 'Yaratilmoqda...' : '✓ Yaratish'}
           </button>
         </div>
@@ -334,17 +334,17 @@ function ProdSearch({ products, onSelect, inputRef, placeholder = 'Mahsulot qidi
 
   return (
     <div className="relative" ref={ref}>
-      <div className={`flex items-center gap-2 border border-slate-200 rounded-xl px-3.5 py-2 bg-white transition-all ${open ? 'border-blue-400 ring-2 ring-blue-50' : 'hover:border-slate-300'}`}>
+      <div className={`flex items-center gap-2 border border-slate-200 rounded-xl px-3.5 py-2 bg-white transition-all ${open ? 'border-indigo-400 ring-2 ring-indigo-50' : 'hover:border-slate-300'}`}>
         <input value={q} onChange={e => { setQ(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)} onKeyDown={handleKeyDown} ref={inputRef} placeholder={placeholder}
           className="w-full text-sm outline-none bg-transparent" />
-        {loading && <div className="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin shrink-0" />}
+        {loading && <div className="w-3.5 h-3.5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin shrink-0" />}
       </div>
       {open && displayList.length > 0 && (
         <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-60 overflow-hidden max-h-72 overflow-y-auto">
           {displayList.map((p, i) => (
             <button key={p.id} onMouseDown={() => { onSelect(p); setQ(''); setOpen(false); }}
-              className={`w-full text-left px-4 py-2.5 hover:bg-blue-50 border-b border-slate-100 last:border-0 flex justify-between items-center gap-3 ${navIdx === i ? 'bg-blue-50' : ''}`}>
+              className={`w-full text-left px-4 py-2.5 hover:bg-indigo-50 border-b border-slate-100 last:border-0 flex justify-between items-center gap-3 ${navIdx === i ? 'bg-indigo-50' : ''}`}>
               <div className="min-w-0">
                 <div className="font-medium text-slate-800 text-sm truncate">{p.name}</div>
                 <div className="text-xs text-slate-400">{p.sku}{p.barcode ? ` · ${p.barcode}` : ''}</div>
@@ -432,7 +432,7 @@ function ReviziyaCreateView({ onBack, onSaved }) {
     <div className="fixed inset-0 z-40 bg-slate-50 flex flex-col">
       {/* Header */}
       <div className="flex items-center gap-3 px-6 py-3.5 border-b border-slate-100 bg-white shrink-0 shadow-sm">
-        <button onClick={onBack} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-blue-600 px-3 py-2 rounded-xl hover:bg-blue-50 transition-all text-sm font-semibold">
+        <button onClick={onBack} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-indigo-600 px-3 py-2 rounded-xl hover:bg-indigo-50 transition-all text-sm font-semibold">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
           Orqaga
         </button>
@@ -440,12 +440,12 @@ function ReviziyaCreateView({ onBack, onSaved }) {
         <h2 className="text-base font-bold text-slate-800 flex-1">Yangi revizya</h2>
         <div className="flex items-center gap-3">
           <select value={form.warehouse_id} onChange={e => setForm(f=>({...f, warehouse_id: e.target.value}))}
-            className="border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-w-[200px]">
+            className="border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white min-w-[200px]">
             <option value="">— Ombor tanlang —</option>
             {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
           </select>
           <input placeholder="Izoh (ixtiyoriy)..." value={form.note} onChange={e => setForm(f=>({...f, note: e.target.value}))}
-            className="border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-w-[200px]" />
+            className="border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white min-w-[200px]" />
         </div>
       </div>
 
@@ -459,9 +459,9 @@ function ReviziyaCreateView({ onBack, onSaved }) {
           </div>
 
           {sel ? (
-            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 space-y-4">
+            <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-5 space-y-4">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center text-sm font-bold shrink-0 shadow-sm">{sel.name.slice(0,2).toUpperCase()}</div>
+                <div className="w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm font-bold shrink-0 shadow-sm">{sel.name.slice(0,2).toUpperCase()}</div>
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-slate-800 text-base truncate">{sel.name}</div>
                   <div className="text-sm text-slate-600 mt-1">Tizim qoldig'i: <strong>{sel.stock_quantity}</strong> {sel.unit||'dona'}</div>
@@ -472,7 +472,7 @@ function ReviziyaCreateView({ onBack, onSaved }) {
                 <div className="flex items-center gap-2">
                   <input type="number" min="0" step="any" value={countedQty} onChange={e => setCountedQty(e.target.value)}
                     ref={qtyRef} onKeyDown={e => e.key === 'Enter' && addItem()}
-                    className="flex-1 border border-slate-200 rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold" />
+                    className="flex-1 border border-slate-200 rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold" />
                   <span className="text-sm font-medium text-slate-500">{sel.unit||'dona'}</span>
                 </div>
               </div>
@@ -480,9 +480,9 @@ function ReviziyaCreateView({ onBack, onSaved }) {
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Tafovut sababi (ixtiyoriy)</label>
                 <input type="text" value={reason} onChange={e => setReason(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && addItem()}
-                  className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
-              <button onClick={addItem} disabled={countedQty===''} className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl font-bold text-sm shadow-sm transition-all active:scale-95">
+              <button onClick={addItem} disabled={countedQty===''} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl font-bold text-sm shadow-sm transition-all active:scale-95">
                 Sanoqqa qo'shish
               </button>
             </div>
@@ -524,7 +524,7 @@ function ReviziyaCreateView({ onBack, onSaved }) {
                       <td className="px-4 py-3 text-slate-400">{i+1}</td>
                       <td className="px-4 py-3 font-medium text-slate-800">{c.product.name}</td>
                       <td className="px-4 py-3 text-right text-slate-500">{sys}</td>
-                      <td className="px-4 py-3 text-right font-bold text-blue-600">{fact}</td>
+                      <td className="px-4 py-3 text-right font-bold text-indigo-600">{fact}</td>
                       <td className={`px-4 py-3 text-right font-bold ${vColor}`}>{variance>0?'+':''}{variance}</td>
                       <td className="px-4 py-3 text-slate-500 text-xs">{c.variance_reason}</td>
                       <td className="pr-3 text-right"><button onClick={()=>setCart(p=>p.filter((_,idx)=>idx!==i))} className="text-slate-300 hover:text-red-500 font-bold p-1">✕</button></td>
@@ -750,7 +750,7 @@ const [count,        setCount]        = useState(null);
     <div className="space-y-5">
       {/* Top bar */}
       <div className="flex items-start gap-4 flex-wrap">
-        <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-blue-600 font-medium mt-1 transition-colors shrink-0">
+        <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-indigo-600 font-medium mt-1 transition-colors shrink-0">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
           </svg>
@@ -790,7 +790,7 @@ const [count,        setCount]        = useState(null);
           )}
           {canEdit && (
             <button onClick={() => handleSave(false)} disabled={saving}
-              className={`px-4 py-2 text-sm font-semibold rounded-xl shadow-sm transition-all disabled:opacity-60 ${savedMsg ? 'bg-emerald-600 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>
+              className={`px-4 py-2 text-sm font-semibold rounded-xl shadow-sm transition-all disabled:opacity-60 ${savedMsg ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}>
               {saving ? 'Saqlanmoqda...' : savedMsg ? '✓ Saqlandi' : 'Saqlash'}
             </button>
           )}
@@ -802,7 +802,7 @@ const [count,        setCount]        = useState(null);
           )}
           {count.status === 'completed' && (
             <button onClick={handleRevert} disabled={reverting}
-              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-60 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors">
+              className="px-4 py-2 bg-rose-500 hover:bg-rose-600 disabled:opacity-60 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors">
               {reverting ? '...' : 'Tahrirlashga qaytarish'}
             </button>
           )}
@@ -819,7 +819,7 @@ const [count,        setCount]        = useState(null);
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
           { l: 'Jami',         v: stats.total,     c: 'text-slate-800' },
-          { l: 'Sanalgan',     v: stats.counted,   c: 'text-blue-600' },
+          { l: 'Sanalgan',     v: stats.counted,   c: 'text-indigo-600' },
           { l: 'Sanalмagan',   v: stats.uncounted, c: 'text-amber-600' },
           { l: 'Tafovutlar',   v: stats.variances, c: 'text-red-600' },
           { l: 'Ortiqcha (+)', v: stats.surplus,   c: 'text-emerald-600' },
@@ -837,7 +837,7 @@ const [count,        setCount]        = useState(null);
         <div className="flex bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
           {[['all','Hammasi'],['variance','Tafovutlar'],['uncounted','Sanalmaganlar']].map(([v, l]) => (
             <button key={v} onClick={() => setFilter(v)}
-              className={`px-4 py-2 text-sm font-semibold transition-all ${filter === v ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
+              className={`px-4 py-2 text-sm font-semibold transition-all ${filter === v ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
               {l}
             </button>
           ))}
@@ -846,7 +846,7 @@ const [count,        setCount]        = useState(null);
           <input
             type="text"
             placeholder="Qidirish: nom yoki SKU..."
-            className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm"
+            className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white shadow-sm"
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
@@ -905,7 +905,7 @@ const [count,        setCount]        = useState(null);
                               ? 'border-red-300 bg-red-50 focus:ring-red-300'
                               : dispQty !== ''
                                 ? 'border-emerald-300 bg-emerald-50 focus:ring-emerald-300'
-                                : 'border-slate-200 bg-white focus:ring-blue-400'
+                                : 'border-slate-200 bg-white focus:ring-indigo-400'
                           }`}
                         />
                       ) : (
@@ -921,7 +921,7 @@ const [count,        setCount]        = useState(null);
                           type="text" placeholder="Sababi..."
                           value={reason}
                           onChange={e => setLocalReasons(p => ({ ...p, [item.product_id]: e.target.value }))}
-                          className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white min-w-[100px]"
+                          className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white min-w-[100px]"
                         />
                       ) : (
                         <span className="text-xs text-slate-400 italic">{item.variance_reason || ''}</span>
@@ -953,14 +953,14 @@ const [count,        setCount]        = useState(null);
               <button 
                 disabled={page === 1} 
                 onClick={() => setPage(page - 1)}
-                className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold bg-white text-slate-600 disabled:opacity-40 hover:border-blue-300 transition-all"
+                className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold bg-white text-slate-600 disabled:opacity-40 hover:border-indigo-300 transition-all"
               >
                 Oldingi
               </button>
               <button 
                 disabled={page === totalPages} 
                 onClick={() => setPage(page + 1)}
-                className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold bg-white text-slate-600 disabled:opacity-40 hover:border-blue-300 transition-all"
+                className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold bg-white text-slate-600 disabled:opacity-40 hover:border-indigo-300 transition-all"
               >
                 Keyingi
               </button>
@@ -975,7 +975,7 @@ const [count,        setCount]        = useState(null);
             </span>
             <button
               onClick={() => handleSave(false)} disabled={saving}
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors"
+              className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors"
             >
               {saving ? 'Saqlanmoqda...' : savedMsg ? '✓ Saqlandi' : '💾 Saqlash'}
             </button>
@@ -1053,7 +1053,7 @@ const [counts,       setCounts]       = useState([]);
         </div>
         <button
           onClick={onCreate}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors"
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
@@ -1070,8 +1070,8 @@ const [counts,       setCounts]       = useState([]);
             onClick={() => setStatusFilter(v)}
             className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-all ${
               statusFilter === v
-                ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
-                : 'bg-white border-slate-200 text-slate-600 hover:border-blue-300'
+                ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'
             }`}
           >{l}</button>
         ))}
@@ -1091,7 +1091,7 @@ const [counts,       setCounts]       = useState([]);
             <tbody className="divide-y divide-slate-50">
               {counts.map(c => (
                 <tr key={c.id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => onView(c.id)}>
-                  <td className="px-6 py-4 text-sm font-mono font-bold text-blue-600">{c.number}</td>
+                  <td className="px-6 py-4 text-sm font-mono font-bold text-indigo-600">{c.number}</td>
                   <td className="px-6 py-4 text-sm font-medium text-slate-700">{c.warehouse_name}</td>
                   <td className="px-6 py-4 text-sm text-slate-500">{fmtDate(c.created_at)}</td>
                   <td className="px-6 py-4">
@@ -1107,7 +1107,7 @@ const [counts,       setCounts]       = useState([]);
                       <div className="flex items-center gap-2">
                         <button
                           onClick={e => { e.stopPropagation(); onView(c.id); }}
-                          className="px-3 py-1.5 text-xs font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                          className="px-3 py-1.5 text-xs font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
                         >{c.status === 'completed' ? "Ko'rish" : "Ko'rish / Tahrirlash"}</button>
                         <button
                           onClick={e => handleDelete(e, c)}
@@ -1135,7 +1135,7 @@ const [counts,       setCounts]       = useState([]);
                       </div>
                       <button
                         onClick={onCreate}
-                        className="mt-1 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm"
+                        className="mt-1 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm"
                       >+ Yangi revizya</button>
                     </div>
                   </td>

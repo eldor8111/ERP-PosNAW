@@ -10,11 +10,11 @@ const PT_CONFIG = {
   cash: { label: 'Naqd', icon: <Banknote className='w-5 h-5 text-emerald-500' />, bg: 'bg-emerald-500/15', border: 'border-emerald-500/30', text: 'text-emerald-400', dot: 'bg-emerald-400' },
   card: { label: 'Karta', icon: <CreditCard className='w-5 h-5 text-blue-500' />, bg: 'bg-blue-500/15', border: 'border-blue-500/30', text: 'text-blue-400', dot: 'bg-blue-400' },
   uzcard: { label: 'UzCard', icon: <CreditCard className='w-5 h-5 text-amber-500' />, bg: 'bg-amber-500/15', border: 'border-amber-500/30', text: 'text-amber-400', dot: 'bg-amber-400' },
-  humo: { label: 'Humo', icon: <CreditCard className='w-5 h-5 text-blue-500' />, bg: 'bg-blue-500/15', border: 'border-blue-500/30', text: 'text-blue-400', dot: 'bg-blue-400' },
+  humo: { label: 'Humo', icon: <CreditCard className='w-5 h-5 text-indigo-500' />, bg: 'bg-indigo-500/15', border: 'border-indigo-500/30', text: 'text-indigo-400', dot: 'bg-indigo-400' },
   click: { label: 'Click', icon: <CreditCard className='w-5 h-5 text-yellow-500' />, bg: 'bg-yellow-500/15', border: 'border-yellow-500/30', text: 'text-yellow-400', dot: 'bg-yellow-400' },
   payme: { label: 'Payme', icon: <CreditCard className='w-5 h-5 text-red-500' />, bg: 'bg-red-500/15', border: 'border-red-500/30', text: 'text-red-400', dot: 'bg-red-400' },
   uzum: { label: 'Uzum', icon: <CreditCard className='w-5 h-5 text-orange-500' />, bg: 'bg-orange-500/15', border: 'border-orange-500/30', text: 'text-orange-400', dot: 'bg-orange-400' },
-  keshbek: { label: 'Keshbek', icon: <HandCoins className='w-5 h-5 text-blue-500' />, bg: 'bg-blue-500/15', border: 'border-blue-500/30', text: 'text-blue-400', dot: 'bg-blue-400' },
+  keshbek: { label: 'Keshbek', icon: <HandCoins className='w-5 h-5 text-purple-500' />, bg: 'bg-purple-500/15', border: 'border-purple-500/30', text: 'text-purple-400', dot: 'bg-purple-400' },
 };
 const getBalanceValue = (val) => {
   if (!val) return 0;
@@ -41,7 +41,7 @@ const REF_LABELS = {
   transfer_rejected: "O'tkazma (Bekor qilingan)"
 };
 
-const inp = 'w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white';
+const inp = 'w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white';
 const btn = (color = 'indigo') => `px-4 py-2 text-sm font-semibold rounded-xl text-white bg-${color}-600 hover:bg-${color}-700 transition-colors`;
 
 /* ── Modal wrapper ── */
@@ -218,7 +218,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
   const field = "w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 cursor-pointer focus:ring-violet-500/30 focus:border-violet-500 transition-colors";
   const ghostBtn = "inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-lg border border-green-300 text-slate-700 hover:bg-green-50 hover:border-green-300 cursor-pointer transition-colors";
   const cancelBtn = "flex-1 py-2.5 border border-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors cursor-pointer";
-  const primaryBtn = "inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer";
+  const primaryBtn = "inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer";
 
   const typeIcon = {
     cash: <HandCoins className="w-4 h-4" />,
@@ -266,7 +266,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
           return (
             <div key={k}>
               <div className="text-[11px] font-semibold uppercase tracking-wide text-green-700 mb-1">{cfg.label}</div>
-              <div className={`text-[15px] font-semibold tabular-nums ${val < 0 ? 'text-blue-600' : 'text-slate-900'}`}>
+              <div className={`text-[15px] font-semibold tabular-nums ${val < 0 ? 'text-rose-600' : 'text-slate-900'}`}>
                 {val && Array.isArray(val) ? (
                   val.map((item) => (
                     <span key={item.currency} className='flex flex-col'>
@@ -304,7 +304,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
           Chiqim
         </button>
         <button onClick={() => openModal('expense')} className={ghostBtn}>
-          <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+          <svg className="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
           Xarajat
         </button>
         {isOpen && allKassalar.filter(k => k.id !== kassa.id).length > 0 && (
@@ -356,7 +356,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                         Object.entries(currs).map(([curr, diff]) => (
                           <div key={`${ptype}-${curr}`} className="flex justify-between text-sm">
                             <span className="text-amber-700 font-medium">{PT_CONFIG[ptype]?.label || ptype} ({curr})</span>
-                            <span className={`font-bold ${diff > 0 ? 'text-blue-600' : 'text-emerald-600'}`}>
+                            <span className={`font-bold ${diff > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                               {diff > 0 ? `−${fmt(diff)} (Kamomad)` : `+${fmt(Math.abs(diff))} (Ortiqcha)`}
                             </span>
                           </div>
@@ -441,7 +441,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                   </div>
                   <div className="flex gap-3 pt-2">
                     <button onClick={() => setModal(null)} className={cancelBtn}>Bekor</button>
-                    <button onClick={() => save('close')} disabled={saving} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold disabled:opacity-50 transition-colors">
+                    <button onClick={() => save('close')} disabled={saving} className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-bold disabled:opacity-50 transition-colors">
                       {saving ? 'Yopilmoqda...' : '🔒 Kassani Yopish'}
                     </button>
                   </div>
@@ -602,7 +602,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                   <button
                     onClick={() => save('transfer')}
                     disabled={saving || !form.receiver_wallet_id}
-                    className="px-8 py-3 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 text-white rounded-xl text-sm font-bold disabled:opacity-50 transition-all shadow-md shadow-violet-200 active:scale-95 flex items-center gap-2"
+                    className="px-8 py-3 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white rounded-xl text-sm font-bold disabled:opacity-50 transition-all shadow-md shadow-violet-200 active:scale-95 flex items-center gap-2"
                   >
                     {saving ? (
                       <><span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span> Yuborilmoqda...</>
@@ -676,7 +676,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
             </div>
             <div className="flex gap-3 pt-2">
               <button onClick={() => setModal(null)} className={cancelBtn}>Bekor</button>
-              <button onClick={() => save('expense')} disabled={saving || !form.amount || !form.category_id} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-50 transition-colors">{saving ? '...' : 'Tasdiqlash'}</button>
+              <button onClick={() => save('expense')} disabled={saving || !form.amount || !form.category_id} className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-medium disabled:opacity-50 transition-colors">{saving ? '...' : 'Tasdiqlash'}</button>
             </div>
           </div>
         </Modal>
@@ -706,7 +706,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                   <input type="date" className="pl-4 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
                 </div>
                 {dateFilter && (
-                  <button onClick={() => setDateFilter('')} className="text-xs font-bold text-blue-500 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors">Tozalash</button>
+                  <button onClick={() => setDateFilter('')} className="text-xs font-bold text-rose-500 hover:text-rose-600 px-3 py-1.5 rounded-lg hover:bg-rose-100 transition-colors">Tozalash</button>
                 )}
               </div>
 
@@ -719,7 +719,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                 <div className="w-px h-8 bg-slate-200"></div>
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Jami Chiqim</p>
-                  <p className="text-sm font-bold text-blue-600 mt-0.5 tabular-nums">−{fmt(history.summary.total_out)}</p>
+                  <p className="text-sm font-bold text-rose-600 mt-0.5 tabular-nums">−{fmt(history.summary.total_out)}</p>
                 </div>
                 <div className="w-px h-8 bg-slate-200"></div>
                 <div>
@@ -755,11 +755,11 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                         
                         <td className="px-5 py-4 align-top w-[20%] min-w-[170px]">
                           <div className="flex items-start gap-4">
-                            <div className={`mt-0.5 p-2 rounded-xl flex-shrink-0 ${isIn ? 'bg-emerald-100/50 text-emerald-600' : 'bg-blue-100/50 text-blue-600'}`}>
+                            <div className={`mt-0.5 p-2 rounded-xl flex-shrink-0 ${isIn ? 'bg-emerald-100/50 text-emerald-600' : 'bg-rose-100/50 text-rose-600'}`}>
                               {Icon}
                             </div>
                             <div>
-                              <p className={`font-bold text-[16px] leading-tight ${isIn ? 'text-emerald-700' : 'text-blue-700'}`}>
+                              <p className={`font-bold text-[16px] leading-tight ${isIn ? 'text-emerald-700' : 'text-rose-700'}`}>
                                 {isIn ? 'Kirim' : 'Chiqim'}
                               </p>
                               <p className="text-[13px] text-slate-500 font-semibold mt-1.5 uppercase tracking-widest flex items-center gap-1.5">
@@ -772,7 +772,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
 
                         <td className="px-5 py-4 align-top text-right w-[20%] min-w-[170px]">
                           <div className="flex flex-col items-end">
-                            <p className={`font-black tabular-nums text-[18px] tracking-tight ${isIn ? 'text-emerald-600' : 'text-blue-600'}`}>
+                            <p className={`font-black tabular-nums text-[18px] tracking-tight ${isIn ? 'text-emerald-600' : 'text-rose-600'}`}>
                               {isIn ? '+' : '−'}{fmt(m.amount)}
                             </p>
                             <span className="inline-flex items-center justify-center mt-1.5 px-2.5 py-1 rounded text-[12px] font-bold bg-slate-100 text-slate-500">
@@ -784,7 +784,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                         <td className="px-5 py-4 align-top w-[60%]">
                           <div className="flex flex-col gap-2">
                             <div className="flex flex-wrap items-center gap-2.5">
-                              <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-md bg-blue-50 border border-blue-100 text-[13px] font-bold text-blue-700 uppercase tracking-wide">
+                              <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-md bg-indigo-50 border border-indigo-100 text-[13px] font-bold text-indigo-700 uppercase tracking-wide">
                                 {REF_LABELS[m.reference_type] || m.reference_type}
                               </span>
                               <span className="text-[13px] font-semibold text-slate-400 flex items-center gap-1.5">
@@ -815,7 +815,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                               }} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title="Tahrirlash">
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                               </button>
-                              <button onClick={() => handleDeleteExpense(m.reference_id)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title="O'chirish">
+                              <button onClick={() => handleDeleteExpense(m.reference_id)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors" title="O'chirish">
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                               </button>
                             </div>
@@ -901,7 +901,7 @@ function ExpenseCategoriesTab() {
       <div className="flex items-center justify-between px-6 py-4 border-b border-slate-50">
         <span className="text-sm font-semibold text-slate-700">Xarajat kategoriyalari</span>
         <button onClick={() => setShowAddCat(!showAddCat)}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
+          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
           </svg>
@@ -913,26 +913,26 @@ function ExpenseCategoriesTab() {
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1.5">Nomi</label>
             <input required placeholder="Kategoriya nomi"
-              className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
+              className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-64"
               onChange={e => setForm({ ...form, name: e.target.value })} value={form.name} />
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1.5">Tavsif</label>
             <input placeholder="Qisqacha tavsif (ixtiyoriy)"
-              className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
+              className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-64"
               onChange={e => setForm({ ...form, description: e.target.value })} value={form.description} />
           </div>
           <button type="submit" disabled={saving}
-            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors">{saving ? 'Saqlanmoqda...' : 'Saqlash'}</button>
+            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors">{saving ? 'Saqlanmoqda...' : 'Saqlash'}</button>
           <button type="button" onClick={() => setShowAddCat(false)}
             className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium rounded-xl transition-colors">Bekor qilish</button>
         </form>
       )}
       <div className="p-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
         {list.map(c => (
-          <div key={c.id} className="bg-slate-50 border border-slate-100 rounded-xl p-4 hover:border-blue-200 hover:bg-blue-50 transition-colors">
+          <div key={c.id} className="bg-slate-50 border border-slate-100 rounded-xl p-4 hover:border-indigo-200 hover:bg-indigo-50 transition-colors">
             <div className="flex items-center gap-2 mb-1">
-              <div className="w-2 h-2 rounded-full bg-blue-500" />
+              <div className="w-2 h-2 rounded-full bg-indigo-500" />
               <div className="text-sm font-semibold text-slate-800">{c.name}</div>
             </div>
             {c.description && <div className="text-xs text-slate-400 ml-4">{c.description}</div>}
@@ -997,7 +997,7 @@ export default function Kassa() {
           <p className="text-slate-400 text-sm">Barcha kassalar va to'lov turlari</p>
         </div>
         {tab === 'kassalar' && (
-          <button onClick={() => setShowNew(true)} className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm font-bold rounded-lg shadow-md hover:shadow-blue-200 transition-all">
+          <button onClick={() => setShowNew(true)} className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white text-sm font-bold rounded-lg shadow-md hover:shadow-indigo-200 transition-all">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             Yangi Kassa
           </button>
@@ -1008,7 +1008,7 @@ export default function Kassa() {
       {tab === 'kassalar' && kassalar.length > 0 && (
         <div className="grid grid-cols-3 gap-4">
           {[
-            { label: 'Jami balans', value: totalBalanceLabel, icon: <Banknote className='w-5 h-5 text-blue-600' />, bg: 'bg-blue-50', border: 'border-blue-100', text: 'text-blue-600' },
+            { label: 'Jami balans', value: totalBalanceLabel, icon: <Banknote className='w-5 h-5 text-indigo-600' />, bg: 'bg-indigo-50', border: 'border-indigo-100', text: 'text-indigo-600' },
             { label: 'Ochiq kassalar', value: totalOpen + ' ta', icon: <Gem className='w-5 h-5 text-emerald-600' />, bg: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-600' },
             { label: 'Jami kassalar', value: kassalar.length + ' ta', icon: <Landmark className='w-5 h-5 text-slate-600' />, bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700' },
           ].map(c => (
@@ -1027,7 +1027,7 @@ export default function Kassa() {
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`px-5 py-2 text-sm cursor-pointer font-bold rounded-lg transition-all ${tab === t.id ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+            className={`px-5 py-2 text-sm cursor-pointer font-bold rounded-lg transition-all ${tab === t.id ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
             {t.label}
           </button>
         ))}
@@ -1038,7 +1038,7 @@ export default function Kassa() {
           {kassalar.map(k => <KassaCard key={k.id} kassa={k} onRefresh={load} allKassalar={kassalar} />)}
           {kassalar.length === 0 && (
             <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-16 text-center">
-              <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">💰</div>
+              <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">💰</div>
               <p className="font-bold text-slate-600">Hali kassa yaratilmagan</p>
               <p className="text-sm text-slate-400 mt-1">Yangi Kassa tugmasini bosib boshlang</p>
             </div>
@@ -1064,7 +1064,7 @@ export default function Kassa() {
               <input type="number" min="0" className={inp} value={newForm.opening_balance} onChange={e => setNewForm({ ...newForm, opening_balance: e.target.value })} placeholder="0" /></div>
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={() => setShowNew(false)} className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm">Bekor</button>
-              <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold disabled:opacity-50">{saving ? '...' : 'Yaratish'}</button>
+              <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold disabled:opacity-50">{saving ? '...' : 'Yaratish'}</button>
             </div>
           </form>
         </Modal>

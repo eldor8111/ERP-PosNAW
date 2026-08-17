@@ -17,7 +17,7 @@ const NotFound = () => {
             <div className="absolute inset-0 opacity-[0.07] pointer-events-none bg-[linear-gradient(to_right,#ffffff_1px,transparent_1px),linear-gradient(to_bottom,#ffffff_1px,transparent_1px)] bg-[size:3rem_3rem]"></div>
 
             {/* Orqa fondagi chiroyli gradient nurlar */}
-            <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-[120px] pointer-events-none"></div>
+            <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-[120px] pointer-events-none"></div>
             <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-[120px] pointer-events-none"></div>
 
             {/* 2. Asosiy Kontent Bloki */}
@@ -26,15 +26,15 @@ const NotFound = () => {
                 {/* Vizual 404 llustratsiyasi (Faqat Tailwind klasslarida) */}
                 <div className="relative mb-8 flex items-center justify-center">
                     {/* Pulsatsiya qiluvchi tashqi halqalar */}
-                    <div className="absolute w-44 h-44 bg-blue-500/5 rounded-full animate-ping duration-3000"></div>
+                    <div className="absolute w-44 h-44 bg-indigo-500/5 rounded-full animate-ping duration-3000"></div>
                     <div className="absolute w-56 h-56 bg-violet-500/5 rounded-full animate-pulse"></div>
 
                     {/* Markaziy Neon Blok */}
-                    <div className="relative w-36 h-36 rounded-3xl bg-gradient-to-br from-blue-500/10 to-violet-500/10 border border-blue-500/20 backdrop-blur-md flex flex-col items-center justify-center shadow-2xl shadow-blue-500/5">
-                        <span className="text-6xl font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-blue-400 to-pink-400 tracking-tighter">
+                    <div className="relative w-36 h-36 rounded-3xl bg-gradient-to-br from-indigo-500/10 to-violet-500/10 border border-indigo-500/20 backdrop-blur-md flex flex-col items-center justify-center shadow-2xl shadow-indigo-500/5">
+                        <span className="text-6xl font-black bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 tracking-tighter">
                             404
                         </span>
-                        <div className="absolute -bottom-3 px-3 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30 uppercase tracking-widest">
+                        <div className="absolute -bottom-3 px-3 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 uppercase tracking-widest">
                             Xatolik
                         </div>
                     </div>
@@ -52,7 +52,7 @@ const NotFound = () => {
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto">
                     {/* Bosh sahifaga qaytish */}
                     <Link onClick={() => navigate(-1)}
-                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-violet-600 rounded-xl shadow-lg shadow-blue-600/15 hover:from-blue-500 hover:to-violet-500 hover:shadow-blue-500/20 active:scale-[0.98] transition-all duration-200 cursor-pointer border border-blue-500/20 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-violet-600 rounded-xl shadow-lg shadow-indigo-600/15 hover:from-indigo-500 hover:to-violet-500 hover:shadow-indigo-500/20 active:scale-[0.98] transition-all duration-200 cursor-pointer border border-indigo-500/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
                     >
                         <ChevronLeft size={20} />
                         Ortga qaytish
@@ -72,7 +72,7 @@ const NotFound = () => {
 
                 {/* 4. Mini Footer yoki Yordam qismi */}
                 <div className="mt-12 text-xs text-slate-600 tracking-wide">
-                    Tizim kodi: <span className="font-mono text-blue-400/60">ERR_ROUTE_NOT_FOUND</span>
+                    Tizim kodi: <span className="font-mono text-indigo-400/60">ERR_ROUTE_NOT_FOUND</span>
                 </div>
 
             </div>

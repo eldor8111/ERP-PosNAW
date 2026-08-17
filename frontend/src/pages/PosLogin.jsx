@@ -182,7 +182,7 @@ export default function PosLogin() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 rounded-2xl bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700
+            className="w-full py-3.5 rounded-2xl bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700
               disabled:opacity-50 text-white font-bold text-sm transition-all shadow-lg shadow-blue-500/25
               flex items-center justify-center gap-2 mt-2"
           >

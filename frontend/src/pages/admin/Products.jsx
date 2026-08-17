@@ -74,7 +74,7 @@ const movTypeMeta = {
   in: { label: 'Kirim', cls: 'bg-emerald-100 text-emerald-700' },
   out: { label: 'Chiqim', cls: 'bg-red-100 text-red-600' },
   adjust: { label: 'Tuzatish', cls: 'bg-amber-100 text-amber-700' },
-  transfer: { label: 'Ombor', cls: 'bg-indigo-100 text-indigo-700' },
+  transfer: { label: 'Ombor', cls: 'bg-blue-100 text-blue-700' },
   sale: { label: 'Sotuv', cls: 'bg-violet-100 text-violet-700' },
   return: { label: 'Qaytarma', cls: 'bg-orange-100 text-orange-700' },
 };
@@ -182,19 +182,19 @@ function ProdSearch({ value, onChange, placeholder = 'Mahsulot qidiring...', exc
     <div className="relative" ref={wrapperRef}>
       <div className="relative">
         <input
-          className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+          className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           placeholder={placeholder}
           value={open ? q : (value?.name || '')}
           onChange={e => { setQ(e.target.value); setOpen(true); }}
           onFocus={(e) => { setOpen(true); e.target.select(); }}
         />
-        {loading && <div className="absolute right-3 top-3"><span className="animate-pulse w-3 h-3 bg-indigo-400 rounded-full inline-block"></span></div>}
+        {loading && <div className="absolute right-3 top-3"><span className="animate-pulse w-3 h-3 bg-blue-400 rounded-full inline-block"></span></div>}
       </div>
       {open && q.length >= 2 && (
         <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-60 overflow-auto">
           {results.length > 0 ? results.map(p => (
             <div key={p.id}
-              className="px-4 py-2.5 hover:bg-indigo-50 cursor-pointer border-b border-slate-50 last:border-0"
+              className="px-4 py-2.5 hover:bg-blue-50 cursor-pointer border-b border-slate-50 last:border-0"
               onClick={() => {
                 onChange({ id: p.id, name: p.name });
                 setQ(p.name);
@@ -260,7 +260,7 @@ function RowMenu({ onEdit, onDelete, onPrint }) {
       <button
         ref={btnRef}
         onClick={openMenu}
-        className="w-10 cursor-pointer h-10 flex items-center justify-center rounded-xl text-indigo-600 hover:text-indigo-800 bg-indigo-100 transition-colors"
+        className="w-10 cursor-pointer h-10 flex items-center justify-center rounded-xl text-blue-600 hover:text-blue-800 bg-blue-100 transition-colors"
         title="Ko'proq">
         <EllipsisVertical />
       </button>
@@ -272,14 +272,14 @@ function RowMenu({ onEdit, onDelete, onPrint }) {
         >
           <button onClick={() => { onEdit(); setOpen(false); }}
             className="w-full flex items-center gap-2 xl:gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
-            <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
             Tahrirlash
           </button>
           <button onClick={() => { onPrint(); setOpen(false); }}
-            className="w-full flex items-center gap-2 xl:gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-indigo-50 transition-colors">
-            <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            className="w-full flex items-center gap-2 xl:gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-blue-50 transition-colors">
+            <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
             </svg>
             Shtrix-kod chop
@@ -351,7 +351,7 @@ function Field({ label, required, children, hint }) {
   );
 }
 
-const inputCls = "w-full px-4 py-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white";
+const inputCls = "w-full px-4 py-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white";
 const errCls = "border-red-400 ring-1 ring-red-400";
 
 /* ─── ImageUploadZone ──────────────────────────────── */
@@ -369,14 +369,14 @@ function ImageUploadZone({ images, onAdd, onRemove, uploading }) {
     <div className="space-y-3">
       {/* Upload area */}
       <div
-        className="border-2 border-dashed border-slate-200 rounded-xl p-5 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-all"
+        className="border-2 border-dashed border-slate-200 rounded-xl p-5 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all"
         onClick={() => inputRef.current?.click()}
         onDragOver={e => e.preventDefault()}
         onDrop={handleDrop}
       >
         {uploading ? (
-          <div className="flex flex-col items-center gap-2 text-indigo-500">
-            <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          <div className="flex flex-col items-center gap-2 text-blue-500">
+            <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
             <span className="text-xs">Yuklanmoqda...</span>
           </div>
         ) : (
@@ -403,7 +403,7 @@ function ImageUploadZone({ images, onAdd, onRemove, uploading }) {
                 className="w-full h-full object-cover"
               />
               {i === 0 && (
-                <span className="absolute bottom-0 left-0 right-0 text-center bg-indigo-600/80 text-white text-[10px] py-0.5">Asosiy</span>
+                <span className="absolute bottom-0 left-0 right-0 text-center bg-blue-600/80 text-white text-[10px] py-0.5">Asosiy</span>
               )}
               <button
                 type="button"
@@ -437,7 +437,7 @@ function CurrencyDropdown({ value, onChange, currencies }) {
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className={`px-3 text-xs font-bold border-l border-slate-200 flex items-center gap-1.5 whitespace-nowrap transition-colors rounded-r-xl ${selected ? 'bg-indigo-500 text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+        className={`px-3 text-xs font-bold border-l border-slate-200 flex items-center gap-1.5 whitespace-nowrap transition-colors rounded-r-xl ${selected ? 'bg-blue-500 text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
           }`}
       >
         <span>{selected ? `${selected.code} | ${fmt(selected.rate)}` : 'UZS | 1'}</span>
@@ -449,7 +449,7 @@ function CurrencyDropdown({ value, onChange, currencies }) {
         <div className="absolute right-0 top-[calc(100%+4px)] bg-white border border-slate-200 rounded-xl shadow-xl z-[200] min-w-[170px] py-1 overflow-hidden">
           <button type="button"
             onClick={() => { onChange(''); setOpen(false); }}
-            className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between gap-3 hover:bg-slate-50 transition-colors ${!value ? 'text-indigo-600 font-semibold bg-indigo-50' : 'text-slate-700'
+            className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between gap-3 hover:bg-slate-50 transition-colors ${!value ? 'text-blue-600 font-semibold bg-blue-50' : 'text-slate-700'
               }`}>
             <span>UZS</span>
             <span className="text-xs text-slate-400">1</span>
@@ -457,7 +457,7 @@ function CurrencyDropdown({ value, onChange, currencies }) {
           {currencies.filter(c => !c.is_default).map(c => (
             <button key={c.id} type="button"
               onClick={() => { onChange(String(c.id)); setOpen(false); }}
-              className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between gap-3 hover:bg-slate-50 transition-colors ${String(value) === String(c.id) ? 'text-indigo-600 font-semibold bg-indigo-50' : 'text-slate-700'
+              className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between gap-3 hover:bg-slate-50 transition-colors ${String(value) === String(c.id) ? 'text-blue-600 font-semibold bg-blue-50' : 'text-slate-700'
                 }`}>
               <span>{c.code}</span>
               <span className="text-xs text-slate-400">{fmt(c.rate)}</span>
@@ -535,14 +535,14 @@ function BulkStockEditModal({ selectedIds, products, warehouses, onClose, onSucc
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
             <label className="block text-sm font-semibold text-slate-600 mb-1.5">Ombor tanlang *</label>
-            <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+            <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
               <option value="">— Ombor tanlang —</option>
               {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
             </select>
           </div>
           <div className="flex-1">
             <label className="block text-sm font-semibold text-slate-600 mb-1.5">Izoh (ixtiyoriy)</label>
-            <input value={note} onChange={e => setNote(e.target.value)} placeholder="Tuzatish sababi..." className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white" />
+            <input value={note} onChange={e => setNote(e.target.value)} placeholder="Tuzatish sababi..." className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
           </div>
         </div>
 
@@ -567,7 +567,7 @@ function BulkStockEditModal({ selectedIds, products, warehouses, onClose, onSucc
                         const val = e.target.value;
                         setItems(prev => prev.map((p, i) => i === idx ? { ...p, fact: val } : p));
                       }}
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
                       placeholder="0"
                     />
                   </td>
@@ -577,7 +577,7 @@ function BulkStockEditModal({ selectedIds, products, warehouses, onClose, onSucc
                         const val = e.target.value;
                         setItems(prev => prev.map((p, i) => i === idx ? { ...p, reason: val } : p));
                       }}
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="Sabab..."
                     />
                   </td>
@@ -596,7 +596,7 @@ function BulkStockEditModal({ selectedIds, products, warehouses, onClose, onSucc
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="px-5 py-2.5 text-sm font-semibold border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 transition-colors">Bekor qilish</button>
-          <button onClick={doSave} disabled={saving || !items.some(i => i.fact !== '')} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-sm transition-all">
+          <button onClick={doSave} disabled={saving || !items.some(i => i.fact !== '')} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-sm transition-all">
             {saving ? 'Saqlanmoqda...' : 'Saqlash va Yakunlash'}
           </button>
         </div>
@@ -1714,7 +1714,7 @@ export default function Products() {
           <div className='flex gap-2 flex-wrap'>
             <button
               onClick={activeTab === 'products' ? openAdd : activeTab === 'categories' ? openAddCat : openAddBl}
-              className="inline-flex leading-none cursor-pointer items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-lg shadow-sm transition-colors"
+              className="inline-flex leading-none cursor-pointer items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-blue-600 hover:bg-blue-700 text-white text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-lg shadow-sm transition-colors"
             >
               <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -1868,7 +1868,7 @@ export default function Products() {
                 </button>
                 <button
                   onClick={() => exportToTMA()}
-                  className="cursor-pointer leading-none inline-flex items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-lg transition-colors border border-indigo-200"
+                  className="cursor-pointer leading-none inline-flex items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-blue-600 hover:bg-blue-500 text-white text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-lg transition-colors border border-blue-200"
                 >
                   <Binary className='w-5 h-5' /> TM-A uchun
                 </button>
@@ -1880,7 +1880,7 @@ export default function Products() {
             <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
               {[['products', t('product.title')], ['categories', t('product.categories')], ['binloc', t('product.locations')]].map(([key, label]) => (
                 <button key={key} onClick={() => setActiveTab(key)}
-                  className={`px-2 md:px-4 leadingno cursor-pointer xl:py-1.5 py-1 rounded-lg text-[13px] xl:text-[15px] font-medium transition-all ${activeTab === key ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                  className={`px-2 md:px-4 leadingno cursor-pointer xl:py-1.5 py-1 rounded-lg text-[13px] xl:text-[15px] font-medium transition-all ${activeTab === key ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                   {label}
                 </button>
               ))}
@@ -1896,7 +1896,7 @@ export default function Products() {
         }}
         className='fixed bottom-5 group -right-12 flex justify-left items-center z-30 hover:-right-5 transition-all w-18 h-11 text-white'
       >
-        <div className='flex bg-indigo-600 items-center pl-0 group-hover:pl-2.5 transition-all w-11 h-11 rounded-lg shadow-md cursor-pointer'>
+        <div className='flex bg-blue-600 items-center pl-0 group-hover:pl-2.5 transition-all w-11 h-11 rounded-lg shadow-md cursor-pointer'>
           <ChevronDown className='size-6 rotate-90 group-hover:rotate-0 transition-all' />
         </div>
       </div>
@@ -1914,7 +1914,7 @@ export default function Products() {
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Nomi, SKU yoki barkod..."
-                className="w-full pr-2 text-[14px] xl:text-[16px] text-slate-900 outline-none focus:border-indigo-500 transition-colors"
+                className="w-full pr-2 text-[14px] xl:text-[16px] text-slate-900 outline-none focus:border-blue-500 transition-colors"
               />
             </div>
 
@@ -1922,7 +1922,7 @@ export default function Products() {
             <div className="w-full sm:w-auto min-w-[180px] flex-1 sm:flex-none">
               <Listbox value={filterCat} onChange={(val) => setFilterCat(val)}>
                 <div className="relative">
-                  <ListboxButton className="w-full cursor-pointer flex items-center px-2 py-1 xl:px-3 xl:py-2.5 justify-between rounded-lg border border-slate-200 text-[14px] xl:text-[16px] bg-white text-slate-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors shadow-xs text-left">
+                  <ListboxButton className="w-full cursor-pointer flex items-center px-2 py-1 xl:px-3 xl:py-2.5 justify-between rounded-lg border border-slate-200 text-[14px] xl:text-[16px] bg-white text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors shadow-xs text-left">
                     <span className="flex mr-0.5 sm:mr-2 items-center gap-2 sm:gap-3">
                       <Layers className="size-4 xl:size-5 shrink-0 text-slate-400" />
                       <span className="block truncate">
@@ -1932,22 +1932,22 @@ export default function Products() {
                     <ChevronsUpDown aria-hidden="true" className="shrink-0 size-4 xl:size-5 text-gray-400" />
                   </ListboxButton>
                   <ListboxOptions transition className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-md outline-0 bg-white text-base border border-slate-200 transition duration-100 ease-in data-[closed]:opacity-0 sm:text-sm shadow-lg">
-                    <ListboxOption value="" className="group relative py-1.5 xl:py-2.5 pr-7 xl:pr-9 pl-2 xl:pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-indigo-600 data-[focus]:text-white outline-hidden">
+                    <ListboxOption value="" className="group relative py-1.5 xl:py-2.5 pr-7 xl:pr-9 pl-2 xl:pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-blue-600 data-[focus]:text-white outline-hidden">
                       <div className="flex items-center gap-2 xl:gap-3">
                         <CircleCheck className="size-4 xl:size-5 shrink-0 text-gray-400 group-data-[focus]:text-white" />
                         <span className="block truncate font-normal group-data-[selected]:font-semibold">{t('product.allCategories')}</span>
                       </div>
-                      <span className="absolute inset-y-0 right-0 flex items-center pr-2 text-indigo-600 group-not-data-[selected]:hidden group-data-[focus]:text-white">
+                      <span className="absolute inset-y-0 right-0 flex items-center pr-2 text-blue-600 group-not-data-[selected]:hidden group-data-[focus]:text-white">
                         <CheckIcon aria-hidden="true" className="size-4 xl:size-5" />
                       </span>
                     </ListboxOption>
                     {categories.filter(c => !c.is_deleted).map((c) => (
-                      <ListboxOption key={c.id} value={c.id} className="group relative py-1.5 xl:py-2.5 pr-7 xl:pr-9 pl-2 xl:pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-indigo-600 data-[focus]:text-white outline-hidden">
+                      <ListboxOption key={c.id} value={c.id} className="group relative py-1.5 xl:py-2.5 pr-7 xl:pr-9 pl-2 xl:pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-blue-600 data-[focus]:text-white outline-hidden">
                         <div className="flex items-center gap-2 xl:gap-3">
                           <CircleCheck className="size-4 xl:size-5 shrink-0 text-gray-400 group-data-[focus]:text-white" />
                           <span className="block truncate font-normal group-data-[selected]:font-semibold">{c.name}</span>
                         </div>
-                        <span className="absolute inset-y-0 right-0 flex items-center pr-2 text-indigo-600 group-not-data-[selected]:hidden group-data-[focus]:text-white">
+                        <span className="absolute inset-y-0 right-0 flex items-center pr-2 text-blue-600 group-not-data-[selected]:hidden group-data-[focus]:text-white">
                           <CheckIcon aria-hidden="true" className="size-4 xl:size-5" />
                         </span>
                       </ListboxOption>
@@ -1961,7 +1961,7 @@ export default function Products() {
             <div className="w-full sm:w-auto min-w-[160px] flex-1 sm:flex-none">
               <Listbox value={filterStatus} onChange={(val) => setFilterStatus(val)}>
                 <div className="relative">
-                  <ListboxButton className="w-full cursor-pointer flex items-center px-2 py-1 xl:px-3 xl:py-2.5 justify-between rounded-lg border border-slate-200 text-[14px] xl:text-[16px] bg-white text-slate-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors shadow-xs text-left">
+                  <ListboxButton className="w-full cursor-pointer flex items-center px-2 py-1 xl:px-3 xl:py-2.5 justify-between rounded-lg border border-slate-200 text-[14px] xl:text-[16px] bg-white text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors shadow-xs text-left">
                     <span className="flex mr-0.5 sm:mr-2 items-center gap-2 sm:gap-3">
                       <Flame className="size-4 xl:size-5 shrink-0 text-slate-400" />
                       <span className="block truncate">
@@ -1979,12 +1979,12 @@ export default function Products() {
                       { value: "inactive", label: t('admin.dict.inactive') || 'Nofaol' },
                       { value: "archived", label: t('product.archived') }
                     ].map((item) => (
-                      <ListboxOption key={item.value} value={item.value} className="group relative py-1.5 xl:py-2.5 pr-7 xl:pr-9 pl-2 xl:pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-indigo-600 data-[focus]:text-white outline-hidden">
+                      <ListboxOption key={item.value} value={item.value} className="group relative py-1.5 xl:py-2.5 pr-7 xl:pr-9 pl-2 xl:pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-blue-600 data-[focus]:text-white outline-hidden">
                         <div className="flex items-center gap-2">
                           <CircleCheck className="size-4 xl:size-5 shrink-0 text-gray-400 group-data-[focus]:text-white" />
                           <span className="block truncate font-normal group-data-[selected]:font-semibold">{item.label}</span>
                         </div>
-                        <span className="absolute inset-y-0 right-0 flex items-center pr-2 text-indigo-600 group-not-data-[selected]:hidden group-data-[focus]:text-white">
+                        <span className="absolute inset-y-0 right-0 flex items-center pr-2 text-blue-600 group-not-data-[selected]:hidden group-data-[focus]:text-white">
                           <CheckIcon aria-hidden="true" className="size-4 xl:size-5" />
                         </span>
                       </ListboxOption>
@@ -1999,10 +1999,10 @@ export default function Products() {
               <div className="w-full sm:w-auto min-w-[180px] flex-1 sm:flex-none">
                 <Listbox value={filterWarehouse} onChange={(val) => setFilterWarehouse(val)}>
                   <div className="relative">
-                    <ListboxButton className={`w-full cursor-pointer flex items-center px-2 py-1 xl:px-3 xl:py-2.5 justify-between rounded-lg border text-[14px] xl:text-[16px] bg-white outline-none focus:ring-1 focus:ring-indigo-500 transition-colors shadow-xs text-left ${filterWarehouse ? 'border-indigo-400 text-indigo-700 font-semibold bg-indigo-50/10' : 'border-slate-200 text-slate-900'
+                    <ListboxButton className={`w-full cursor-pointer flex items-center px-2 py-1 xl:px-3 xl:py-2.5 justify-between rounded-lg border text-[14px] xl:text-[16px] bg-white outline-none focus:ring-1 focus:ring-blue-500 transition-colors shadow-xs text-left ${filterWarehouse ? 'border-blue-400 text-blue-700 font-semibold bg-blue-50/10' : 'border-slate-200 text-slate-900'
                       }`}>
                       <span className="flex mr-0.5 sm:mr-2 items-center gap-2 sm:gap-3">
-                        <Warehouse className={`size-4 xl:size-5 shrink-0 ${filterWarehouse ? 'text-indigo-500' : 'text-slate-400'}`} />
+                        <Warehouse className={`size-4 xl:size-5 shrink-0 ${filterWarehouse ? 'text-blue-500' : 'text-slate-400'}`} />
                         <span className="block truncate">
                           {warehouses.find(w => String(w.id) === String(filterWarehouse))?.name || t('common.allWarehouses')}
                         </span>
@@ -2010,22 +2010,22 @@ export default function Products() {
                       <ChevronsUpDown aria-hidden="true" className="size-4 xl:size-5 text-gray-400" />
                     </ListboxButton>
                     <ListboxOptions transition className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-md outline-0 bg-white text-base border border-slate-200 transition duration-100 ease-in data-[closed]:opacity-0 sm:text-sm shadow-lg">
-                      <ListboxOption value="" className="group relative py-1.5 xl:py-2.5 pr-7 xl:pr-9 pl-2 xl:pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-indigo-600 data-[focus]:text-white outline-hidden">
+                      <ListboxOption value="" className="group relative py-1.5 xl:py-2.5 pr-7 xl:pr-9 pl-2 xl:pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-blue-600 data-[focus]:text-white outline-hidden">
                         <div className="flex items-center gap-2">
                           <CircleCheck className="size-4 xl:size-5 shrink-0 text-gray-400 group-data-[focus]:text-white" />
                           <span className="block truncate font-normal group-data-[selected]:font-semibold">{t('common.allWarehouses')}</span>
                         </div>
-                        <span className="absolute inset-y-0 right-0 flex items-center pr-2 text-indigo-600 group-not-data-[selected]:hidden group-data-[focus]:text-white">
+                        <span className="absolute inset-y-0 right-0 flex items-center pr-2 text-blue-600 group-not-data-[selected]:hidden group-data-[focus]:text-white">
                           <CheckIcon aria-hidden="true" className="size-4 xl:size-5" />
                         </span>
                       </ListboxOption>
                       {warehouses.map((w) => (
-                        <ListboxOption key={w.id} value={w.id} className="group relative py-1.5 xl:py-2.5 pr-7 xl:pr-9 pl-2 xl:pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-indigo-600 data-[focus]:text-white outline-hidden">
+                        <ListboxOption key={w.id} value={w.id} className="group relative py-1.5 xl:py-2.5 pr-7 xl:pr-9 pl-2 xl:pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-blue-600 data-[focus]:text-white outline-hidden">
                           <div className="flex items-center gap-2">
                             <CircleCheck className="size-4 xl:size-5 shrink-0 text-gray-400 group-data-[focus]:text-white" />
                             <span className="block truncate font-normal group-data-[selected]:font-semibold">{w.name}</span>
                           </div>
-                          <span className="absolute inset-y-0 right-0 flex items-center pr-2 text-indigo-600 group-not-data-[selected]:hidden group-data-[focus]:text-white">
+                          <span className="absolute inset-y-0 right-0 flex items-center pr-2 text-blue-600 group-not-data-[selected]:hidden group-data-[focus]:text-white">
                             <CheckIcon aria-hidden="true" className="size-4 xl:size-5" />
                           </span>
                         </ListboxOption>
@@ -2039,7 +2039,7 @@ export default function Products() {
             <div className="w-full sm:w-auto min-w-[160px] flex-1 sm:flex-none">
               <Listbox value={filterMeasure} onChange={(val) => setFilterMeasure(val)}>
                 <div className="relative">
-                  <ListboxButton className="w-full cursor-pointer flex items-center px-2 py-1 xl:px-3 xl:py-2.5 justify-between rounded-lg border border-slate-200 text-[14px] xl:text-[16px] bg-white text-slate-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors shadow-xs text-left">
+                  <ListboxButton className="w-full cursor-pointer flex items-center px-2 py-1 xl:px-3 xl:py-2.5 justify-between rounded-lg border border-slate-200 text-[14px] xl:text-[16px] bg-white text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors shadow-xs text-left">
                     <span className="flex mr-0.5 sm:mr-2 items-center gap-2 sm:gap-3">
                       <PencilRuler className="size-4 xl:size-5 shrink-0 text-slate-400" />
                       <span className="block truncate">
@@ -2059,12 +2059,12 @@ export default function Products() {
                       { value: "litr", label: 'Litr' },
                       { value: "metr", label: 'Metr' }
                     ].map((item) => (
-                      <ListboxOption key={item.value} value={item.value} className="group relative py-1.5 xl:py-2.5 pr-7 xl:pr-9 pl-2 xl:pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-indigo-600 data-[focus]:text-white outline-hidden">
+                      <ListboxOption key={item.value} value={item.value} className="group relative py-1.5 xl:py-2.5 pr-7 xl:pr-9 pl-2 xl:pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-blue-600 data-[focus]:text-white outline-hidden">
                         <div className="flex items-center gap-2">
                           <CircleCheck className="size-4 xl:size-5 shrink-0 text-gray-400 group-data-[focus]:text-white" />
                           <span className="block truncate font-normal group-data-[selected]:font-semibold">{item.label}</span>
                         </div>
-                        <span className="absolute inset-y-0 right-0 flex items-center pr-2 text-indigo-600 group-not-data-[selected]:hidden group-data-[focus]:text-white">
+                        <span className="absolute inset-y-0 right-0 flex items-center pr-2 text-blue-600 group-not-data-[selected]:hidden group-data-[focus]:text-white">
                           <CheckIcon aria-hidden="true" className="size-4 xl:size-5" />
                         </span>
                       </ListboxOption>
@@ -2077,7 +2077,7 @@ export default function Products() {
             <div className="w-full sm:w-auto min-w-[160px] flex-1 sm:flex-none">
               <Listbox value={filterStock} onChange={(val) => setFilterStock(val)}>
                 <div className="relative">
-                  <ListboxButton className="w-full cursor-pointer flex items-center px-2 py-1 xl:px-3 xl:py-2.5 justify-between rounded-lg border border-slate-200 text-[14px] xl:text-[16px] bg-white text-slate-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors shadow-xs text-left">
+                  <ListboxButton className="w-full cursor-pointer flex items-center px-2 py-1 xl:px-3 xl:py-2.5 justify-between rounded-lg border border-slate-200 text-[14px] xl:text-[16px] bg-white text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors shadow-xs text-left">
                     <span className="flex mr-0.5 sm:mr-2 items-center gap-2 sm:gap-3">
                       <Box className="size-4 xl:size-5 shrink-0 text-slate-400" />
                       <span className="block truncate">
@@ -2095,12 +2095,12 @@ export default function Products() {
                       { value: "kam-qolgan", label: 'Kam qolgan' },
                       { value: "minusda", label: '0 dan kam' },
                     ].map((item) => (
-                      <ListboxOption key={item.value} value={item.value} className="group relative py-1.5 xl:py-2.5 pr-7 xl:pr-9 pl-2 xl:pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-indigo-600 data-[focus]:text-white outline-hidden">
+                      <ListboxOption key={item.value} value={item.value} className="group relative py-1.5 xl:py-2.5 pr-7 xl:pr-9 pl-2 xl:pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-blue-600 data-[focus]:text-white outline-hidden">
                         <div className="flex items-center gap-2">
                           <CircleCheck className="size-4 xl:size-5 shrink-0 text-gray-400 group-data-[focus]:text-white" />
                           <span className="block truncate font-normal group-data-[selected]:font-semibold">{item.label}</span>
                         </div>
-                        <span className="absolute inset-y-0 right-0 flex items-center pr-2 text-indigo-600 group-not-data-[selected]:hidden group-data-[focus]:text-white">
+                        <span className="absolute inset-y-0 right-0 flex items-center pr-2 text-blue-600 group-not-data-[selected]:hidden group-data-[focus]:text-white">
                           <CheckIcon aria-hidden="true" className="size-4 xl:size-5" />
                         </span>
                       </ListboxOption>
@@ -2127,9 +2127,9 @@ export default function Products() {
                 }}
               >
                 <div className="relative">
-                  <ListboxButton className="w-full cursor-pointer flex items-center px-2 py-1 xl:px-3 xl:py-2.5 justify-between rounded-lg border border-slate-200 text-[14px] xl:text-[16px] bg-white text-slate-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors shadow-xs text-left">
+                  <ListboxButton className="w-full cursor-pointer flex items-center px-2 py-1 xl:px-3 xl:py-2.5 justify-between rounded-lg border border-slate-200 text-[14px] xl:text-[16px] bg-white text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors shadow-xs text-left">
                     <span className="flex mr-0.5 sm:mr-2 items-center gap-2 sm:gap-3">
-                      <BarChart3 className={`size-4 xl:size-5 shrink-0 ${sortBy ? 'text-indigo-600' : 'text-slate-400'}`} />
+                      <BarChart3 className={`size-4 xl:size-5 shrink-0 ${sortBy ? 'text-blue-600' : 'text-slate-400'}`} />
                       <span className="block truncate">
                         {(() => {
                           if (!sortBy) return 'Saralash';
@@ -2161,11 +2161,11 @@ export default function Products() {
                       { value: 'profit|asc', label: 'Foyda marjasi ↑' },
                       { value: 'profit|desc', label: 'Foyda marjasi ↓' },
                     ].map((item) => (
-                      <ListboxOption key={item.value} value={item.value} className="group relative py-2 pr-7 xl:pr-9 pl-2 xl:pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-indigo-600 data-[focus]:text-white outline-hidden border-b border-slate-50 last:border-0">
+                      <ListboxOption key={item.value} value={item.value} className="group relative py-2 pr-7 xl:pr-9 pl-2 xl:pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-blue-600 data-[focus]:text-white outline-hidden border-b border-slate-50 last:border-0">
                         <div className="flex items-center gap-2">
                           <span className="block truncate font-normal group-data-[selected]:font-semibold text-[13px] xl:text-[15px]">{item.label}</span>
                         </div>
-                        <span className="absolute inset-y-0 right-0 flex items-center pr-2 text-indigo-600 group-not-data-[selected]:hidden group-data-[focus]:text-white">
+                        <span className="absolute inset-y-0 right-0 flex items-center pr-2 text-blue-600 group-not-data-[selected]:hidden group-data-[focus]:text-white">
                           <CheckIcon aria-hidden="true" className="size-4" />
                         </span>
                       </ListboxOption>
@@ -2194,7 +2194,7 @@ export default function Products() {
             <div className="relative w-full sm:w-auto">
               <button
                 onClick={() => setMassActionsOpen(o => !o)}
-                className="w-full sm:w-auto px-5 py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm font-semibold rounded-lg transition-colors inline-flex items-center justify-between sm:justify-start gap-2 shrink-0 border border-indigo-100 cursor-pointer"
+                className="w-full sm:w-auto px-5 py-3 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-semibold rounded-lg transition-colors inline-flex items-center justify-between sm:justify-start gap-2 shrink-0 border border-blue-100 cursor-pointer"
               >
                 <span>Ommaviy amallar ({selectedIds.length})</span>
                 <svg className={`w-4 h-4 transition-transform ${massActionsOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2214,9 +2214,9 @@ export default function Products() {
                         }
                         setMassActionsOpen(false); setBulkStockModal(true);
                       }}
-                      className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors flex items-center gap-2.5 cursor-pointer"
+                      className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors flex items-center gap-2.5 cursor-pointer"
                     >
-                      <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                      <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
                       Qoldiqni tahrirlash
                     </button>
                     <div className="border-t border-slate-100 my-1" />
@@ -2237,7 +2237,7 @@ export default function Products() {
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
             {loading ? (
               <div className="flex justify-center py-20">
-                <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
               </div>
             ) : (
               <div className="flex flex-col h-full">
@@ -2263,7 +2263,7 @@ export default function Products() {
                           <input type="checkbox"
                             checked={totalRecords > 0 && selectedIds.length === totalRecords}
                             onChange={handleSelectAll}
-                            className="w-3 h-3 xl:w-4 xl:h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                            className="w-3 h-3 xl:w-4 xl:h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
                           />
                         </th>
                         {['T/r', t('product.thImage'), t('product.thProduct'), t('product.category'), t('product.thUnit'), t('product.thCost'), t('product.thWholesale'), t('product.thRetail'), t('product.stock'), t('common.status'), ''].map(h => (
@@ -2276,7 +2276,7 @@ export default function Products() {
                         const thumb = (Array.isArray(p.images) && p.images[0]) || p.image_url;
                         const rowNumber = (page - 1) * limit + (idx + 1);
                         return (
-                          <tr key={p.id} className={`hover:bg-indigo-50/30 transition-colors ${selectedIds.includes(p.id) ? 'bg-indigo-50/50' : ''}`}>
+                          <tr key={p.id} className={`hover:bg-blue-50/30 transition-colors ${selectedIds.includes(p.id) ? 'bg-blue-50/50' : ''}`}>
 
                             <td className="px-3 py-3">
                               <input type="checkbox"
@@ -2285,7 +2285,7 @@ export default function Products() {
                                   if (e.target.checked) setSelectedIds(s => [...s, p.id]);
                                   else setSelectedIds(s => s.filter(id => id !== p.id));
                                 }}
-                                className="w-3 h-3 xl:w-4 xl:h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                                className="w-3 h-3 xl:w-4 xl:h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
                               />
                             </td>
 
@@ -2305,10 +2305,10 @@ export default function Products() {
                             </td>
                             <td className="md:table-cell px-1 py-3 min-w-50">
                               <button onClick={() => openHistory(p)}
-                                className="text-sm font-bold text-indigo-600 hover:text-indigo-800 hover:underline text-left w-full block">
+                                className="text-sm font-bold text-blue-600 hover:text-blue-800 hover:underline text-left w-full block">
                                 <span className="truncate block min-w-50 text-[14px] lg:text-[16px]">{p.name}</span>
                                 {p.product_type === 'sell' && p.conversion && (
-                                  <span className="text-xs text-indigo-400 font-medium block truncate no-underline">
+                                  <span className="text-xs text-blue-400 font-medium block truncate no-underline">
                                     (Tarkibiy → {p.conversion.source_product_name})
                                   </span>
                                 )}
@@ -2327,11 +2327,11 @@ export default function Products() {
                                       <div key={i} className="text-[10px] font-mono text-slate-500 truncate">+ {b}</div>
                                     ))}
                                     {p.extra_barcodes.length > 2 && (
-                                      <div className="text-[10px] text-indigo-400">+{p.extra_barcodes.length - 2} ta</div>
+                                      <div className="text-[10px] text-blue-400">+{p.extra_barcodes.length - 2} ta</div>
                                     )}
                                   </div>
                                 )}
-                                <span className="text-[8px] xl:text-[9px] text-indigo-500 truncate">{p.sku}</span>
+                                <span className="text-[8px] xl:text-[9px] text-blue-500 truncate">{p.sku}</span>
                               </div>
                               {p.bin_location && <div className="text-xs text-slate-400 mt-0.5 truncate">📍 {p.bin_location}</div>}
                             </td>
@@ -2369,7 +2369,7 @@ export default function Products() {
                                   <div className="flex flex-col gap-0.5 mt-0.5">
                                     {p.warehouse_stocks.map((ws, idx) => {
                                       const colors = [
-                                        'bg-indigo-50 text-indigo-700 border-indigo-100',
+                                        'bg-blue-50 text-blue-700 border-blue-100',
                                         'bg-emerald-50 text-emerald-700 border-emerald-100',
                                         'bg-violet-50 text-violet-700 border-violet-100',
                                         'bg-amber-50 text-amber-700 border-amber-100',
@@ -2466,7 +2466,7 @@ export default function Products() {
                           }}
                         >
                           <div className="relative min-w-[90px] sm:min-w-[120px]">
-                            <ListboxButton className="w-full cursor-pointer flex items-center py-1 px-2 xl:px-3 xl:py-1.5 justify-between rounded-lg border border-slate-200 text-[13px] xl:text-[14px] bg-white text-slate-900 outline-none hover:border-indigo-400 focus:border-indigo-500 transition-colors shadow-sm text-left">
+                            <ListboxButton className="w-full cursor-pointer flex items-center py-1 px-2 xl:px-3 xl:py-1.5 justify-between rounded-lg border border-slate-200 text-[13px] xl:text-[14px] bg-white text-slate-900 outline-none hover:border-blue-400 focus:border-blue-500 transition-colors shadow-sm text-left">
                               <span className="flex items-center gap-2">
                                 <ListOrdered className="size-4 shrink-0 text-slate-400" />
                                 <span>{limit} {t('common.item')}</span>
@@ -2478,9 +2478,9 @@ export default function Products() {
                               className="z-50 min-w-[120px] mb-1 overflow-auto rounded-xl bg-white border border-slate-200 p-1 shadow-2xl focus:outline-none [--anchor-gap:4px]"
                             >
                               {[5, 10, 20, 50, 100, 500].map((n) => (
-                                <ListboxOption key={n} value={n} className="group flex cursor-pointer items-center gap-2 rounded-lg py-2 px-3 select-none data-[focus]:bg-indigo-50">
-                                  <CheckIcon className="size-4 text-indigo-600 group-not-data-[selected]:invisible" />
-                                  <div className="text-[13px] font-medium text-slate-700 group-data-[selected]:text-indigo-700">{n} {t('common.item')}</div>
+                                <ListboxOption key={n} value={n} className="group flex cursor-pointer items-center gap-2 rounded-lg py-2 px-3 select-none data-[focus]:bg-blue-50">
+                                  <CheckIcon className="size-4 text-blue-600 group-not-data-[selected]:invisible" />
+                                  <div className="text-[13px] font-medium text-slate-700 group-data-[selected]:text-blue-700">{n} {t('common.item')}</div>
                                 </ListboxOption>
                               ))}
                             </ListboxOptions>
@@ -2500,11 +2500,11 @@ export default function Products() {
             {/* Chakana Narxi Stats */}
             <div className="relative group overflow-hidden bg-white rounded-2xl border border-slate-200 p-3 md:p-5 shadow-sm hover:shadow-md transition-all duration-300">
               <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                <Banknote size={80} className="text-indigo-600 scale-55 md:scale-70 xl:scale-100 rotate-12" />
+                <Banknote size={80} className="text-blue-600 scale-55 md:scale-70 xl:scale-100 rotate-12" />
               </div>
               <div className="flex flex-col h-full justify-between relative z-10">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 shadow-xs border border-indigo-100">
+                  <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shadow-xs border border-blue-100">
                     <Banknote size={22} className='scale-70' />
                   </div>
                   <span className="text-[10px] md:text-[13px] xl:text-[14px] font-bold text-slate-500 uppercase tracking-tight">Chakana qiymati</span>
@@ -2525,7 +2525,7 @@ export default function Products() {
                   )}
                 </div>
               </div>
-              <div className="absolute bottom-0 left-0 w-full h-0.5 md:h-1 bg-indigo-500/20  group-hover:h-1 md:group-hover:h-1.5 transition-all" />
+              <div className="absolute bottom-0 left-0 w-full h-0.5 md:h-1 bg-blue-500/20  group-hover:h-1 md:group-hover:h-1.5 transition-all" />
             </div>
 
             {/* Ulgurji Narxi Stats */}
@@ -2599,7 +2599,7 @@ export default function Products() {
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-6 border-b border-slate-100">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 shadow-xs border border-indigo-100">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shadow-xs border border-blue-100">
                 <Layers size={21} />
               </div>
               <div>
@@ -2608,7 +2608,7 @@ export default function Products() {
               </div>
             </div>
             <button onClick={openAddCat}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[13px] sm:text-sm font-bold rounded-xl transition-all shadow-sm active:scale-[0.98]">
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-[13px] sm:text-sm font-bold rounded-xl transition-all shadow-sm active:scale-[0.98]">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
               </svg>
@@ -2627,11 +2627,11 @@ export default function Products() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {categories.map(c => (
-                  <tr key={c.id} className="hover:bg-indigo-50/20 transition-colors group">
+                  <tr key={c.id} className="hover:bg-blue-50/20 transition-colors group">
                     <td className="px-6 py-4 text-xs text-slate-400 font-mono">#{c.id}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-indigo-400 shrink-0" />
+                        <div className="w-2 h-2 rounded-full bg-blue-400 shrink-0" />
                         <span className="text-[13px] font-semibold text-slate-800">{c.name}</span>
                       </div>
                     </td>
@@ -2643,13 +2643,13 @@ export default function Products() {
                       {new Date(c.created_at).toLocaleDateString('uz-UZ')}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold ${(c.products_count || 0) > 0 ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold ${(c.products_count || 0) > 0 ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'}`}>
                         {c.products_count || 0} ta
                       </span>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEditCat(c)} className="p-2 cursor-pointer text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors" title="Tahrirlash">
+                        <button onClick={() => openEditCat(c)} className="p-2 cursor-pointer text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title="Tahrirlash">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
@@ -2715,12 +2715,12 @@ export default function Products() {
                 {binLocations.map(b => (
                   <tr key={b.id} className="hover:bg-emerald-50/20 transition-colors group">
                     <td className="px-6 py-4">
-                      <span className="inline-flex px-3 py-1 bg-indigo-50 text-indigo-700 text-[13px] font-mono font-bold rounded-lg border border-indigo-100">{b.code}</span>
+                      <span className="inline-flex px-3 py-1 bg-blue-50 text-blue-700 text-[13px] font-mono font-bold rounded-lg border border-blue-100">{b.code}</span>
                     </td>
                     <td className="px-6 py-4 text-[13px] text-slate-600 font-medium">{b.label || <span className="text-slate-300 italic">Tavsif yo&apos;q</span>}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => openEditBl(b)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors" title="Tahrirlash">
+                        <button onClick={() => openEditBl(b)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title="Tahrirlash">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
@@ -2786,7 +2786,7 @@ export default function Products() {
                       setForm(f => ({ ...f, product_type: 'stock', conversion_source_id: '', conversion_source_name: '', conversion_ratio: 1 }));
                     }}
                     className={`flex-1 px-4 py-2 lg:py-3 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 transition-all ${form.product_type === 'stock'
-                      ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/60 ring-1 ring-indigo-500/10'
+                      ? 'bg-white text-blue-700 shadow-sm border border-slate-200/60 ring-1 ring-blue-500/10'
                       : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700 border border-transparent'
                       }`}
                   >
@@ -2838,13 +2838,13 @@ export default function Products() {
                 )}
 
                 {selected?.sell_conversions?.length > 0 && form.product_type === 'stock' && (
-                  <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 mb-2 animate-fadeIn">
-                    <h4 className="text-sm font-bold text-indigo-900 mb-2">Bu mahsulotning tarkibiy qismlari (Kalkulyatsiya):</h4>
+                  <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 mb-2 animate-fadeIn">
+                    <h4 className="text-sm font-bold text-blue-900 mb-2">Bu mahsulotning tarkibiy qismlari (Kalkulyatsiya):</h4>
                     <div className="flex flex-col gap-1.5">
                       {selected.sell_conversions.map(c => (
-                        <div key={c.id} className="text-sm text-indigo-700 flex justify-between items-center bg-white px-3 py-1.5 rounded-lg shadow-sm border border-indigo-50">
+                        <div key={c.id} className="text-sm text-blue-700 flex justify-between items-center bg-white px-3 py-1.5 rounded-lg shadow-sm border border-blue-50">
                           <span className="font-medium">{c.sell_product_name}</span>
-                          <span className="text-xs font-bold px-2 py-0.5 bg-indigo-100 rounded-md">Nisbat: {c.ratio}</span>
+                          <span className="text-xs font-bold px-2 py-0.5 bg-blue-100 rounded-md">Nisbat: {c.ratio}</span>
                         </div>
                       ))}
                     </div>
@@ -2864,7 +2864,7 @@ export default function Products() {
                 {/* ── PRICES BLOCK (Moved from below) ── */}
                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-5 shadow-sm space-y-4">
                   <h4 className="text-sm font-bold text-slate-800 border-b border-slate-200 pb-3 flex items-center gap-2">
-                    <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     Narxlar va Foyda
                   </h4>
                   {/* Prices — each field has its own currency dropdown */}
@@ -2874,7 +2874,7 @@ export default function Products() {
                       {/* Tan narxi */}
                       <div>
                         <label className="block text-sm font-semibold text-slate-600 mb-1.5">{t('product.costPriceLabel')}</label>
-                        <div className="flex rounded-lg border border-slate-200 focus-within:ring-2 focus-within:ring-indigo-500 bg-white shadow-sm">
+                        <div className="flex rounded-lg border border-slate-200 focus-within:ring-2 focus-within:ring-blue-500 bg-white shadow-sm">
                           <input type="text" inputMode="decimal"
                             className="flex-1 min-w-0 px-3 py-3 text-base font-medium focus:outline-none bg-transparent rounded-l-lg"
                             value={fmtPrice(form.cost_price)}
@@ -2897,7 +2897,7 @@ export default function Products() {
                       {/* Ulgurji narxi */}
                       <div>
                         <label className="block text-sm font-semibold text-slate-600 mb-1.5">{t('product.wholesalePriceLabel')}</label>
-                        <div className="flex rounded-lg border border-slate-200 focus-within:ring-2 focus-within:ring-indigo-500 bg-white shadow-sm">
+                        <div className="flex rounded-lg border border-slate-200 focus-within:ring-2 focus-within:ring-blue-500 bg-white shadow-sm">
                           <input type="text" inputMode="decimal"
                             className="flex-1 min-w-0 px-3 py-3 text-base font-medium focus:outline-none bg-transparent rounded-l-lg"
                             value={fmtPrice(form.wholesale_price)}
@@ -2924,7 +2924,7 @@ export default function Products() {
                         {t('product.retailPriceLabel')} <span className="text-red-500">*</span>
                         <span className="ml-2 text-xs font-normal text-slate-400">{t('product.mainSalePrice')}</span>
                       </label>
-                      <div className={`flex rounded-lg border focus-within:ring-2 focus-within:ring-indigo-500 bg-white shadow-sm ${(form.sale_price === '' || form.sale_price === null) && error ? 'border-red-400 ring-1 ring-red-400' : 'border-slate-300'
+                      <div className={`flex rounded-lg border focus-within:ring-2 focus-within:ring-blue-500 bg-white shadow-sm ${(form.sale_price === '' || form.sale_price === null) && error ? 'border-red-400 ring-1 ring-red-400' : 'border-slate-300'
                         }`}>
                         <input type="text" inputMode="decimal"
                           className="flex-1 min-w-0 px-3 py-3 text-base font-medium text-slate-800 focus:outline-none bg-transparent rounded-l-lg"
@@ -2940,7 +2940,7 @@ export default function Products() {
                       {form.sale_price_cur && (() => {
                         const cur = currencies.find(c => String(c.id) === form.sale_price_cur);
                         return cur && form.sale_price ? (
-                          <p className="text-sm text-indigo-600 mt-2 font-bold">≈ {fmt(Math.round(Number(form.sale_price) * Number(cur.rate)))} {t('common.sum')}</p>
+                          <p className="text-sm text-blue-600 mt-2 font-bold">≈ {fmt(Math.round(Number(form.sale_price) * Number(cur.rate)))} {t('common.sum')}</p>
                         ) : null;
                       })()}
                     </div>
@@ -2948,8 +2948,8 @@ export default function Products() {
 
                   {/* UZS preview & Margin hint combined */}
                   {((form.cost_price_cur || form.sale_price_cur || form.wholesale_price_cur) && (form.cost_price || form.sale_price || form.wholesale_price)) && (
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
-                      <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-indigo-900">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                      <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-blue-900">
                         <span className="font-bold flex items-center gap-1.5">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
                           {t('product.uzsPreview')}
@@ -2962,7 +2962,7 @@ export default function Products() {
                         const costUZS = Number(form.cost_price) * getRate(form.cost_price_cur);
                         const saleUZS = Number(form.sale_price) * getRate(form.sale_price_cur);
                         return (
-                          <div className="shrink-0 text-sm bg-white px-3 py-1.5 rounded-lg border border-indigo-100 shadow-sm text-indigo-700 font-medium">
+                          <div className="shrink-0 text-sm bg-white px-3 py-1.5 rounded-lg border border-blue-100 shadow-sm text-blue-700 font-medium">
                             Margin: <strong>{(((saleUZS - costUZS) / saleUZS) * 100).toFixed(1)}%</strong>
                             &nbsp;|&nbsp; Foyda: <strong>{fmt(Math.round(saleUZS - costUZS))} so'm</strong>
                           </div>
@@ -3046,7 +3046,7 @@ export default function Products() {
                       <Field label="Birlamchi shtrix kod" required>
                         <div className="flex gap-2">
                           <select
-                            className="px-2 py-3 border border-slate-200 rounded-lg text-xs font-semibold bg-wxhite focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-700 shrink-0"
+                            className="px-2 py-3 border border-slate-200 rounded-lg text-xs font-semibold bg-wxhite focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700 shrink-0"
                             value={form.barcode_format}
                             onChange={e => setForm({ ...form, barcode_format: e.target.value, barcode: genBarcodeByFormat(e.target.value) })}
                           >
@@ -3080,7 +3080,7 @@ export default function Products() {
                           />
                           <button type="button" onClick={() => setForm({ ...form, barcode: genBarcodeByFormat(form.barcode_format) })}
                             title="Yangi barcode"
-                            className="px-4 py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg transition-colors shrink-0">
+                            className="px-4 py-3 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors shrink-0">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                             </svg>
@@ -3097,7 +3097,7 @@ export default function Products() {
                       <button
                         type="button"
                         onClick={() => setForm(f => ({ ...f, extra_barcodes: [...(f.extra_barcodes || []), ''] }))}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-semibold rounded-lg transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-semibold rounded-lg transition-colors"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -3113,7 +3113,7 @@ export default function Products() {
                           <span className="text-xs text-slate-400 font-mono w-5 shrink-0">{idx + 2}.</span>
                           <input
                             id={`extra-bc-${idx}`}
-                            className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
                             value={bc}
                             autoFocus={idx === (form.extra_barcodes || []).length - 1 && bc === ''}
                             onChange={e => {
@@ -3155,13 +3155,13 @@ export default function Products() {
                   </div>
 
                   {/* Extra product codes */}
-                  <div className="border border-indigo-100 rounded-lg p-4 space-y-2 bg-indigo-50/30">
+                  <div className="border border-blue-100 rounded-lg p-4 space-y-2 bg-blue-50/30">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-semibold text-slate-600">Qo'shimcha maxsus kodlar</span>
                       <button
                         type="button"
                         onClick={() => setForm(f => ({ ...f, extra_product_codes: [...(f.extra_product_codes || []), ''] }))}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-semibold rounded-lg transition-colors border border-indigo-200"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-semibold rounded-lg transition-colors border border-blue-200"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -3177,7 +3177,7 @@ export default function Products() {
                           <span className="text-xs text-slate-400 font-mono w-5 shrink-0">{idx + 1}.</span>
                           <input
                             id={`extra-pc-${idx}`}
-                            className="flex-1 px-3 py-2 border border-indigo-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                            className="flex-1 px-3 py-2 border border-blue-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                             value={pc}
                             autoFocus={idx === (form.extra_product_codes || []).length - 1 && pc === ''}
                             onChange={e => {
@@ -3255,7 +3255,7 @@ export default function Products() {
                     </select>
                     <button type="button" onClick={openAddBl}
                       title={t('product.addBinTitle')}
-                      className="px-3 py-3 bg-slate-100 hover:bg-indigo-100 text-slate-600 hover:text-indigo-600 rounded-xl transition-colors shrink-0">
+                      className="px-3 py-3 bg-slate-100 hover:bg-blue-100 text-slate-600 hover:text-blue-600 rounded-xl transition-colors shrink-0">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
                       </svg>
@@ -3300,7 +3300,7 @@ export default function Products() {
                         type="button"
                         title={t('product.addCategoryTitle')}
                         onClick={() => { openAddCat(); }}
-                        className="shrink-0 cursor-pointer w-11 h-11 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold text-xl rounded-xl border-2 border-indigo-100 hover:border-indigo-300 transition-all"
+                        className="shrink-0 cursor-pointer w-11 h-11 flex items-center justify-center bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold text-xl rounded-xl border-2 border-blue-100 hover:border-blue-300 transition-all"
                       >+</button>
                     </div>
                   </Field>
@@ -3323,7 +3323,7 @@ export default function Products() {
                 {t('product.cancelAction')}
               </button>
               <button type="submit" disabled={saving}
-                className="flex-1 py-3 bg-indigo-600 cursor-pointer hover:bg-indigo-700 disabled:opacity-60 text-white font-bold text-base rounded-xl transition-colors">
+                className="flex-1 py-3 bg-blue-600 cursor-pointer hover:bg-blue-700 disabled:opacity-60 text-white font-bold text-base rounded-xl transition-colors">
                 {saving ? t('common.saving') : t('common.save')}
               </button>
             </div>
@@ -3357,7 +3357,7 @@ export default function Products() {
               <button type="button" onClick={closeCatModal}
                 className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
               <button type="submit" disabled={catSaving}
-                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
+                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
                 {catSaving ? t('common.saving') : t('common.save')}
               </button>
             </div>
@@ -3384,7 +3384,7 @@ export default function Products() {
               <button type="button" onClick={closeBlModal}
                 className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
               <button type="submit" disabled={blSaving}
-                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
+                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
                 {blSaving ? t('common.saving') : t('common.save')}
               </button>
             </div>
@@ -3404,8 +3404,8 @@ export default function Products() {
                     : (histProduct.images?.[0] || histProduct.image_url)}
                   alt="" className="w-14 h-14 rounded-xl object-cover shrink-0 border border-slate-200" />
               ) : (
-                <div className="w-14 h-14 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
-                  <svg className="w-7 h-7 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-14 h-14 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+                  <svg className="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                   </svg>
                 </div>
@@ -3416,7 +3416,7 @@ export default function Products() {
                   Barkod: <span className="font-mono">{histProduct.barcode}</span>
                   &nbsp;·&nbsp; SKU: {histProduct.sku}
                   {histProduct.bin_location && <>&nbsp;·&nbsp; Joylashuv: <span className="font-medium">{histProduct.bin_location}</span></>}
-                  &nbsp;·&nbsp; Qoldiq: <span className="font-bold text-indigo-600">{fmt(histProduct.stock_quantity)} {histProduct.unit}</span>
+                  &nbsp;·&nbsp; Qoldiq: <span className="font-bold text-blue-600">{fmt(histProduct.stock_quantity)} {histProduct.unit}</span>
                 </div>
               </div>
               <div className="text-right shrink-0">
@@ -3427,7 +3427,7 @@ export default function Products() {
 
             {histLoading ? (
               <div className="flex justify-center py-10">
-                <div className="w-7 h-7 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                <div className="w-7 h-7 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
               </div>
             ) : history.length === 0 ? (
               <div className="text-center py-10 text-slate-400 text-sm">{t('common.noData')}</div>
@@ -3438,7 +3438,7 @@ export default function Products() {
                     {t('product.historyMovement')} {history.length} {t('product.historyOperations')}
                   </div>
                   <div className="text-xs text-slate-400 font-semibold">
-                    {t('product.currentStock')} <span className="text-indigo-600 font-bold">{fmt(histProduct.stock_quantity)} {histProduct.unit}</span>
+                    {t('product.currentStock')} <span className="text-blue-600 font-bold">{fmt(histProduct.stock_quantity)} {histProduct.unit}</span>
                   </div>
                 </div>
                 <div className="overflow-x-auto rounded-xl border border-slate-200">
@@ -3586,7 +3586,7 @@ export default function Products() {
                     style={{ gridTemplateColumns: '38px 200px 110px 180px 180px 205px 250px 80px 155px 105px 105px 160px 160px 160px' }}>
                     <span>#</span>
                     <span>Mahsulot nomi *</span>
-                    <span className="text-indigo-600">Kod</span>
+                    <span className="text-blue-600">Kod</span>
                     <span>Chakana *</span>
                     <span>Ulgurji</span>
                     <span>Tan narxi</span>
@@ -3622,7 +3622,7 @@ export default function Products() {
                             <div key={pcIdx} className="flex gap-1 items-center">
                               <input
                                 id={`bulk-pc-${row._key}-${pcIdx}`}
-                                className="flex-1 h-8 lg:h-10 xl:h-12 px-2 border border-indigo-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-indigo-50/40 placeholder-slate-400 min-w-0"
+                                className="flex-1 h-8 lg:h-10 xl:h-12 px-2 border border-blue-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50/40 placeholder-slate-400 min-w-0"
                                 value={pc}
                                 onChange={e => {
                                   const updated = [...(row.extra_product_codes || [''])];
@@ -3662,7 +3662,7 @@ export default function Products() {
                               const updated = [...(row.extra_product_codes || ['']), ''];
                               updateBulkRow(row._key, 'extra_product_codes', updated);
                             }}
-                            className="text-[12px] leading-10 cursor-pointer text-indigo-400 hover:text-indigo-600 font-medium flex items-center gap-0.5 transition-colors">
+                            className="text-[12px] leading-10 cursor-pointer text-blue-400 hover:text-blue-600 font-medium flex items-center gap-0.5 transition-colors">
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                             </svg>
@@ -3746,7 +3746,7 @@ export default function Products() {
                         <div className="space-y-2">
                           {row.barcodes.map((bc, bcIdx) => (
                             <div key={bcIdx} className="flex gap-1.5 items-center">
-                              <span className={`text-xs lg:text-sm font-bold px-1.5 py-1 rounded shrink-0 ${bcIdx === 0 ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 bg-slate-100'
+                              <span className={`text-xs lg:text-sm font-bold px-1.5 py-1 rounded shrink-0 ${bcIdx === 0 ? 'text-blue-600 bg-blue-50' : 'text-slate-400 bg-slate-100'
                                 }`}>{bcIdx + 1}</span>
                               <input
                                 data-bulk-barcode-input="true"
@@ -3755,8 +3755,8 @@ export default function Products() {
                                     ? 'border-red-300 bg-red-50/50 focus:ring-red-400'
                                     : row.barcode_status === 'new'
                                       ? 'border-emerald-300 bg-emerald-50/50 focus:ring-emerald-400'
-                                      : 'border-indigo-200 bg-indigo-50/50 focus:ring-indigo-500'
-                                  : 'border-slate-200 focus:ring-indigo-500'
+                                      : 'border-blue-200 bg-blue-50/50 focus:ring-blue-500'
+                                  : 'border-slate-200 focus:ring-blue-500'
                                   }`}
                                 value={bc}
                                 onChange={e => {
@@ -3792,7 +3792,7 @@ export default function Products() {
                                   updateBulkBarcode(row._key, bcIdx, nb);
                                   if (bcIdx === 0) updateBulkRow(row._key, 'barcode_status', null);
                                 }}
-                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors shrink-0"
+                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors shrink-0"
                                 title="Yangi barcode">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -3837,7 +3837,7 @@ export default function Products() {
 
                           <button type="button"
                             onClick={() => addBulkBarcode(row._key)}
-                            className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-500 hover:text-indigo-700 transition-colors mt-1">
+                            className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-500 hover:text-blue-700 transition-colors mt-1">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                             </svg>
@@ -3919,7 +3919,7 @@ export default function Products() {
                   <button
                     type="button"
                     onClick={() => setBulkRows(rows => [...rows, emptyBulkRow()])}
-                    className="h-9 md:h-11 px-3 md:px-5 border-2 border-dashed border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50/30 cursor-pointer text-slate-400 hover:text-indigo-600 text-xs md:text-sm font-semibold rounded-xl transition-all flex items-center gap-2"
+                    className="h-9 md:h-11 px-3 md:px-5 border-2 border-dashed border-blue-200 hover:border-blue-400 hover:bg-blue-50/30 cursor-pointer text-slate-400 hover:text-blue-600 text-xs md:text-sm font-semibold rounded-xl transition-all flex items-center gap-2"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -3961,7 +3961,7 @@ export default function Products() {
               <button
                 onClick={handleImport}
                 disabled={!buildPayload().length || importLoading || !(Object.values(colMap).includes('Nomi') || (allowUpdate && (Object.values(colMap).includes('Barkod') || Object.values(colMap).includes('SKU'))))}
-                className="inline-flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors"
+                className="inline-flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
                 {importLoading ? 'Saqlanmoqda...' : 'Saqlash'}
@@ -3978,7 +3978,7 @@ export default function Products() {
                 <div className="flex items-center gap-2 xl:gap-3 flex-wrap">
                   <div className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm">
                     <span className="text-slate-500 text-sm">Jami yuklanayotgan qatorlar:</span>
-                    <span className="font-bold text-indigo-600 ml-2 text-base">{buildPayload().length} ta</span>
+                    <span className="font-bold text-blue-600 ml-2 text-base">{buildPayload().length} ta</span>
                   </div>
                   {importResult ? (
                     <>
@@ -3987,9 +3987,9 @@ export default function Products() {
                         <span className="font-bold text-emerald-600 ml-2 text-base">{importResult.created} ta</span>
                       </div>
                       {importResult.updated > 0 && (
-                        <div className="px-4 py-2.5 bg-indigo-50 border border-indigo-200 rounded-xl text-sm">
+                        <div className="px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-sm">
                           <span className="text-slate-500 text-sm">🔄 Yangilandi:</span>
-                          <span className="font-bold text-indigo-600 ml-2 text-base">{importResult.updated} ta</span>
+                          <span className="font-bold text-blue-600 ml-2 text-base">{importResult.updated} ta</span>
                         </div>
                       )}
                       <div className="px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-sm">
@@ -4019,12 +4019,12 @@ export default function Products() {
                 <div className="ml-auto flex items-center gap-2 xl:gap-3">
                   {warehouses.length > 0 && (
                     <div className="flex items-center gap-2">
-                      <svg className="w-4 h-4 text-indigo-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                      <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
                       <label className="text-sm font-semibold text-slate-500 whitespace-nowrap">Qoldiqlar ombori:</label>
                       <select
                         value={importWarehouseId}
                         onChange={e => setImportWarehouseId(e.target.value)}
-                        className="h-9 px-3 border border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white min-w-[150px] text-slate-700"
+                        className="h-9 px-3 border border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-w-[150px] text-slate-700"
                       >
                         <option value="">— Birinchi ombor —</option>
                         {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
@@ -4035,7 +4035,7 @@ export default function Products() {
                     <span className="text-sm text-slate-500 font-medium">Belgilangan qatorlarni yuklamaslik</span>
                     <button onClick={() => setSkipRows(s => Math.max(0, s - 1))} className="w-7 h-7 flex items-center justify-center text-xl text-slate-500 hover:text-red-500 transition-colors">−</button>
                     <span className="w-9 text-center text-base font-bold text-slate-700">{skipRows}</span>
-                    <button onClick={() => setSkipRows(s => s + 1)} className="w-7 h-7 flex items-center justify-center text-xl text-slate-500 hover:text-indigo-500 transition-colors">+</button>
+                    <button onClick={() => setSkipRows(s => s + 1)} className="w-7 h-7 flex items-center justify-center text-xl text-slate-500 hover:text-blue-500 transition-colors">+</button>
                   </div>
                 </div>
               </div>
@@ -4044,17 +4044,17 @@ export default function Products() {
               <div className="flex items-center gap-8 mt-3">
                 <label className="flex items-center gap-2 xl:gap-3 cursor-pointer group">
                   <input type="checkbox" className="hidden" checked={searchBySku} onChange={() => setSearchBySku(!searchBySku)} />
-                  <div className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${searchBySku ? 'bg-indigo-600' : 'bg-slate-300'}`}>
+                  <div className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${searchBySku ? 'bg-blue-600' : 'bg-slate-300'}`}>
                     <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${searchBySku ? 'translate-x-5' : 'translate-x-1'}`} />
                   </div>
-                  <span className="text-base text-slate-700 font-medium group-hover:text-indigo-600 transition-colors">Mahsulotni artikul bo'yicha ham qidirish</span>
+                  <span className="text-base text-slate-700 font-medium group-hover:text-blue-600 transition-colors">Mahsulotni artikul bo'yicha ham qidirish</span>
                 </label>
                 <label className="flex items-center gap-2 xl:gap-3 cursor-pointer group">
                   <input type="checkbox" className="hidden" checked={allowUpdate} onChange={() => setAllowUpdate(!allowUpdate)} />
-                  <div className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${allowUpdate ? 'bg-indigo-600' : 'bg-slate-300'}`}>
+                  <div className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${allowUpdate ? 'bg-blue-600' : 'bg-slate-300'}`}>
                     <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${allowUpdate ? 'translate-x-5' : 'translate-x-1'}`} />
                   </div>
-                  <span className="text-base text-slate-700 font-medium group-hover:text-indigo-600 transition-colors">Mahsulotlarni tahrirlash (Update)</span>
+                  <span className="text-base text-slate-700 font-medium group-hover:text-blue-600 transition-colors">Mahsulotlarni tahrirlash (Update)</span>
                 </label>
               </div>
             </div>
@@ -4115,7 +4115,7 @@ export default function Products() {
                                   setColMap(m => ({ ...m, [col]: newField }));
                                 }}
                                 className={`w-full px-2 py-2 text-sm font-semibold rounded-lg border outline-none cursor-pointer ${mappedField && mappedField !== '__SKIP__'
-                                  ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                                  ? 'border-blue-300 bg-blue-50 text-blue-700'
                                   : 'border-slate-200 bg-white text-slate-500'
                                   }`}
                               >
@@ -4161,7 +4161,7 @@ export default function Products() {
                           const absIdx = (importPage - 1) * IMPORT_LIMIT + i;
                           const isSkip = absIdx < skipRows - 1;
                           return (
-                            <tr key={absIdx} className={`${isSkip ? 'opacity-40 bg-slate-50' : 'bg-white'} hover:bg-indigo-50/50 transition-colors group`}>
+                            <tr key={absIdx} className={`${isSkip ? 'opacity-40 bg-slate-50' : 'bg-white'} hover:bg-blue-50/50 transition-colors group`}>
                               <td className="px-3 py-2 text-slate-400 font-mono text-sm relative">
                                 {absIdx + 1}
                                 <button
@@ -4189,7 +4189,7 @@ export default function Products() {
                                       setImportRows(newRows);
                                     }}
                                     className={`w-full px-3 py-2.5 text-sm outline-none transition-all font-medium ${allowUpdate
-                                      ? 'text-slate-700 bg-transparent focus:bg-white focus:ring-1 focus:ring-indigo-400 cursor-text'
+                                      ? 'text-slate-700 bg-transparent focus:bg-white focus:ring-1 focus:ring-blue-400 cursor-text'
                                       : 'text-slate-500 bg-transparent cursor-not-allowed'
                                       }`}
                                   />
@@ -4217,7 +4217,7 @@ export default function Products() {
                       Math.max(0, importPage - 3), Math.min(Math.ceil(importRows.length / IMPORT_LIMIT), importPage + 2)
                     ).map(p => (
                       <button key={p} onClick={() => setImportPage(p)}
-                        className={`w-9 h-9 rounded-lg text-sm font-semibold transition-colors ${p === importPage ? 'bg-indigo-600 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
+                        className={`w-9 h-9 rounded-lg text-sm font-semibold transition-colors ${p === importPage ? 'bg-blue-600 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
                           }`}>{p}</button>
                     ))}
                     <button
@@ -4237,11 +4237,11 @@ export default function Products() {
               <div className="px-6 py-4 border-t border-slate-100 bg-white shrink-0">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-slate-600">Yuklanmoqda...</span>
-                  <span className="text-sm font-bold text-indigo-600">{importProgress}%</span>
+                  <span className="text-sm font-bold text-blue-600">{importProgress}%</span>
                 </div>
                 <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
                   <div
-                    className="bg-indigo-500 h-3 rounded-full transition-all duration-300"
+                    className="bg-blue-500 h-3 rounded-full transition-all duration-300"
                     style={{ width: `${importProgress}%` }}
                   />
                 </div>
@@ -4260,9 +4260,9 @@ export default function Products() {
                     <div className="text-sm font-semibold text-emerald-500">Yangi qo'shildi</div>
                   </div>
                   {importResult.updated > 0 && (
-                    <div className="px-5 py-3 bg-indigo-50 rounded-xl text-center min-w-[120px]">
-                      <div className="text-3xl font-black text-indigo-600">{importResult.updated}</div>
-                      <div className="text-sm font-semibold text-indigo-500">Yangilandi</div>
+                    <div className="px-5 py-3 bg-blue-50 rounded-xl text-center min-w-[120px]">
+                      <div className="text-3xl font-black text-blue-600">{importResult.updated}</div>
+                      <div className="text-sm font-semibold text-blue-500">Yangilandi</div>
                     </div>
                   )}
                   <div className={`px-5 py-3 rounded-xl text-center min-w-[120px] ${importResult.skipped > 0 ? 'bg-amber-50' : 'bg-slate-50'}`}>

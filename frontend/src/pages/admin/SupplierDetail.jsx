@@ -16,7 +16,7 @@ const TABS = [
 
 function StatCard({ icon, label, value, sub, color = 'indigo' }) {
   const colors = {
-    indigo: 'bg-blue-50 text-blue-600',
+    indigo: 'bg-indigo-50 text-indigo-600',
     emerald: 'bg-emerald-50 text-emerald-600',
     red: 'bg-red-50 text-red-500',
     amber: 'bg-amber-50 text-amber-600',
@@ -86,7 +86,7 @@ export default function SupplierDetail() {
   }
 
   if (loading) {
-    return <div className="flex h-[80vh] items-center justify-center"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>
+    return <div className="flex h-[80vh] items-center justify-center"><div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>
   }
   if (!stats) return null
 
@@ -117,7 +117,7 @@ export default function SupplierDetail() {
           <div className="flex gap-2 sm:gap-6 overflow-x-auto hide-scrollbar">
             {TABS.map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
-                className={`py-3 px-2 text-sm font-semibold whitespace-nowrap border-b-2 transition-all ${tab === t.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}>
+                className={`py-3 px-2 text-sm font-semibold whitespace-nowrap border-b-2 transition-all ${tab === t.id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}>
                 {t.label}
               </button>
             ))}
@@ -189,7 +189,7 @@ export default function SupplierDetail() {
                     <tr key={`${h.op_type}-${h.id || h.date}`} className="hover:bg-slate-50">
                       <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">{fmtDate(h.date)}</td>
                       <td className="px-4 py-3">
-                        {h.op_type === 'purchase' ? <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs">Xarid</span> : 
+                        {h.op_type === 'purchase' ? <span className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded text-xs">Xarid</span> : 
                          h.op_type === 'payment' ? <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs">To'lov</span> : 
                          <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded text-xs">{h.op_type}</span>}
                       </td>

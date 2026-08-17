@@ -36,7 +36,7 @@ export default function Integratsiyalar() {
           <Reveal delay={0.1}>
             <h1 className="text-4xl sm:text-5xl md:text-6xl xl:text-7xl font-extrabold tracking-tight text-white max-w-5xl mx-auto leading-[1.15]">
               Soliq va Tarozilar Bilan{' '}
-              <span className="bg-gradient-to-r from-emerald-400 via-blue-300 to-blue-400 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-blue-400 bg-clip-text text-transparent">
                 Tayyor Integratsiya
               </span>
             </h1>

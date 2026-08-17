@@ -131,7 +131,7 @@ export default function Shifts() {
         </div>
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
           <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Bugungi smenalar</div>
-          <div className="text-2xl font-bold mt-1 text-blue-600">{todayShifts}</div>
+          <div className="text-2xl font-bold mt-1 text-indigo-600">{todayShifts}</div>
         </div>
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
           <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Jami smenalar</div>
@@ -168,7 +168,7 @@ export default function Shifts() {
               <select
                 value={filterBranch}
                 onChange={e => setFilterBranch(e.target.value)}
-                className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400"
               >
                 <option value="">🏢 Barcha filiallar</option>
                 {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
@@ -194,7 +194,7 @@ export default function Shifts() {
               <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold shrink-0">
+                    <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold shrink-0">
                       {s.cashier_name?.[0]?.toUpperCase() || '?'}
                     </div>
                     <span className="text-sm font-medium text-slate-800">{s.cashier_name || '—'}</span>

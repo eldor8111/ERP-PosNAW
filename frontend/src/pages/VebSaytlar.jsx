@@ -82,9 +82,9 @@ export default function VebSaytlar() {
     {
       icon: '⚙️',
       color: '#0891b2',
-      borderColor: 'hover:border-blue-600/30 shadow-blue-600/10',
-      textColor: 'text-blue-600',
-      btnBg: 'from-blue-600 to-blue-500',
+      borderColor: 'hover:border-cyan-600/30 shadow-cyan-600/10',
+      textColor: 'text-cyan-600',
+      btnBg: 'from-cyan-600 to-cyan-500',
       bg: 'rgba(8,145,178,0.08)',
       title: t('web.vebilova.t') || 'Veb Ilovalar',
       desc: t('web.murakkab.d') || 'Murakkab biznes logikali veb ilovalar. SaaS, dashboard va boshqaruv tizimlar.',
@@ -149,7 +149,7 @@ export default function VebSaytlar() {
           {/* Main Title */}
           <h1 className="text-[clamp(44px,7vw,72px)] font-black leading-[1.08] tracking-tight text-white mb-7 animate-[fadeInUp_0.7s_ease-out_0.1s_both]">
             {t('web.hero.title1') || 'Sizning g\'oyangizni'}<br />
-            <span className="bg-gradient-to-r from-violet-300 to-blue-400 bg-clip-text text-transparent inline-block">
+            <span className="bg-gradient-to-r from-violet-300 to-indigo-400 bg-clip-text text-transparent inline-block">
               {t('web.hero.title2') || 'veb reallikka'}
             </span> {t('web.hero.title3') || 'aylantiramiz'}
           </h1>
@@ -292,7 +292,7 @@ export default function VebSaytlar() {
       {/* Tech Stack Section */}
       <section className="py-24 max-w-[1400px] mx-auto px-4">
         <div className="text-center mb-16">
-          <div className="inline-block px-4 py-1 bg-blue-600/10 border border-blue-600/15 rounded-full text-xs font-bold text-blue-600 mb-4 uppercase tracking-wider">
+          <div className="inline-block px-4 py-1 bg-cyan-600/10 border border-cyan-600/15 rounded-full text-xs font-bold text-cyan-600 mb-4 uppercase tracking-wider">
             Texnologiyalar
           </div>
           <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">
@@ -315,7 +315,7 @@ export default function VebSaytlar() {
 
       {/* CTA Section */}
       <section className="py-16 max-w-[1400px] mx-auto px-4 mb-12" id="sp-contact">
-        <div className="bg-gradient-to-br from-blue-900 via-blue-900 to-slate-900 text-white rounded-[32px] p-8 md:p-16 text-center relative overflow-hidden shadow-xl">
+        <div className="bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 text-white rounded-[32px] p-8 md:p-16 text-center relative overflow-hidden shadow-xl">
           <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
           
           <div className="relative z-10 max-w-2xl mx-auto">
@@ -329,7 +329,7 @@ export default function VebSaytlar() {
             <div className="flex flex-wrap gap-4 justify-center">
               <a 
                 href="https://t.me/ecode_uz" target="_blank" rel="noreferrer" 
-                className="inline-flex items-center gap-2 bg-white text-blue-950 font-bold text-base px-8 py-4 rounded-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
+                className="inline-flex items-center gap-2 bg-white text-indigo-950 font-bold text-base px-8 py-4 rounded-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
               >
                 <Send size={20} /> {t('web.cta.btn1') || 'Telegram yozish'} <ArrowRight />
               </a>

@@ -18,7 +18,7 @@ const StatusBadge = ({ status }) => {
     completed: { label: "Bajarildi",  cls: "bg-emerald-100 text-emerald-700" },
     cancelled: { label: "Bekor",      cls: "bg-red-100 text-red-600"       },
     in:        { label: "Kirim",      cls: "bg-emerald-100 text-emerald-700" },
-    out:       { label: "Chiqim",     cls: "bg-blue-100 text-blue-700"     },
+    out:       { label: "Chiqim",     cls: "bg-rose-100 text-rose-700"     },
     adjust:    { label: "Tuzatish",   cls: "bg-blue-100 text-blue-700"     },
   };
   const m = map[status] || { label: status, cls: "bg-slate-100 text-slate-600" };
@@ -71,14 +71,14 @@ function QoldiqlarTab() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Mahsulot nomi, SKU yoki shtrix-kod..."
-            className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
         <label className="flex items-center gap-2 cursor-pointer select-none">
-          <input type="checkbox" checked={lowOnly} onChange={e => setLowOnly(e.target.checked)} className="w-4 h-4 rounded text-blue-600" />
+          <input type="checkbox" checked={lowOnly} onChange={e => setLowOnly(e.target.checked)} className="w-4 h-4 rounded text-indigo-600" />
           <span className="text-sm text-slate-600 font-medium">{t('product.lowStock')}</span>
         </label>
-        <button onClick={load} className="px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors">
+        <button onClick={load} className="px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
           {t('common.refresh')}
         </button>
       </div>
@@ -101,7 +101,7 @@ function QoldiqlarTab() {
       <div className="bg-white rounded-xl border border-slate-100 overflow-x-auto shadow-sm">
         {loading ? (
           <div className="flex justify-center py-16">
-            <div className="w-7 h-7 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <div className="w-7 h-7 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
           <table className="min-w-full">
@@ -167,7 +167,7 @@ function MovementsTab({ type }) {
         <p className="text-sm text-slate-500">
           {type === 'in' ? t('ops.incoming') : t('ops.outgoing')}
         </p>
-        <button onClick={load} className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors">
+        <button onClick={load} className="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
           {t('common.refresh')}
         </button>
       </div>
@@ -175,7 +175,7 @@ function MovementsTab({ type }) {
       <div className="bg-white rounded-xl border border-slate-100 overflow-x-auto shadow-sm">
         {loading ? (
           <div className="flex justify-center py-16">
-            <div className="w-7 h-7 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <div className="w-7 h-7 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
           <table className="min-w-full">
@@ -289,7 +289,7 @@ function KochirTab() {
         <p className="text-sm text-slate-500">Omborlar o'rtasida tovar ko'chirish</p>
         <button
           onClick={() => setShowModal(true)}
-          className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors"
+          className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -301,7 +301,7 @@ function KochirTab() {
       <div className="bg-white rounded-xl border border-slate-100 overflow-x-auto shadow-sm">
         {loading ? (
           <div className="flex justify-center py-16">
-            <div className="w-7 h-7 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <div className="w-7 h-7 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
           <table className="min-w-full">
@@ -366,7 +366,7 @@ function KochirTab() {
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 mb-1">Kimdan (ombor)</label>
                   <select value={form.from_warehouse_id} onChange={e => setForm(f => ({...f, from_warehouse_id: e.target.value}))}
-                    className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <option value="">Tanlang...</option>
                     {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                   </select>
@@ -374,7 +374,7 @@ function KochirTab() {
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 mb-1">Kimga (ombor)</label>
                   <select value={form.to_warehouse_id} onChange={e => setForm(f => ({...f, to_warehouse_id: e.target.value}))}
-                    className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <option value="">Tanlang...</option>
                     {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                   </select>
@@ -384,24 +384,24 @@ function KochirTab() {
                 <label className="block text-xs font-semibold text-slate-500 mb-1">Izoh (ixtiyoriy)</label>
                 <input value={form.note} onChange={e => setForm(f => ({...f, note: e.target.value}))}
                   placeholder="Sabab yoki izoh..."
-                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Mahsulotlar</label>
-                  <button onClick={addItem} className="text-xs text-blue-600 font-semibold hover:text-blue-800">+ Qo'shish</button>
+                  <button onClick={addItem} className="text-xs text-indigo-600 font-semibold hover:text-indigo-800">+ Qo'shish</button>
                 </div>
                 {form.items.map((it, idx) => (
                   <div key={idx} className="flex gap-2 items-center">
                     <select value={it.product_id} onChange={e => setItem(idx, 'product_id', e.target.value)}
-                      className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                       <option value="">Mahsulot tanlang...</option>
                       {products.filter(p => p.product_type !== 'sell').map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                     <input type="number" min="1" value={it.quantity} onChange={e => setItem(idx, 'quantity', e.target.value)}
                       placeholder={t('admin.dict.qty') || 'Miqdor'}
-                      className="w-24 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      className="w-24 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                     {form.items.length > 1 && (
                       <button onClick={() => removeItem(idx)} className="text-red-400 hover:text-red-600">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -421,7 +421,7 @@ function KochirTab() {
                 {t('common.cancel')}
               </button>
               <button onClick={submit} disabled={saving}
-                className="px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-60 transition-colors">
+                className="px-5 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-60 transition-colors">
                 {saving ? t('common.saving') : t('warehouse.transfer')}
               </button>
             </div>
@@ -481,7 +481,7 @@ function OmborlarTab() {
         <p className="text-sm text-slate-500">Barcha omborlar ro'yxati</p>
         <button
           onClick={() => { setName(''); setBranchId(''); setErr(''); setModal({ mode: 'create' }); }}
-          className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors"
+          className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -493,7 +493,7 @@ function OmborlarTab() {
       <div className="bg-white rounded-xl border border-slate-100 overflow-x-auto shadow-sm">
         {loading ? (
           <div className="flex justify-center py-16">
-            <div className="w-7 h-7 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <div className="w-7 h-7 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
           <table className="min-w-full">
@@ -516,7 +516,7 @@ function OmborlarTab() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5">
                       <button onClick={() => { setName(wh.name); setBranchId(wh.branch_id ?? ''); setErr(''); setModal({ mode: 'edit', wh }); }}
-                        className="p-1.5 bg-blue-100 text-blue-600 hover:bg-blue-200 rounded-lg transition-colors" title="Tahrirlash">
+                        className="p-1.5 bg-indigo-100 text-indigo-600 hover:bg-indigo-200 rounded-lg transition-colors" title="Tahrirlash">
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 13l6.5-6.5a2 2 0 012.828 0l.172.172a2 2 0 010 2.828L12 16H9v-3z" />
                         </svg>
@@ -558,13 +558,13 @@ function OmborlarTab() {
                 <label className="block text-xs font-semibold text-slate-500 mb-1">Nomi *</label>
                 <input autoFocus value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && save()}
                   placeholder="Ombor nomi..."
-                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               {branches.length > 0 && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 mb-1">Filial (ixtiyoriy)</label>
                   <select value={branchId} onChange={e => setBranchId(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <option value="">— Filialsiz —</option>
                     {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
@@ -578,7 +578,7 @@ function OmborlarTab() {
                 {t('common.cancel')}
               </button>
               <button onClick={save} disabled={saving}
-                className="px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-60 transition-colors">
+                className="px-5 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-60 transition-colors">
                 {saving ? t('common.saving') : t('common.save')}
               </button>
             </div>
@@ -622,7 +622,7 @@ export default function Ombor() {
     <div className="space-y-6">
       {/* Page Header */}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-2xl bg-linear-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-900/20">
+        <div className="w-10 h-10 rounded-2xl bg-linear-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-lg shadow-indigo-900/20">
           <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
           </svg>
@@ -647,7 +647,7 @@ export default function Ombor() {
             onClick={() => setActiveTab(tab.id)}
             className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
               activeTab === tab.id
-                ? 'bg-white text-blue-700 shadow-sm'
+                ? 'bg-white text-indigo-700 shadow-sm'
                 : 'text-slate-500 hover:text-slate-700'
             }`}
           >

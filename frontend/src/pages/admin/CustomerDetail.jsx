@@ -47,7 +47,7 @@ const TABS = [
 function StatCard({ icon, label, value, sub, color = 'indigo' }) {
   const { t } = useLang();
   const colors = {
-    indigo: 'bg-blue-50 text-blue-600',
+    indigo: 'bg-indigo-50 text-indigo-600',
     emerald: 'bg-emerald-50 text-emerald-600',
     red: 'bg-red-50 text-red-500',
     amber: 'bg-amber-50 text-amber-600',
@@ -150,7 +150,7 @@ export default function CustomerDetail() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
@@ -171,7 +171,7 @@ export default function CustomerDetail() {
 
   const customerName = stats.name
   const initial = customerName?.charAt(0)?.toUpperCase()
-  const avatarColors = ['bg-blue-100 text-blue-600', 'bg-emerald-100 text-emerald-600', 'bg-violet-100 text-violet-600', 'bg-blue-100 text-blue-600', 'bg-amber-100 text-amber-600']
+  const avatarColors = ['bg-indigo-100 text-indigo-600', 'bg-emerald-100 text-emerald-600', 'bg-violet-100 text-violet-600', 'bg-rose-100 text-rose-600', 'bg-amber-100 text-amber-600']
   const avatarColor = avatarColors[(customerName?.charCodeAt(0) || 0) % avatarColors.length]
 
   return (
@@ -226,7 +226,7 @@ export default function CustomerDetail() {
               onClick={() => setTab(t.id)}
               className={`px-2 md:px-5 py-3.5 text-[12px] sm:text-sm cursor-pointer font-semibold whitespace-nowrap transition-colors border-b-2 -mb-px
                 ${tab === t.id
-                  ? 'border-blue-600 text-blue-600'
+                  ? 'border-indigo-600 text-indigo-600'
                   : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
             >
@@ -240,17 +240,17 @@ export default function CustomerDetail() {
           {tab === 'umumiy' && (
             <div className="space-y-6">
               <div className='flex gap-6 flex-col xl:flex-row'>
-                <div className='w-full xl:w-max bg-linear-to-t py-4 sm:p-10 xl:p-0 mx-auto from-white  xl:via-white xl:to-white md:via-blue-00 md:to-blue-600 shadow-inner shadow-white rounded-3xl'>
+                <div className='w-full xl:w-max bg-linear-to-t py-4 sm:p-10 xl:p-0 mx-auto from-white  xl:via-white xl:to-white md:via-indigo-00 md:to-indigo-600 shadow-inner shadow-white rounded-3xl'>
                   {/* Virtual Card */}
                   {stats.card_number && (
-                    <div className="bg-linear-to-tr mx-auto from-blue-900 via-blue-800 to-blue-600 rounded-3xl p-4 sm:p-6 md:p-8 text-white shadow-xl shadow-blue-900/20 relative overflow-hidden flex flex-col justify-between sm:h-[280px] w-max border-2 border-blue-500">
+                    <div className="bg-linear-to-tr mx-auto from-indigo-900 via-indigo-800 to-indigo-600 rounded-3xl p-4 sm:p-6 md:p-8 text-white shadow-xl shadow-indigo-900/20 relative overflow-hidden flex flex-col justify-between sm:h-[280px] w-max border-2 border-indigo-500">
                       {/* Background decoration */}
                       <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
-                      <div className="absolute -left-10 -bottom-10 w-32 h-32 bg-blue-400/20 rounded-full blur-xl"></div>
+                      <div className="absolute -left-10 -bottom-10 w-32 h-32 bg-indigo-400/20 rounded-full blur-xl"></div>
 
                       <div className="relative z-10 flex justify-between items-start">
                         <div>
-                          <div className="text-blue-200 text-[9px] sm:text-[11px] uppercase tracking-widest font-semibold sm:mb-1">Mijoz Kartasi</div>
+                          <div className="text-indigo-200 text-[9px] sm:text-[11px] uppercase tracking-widest font-semibold sm:mb-1">Mijoz Kartasi</div>
                           <div className="text-lg sm:text-xl font-bold drop-shadow-sm">{stats.name}</div>
                         </div>
                         <div className="bg-white/20 backdrop-blur-md border border-white/10 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-semibold flex items-center gap-1.5 shadow-sm">
@@ -267,11 +267,11 @@ export default function CustomerDetail() {
                         </div>
                         <div className="flex items-center justify-between border-t border-white/10 pt-4">
                           <div>
-                            <div className="text-blue-200 text-[10px] uppercase font-bold tracking-wider mb-0.5">Bonus Balans</div>
+                            <div className="text-indigo-200 text-[10px] uppercase font-bold tracking-wider mb-0.5">Bonus Balans</div>
                             <div className="font-bold text-[14px] sm:text-lg text-emerald-300">{fmt(stats.bonus_balance)} <span className="text-xs font-medium opacity-80">{stats.debt_currency === 'USD' ? '$' : "so'm"}</span></div>
                           </div>
                           <div className="text-right">
-                            <div className="text-blue-200 text-[10px] uppercase font-bold tracking-wider mb-0.5">Jami Xaridlar</div>
+                            <div className="text-indigo-200 text-[10px] uppercase font-bold tracking-wider mb-0.5">Jami Xaridlar</div>
                             <div className="font-bold text-[14px] sm:text-base text-white">{fmt(stats.total_spent)} <span className="text-xs font-medium opacity-80">{stats.debt_currency === 'USD' ? '$' : "so'm"}</span></div>
                           </div>
                         </div>
@@ -333,7 +333,7 @@ export default function CustomerDetail() {
                 <div className="flex items-center gap-3">
                   {['Standard', 'Bronze', 'Silver', 'Gold'].map((tier, i) => (
                     <div key={tier} className="flex-1 text-center">
-                      <div className={`h-2 rounded-full mb-1.5 ${['Standard', 'Bronze', 'Silver', 'Gold'].indexOf(stats.tier) >= i ? 'bg-blue-500' : 'bg-slate-200'}`} />
+                      <div className={`h-2 rounded-full mb-1.5 ${['Standard', 'Bronze', 'Silver', 'Gold'].indexOf(stats.tier) >= i ? 'bg-indigo-500' : 'bg-slate-200'}`} />
                       <span className="text-xs text-slate-400">{tier}</span>
                     </div>
                   ))}
@@ -653,7 +653,7 @@ function SalesTable({ rows, stats, salesData, loading, emptyText = "Sotuvlar yo'
                   }}
                 >
                   <div className="relative min-w-[90px] sm:min-w-[120px]">
-                    <ListboxButton className="w-full cursor-pointer flex items-center py-1 px-2 xl:px-3 xl:py-1.5 justify-between rounded-lg border border-slate-200 text-[13px] xl:text-[14px] bg-white text-slate-900 outline-none hover:border-blue-400 focus:border-blue-500 transition-colors shadow-sm text-left">
+                    <ListboxButton className="w-full cursor-pointer flex items-center py-1 px-2 xl:px-3 xl:py-1.5 justify-between rounded-lg border border-slate-200 text-[13px] xl:text-[14px] bg-white text-slate-900 outline-none hover:border-indigo-400 focus:border-indigo-500 transition-colors shadow-sm text-left">
                       <span className="flex items-center gap-2">
                         <ListOrdered className="size-4 shrink-0 text-slate-400" />
                         <span>{limit} {t('common.item') || 'ta'}</span>
@@ -665,9 +665,9 @@ function SalesTable({ rows, stats, salesData, loading, emptyText = "Sotuvlar yo'
                       className="z-50 min-w-[120px] mb-1 overflow-auto rounded-xl bg-white border border-slate-200 p-1 shadow-2xl focus:outline-none [--anchor-gap:4px]"
                     >
                       {[5, 10, 20, 50, 100, 500].map((n) => (
-                        <ListboxOption key={n} value={n} className="group flex cursor-pointer items-center gap-2 rounded-lg py-2 px-3 select-none data-[focus]:bg-blue-50">
-                          <CheckIcon className="size-4 text-blue-600 group-not-data-[selected]:invisible" />
-                          <div className="text-[13px] font-medium text-slate-700 group-data-[selected]:text-blue-700">{n} {t('common.item') || 'ta'}</div>
+                        <ListboxOption key={n} value={n} className="group flex cursor-pointer items-center gap-2 rounded-lg py-2 px-3 select-none data-[focus]:bg-indigo-50">
+                          <CheckIcon className="size-4 text-indigo-600 group-not-data-[selected]:invisible" />
+                          <div className="text-[13px] font-medium text-slate-700 group-data-[selected]:text-indigo-700">{n} {t('common.item') || 'ta'}</div>
                         </ListboxOption>
                       ))}
                     </ListboxOptions>
@@ -822,7 +822,7 @@ const OP_ICON = {
   ),
 }
 const OP_COLOR = {
-  sale: 'bg-blue-100 text-blue-600',
+  sale: 'bg-indigo-100 text-indigo-600',
   payment: 'bg-emerald-100 text-emerald-600',
   debt_edit: 'bg-amber-100 text-amber-600',
 }
@@ -867,7 +867,7 @@ function OperationsTable({ rows, loading }) {
             {/* Raqamlar */}
             <div className="text-right shrink-0">
               {opType === 'sale' && (
-                <div className="text-sm font-bold text-blue-600">
+                <div className="text-sm font-bold text-indigo-600">
                   {fmt(r.amount)} {curr}
                 </div>
               )}
@@ -1051,7 +1051,7 @@ function AktSverka({ stats, sales, loading, history }) {
     debt_edit: 'bg-amber-50',
   }
   const rowLabel = {
-    sale: 'text-blue-700',
+    sale: 'text-indigo-700',
     payment: 'text-emerald-700',
     debt_edit: 'text-amber-700',
   }
@@ -1067,7 +1067,7 @@ function AktSverka({ stats, sales, loading, history }) {
             {mappedBalances.map((item) => (
               <span key={item.currency}>
                 <span className='text-red-600'>{fmt(item.amount)}</span>{' '}
-                <span className='text-blue-500 text-xs'>{item.currency}</span>
+                <span className='text-indigo-500 text-xs'>{item.currency}</span>
               </span>
             ))}
           </div>
@@ -1384,7 +1384,7 @@ function KirimTolovlar({ stats, income, loading, openEdit, handleDelete }) {
               correct_income.map((i, idx) => (
                 <tr key={i.id || idx} className="hover:bg-slate-50 text-sm">
                   <td className="px-4 py-3 text-slate-500">{idx + 1}</td>
-                  <td className="px-4 py-3 font-semibold text-blue-600">{i.contragent}</td>
+                  <td className="px-4 py-3 font-semibold text-indigo-600">{i.contragent}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-1 rounded-md text-xs font-medium ${i.turi === 'Mijoz' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
                       {i.turi || 'Mijoz'}
@@ -1417,7 +1417,7 @@ function KirimTolovlar({ stats, income, loading, openEdit, handleDelete }) {
                         <>
                           <button
                             onClick={() => openEdit && openEdit(i)}
-                            className="px-2 py-1 text-xs font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                            className="px-2 py-1 text-xs font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
                           >
                             Tahrirlash
                           </button>
@@ -1616,7 +1616,7 @@ function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSucce
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Ombor *</label>
             <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)}
-              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white">
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
               <option value="">Omborni tanlang...</option>
               {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
             </select>
@@ -1630,13 +1630,13 @@ function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSucce
               value={prodSearch}
               onChange={e => setProdSearch(e.target.value)}
               placeholder="Nomi yoki SKU bo'yicha..."
-              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
             />
             {filtered.length > 0 && (
               <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
                 {filtered.map(p => (
                   <button key={p.id} onClick={() => selectProduct(p)}
-                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 flex items-center justify-between gap-2">
+                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-indigo-50 flex items-center justify-between gap-2">
                     <span className="font-medium text-slate-800">{p.name}</span>
                     <span className="text-xs text-slate-400 shrink-0">{fmt(p.sale_price)} so'm</span>
                   </button>
@@ -1646,7 +1646,7 @@ function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSucce
           </div>
 
           {selProd && (
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 flex items-end gap-3">
+            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 flex items-end gap-3">
               <div className="flex-1">
                 <div className="text-sm font-semibold text-slate-700">{selProd.name}</div>
                 <div className="text-xs text-slate-400 mt-0.5">Joriy qoldiq: {fmt(selProd.stock_quantity || 0)} {selProd.unit || 'dona'}</div>
@@ -1655,15 +1655,15 @@ function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSucce
                 <div>
                   <label className="text-xs text-slate-500 block mb-1">Miqdor</label>
                   <input type="number" min="0.001" step="any" value={qty} onChange={e => setQty(e.target.value)}
-                    className="w-20 border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                    className="w-20 border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-300" />
                 </div>
                 <div>
                   <label className="text-xs text-slate-500 block mb-1">Narx (so'm)</label>
                   <input type="number" min="0" step="any" value={price} onChange={e => setPrice(e.target.value)}
-                    className="w-32 border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                    className="w-32 border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
                 </div>
                 <button onClick={addItem}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors">
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors">
                   Qo'sh
                 </button>
               </div>
@@ -1689,7 +1689,7 @@ function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSucce
                       <td className="px-3 py-2 font-medium">{it.name}</td>
                       <td className="px-3 py-2 text-center">{it.qty} {it.unit}</td>
                       <td className="px-3 py-2 text-right">{fmt(it.price)}</td>
-                      <td className="px-3 py-2 text-right font-bold text-blue-700">{fmt(it.qty * it.price)}</td>
+                      <td className="px-3 py-2 text-right font-bold text-indigo-700">{fmt(it.qty * it.price)}</td>
                       <td className="px-2 py-2">
                         <button onClick={() => setItems(p => p.filter((_, idx) => idx !== i))}
                           className="text-slate-300 hover:text-red-500 transition-colors">✕</button>
@@ -1700,7 +1700,7 @@ function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSucce
                 <tfoot className="bg-slate-50">
                   <tr>
                     <td colSpan={3} className="px-3 py-2 text-xs text-slate-500 font-semibold">Jami qaytarilayotgan:</td>
-                    <td className="px-3 py-2 text-right font-bold text-blue-700">{fmt(totalAmount)} so'm</td>
+                    <td className="px-3 py-2 text-right font-bold text-indigo-700">{fmt(totalAmount)} so'm</td>
                     <td></td>
                   </tr>
                 </tfoot>
@@ -1714,7 +1714,7 @@ function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSucce
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Qaytarish turi</label>
                 <select value={paymentType} onChange={e => setPaymentType(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white">
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
                   <option value="debt">Qarzdan chegirish</option>
                   <option value="cash">Naqd pul qaytarish</option>
                   <option value="card">Plastik kartaga qaytarish</option>
@@ -1727,12 +1727,12 @@ function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSucce
                   <div>
                     <label className="block text-xs text-slate-500 mb-1">Naqd</label>
                     <input type="number" min="0" value={paidCash} onChange={e => setPaidCash(e.target.value)}
-                      className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="0" />
+                      className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" placeholder="0" />
                   </div>
                   <div>
                     <label className="block text-xs text-slate-500 mb-1">Karta</label>
                     <input type="number" min="0" value={paidCard} onChange={e => setPaidCard(e.target.value)}
-                      className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="0" />
+                      className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" placeholder="0" />
                   </div>
                 </div>
               )}
@@ -1741,7 +1741,7 @@ function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSucce
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Kassadan chiqim *</label>
                   <select value={walletId} onChange={e => setWalletId(e.target.value)}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white">
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
                     <option value="">Kassani tanlang...</option>
                     {wallets.map(w => <option key={w.id} value={w.id}>{w.name} ({fmt(w.balance)} so'm)</option>)}
                   </select>
@@ -1751,7 +1751,7 @@ function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSucce
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Izoh (ixtiyoriy)</label>
                 <input type="text" value={note} onChange={e => setNote(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
                   placeholder="Qaytarish sababi..." />
               </div>
             </div>
@@ -1792,7 +1792,7 @@ function LoadingSpinner() {
   const { t } = useLang();
   return (
     <div className="flex items-center justify-center h-32">
-      <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
     </div>
   )
 }
