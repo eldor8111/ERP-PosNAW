@@ -50,6 +50,18 @@ function buildNavGroups(t, expiredCount = 0) {
       links: [
 
         {
+          name: t('nav.warehouse') || 'Ombor',
+          path: '/admin/warehouse',
+          roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
+          icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>,
+        },
+        {
+          name: 'Filiallar',
+          path: '/admin/filiallar',
+          roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
+          icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>,
+        },
+        {
           name: t('nav.purchases'),
           path: '/admin/purchases',
           roles: ROLE_GROUPS.REPORTS_ACCESS,
