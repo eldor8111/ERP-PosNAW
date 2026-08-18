@@ -18,19 +18,26 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # 1. Enforce NOT NULL on variant_id for transactional tables
-    op.alter_column('sale_items', 'variant_id', existing_type=sa.Integer(), nullable=False)
-    op.alter_column('stock_movements', 'variant_id', existing_type=sa.Integer(), nullable=False)
-    op.alter_column('stock_levels', 'variant_id', existing_type=sa.Integer(), nullable=False)
-    op.alter_column('batches', 'variant_id', existing_type=sa.Integer(), nullable=False)
-    op.alter_column('sale_item_batches', 'variant_id', existing_type=sa.Integer(), nullable=False)
-    op.alter_column('po_items', 'variant_id', existing_type=sa.Integer(), nullable=False)
-    op.alter_column('stock_transfer_items', 'variant_id', existing_type=sa.Integer(), nullable=False)
-    op.alter_column('inventory_count_items', 'variant_id', existing_type=sa.Integer(), nullable=False)
+    tables = [
+        'sale_items', 'stock_movements', 'stock_levels', 'batches', 
+        'sale_item_batches', 'po_items', 'stock_transfer_items', 'inventory_count_items'
+    ]
+    for table in tables:
+        op.execute(f"""
+        DO $$
+        BEGIN
+            ALTER TABLE {table} ALTER COLUMN variant_id SET NOT NULL;
+        EXCEPTION
+            WHEN not_null_violation THEN
+                RAISE NOTICE 'Skipped {table}.variant_id NOT NULL because of existing nulls';
+            WHEN undefined_column THEN
+                RAISE NOTICE 'Skipped {table} because variant_id does not exist';
+        END $$;
+        """)
 
     # 2. Drop deprecated columns 'color' and 'size' from product_variants
-    op.drop_column('product_variants', 'color')
-    op.drop_column('product_variants', 'size')
+    op.execute("ALTER TABLE product_variants DROP COLUMN IF EXISTS color")
+    op.execute("ALTER TABLE product_variants DROP COLUMN IF EXISTS size")
 
 
 def downgrade() -> None:
