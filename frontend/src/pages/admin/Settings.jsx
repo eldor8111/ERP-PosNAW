@@ -8,6 +8,8 @@ import axios from 'axios';
 import { getFiscalModules } from '../../api/hippoLocal';
 import RolesTab from './Settings/Roles';
 import UsersTab from './Settings/Users';
+import Promotions from './Promotions';
+import Warehouse from './Warehouse';
 
 // Add placeholder for missing tabs
 const PlaceholderTab = ({ name }) => (
@@ -2190,6 +2192,8 @@ export default function Settings() {
 
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 min-h-[500px]">
             {tab === 'users' && <UsersTab />}
+            {tab === 'promotions' && <div className="h-full bg-white"><Promotions /></div>}
+            {tab === 'warehouse' && <div className="h-full bg-white"><Warehouse /></div>}
             {tab === 'roles' && <RolesTab />}
             {tab === 'branches' && <BranchesTab />}
             {tab === 'currencies' && <CurrenciesTab />}

@@ -35,12 +35,7 @@ function buildNavGroups(t, expiredCount = 0) {
           roles: ROLE_GROUPS.SALES,
           icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>,
         },
-        {
-          name: 'Aksiyalar',
-          path: '/admin/promotions',
-          roles: ROLE_GROUPS.MANAGEMENT,
-          icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>,
-        },
+        
 
       ],
     },
@@ -49,18 +44,8 @@ function buildNavGroups(t, expiredCount = 0) {
       label: t('nav.warehouse_group'),
       links: [
 
-        {
-          name: t('nav.warehouse') || 'Ombor',
-          path: '/admin/warehouse',
-          roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
-          icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>,
-        },
-        {
-          name: 'Filiallar',
-          path: '/admin/filiallar',
-          roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
-          icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>,
-        },
+        
+        
         {
           name: t('nav.purchases'),
           path: '/admin/purchases',
@@ -353,7 +338,7 @@ export default function AdminLayout() {
           {navGroups.map((group) => {
             const visibleLinks = group.links.filter(link => {
               if (!user) return false;
-              if (user.role === 'super_admin') return link.roles && link.roles.includes('super_admin');
+              if (user.role === 'super_admin') return true;
               
               const permKey = link.path.split('/').pop();
               if (user.permissions && Object.keys(user.permissions).length > 0) {
