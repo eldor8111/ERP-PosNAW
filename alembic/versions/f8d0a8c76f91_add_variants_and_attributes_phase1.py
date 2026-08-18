@@ -26,36 +26,36 @@ def upgrade() -> None:
 
     if 'attributes' not in tables:
         op.create_table('attributes',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('company_id', sa.Integer(), nullable=True),
-    sa.Column('name', sa.String(length=100), nullable=False),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('company_id', sa.Integer(), nullable=True),
+        sa.Column('name', sa.String(length=100), nullable=False),
+        sa.Column('created_at', sa.DateTime(), nullable=True),
+        sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ),
+        sa.PrimaryKeyConstraint('id')
+        )
         op.create_index(op.f('ix_attributes_company_id'), 'attributes', ['company_id'], unique=False)
         op.create_index(op.f('ix_attributes_id'), 'attributes', ['id'], unique=False)
 
     if 'attribute_values' not in tables:
         op.create_table('attribute_values',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('attribute_id', sa.Integer(), nullable=False),
-    sa.Column('value', sa.String(length=100), nullable=False),
-    sa.ForeignKeyConstraint(['attribute_id'], ['attributes.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('attribute_id', sa.Integer(), nullable=False),
+        sa.Column('value', sa.String(length=100), nullable=False),
+        sa.ForeignKeyConstraint(['attribute_id'], ['attributes.id'], ),
+        sa.PrimaryKeyConstraint('id')
+        )
         op.create_index(op.f('ix_attribute_values_attribute_id'), 'attribute_values', ['attribute_id'], unique=False)
         op.create_index(op.f('ix_attribute_values_id'), 'attribute_values', ['id'], unique=False)
 
     if 'variant_attribute_values' not in tables:
         op.create_table('variant_attribute_values',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('variant_id', sa.Integer(), nullable=False),
-    sa.Column('attribute_value_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['attribute_value_id'], ['attribute_values.id'], ),
-    sa.ForeignKeyConstraint(['variant_id'], ['product_variants.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('variant_id', sa.Integer(), nullable=False),
+        sa.Column('attribute_value_id', sa.Integer(), nullable=False),
+        sa.ForeignKeyConstraint(['attribute_value_id'], ['attribute_values.id'], ),
+        sa.ForeignKeyConstraint(['variant_id'], ['product_variants.id'], ),
+        sa.PrimaryKeyConstraint('id')
+        )
         op.create_index(op.f('ix_variant_attribute_values_attribute_value_id'), 'variant_attribute_values', ['attribute_value_id'], unique=False)
         op.create_index(op.f('ix_variant_attribute_values_id'), 'variant_attribute_values', ['id'], unique=False)
         op.create_index(op.f('ix_variant_attribute_values_variant_id'), 'variant_attribute_values', ['variant_id'], unique=False)

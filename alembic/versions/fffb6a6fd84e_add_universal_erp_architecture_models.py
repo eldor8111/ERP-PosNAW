@@ -26,72 +26,72 @@ def upgrade() -> None:
 
     if 'promotions' not in tables:
         op.create_table('promotions',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('company_id', sa.Integer(), nullable=False),
-    sa.Column('name', sa.String(length=200), nullable=False),
-    sa.Column('discount_type', sa.String(length=20), nullable=False),
-    sa.Column('discount_value', sa.Numeric(precision=12, scale=2), nullable=False),
-    sa.Column('start_date', sa.DateTime(), nullable=True),
-    sa.Column('end_date', sa.DateTime(), nullable=True),
-    sa.Column('is_active', sa.Boolean(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('company_id', sa.Integer(), nullable=False),
+        sa.Column('name', sa.String(length=200), nullable=False),
+        sa.Column('discount_type', sa.String(length=20), nullable=False),
+        sa.Column('discount_value', sa.Numeric(precision=12, scale=2), nullable=False),
+        sa.Column('start_date', sa.DateTime(), nullable=True),
+        sa.Column('end_date', sa.DateTime(), nullable=True),
+        sa.Column('is_active', sa.Boolean(), nullable=True),
+        sa.Column('created_at', sa.DateTime(), nullable=True),
+        sa.Column('updated_at', sa.DateTime(), nullable=True),
+        sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ),
+        sa.PrimaryKeyConstraint('id')
+        )
         op.create_index(op.f('ix_promotions_company_id'), 'promotions', ['company_id'], unique=False)
         op.create_index(op.f('ix_promotions_id'), 'promotions', ['id'], unique=False)
 
     if 'product_variants' not in tables:
         op.create_table('product_variants',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('product_id', sa.Integer(), nullable=False),
-    sa.Column('name', sa.String(length=100), nullable=True),
-    sa.Column('sku', sa.String(length=50), nullable=True),
-    sa.Column('barcode', sa.String(length=50), nullable=True),
-    sa.Column('color', sa.String(length=50), nullable=True),
-    sa.Column('size', sa.String(length=50), nullable=True),
-    sa.Column('cost_price', sa.Numeric(precision=16, scale=4), nullable=True),
-    sa.Column('sale_price', sa.Numeric(precision=16, scale=4), nullable=True),
-    sa.Column('wholesale_price', sa.Numeric(precision=16, scale=4), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['product_id'], ['products.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_product_variants_barcode'), 'product_variants', ['barcode'], unique=False)
-    op.create_index(op.f('ix_product_variants_id'), 'product_variants', ['id'], unique=False)
-    op.create_index(op.f('ix_product_variants_product_id'), 'product_variants', ['product_id'], unique=False)
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('product_id', sa.Integer(), nullable=False),
+        sa.Column('name', sa.String(length=100), nullable=True),
+        sa.Column('sku', sa.String(length=50), nullable=True),
+        sa.Column('barcode', sa.String(length=50), nullable=True),
+        sa.Column('color', sa.String(length=50), nullable=True),
+        sa.Column('size', sa.String(length=50), nullable=True),
+        sa.Column('cost_price', sa.Numeric(precision=16, scale=4), nullable=True),
+        sa.Column('sale_price', sa.Numeric(precision=16, scale=4), nullable=True),
+        sa.Column('wholesale_price', sa.Numeric(precision=16, scale=4), nullable=True),
+        sa.Column('created_at', sa.DateTime(), nullable=True),
+        sa.Column('updated_at', sa.DateTime(), nullable=True),
+        sa.ForeignKeyConstraint(['product_id'], ['products.id'], ),
+        sa.PrimaryKeyConstraint('id')
+        )
+        op.create_index(op.f('ix_product_variants_barcode'), 'product_variants', ['barcode'], unique=False)
+        op.create_index(op.f('ix_product_variants_id'), 'product_variants', ['id'], unique=False)
+        op.create_index(op.f('ix_product_variants_product_id'), 'product_variants', ['product_id'], unique=False)
         op.create_index(op.f('ix_product_variants_sku'), 'product_variants', ['sku'], unique=False)
 
     if 'promotion_products' not in tables:
         op.create_table('promotion_products',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('promotion_id', sa.Integer(), nullable=False),
-    sa.Column('product_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['product_id'], ['products.id'], ),
-    sa.ForeignKeyConstraint(['promotion_id'], ['promotions.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_promotion_products_id'), 'promotion_products', ['id'], unique=False)
-    op.create_index(op.f('ix_promotion_products_product_id'), 'promotion_products', ['product_id'], unique=False)
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('promotion_id', sa.Integer(), nullable=False),
+        sa.Column('product_id', sa.Integer(), nullable=False),
+        sa.ForeignKeyConstraint(['product_id'], ['products.id'], ),
+        sa.ForeignKeyConstraint(['promotion_id'], ['promotions.id'], ),
+        sa.PrimaryKeyConstraint('id')
+        )
+        op.create_index(op.f('ix_promotion_products_id'), 'promotion_products', ['id'], unique=False)
+        op.create_index(op.f('ix_promotion_products_product_id'), 'promotion_products', ['product_id'], unique=False)
         op.create_index(op.f('ix_promotion_products_promotion_id'), 'promotion_products', ['promotion_id'], unique=False)
 
     if 'supplier_products' not in tables:
         op.create_table('supplier_products',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('supplier_id', sa.Integer(), nullable=False),
-    sa.Column('product_id', sa.Integer(), nullable=False),
-    sa.Column('supplier_code', sa.String(length=100), nullable=True),
-    sa.Column('purchase_price', sa.Numeric(precision=16, scale=4), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['product_id'], ['products.id'], ),
-    sa.ForeignKeyConstraint(['supplier_id'], ['suppliers.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_supplier_products_id'), 'supplier_products', ['id'], unique=False)
-    op.create_index(op.f('ix_supplier_products_product_id'), 'supplier_products', ['product_id'], unique=False)
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('supplier_id', sa.Integer(), nullable=False),
+        sa.Column('product_id', sa.Integer(), nullable=False),
+        sa.Column('supplier_code', sa.String(length=100), nullable=True),
+        sa.Column('purchase_price', sa.Numeric(precision=16, scale=4), nullable=True),
+        sa.Column('created_at', sa.DateTime(), nullable=True),
+        sa.Column('updated_at', sa.DateTime(), nullable=True),
+        sa.ForeignKeyConstraint(['product_id'], ['products.id'], ),
+        sa.ForeignKeyConstraint(['supplier_id'], ['suppliers.id'], ),
+        sa.PrimaryKeyConstraint('id')
+        )
+        op.create_index(op.f('ix_supplier_products_id'), 'supplier_products', ['id'], unique=False)
+        op.create_index(op.f('ix_supplier_products_product_id'), 'supplier_products', ['product_id'], unique=False)
         op.create_index(op.f('ix_supplier_products_supplier_id'), 'supplier_products', ['supplier_id'], unique=False)
 
     op.execute("ALTER TABLE companies DROP COLUMN IF EXISTS payme_is_test")
