@@ -57,7 +57,12 @@ def upgrade() -> None:
                existing_type=postgresql.TIMESTAMP(timezone=True),
                type_=sa.DateTime(),
                nullable=True)
-    op.add_column('customers', sa.Column('debt_edited', sa.JSON(), server_default='[]', nullable=False))
+    from sqlalchemy import inspect
+    bind = op.get_bind()
+    insp = inspect(bind)
+    has_debt = any(c['name'] == 'debt_edited' for c in insp.get_columns('customers'))
+    if not has_debt:
+        op.add_column('customers', sa.Column('debt_edited', sa.JSON(), server_default='[]', nullable=False))
     op.alter_column('customers', 'updated_at',
                existing_type=postgresql.TIMESTAMP(timezone=True),
                type_=sa.DateTime(),
