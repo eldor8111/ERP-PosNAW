@@ -175,7 +175,7 @@ def _calc_debt_in_uzs(balances: dict, db: Session) -> Decimal:
             total += Decimal(str(amt))
         else:
             curr_obj = db.query(CurrencyModel).filter(CurrencyModel.code == curr).first()
-            rate = Decimal(str(curr_obj.rate)) if curr_obj else Decimal("1")
+            rate = Decimal(str(curr_obj.rate)) if curr_obj and curr_obj.rate else Decimal("1")
             total += Decimal(str(amt)) * rate
     return total
 
@@ -736,7 +736,7 @@ def get_customer_history(customer_id: int, db: Session = Depends(get_db),
         history.append({
             "id": s.id,
             "op_type": op_type,                       
-            "date": s.created_at.isoformat(),
+            "date": s.created_at.isoformat() if s.created_at else "",
             "amount": total,
             "paid": paid,
             "debt": debt_added,
@@ -752,7 +752,7 @@ def get_customer_history(customer_id: int, db: Session = Depends(get_db),
         history.append({
             "id": p.id,
             "op_type": "payment",                    # qarz to'lovi
-            "date": p.created_at.isoformat(),
+            "date": p.created_at.isoformat() if p.created_at else "",
             "amount": float(p.amount or 0),
             "paid": float(p.amount or 0),
             "debt": 0,
@@ -768,7 +768,7 @@ def get_customer_history(customer_id: int, db: Session = Depends(get_db),
         history.append({
             "id": e.id,
             "op_type": "debt_edit",                  # qarz tahriri
-            "date": e.created_at.isoformat(),
+            "date": e.created_at.isoformat() if e.created_at else "",
             "amount": float(e.amount or 0),
             "paid": 0,
             "debt": float(e.amount or 0) if e.type == "expense" else -float(e.amount or 0),
@@ -787,7 +787,7 @@ def get_customer_history(customer_id: int, db: Session = Depends(get_db),
         debt_change = to_total - from_total
         history.append({
             "op_type": "debt_edit",
-            "date": edit.get("edited_at"),
+            "date": edit.get("edited_at") or "",
             "amount": abs(debt_change),
             "paid": 0,
             "debt": debt_change,
@@ -800,7 +800,7 @@ def get_customer_history(customer_id: int, db: Session = Depends(get_db),
             "edited_to": to_bal,
         })
 
-    return sorted(history, key=lambda x: x["date"], reverse=True)
+    return sorted(history, key=lambda x: x.get("date") or "", reverse=True)
 
 
 @router.get("/{customer_id}/pay-debt")

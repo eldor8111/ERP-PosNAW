@@ -1,5 +1,5 @@
-import { lazy, Suspense } from 'react'
-import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { lazy, Suspense, useEffect } from 'react'
+import { BrowserRouter, HashRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import PrivateRoute from './components/PrivateRoute'
 import { ROLE_GROUPS } from './constants/roles'
@@ -52,6 +52,8 @@ const Yangiliklar     = lazy(() => import('./pages/Yangiliklar'))
 const Profile         = lazy(() => import('./pages/admin/Profile'))
 const NotFound        = lazy(() => import('./pages/NotFound'))
 
+import { useAuth } from './context/AuthContext'
+
 // Sahifa almashinayotganda ko'rinadigan loading spinner
 function PageLoader() {
   return (
@@ -65,22 +67,44 @@ function PageLoader() {
 }
 
 function AdminIndex() {
-  const userStr = localStorage.getItem('user')
-  let user = null
-  try {
-    user = JSON.parse(userStr || '{}')
-  } catch {
-    // ignore error
+  const { user } = useAuth();
+  
+  if (user?.role === 'super_admin') {
+    return <Navigate to="/admin/super-admin" replace />;
   }
 
-  if (user?.role === 'super_admin') {
-    return <Navigate to="super-admin" replace />
+  const isAllowed = (key, defaultRoles) => {
+    const val = user?.permissions?.[key];
+    if (val === false || val === 'false') return false;
+    if (val === true || val === 'true') return true;
+    return defaultRoles?.includes(user?.role);
+  };
+
+  const routes = [
+    { key: 'sotuv', path: '/admin/sotuv', roles: ROLE_GROUPS.SALES },
+    { key: 'products', path: '/admin/products', roles: ROLE_GROUPS.WAREHOUSE_ACCESS },
+    { key: 'customers', path: '/admin/customers', roles: ROLE_GROUPS.SALES },
+    { key: 'shifts', path: '/admin/shifts', roles: ROLE_GROUPS.SALES },
+    { key: 'filiallar', path: '/admin/filiallar', roles: ROLE_GROUPS.WAREHOUSE_ACCESS },
+    { key: 'purchases', path: '/admin/purchases', roles: ROLE_GROUPS.REPORTS_ACCESS },
+    { key: 'warehouse', path: '/admin/warehouse', roles: ROLE_GROUPS.WAREHOUSE_ACCESS },
+    { key: 'operations', path: '/admin/operations', roles: ROLE_GROUPS.OPS_ACCESS },
+    { key: 'finance', path: '/admin/finance', roles: ROLE_GROUPS.FINANCE_ACCESS },
+    { key: 'chiqim-tolovlar', path: '/admin/chiqim-tolovlar', roles: ROLE_GROUPS.FINANCE_ACCESS },
+    { key: 'kirim-tolovlar', path: '/admin/kirim-tolovlar', roles: ROLE_GROUPS.FINANCE_ACCESS },
+    { key: 'kassa', path: '/admin/kassa', roles: ROLE_GROUPS.FINANCE_ACCESS },
+    { key: 'reports', path: '/admin/reports', roles: ROLE_GROUPS.REPORTS_ACCESS },
+    { key: 'employees', path: '/admin/employees', roles: ROLE_GROUPS.MANAGEMENT },
+    { key: 'settings', path: '/admin/settings', roles: ROLE_GROUPS.MANAGEMENT },
+  ];
+
+  const firstAllowed = routes.find(r => isAllowed(r.key, r.roles));
+  
+  if (firstAllowed) {
+    return <Navigate to={firstAllowed.path} replace />;
   }
-  if (user?.role === 'cashier') {
-    // cashier default tab handles sotuv or pos-kassa
-    return <Navigate to="sotuv" replace />
-  }
-  return <Navigate to="products" replace />
+
+  return <Navigate to="/admin/profile" replace />;
 }
 
 export default function App() {
@@ -97,7 +121,7 @@ export default function App() {
           <Route path="/register" element={<RegisterCompany />} />
 
           <Route path="/admin" element={
-            <PrivateRoute roles={ROLE_GROUPS.ALL_STAFF}>
+            <PrivateRoute>
               <AdminLayout />
             </PrivateRoute>
           }>

@@ -353,7 +353,7 @@ export default function AdminLayout() {
           {navGroups.map((group) => {
             const visibleLinks = group.links.filter(link => {
               if (!user) return false;
-              if (user.role === 'super_admin') return true;
+              if (user.role === 'super_admin') return link.roles && link.roles.includes('super_admin');
               
               const permKey = link.path.split('/').pop();
               if (user.permissions && Object.keys(user.permissions).length > 0) {
