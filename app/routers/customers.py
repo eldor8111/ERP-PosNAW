@@ -709,11 +709,20 @@ def get_customer_history(customer_id: int, db: Session = Depends(get_db),
 
     history = []
 
+    from app.models.sale import SaleStatus
     for s in sales:
         exr = float(s.exchange_rate or 1.0)
         total = float(s.total_amount or 0) / exr
         paid = float(s.paid_amount or 0) / exr
-        debt_added = max(0.0, total - paid)
+        
+        if s.status == SaleStatus.refunded:
+            op_type = "refund"
+            debt_added = -max(0.0, total - paid)
+            desc = s.note or f"Qaytarish (#{getattr(s, 'number', '')})"
+        else:
+            op_type = "sale"
+            debt_added = max(0.0, total - paid)
+            desc = f"Sotuv #{getattr(s, 'number', '')}"
         
         curr_code = "UZS"
         if hasattr(s, "currency") and s.currency:
@@ -726,7 +735,7 @@ def get_customer_history(customer_id: int, db: Session = Depends(get_db),
 
         history.append({
             "id": s.id,
-            "op_type": "sale",                       # sotuv
+            "op_type": op_type,                       
             "date": s.created_at.isoformat(),
             "amount": total,
             "paid": paid,
@@ -735,9 +744,8 @@ def get_customer_history(customer_id: int, db: Session = Depends(get_db),
             "payment_type": getattr(s, "payment_type", ""),
             "cashier": getattr(s, "cashier_name", ""),
             "sale_number": getattr(s, "number", ""),
-            "description": f"Sotuv #{getattr(s, 'number', '')}",
-            # eski maydonlarni ham saqlash (OperationsTable mosligi uchun)
-            "type": "sale",
+            "description": desc,
+            "type": op_type,
         })
 
     for p in payments:
@@ -748,7 +756,7 @@ def get_customer_history(customer_id: int, db: Session = Depends(get_db),
             "amount": float(p.amount or 0),
             "paid": float(p.amount or 0),
             "debt": 0,
-            "currency": p.currency or "UZS",
+            "currency": p.currency_code or "UZS",
             "payment_type": p.payment_type or "cash",
             "cashier": "",
             "description": p.description or "Qarz to'lovi",
@@ -764,7 +772,7 @@ def get_customer_history(customer_id: int, db: Session = Depends(get_db),
             "amount": float(e.amount or 0),
             "paid": 0,
             "debt": float(e.amount or 0) if e.type == "expense" else -float(e.amount or 0),
-            "currency": "UZS",
+            "currency": e.currency_code or "UZS",
             "payment_type": "",
             "cashier": "",
             "description": e.description or "Qarz tahriri",

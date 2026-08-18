@@ -45,3 +45,10 @@ class User(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     # Multi-korxona bog'lanish (company_id backward compat. uchun saqlanadi)
     user_companies = relationship("UserCompany", back_populates="user", lazy="dynamic")
+
+class UserWallet(Base):
+    __tablename__ = "user_wallets"
+    
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    wallet_id = Column(Integer, primary_key=True)
+    is_default = Column(Boolean, default=False)

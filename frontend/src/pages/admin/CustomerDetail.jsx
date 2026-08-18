@@ -963,7 +963,24 @@ function AktSverka({ stats, sales, loading, history }) {
     description: h.description || '',
   }))
 
-  // (3) Qarz tahrirlari
+  // (3) Qaytarishlar (history ichidan refund turlar)
+  const refundEvents = (history || []).filter(h => h.op_type === 'refund' || h.type === 'refund').map(h => ({
+    id: h.id || null,
+    key: `refund-${h.id || h.date}`,
+    date: h.date,
+    label: "Qaytarish",
+    sublabel: h.payment_type || '',
+    amount: Number(h.amount || 0),
+    paid: Number(h.paid || 0),
+    // Qaytarish qarzni kamaytirishi mumkin (manfiy debtChange)
+    debtChange: Number(h.debt || 0),
+    cashier: h.cashier || '',
+    currency: h.currency || 'UZS',
+    rowType: 'refund',
+    description: h.description || '',
+  }))
+
+  // (4) Qarz tahrirlari
   const editEvents = (history || []).filter(h => h.op_type === 'debt_edit' || h.type === 'debt_edit').map(h => ({
     id: h.id || null,
     key: `edit-${h.date}`,
@@ -980,7 +997,7 @@ function AktSverka({ stats, sales, loading, history }) {
   }))
 
   // Eski tartib (eng eski birinchi)
-  const allEvents = [...saleEvents, ...paymentEvents, ...editEvents]
+  const allEvents = [...saleEvents, ...paymentEvents, ...refundEvents, ...editEvents]
     .sort((a, b) => new Date(a.date) - new Date(b.date))
 
   // Kassirlarni dinamik yig'ish (faqat mavjud kassirlar)
@@ -1049,11 +1066,13 @@ function AktSverka({ stats, sales, loading, history }) {
     sale: '',
     payment: 'bg-emerald-50',
     debt_edit: 'bg-amber-50',
+    refund: 'bg-red-50',
   }
   const rowLabel = {
     sale: 'text-blue-700',
     payment: 'text-emerald-700',
     debt_edit: 'text-amber-700',
+    refund: 'text-red-700',
   }
 
   return (
@@ -1116,6 +1135,7 @@ function AktSverka({ stats, sales, loading, history }) {
           >
             <option value="all">Barchasi</option>
             <option value="sale">Sotuv</option>
+            <option value="refund">Qaytarish</option>
             <option value="payment">Qarz to'lovi</option>
             <option value="debt_edit">Qarz tahriri</option>
           </select>
@@ -1170,9 +1190,9 @@ function AktSverka({ stats, sales, loading, history }) {
                 const debtDecrease = row.debtChange < 0 ? Math.abs(row.debtChange) : 0
 
                 return (
-                  <tr key={row.key} className={`text-center text-slate-700 hover:bg-slate-100 transition-all cursor-pointer`} onClick={() => openSaleDetail(row.id)}>
+                  <tr key={row.key} className={`text-center text-slate-700 ${rowBg[row.rowType] || ''} hover:bg-slate-100 transition-all cursor-pointer`} onClick={() => openSaleDetail(row.id)}>
                     <td className='p-2 border border-slate-200'>{i + 1}</td>
-                    <td className={`p-2 border border-slate-200 font-medium`}>
+                    <td className={`p-2 border border-slate-200 font-medium ${rowLabel[row.rowType] || ''}`}>
                       {row.label}
                     </td>
                     <td className='p-2 border capitalize border-slate-200'>

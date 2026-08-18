@@ -36,6 +36,7 @@ function Steps({ current }) {
   const STEPS = [
     { n: 1, label: t('auth.regStep1') || "Korxona ma'lumotlari" },
     { n: 2, label: t('auth.regStep2') || "Shaxsiy ma'lumotlar" },
+    { n: 3, label: "Tasdiqlash" },
   ]
   return (
     <div className="flex items-center mb-8">
@@ -159,6 +160,8 @@ export default function RegisterCompany() {
   const { t } = useLang();
 
   const [step, setStep] = useState(1)
+  const [otpSession, setOtpSession] = useState(null)
+  const [otpCode, setOtpCode] = useState('')
   const [form, setForm] = useState({
     company_name: '', region: '', district: '',
     name: '', phone: '', agent_code: 'A0001',
@@ -207,13 +210,49 @@ export default function RegisterCompany() {
     return !Object.keys(e).length
   }
 
-  // Step 2 → to'g'ridan ro'yxatdan o'tish (OTP yo'q)
+  // Step 2 → OTP yuborish
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!validateStep2()) return
     setLoading(true)
     setErrors({})
     try {
+      const { data } = await api.post('/auth/send-otp', {
+        phone: form.phone.replace(/[^0-9]/g, ''),
+        purpose: 'register'
+      })
+      if (data.sent || data.dev_mode) {
+        setOtpSession(data.otp_session)
+        setStep(3)
+      } else {
+        setErrors({ submit: data.message || "SMS yuborishda xatolik yuz berdi" })
+      }
+    } catch (err) {
+      const detail = err.response?.data?.detail
+      setErrors({ submit: detail || t('auth.errGeneral') || 'Xatolik yuz berdi' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Step 3 → OTP tasdiqlash va ro'yxatdan o'tish
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault()
+    if (!otpCode || otpCode.length !== 4) {
+      setErrors({ otp: "Kodni to'g'ri kiriting" })
+      return
+    }
+    setLoading(true)
+    setErrors({})
+    try {
+      // 1. Verify OTP
+      const { data: verifyData } = await api.post('/auth/verify-otp', {
+        phone: form.phone.replace(/[^0-9]/g, ''),
+        otp: otpCode,
+        otp_session: otpSession
+      })
+
+      // 2. Register company
       const payload = {
         company_name: form.company_name,
         name: form.name,
@@ -221,6 +260,7 @@ export default function RegisterCompany() {
         region: form.region,
         district: form.district,
         password: form.password,
+        otp_verified_token: verifyData.verified_token
       }
       if (form.agent_code.trim()) payload.agent_code = form.agent_code.trim().toUpperCase()
       const { data } = await api.post('/auth/register', payload)
@@ -229,7 +269,7 @@ export default function RegisterCompany() {
       setDone({ org_code: data.org_code, company_name: data.company_name })
     } catch (err) {
       const detail = err.response?.data?.detail
-      setErrors({ submit: detail || t('auth.errGeneral') || 'Xatolik yuz berdi' })
+      setErrors({ submit: detail || 'Tasdiqlashda xatolik yuz berdi' })
     } finally {
       setLoading(false)
     }
@@ -528,6 +568,59 @@ export default function RegisterCompany() {
                 {t('auth.alreadyHaveAcc') || "Allaqachon hisobingiz bormi?"}{' '}
                 <Link to="/login" className="text-blue-600 font-semibold hover:underline">{t('land.nav.login')}</Link>
               </p>
+            </form>
+          )}
+
+          {/* ── STEP 3 ── */}
+          {step === 3 && (
+            <form onSubmit={handleVerifyOtp} className="space-y-4">
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                  <Icon d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" cls="w-8 h-8 text-blue-600" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-800">SMS kodni kiriting</h3>
+                <p className="text-slate-500 text-sm mt-1">
+                  <span className="font-semibold text-slate-700">{form.phone}</span> raqamiga tasdiqlash kodi yuborildi
+                </p>
+              </div>
+
+              <InputField label="Tasdiqlash kodi (4 xonali)" error={errors.otp}>
+                <input
+                  type="text"
+                  maxLength={4}
+                  value={otpCode}
+                  onChange={e => { setOtpCode(e.target.value.replace(/\D/g, '')); clearErr('otp') }}
+                  placeholder="X X X X"
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-center text-2xl font-mono tracking-[0.5em] text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400 transition-all bg-white"
+                />
+              </InputField>
+
+              {errors.submit && (
+                <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl px-4 py-3 flex items-start gap-2">
+                  <Icon d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" cls="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{errors.submit}</span>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setStep(2)}
+                  className="px-5 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm transition-all flex items-center gap-2"
+                >
+                  <Icon d="M11 17l-5-5m0 0l5-5m-5 5h12" />
+                  Ortga
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || otpCode.length !== 4}
+                  className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-sm transition-all shadow-md shadow-blue-200 flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>Tasdiqlanmoqda...</>
+                  ) : (<>Tasdiqlash va kirish <Icon d="M5 13l4 4L19 7" /></>)}
+                </button>
+              </div>
             </form>
           )}
 

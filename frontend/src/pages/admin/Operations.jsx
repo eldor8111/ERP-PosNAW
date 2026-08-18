@@ -2107,7 +2107,7 @@ function QaytarishlarTab({ products, suppliers, warehouses, customers }) {
       toast.success("Qaytaruv bekor qilindi va stok qoldiqlari tiklandi");
       // Ro'yxatni yangilash
       setLoading(true);
-      const params = { reference_type: sub === "supplier" ? "return_to_supplier" : "return_from_customer" };
+      const params = { reference_type: sub === "supplier" ? "return_to_supplier" : "sale_refund" };
       const res = await api.get("/inventory/movements", { params });
       setReturns(res.data);
     } catch (err) {
@@ -2121,7 +2121,7 @@ function QaytarishlarTab({ products, suppliers, warehouses, customers }) {
   useEffect(() => {
     if (mode === 'list') {
       setLoading(true);
-      api.get('/inventory/movements', { params: { reference_type: sub === 'supplier' ? 'return_to_supplier' : 'return_from_customer' } })
+      api.get('/inventory/movements', { params: { reference_type: sub === 'supplier' ? 'return_to_supplier' : 'sale_refund' } })
         .then(r => setReturns(r.data))
         .catch(console.error)
         .finally(() => setLoading(false));

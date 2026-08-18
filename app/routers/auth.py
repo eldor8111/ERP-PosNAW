@@ -77,7 +77,7 @@ async def _send_telegram_otp(chat_id: str, otp: str, user_name: str = "") -> boo
 
 
 def _generate_otp() -> str:
-    return str(random.randint(100000, 999999))
+    return str(random.randint(1000, 9999))
 
 
 def _get_bot_username(token: str) -> str:
@@ -335,20 +335,11 @@ async def send_otp(request: Request, data: SendOtpRequest, db: Session = Depends
         if is_dev_mode:
             print(f"[DEV] Reset OTP for {normalized} ({user.name}): {otp}")
         else:
-            chat_id = _find_chat_id_by_phone(normalized)
-            if not chat_id and user.tg_chat_id:
-                chat_id = user.tg_chat_id
-            if not chat_id:
-                bot_username = _get_bot_username(bot_token)
-                return {
-                    "sent": False,
-                    "has_telegram": False,
-                    "bot_link": f"https://t.me/{bot_username}",
-                    "message": "Telegram bot ulanmagan. Quyidagi botni oching va telefon raqamingizni ulang.",
-                }
-            sent = await _send_telegram_otp(chat_id, otp, user.name)
-            if not sent:
-                raise HTTPException(status_code=500, detail="Telegram xabar yuborishda xato")
+            from app.services.eskiz_service import eskiz_service
+            message = f"E-Code.uz dan parolni tiklash kodi: {otp}\nHech kimga bermang."
+            res = await eskiz_service.send_sms(normalized, message)
+            if not res.get("success"):
+                raise HTTPException(status_code=500, detail="SMS yuborishda xato: " + str(res.get("error")))
 
         from app.core.security import create_access_token
         otp_session = create_access_token(
@@ -367,18 +358,11 @@ async def send_otp(request: Request, data: SendOtpRequest, db: Session = Depends
         if is_dev_mode:
             print(f"[DEV] Register OTP for {normalized}: {otp}")
         else:
-            chat_id = _find_chat_id_by_phone(normalized, db)
-            if not chat_id:
-                bot_username = _get_bot_username(bot_token)
-                return {
-                    "sent": False,
-                    "has_telegram": False,
-                    "bot_link": f"https://t.me/{bot_username}",
-                    "message": "Ro'yxatdan o'tish uchun avval Telegram botni oching va raqamingizni ulang.",
-                }
-            sent = await _send_telegram_otp(chat_id, otp, "")
-            if not sent:
-                raise HTTPException(status_code=500, detail="Telegram xabar yuborishda xato")
+            from app.services.eskiz_service import eskiz_service
+            message = f"E-Code.uz dan ro'yxatdan o'tish kodi: {otp}\nHech kimga bermang."
+            res = await eskiz_service.send_sms(normalized, message)
+            if not res.get("success"):
+                raise HTTPException(status_code=500, detail="SMS yuborishda xato: " + str(res.get("error")))
 
         from app.core.security import create_access_token
         otp_session = create_access_token(
@@ -669,7 +653,7 @@ def _process_login_success(user: User, db: Session, request: Request, is_otp: bo
 
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("5/minute")
-def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
+async def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
     try:
         normalized_phone = data.phone.strip().replace("+", "").replace(" ", "").replace("-", "")
         user = db.query(User).filter(User.phone == normalized_phone, User.status == UserStatus.active).first()
@@ -692,22 +676,16 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
 
         otp_sent = False
         if not is_dev_mode:
-            chat_id = _find_chat_id_by_phone(normalized_phone)
-            if not chat_id and user.tg_chat_id:
-                chat_id = user.tg_chat_id
-            if chat_id:
-                try:
-                    import httpx
-                    httpx.post(
-                        f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                        json={"chat_id": chat_id,
-                              "text": f"🔐 ERP kirish kodi: *{otp}*\n\nBu kod 5 daqiqa amal qiladi.",
-                              "parse_mode": "Markdown"},
-                        timeout=5,
-                    )
+            try:
+                from app.services.eskiz_service import eskiz_service
+                message = f"E-Code.uz dan kirish kodi: {otp}\nHech kimga bermang."
+                res = await eskiz_service.send_sms(normalized_phone, message)
+                if res.get("success"):
                     otp_sent = True
-                except Exception as e:
-                    print(f"[OTP Login] Yuborishda xato: {e}")
+                else:
+                    print(f"[OTP Login] Yuborishda xato: {res.get('error')}")
+            except Exception as e:
+                print(f"[OTP Login] Exception: {e}")
         else:
             print(f"[OTP Login DEV] {normalized_phone} → {otp}")
             otp_sent = True
@@ -727,7 +705,7 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
                 "name": user.name,
                 "dev_mode": is_dev_mode,
                 "otp_session": otp_session,
-                "message": "OTP Telegram orqali yuborildi" if otp_sent else "Telegram bot ulanmagan",
+                "message": "OTP kodi SMS orqali yuborildi" if otp_sent else "SMS yuborishda xatolik yuz berdi",
             }
         )
 

@@ -33,13 +33,13 @@ function LoginLangSwitcher({ lang, setLang, dark = false }) {
   )
 }
 
-// ─── OTP Input — 6 ta bo'sh katak ─────────────────────────────────────────
+// ─── OTP Input — 4 ta bo'sh katak ─────────────────────────────────────────
 function OtpInput({ value, onChange }) {
-  const digits = (value + '      ').slice(0, 6).split('')
+  const digits = (value + '    ').slice(0, 4).split('')
   const handleKey = (e, i) => {
     const num = e.key
     if (num >= '0' && num <= '9') {
-      const arr = value.padEnd(6, ' ').split('')
+      const arr = value.padEnd(4, ' ').split('')
       arr[i] = num
       const next = arr.join('').trimEnd()
       onChange(next)
@@ -56,7 +56,7 @@ function OtpInput({ value, onChange }) {
 
   return (
     <div className="flex gap-2 justify-center my-2">
-      {[0, 1, 2, 3, 4, 5].map(i => (
+      {[0, 1, 2, 3].map(i => (
         <input
           key={i}
           id={`otp-input-${i}`}
@@ -83,7 +83,7 @@ function ForgotPasswordModal({ onClose, t }) {
   const [step, setStep] = useState(1)   // 1: telefon, 2: OTP, 3: yangi parol
   const [phone, setPhone] = useState('')
   const [userName, setUserName] = useState('')
-  const [otp, setOtp] = useState('111111')
+  const [otp, setOtp] = useState('1111')
   const [verifiedToken, setVerifiedToken] = useState('')
   const [newPass, setNewPass] = useState('')
   const [confirmPass, setConfirmPass] = useState('')
@@ -153,7 +153,7 @@ function ForgotPasswordModal({ onClose, t }) {
   // Step 2 → Step 3: OTP tasdiqlash
   const verifyOtp = async (e) => {
     e.preventDefault()
-    if (otp.length < 6) { setError("6 xonali kodni to'liq kiriting"); return }
+    if (otp.length < 4) { setError("4 xonali kodni to'liq kiriting"); return }
     setError('')
     setLoading(true)
     try {
@@ -217,7 +217,7 @@ function ForgotPasswordModal({ onClose, t }) {
               <h3 className="text-lg font-bold text-slate-800">{t('auth.resetPass')}</h3>
               <p className="text-sm text-slate-500 mt-0.5">
                 {step === 1 ? 'Telefon raqamingizni kiriting'
-                  : step === 2 ? `Salom, ${userName}! Telegram botdagi kodni kiriting`
+                  : step === 2 ? `Salom, ${userName}! SMS orqali yuborilgan kodni kiriting`
                   : `Yangi parol o'rnating`}
               </p>
               {/* Step indicator */}
@@ -279,11 +279,11 @@ function ForgotPasswordModal({ onClose, t }) {
                 )}
                 <div>
                   <p className="text-xs text-slate-500 text-center mb-3">
-                    <span className="font-semibold text-blue-600">Telegram</span> botdagi 6 xonali kodni kiriting
+                    <span className="font-semibold text-blue-600">SMS</span> orqali kelgan 4 xonali kodni kiriting
                   </p>
                   <OtpInput value={otp} onChange={setOtp} />
                 </div>
-                <button type="submit" disabled={loading || otp.length < 6}
+                <button type="submit" disabled={loading || otp.length < 4}
                   className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2">
                   {loading ? t('common.loading') : <>Tasdiqlash <Icon d="M5 13l4 4L19 7" /></>}
                 </button>
@@ -359,7 +359,7 @@ export default function Login() {
   const [showForgot, setShowForgot] = useState(false)
   // OTP bosqich
   const [otpStep, setOtpStep] = useState(false)
-  const [otp, setOtp] = useState('111111')
+  const [otp, setOtp] = useState('1111')
   const [otpName, setOtpName] = useState('')
   const [otpDevMode, setOtpDevMode] = useState(false)
   const [otpLoading, setOtpLoading] = useState(false)
@@ -411,7 +411,7 @@ export default function Login() {
 
   const handleOtpVerify = async (e) => {
     e.preventDefault()
-    if (otp.length < 6) { setError("6 xonali kodni to'liq kiriting"); return }
+    if (otp.length < 4) { setError("4 xonali kodni to'liq kiriting"); return }
     setOtpLoading(true); setError('')
     try {
       const normalized = form.phone.replace(/[+ -]/g, '')
@@ -565,8 +565,8 @@ export default function Login() {
           ) : otpStep ? (
             <>
               <div className="mb-8">
-                <h1 className="text-2xl font-black text-slate-800">Telegram OTP tasdiqlash</h1>
-                <p className="text-slate-500 text-sm mt-1">Salom, <strong>{otpName}</strong>! Telegram botdagi kodni kiriting.</p>
+                <h1 className="text-2xl font-black text-slate-800">SMS OTP tasdiqlash</h1>
+                <p className="text-slate-500 text-sm mt-1">Salom, <strong>{otpName}</strong>! Telefon raqamingizga SMS kodi yuborildi.</p>
               </div>
               {otpDevMode && (
                 <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl px-3 py-2.5 text-xs font-medium mb-4">
@@ -582,11 +582,11 @@ export default function Login() {
               <form onSubmit={handleOtpVerify} className="space-y-5">
                 <div>
                   <p className="text-xs text-slate-500 text-center mb-3">
-                    <span className="font-semibold text-blue-600">Telegram</span> botdagi 6 xonali kodni kiriting
+                    <span className="font-semibold text-blue-600">SMS</span> orqali kelgan 4 xonali kodni kiriting
                   </p>
                   <OtpInput value={otp} onChange={setOtp} />
                 </div>
-                <button type="submit" disabled={otpLoading || otp.length < 6}
+                <button type="submit" disabled={otpLoading || otp.length < 4}
                   className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 disabled:opacity-50 text-white font-bold text-sm transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2">
                   {otpLoading ? (
                     <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Tekshirilmoqda...</>

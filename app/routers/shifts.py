@@ -85,7 +85,7 @@ def get_current_shift(db: Session = Depends(get_db), user: User = Depends(get_cu
         Sale.cashier_id == user.id,
         Sale.created_at >= shift.opened_at,
         Sale.status != "cancelled"
-    ).group_by(SalePayment.payment_type, func.coalesce(Currency.code, 'UZS')).all()
+    ).group_by(SalePayment.payment_type, Currency.code).all()
 
     balances = {}
     total_sales_by_currency = {}
@@ -150,7 +150,7 @@ def _calc_shift_payment_balances(db: Session, shift: Shift):
         Sale.cashier_id == shift.cashier_id,
         Sale.created_at >= shift.opened_at,
         Sale.status != "cancelled"
-    ).group_by(SalePayment.payment_type, func.coalesce(Currency.code, 'UZS')).all()
+    ).group_by(SalePayment.payment_type, Currency.code).all()
     balances = {}
     for p in payments:
         ptype = p.payment_type

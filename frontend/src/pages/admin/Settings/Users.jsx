@@ -1,10 +1,543 @@
-import React from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import api from '../../../api/axios';
+import { useLang } from '../../../context/LangContext';
+import toast from 'react-hot-toast';
+import { PERMISSIONS } from '../../../constants/permissions';
 
-export default function UsersTab() {
+// super_admin ni dropdown dan yashiramiz тАФ faqat DB orqali beriladi
+const ROLES = ['admin', 'director', 'manager', 'accountant', 'warehouse', 'cashier'];
+
+const getRoleLabels = (t) => ({
+  super_admin: t('role.super_admin'),
+  admin: t('role.admin'), director: t('role.director'), manager: t('role.manager'),
+  accountant: t('role.accountant') || 'Buxgalter', warehouse: t('role.warehouseman'), cashier: t('role.cashier'),
+});
+
+const ROLE_COLORS = {
+  super_admin: 'bg-purple-100 text-purple-700',
+  admin: 'bg-red-100 text-red-700',
+  director: 'bg-purple-100 text-purple-700',
+  manager: 'bg-blue-100 text-blue-700',
+  accountant: 'bg-emerald-100 text-emerald-700',
+  warehouse: 'bg-amber-100 text-amber-700',
+  cashier: 'bg-indigo-100 text-indigo-700',
+};
+
+const BLANK_FORM = { name: '', phone: '', email: '', password: '', role: 'cashier', branch_id: '', permissions: {} };
+
+const inp = "w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500";
+
+function StatCard({ label, value, color = 'slate' }) {
+  const txt = {
+    indigo: 'text-indigo-600', emerald: 'text-emerald-600',
+    violet: 'text-violet-600', slate: 'text-slate-700',
+  };
   return (
-    <div className="p-4">
-      <h2 className="text-xl font-semibold mb-4">Foydalanuvchilar</h2>
-      <p>Bu sahifa tez orada ishga tushadi.</p>
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{label}</div>
+      <div className={`text-2xl font-bold mt-1 ${txt[color]}`}>{value}</div>
     </div>
   );
 }
+
+function Field({ label, children }) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-slate-600 mb-1.5">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function RoleSelect({ value, onChange, roles, roleLabels }) {
+  return (
+    <Field label="Rol">
+      <select value={value} onChange={e => onChange(e.target.value)} className={inp}>
+        {roles.map(r => <option key={r} value={r}>{roleLabels[r]}</option>)}
+      </select>
+    </Field>
+  );
+}
+
+function BranchSelect({ value, onChange, branches }) {
+  return (
+    <Field label="Filial">
+      <select value={value} onChange={e => onChange(e.target.value)} className={inp}>
+        <option value="">тАФ Filialsiz тАФ</option>
+        {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+      </select>
+    </Field>
+  );
+}
+
+function PermissionsList({ form, setField }) {
+  const handlePerm = (k, v) => {
+    const newPerms = { ...(form.permissions || {}) };
+    if (v === 'default') delete newPerms[k];
+    else newPerms[k] = (v === 'allow');
+    setField('permissions', newPerms);
+  };
+  return (
+    <div className="pt-2 border-t border-slate-100 mt-4">
+      <h4 className="text-sm font-bold text-slate-700 mb-2">Maxsus huquqlar</h4>
+      <p className="text-xs text-slate-500 mb-3">Tizim bo'limlariga kirishni alohida belgilashingiz mumkin.</p>
+      <div className="max-h-60 overflow-y-auto space-y-2 pr-1" style={{ scrollbarWidth: 'thin' }}>
+        {Object.entries(PERMISSIONS).map(([k, p]) => (
+          <div key={k} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 bg-slate-50 border border-slate-100 rounded-xl">
+            <div>
+              <div className="text-xs font-semibold text-slate-700">{p.label}</div>
+              <div className="text-[10px] text-slate-500 leading-tight mt-0.5">{p.desc}</div>
+            </div>
+            <select
+              value={form.permissions?.[k] === true ? 'allow' : form.permissions?.[k] === false ? 'deny' : 'default'}
+              onChange={e => handlePerm(k, e.target.value)}
+              className="text-xs py-1.5 px-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium"
+            >
+              <option value="default">Standart (Rolga qarab)</option>
+              <option value="allow" className="text-emerald-600 font-semibold">Ruxsat berish</option>
+              <option value="deny" className="text-red-600 font-semibold">Taqiqlash</option>
+            </select>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// OTP bosqichlari: 'form' тЖТ 'otp_sent' тЖТ 'otp_verified'
+export default function UsersTab() {
+  const { t } = useLang();
+  const [users, setUsers] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [wallets, setWallets] = useState([]);
+  const [userWallets, setUserWallets] = useState([]); // {wallet_id, is_default}
+  const [modal, setModal] = useState(null); // 'create' | 'edit' | 'password' | 'kassa'
+  const [selected, setSelected] = useState(null);
+  const [form, setForm] = useState(BLANK_FORM);
+  const [newPwd, setNewPwd] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const ROLE_LABELS = getRoleLabels(t);
+
+  const load = useCallback(() => {
+    api.get('/users/').then(r => setUsers(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+  }, []);
+
+  useEffect(() => {
+    load();
+    api.get('/branches').then(r => setBranches(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/kassa').then(r => setWallets(r.data)).catch(() => { });
+  }, [load]);
+
+  const openCreate = () => {
+    setForm(BLANK_FORM);
+    setError('');
+    setModal('create');
+  };
+  const openEdit = (u) => {
+    setForm({ name: u.name, phone: u.phone, email: u.email || '', password: '', role: u.role, branch_id: u.branch_id ?? '', permissions: u.permissions || {} });
+    setSelected(u); setError(''); setModal('edit');
+  };
+  const openKassa = async (u) => {
+    setSelected(u);
+    try {
+      const [walletsRes, uwRes] = await Promise.all([
+        api.get('/kassa'),
+        api.get(`/users/${u.id}/wallets`).catch(() => ({ data: [] }))
+      ]);
+      setWallets(walletsRes.data);
+      setUserWallets((uwRes.data || []).map(w => ({ wallet_id: w.id, is_default: w.is_default })));
+    } catch { setUserWallets([]); }
+    setModal('kassa');
+  };
+  const openPwd = (u) => {
+    setSelected(u);
+    setNewPwd('');
+    setError('');
+    setModal('password');
+  };
+
+  const toggleWallet = async (walletId, checked) => {
+    try {
+      if (checked) {
+        await api.post(`/users/${selected.id}/wallets`, {
+          wallet_id: walletId,
+          is_default: userWallets.length === 0
+        });
+        setUserWallets(prev => [...prev, { wallet_id: walletId, is_default: prev.length === 0 }]);
+      } else {
+        await api.delete(`/users/${selected.id}/wallets/${walletId}`);
+        setUserWallets(prev => prev.filter(w => w.wallet_id !== walletId));
+      }
+      toast.success(checked ? 'Kassa biriktirildi' : 'Kassa olib tashlandi');
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Xatolik yuz berdi');
+    }
+  };
+
+  const setDefaultWallet = async (walletId) => {
+    try {
+      await api.post(`/users/${selected.id}/wallets/${walletId}/set-default`);
+      setUserWallets(prev => prev.map(w => ({ ...w, is_default: w.wallet_id === walletId })));
+      toast.success('Default kassa o\'rnatildi');
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Xatolik yuz berdi');
+    }
+  };
+
+  const close = () => {
+    setModal(null); setSelected(null); setError('');
+  };
+
+  const setField = useCallback((key, val) => {
+    setForm(prev => ({ ...prev, [key]: val }));
+  }, []);
+
+  // Foydalanuvchi yaratish
+  const handleCreate = async (e) => {
+    e.preventDefault(); setSaving(true); setError('');
+    try {
+      const payload = {
+        name: form.name,
+        phone: form.phone,
+        email: form.email || null,
+        password: form.password,
+        role: form.role,
+        permissions: form.permissions,
+        branch_id: form.branch_id ? Number(form.branch_id) : null,
+      };
+      await api.post('/users/', payload);
+      close(); load();
+      toast.success('Foydalanuvchi muvaffaqiyatli qo\'shildi');
+    } catch (err) {
+      setError(err.response?.data?.detail || t('common.error'));
+    } finally { setSaving(false); }
+  };
+
+  const handleEdit = async (e) => {
+    e.preventDefault(); setSaving(true); setError('');
+    try {
+      const payload = {
+        name: form.name,
+        phone: form.phone,
+        email: form.email || null,
+        role: form.role,
+        permissions: form.permissions,
+        branch_id: form.branch_id ? Number(form.branch_id) : null,
+      };
+      await api.put(`/users/${selected.id}`, payload);
+      close(); load();
+    } catch (err) { setError(err.response?.data?.detail || t('common.error')); }
+    finally { setSaving(false); }
+  };
+
+  const handlePwd = async (e) => {
+    e.preventDefault(); setSaving(true); setError('');
+    try {
+      await api.patch(`/users/${selected.id}/password`, { new_password: newPwd });
+      close();
+    } catch (err) { setError(err.response?.data?.detail || t('common.error')); }
+    finally { setSaving(false); }
+  };
+
+  const handleDeactivate = async (u) => {
+    if (!confirm(t('confirm.delete') || `"${u.name}" ni nofaol qilishni tasdiqlaysizmi?`)) return;
+    try {
+      await api.delete(`/users/${u.id}`);
+      load();
+    } catch (err) { alert(err.response?.data?.detail || t('common.error')); }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Xodimlar</h1>
+          <p className="text-slate-500 text-sm mt-0.5">Xodimlar va ularning rollari boshqaruvi</p>
+        </div>
+        <button
+          onClick={openCreate}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+          </svg>
+          Yangi xodim
+        </button>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-4 gap-4">
+        <StatCard label={t('user.totalEmployees') || "Jami xodimlar"} value={users.length} color="indigo" />
+        <StatCard label={t('user.cashiers') || "Kassirlar"} value={users.filter(u => u.role === 'cashier').length} color="emerald" />
+        <StatCard label={t('user.managers') || "Menejerlar"} value={users.filter(u => u.role === 'manager').length} color="violet" />
+        <StatCard label={t('user.admins') || "Adminlar"} value={users.filter(u => u.role === 'admin' || u.role === 'director').length} color="slate" />
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto">
+        <table className="min-w-full">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-100">
+              {[t('common.name') || 'Xodim', t('common.phone'), 'Email', t('branch.title') || 'Filial', t('user.role'), t('common.status'), ''].map(h => (
+                <th key={h} className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {users.map(u => (
+              <tr key={u.id} className="hover:bg-slate-50 transition-colors">
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-sm font-bold shrink-0">
+                      {u.name?.[0]?.toUpperCase()}
+                    </div>
+                    <span className="text-sm font-semibold text-slate-800">{u.name}</span>
+                  </div>
+                </td>
+                <td className="px-6 py-4 text-sm text-slate-500">{u.phone}</td>
+                <td className="px-6 py-4 text-sm text-slate-500">{u.email || 'тАФ'}</td>
+                <td className="px-6 py-4 text-sm text-slate-500">
+                  {u.branch_id ? (branches.find(b => b.id === u.branch_id)?.name || 'тАФ') : 'тАФ'}
+                </td>
+                <td className="px-6 py-4">
+                  <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${ROLE_COLORS[u.role] || 'bg-slate-100 text-slate-600'}`}>
+                    {ROLE_LABELS[u.role] || u.role}
+                  </span>
+                </td>
+                <td className="px-6 py-4">
+                  <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${u.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                    {u.status === 'active' ? t('common.active') : t('common.inactive')}
+                  </span>
+                </td>
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-1 justify-end">
+                    <button onClick={() => openEdit(u)} title={t('common.edit')} className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                    <button onClick={() => openKassa(u)} title="Kassa biriktirish" className="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                    </button>
+                    <button onClick={() => openPwd(u)} title={t('user.changePassword')} className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg transition-colors">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                      </svg>
+                    </button>
+                    <button onClick={() => handleDeactivate(u)} title={t('common.delete')} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {users.length === 0 && (
+              <tr><td colSpan={7} className="px-6 py-16 text-center text-slate-400 text-sm">{t('user.noUsers')}</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* тФАтФА CREATE MODAL тФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФА */}
+      {modal === 'create' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-100 shrink-0">
+              <h3 className="text-lg font-bold text-slate-800">{t('user.newUser')}</h3>
+              <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <form onSubmit={handleCreate} className="p-6 space-y-4 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
+
+              {/* Ism */}
+              <Field label={`${t('common.name')} *`}>
+                <input
+                  type="text" required value={form.name}
+                  onChange={e => setField('name', e.target.value)}
+                  placeholder={t('common.name')} className={inp}
+                  autoFocus
+                />
+              </Field>
+
+              {/* Telefon */}
+              <Field label={`${t('common.phone')} *`}>
+                <input
+                  type="text" required value={form.phone}
+                  onChange={e => setField('phone', e.target.value)}
+                  placeholder="+998901234567" className={inp}
+                />
+              </Field>
+
+              <Field label="Email">
+                <input
+                  type="email" value={form.email}
+                  onChange={e => setField('email', e.target.value)}
+                  placeholder="email@example.com" className={inp}
+                />
+              </Field>
+              <Field label={`${t('user.password')} *`}>
+                <input
+                  type="password" required minLength={6} value={form.password}
+                  onChange={e => setField('password', e.target.value)}
+                  placeholder="Kamida 6 ta belgi" className={inp}
+                />
+              </Field>
+              <RoleSelect value={form.role} onChange={v => setField('role', v)} roles={ROLES} roleLabels={ROLE_LABELS} />
+              {branches.length > 0 && (
+                <BranchSelect value={form.branch_id} onChange={v => setField('branch_id', v)} branches={branches} />
+              )}
+              
+              <PermissionsList form={form} setField={setField} />
+
+              {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
+                  {saving ? t('common.saving') : t('common.add')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* тФАтФА EDIT MODAL тФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФА */}
+      {modal === 'edit' && selected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-100 shrink-0">
+              <h3 className="text-lg font-bold text-slate-800">{t('user.editUser')}</h3>
+              <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <form onSubmit={handleEdit} className="p-6 space-y-4 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
+              <Field label={`${t('common.name')} *`}>
+                <input type="text" required value={form.name} onChange={e => setField('name', e.target.value)} className={inp} autoFocus />
+              </Field>
+              <Field label={`${t('common.phone')} *`}>
+                <input type="text" required value={form.phone} onChange={e => setField('phone', e.target.value)} className={inp} />
+              </Field>
+              <Field label="Email">
+                <input type="email" value={form.email} onChange={e => setField('email', e.target.value)} className={inp} />
+              </Field>
+              <RoleSelect value={form.role} onChange={v => setField('role', v)} roles={ROLES} roleLabels={ROLE_LABELS} />
+              {branches.length > 0 && (
+                <BranchSelect value={form.branch_id} onChange={v => setField('branch_id', v)} branches={branches} />
+              )}
+              
+              <PermissionsList form={form} setField={setField} />
+
+              {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
+                  {saving ? t('common.saving') : t('common.save')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* тФАтФА PASSWORD MODAL тФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФА */}
+      {modal === 'password' && selected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-800">{t('user.changePassword')}</h3>
+              <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <form onSubmit={handlePwd} className="p-6 space-y-4">
+              <p className="text-sm text-slate-600"><strong>{selected.name}</strong></p>
+              <Field label={t('user.password')}>
+                <input
+                  type="password" required minLength={6} value={newPwd} autoFocus
+                  onChange={e => setNewPwd(e.target.value)}
+                  placeholder="Kamida 6 ta belgi" className={inp} />
+              </Field>
+              {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
+              <div className="flex gap-3">
+                <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
+                  {saving ? '...' : t('common.save')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* тФАтФА KASSA MODAL тФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФА */}
+      {modal === 'kassa' && selected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-100">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">Kassa biriktirish</h3>
+                <p className="text-xs text-slate-500 mt-0.5">{selected.name}</p>
+              </div>
+              <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-3 max-h-80 overflow-y-auto">
+              {wallets.length === 0 && <p className="text-slate-400 text-sm text-center py-4">Kassalar topilmadi. Avval kassa yarating.</p>}
+              {wallets.map(w => {
+                const assigned = userWallets.find(uw => uw.wallet_id === w.id);
+                const isDefault = assigned?.is_default;
+                return (
+                  <div key={w.id} className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${assigned ? 'border-emerald-200 bg-emerald-50' : 'border-slate-100 bg-slate-50'}`}>
+                    <input
+                      type="checkbox"
+                      checked={!!assigned}
+                      onChange={e => toggleWallet(w.id, e.target.checked)}
+                      className="w-4 h-4 text-emerald-600 rounded"
+                    />
+                    <div className="flex-1">
+                      <div className="text-sm font-semibold text-slate-800">{w.name}</div>
+                      <div className="text-xs text-slate-400">{w.type} • {(Array.isArray(w.balances?.total) ? (w.balances.total.find(t => t.currency === 'UZS')?.value || 0) : (w.balances?.total || 0)).toLocaleString()} so'm</div>
+                    </div>
+                    {assigned && (
+                      <button
+                        onClick={() => setDefaultWallet(w.id)}
+                        className={`text-xs px-2 py-1 rounded-lg font-medium transition-colors ${isDefault ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600 hover:bg-emerald-100'}`}
+                      >
+                        {isDefault ? 'тЬУ Default' : 'Default'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="px-6 pb-6">
+              <button onClick={close} className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm rounded-xl transition-colors">Yopish</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
