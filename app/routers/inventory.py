@@ -22,7 +22,7 @@ from app.schemas.inventory import (
     ExpiringBatchOut,
     ChiqimDocumentOut,
     ChiqimDetailOut,
-    SupplierReturnRequest, StockMovementUpdate
+    SupplierReturnRequest, StockMovementUpdate, WriteOffExpiredRequest
 )
 from app.services.inventory_service import (
     adjust_stock,

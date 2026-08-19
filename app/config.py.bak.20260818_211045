@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     HIPPO_COMMUNICATOR_URL: str = "http://127.0.0.1:8081"
     HIPPO_API_PREFIX: str = "/api"
     HIPPO_TIMEOUT: int = 30
+    # Gemini API Key
+    GEMINI_API_KEY: str = ""
+    BYTEZ_API_KEY: str = ""
     OPENROUTER_API_KEY: str = ""
     OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
     OPENROUTER_MODEL: str = "cohere/north-mini-code:free"

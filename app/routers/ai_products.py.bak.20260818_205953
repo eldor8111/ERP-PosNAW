@@ -30,7 +30,7 @@ def generate_desc(
     if cache_key in cache:
         return {"description": cache[cache_key], "cached": True}
         
-    api_key = os.getenv("OPENROUTER_API_KEY", "")
+    api_key = os.getenv("BYTEZ_API_KEY", "42444b53b260f17105d68352fe7e9b3f")
     
     description = generate_product_description(request.name, request.category, api_key)
     

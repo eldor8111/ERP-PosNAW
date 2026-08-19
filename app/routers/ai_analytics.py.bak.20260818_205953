@@ -13,7 +13,7 @@ from app.services.ai_service import (
     execute_copilot_action,
     build_daily_report,
 )
-from app.services.openrouter_copilot_service import call_copilot_ai
+from app.services.bytez_copilot_service import call_copilot_ai
 import os
 
 from app.services.debt_scoring import categorize_customers
@@ -29,11 +29,11 @@ class ChatRequest(BaseModel):
 
 @router.get("/status")
 def get_ai_status():
-    """AI tizimi holati — OpenRouter AI faol."""
+    """AI tizimi holati — Mahalliy AI faol, Gemini API kerak emas."""
     return {
         "status": "ok",
-        "mode": "openrouter",
-        "message": "OpenRouter AI tizimi ishlayapti.",
+        "mode": "local",
+        "message": "Mahalliy AI tizimi ishlayapti. Hech qanday tashqi API kerak emas.",
         "features": [
             "Kunlik savdo tahlili",
             "Haftalik tendensiya",
@@ -72,15 +72,7 @@ def get_daily_summary(
 
     context = build_daily_context(db, current_user.company_id)
     prompt = "Bugungi savdoga qisqacha ta'rif ber."
-    ai_summary_data = call_copilot_ai(
-        prompt,
-        context,
-        os.getenv("OPENROUTER_API_KEY", "")
-    )
-    ai_summary = ai_summary_data.get(
-        "reply",
-        "AI xulosa hozircha mavjud emas."
-    )
+    ai_summary = call_gemini(prompt, context)
 
     return {
         "date": str(today),
@@ -214,7 +206,7 @@ def chat_with_copilot(
         return {"reply": "Kechirasiz, faqat o'z korxonangizga tegishli ma'lumotlarga javob bera olaman."}
         
     context = build_daily_context(db, current_user.company_id)
-    api_key = os.getenv("OPENROUTER_API_KEY", "")
+    api_key = os.getenv("BYTEZ_API_KEY", "42444b53b260f17105d68352fe7e9b3f")
     
     # AI ga so'rov yuboramiz
     intent_data = call_copilot_ai(request.message, context, api_key)
