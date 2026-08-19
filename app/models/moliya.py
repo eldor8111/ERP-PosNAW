@@ -108,6 +108,9 @@ class KassaSession(Base):
     
     note = Column(Text, nullable=True)
     status = Column(String(20), default="open")  # open | closed
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
 
     wallet = relationship("Wallet", backref="sessions")
 
