@@ -337,10 +337,11 @@ def create_user(
         fake_otp = str(random.randint(1000, 9999))
         message = f"E-Code.uz saytida ro'yxatdan o'tish uchun tasdiqlash kodi: {fake_otp}. Kodni hech kimga bermang."
         
-        async def send_new_user_sms():
+        def send_new_user_sms():
             try:
+                import asyncio
                 from app.services.eskiz_service import eskiz_service
-                await eskiz_service.send_sms(normalized_phone, message)
+                asyncio.run(eskiz_service.send_sms(normalized_phone, message))
             except Exception as e:
                 print(f"[SMS Error] New user SMS failed: {e}")
                 
