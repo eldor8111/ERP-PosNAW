@@ -336,7 +336,7 @@ async def send_otp(request: Request, data: SendOtpRequest, db: Session = Depends
             print(f"[DEV] Reset OTP for {normalized} ({user.name}): {otp}")
         else:
             from app.services.eskiz_service import eskiz_service
-            message = f"E-Code.uz dan parolni tiklash kodi: {otp}\nHech kimga bermang."
+            message = f"E-Code.uz saytida parolni tiklash uchun tasdiqlash kodi: {otp}. Kodni hech kimga bermang."
             res = await eskiz_service.send_sms(normalized, message)
             if not res.get("success"):
                 raise HTTPException(status_code=500, detail="SMS yuborishda xato: " + str(res.get("error")))
@@ -359,7 +359,7 @@ async def send_otp(request: Request, data: SendOtpRequest, db: Session = Depends
             print(f"[DEV] Register OTP for {normalized}: {otp}")
         else:
             from app.services.eskiz_service import eskiz_service
-            message = f"E-Code.uz dan ro'yxatdan o'tish kodi: {otp}\nHech kimga bermang."
+            message = f"E-Code.uz saytida ro'yxatdan o'tish uchun tasdiqlash kodi: {otp}. Kodni hech kimga bermang."
             res = await eskiz_service.send_sms(normalized, message)
             if not res.get("success"):
                 raise HTTPException(status_code=500, detail="SMS yuborishda xato: " + str(res.get("error")))
@@ -678,7 +678,7 @@ async def login(request: Request, data: LoginRequest, db: Session = Depends(get_
         if not is_dev_mode:
             try:
                 from app.services.eskiz_service import eskiz_service
-                message = f"E-Code.uz dan kirish kodi: {otp}\nHech kimga bermang."
+                message = f"E-Code.uz saytiga kirish uchun tasdiqlash kodi: {otp}. Kodni hech kimga bermang."
                 res = await eskiz_service.send_sms(normalized_phone, message)
                 if res.get("success"):
                     otp_sent = True
