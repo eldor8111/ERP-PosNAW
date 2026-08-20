@@ -1,6 +1,6 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.core.audit import log_action
@@ -171,6 +171,7 @@ def get_user(
 def create_user(
     data: UserCreate,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.super_admin)),
 ):
@@ -328,6 +329,21 @@ def create_user(
     )
     db.commit()
     db.refresh(user)
+
+    # Yangi foydalanuvchiga SMS yuborish
+    if not active_existing and not inactive_existing:
+        normalized_phone = data.phone.strip().replace("+", "").replace(" ", "").replace("-", "")
+        message = f"E-Code.uz tizimida profil yaratildi. Login: {normalized_phone}, Parol: {data.password}"
+        
+        async def send_new_user_sms():
+            try:
+                from app.services.eskiz_service import eskiz_service
+                await eskiz_service.send_sms(normalized_phone, message)
+            except Exception as e:
+                print(f"[SMS Error] New user SMS failed: {e}")
+                
+        background_tasks.add_task(send_new_user_sms)
+
     return user
 
 

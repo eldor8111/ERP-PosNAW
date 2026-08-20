@@ -36,242 +36,6 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 _otp_store: dict = {}
 # {verified_token: {"phone": str, "expires": datetime}}
 _verified_tokens: dict = {}
-# Bot orqali ulangan: {normalized_phone: chat_id}
-_phone_to_chat_id: dict = {}
-# Polling offset
-_polling_offset: list = [0]  # list ishlatiladi mutable bo'lishi uchun
-
-from app.config import settings
-
-
-def _get_otp_bot_token() -> str:
-    return settings.OTP_BOT_TOKEN
-
-
-async def _send_telegram_otp(chat_id: str, otp: str, user_name: str = "") -> bool:
-    """OTP kodni Telegram orqali yuboradi. True qaytaradi agar muvaffaqiyatli."""
-    bot_token = _get_otp_bot_token()
-    if not bot_token or bot_token == "YOUR_TELEGRAM_BOT_TOKEN_HERE":
-        return False
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    greeting = f"Salom, <b>{user_name}</b>!\n\n" if user_name else ""
-    text = (
-        f"🔐 <b>ERP-POS tasdiqlash kodi</b>\n\n"
-        f"{greeting}"
-        f"Sizning bir martalik kod:\n\n"
-        f"<code>{otp}</code>\n\n"
-        f"⏱ Kod <b>5 daqiqa</b> davomida amal qiladi.\n"
-        f"🚫 Kodni hech kimga bermang!"
-    )
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.post(url, json={
-                "chat_id": chat_id,
-                "text": text,
-                "parse_mode": "HTML"
-            })
-            return resp.status_code == 200
-    except Exception as e:
-        print(f"OTP Telegram xato: {e}")
-        return False
-
-
-def _generate_otp() -> str:
-    return str(random.randint(1000, 9999))
-
-
-def _get_bot_username(token: str) -> str:
-    """Bot username ni sinxron ravishda oladi."""
-    try:
-        resp = httpx.get(f"https://api.telegram.org/bot{token}/getMe", timeout=3.0)
-        if resp.status_code == 200:
-            return resp.json().get("result", {}).get("username", "your_bot")
-    except Exception:
-        pass
-    return "your_bot"
-
-
-async def _process_bot_update(update: dict, bot_token: str):
-    """Telegram bot update ni qayta ishlaydi — /start va contact."""
-    message = update.get("message", {})
-    if not message:
-        return
-
-    chat_id = str(message.get("chat", {}).get("id", ""))
-    text = message.get("text", "").strip()
-
-    # Kontakt yuborilganda — phone→chat_id bog'laymiz
-    if "contact" in message:
-        contact = message["contact"]
-        phone_raw = contact.get("phone_number", "")
-        # Faqat oxirgi 9 raqam (O'zbekiston formati)
-        phone_digits = "".join(filter(str.isdigit, phone_raw))
-        # Har xil formatda saqlash
-        possible_phones = [
-            phone_digits,
-            phone_digits[-9:] if len(phone_digits) >= 9 else phone_digits,
-            "998" + phone_digits[-9:] if len(phone_digits) >= 9 else "",
-        ]
-        for p in possible_phones:
-            if p:
-                _phone_to_chat_id[p] = chat_id
-        print(f"[OTP Bot] Ulandi: {phone_digits} → chat_id {chat_id}")
-
-        # DB ga ham saqlash — server restart bo'lsa ham saqlansin
-        try:
-            from app.database import SessionLocal
-            from app.models.tg_phone_chat import TgPhoneChat
-            db = SessionLocal()
-            try:
-                for p in possible_phones:
-                    if not p:
-                        continue
-                    # Mavjud foydalanuvchining tg_chat_id ni yangilaymiz
-                    db_user = db.query(User).filter(User.phone == p, User.status == UserStatus.active).first()
-                    if db_user:
-                        db_user.tg_chat_id = chat_id
-                        db.commit()
-                        print(f"[OTP Bot] User DB ga saqlandi: {p} → chat_id {chat_id}")
-                    # TgPhoneChat ga ham saqlaymiz (ro'yxatdan o'tmagan uchun ham)
-                    existing = db.query(TgPhoneChat).filter(TgPhoneChat.phone == p).first()
-                    if existing:
-                        existing.chat_id = chat_id
-                    else:
-                        db.add(TgPhoneChat(phone=p, chat_id=chat_id))
-                db.commit()
-                print(f"[OTP Bot] TgPhoneChat DB ga saqlandi: {phone_digits} → chat_id {chat_id}")
-            finally:
-                db.close()
-        except Exception as e:
-            print(f"[OTP Bot] DB saqlashda xato: {e}")
-        # Tasdiqlash xabari
-        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                await client.post(url, json={
-                    "chat_id": chat_id,
-                    "text": (
-                        "✅ <b>Muvaffaqiyat!</b>\n\n"
-                        "Sizning raqamingiz tizimga ulandi. "
-                        "Endi ro'yxatdan o'tish yoki parolni tiklashda "
-                        "OTP kodi shu botga yuboriladi! 🔐"
-                    ),
-                    "parse_mode": "HTML",
-                    "reply_markup": {"remove_keyboard": True}
-                })
-        except Exception as e:
-            print(f"[OTP Bot] Xato: {e}")
-        return
-
-    # /start komandasiga javob
-    if text.startswith("/start"):
-        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        keyboard = {
-            "keyboard": [[{"text": "📞 Telefon raqamimni ulash", "request_contact": True}]],
-            "resize_keyboard": True,
-            "one_time_keyboard": True
-        }
-        try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                await client.post(url, json={
-                    "chat_id": chat_id,
-                    "text": (
-                        "👋 <b>ERP-POS OTP Bot</b>\n\n"
-                        "Salom! Bu bot ro'yxatdan o'tish va "
-                        "parolni tiklash uchun tasdiqlash kodlarini yuboradi.\n\n"
-                        "📱 Boshlash uchun <b>quyidagi tugmani bosing</b> "
-                        "va telefon raqamingizni ulang:"
-                    ),
-                    "parse_mode": "HTML",
-                    "reply_markup": keyboard
-                })
-        except Exception as e:
-            print(f"[OTP Bot] /start xato: {e}")
-
-
-async def run_otp_bot_polling():
-    """OTP Bot uchun long-polling (local development uchun)."""
-    try:
-        bot_token = _get_otp_bot_token()
-        if not bot_token or bot_token == "YOUR_TELEGRAM_BOT_TOKEN_HERE":
-            print("[OTP Bot] OTP_BOT_TOKEN sozlanmagan, polling o'chirilgan.")
-            return
-
-        print(f"[OTP Bot] Polling boshlandi... (Token: {bot_token[:10]}...)")
-    except Exception as e:
-        print(f"[OTP Bot] START xato: {e}")
-        return
-    offset = 0
-    while True:
-        try:
-            async with httpx.AsyncClient(timeout=35.0) as client:
-                resp = await client.get(
-                    f"https://api.telegram.org/bot{bot_token}/getUpdates",
-                    params={"offset": offset, "timeout": 30, "allowed_updates": ["message"]}
-                )
-            if resp.status_code == 200:
-                data = resp.json()
-                for update in data.get("result", []):
-                    offset = update["update_id"] + 1
-                    await _process_bot_update(update, bot_token)
-        except asyncio.CancelledError:
-            print("[OTP Bot] Polling to'xtatildi.")
-            break
-        except Exception as e:
-            print(f"[OTP Bot] Polling xato: {e}")
-            await asyncio.sleep(5)
-
-
-def _find_chat_id_by_phone(phone_normalized: str, db=None) -> str | None:
-    """chat_id qidiradi: avval memory, keyin DB (TgPhoneChat va User)."""
-    # 1. In-memory (to'liq match)
-    if phone_normalized in _phone_to_chat_id:
-        return _phone_to_chat_id[phone_normalized]
-    # 2. In-memory (oxirgi 9 raqam bilan match)
-    short = phone_normalized[-9:] if len(phone_normalized) >= 9 else phone_normalized
-    for stored_phone, chat_id in _phone_to_chat_id.items():
-        stored_short = stored_phone[-9:] if len(stored_phone) >= 9 else stored_phone
-        if stored_short == short:
-            return chat_id
-    # 3. DB dan qidirish (server restart bo'lsa ham ishlaydi)
-    try:
-        from app.models.tg_phone_chat import TgPhoneChat
-        close_db = False
-        if db is None:
-            from app.database import SessionLocal
-            db = SessionLocal()
-            close_db = True
-        try:
-            # TgPhoneChat jadvalidan qidirish
-            record = db.query(TgPhoneChat).filter(TgPhoneChat.phone == phone_normalized).first()
-            if record:
-                # Memory ga ham saqlab qo'yamiz
-                _phone_to_chat_id[phone_normalized] = record.chat_id
-                return record.chat_id
-            # Oxirgi 9 raqam bilan qidirish
-            if len(phone_normalized) >= 9:
-                suffix = phone_normalized[-9:]
-                records = db.query(TgPhoneChat).all()
-                for r in records:
-                    if r.phone.endswith(suffix):
-                        _phone_to_chat_id[phone_normalized] = r.chat_id
-                        return r.chat_id
-            # User.tg_chat_id dan qidirish
-            db_user = db.query(User).filter(
-                User.phone == phone_normalized,
-                User.status == UserStatus.active
-            ).first()
-            if db_user and db_user.tg_chat_id:
-                _phone_to_chat_id[phone_normalized] = db_user.tg_chat_id
-                return db_user.tg_chat_id
-        finally:
-            if close_db:
-                db.close()
-    except Exception as e:
-        print(f"[OTP] DB dan chat_id qidirishda xato: {e}")
-    return None
-
-
 def _generate_org_code(db: Session) -> str:
     while True:
         code = str(random.randint(10000000, 99999999))
@@ -320,9 +84,6 @@ async def send_otp(request: Request, data: SendOtpRequest, db: Session = Depends
     - purpose='register': yangi foydalanuvchi — bot orqali phone→chat_id topiladi
     """
     normalized = data.phone.strip().replace("+", "").replace(" ", "").replace("-", "")
-    bot_token = _get_otp_bot_token()
-    is_dev_mode = not bot_token or bot_token == "YOUR_TELEGRAM_BOT_TOKEN_HERE"
-
     user = db.query(User).filter(User.phone == normalized, User.status == UserStatus.active).first()
 
     # ─── purpose='reset' ──────────────────────────────────────────
@@ -332,10 +93,7 @@ async def send_otp(request: Request, data: SendOtpRequest, db: Session = Depends
 
         otp = _generate_otp()
 
-        if is_dev_mode:
-            print(f"[DEV] Reset OTP for {normalized} ({user.name}): {otp}")
-        else:
-            from app.services.eskiz_service import eskiz_service
+        from app.services.eskiz_service import eskiz_service
             message = f"E-Code.uz saytida parolni tiklash uchun tasdiqlash kodi: {otp}. Kodni hech kimga bermang."
             res = await eskiz_service.send_sms(normalized, message)
             if not res.get("success"):
@@ -346,7 +104,7 @@ async def send_otp(request: Request, data: SendOtpRequest, db: Session = Depends
             {"phone": normalized, "otp": otp, "purpose": "reset", "type": "otp_session"},
             expires_delta=timedelta(minutes=5)
         )
-        return {"sent": True, "dev_mode": is_dev_mode, "has_telegram": True, "otp_session": otp_session}
+        return {"sent": True, "otp_session": otp_session}
 
     # ─── purpose='register' ──────────────────────────────────────
     elif data.purpose == "register":
@@ -355,10 +113,7 @@ async def send_otp(request: Request, data: SendOtpRequest, db: Session = Depends
 
         otp = _generate_otp()
 
-        if is_dev_mode:
-            print(f"[DEV] Register OTP for {normalized}: {otp}")
-        else:
-            from app.services.eskiz_service import eskiz_service
+        from app.services.eskiz_service import eskiz_service
             message = f"E-Code.uz saytida ro'yxatdan o'tish uchun tasdiqlash kodi: {otp}. Kodni hech kimga bermang."
             res = await eskiz_service.send_sms(normalized, message)
             if not res.get("success"):
@@ -369,7 +124,7 @@ async def send_otp(request: Request, data: SendOtpRequest, db: Session = Depends
             {"phone": normalized, "otp": otp, "purpose": "register", "type": "otp_session"},
             expires_delta=timedelta(minutes=5)
         )
-        return {"sent": True, "dev_mode": is_dev_mode, "has_telegram": True, "otp_session": otp_session}
+        return {"sent": True, "otp_session": otp_session}
     else:
         raise HTTPException(status_code=400, detail="Noto'g'ri purpose: 'register' yoki 'reset' bo'lishi kerak")
 
@@ -505,8 +260,7 @@ def register_company(request: Request, data: CompanyRegisterRequest, db: Session
     db.add(branch)
     db.flush()
 
-    # Bot orqali ulangan chat_id ni topamiz (bo'lsa DB ga saqlaymiz)
-    reg_chat_id = _find_chat_id_by_phone(data.phone, db)
+
 
     user = User(
         name=data.name,
@@ -516,7 +270,7 @@ def register_company(request: Request, data: CompanyRegisterRequest, db: Session
         branch_id=branch.id,
         company_id=company.id,
         status=UserStatus.active,
-        tg_chat_id=reg_chat_id,
+        tg_chat_id=None,
     )
     db.add(user)
     db.flush()
@@ -671,12 +425,8 @@ async def login(request: Request, data: LoginRequest, db: Session = Depends(get_
 
         # Kassir/boshqa rollar — OTP yuboramiz
         otp = _generate_otp()
-        bot_token = _get_otp_bot_token()
-        is_dev_mode = not bot_token or bot_token == "YOUR_TELEGRAM_BOT_TOKEN_HERE"
-
         otp_sent = False
-        if not is_dev_mode:
-            try:
+        try:
                 from app.services.eskiz_service import eskiz_service
                 message = f"E-Code.uz saytiga kirish uchun tasdiqlash kodi: {otp}. Kodni hech kimga bermang."
                 res = await eskiz_service.send_sms(normalized_phone, message)
@@ -684,11 +434,8 @@ async def login(request: Request, data: LoginRequest, db: Session = Depends(get_
                     otp_sent = True
                 else:
                     print(f"[OTP Login] Yuborishda xato: {res.get('error')}")
-            except Exception as e:
-                print(f"[OTP Login] Exception: {e}")
-        else:
-            print(f"[OTP Login DEV] {normalized_phone} → {otp}")
-            otp_sent = True
+        except Exception as e:
+            print(f"[OTP Login] Exception: {e}")
 
         from app.core.security import create_access_token
         otp_session = create_access_token(
@@ -703,7 +450,7 @@ async def login(request: Request, data: LoginRequest, db: Session = Depends(get_
                 "otp_required": True,
                 "otp_sent": otp_sent,
                 "name": user.name,
-                "dev_mode": is_dev_mode,
+                
                 "otp_session": otp_session,
                 "message": "OTP kodi SMS orqali yuborildi" if otp_sent else "SMS yuborishda xatolik yuz berdi",
             }
