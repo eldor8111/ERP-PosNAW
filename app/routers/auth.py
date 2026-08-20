@@ -94,10 +94,10 @@ async def send_otp(request: Request, data: SendOtpRequest, db: Session = Depends
         otp = _generate_otp()
 
         from app.services.eskiz_service import eskiz_service
-            message = f"E-Code.uz saytida parolni tiklash uchun tasdiqlash kodi: {otp}. Kodni hech kimga bermang."
-            res = await eskiz_service.send_sms(normalized, message)
-            if not res.get("success"):
-                raise HTTPException(status_code=500, detail="SMS yuborishda xato: " + str(res.get("error")))
+        message = f"E-Code.uz saytida parolni tiklash uchun tasdiqlash kodi: {otp}. Kodni hech kimga bermang."
+        res = await eskiz_service.send_sms(normalized, message)
+        if not res.get("success"):
+            raise HTTPException(status_code=500, detail="SMS yuborishda xato: " + str(res.get("error")))
 
         from app.core.security import create_access_token
         otp_session = create_access_token(
@@ -114,10 +114,10 @@ async def send_otp(request: Request, data: SendOtpRequest, db: Session = Depends
         otp = _generate_otp()
 
         from app.services.eskiz_service import eskiz_service
-            message = f"E-Code.uz saytida ro'yxatdan o'tish uchun tasdiqlash kodi: {otp}. Kodni hech kimga bermang."
-            res = await eskiz_service.send_sms(normalized, message)
-            if not res.get("success"):
-                raise HTTPException(status_code=500, detail="SMS yuborishda xato: " + str(res.get("error")))
+        message = f"E-Code.uz saytida ro'yxatdan o'tish uchun tasdiqlash kodi: {otp}. Kodni hech kimga bermang."
+        res = await eskiz_service.send_sms(normalized, message)
+        if not res.get("success"):
+            raise HTTPException(status_code=500, detail="SMS yuborishda xato: " + str(res.get("error")))
 
         from app.core.security import create_access_token
         otp_session = create_access_token(
