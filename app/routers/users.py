@@ -332,8 +332,10 @@ def create_user(
 
     # Yangi foydalanuvchiga SMS yuborish
     if not active_existing and not inactive_existing:
+        import random
         normalized_phone = data.phone.strip().replace("+", "").replace(" ", "").replace("-", "")
-        message = f"E-Code.uz tizimida profil yaratildi. Login: {normalized_phone}, Parol: {data.password}"
+        fake_otp = str(random.randint(1000, 9999))
+        message = f"E-Code.uz saytida ro'yxatdan o'tish uchun tasdiqlash kodi: {fake_otp}. Kodni hech kimga bermang."
         
         async def send_new_user_sms():
             try:
