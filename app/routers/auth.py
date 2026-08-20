@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status  # type: 
 from pydantic import BaseModel, field_validator  # type: ignore
 import re
 from sqlalchemy.orm import Session  # type: ignore
+from sqlalchemy import func
 
 from app.core.audit import log_action  # type: ignore
 from app.core.dependencies import get_current_user  # type: ignore
@@ -36,6 +37,24 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 _otp_store: dict = {}
 # {verified_token: {"phone": str, "expires": datetime}}
 _verified_tokens: dict = {}
+
+def _generate_otp() -> str:
+    import random
+    return str(random.randint(1000, 9999))
+
+def get_active_user_by_phone(db: Session, phone: str):
+    normalized = phone.strip().replace("+", "").replace(" ", "").replace("-", "")
+    # 1. Exact match
+    user = db.query(User).filter(User.phone == normalized, User.status == UserStatus.active).first()
+    if user: return user, normalized
+    # 2. Match with +
+    user = db.query(User).filter(User.phone == f"+{normalized}", User.status == UserStatus.active).first()
+    if user: return user, normalized
+    # 3. Robust match ignoring spaces, dashes, pluses in DB
+    db_phone_clean = func.replace(func.replace(func.replace(User.phone, '+', ''), ' ', ''), '-', '')
+    user = db.query(User).filter(db_phone_clean == normalized, User.status == UserStatus.active).first()
+    return user, normalized
+
 def _generate_org_code(db: Session) -> str:
     while True:
         code = str(random.randint(10000000, 99999999))
@@ -83,8 +102,7 @@ async def send_otp(request: Request, data: SendOtpRequest, db: Session = Depends
     - purpose='reset': foydalanuvchi tizimda bo'lishi va bot bilan ulangan bo'lishi kerak
     - purpose='register': yangi foydalanuvchi — bot orqali phone→chat_id topiladi
     """
-    normalized = data.phone.strip().replace("+", "").replace(" ", "").replace("-", "")
-    user = db.query(User).filter(User.phone == normalized, User.status == UserStatus.active).first()
+    user, normalized = get_active_user_by_phone(db, data.phone)
 
     # ─── purpose='reset' ──────────────────────────────────────────
     if data.purpose == "reset":
@@ -409,8 +427,7 @@ def _process_login_success(user: User, db: Session, request: Request, is_otp: bo
 @limiter.limit("5/minute")
 async def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
     try:
-        normalized_phone = data.phone.strip().replace("+", "").replace(" ", "").replace("-", "")
-        user = db.query(User).filter(User.phone == normalized_phone, User.status == UserStatus.active).first()
+        user, normalized_phone = get_active_user_by_phone(db, data.phone)
 
         if not user or not verify_password(data.password, user.hashed_password):
             raise HTTPException(
@@ -581,8 +598,7 @@ async def check_phone(request: Request, data: CheckPhoneRequest, db: Session = D
     Dev modeda OTP consolega chiqariladi.
     Agar tg_chat_id yo'q bo'lsa — bot link qaytaradi.
     """
-    normalized = data.phone.strip().replace("+", "").replace(" ", "").replace("-", "")
-    user = db.query(User).filter(User.phone == normalized, User.status == UserStatus.active).first()
+    user, normalized = get_active_user_by_phone(db, data.phone)
     if not user:
         raise HTTPException(status_code=404, detail="Bu telefon raqam tizimda topilmadi")
 
