@@ -586,49 +586,13 @@ async def check_phone(request: Request, data: CheckPhoneRequest, db: Session = D
     if not user:
         raise HTTPException(status_code=404, detail="Bu telefon raqam tizimda topilmadi")
 
-    bot_token = _get_otp_bot_token()
-    is_dev_mode = not bot_token or bot_token == "YOUR_TELEGRAM_BOT_TOKEN_HERE"
-
     otp = _generate_otp()
-
-    if is_dev_mode:
-        print(f"[DEV] Reset OTP for {normalized} ({user.name}): {otp}")
-        from app.core.security import create_access_token
-        otp_session = create_access_token(
-            {"phone": normalized, "otp": otp, "purpose": "reset", "type": "otp_session"},
-            expires_delta=timedelta(minutes=5)
-        )
-        return {
-            "exists": True,
-            "name": user.name,
-            "otp_sent": True,
-            "has_telegram": True,
-            "dev_mode": True,
-            "otp_session": otp_session,
-        }
-
-    # Avval DB dagi tg_chat_id ni tekshiramiz
-    chat_id = user.tg_chat_id
-
-    if not chat_id:
-        chat_id = _find_chat_id_by_phone(normalized)
-        if chat_id:
-            user.tg_chat_id = chat_id
-            db.commit()
-
-    if not chat_id:
-        return {
-            "exists": True,
-            "name": user.name,
-            "otp_sent": False,
-            "has_telegram": False,
-            "bot_link": f"https://t.me/{_get_bot_username(bot_token)}",
-            "message": "Telegram bot ulanmagan. Quyidagi botni oching, /start bosing va raqamingizni ulang.",
-        }
-
-    sent = await _send_telegram_otp(chat_id, otp, user.name)
-    if not sent:
-        raise HTTPException(status_code=500, detail="Telegram xabar yuborishda xato. Qayta urinib ko'ring.")
+    
+    from app.services.eskiz_service import eskiz_service
+    message = f"E-Code.uz saytida parolni tiklash uchun tasdiqlash kodi: {otp}. Kodni hech kimga bermang."
+    res = await eskiz_service.send_sms(normalized, message)
+    if not res.get("success"):
+        raise HTTPException(status_code=500, detail="SMS yuborishda xato: " + str(res.get("error")))
 
     from app.core.security import create_access_token
     otp_session = create_access_token(
@@ -639,8 +603,6 @@ async def check_phone(request: Request, data: CheckPhoneRequest, db: Session = D
         "exists": True,
         "name": user.name,
         "otp_sent": True,
-        "has_telegram": True,
-        "dev_mode": False,
         "otp_session": otp_session,
     }
 
