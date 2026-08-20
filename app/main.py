@@ -216,7 +216,6 @@ def _run_auto_migrations(engine):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    from app.routers.auth import run_otp_bot_polling
     from app.admin_tg_bot.bot_manager import main as run_admin_bot_polling
     from app.database import engine
     from app.models.bot_session import BotSession
@@ -230,11 +229,10 @@ async def lifespan(app: FastAPI):
     # 2. Qo'shimcha SQL migratsiyalar (Payme va boshqalar)
     _run_auto_migrations(engine)
     scheduler_task = asyncio.create_task(start_scheduler())
-    otp_bot_task = asyncio.create_task(run_otp_bot_polling())
     admin_bot_task = asyncio.create_task(run_admin_bot_polling())
     yield
     # Clean shutdown
-    for task in [scheduler_task, otp_bot_task, admin_bot_task]:
+    for task in [scheduler_task, admin_bot_task]:
         task.cancel()
         try:
             await task
