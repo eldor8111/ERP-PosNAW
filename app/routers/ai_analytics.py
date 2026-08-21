@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import date, timedelta
@@ -330,3 +330,84 @@ def get_ai_recommendations(
         })
         
     return {"recommendations": recommendations}
+
+from fastapi import UploadFile, File, HTTPException
+import requests
+import os
+
+@router.post("/voice")
+async def process_voice_command(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin, UserRole.kassir))
+):
+    """
+    Ovozli xabarni qabul qilib, uni matnga o'giradi va AI ga yuboradi.
+    """
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    if not openai_api_key:
+        raise HTTPException(status_code=500, detail="OPENAI_API_KEY sozlanmagan. Ovozli xizmat vaqtincha o'chirilgan.")
+
+    try:
+        # Read the audio file
+        audio_content = await file.read()
+        
+        # Call OpenAI Whisper API directly via requests
+        headers = {
+            "Authorization": f"Bearer {openai_api_key}"
+        }
+        
+        files = {
+            "file": (file.filename, audio_content, file.content_type),
+        }
+        data = {
+            "model": "whisper-1",
+            "language": "uz" # Uzbek tilida tanish
+        }
+        
+        resp = requests.post("https://api.openai.com/v1/audio/transcriptions", headers=headers, files=files, data=data)
+        resp.raise_for_status()
+        
+        transcription = resp.json().get("text", "")
+        
+        if not transcription:
+            raise HTTPException(status_code=400, detail="Ovozni aniqlab bo'lmadi. Iltimos, qaytadan gapiring.")
+
+        # Endi olingan matnni xuddi oddiy chat kabi AIToolRegistry orqali aylantiramiz
+        from app.services.openrouter_copilot_service import call_copilot_ai
+        from app.services.ai_service import build_daily_context
+        
+        daily_context = build_daily_context(db, current_user.company_id)
+        openrouter_key = os.getenv("OPENROUTER_API_KEY", "")
+        
+        intent_data = call_copilot_ai(transcription, daily_context, openrouter_key, user=current_user)
+        
+        if intent_data.get("intent") == "execute_tool":
+            tool_name = intent_data.get("tool_name")
+            tool_arguments = intent_data.get("tool_arguments", {})
+            
+            result = AIToolRegistry.execute_tool(
+                db=db,
+                name=tool_name,
+                kwargs=tool_arguments,
+                user=current_user,
+                prompt=transcription,
+                conversation_id=""
+            )
+            
+            if result.get("action") and result["action"].get("type") == "show_data":
+                from app.services.openrouter_copilot_service import summarize_tool_result_with_llm
+                ai_summary = summarize_tool_result_with_llm(transcription, tool_name, result["reply"], openrouter_key)
+                result["reply"] = ai_summary
+                
+            # Add transcription to the result so the frontend can display what the user said
+            result["transcription"] = transcription
+            return result
+            
+        return {
+            "transcription": transcription,
+            "reply": intent_data.get("reply", "Kechirasiz, men bu so'rovni tushunmadim.")
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ovozli xabarni qayta ishlashda xatolik: {str(e)}")

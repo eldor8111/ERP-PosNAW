@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     ADMIN_BOT_TOKEN: str = ""
     # Server public URL (webhook uchun, masalan: https://savdo.e-code.uz)
     SERVER_URL: str = ""
+    OPENAI_API_KEY: str = ""
     # Payme Merchant API
     PAYME_MERCHANT_ID: str = ""
     PAYME_SECRET_KEY: str = ""
