@@ -558,6 +558,8 @@ export default function UsersTab() {
             </div>
           </div>
         </div>
+      )}
+      
       {/* OTP MODAL */}
       {otpModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setOtpModal(false)}>
