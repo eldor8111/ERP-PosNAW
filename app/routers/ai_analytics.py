@@ -83,7 +83,7 @@ def ai_chat(
     }
 
 # Also keeping the old endpoints like /daily-summary unchanged.
-\n@router.get("/daily-summary")
+@router.get("/daily-summary")
 def get_daily_summary(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
