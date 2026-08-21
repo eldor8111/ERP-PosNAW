@@ -1081,13 +1081,15 @@ export default function Products() {
 
   const exportToRongta = (allProducts) => {
     try {
-      if (!allProducts || allProducts.length === 0) {
-        toast.warning("Mahsulotlar topilmadi");
+      const filteredData = allProducts.filter(prod => prod.unit === "kg" || prod.unit === "g");
+
+      if (!filteredData || filteredData.length === 0) {
+        toast.warning("Tarozi uchun (kg/g) mahsulotlar topilmadi");
         return;
       }
 
       const lines = [];
-      allProducts.forEach((prod) => {
+      filteredData.forEach((prod) => {
         // Kod: product_code, aks holda sku, aks holda id (5 xonali)
         const rawCode = prod.product_code || prod.sku || String(prod.id);
         const codeNum = parseInt(String(rawCode).replace(/\D/g, ''), 10) || 0;
@@ -1116,7 +1118,7 @@ export default function Products() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
-      toast.success(`${allProducts.length} ta mahsulot RONGTA.txt ga eksport qilindi!`);
+      toast.success(`${filteredData.length} ta mahsulot RONGTA.txt ga eksport qilindi!`);
     } catch (error) {
       toast.error("Eksport qilishda xatolik yuz berdi");
     }

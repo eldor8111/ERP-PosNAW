@@ -896,7 +896,8 @@ def export_rongta_txt(
     products = db.query(Product).filter(
         Product.company_id == current_user.company_id,
         Product.is_deleted == False,
-        Product.status != ProductStatus.inactive
+        Product.status != ProductStatus.inactive,
+        Product.unit.in_(['kg', 'g'])
     ).order_by(Product.product_code.asc()).all()
 
     lines = []
