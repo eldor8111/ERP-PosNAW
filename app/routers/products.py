@@ -901,7 +901,7 @@ def export_rongta_txt(
     ).order_by(Product.product_code.asc()).all()
 
     lines = []
-    for idx, prod in enumerate(products, start=1):
+    for prod in products:
         raw_code = prod.product_code or prod.sku or str(prod.id)
         # Faqat raqamlarni olamiz
         code_num_str = ''.join(filter(str.isdigit, raw_code))
@@ -911,8 +911,8 @@ def export_rongta_txt(
         price = int(prod.sell_price) if prod.sell_price else 0
         
         # 17 field format:
-        # INDEX ; NAME ; ; PRICE ; 0 ; 0 ; 0 ; CODE ; 0 ; 0 ; ; DATE ; 0 ; 0 ; 0 ; 0 ; DATE
-        line = f"{idx};{name};;{price};0;0;0;{code_num};0;0;;01.01.2026;0;0;0;0;01.01.2026"
+        # SKU ; NAME ; ; PRICE ; 0 ; 0 ; 0 ; SKU ; 0 ; 0 ; ; DATE ; 0 ; 0 ; 0 ; 0 ; DATE
+        line = f"{code_num};{name};;{price};0;0;0;{code_num};0;0;;01.01.2026;0;0;0;0;01.01.2026"
         lines.append(line)
 
     txt_content = "\r\n".join(lines)
