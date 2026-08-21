@@ -1090,19 +1090,20 @@ export default function Products() {
 
       const lines = [];
       filteredData.forEach((prod) => {
-        // Kod: product_code, aks holda sku, aks holda id (faqat raqam)
+        // Kod: product_code, aks holda sku, aks holda id (faqat raqam, boshidagi nollarni saqlab qolamiz)
         const rawCode = prod.product_code || prod.sku || String(prod.id);
-        const codeNum = parseInt(String(rawCode).replace(/\D/g, ''), 10) || 0;
+        let code = String(rawCode).replace(/\D/g, '');
+        if (!code) code = '0'; // Agar bo'sh bo'lsa
         
         // Ism — katta harflarda
         const name = (prod.name || 'NOMSIZ').toUpperCase().trim();
 
-        // Narx — butun son
+        // Narx — butun son, chakana narx (sale_price)
         const price = prod.sale_price ? Math.round(parseFloat(prod.sale_price)) : 0;
 
-        // Rongta 17-field format:
-        // SKU ; NAME ; ; PRICE ; 0 ; 0 ; 0 ; SKU ; 0 ; 0 ; ; DATE ; 0 ; 0 ; 0 ; 0 ; DATE
-        lines.push(`${codeNum};${name};;${price};0;0;0;${codeNum};0;0;;01.01.2026;0;0;0;0;01.01.2026`);
+        // Rongta 13-field format (Foydalanuvchi xohlagan qolip):
+        // CODE;NAME;;PRICE;0;0;0;CODE;0;0;0;01.01.01;0
+        lines.push(`${code};${name};;${price};0;0;0;${code};0;0;0;01.01.01;0`);
       });
 
       const txtContent = lines.join('\r\n');

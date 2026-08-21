@@ -903,16 +903,17 @@ def export_rongta_txt(
     lines = []
     for prod in products:
         raw_code = prod.product_code or prod.sku or str(prod.id)
-        # Faqat raqamlarni olamiz
-        code_num_str = ''.join(filter(str.isdigit, raw_code))
-        code_num = int(code_num_str) if code_num_str else 0
+        # Faqat raqamlarni olamiz, nollarni saqlab qolamiz
+        code = ''.join(filter(str.isdigit, raw_code))
+        if not code:
+            code = '0'
         
         name = (prod.name or 'NOMSIZ').upper().strip()
         price = int(prod.sell_price) if prod.sell_price else 0
         
-        # 17 field format:
-        # SKU ; NAME ; ; PRICE ; 0 ; 0 ; 0 ; SKU ; 0 ; 0 ; ; DATE ; 0 ; 0 ; 0 ; 0 ; DATE
-        line = f"{code_num};{name};;{price};0;0;0;{code_num};0;0;;01.01.2026;0;0;0;0;01.01.2026"
+        # 13 field format (Foydalanuvchi talabi):
+        # CODE;NAME;;PRICE;0;0;0;CODE;0;0;0;01.01.01;0
+        line = f"{code};{name};;{price};0;0;0;{code};0;0;0;01.01.01;0"
         lines.append(line)
 
     txt_content = "\r\n".join(lines)
