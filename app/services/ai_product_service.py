@@ -16,7 +16,7 @@ def generate_product_description(
     url = "https://openrouter.ai/api/v1/chat/completions"
 
     api_key = api_key or os.getenv("OPENROUTER_API_KEY")
-    model = os.getenv("OPENROUTER_MODEL", "cohere/north-mini-code:free")
+    model = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash")
 
     if not api_key:
         print("[AI Product] OPENROUTER_API_KEY sozlanmagan")

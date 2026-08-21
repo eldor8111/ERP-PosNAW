@@ -15,7 +15,7 @@ def call_copilot_ai(message: str, daily_context: str, api_key: str) -> Dict[str,
 
     # api_key argumenti bo'lmasa .env dan olamiz
     api_key = api_key or os.getenv("OPENROUTER_API_KEY")
-    model = os.getenv("OPENROUTER_MODEL", "cohere/north-mini-code:free")
+    model = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash")
 
     if not api_key:
         return {
