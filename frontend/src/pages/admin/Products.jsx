@@ -1086,7 +1086,7 @@ export default function Products() {
         return;
       }
 
-      let txtContent = '';
+      const lines = [];
       allProducts.forEach((prod) => {
         // Kod: product_code, aks holda sku, aks holda id (5 xonali)
         const rawCode = prod.product_code || prod.sku || String(prod.id);
@@ -1097,13 +1097,16 @@ export default function Products() {
         const name = (prod.name || 'NOMSIZ').toUpperCase().trim();
 
         // Narx — butun son
-        const price = prod.sell_price ? Math.round(parseFloat(prod.sell_price)) : 0;
+        const price = prod.sale_price ? Math.round(parseFloat(prod.sale_price)) : 0;
 
         // Rongta format: CODE;NAME;;PRICE;0;0;0;CODE;0;0;0;01.01.01;0
-        txtContent += `${code};${name};;${price};0;0;0;${code};0;0;0;01.01.01;0\r\n`;
+        lines.push(`${code};${name};;${price};0;0;0;${code};0;0;0;01.01.01;0`);
       });
 
-      const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8' });
+      const txtContent = lines.join('\r\n');
+      const encoder = new window.TextEncoder('windows-1251', { NONSTANDARD_allowLegacyEncoding: true });
+      const u8Array = encoder.encode(txtContent);
+      const blob = new Blob([u8Array], { type: 'text/plain;charset=windows-1251' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
