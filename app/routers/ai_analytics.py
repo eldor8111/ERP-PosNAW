@@ -271,3 +271,62 @@ def chat_with_copilot(
             "Kechirasiz, men bu so'rovni tushunmadim."
         )
     }
+
+@router.get("/recommendations")
+def get_ai_recommendations(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
+):
+    from datetime import datetime, timedelta, timezone
+    from app.models.sale import Sale
+    from app.models.customer import Customer
+    from app.models.product import Product
+    from app.models.inventory import StockLevel
+    from sqlalchemy import func
+
+    recommendations = []
+    
+    # Recommendation 1: Inactive customers
+    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+    subq = db.query(Sale.customer_id).filter(Sale.company_id == current_user.company_id, Sale.created_at >= cutoff).subquery()
+    inactive_count = db.query(func.count(Customer.id)).filter(
+        Customer.company_id == current_user.company_id,
+        ~Customer.id.in_(subq)
+    ).scalar() or 0
+    
+    if inactive_count > 0:
+        recommendations.append({
+            "type": "inactive_customers",
+            "title": "Passiv mijozlar bilan ishlash",
+            "description": f"Sizda {inactive_count} ta mijoz oxirgi 30 kunda hech narsa xarid qilmadi. Ularni qaytarish uchun SMS yuborishni tavsiya qilaman.",
+            "suggested_prompt": "Passiv mijozlarga aksiya haqida SMS qoralama tayyorla"
+        })
+
+    # Recommendation 2: Low Stock
+    low_stock_count = db.query(func.count(Product.id)).join(StockLevel).filter(
+        Product.company_id == current_user.company_id
+    ).group_by(Product.id).having(func.sum(StockLevel.quantity) < 10).count()
+    
+    if low_stock_count > 0:
+        recommendations.append({
+            "type": "low_stock",
+            "title": "Tugayotgan mahsulotlar",
+            "description": f"Sizda {low_stock_count} ta mahsulotning zaxirasi 10 tadan kam qolgan. Ular uchun yetkazib beruvchiga zayavka (Purchase Order) berishingiz mumkin.",
+            "suggested_prompt": "Tugayotgan mahsulotlar uchun zayavka tayyorla"
+        })
+
+    # Recommendation 3: Debtors
+    debtors_count = db.query(func.count(Customer.id)).filter(
+        Customer.company_id == current_user.company_id,
+        Customer.debt_balance > 0
+    ).scalar() or 0
+    
+    if debtors_count > 0:
+        recommendations.append({
+            "type": "debtors",
+            "title": "Qarzdorlar",
+            "description": f"Sizda {debtors_count} ta mijozning qarzi bor. Ularga qarzini eslatuvchi SMS jo'nating.",
+            "suggested_prompt": "Qarzdorlarga 'qarzni qaytaring' deb SMS tayyorla"
+        })
+        
+    return {"recommendations": recommendations}
