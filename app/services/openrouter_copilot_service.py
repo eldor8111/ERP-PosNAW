@@ -31,6 +31,8 @@ def call_copilot_ai(message: str, daily_context: str, api_key: str) -> Dict[str,
         "Agar foydalanuvchi qarz/nasiya TO'LAGANINI aytsa, record_debt_payment funksiyasini chaqiring.\n"
         "Agar foydalanuvchi yangi nasiya/qarz YOZISHNI so'rasa, record_new_debt funksiyasini chaqiring.\n"
         "Agar foydalanuvchi mijozning QARZINI SO'RASA (masalan: 'Ali qancha qarzi bor?'), check_customer_debt funksiyasini chaqiring.\n"
+        "DIQQAT: Mijoz ismini olganda HECH QANDAY qo'shimchalarsiz (masalan: 'Asrorni', 'Eshmatdan' o'rniga faqat 'Asror', 'Eshmat' deb) yozing. "
+        "Agar krillcha yozilgan bo'lsa (Шохруз), xuddi o'zidek krillchada qoldiring.\n"
         "Boshqa savollarga o'zbek tilida qisqa va aniq javob bering."
     )
 

@@ -520,6 +520,80 @@ def _local_analyze(prompt: str, context: str) -> str:
 
 # ─── Copilot action executor ─────────────────────────────────────────────
 
+
+from sqlalchemy import or_
+
+def _transliterate_to_latin(text):
+    mapping = {
+        'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo',
+        'ж': 'j', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm',
+        'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
+        'ф': 'f', 'х': 'x', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'sh', 'ъ': '',
+        'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya', 'ў': "o'", 'ғ': "g'", 'қ': "q", 'ҳ': "h"
+    }
+    res = ""
+    for char in text:
+        res += mapping.get(char.lower(), char)
+    return res
+
+def _transliterate_to_cyrillic(text):
+    # Simplistic backwards mapping for searching purposes
+    mapping = {
+        'a': 'а', 'b': 'б', 'v': 'в', 'g': 'г', 'd': 'д', 'e': 'е',
+        'j': 'ж', 'z': 'з', 'i': 'и', 'y': 'й', 'k': 'к', 'l': 'л', 'm': 'м',
+        'n': 'н', 'o': 'о', 'p': 'п', 'r': 'р', 's': 'с', 't': 'т', 'u': 'у',
+        'f': 'ф', 'x': 'х', 'q': 'қ', 'h': 'ҳ'
+    }
+    res = ""
+    i = 0
+    while i < len(text):
+        c = text[i].lower()
+        if i < len(text) - 1:
+            nxt = text[i+1].lower()
+            if c == 'c' and nxt == 'h': res += 'ч'; i += 2; continue
+            if c == 's' and nxt == 'h': res += 'ш'; i += 2; continue
+            if c == 't' and nxt == 's': res += 'ц'; i += 2; continue
+            if c == 'y' and nxt == 'o': res += 'ё'; i += 2; continue
+            if c == 'y' and nxt == 'u': res += 'ю'; i += 2; continue
+            if c == 'y' and nxt == 'a': res += 'я'; i += 2; continue
+            if c == 'o' and nxt == "'": res += 'ў'; i += 2; continue
+            if c == 'g' and nxt == "'": res += 'ғ'; i += 2; continue
+        res += mapping.get(c, c)
+        i += 1
+    return res
+
+def _find_customer(db: Session, company_id: int, name: str):
+    name = name.strip()
+    lat = _transliterate_to_latin(name)
+    cyr = _transliterate_to_cyrillic(name)
+    
+    customers = db.query(Customer).filter(
+        Customer.company_id == company_id,
+        or_(
+            Customer.name.ilike(f"%{name}%"),
+            Customer.name.ilike(f"%{lat}%"),
+            Customer.name.ilike(f"%{cyr}%")
+        )
+    ).all()
+    
+    if not customers:
+        return None, f"❌ '{name}' ismli mijoz topilmadi."
+    if len(customers) > 1:
+        names = ", ".join(c.name for c in customers[:3])
+        return None, f"⚠️ '{name}' so'ziga mos {len(customers)} ta mijoz topildi ({names}...). Iltimos, ismni to'liqroq yozing."
+    
+    return customers[0], None
+
+def _format_debt(customer: Customer) -> str:
+    parts = []
+    if customer.debt_balances and isinstance(customer.debt_balances, dict):
+        for cur, amt in customer.debt_balances.items():
+            if float(amt) > 0:
+                parts.append(f"{amt:,.0f} {cur}")
+    if parts:
+        return " va ".join(parts)
+    return _fmt(_sf(customer.debt_balance))
+
 def execute_copilot_action(intent_data: dict, db: Session,
                            company_id: int, user_id: int) -> dict:
     """Intent asosida DB ga amal bajarish."""
@@ -529,14 +603,8 @@ def execute_copilot_action(intent_data: dict, db: Session,
         customer_name = intent_data.get("customer_name", "")
         amount = _sf(intent_data.get("amount", 0))
 
-        customer = (
-            db.query(Customer)
-            .filter(Customer.company_id == company_id,
-                    Customer.name.ilike(f"%{customer_name}%"))
-            .first()
-        )
-        if not customer:
-            return {"reply": f"❌ '{customer_name}' ismli mijoz topilmadi. Ismni to'g'ri yozing."}
+        customer, err = _find_customer(db, company_id, customer_name)
+        if err: return {"reply": err}
 
         # Wallet and User resolution for proper Transaction logging
         from app.models.user import User
@@ -553,9 +621,16 @@ def execute_copilot_action(intent_data: dict, db: Session,
         ).first()
 
         try:
+            # Note: We subtract from UZS balance by default if they don't specify currency.
+            # Ideal is updating debt_balances as well, but for simplicity we rely on the backend's recalc logic later or just update UZS.
             old_balance = _sf(customer.debt_balance)
             new_balance = max(0, old_balance - amount)
             customer.debt_balance = new_balance
+            
+            if customer.debt_balances and "UZS" in customer.debt_balances:
+                customer.debt_balances["UZS"] = max(0, float(customer.debt_balances["UZS"]) - amount)
+                from sqlalchemy.orm.attributes import flag_modified
+                flag_modified(customer, "debt_balances")
             
             if wallet:
                 wallet.balance = float(wallet.balance or 0) + amount
@@ -564,13 +639,14 @@ def execute_copilot_action(intent_data: dict, db: Session,
                 company_id=company_id,
                 branch_id=branch_id,
                 wallet_id=wallet.id if wallet else None,
+                type="income",
                 currency_code="UZS",
                 payment_type="cash",
                 reference_type="customer_payment",
                 reference_id=customer.id,
                 description=f"AI orqali qarz to'lovi: {customer.name}",
                 amount=amount,
-                created_by=user_id,
+                user_id=user_id,
             )
             db.add(tx)
             
@@ -583,7 +659,7 @@ def execute_copilot_action(intent_data: dict, db: Session,
             "reply": (
                 f"✅ Muvaffaqiyatli! {customer.name} mijozning qarzidan "
                 f"{_fmt(amount)} yechib olindi va kassa to'lovi sifatida yozildi. "
-                f"Qolgan qarz: {_fmt(new_balance)}."
+                f"Qolgan qarz: {_format_debt(customer)}."
             ),
             "action": {"type": "debt_payment", "customer_id": customer.id, "amount": amount},
         }
@@ -592,14 +668,8 @@ def execute_copilot_action(intent_data: dict, db: Session,
         customer_name = intent_data.get("customer_name", "")
         amount = _sf(intent_data.get("amount", 0))
 
-        customer = (
-            db.query(Customer)
-            .filter(Customer.company_id == company_id,
-                    Customer.name.ilike(f"%{customer_name}%"))
-            .first()
-        )
-        if not customer:
-            return {"reply": f"❌ '{customer_name}' ismli mijoz topilmadi."}
+        customer, err = _find_customer(db, company_id, customer_name)
+        if err: return {"reply": err}
 
         try:
             from sqlalchemy.orm.attributes import flag_modified
@@ -607,6 +677,11 @@ def execute_copilot_action(intent_data: dict, db: Session,
             
             old_balance = _sf(customer.debt_balance)
             new_balance = old_balance + amount
+            
+            # Update specific UZS balance if exists
+            if customer.debt_balances:
+                customer.debt_balances["UZS"] = float(customer.debt_balances.get("UZS", 0)) + amount
+                flag_modified(customer, "debt_balances")
             
             # Record debt edit history
             history = list(customer.debt_edited or [])
@@ -629,7 +704,7 @@ def execute_copilot_action(intent_data: dict, db: Session,
             "reply": (
                 f"📝 Muvaffaqiyatli! {customer.name} hisobiga "
                 f"{_fmt(amount)} nasiya yozildi. "
-                f"Jami qarz: {_fmt(new_balance)}."
+                f"Jami qarz: {_format_debt(customer)}."
             ),
             "action": {"type": "add_debt", "customer_id": customer.id, "amount": amount},
         }
@@ -637,20 +712,14 @@ def execute_copilot_action(intent_data: dict, db: Session,
     elif intent == "check_debt":
         customer_name = intent_data.get("customer_name", "")
 
-        customer = (
-            db.query(Customer)
-            .filter(Customer.company_id == company_id,
-                    Customer.name.ilike(f"%{customer_name}%"))
-            .first()
-        )
-        if not customer:
-            return {"reply": f"❌ '{customer_name}' ismli mijoz topilmadi. Mijoz ismini aniqroq yozing."}
+        customer, err = _find_customer(db, company_id, customer_name)
+        if err: return {"reply": err}
 
         debt_amount = _sf(customer.debt_balance)
         if debt_amount <= 0:
             return {"reply": f"✅ {customer.name} ismli mijozning hech qanday qarzi yo'q."}
         else:
-            return {"reply": f"⚠️ {customer.name} ismli mijozning joriy qarzdorligi: {_fmt(debt_amount)}."}
+            return {"reply": f"⚠️ {customer.name} ismli mijozning joriy qarzdorligi: {_format_debt(customer)}."}
 
     elif intent == "query":
         return {"reply": intent_data.get("reply", "Kechirasiz, tushunmadim.")}
