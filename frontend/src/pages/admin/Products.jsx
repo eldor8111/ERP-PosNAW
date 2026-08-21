@@ -1079,6 +1079,46 @@ export default function Products() {
     }
   };
 
+  const exportToRongta = (allProducts) => {
+    try {
+      if (!allProducts || allProducts.length === 0) {
+        toast.warning("Mahsulotlar topilmadi");
+        return;
+      }
+
+      let txtContent = '';
+      allProducts.forEach((prod) => {
+        // Kod: product_code, aks holda sku, aks holda id (5 xonali)
+        const rawCode = prod.product_code || prod.sku || String(prod.id);
+        const codeNum = parseInt(String(rawCode).replace(/\D/g, ''), 10) || 0;
+        const code = String(codeNum).padStart(5, '0');
+
+        // Ism — katta harflarda
+        const name = (prod.name || 'NOMSIZ').toUpperCase().trim();
+
+        // Narx — butun son
+        const price = prod.sell_price ? Math.round(parseFloat(prod.sell_price)) : 0;
+
+        // Rongta format: CODE;NAME;;PRICE;0;0;0;CODE;0;0;0;01.01.01;0
+        txtContent += `${code};${name};;${price};0;0;0;${code};0;0;0;01.01.01;0\r\n`;
+      });
+
+      const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'RONGTA.txt');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast.success(`${allProducts.length} ta mahsulot RONGTA.txt ga eksport qilindi!`);
+    } catch (error) {
+      toast.error("Eksport qilishda xatolik yuz berdi");
+    }
+  };
+
   /* ════════════════════════════════════════════════ */
   return (
     <div className="space-y-6">
@@ -1315,6 +1355,12 @@ export default function Products() {
                   className="cursor-pointer leading-none inline-flex items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-blue-600 hover:bg-blue-500 text-white text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-lg transition-colors border border-blue-200"
                 >
                   <Binary className='w-5 h-5' /> TM-A uchun
+                </button>
+                <button
+                  onClick={() => exportToRongta(products)}
+                  className="cursor-pointer leading-none inline-flex items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-orange-600 hover:bg-orange-500 text-white text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-lg transition-colors border border-orange-200"
+                >
+                  <Binary className='w-5 h-5' /> RONGTA uchun
                 </button>
               </>
             )}

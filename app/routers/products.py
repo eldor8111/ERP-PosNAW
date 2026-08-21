@@ -876,3 +876,56 @@ def bulk_delete_products(
     )
     db.commit()
     return {"deleted": len(products)}
+
+
+from fastapi.responses import StreamingResponse
+import io
+
+@router.get("/export/rongta")
+def export_rongta_txt(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(
+        UserRole.admin, UserRole.director, UserRole.manager,
+        UserRole.warehouse, UserRole.super_admin
+    ))
+):
+    """
+    Barcha aktiv mahsulotlarni Rongta tarozi uchun TXT formatda yuklab olish.
+    Format: CODE;NAME;;PRICE;0;0;0;CODE;0;0;0;01.01.01;0
+    """
+    products = db.query(Product).filter(
+        Product.company_id == current_user.company_id,
+        Product.is_deleted == False,
+        Product.status != ProductStatus.inactive
+    ).order_by(Product.product_code.asc()).all()
+
+    lines = []
+    for p in products:
+        # Kod: product_code bo'lsa uni ishlatamiz, bo'lmasa sku ni 5 xonali qilib
+        code_raw = p.product_code or p.sku or str(p.id)
+        try:
+            code_int = int(code_raw)
+            code = str(code_int).zfill(5)
+        except (ValueError, TypeError):
+            code = str(code_raw)[:5].zfill(5)
+
+        name = (p.name or "").upper().strip()
+        # Narx - butun son (so'm)
+        try:
+            price = int(float(p.sell_price or 0))
+        except (ValueError, TypeError):
+            price = 0
+
+        # Rongta format: CODE;NAME;;PRICE;0;0;0;CODE;0;0;0;01.01.01;0
+        line = f"{code};{name};;{price};0;0;0;{code};0;0;0;01.01.01;0"
+        lines.append(line)
+
+    txt_content = "\r\n".join(lines)
+
+    return StreamingResponse(
+        io.BytesIO(txt_content.encode("utf-8")),
+        media_type="text/plain; charset=utf-8",
+        headers={
+            "Content-Disposition": "attachment; filename=RONGTA.txt"
+        }
+    )
