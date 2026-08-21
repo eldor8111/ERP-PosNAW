@@ -339,7 +339,7 @@ import os
 async def process_voice_command(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin, UserRole.kassir))
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin, UserRole.cashier))
 ):
     """
     Ovozli xabarni qabul qilib, uni matnga o'giradi va AI ga yuboradi.
