@@ -220,7 +220,7 @@ def chat_with_copilot(
     intent_data = call_copilot_ai(request.message, context, api_key)
 
     # Agar AI funksiya (tool) tanlagan bo'lsa, uni bajarish
-    if intent_data.get("intent") in ["debt_payment", "add_debt"]:
+    if intent_data.get("intent") in ["debt_payment", "add_debt", "check_debt"]:
         # execute_copilot_action ichida company_id qat'iy ravishda tokendan(current_user) olinadi!
         result = execute_copilot_action(
             intent_data, db, current_user.company_id, current_user.id

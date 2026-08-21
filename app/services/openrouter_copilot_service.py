@@ -30,6 +30,7 @@ def call_copilot_ai(message: str, daily_context: str, api_key: str) -> Dict[str,
         f"Bugungi holat (faqat ma'lumot uchun):\n{daily_context}\n\n"
         "Agar foydalanuvchi qarz/nasiya TO'LAGANINI aytsa, record_debt_payment funksiyasini chaqiring.\n"
         "Agar foydalanuvchi yangi nasiya/qarz YOZISHNI so'rasa, record_new_debt funksiyasini chaqiring.\n"
+        "Agar foydalanuvchi mijozning QARZINI SO'RASA (masalan: 'Ali qancha qarzi bor?'), check_customer_debt funksiyasini chaqiring.\n"
         "Boshqa savollarga o'zbek tilida qisqa va aniq javob bering."
     )
 
@@ -73,6 +74,23 @@ def call_copilot_ai(message: str, daily_context: str, api_key: str) -> Dict[str,
                         }
                     },
                     "required": ["customer_name", "amount"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "check_customer_debt",
+                "description": "Mijozning hozirgi qarzini bilish uchun ishlatiladi.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "customer_name": {
+                            "type": "string",
+                            "description": "Qarzi tekshirilayotgan mijozning ismi."
+                        }
+                    },
+                    "required": ["customer_name"]
                 }
             }
         }
@@ -148,6 +166,12 @@ def call_copilot_ai(message: str, daily_context: str, api_key: str) -> Dict[str,
                     "intent": "add_debt",
                     "customer_name": func_args.get("customer_name"),
                     "amount": func_args.get("amount")
+                }
+
+            if func_name == "check_customer_debt":
+                return {
+                    "intent": "check_debt",
+                    "customer_name": func_args.get("customer_name")
                 }
 
         content = message_obj.get("content") or ""

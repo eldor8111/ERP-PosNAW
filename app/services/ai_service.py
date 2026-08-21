@@ -538,8 +538,42 @@ def execute_copilot_action(intent_data: dict, db: Session,
         if not customer:
             return {"reply": f"❌ '{customer_name}' ismli mijoz topilmadi. Ismni to'g'ri yozing."}
 
+        # Wallet and User resolution for proper Transaction logging
+        from app.models.user import User
+        from app.models.moliya import Wallet, Transaction
+        
+        user = db.query(User).filter(User.id == user_id).first()
+        branch_id = user.branch_id if user else 0
+        
+        # Get active open wallet
+        wallet = db.query(Wallet).filter(
+            Wallet.company_id == company_id,
+            Wallet.is_open == True,
+            Wallet.is_active == True,
+        ).first()
+
         try:
-            customer.debt_balance = _sf(customer.debt_balance) - amount
+            old_balance = _sf(customer.debt_balance)
+            new_balance = max(0, old_balance - amount)
+            customer.debt_balance = new_balance
+            
+            if wallet:
+                wallet.balance = float(wallet.balance or 0) + amount
+
+            tx = Transaction(
+                company_id=company_id,
+                branch_id=branch_id,
+                wallet_id=wallet.id if wallet else None,
+                currency_code="UZS",
+                payment_type="cash",
+                reference_type="customer_payment",
+                reference_id=customer.id,
+                description=f"AI orqali qarz to'lovi: {customer.name}",
+                amount=amount,
+                created_by=user_id,
+            )
+            db.add(tx)
+            
             db.commit()
         except Exception as e:
             db.rollback()
@@ -548,8 +582,8 @@ def execute_copilot_action(intent_data: dict, db: Session,
         return {
             "reply": (
                 f"✅ Muvaffaqiyatli! {customer.name} mijozning qarzidan "
-                f"{_fmt(amount)} yechib olindi va tizimga yozildi. "
-                f"Qolgan qarz: {_fmt(_sf(customer.debt_balance))}."
+                f"{_fmt(amount)} yechib olindi va kassa to'lovi sifatida yozildi. "
+                f"Qolgan qarz: {_fmt(new_balance)}."
             ),
             "action": {"type": "debt_payment", "customer_id": customer.id, "amount": amount},
         }
@@ -568,7 +602,24 @@ def execute_copilot_action(intent_data: dict, db: Session,
             return {"reply": f"❌ '{customer_name}' ismli mijoz topilmadi."}
 
         try:
-            customer.debt_balance = _sf(customer.debt_balance) + amount
+            from sqlalchemy.orm.attributes import flag_modified
+            from datetime import timezone
+            
+            old_balance = _sf(customer.debt_balance)
+            new_balance = old_balance + amount
+            
+            # Record debt edit history
+            history = list(customer.debt_edited or [])
+            history.append({
+                "edited_from": {"UZS": old_balance},
+                "edited_to": {"UZS": new_balance},
+                "edited_at": datetime.now(timezone.utc).isoformat(),
+                "reason": "AI orqali nasiya qo'shish"
+            })
+            customer.debt_edited = history
+            flag_modified(customer, "debt_edited")
+            
+            customer.debt_balance = new_balance
             db.commit()
         except Exception as e:
             db.rollback()
@@ -578,10 +629,28 @@ def execute_copilot_action(intent_data: dict, db: Session,
             "reply": (
                 f"📝 Muvaffaqiyatli! {customer.name} hisobiga "
                 f"{_fmt(amount)} nasiya yozildi. "
-                f"Jami qarz: {_fmt(_sf(customer.debt_balance))}."
+                f"Jami qarz: {_fmt(new_balance)}."
             ),
             "action": {"type": "add_debt", "customer_id": customer.id, "amount": amount},
         }
+
+    elif intent == "check_debt":
+        customer_name = intent_data.get("customer_name", "")
+
+        customer = (
+            db.query(Customer)
+            .filter(Customer.company_id == company_id,
+                    Customer.name.ilike(f"%{customer_name}%"))
+            .first()
+        )
+        if not customer:
+            return {"reply": f"❌ '{customer_name}' ismli mijoz topilmadi. Mijoz ismini aniqroq yozing."}
+
+        debt_amount = _sf(customer.debt_balance)
+        if debt_amount <= 0:
+            return {"reply": f"✅ {customer.name} ismli mijozning hech qanday qarzi yo'q."}
+        else:
+            return {"reply": f"⚠️ {customer.name} ismli mijozning joriy qarzdorligi: {_fmt(debt_amount)}."}
 
     elif intent == "query":
         return {"reply": intent_data.get("reply", "Kechirasiz, tushunmadim.")}
