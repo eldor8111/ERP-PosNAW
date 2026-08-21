@@ -901,24 +901,18 @@ def export_rongta_txt(
     ).order_by(Product.product_code.asc()).all()
 
     lines = []
-    for p in products:
-        # Kod: product_code bo'lsa uni ishlatamiz, bo'lmasa sku ni 5 xonali qilib
-        code_raw = p.product_code or p.sku or str(p.id)
-        try:
-            code_int = int(code_raw)
-            code = str(code_int).zfill(5)
-        except (ValueError, TypeError):
-            code = str(code_raw)[:5].zfill(5)
-
-        name = (p.name or "").upper().strip()
-        # Narx - butun son (so'm)
-        try:
-            price = int(float(p.sell_price or 0))
-        except (ValueError, TypeError):
-            price = 0
-
-        # Rongta format: CODE;NAME;;PRICE;0;0;0;CODE;0;0;0;01.01.01;0
-        line = f"{code};{name};;{price};0;0;0;{code};0;0;0;01.01.01;0"
+    for idx, prod in enumerate(products, start=1):
+        raw_code = prod.product_code or prod.sku or str(prod.id)
+        # Faqat raqamlarni olamiz
+        code_num_str = ''.join(filter(str.isdigit, raw_code))
+        code_num = int(code_num_str) if code_num_str else 0
+        
+        name = (prod.name or 'NOMSIZ').upper().strip()
+        price = int(prod.sell_price) if prod.sell_price else 0
+        
+        # 17 field format:
+        # INDEX ; NAME ; ; PRICE ; 0 ; 0 ; 0 ; CODE ; 0 ; 0 ; ; DATE ; 0 ; 0 ; 0 ; 0 ; DATE
+        line = f"{idx};{name};;{price};0;0;0;{code_num};0;0;;01.01.2026;0;0;0;0;01.01.2026"
         lines.append(line)
 
     txt_content = "\r\n".join(lines)

@@ -1089,20 +1089,23 @@ export default function Products() {
       }
 
       const lines = [];
-      filteredData.forEach((prod) => {
-        // Kod: product_code, aks holda sku, aks holda id (5 xonali)
+      filteredData.forEach((prod, idx) => {
+        // Index: 1, 2, 3...
+        const index = idx + 1;
+
+        // Kod: product_code, aks holda sku, aks holda id (faqat raqam)
         const rawCode = prod.product_code || prod.sku || String(prod.id);
         const codeNum = parseInt(String(rawCode).replace(/\D/g, ''), 10) || 0;
-        const code = String(codeNum).padStart(5, '0');
-
+        
         // Ism — katta harflarda
         const name = (prod.name || 'NOMSIZ').toUpperCase().trim();
 
         // Narx — butun son
         const price = prod.sale_price ? Math.round(parseFloat(prod.sale_price)) : 0;
 
-        // Rongta format: CODE;NAME;;PRICE;0;0;0;CODE;0;0;0;01.01.01;0
-        lines.push(`${code};${name};;${price};0;0;0;${code};0;0;0;01.01.01;0`);
+        // Rongta 17-field format:
+        // INDEX ; NAME ; ; PRICE ; 0 ; 0 ; 0 ; CODE ; 0 ; 0 ; ; DATE ; 0 ; 0 ; 0 ; 0 ; DATE
+        lines.push(`${index};${name};;${price};0;0;0;${codeNum};0;0;;01.01.2026;0;0;0;0;01.01.2026`);
       });
 
       const txtContent = lines.join('\r\n');
