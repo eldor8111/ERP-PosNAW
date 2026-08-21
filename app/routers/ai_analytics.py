@@ -10,9 +10,9 @@ from app.models.user import User, UserRole
 from app.models.sale import Sale, SaleStatus
 from app.services.ai_service import (
     build_daily_context,
-    execute_copilot_action,
     build_daily_report,
 )
+from app.services.ai_tools_registry import AIToolRegistry
 from app.services.openrouter_copilot_service import call_copilot_ai
 import os
 
@@ -20,16 +20,11 @@ from app.services.debt_scoring import categorize_customers
 
 router = APIRouter(prefix="/ai", tags=["AI Analytics & Copilot"])
 
-
 class ChatRequest(BaseModel):
     message: str
 
-
-# ─── Status ──────────────────────────────────────────────────────────────
-
 @router.get("/status")
 def get_ai_status():
-    """AI tizimi holati — OpenRouter AI faol."""
     return {
         "status": "ok",
         "mode": "openrouter",
@@ -43,10 +38,52 @@ def get_ai_status():
         ]
     }
 
+@router.post("/chat")
+def ai_chat(
+    request: ChatRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
+):
+    forbidden_words = ["boshqa korxona", "admin", "barcha korxona", "unut", "ignore"]
+    msg_lower = request.message.lower()
+    if any(word in msg_lower for word in forbidden_words):
+        return {"reply": "Kechirasiz, faqat o'z korxonangizga tegishli ma'lumotlarga javob bera olaman."}
+        
+    context = build_daily_context(db, current_user.company_id)
+    api_key = os.getenv("OPENROUTER_API_KEY", "")
+    
+    intent_data = call_copilot_ai(request.message, context, api_key, user=current_user)
 
-# ─── Daily Summary ────────────────────────────────────────────────────────
+    if intent_data.get("intent") == "execute_tool":
+        tool_name = intent_data.get("tool_name")
+        tool_arguments = intent_data.get("tool_arguments", {})
+        
+        result = AIToolRegistry.execute_tool(
+            db=db,
+            name=tool_name,
+            kwargs=tool_arguments,
+            user=current_user,
+            prompt=request.message,
+            conversation_id="" # Optional
+        )
+        
+        # Agar bu analitika tool bo'lsa, javobni AI orqali "human-friendly" qilamiz
+        if result.get("action") and result["action"].get("type") == "show_data":
+            from app.services.openrouter_copilot_service import summarize_tool_result_with_llm
+            ai_summary = summarize_tool_result_with_llm(request.message, tool_name, result["reply"], api_key)
+            result["reply"] = ai_summary
 
-@router.get("/daily-summary")
+        return result
+
+    return {
+        "reply": intent_data.get(
+            "reply",
+            "Kechirasiz, men bu so'rovni tushunmadim."
+        )
+    }
+
+# Also keeping the old endpoints like /daily-summary unchanged.
+\n@router.get("/daily-summary")
 def get_daily_summary(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))

@@ -3,106 +3,41 @@ import json
 import os
 from typing import Dict, Any
 
+from app.models.user import User
+from app.services.ai_tools_registry import AIToolRegistry
+
 TIMEOUT = 30
 
-def call_copilot_ai(message: str, daily_context: str, api_key: str) -> Dict[str, Any]:
+def call_copilot_ai(message: str, daily_context: str, api_key: str, user: User = None) -> Dict[str, Any]:
     """
     OpenRouter orqali ERP POS Copilot.
-    Tool Calling yordamida qarz/nasiya operatsiyalarini aniqlaydi.
+    Tool Registry dan barcha aktiv funksiyalarni olib LLMga uzatadi.
     """
 
     url = "https://openrouter.ai/api/v1/chat/completions"
-
-    # api_key argumenti bo'lmasa .env dan olamiz
     api_key = api_key or os.getenv("OPENROUTER_API_KEY")
     model = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash")
 
     if not api_key:
-        return {
-            "intent": "error",
-            "reply": "OPENROUTER_API_KEY sozlanmagan."
-        }
+        return {"intent": "error", "reply": "OPENROUTER_API_KEY sozlanmagan."}
 
     system_prompt = (
         "Siz 'E-Code' korxona boshqaruvi tizimining aqlli yordamchisisiz (Copilot). "
-        "Foydalanuvchi do'kon rahbari yoki kassir. "
-        "Siz foydalanuvchining maqsadini tushunib, kerak bo'lsa maxsus funksiyani chaqirasiz.\n\n"
-        f"Bugungi holat (faqat ma'lumot uchun):\n{daily_context}\n\n"
-        "Agar foydalanuvchi qarz/nasiya TO'LAGANINI aytsa, record_debt_payment funksiyasini chaqiring.\n"
-        "Agar foydalanuvchi yangi nasiya/qarz YOZISHNI so'rasa, record_new_debt funksiyasini chaqiring.\n"
-        "Agar foydalanuvchi mijozning QARZINI SO'RASA (masalan: 'Ali qancha qarzi bor?'), check_customer_debt funksiyasini chaqiring.\n"
-        "DIQQAT: Mijoz ismini olganda HECH QANDAY qo'shimchalarsiz (masalan: 'Asrorni', 'Eshmatdan' o'rniga faqat 'Asror', 'Eshmat' deb) yozing. "
-        "Agar krillcha yozilgan bo'lsa (Шохруз), xuddi o'zidek krillchada qoldiring.\n"
-        "Boshqa savollarga o'zbek tilida qisqa va aniq javob bering."
+        "Foydalanuvchi do'kon rahbari yoki kassir. Siz faqat o'zbek tilida qisqa va aniq javob berasiz.\n\n"
+        f"Bugungi holat:\n{daily_context}\n\n"
+        "Sizga maxsus Tools (Funksiyalar) berilgan. Agar foydalanuvchining maqsadi biron Tool'ga mos tushsa, "
+        "shu Tool'ni chaqiring.\n"
+        "DIQQAT: Mijoz ismini olganda HECH QANDAY qo'shimchalarsiz (masalan: 'Asrorni' o'rniga faqat 'Asror' deb) yozing. "
+        "Agar krillcha yozilgan bo'lsa, xuddi o'zidek qoldiring."
     )
 
-    tools = [
-        {
-            "type": "function",
-            "function": {
-                "name": "record_debt_payment",
-                "description": "Mijoz qarzini/nasiyasini qaytarib to'laganda ishlatiladi.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "customer_name": {
-                            "type": "string",
-                            "description": "Qarzini to'lagan mijozning ismi."
-                        },
-                        "amount": {
-                            "type": "number",
-                            "description": "To'langan summa."
-                        }
-                    },
-                    "required": ["customer_name", "amount"]
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "record_new_debt",
-                "description": "Mijoz do'kondan nasiyaga mol olib ketganda ishlatiladi.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "customer_name": {
-                            "type": "string",
-                            "description": "Qarzga mol olgan mijozning ismi."
-                        },
-                        "amount": {
-                            "type": "number",
-                            "description": "Nasiya summasi."
-                        }
-                    },
-                    "required": ["customer_name", "amount"]
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "check_customer_debt",
-                "description": "Mijozning hozirgi qarzini bilish uchun ishlatiladi.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "customer_name": {
-                            "type": "string",
-                            "description": "Qarzi tekshirilayotgan mijozning ismi."
-                        }
-                    },
-                    "required": ["customer_name"]
-                }
-            }
-        }
-    ]
+    tools = AIToolRegistry.get_all_tools_for_llm(user) if user else []
 
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "http://localhost",
-        "X-Title": "E-Code ERP POS"
+        "HTTP-Referer": "https://savdo.e-code.uz",
+        "X-Title": "E-Code POS"
     }
 
     payload = {
@@ -111,88 +46,84 @@ def call_copilot_ai(message: str, daily_context: str, api_key: str) -> Dict[str,
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": message}
         ],
-        "tools": tools,
-        "tool_choice": "auto",
-        "max_tokens": 300,
-        "temperature": 0.2
+        "temperature": 0.1,
     }
+    
+    if tools:
+        payload["tools"] = tools
 
     try:
-        response = requests.post(
-            url,
-            headers=headers,
-            json=payload,
-            timeout=TIMEOUT
-        )
+        resp = requests.post(url, headers=headers, json=payload, timeout=TIMEOUT)
+        resp.raise_for_status()
+        data = resp.json()
 
-        if response.status_code != 200:
-            print(f"[Copilot AI] HTTP {response.status_code}: {response.text[:2000]}")
-            return {
-                "intent": "error",
-                "reply": "Kechirasiz, sun'iy intellekt xizmatida nosozlik yuz berdi."
-            }
-
-        data = response.json()
-
-        choices = data.get("choices", [])
-        if not choices:
-            return {
-                "intent": "error",
-                "reply": "AI javob qaytarmadi."
-            }
-
-        message_obj = choices[0].get("message", {})
-
-        tool_calls = message_obj.get("tool_calls") or []
-
-        if tool_calls:
-            tool_call = tool_calls[0]
-            function = tool_call.get("function", {})
-            func_name = function.get("name")
-            raw_args = function.get("arguments", "{}")
-
+        message_obj = data["choices"][0]["message"]
+        
+        # Agar AI biron-bir tool ishlatsa:
+        if message_obj.get("tool_calls"):
+            tool_call = message_obj["tool_calls"][0]
+            func_name = tool_call["function"]["name"]
+            func_args_str = tool_call["function"]["arguments"]
             try:
-                func_args = json.loads(raw_args)
-            except (json.JSONDecodeError, TypeError):
+                func_args = json.loads(func_args_str)
+            except:
                 func_args = {}
 
-            if func_name == "record_debt_payment":
-                return {
-                    "intent": "debt_payment",
-                    "customer_name": func_args.get("customer_name"),
-                    "amount": func_args.get("amount")
-                }
-
-            if func_name == "record_new_debt":
-                return {
-                    "intent": "add_debt",
-                    "customer_name": func_args.get("customer_name"),
-                    "amount": func_args.get("amount")
-                }
-
-            if func_name == "check_customer_debt":
-                return {
-                    "intent": "check_debt",
-                    "customer_name": func_args.get("customer_name")
-                }
+            return {
+                "intent": "execute_tool",
+                "tool_name": func_name,
+                "tool_arguments": func_args
+            }
 
         content = message_obj.get("content") or ""
-
         return {
             "intent": "query",
             "reply": content.strip()
         }
 
-    except requests.Timeout:
-        print("[Copilot AI] Request timeout")
+    except Exception as e:
         return {
             "intent": "error",
-            "reply": "AI server javob berishi uchun vaqt tugadi."
+            "reply": f"AI ulanishida xatolik: {str(e)}"
         }
 
+def summarize_tool_result_with_llm(original_message: str, tool_name: str, tool_result: dict, api_key: str) -> str:
+    url = "https://openrouter.ai/api/v1/chat/completions"
+    api_key = api_key or os.getenv("OPENROUTER_API_KEY")
+    model = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash")
+
+    if not api_key:
+        return "Natija olindi, lekin AI xulosasi uchun API kalit yo'q."
+
+    system_prompt = (
+        "Siz ERP tizimining aqlli tahlilchisisiz. "
+        "Foydalanuvchining savoliga asosan bazadan olingan xom (JSON) ma'lumotlarni o'qiysiz va unga qisqa, "
+        "tushunarli va chiroyli o'zbek tilida xulosa qilib berasiz. "
+        "O'zingizdan raqam to'qimang. Faqat berilgan JSON ma'lumotidagi raqamlardan foydalaning."
+    )
+
+    user_prompt = f"Foydalanuvchi so'rovi: {original_message}\nTool nomi: {tool_name}\nBaza natijasi: {json.dumps(tool_result, ensure_ascii=False)}"
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://savdo.e-code.uz",
+        "X-Title": "E-Code POS"
+    }
+
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ],
+        "temperature": 0.2,
+    }
+
+    try:
+        resp = requests.post(url, headers=headers, json=payload, timeout=TIMEOUT)
+        resp.raise_for_status()
+        data = resp.json()
+        return data["choices"][0]["message"]["content"].strip()
     except Exception as e:
-        print(f"[Copilot AI] Request failed: {e}")
-        return {
-            "intent": "error",
-            "reply": "Internet aloqasida yoki AI serverida muammo yuz berdi."
-        }
+        return f"Natija olindi, lekin AI unga xulosa yozolmadi: {str(e)}"
