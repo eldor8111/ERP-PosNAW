@@ -328,3 +328,4 @@ class RecordNewDebtTool(AITool):
             "action": {"type": "add_debt", "customer_id": customer.id, "amount": amount},
         }
 import app.services.ai_tools_customers
+import app.services.ai_tools_products
