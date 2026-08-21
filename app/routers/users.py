@@ -330,22 +330,7 @@ def create_user(
     db.commit()
     db.refresh(user)
 
-    # Yangi foydalanuvchiga SMS yuborish
-    if not active_existing and not inactive_existing:
-        import random
-        normalized_phone = data.phone.strip().replace("+", "").replace(" ", "").replace("-", "")
-        fake_otp = str(random.randint(1000, 9999))
-        message = f"E-Code.uz saytida ro'yxatdan o'tish uchun tasdiqlash kodi: {fake_otp}. Kodni hech kimga bermang."
-        
-        def send_new_user_sms():
-            try:
-                import asyncio
-                from app.services.eskiz_service import eskiz_service
-                asyncio.run(eskiz_service.send_sms(normalized_phone, message))
-            except Exception as e:
-                print(f"[SMS Error] New user SMS failed: {e}")
-                
-        background_tasks.add_task(send_new_user_sms)
+    # Foydalanuvchi yaratildi. OTP tasdiqlash frontend orqali qilinadi.
 
     return user
 

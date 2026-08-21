@@ -83,7 +83,7 @@ function ForgotPasswordModal({ onClose, t }) {
   const [step, setStep] = useState(1)   // 1: telefon, 2: OTP, 3: yangi parol
   const [phone, setPhone] = useState('')
   const [userName, setUserName] = useState('')
-  const [otp, setOtp] = useState('1111')
+  const [otp, setOtp] = useState('')
   const [verifiedToken, setVerifiedToken] = useState('')
   const [newPass, setNewPass] = useState('')
   const [confirmPass, setConfirmPass] = useState('')
@@ -359,7 +359,7 @@ export default function Login() {
   const [showForgot, setShowForgot] = useState(false)
   // OTP bosqich
   const [otpStep, setOtpStep] = useState(false)
-  const [otp, setOtp] = useState('1111')
+  const [otp, setOtp] = useState('')
   const [otpName, setOtpName] = useState('')
   const [otpDevMode, setOtpDevMode] = useState(false)
   const [otpLoading, setOtpLoading] = useState(false)

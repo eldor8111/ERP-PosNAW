@@ -117,6 +117,11 @@ export default function UsersTab() {
   const [newPwd, setNewPwd] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  
+  // OTP state
+  const [otpModal, setOtpModal] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [otpSession, setOtpSession] = useState('');
 
   const ROLE_LABELS = getRoleLabels(t);
 
@@ -133,6 +138,8 @@ export default function UsersTab() {
   const openCreate = () => {
     setForm(BLANK_FORM);
     setError('');
+    setOtpModal(false);
+    setOtp('');
     setModal('create');
   };
   const openEdit = (u) => {
@@ -187,17 +194,34 @@ export default function UsersTab() {
   };
 
   const close = () => {
-    setModal(null); setSelected(null); setError('');
+    setModal(null); setSelected(null); setError(''); setOtpModal(false);
   };
 
   const setField = useCallback((key, val) => {
     setForm(prev => ({ ...prev, [key]: val }));
   }, []);
 
-  // Foydalanuvchi yaratish
+  // Foydalanuvchi yaratish - OTP so'rash
   const handleCreate = async (e) => {
     e.preventDefault(); setSaving(true); setError('');
     try {
+      const res = await api.post('/auth/send-otp', { phone: form.phone, purpose: 'register' });
+      setOtpSession(res.data.otp_session);
+      setOtpModal(true);
+    } catch (err) {
+      setError(err.response?.data?.detail || t('common.error'));
+    } finally { setSaving(false); }
+  };
+
+  const handleVerifyOtpAndCreate = async (e) => {
+    e.preventDefault(); setSaving(true); setError('');
+    try {
+      const verifyRes = await api.post('/auth/verify-otp', {
+        phone: form.phone,
+        otp: otp,
+        otp_session: otpSession
+      });
+      
       const payload = {
         name: form.name,
         phone: form.phone,
@@ -211,7 +235,7 @@ export default function UsersTab() {
       close(); load();
       toast.success('Foydalanuvchi muvaffaqiyatli qo\'shildi');
     } catch (err) {
-      setError(err.response?.data?.detail || t('common.error'));
+      setError(err.response?.data?.detail || 'OTP xato yoki eskirgan');
     } finally { setSaving(false); }
   };
 
@@ -532,6 +556,41 @@ export default function UsersTab() {
             <div className="px-6 pb-6">
               <button onClick={close} className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm rounded-xl transition-colors">Yopish</button>
             </div>
+          </div>
+        </div>
+      {/* OTP MODAL */}
+      {otpModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setOtpModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-800">Tasdiqlash kodi</h3>
+              <button onClick={() => setOtpModal(false)} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <form onSubmit={handleVerifyOtpAndCreate} className="p-6 space-y-4">
+              <p className="text-sm text-slate-600 text-center">Yangi xodim raqamiga yuborilgan tasdiqlash kodini kiriting</p>
+              
+              <div className="flex justify-center">
+                <input
+                  type="text"
+                  required
+                  maxLength={4}
+                  value={otp}
+                  onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
+                  className="w-32 text-center text-3xl tracking-widest font-bold py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  autoFocus
+                />
+              </div>
+
+              {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl text-center">{error}</div>}
+              
+              <button type="submit" disabled={saving || otp.length < 4} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold rounded-xl transition-colors">
+                {saving ? 'Tekshirilmoqda...' : 'Tasdiqlash'}
+              </button>
+            </form>
           </div>
         </div>
       )}
