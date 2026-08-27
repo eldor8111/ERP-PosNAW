@@ -920,6 +920,7 @@ export default function Products() {
           sale_currency: getPureCode(row.sale_price_cur),
           unit: row.unit || 'dona',
           category_id: row.category_id ? Number(row.category_id) : null,
+          product_type: 'stock',
           initial_stock: Number(row.initial_stock) || 0,
           initial_warehouse_id: Number(row.initial_stock) > 0 && bulkWarehouseId ? Number(bulkWarehouseId) : undefined,
           min_stock: Number(row.min_stock) || 0,

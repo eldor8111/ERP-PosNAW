@@ -535,7 +535,7 @@ def create_product(
                         company_id=current_user.company_id,
                     ))
 
-    elif product_type == "stock":
+    elif product_type in ("stock", "simple"):
         if not initial_warehouse_id:
             from app.models.warehouse import Warehouse
             first_wh = db.query(Warehouse).filter(Warehouse.company_id == current_user.company_id).order_by(
