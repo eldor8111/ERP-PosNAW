@@ -542,9 +542,20 @@ def create_product(
                 Warehouse.id.asc()).first()
             if first_wh:
                 initial_warehouse_id = first_wh.id
-        if initial_warehouse_id:
+        if initial_warehouse_id and initial_stock > 0:
             stock = StockLevel(product_id=product.id, quantity=initial_stock, warehouse_id=initial_warehouse_id)
             db.add(stock)
+            # Batch yozuvi (FIFO uchun)
+            from app.models.batch import Batch
+            db.add(Batch(
+                product_id=product.id,
+                warehouse_id=initial_warehouse_id,
+                lot_number=f"initial-{product.id}",
+                initial_quantity=initial_stock,
+                quantity=initial_stock,
+                purchase_price=product.cost_price or 0,
+                company_id=current_user.company_id,
+            ))
 
     # Virtual mahsulot uchun ProductConversion yozuvi
     if product_type == "sell" and conversion_data:
