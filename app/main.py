@@ -203,6 +203,19 @@ def _run_auto_migrations(engine):
             permissions JSONB DEFAULT '{}'::jsonb
         );""",
         "CREATE INDEX IF NOT EXISTS ix_custom_roles_company_id ON custom_roles(company_id);",
+        # ── Bildirish Nomalar ──
+        """CREATE TABLE IF NOT EXISTS announcements (
+            id         SERIAL PRIMARY KEY,
+            title      VARCHAR(200) NOT NULL,
+            message    TEXT NOT NULL,
+            company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+            is_active  BOOLEAN DEFAULT TRUE,
+            expires_at TIMESTAMP,
+            created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            created_at TIMESTAMP DEFAULT NOW()
+        );""",
+        "CREATE INDEX IF NOT EXISTS ix_announcements_company ON announcements(company_id);",
+        "CREATE INDEX IF NOT EXISTS ix_announcements_active ON announcements(is_active);",
     ]
     _sa_text = __import__('sqlalchemy').text
     for sql in migrations:

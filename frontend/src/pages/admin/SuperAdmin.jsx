@@ -703,6 +703,7 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
     { id: 'companies', label: 'Korxonalar', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
     { id: 'billing', label: 'Billing', icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z' },
     { id: 'tariffs', label: 'Tariflar', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+    { id: 'announcements', label: 'Bildirish Nomalar', icon: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9' },
     { id: 'settings', label: 'Sozlamalar', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
   ];
 
@@ -921,6 +922,9 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
 
       {/* ── SETTINGS TAB ── */}
       {tab === 'settings' && <SettingsTab />}
+
+      {/* ── BILDIRISH NOMALAR TAB ── */}
+      {tab === 'announcements' && <AnnouncementsTab companies={companies} />}
 
       {/* Company Detail Modal */}
       {selectedCompany && (
@@ -1619,4 +1623,197 @@ function TariffsTab() {
   );
 }
 
+/* ─── ANNOUNCEMENTS TAB ────────────────────────────── */
+function AnnouncementsTab({ companies }) {
+  const [announcements, setAnnouncements] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState({ title: '', message: '', company_id: '', expires_at: '' });
+  const [saving, setSaving] = useState(false);
+  const [editId, setEditId] = useState(null);
 
+  const load = () => {
+    setLoading(true);
+    api.get('/super-admin/announcements')
+      .then(r => setAnnouncements(r.data))
+      .catch(err => toast.error(err.response?.data?.detail || "Bildirish nomalar yuklanmadi"))
+      .finally(() => setLoading(false));
+  };
+  useEffect(() => { load(); }, []);
+
+  const openModal = (ann = null) => {
+    if (ann && ann.id) {
+      setEditId(ann.id);
+      setForm({
+        title: ann.title || '',
+        message: ann.message || '',
+        company_id: ann.company_id || '',
+        expires_at: ann.expires_at ? ann.expires_at.slice(0, 16) : ''
+      });
+    } else {
+      setEditId(null);
+      setForm({ title: '', message: '', company_id: '', expires_at: '' });
+    }
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditId(null);
+  };
+
+  const save = async () => {
+    if (!form.title.trim() || !form.message.trim()) return toast.error("Sarlavha va matn kiritilishi shart");
+    setSaving(true);
+    try {
+      const payload = {
+        title: form.title.trim(),
+        message: form.message.trim(),
+        company_id: form.company_id ? Number(form.company_id) : null,
+        expires_at: form.expires_at ? new Date(form.expires_at).toISOString() : null
+      };
+
+      if (editId) {
+        await api.patch(`/super-admin/announcements/${editId}`, payload);
+        toast.success("Tahrirlandi");
+      } else {
+        await api.post('/super-admin/announcements', payload);
+        toast.success("Yaratildi");
+      }
+      closeModal();
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Xatolik yuz berdi");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleActive = async (ann) => {
+    try {
+      await api.patch(`/super-admin/announcements/${ann.id}`, { is_active: !ann.is_active });
+      load();
+    } catch (e) {
+      toast.error("Holatni o'zgartirishda xatolik");
+    }
+  };
+
+  const deleteAnn = async (id) => {
+    if (!window.confirm("O'chirishni xohlaysizmi?")) return;
+    try {
+      await api.delete(`/super-admin/announcements/${id}`);
+      toast.success("O'chirildi");
+      load();
+    } catch (e) {
+      toast.error("Xatolik");
+    }
+  };
+
+  const inp = "w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all bg-slate-50 focus:bg-white";
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-bold text-slate-800">Bildirish nomalar</h3>
+          <p className="text-xs text-slate-400 mt-0.5">Tizim bo'ylab barchaga yoki ma'lum korxonalarga e'lonlar yuborish</p>
+        </div>
+        <button onClick={() => openModal()} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-all flex items-center gap-2">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+          Yangi yaratish
+        </button>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="py-16 flex justify-center"><div className="w-7 h-7 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
+        ) : announcements.length === 0 ? (
+          <div className="py-16 text-center text-slate-400 text-sm">Hali bildirish nomalar yo'q</div>
+        ) : (
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100">
+                {['#', 'Sarlavha', 'Kimlarga', 'Holati', 'Muddati', 'Yaratilgan', 'Amallar'].map(h => (
+                  <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {announcements.map((a, i) => (
+                <tr key={a.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-5 py-3 text-xs text-slate-400">{i + 1}</td>
+                  <td className="px-5 py-3 font-semibold text-slate-800">{a.title}</td>
+                  <td className="px-5 py-3">
+                    {a.company_id ? (
+                      <span className="text-blue-700 font-semibold bg-blue-50 px-2 py-0.5 rounded text-xs">{a.company_name || 'Bitta korxona'}</span>
+                    ) : (
+                      <span className="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded text-xs">Barchaga</span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3">
+                    <button onClick={() => toggleActive(a)} className={`px-2.5 py-1 text-xs font-bold rounded-full ${a.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+                      {a.is_active ? 'Faol' : 'Nofaol'}
+                    </button>
+                  </td>
+                  <td className="px-5 py-3 text-xs text-slate-500">
+                    {a.expires_at ? new Date(a.expires_at).toLocaleString('uz-UZ') : 'Muddatsiz'}
+                  </td>
+                  <td className="px-5 py-3 text-xs text-slate-400">
+                    {new Date(a.created_at).toLocaleDateString('uz-UZ')}
+                  </td>
+                  <td className="px-5 py-3">
+                    <div className="flex gap-2">
+                      <button onClick={() => openModal(a)} className="text-amber-500 hover:text-amber-600 font-medium text-xs px-2 py-1 bg-amber-50 rounded-lg">Tahrirlash</button>
+                      <button onClick={() => deleteAnn(a.id)} className="text-red-500 hover:text-red-600 font-medium text-xs px-2 py-1 bg-red-50 rounded-lg">O'chirish</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <h3 className="font-bold text-slate-800">{editId ? 'Tahrirlash' : 'Yangi Bildirish Noma'}</h3>
+              <button onClick={closeModal} className="text-slate-400 hover:text-slate-600"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1.5">Sarlavha *</label>
+                <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} className={inp} placeholder="Asosiy sarlavha" autoFocus />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1.5">Matn *</label>
+                <textarea value={form.message} onChange={e => setForm(p => ({ ...p, message: e.target.value }))} className={`${inp} min-h-[100px] resize-y`} placeholder="Batafsil matn..." />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1.5">Kimlarga jo'natiladi?</label>
+                <select value={form.company_id} onChange={e => setForm(p => ({ ...p, company_id: e.target.value }))} className={inp}>
+                  <option value="">Barcha korxonalarga (Global)</option>
+                  {companies.map(c => (
+                    <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1.5">Amal qilish muddati (ixtiyoriy)</label>
+                <input type="datetime-local" value={form.expires_at} onChange={e => setForm(p => ({ ...p, expires_at: e.target.value }))} className={inp} />
+                <p className="text-xs text-slate-400 mt-1">Belgilangan muddatdan keyin o'z-o'zidan yashirinadi.</p>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-slate-100 flex gap-2">
+              <button onClick={closeModal} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-sm transition-all">Bekor qilish</button>
+              <button onClick={save} disabled={saving} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm shadow-lg shadow-blue-200 transition-all disabled:opacity-50">
+                {saving ? 'Saqlanmoqda...' : 'Saqlash'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -36,3 +36,4 @@ from .promotion import Promotion, PromotionProduct
 from .supplier_product import SupplierProduct
 from .attribute import Attribute, AttributeValue, VariantAttributeValue
 from .ai_audit import AIAuditLog
+from .announcement import Announcement  # type: ignore

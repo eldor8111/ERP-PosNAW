@@ -481,3 +481,158 @@ def delete_company_super(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=f"Xatolik: {str(e)}")
+
+
+# ── Bildirish Nomalar (Announcements) ────────────────────────────────────────
+
+from datetime import datetime, timezone as _tz
+from app.models.announcement import Announcement
+
+
+class AnnouncementCreate(BaseModel):
+    title: str
+    message: str
+    company_id: Optional[int] = None   # NULL = barcha korxonalar
+    expires_at: Optional[str] = None   # ISO format string yoki None
+
+
+class AnnouncementUpdate(BaseModel):
+    title: Optional[str] = None
+    message: Optional[str] = None
+    is_active: Optional[bool] = None
+    expires_at: Optional[str] = None
+
+
+def _ann_dict(a: Announcement, company_name: Optional[str] = None) -> dict:
+    return {
+        "id": a.id,
+        "title": a.title,
+        "message": a.message,
+        "company_id": a.company_id,
+        "company_name": company_name,
+        "is_active": a.is_active,
+        "expires_at": a.expires_at.isoformat() if a.expires_at else None,
+        "created_at": a.created_at.isoformat() if a.created_at else None,
+    }
+
+
+@router.post("/announcements")
+def create_announcement(
+    data: AnnouncementCreate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_super_admin),
+):
+    """Yangi bildirish noma yaratish"""
+    expires = None
+    if data.expires_at:
+        try:
+            expires = datetime.fromisoformat(data.expires_at.replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="expires_at formati noto'g'ri")
+
+    ann = Announcement(
+        title=data.title.strip(),
+        message=data.message.strip(),
+        company_id=data.company_id,
+        expires_at=expires,
+        is_active=True,
+        created_by=admin.id,
+        created_at=datetime.now(_tz.utc),
+    )
+    db.add(ann)
+    db.commit()
+    db.refresh(ann)
+
+    company_name = None
+    if ann.company_id:
+        c = db.query(Company).filter(Company.id == ann.company_id).first()
+        company_name = c.name if c else None
+
+    return _ann_dict(ann, company_name)
+
+
+@router.get("/announcements")
+def list_announcements(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_super_admin),
+):
+    """Barcha bildirish nomalar (super admin uchun)"""
+    rows = db.query(Announcement).order_by(Announcement.id.desc()).all()
+    result = []
+    for a in rows:
+        company_name = None
+        if a.company_id:
+            c = db.query(Company).filter(Company.id == a.company_id).first()
+            company_name = c.name if c else None
+        result.append(_ann_dict(a, company_name))
+    return result
+
+
+@router.patch("/announcements/{ann_id}")
+def update_announcement(
+    ann_id: int,
+    data: AnnouncementUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_super_admin),
+):
+    """Bildirish nomani tahrirlash / o'chirish"""
+    ann = db.query(Announcement).filter(Announcement.id == ann_id).first()
+    if not ann:
+        raise HTTPException(status_code=404, detail="Bildirish noma topilmadi")
+
+    if data.title is not None:
+        ann.title = data.title.strip()
+    if data.message is not None:
+        ann.message = data.message.strip()
+    if data.is_active is not None:
+        ann.is_active = data.is_active
+    if data.expires_at is not None:
+        try:
+            ann.expires_at = datetime.fromisoformat(data.expires_at.replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="expires_at formati noto'g'ri")
+
+    db.commit()
+    db.refresh(ann)
+    return _ann_dict(ann)
+
+
+@router.delete("/announcements/{ann_id}")
+def delete_announcement(
+    ann_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_super_admin),
+):
+    """Bildirish nomani o'chirish"""
+    ann = db.query(Announcement).filter(Announcement.id == ann_id).first()
+    if not ann:
+        raise HTTPException(status_code=404, detail="Bildirish noma topilmadi")
+    db.delete(ann)
+    db.commit()
+    return {"ok": True}
+
+
+# ── Foydalanuvchi uchun: aktiv bildirish nomalar ──────────────────────────────
+
+@router.get("/announcements/active", tags=["Announcements"])
+def get_active_announcements(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Joriy foydalanuvchi korxonasiga tegishli aktiv xabarlarni qaytaradi"""
+    now = datetime.now(_tz.utc)
+    company_id = current_user.company_id
+
+    q = db.query(Announcement).filter(
+        Announcement.is_active == True,
+        or_(
+            Announcement.expires_at == None,
+            Announcement.expires_at > now,
+        ),
+        or_(
+            Announcement.company_id == None,          # Barcha korxonalarga
+            Announcement.company_id == company_id,    # Faqat shu korxonaga
+        ),
+    ).order_by(Announcement.id.desc())
+
+    return [_ann_dict(a) for a in q.all()]

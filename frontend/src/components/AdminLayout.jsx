@@ -8,6 +8,8 @@ import { getSettingsMenus } from '../constants/settingsMenus';
 import ECodeLogo, { ECodeIcon } from './ECodeLogo';
 import toast from 'react-hot-toast';
 import { BriefcaseBusiness, CircleChevronLeft, Copy, Minus, TextAlignJustify, X } from 'lucide-react';
+import AnnouncementModal from './AnnouncementModal';
+import AnnouncementBanner from './AnnouncementBanner';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU');
 
@@ -242,6 +244,15 @@ export default function AdminLayout() {
   const [orgData, setOrgData] = useState({ name: user?.company_name || 'Tizim', code: '...', balance: 0 });
   const [lowStockCount, setLowStockCount] = useState(0);
   const [expiredCount, setExpiredCount] = useState(0);
+  const [announcements, setAnnouncements] = useState([]);
+
+  // Bildirish nomalarni yuklash (login qilgandan keyin)
+  useEffect(() => {
+    if (!user) return;
+    api.get('/super-admin/announcements/active')
+      .then(res => setAnnouncements(res.data || []))
+      .catch(() => {});
+  }, [user?.id]);
 
   const refreshBalance = useCallback(() => {
     api.get('/finance/cash-balance').then(r => {
@@ -470,6 +481,10 @@ export default function AdminLayout() {
 
       {/* ── MAIN CONTENT ─────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden w-full relative">
+        {/* Bildirish Noma Banner (header ostida) */}
+        <AnnouncementBanner announcements={announcements} />
+        {/* Bildirish Noma Modal (bir marta chiqadi) */}
+        <AnnouncementModal announcements={announcements} />
         {/* Top Header */}
         <header className="bg-white border-b border-slate-100 px-4 md:px-6 py-2.25 flex items-center justify-between shrink-0" style={{ boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
           <div className="flex items-center gap-1 xl:gap-3">

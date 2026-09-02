@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   Users, Shield, MapPin, CreditCard,
-  Key, Receipt, MessageSquare, Lock, Cpu, Tag, Package
+  Key, Receipt, MessageSquare, Lock, Cpu, Tag, Package, Star
 } from 'lucide-react';
 
 export const getSettingsMenus = (_t) => [
@@ -16,4 +16,5 @@ export const getSettingsMenus = (_t) => [
   { id: 'password',   icon: <Lock          className="w-[18px] h-[18px]" />, label: 'Parol' },
   { id: 'promotions', icon: <Tag className="w-[18px] h-[18px]" />, label: 'Aksiyalar' },
   { id: 'warehouse',  icon: <Package className="w-[18px] h-[18px]" />, label: 'Omborlar' },
+  { id: 'tariflar',   icon: <Star className="w-[18px] h-[18px]" />, label: 'Tariflar', path: '/admin/tariflar' },
 ];
