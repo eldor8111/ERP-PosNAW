@@ -128,11 +128,26 @@ def process_partial_return(
         customer = db.query(Customer).filter(Customer.id == original_sale.customer_id).with_for_update().first()
         
     if amount_to_reduce_debt > 0 and customer:
+        # Mijoz qarz balansini kamaytirish
         customer.debt_balance = max(Decimal("0"), (customer.debt_balance or Decimal("0")) - (amount_to_reduce_debt * exchange_rate))
         if customer.debt_balances and float(customer.debt_balances.get(sale_currency, 0)) > 0:
             cur_debt = Decimal(str(customer.debt_balances[sale_currency]))
             customer.debt_balances[sale_currency] = float(max(Decimal("0"), cur_debt - amount_to_reduce_debt))
             flag_modified(customer, "debt_balances")
+        
+        # Original sotuvning paid_amount ni oshirish va statusini yangilash
+        original_paid = Decimal(str(original_sale.paid_amount or "0"))
+        original_total = Decimal(str(original_sale.total_amount or "0"))
+        new_paid = min(original_total, original_paid + (amount_to_reduce_debt * exchange_rate))
+        original_sale.paid_amount = new_paid  # type: ignore
+        # Agar to'liq to'langan bo'lsa statusni yangilash
+        if new_paid >= original_total:
+            original_sale.status = SaleStatus.partial_refund  # type: ignore
+        # debt_amounts ni ham yangilash
+        if original_sale.debt_amounts and sale_currency in (original_sale.debt_amounts or {}):
+            cur_sale_debt = Decimal(str(original_sale.debt_amounts[sale_currency]))
+            original_sale.debt_amounts[sale_currency] = float(max(Decimal("0"), cur_sale_debt - amount_to_reduce_debt))
+            flag_modified(original_sale, "debt_amounts")
             
     if amount_to_return_cash > 0:
         tx_branch_id = resolve_branch_id(db, current_user, original_sale.warehouse_id)

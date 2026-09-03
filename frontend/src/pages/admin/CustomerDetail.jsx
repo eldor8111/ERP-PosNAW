@@ -142,6 +142,13 @@ export default function CustomerDetail() {
     }
   }, [customerId])
 
+  const reloadAll = useCallback(() => {
+    api.get(`/customers/${customerId}/stats`, { _suppressToast: true }).then(r => setStats(r.data))
+    api.get('/sales/', { params: { customer_id: customerId, limit: 200 }, _suppressToast: true }).then(r => setSalesData(r.data))
+    loadSales()
+    loadHistory()
+  }, [customerId, loadSales, loadHistory])
+
   useEffect(() => {
     if (tab === 'sotuvlar' || tab === 'qaytarishlar' || tab === 'akt') loadSales()
     if (tab === 'operatsiyalar' || tab === 'akt') loadHistory()
@@ -350,7 +357,7 @@ export default function CustomerDetail() {
 
           {/* SOTUVLAR TAB */}
           {tab === 'sotuvlar' && (
-            <SalesTable rows={sales} stats={stats} salesData={salesData} loading={loadingTab} />
+            <SalesTable rows={sales} stats={stats} salesData={salesData} loading={loadingTab} onRefresh={reloadAll} />
           )}
 
           {/* QAYTARISHLAR TAB */}
@@ -387,7 +394,7 @@ export default function CustomerDetail() {
 
           {/* AKT SVERKA TAB */}
           {tab === 'akt' && (
-            <AktSverka stats={{ ...stats, debt_balance: dynamicBalance }} sales={sales} history={history} loading={loadingTab} />
+            <AktSverka stats={{ ...stats, debt_balance: dynamicBalance }} sales={sales} history={history} loading={loadingTab} onRefresh={reloadAll} />
           )}
 
           {tab === 'kirim_tolovlar' && (
@@ -398,7 +405,7 @@ export default function CustomerDetail() {
     </div>
   )
 }
-function SalesTable({ rows, stats, salesData, loading, emptyText = "Sotuvlar yo'q" }) {
+function SalesTable({ rows, stats, salesData, loading, onRefresh, emptyText = "Sotuvlar yo'q" }) {
   const { t } = useLang();
 
   // 1. BARCHA HOOKLAR ENG TEPADA BO'LISHI SHART
@@ -729,14 +736,19 @@ function SalesTable({ rows, stats, salesData, loading, emptyText = "Sotuvlar yo'
                 </div>
 
                 {/* Qarzga qolgan */}
-                <div className={`p-4 rounded-xl border ${saleDetailData?.debt_amount > 0 ? 'bg-amber-50/50 border-amber-100/60' : 'bg-slate-50/80 border-slate-100'}`}>
-                  <p className={`text-xs font-medium uppercase tracking-wider ${saleDetailData?.debt_amount > 0 ? 'text-amber-600' : 'text-slate-500'}`}>
-                    Qarzga qolgan
-                  </p>
-                  <p className={`text-lg font-bold mt-1 ${saleDetailData?.debt_amount > 0 ? 'text-amber-700' : 'text-slate-700'}`}>
-                    {fmt(saleDetailData?.debt_amount)} <span className="text-xs font-normal opacity-75">{saleDetailData?.currency_code || saleDetailData?.currency}</span>
-                  </p>
-                </div>
+                {(() => {
+                  const remainDebt = Math.max(0, Number(saleDetailData?.total_amount || 0) - Number(saleDetailData?.paid_amount || 0));
+                  return (
+                    <div className={`p-4 rounded-xl border ${remainDebt > 0 ? 'bg-amber-50/50 border-amber-100/60' : 'bg-slate-50/80 border-slate-100'}`}>
+                      <p className={`text-xs font-medium uppercase tracking-wider ${remainDebt > 0 ? 'text-amber-600' : 'text-slate-500'}`}>
+                        Qarzga qolgan
+                      </p>
+                      <p className={`text-lg font-bold mt-1 ${remainDebt > 0 ? 'text-amber-700' : 'text-slate-700'}`}>
+                        {fmt(remainDebt)} <span className="text-xs font-normal opacity-75">{saleDetailData?.currency_code || saleDetailData?.currency}</span>
+                      </p>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Items Table */}
@@ -793,8 +805,7 @@ function SalesTable({ rows, stats, salesData, loading, emptyText = "Sotuvlar yo'
           onSuccess={() => {
             setOpenPartialReturnModal(false);
             setOpenSaleDetailModal(false);
-            // Sahifani yangilash uchun fetchData yuboriladi agar kerak bo'lsa
-            // Ammo bu yerda window.location.reload yoki prop chaqirish mumkin
+            if (onRefresh) onRefresh();
           }}
         />
       )}
@@ -897,7 +908,7 @@ function OperationsTable({ rows, loading }) {
   )
 }
 
-function AktSverka({ stats, sales, loading, history }) {
+function AktSverka({ stats, sales, loading, history, onRefresh }) {
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [sortOrder, setSortOrder] = useState('asc')
@@ -1286,14 +1297,19 @@ function AktSverka({ stats, sales, loading, history }) {
                 </div>
 
                 {/* Qarzga qolgan */}
-                <div className={`p-4 rounded-xl border ${saleDetailData?.debt_amount > 0 ? 'bg-amber-50/50 border-amber-100/60' : 'bg-slate-50/80 border-slate-100'}`}>
-                  <p className={`text-xs font-medium uppercase tracking-wider ${saleDetailData?.debt_amount > 0 ? 'text-amber-600' : 'text-slate-500'}`}>
-                    Qarzga qolgan
-                  </p>
-                  <p className={`text-lg font-bold mt-1 ${saleDetailData?.debt_amount > 0 ? 'text-amber-700' : 'text-slate-700'}`}>
-                    {fmt(saleDetailData?.debt_amount)} <span className="text-xs font-normal opacity-75">{saleDetailData?.currency}</span>
-                  </p>
-                </div>
+                {(() => {
+                  const remainDebt2 = Math.max(0, Number(saleDetailData?.total_amount || 0) - Number(saleDetailData?.paid_amount || 0));
+                  return (
+                    <div className={`p-4 rounded-xl border ${remainDebt2 > 0 ? 'bg-amber-50/50 border-amber-100/60' : 'bg-slate-50/80 border-slate-100'}`}>
+                      <p className={`text-xs font-medium uppercase tracking-wider ${remainDebt2 > 0 ? 'text-amber-600' : 'text-slate-500'}`}>
+                        Qarzga qolgan
+                      </p>
+                      <p className={`text-lg font-bold mt-1 ${remainDebt2 > 0 ? 'text-amber-700' : 'text-slate-700'}`}>
+                        {fmt(remainDebt2)} <span className="text-xs font-normal opacity-75">{saleDetailData?.currency}</span>
+                      </p>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Items Table */}
@@ -1347,6 +1363,7 @@ function AktSverka({ stats, sales, loading, history }) {
           onSuccess={() => {
             setOpenPartialReturnModal(false);
             setOpenSaleDetailModal(false);
+            if (onRefresh) onRefresh();
           }}
         />
       )}
