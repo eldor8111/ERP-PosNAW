@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy import text as sa_text
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.dependencies import get_current_user, require_roles
 from app.database import get_db
@@ -22,7 +23,8 @@ from app.schemas.inventory import (
     ExpiringBatchOut,
     ChiqimDocumentOut,
     ChiqimDetailOut,
-    SupplierReturnRequest, StockMovementUpdate, WriteOffExpiredRequest
+    SupplierReturnRequest, StockMovementUpdate, WriteOffExpiredRequest,
+    CustomerReturnRequest
 )
 from app.services.inventory_service import (
     adjust_stock,
@@ -254,14 +256,13 @@ def delete_return_movement(
 ):
     """
     Qaytaruvni bekor qilish:
-    - return_from_customer / sale_refund → stock kamayadi (mijozga qaytgan tovar ombordan chiqadi), sotuv qaytarildi belgisi olinadi
-    - return_to_supplier → stock qaytib keladi (ta'minotchiga ketgan tovar omborga qaytadi)
-    Moliyaviy tranzaksiyalar ham bekor qilinadi.
+    - return_from_customer → stok kamayadi, mijoz qarzi + kassa orqaga qaytadi
+    - sale_refund          → stok kamayadi (avvalgi sotuv logikasi)
+    - return_to_supplier   → stok qaytadi, tranzaksiyalar bekor qilinadi
     """
-    from app.models.moliya import Transaction
+    from app.models.moliya import Transaction, Wallet
     from app.models.supplier import Supplier
     from app.models.customer import Customer
-    from app.services.inventory_service import deduct_stock, receive_stock
 
     m = (
         db.query(StockMovement)
@@ -276,13 +277,73 @@ def delete_return_movement(
     rt = m.reference_type or ""
     qty = Decimal(str(m.quantity))
 
-    if rt in ("return_from_customer", "sale_refund", "return_from_customer"):
-        # Mijozdan qaytarish bekor qilinadi: omborga kelgan tovar yana chiqariladi
-        stock = (
-            db.query(StockLevel)
-            .filter(StockLevel.product_id == m.product_id)
-            .first()
-        )
+    # ── 1. MIJOZDAN QAYTARISH BEKOR (return_from_customer) ─────────────────
+    if rt == "return_from_customer":
+        # 1a. Stokni orqaga kamaytir (omborga kelgan tovar yana chiqariladi)
+        wh_id = m.warehouse_id if hasattr(m, 'warehouse_id') else None
+        stock_q = db.query(StockLevel).filter(StockLevel.product_id == m.product_id)
+        if wh_id:
+            stock_q = stock_q.filter(StockLevel.warehouse_id == wh_id)
+        stock = stock_q.first()
+        if stock and stock.quantity >= qty:
+            qty_before = stock.quantity
+            stock.quantity -= qty
+            revert_mov = StockMovement(
+                product_id=m.product_id,
+                warehouse_id=wh_id,
+                type=MovementType.OUT,
+                qty_before=qty_before,
+                qty_after=stock.quantity,
+                quantity=qty,
+                reference_type="return_revert",
+                reference_id=m.id,
+                user_id=current_user.id,
+                reason=f"Mijozdan qaytarish bekor qilindi (asl ID: {m.id})",
+            )
+            db.add(revert_mov)
+
+        # 1b. Tegishli tranzaksiyalarni orqaga qaytarish (qarz + kassa)
+        txs = db.query(Transaction).filter(
+            Transaction.reference_type == "return_from_customer",
+            Transaction.reference_id == m.id,
+        ).all()
+        for tx in txs:
+            wallet = db.get(Wallet, tx.wallet_id)
+            if wallet:
+                # Chiqim tranzaksiya edi (kassadan pul chiqdi), endi orqaga qaytaramiz
+                if tx.type == "expense":
+                    wallet.balance = Decimal(str(wallet.balance)) + Decimal(str(tx.amount))
+                else:
+                    wallet.balance = Decimal(str(wallet.balance)) - Decimal(str(tx.amount))
+            db.delete(tx)
+
+        # 1c. Mijoz qarz balansini tiklash
+        #     Qaytarish vaqtida: debt → qarz kamaydi, cash/card → kassa kamaydi
+        #     Bekor qilganda: debt → qarz oshadi, cash/card → (tranzaksiya yuqorida bekor qilindi)
+        if m.reference_id:  # reference_id = customer_id (return_from_customer da)
+            customer = db.get(Customer, m.reference_id)
+            if customer:
+                # m.reason dan payment_type ni o'qiymiz
+                reason_txt = m.reason or ""
+                if "qarzga" in reason_txt.lower() or "debt" in reason_txt.lower():
+                    # Qarzga yopilgan edi, endi qarzni qaytaramiz
+                    total_val = Decimal(str(m.quantity)) * Decimal(str(getattr(m, 'unit_price', 0) or 0))
+                    # total_val ni reason dan o'qishga harakat qilamiz
+                    import re
+                    match = re.search(r'summa:(\d+\.?\d*)', reason_txt)
+                    if match:
+                        total_val = Decimal(match.group(1))
+                    customer.debt_balance = float(customer.debt_balance or 0) + float(total_val)
+                    if not customer.debt_balances:
+                        customer.debt_balances = {}
+                    if "UZS" not in customer.debt_balances:
+                        customer.debt_balances["UZS"] = 0.0
+                    customer.debt_balances["UZS"] = float(customer.debt_balances["UZS"]) + float(total_val)
+                    flag_modified(customer, "debt_balances")
+
+    # ── 2. SOTUV REFUNDI BEKOR (sale_refund – eski logika) ─────────────────
+    elif rt == "sale_refund":
+        stock = db.query(StockLevel).filter(StockLevel.product_id == m.product_id).first()
         if stock and stock.quantity >= qty:
             qty_before = stock.quantity
             stock.quantity -= qty
@@ -298,23 +359,10 @@ def delete_return_movement(
                 reason=f"Qaytaruv bekor qilindi (asl harakat ID: {m.id})",
             )
             db.add(revert_mov)
-        # Mijozning moliyaviy tranzaksiyasini bekor qil (sale_refund tegishli sale'g yozilgan)
-        if m.reference_id:
-            from app.models.sale import Sale
-            sale = db.get(Sale, m.reference_id)
-            if sale and sale.customer_id:
-                customer = db.get(Customer, sale.customer_id)
-                if customer:
-                    # Qaytarilgan summa mijozning qarziga qaytariladi (agar qarzdan chegirish bo'lgan bo'lsa)
-                    pass  # Moliyaviy logika sale darajasida boshqariladi
 
+    # ── 3. TA'MINOTCHIGA QAYTARISH BEKOR ───────────────────────────────────
     elif rt == "return_to_supplier":
-        # Ta'minotchiga qaytarish bekor qilinadi: chiqib ketgan tovar omborga qaytadi
-        stock = (
-            db.query(StockLevel)
-            .filter(StockLevel.product_id == m.product_id)
-            .first()
-        )
+        stock = db.query(StockLevel).filter(StockLevel.product_id == m.product_id).first()
         qty_before = stock.quantity if stock else Decimal("0")
         if not stock:
             stock = StockLevel(product_id=m.product_id, warehouse_id=None, quantity=Decimal("0"))
@@ -333,18 +381,15 @@ def delete_return_movement(
             reason=f"Ta'minotchi qaytaruvi bekor qilindi (asl harakat ID: {m.id})",
         )
         db.add(revert_mov)
-        # Ta'minotchi qarz balansini tiklash
         if m.reference_id:
             supplier = db.get(Supplier, m.reference_id)
             if supplier:
                 supplier.debt_balance = float(supplier.debt_balance or 0) + float(qty)
-        # Tegishli tranzaksiyalarni bekor qil
         txs = db.query(Transaction).filter(
             Transaction.reference_type == "return_to_supplier",
             Transaction.reference_id == m.reference_id,
         ).all()
         for tx in txs:
-            from app.models.moliya import Wallet
             wallet = db.get(Wallet, tx.wallet_id)
             if wallet:
                 if tx.type == "income":
@@ -358,7 +403,6 @@ def delete_return_movement(
             detail=f"Bu turdagi harakatni ({rt}) bekor qilish qo'llab-quvvatlanmaydi"
         )
 
-    # Asl harakatni o'chirish
     db.delete(m)
     db.commit()
     return {"message": "Qaytaruv muvaffaqiyatli bekor qilindi"}
@@ -412,6 +456,155 @@ def receive_goods(
 
     db.commit()
     return {"message": f"{len(movements)} ta mahsulot qabul qilindi", "details": movements}
+
+
+@router.post("/return-from-customer")
+def return_from_customer(
+        data: CustomerReturnRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*WAREHOUSE_ROLES)),
+):
+    """
+    Mijozdan mustaqil qaytarish operatsiyasi.
+    - Sotuvlar tarixiga ta'sir qilmaydi
+    - Operatsiyalar → Qaytarishlar da ko'rinadi
+    - O'chirilganda stok + qarz/kassa orqaga qaytadi
+    """
+    from app.models.customer import Customer
+    from app.models.moliya import Transaction, Wallet
+    from app.services.inventory_service import receive_stock as _receive_stock
+
+    customer = None
+    if data.customer_id:
+        customer = db.get(Customer, data.customer_id)
+        if not customer:
+            raise HTTPException(status_code=404, detail="Mijoz topilmadi")
+
+    total_amount = sum(Decimal(str(i.quantity)) * Decimal(str(i.unit_price)) for i in data.items)
+    movements_created = []
+
+    for item in data.items:
+        if item.quantity <= 0:
+            continue
+        qty = Decimal(str(item.quantity))
+
+        # Stokni oshiramiz (omborga kirim)
+        stock_q = db.query(StockLevel).filter(
+            StockLevel.product_id == item.product_id,
+            StockLevel.warehouse_id == data.warehouse_id,
+        )
+        stock = stock_q.first()
+        if not stock:
+            stock = StockLevel(
+                product_id=item.product_id,
+                warehouse_id=data.warehouse_id,
+                quantity=Decimal("0")
+            )
+            db.add(stock)
+            db.flush()
+
+        qty_before = stock.quantity
+        stock.quantity += qty
+
+        # payment_type ni reason ga saqlaymiz (delete da orqaga qaytarish uchun)
+        pay_info = f"debt" if data.payment_type == "debt" else data.payment_type
+        item_total = qty * Decimal(str(item.unit_price))
+        cust_name = customer.name if customer else "Noma'lum xaridor"
+        reason_text = (
+            f"Qisman qaytarish: {cust_name}. "
+            f"payment:{pay_info}. summa:{item_total}. "
+            f"{data.note or ''}".strip()
+        )
+
+        mov = StockMovement(
+            product_id=item.product_id,
+            variant_id=item.variant_id,
+            warehouse_id=data.warehouse_id,
+            type=MovementType.IN,
+            qty_before=qty_before,
+            qty_after=stock.quantity,
+            quantity=qty,
+            reference_type="return_from_customer",
+            reference_id=customer.id if customer else None,   # mijoz ID saqlanadi yoki None
+            user_id=current_user.id,
+            reason=reason_text,
+        )
+        db.add(mov)
+        db.flush()  # ID olish uchun
+        movements_created.append(mov)
+
+    # ── To'lov turini qayta ishlash ─────────────────────────────────────────
+    if data.payment_type == "debt":
+        # Mijoz qarzi kamayadi (biz unga pul qaytaramiz – qarz pasayadi)
+        if customer:
+            customer.debt_balance = float(customer.debt_balance or 0) - float(total_amount)
+            if not customer.debt_balances:
+                customer.debt_balances = {}
+            if "UZS" not in customer.debt_balances:
+                customer.debt_balances["UZS"] = 0.0
+            customer.debt_balances["UZS"] = float(customer.debt_balances["UZS"]) - float(total_amount)
+            flag_modified(customer, "debt_balances")
+
+        # Har bir movement uchun Transaction yozish (bekor qilish vaqtida topish uchun)
+        for mov in movements_created:
+            item_total = mov.quantity * Decimal(str(
+                next((i.unit_price for i in data.items if i.product_id == mov.product_id), 0)
+            ))
+            cust_name = customer.name if customer else "Noma'lum"
+            tx = Transaction(
+                branch_id=current_user.branch_id,
+                company_id=current_user.company_id,
+                type="expense",          # Bizdan pul chiqdi (qarz hisobida)
+                amount=float(item_total),
+                wallet_id=None,
+                reference_type="return_from_customer",
+                reference_id=mov.id,
+                description=f"Mijozdan qaytarish (qarzga): {cust_name}"
+            )
+            db.add(tx)
+
+    elif data.payment_type in ("cash", "card", "mixed"):
+        # Kassadan pul chiqadi (mijozga qaytaramiz)
+        if data.wallet_id:
+            wallet = db.get(Wallet, data.wallet_id)
+            if not wallet:
+                raise HTTPException(status_code=404, detail="Kassa topilmadi")
+
+            paid_total = Decimal(str(data.paid_cash)) + Decimal(str(data.paid_card))
+            if paid_total <= 0:
+                paid_total = total_amount
+
+            wallet.balance = Decimal(str(wallet.balance)) - paid_total
+            if wallet.balance < 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Kassada yetarli mablag' yo'q. Balans: {wallet.balance + paid_total}"
+                )
+
+            # Tranzaksiya (kassadan chiqim)
+            for mov in movements_created:
+                item_total = mov.quantity * Decimal(str(
+                    next((i.unit_price for i in data.items if i.product_id == mov.product_id), 0)
+                ))
+                cust_name = customer.name if customer else "Noma'lum"
+                tx = Transaction(
+                    branch_id=current_user.branch_id,
+                    company_id=current_user.company_id,
+                    type="expense",
+                    amount=float(item_total),
+                    wallet_id=wallet.id,
+                    reference_type="return_from_customer",
+                    reference_id=mov.id,
+                    description=f"Mijozdan qaytarish ({data.payment_type}): {cust_name}"
+                )
+                db.add(tx)
+
+    db.commit()
+    return {
+        "message": "Mijozdan qaytarish muvaffaqiyatli saqlandi",
+        "total_amount": str(total_amount),
+        "items_count": len(movements_created)
+    }
 
 
 @router.post("/return-to-supplier")

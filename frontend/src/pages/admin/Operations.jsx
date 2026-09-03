@@ -1829,25 +1829,22 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, cu
         }
 
         const payload = {
+          customer_id: Number(form.customer_id),
+          warehouse_id: Number(form.warehouse_id),
           items: items.map(i => ({
             product_id: i.product_id,
             quantity: i.qty,
             unit_price: i.cost,
-            discount: 0
           })),
           payment_type: pType,
-          paid_amount: paidAmount,
           paid_cash: paidCash,
           paid_card: paidCard,
-          discount_amount: 0,
-          customer_id: Number(form.customer_id),
-          warehouse_id: Number(form.warehouse_id),
           wallet_id: form.wallet_id ? Number(form.wallet_id) : null,
           note: note
         };
 
-        const res = await api.post('/sales/return', payload);
-        setMsg(res.data?.number ? `Vazvrat muvaffaqiyatli saqlandi: #${res.data.number}` : `Muvaffaqiyatli qaytarildi`);
+        const res = await api.post('/inventory/return-from-customer', payload);
+        setMsg(res.data?.message || `Muvaffaqiyatli qaytarildi`);
       } else {
         const payload = {
           supplier_id: Number(form.supplier_id),
@@ -2107,7 +2104,7 @@ function QaytarishlarTab({ products, suppliers, warehouses, customers }) {
       toast.success("Qaytaruv bekor qilindi va stok qoldiqlari tiklandi");
       // Ro'yxatni yangilash
       setLoading(true);
-      const params = { reference_type: sub === "supplier" ? "return_to_supplier" : "sale_refund" };
+      const params = { reference_type: sub === "supplier" ? "return_to_supplier" : "return_from_customer" };
       const res = await api.get("/inventory/movements", { params });
       setReturns(res.data);
     } catch (err) {
@@ -2121,7 +2118,7 @@ function QaytarishlarTab({ products, suppliers, warehouses, customers }) {
   useEffect(() => {
     if (mode === 'list') {
       setLoading(true);
-      api.get('/inventory/movements', { params: { reference_type: sub === 'supplier' ? 'return_to_supplier' : 'sale_refund' } })
+      api.get('/inventory/movements', { params: { reference_type: sub === 'supplier' ? 'return_to_supplier' : 'return_from_customer' } })
         .then(r => setReturns(r.data))
         .catch(console.error)
         .finally(() => setLoading(false));
@@ -2187,7 +2184,7 @@ function QaytarishlarTab({ products, suppliers, warehouses, customers }) {
                       </button>
                       <button onClick={() => handleDeleteReturn(r.id)} className="flex items-center gap-1 px-3 py-1 text-xs rounded-sm font-semibold border transition-all cursor-pointer border-red-300 text-red-600">
                         <Undo2 size={16} />
-                        Qaytarish
+                        O'chirish
                       </button>
                     </div>
                   </td>

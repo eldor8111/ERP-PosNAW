@@ -9,6 +9,7 @@ import { useActiveShift } from '../../hooks/useActiveShift';
 import ShiftOpenModal from '../../components/ShiftOpenModal';
 import { matchesSearch } from '../../utils/translit';
 import ProductAddModal from '../../components/ProductAddModal';
+import PartialReturnModal from './PartialReturnModal';
 import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
 import { fiscalizeAndPrint } from '../../api/hippoLocal';
 
@@ -638,6 +639,7 @@ export default function UlgurjiSotuv() {
   const [page, setPage] = useState(0);
   const LIMIT = 25;
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [returnSale, setReturnSale] = useState(null);
 
   const scanBufRef = useRef('');
   const scanTimeRef = useRef(0);
@@ -1554,6 +1556,7 @@ export default function UlgurjiSotuv() {
     <div className="absolute inset-0 flex flex-col bg-slate-100 overflow-hidden">
       {showShiftModal && <ShiftOpenModal onOpened={() => { reloadShift(); setShowShiftModal(false); }} onCancel={() => setShowShiftModal(false)} />}
       {showProdAddModal && <ProductAddModal onClose={() => setShowProdAddModal(false)} onSaved={p => { selectFormProduct(p); setShowProdAddModal(false); }} />}
+      {returnSale && <PartialReturnModal sale={returnSale} onClose={() => setReturnSale(null)} onSuccess={() => { setReturnSale(null); loadSales(); }} />}
 
       {/* ── FISKAL TASDIQLASH MODAL ─────────────────────────────────────── */}
       {fiskalPending && (
@@ -2331,6 +2334,12 @@ export default function UlgurjiSotuv() {
                                 </button>
                               ))}
                               <div className="border-t border-slate-100 my-1" />
+                              <button onClick={() => { setReturnSale(s); setOpenMenuId(null); }}
+                                className="w-full text-left px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 flex items-center gap-2.5">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                                Qaytarish
+                              </button>
+                              <div className="border-t border-slate-100 my-1" />
                               <button onClick={() => { deleteSale(s.id); setOpenMenuId(null); }}
                                 className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2.5">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
@@ -2751,6 +2760,11 @@ export default function UlgurjiSotuv() {
               </div>
               <div className="flex items-center gap-2">
                 <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${STATUS_META[selectedSale.status]?.c || 'bg-white/20 text-white'}`}>{STATUS_META[selectedSale.status]?.l}</span>
+                <button onClick={() => { setReturnSale(selectedSale); setSelectedSale(null); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold transition-colors">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                  Qaytarish
+                </button>
                 <button onClick={() => setSelectedSale(null)} className="w-9 h-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center"><Ic d="M6 18L18 6M6 6l12 12" cls="w-4 h-4" /></button>
               </div>
             </div>

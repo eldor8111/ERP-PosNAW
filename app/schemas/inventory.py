@@ -163,3 +163,31 @@ class SupplierReturnRequest(BaseModel):
     received_amount: Decimal = Decimal("0")
     wallet_id: Optional[int] = None
     note: Optional[str] = None
+
+
+# ── Mijozdan qaytarish (mustaqil operatsiya) ──────────────────────────────
+
+class CustomerReturnItem(BaseModel):
+    product_id: int
+    variant_id: Optional[int] = None
+    quantity: Decimal
+    unit_price: Decimal  # Qaytarish narxi
+
+    @field_validator("quantity", "unit_price")
+    @classmethod
+    def must_be_positive_val(cls, v):
+        if v < 0:
+            raise ValueError("Qiymat manfiy bo'lishi mumkin emas")
+        return v
+
+
+class CustomerReturnRequest(BaseModel):
+    customer_id: Optional[int] = None
+    warehouse_id: int
+    items: List[CustomerReturnItem]
+    # To'lov turi: debt (qarzga yopish), cash (naqd qaytarish), card (karta)
+    payment_type: str = "debt"
+    paid_cash: Decimal = Decimal("0")
+    paid_card: Decimal = Decimal("0")
+    wallet_id: Optional[int] = None   # Naqd/karta uchun kassa
+    note: Optional[str] = None

@@ -44,6 +44,7 @@ class StockMovement(Base):
     id = Column(Integer, primary_key=True, index=True)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
     variant_id = Column(Integer, ForeignKey("product_variants.id"), nullable=True)
+    warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=True, index=True)
     type = Column(Enum(MovementType), nullable=False)
     qty_before = Column(Numeric(12, 3), nullable=False)
     qty_after = Column(Numeric(12, 3), nullable=False)
@@ -56,3 +57,4 @@ class StockMovement(Base):
 
     product = relationship("Product", back_populates="stock_movements")
     user = relationship("User")
+

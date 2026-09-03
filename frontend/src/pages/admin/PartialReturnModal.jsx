@@ -11,15 +11,35 @@ function fmt(n) {
 export default function PartialReturnModal({ sale, onClose, onSuccess }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [fetchingItems, setFetchingItems] = useState(false);
   const [paymentType, setPaymentType] = useState('cash');
 
   useEffect(() => {
-    if (sale && sale.items) {
+    if (!sale) return;
+    if (sale.items && sale.items.length > 0) {
+      // Items already loaded (e.g. from cart)
       setItems(sale.items.map(item => ({
         ...item,
         returnQty: 0,
         maxReturn: item.quantity - (item.returned_quantity || 0)
       })));
+    } else {
+      // Fetch full sale details from API
+      setFetchingItems(true);
+      api.get(`/sales/${sale.id}`)
+        .then(res => {
+          const saleData = res.data;
+          const saleItems = saleData.items || saleData.sale_items || [];
+          setItems(saleItems.map(item => ({
+            ...item,
+            returnQty: 0,
+            maxReturn: item.quantity - (item.returned_quantity || 0)
+          })));
+        })
+        .catch(() => {
+          toast.error('Sotuv ma\'lumotlarini yuklashda xatolik');
+        })
+        .finally(() => setFetchingItems(false));
     }
   }, [sale]);
 
@@ -54,11 +74,23 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
 
     setLoading(true);
     try {
-      await api.post(`/sales/${sale.id}/return-items`, {
-        items: returnItems,
+      const payload = {
+        customer_id: sale.customer_id || null,
+        warehouse_id: sale.warehouse_id || 1, // Fallback agar yo'q bo'lsa
+        items: items.filter(i => i.returnQty > 0).map(i => {
+          const avgPrice = i.subtotal / i.quantity;
+          return {
+            product_id: i.product_id,
+            variant_id: i.variant_id || null,
+            quantity: i.returnQty,
+            unit_price: avgPrice
+          };
+        }),
         payment_type: paymentType,
-        note: "Qisman qaytarish (Sotuvlar tarixi orqali)"
-      });
+        note: `Qisman qaytarish (Sotuv #${sale.number})`
+      };
+
+      await api.post(`/inventory/return-from-customer`, payload);
       toast.success('Muvaffaqiyatli qaytarildi');
       onSuccess();
     } catch (error) {
@@ -99,36 +131,53 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-100 text-sm">
-                {items.map((item, idx) => {
-                  const avgPrice = item.subtotal / item.quantity;
-                  const itemRefund = avgPrice * item.returnQty;
-                  return (
-                    <tr key={item.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 font-medium text-slate-900">{item.product_name}</td>
-                      <td className="px-4 py-3 text-right text-slate-600 font-mono">
-                        {fmt(item.quantity)} {item.unit}
-                        {item.returned_quantity > 0 && (
-                          <div className="text-[10px] text-red-500 font-semibold">Qaytarilgan: {fmt(item.returned_quantity)}</div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right text-slate-600 font-mono">{fmt(avgPrice)} {currLabel}</td>
-                      <td className="px-4 py-3 text-right">
-                        <input
-                          type="number"
-                          min="0"
-                          max={item.maxReturn}
-                          value={item.returnQty || ''}
-                          onChange={(e) => handleQtyChange(idx, e.target.value)}
-                          disabled={item.maxReturn <= 0}
-                          className="w-24 px-2 py-1 border border-slate-200 rounded text-right focus:outline-none focus:border-blue-400"
-                        />
-                      </td>
-                      <td className="px-4 py-3 text-right font-semibold text-blue-600 font-mono">
-                        {fmt(itemRefund)} {currLabel}
-                      </td>
-                    </tr>
-                  )
-                })}
+                {fetchingItems ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-10 text-center">
+                      <div className="flex items-center justify-center gap-2 text-slate-400">
+                        <span className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                        <span className="text-sm">Mahsulotlar yuklanmoqda...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : items.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center text-slate-400 text-sm">
+                      Mahsulotlar topilmadi
+                    </td>
+                  </tr>
+                ) : (
+                  items.map((item, idx) => {
+                    const avgPrice = item.subtotal / item.quantity;
+                    const itemRefund = avgPrice * item.returnQty;
+                    return (
+                      <tr key={item.id} className="hover:bg-slate-50">
+                        <td className="px-4 py-3 font-medium text-slate-900">{item.product_name}</td>
+                        <td className="px-4 py-3 text-right text-slate-600 font-mono">
+                          {fmt(item.quantity)} {item.unit}
+                          {item.returned_quantity > 0 && (
+                            <div className="text-[10px] text-red-500 font-semibold">Qaytarilgan: {fmt(item.returned_quantity)}</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right text-slate-600 font-mono">{fmt(avgPrice)} {currLabel}</td>
+                        <td className="px-4 py-3 text-right">
+                          <input
+                            type="number"
+                            min="0"
+                            max={item.maxReturn}
+                            value={item.returnQty || ''}
+                            onChange={(e) => handleQtyChange(idx, e.target.value)}
+                            disabled={item.maxReturn <= 0}
+                            className="w-24 px-2 py-1 border border-slate-200 rounded text-right focus:outline-none focus:border-blue-400"
+                          />
+                        </td>
+                        <td className="px-4 py-3 text-right font-semibold text-blue-600 font-mono">
+                          {fmt(itemRefund)} {currLabel}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
