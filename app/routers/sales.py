@@ -11,7 +11,7 @@ from app.database import get_db
 from app.models.customer import Customer
 from app.models.sale import Sale, SaleItem, SaleStatus
 from app.models.user import User, UserRole
-from app.schemas.sale import SaleCreate, SaleItemOut, SaleListOut, SaleOut, SaleUpdate, SaleReturnRequest
+from app.schemas.sale import SaleCreate, SaleItemOut, SaleListOut, SaleOut, SaleUpdate, SaleReturnRequest, SaleBulkCreate
 from app.services.sale_service import create_sale, create_return_sale, delete_sale, update_sale, create_pending_sale
 from app.services.sale_partial_return import process_partial_return
 from app.services.hippo_fiscalize import fiscalize_sale, fiscalize_return
@@ -165,6 +165,63 @@ def make_sale(
         before_debt_balances=getattr(sale, 'before_debt_balances', None),
     )
 
+
+
+@router.post("/bulk")
+def make_bulk_sales(
+        data: SaleBulkCreate,
+        request: Request,
+        background_tasks: BackgroundTasks,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*POS_ROLES)),
+):
+    """POS — Oflayn rejimdagi to'plangan sotuvlarni bir vaqtda jo'natish"""
+    ip = request.client.host if request.client else None
+    successful = []
+    errors = []
+
+    for idx, sale_data in enumerate(data.sales):
+        try:
+            # Har bir sotuvni yangi savepoint ichida yaratamiz (birortasi xato qilsa hammasi to'xtamasligi uchun)
+            with db.begin_nested():
+                sale = create_sale(db=db, data=sale_data, current_user=current_user, ip=ip, background_tasks=background_tasks)
+                
+                cust_name = sale.customer.name if getattr(sale, 'customer', None) else (db.query(Customer.name).filter(Customer.id == sale.customer_id).scalar() if sale.customer_id else None)
+                
+                successful.append(SaleListOut(
+                    id=sale.id,  # type: ignore
+                    number=sale.number,  # type: ignore
+                    cashier_name=current_user.name,  # type: ignore
+                    total_amount=sale.total_amount,  # type: ignore
+                    discount_amount=sale.discount_amount,  # type: ignore
+                    paid_amount=sale.paid_amount,  # type: ignore
+                    paid_cash=sale.paid_cash,  # type: ignore
+                    paid_card=sale.paid_card,  # type: ignore
+                    paid_cashback=getattr(sale, 'paid_cashback', 0) or 0,
+                    payment_type=sale.payment_type,
+                    status=sale.status,
+                    customer_id=sale.customer_id,  # type: ignore
+                    customer_name=cust_name,
+                    items_count=len(sale_data.items),
+                    created_at=sale.created_at,  # type: ignore
+                    currency_code=sale.currency.code if getattr(sale, 'currency', None) else "UZS",
+                    debt_amounts=getattr(sale, 'debt_amounts', None),
+                    before_debt_balances=getattr(sale, 'before_debt_balances', None),
+                ))
+        except Exception as e:
+            # Qaysi sotuvda xato bo'lganini bilish uchun
+            local_id = getattr(sale_data, 'local_id', str(idx))
+            errors.append({"local_id": local_id, "error": str(e)})
+
+    # Barchasini saqlash
+    db.commit()
+
+    return {
+        "success_count": len(successful),
+        "error_count": len(errors),
+        "successful": successful,
+        "errors": errors
+    }
 
 
 @router.post("/pending", response_model=SaleListOut)

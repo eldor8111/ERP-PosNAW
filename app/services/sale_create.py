@@ -318,7 +318,7 @@ def create_sale(
             sale_debt_amounts = {}
 
     # ── Sale yozuvi ───────────────────────────────────────────────────────────
-    sale = Sale(
+    sale_create_kwargs = dict(
         number=generate_sale_number(db),
         cashier_id=current_user.id,
         company_id=current_user.company_id,
@@ -341,6 +341,10 @@ def create_sale(
         debt_amounts=sale_debt_amounts,
         before_debt_balances=prev_debt_balances,
     )
+    # Oflayn POS: agar sotuv vaqti yuborilgan bo'lsa — o'sha vaqtni saqla
+    if getattr(data, 'created_at', None):
+        sale_create_kwargs['created_at'] = data.created_at
+    sale = Sale(**sale_create_kwargs)
     db.add(sale)
     db.flush()
 

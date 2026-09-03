@@ -82,6 +82,10 @@ class SaleCreate(BaseModel):
     # Valyutalar kesimida qarzlar (Ulgurji sotuvdan keladi)
     currency_totals: Optional[dict] = None
     wallet_id: Optional[int] = None
+    # Oflayn POS uchun: sotuv qilingan haqiqiy vaqt (server vaqti emas)
+    created_at: Optional[datetime] = None
+    # Oflayn POS: lokal UUID (takroriy yuborishlarni oldini olish)
+    local_id: Optional[str] = None
 
     @field_validator("items")
     @classmethod
@@ -206,3 +210,7 @@ class SaleReturnRequest(BaseModel):
     items: List[PartialReturnItem]
     payment_type: PaymentType = PaymentType.cash
     note: Optional[str] = None
+
+class SaleBulkCreate(BaseModel):
+    sales: List[SaleCreate]
+
