@@ -381,7 +381,7 @@ export default function CustomerDetail() {
                   warehouses={warehouses}
                   wallets={wallets}
                   onClose={() => setReturnModal(false)}
-                  onSuccess={() => { setReturnModal(false); loadSales(); }}
+                  onSuccess={() => { setReturnModal(false); reloadAll(); }}
                 />
               )}
             </div>
