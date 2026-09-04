@@ -333,12 +333,16 @@ def delete_return_movement(
                     match = re.search(r'summa:(\d+\.?\d*)', reason_txt)
                     if match:
                         total_val = Decimal(match.group(1))
-                    customer.debt_balance = float(customer.debt_balance or 0) + float(total_val)
+                    # Eski mijozlar uchun: debt_balances null bo'lsa, debt_balance dan ko'chiramiz
                     if not customer.debt_balances:
-                        customer.debt_balances = {}
-                    if "UZS" not in customer.debt_balances:
-                        customer.debt_balances["UZS"] = 0.0
-                    customer.debt_balances["UZS"] = float(customer.debt_balances["UZS"]) + float(total_val)
+                        if float(customer.debt_balance or 0) > 0:
+                            customer.debt_balances = {"UZS": float(customer.debt_balance)}
+                        else:
+                            customer.debt_balances = {}
+
+                    curr_uzs = float(customer.debt_balances.get("UZS", 0))
+                    customer.debt_balances["UZS"] = curr_uzs + float(total_val)
+                    customer.debt_balance = float(customer.debt_balance or 0) + float(total_val)
                     flag_modified(customer, "debt_balances")
 
     # ── 2. SOTUV REFUNDI BEKOR (sale_refund – eski logika) ─────────────────
@@ -537,12 +541,19 @@ def return_from_customer(
     if data.payment_type == "debt":
         # Mijoz qarzi kamayadi (biz unga pul qaytaramiz – qarz pasayadi)
         if customer:
-            customer.debt_balance = float(customer.debt_balance or 0) - float(total_amount)
+            # Eski mijozlar uchun: debt_balances null bo'lsa, debt_balance dan ko'chiramiz
             if not customer.debt_balances:
-                customer.debt_balances = {}
-            if "UZS" not in customer.debt_balances:
-                customer.debt_balances["UZS"] = 0.0
-            customer.debt_balances["UZS"] = float(customer.debt_balances["UZS"]) - float(total_amount)
+                if float(customer.debt_balance or 0) > 0:
+                    legacy_curr = (getattr(customer, 'debt_currency', 'UZS') or 'UZS').strip().upper() or 'UZS'
+                    customer.debt_balances = {legacy_curr: float(customer.debt_balance)}
+                else:
+                    customer.debt_balances = {}
+
+            # UZS qarzidan kamaytiramiz
+            curr_uzs_debt = float(customer.debt_balances.get("UZS", 0))
+            customer.debt_balances["UZS"] = max(0.0, curr_uzs_debt - float(total_amount))
+            # Umumiy debt_balance ham kamaytiramiz
+            customer.debt_balance = max(0.0, float(customer.debt_balance or 0) - float(total_amount))
             flag_modified(customer, "debt_balances")
 
         # Har bir movement uchun Transaction yozish (bekor qilish vaqtida topish uchun)
