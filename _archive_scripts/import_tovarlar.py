@@ -14,7 +14,7 @@ Ishlatish:
 """
 import os, sys, time
 
-XLSX_PATH  = os.path.join(os.path.dirname(__file__), "shtrix_kodli_tovarlar.xlsx")
+XLSX_PATH  = os.path.join(os.path.dirname(__file__), "data", "shtrix_kodli_tovarlar.xlsx")
 DB_URL     = os.getenv("DATABASE_URL", "postgresql+psycopg://postgres:postgres@localhost:5433/erppos")
 BATCH_SIZE = 1000
 
