@@ -87,7 +87,7 @@ def _build_receipt_payload(sale: Sale, factory_id: str) -> dict:
             "barcode":      product.barcode or "",
             "spic":         product.mxik_code or "",
             "package_code": str(product.package_code) if product.package_code else "",
-            "labels":       product.labels or [],
+            "labels":       item.marking_codes or product.labels or [],
             "quantity":     quantity,
             "price":        unit_price,
             "discount":     discount,

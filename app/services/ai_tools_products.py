@@ -8,96 +8,11 @@ from app.models.sale import Sale, SaleItem, SaleStatus
 from app.models.inventory import StockLevel
 from app.services.ai_tools_registry import AITool, AIToolRegistry
 
-@AIToolRegistry.register
-class GetTopProductsTool(AITool):
-    name = "get_top_products"
-    description = "Eng ko'p sotilgan mahsulotlarni (dona yoki summa bo'yicha) ko'rsatish."
-    required_permission = "products.analytics"
-    risk_level = "LOW"
-    parameters = {
-        "type": "object",
-        "properties": {
-            "limit": {"type": "integer", "description": "Nechta mahsulotni chiqarish kerak? Standart: 10."},
-            "days": {"type": "integer", "description": "Oxirgi necha kun hisobga olinsin? Standart: 30."}
-        }
-    }
-
-    def execute(self, db: Session, company_id: int, user: User, **kwargs) -> dict:
-        limit = kwargs.get("limit", 10)
-        days = kwargs.get("days", 30)
-        start_date = datetime.now(timezone.utc) - timedelta(days=days)
-
-        results = db.query(
-            Product.name,
-            func.sum(SaleItem.quantity).label("total_qty"),
-            func.sum(SaleItem.subtotal).label("total_revenue")
-        ).join(SaleItem, SaleItem.product_id == Product.id)\
-         .join(Sale, Sale.id == SaleItem.sale_id)\
-         .filter(
-            Product.company_id == company_id,
-            Sale.company_id == company_id,
-            Sale.status != SaleStatus.cancelled,
-            Sale.created_at >= start_date
-        ).group_by(Product.id)\
-         .order_by(desc("total_qty"))\
-         .limit(limit).all()
-
-        if not results:
-            return {"reply": f"Oxirgi {days} kun ichida hech qanday mahsulot sotilmagan."}
-
-        products_data = []
-        for row in results:
-            products_data.append({
-                "name": row.name,
-                "total_sold_qty": float(row.total_qty or 0),
-                "total_revenue": float(row.total_revenue or 0)
-            })
-
-        return {
-            "reply": {"top_products": products_data, "days_checked": days},
-            "action": {"type": "show_data"}
-        }
-
-@AIToolRegistry.register
-class GetLowStockProductsTool(AITool):
-    name = "get_low_stock"
-    description = "Omborda qoldig'i kam qolgan yoki tugab qolgan mahsulotlarni topish."
-    required_permission = "inventory.view"
-    risk_level = "LOW"
-    parameters = {
-        "type": "object",
-        "properties": {
-            "threshold": {"type": "integer", "description": "Nechta donadan kam qolganlari ko'rsatilsin? Standart: 10"}
-        }
-    }
-
-    def execute(self, db: Session, company_id: int, user: User, **kwargs) -> dict:
-        threshold = kwargs.get("threshold", 10)
-
-        results = db.query(
-            Product.name,
-            func.sum(StockLevel.quantity).label("total_stock")
-        ).join(StockLevel, StockLevel.product_id == Product.id)\
-         .filter(Product.company_id == company_id)\
-         .group_by(Product.id)\
-         .having(func.sum(StockLevel.quantity) <= threshold)\
-         .order_by(func.sum(StockLevel.quantity).asc())\
-         .limit(20).all()
-
-        if not results:
-            return {"reply": f"Omborda zaxirasi {threshold} dan kam bo'lgan mahsulotlar yo'q."}
-
-        products_data = []
-        for row in results:
-            products_data.append({
-                "name": row.name,
-                "stock_quantity": float(row.total_stock or 0)
-            })
-
-        return {
-            "reply": {"low_stock_products": products_data, "threshold": threshold},
-            "action": {"type": "show_data"}
-        }
+# Eslatma: "get_top_products" va "get_low_stock" tool'lari ai_tools_registry.py
+# ichida ham e'lon qilingan edi va (keyinroq import qilingani uchun) ular
+# registrga g'olib chiqib, bu yerdagilarni "o'lik kod"ga aylantirgan edi.
+# Takrorlanishni yo'qotish uchun bu yerdagi dublikatlar olib tashlandi —
+# haqiqiy ishlaydigan versiyalar ai_tools_registry.py da qoldi.
 
 @AIToolRegistry.register
 class PredictStockDepletionTool(AITool):

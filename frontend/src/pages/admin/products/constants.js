@@ -93,6 +93,7 @@ export const emptyProduct = {
   dimensions: '',
   status: 'active',
   product_type: 'stock',
+  requires_marking: false,
   variants: [],
   conversion_source_id: '',
   conversion_source_name: '',

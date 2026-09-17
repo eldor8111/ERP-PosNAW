@@ -13,6 +13,7 @@ from app.models.sale import Sale, SaleItem, SaleStatus, PaymentType
 from app.models.user import User, UserRole
 from app.services.inventory_service import deduct_stock
 from app.services.sale_helpers import resolve_price, resolve_branch_id
+from app.services.sale_create import _resolve_marking_codes
 
 
 def _reverse_sale_effects(db: Session, sale: Sale) -> None:
@@ -132,6 +133,7 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
         disc_amount = data.discount_amount if data.discount_amount is not None else Decimal("0")
         payment_type = data.payment_type if data.payment_type is not None else old_payment_type
         new_customer_id = data.customer_id if data.customer_id is not None else sale.customer_id
+        final_status = data.status if data.status is not None else sale.status
 
         sale_items_data = []
         total_amount = Decimal("0")
@@ -170,6 +172,13 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 if source:
                     cost_price = (source.cost_price or Decimal("0")) * conversion.ratio
 
+            # Sotuv "completed" ga o'tayotgan bo'lsa markirovka to'liq skanerlanganini
+            # tekshiramiz — pending (qoralama) holatda hali majburiy emas.
+            if final_status != SaleStatus.pending:
+                marking_codes = _resolve_marking_codes(product, item_d)
+            else:
+                marking_codes = [c for c in (getattr(item_d, "marking_codes", None) or []) if c and c.strip()]
+
             sale_items_data.append({
                 "product": product,
                 "quantity": item_d.quantity,
@@ -180,6 +189,7 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 "currency_code": item_currency_code,
                 "exchange_rate": item_exchange_rate,
                 "item_warehouse_id": getattr(item_d, "warehouse_id", None),
+                "marking_codes": marking_codes,
             })
             total_amount += (subtotal * item_exchange_rate)
 
@@ -187,8 +197,6 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
         paid_amount = data.paid_amount if data.paid_amount is not None else old_paid_amount
         paid_cash = data.paid_cash if data.paid_cash is not None else old_paid_cash
         paid_card = data.paid_card if data.paid_card is not None else old_paid_card
-
-        final_status = data.status if data.status is not None else sale.status
 
         for sid in sale_items_data:
             item_wh = sid.get("item_warehouse_id") or wh_id
@@ -204,6 +212,7 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 exchange_rate=sid["exchange_rate"],
                 warehouse_id=item_wh,
                 unit=sid["product"].unit or "dona",
+                marking_codes=sid["marking_codes"] or None,
             ))
             if final_status != SaleStatus.pending:
                 from app.utils.product_conversion import deduct_target_for_sale

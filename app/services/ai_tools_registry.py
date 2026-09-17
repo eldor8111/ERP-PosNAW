@@ -30,9 +30,14 @@ class AIToolRegistry:
 
     @classmethod
     def get_all_tools_for_llm(cls, user: User) -> List[dict]:
+        from app.models.user import UserRole
+        HIGH_RISK_ROLES = [UserRole.admin, UserRole.director, UserRole.super_admin]
         tools = []
         for name, tool_class in cls._tools.items():
-            # TODO: filter by user permission here if needed so LLM doesn't even see tools it can't use
+            if tool_class.risk_level == "HIGH" and user and user.role not in HIGH_RISK_ROLES:
+                continue
+            if tool_class.risk_level == "MEDIUM" and user and user.role not in [UserRole.admin, UserRole.director, UserRole.super_admin, UserRole.manager]:
+                continue
             tools.append({
                 "type": "function",
                 "function": {
@@ -70,8 +75,13 @@ class AIToolRegistry:
         db.commit()
 
         # Permission check
-        # TODO: Implement actual permission check using user.role
-        has_permission = True 
+        from app.models.user import UserRole
+        HIGH_RISK_ROLES = [UserRole.admin, UserRole.director, UserRole.super_admin]
+        has_permission = True  # LOW tools - default
+        if tool_class.risk_level == "HIGH":
+            has_permission = user.role in HIGH_RISK_ROLES
+        elif tool_class.risk_level == "MEDIUM":
+            has_permission = user.role in [UserRole.admin, UserRole.director, UserRole.super_admin, UserRole.manager] 
         if not has_permission:
             log.status = "ERROR"
             log.error = "Permission denied"
@@ -232,6 +242,8 @@ class RecordDebtPaymentTool(AITool):
         # Note: This executes ONLY after confirmation now!
         customer_name = kwargs.get("customer_name", "")
         amount = _sf(kwargs.get("amount", 0))
+        if amount <= 0:
+            return {"reply": "❌ To'lov summasi musbat bo'lishi kerak."}
 
         customer, err = _find_customer(db, company_id, customer_name)
         if err: return {"reply": err}
@@ -296,6 +308,8 @@ class RecordNewDebtTool(AITool):
     def execute(self, db: Session, company_id: int, user: User, **kwargs) -> dict:
         customer_name = kwargs.get("customer_name", "")
         amount = _sf(kwargs.get("amount", 0))
+        if amount <= 0:
+            return {"reply": "❌ Nasiya summasi musbat bo'lishi kerak."}
 
         customer, err = _find_customer(db, company_id, customer_name)
         if err: return {"reply": err}
@@ -330,3 +344,313 @@ class RecordNewDebtTool(AITool):
 import app.services.ai_tools_customers
 import app.services.ai_tools_products
 import app.services.ai_tools_actions
+import app.services.ai_tools_crud
+import app.services.ai_tools_sales
+
+# ───────────────────────────────────────────────
+# Yangi AI Toollar
+# ───────────────────────────────────────────────
+from datetime import date, timedelta
+from sqlalchemy import func as sqlfunc
+
+@AIToolRegistry.register
+class GetSalesSummaryTool(AITool):
+    name = "get_sales_summary"
+    description = "Bugungi yoki boshqa kun uchun savdo xulosasini ko'rsatadi: jami tushum, buyurtmalar soni, naqd va karta to'lovlari."
+    required_permission = "sales.view"
+    risk_level = "LOW"
+    parameters = {
+        "type": "object",
+        "properties": {
+            "period": {"type": "string", "description": "'today', 'yesterday', 'week', 'month' - davr", "enum": ["today", "yesterday", "week", "month"]}
+        },
+        "required": []
+    }
+    def execute(self, db: Session, company_id: int, user: User, **kwargs):
+        from app.models.sale import Sale, SaleStatus
+        period = kwargs.get("period", "today")
+        today = date.today()
+        if period == "yesterday":
+            d = today - timedelta(days=1)
+            date_filter = sqlfunc.date(Sale.created_at) == d
+        elif period == "week":
+            d = today - timedelta(days=6)
+            date_filter = sqlfunc.date(Sale.created_at) >= d
+        elif period == "month":
+            d = today - timedelta(days=29)
+            date_filter = sqlfunc.date(Sale.created_at) >= d
+        else:
+            date_filter = sqlfunc.date(Sale.created_at) == today
+
+        sales = db.query(Sale).filter(
+            date_filter, Sale.company_id == company_id, Sale.status == SaleStatus.completed
+        ).all()
+
+        total = sum(_sf(s.total_amount) for s in sales)
+        cash = sum(_sf(s.paid_cash) for s in sales)
+        card = sum(_sf(s.paid_card) for s in sales)
+        count = len(sales)
+        period_names = {"today": "Bugun", "yesterday": "Kecha", "week": "Oxirgi 7 kun", "month": "Oxirgi 30 kun"}
+        pname = period_names.get(period, "Bugun")
+
+        if count == 0:
+            return {"reply": f"📊 {pname} uchun hech qanday sotuv topilmadi."}
+
+        return {
+            "reply": (
+                f"📊 {pname} savdo xulosasi:\n"
+                f"• Jami tushum: {_fmt(total)}\n"
+                f"• Buyurtmalar: {count} ta\n"
+                f"• Naqd: {_fmt(cash)}\n"
+                f"• Karta: {_fmt(card)}"
+            ),
+            "action": {"type": "show_data", "data": {"total": total, "count": count}}
+        }
+
+@AIToolRegistry.register
+class GetTopProductsTool(AITool):
+    name = "get_top_products"
+    description = "Eng ko'p sotilgan mahsulotlar ro'yxatini ko'rsatadi."
+    required_permission = "products.view"
+    risk_level = "LOW"
+    parameters = {
+        "type": "object",
+        "properties": {
+            "limit": {"type": "integer", "description": "Ko'rsatiladigan mahsulotlar soni (default: 5)"}
+        },
+        "required": []
+    }
+    def execute(self, db: Session, company_id: int, user: User, **kwargs):
+        from app.models.sale import SaleItem, Sale, SaleStatus
+        from app.models.product import Product
+        limit = min(int(kwargs.get("limit", 5)), 10)
+        today = date.today()
+        start = today - timedelta(days=29)
+
+        results = db.query(
+            Product.name,
+            sqlfunc.sum(SaleItem.quantity).label("qty"),
+            sqlfunc.sum(SaleItem.subtotal).label("revenue")
+        ).join(SaleItem, Product.id == SaleItem.product_id)\
+         .join(Sale, Sale.id == SaleItem.sale_id)\
+         .filter(
+            Sale.company_id == company_id,
+            Sale.status == SaleStatus.completed,
+            sqlfunc.date(Sale.created_at) >= start
+         ).group_by(Product.name).order_by(sqlfunc.sum(SaleItem.quantity).desc()).limit(limit).all()
+
+        if not results:
+            return {"reply": "📦 Oxirgi 30 kunda hech qanday sotuv topilmadi."}
+
+        lines = []
+        for i, (name, qty, rev) in enumerate(results, 1):
+            lines.append(f"{i}. {name} — {int(qty or 0)} ta, {_fmt(_sf(rev))}")
+
+        return {
+            "reply": f"🏆 Eng ko'p sotilgan {limit} ta mahsulot (oxirgi 30 kun):\n" + "\n".join(lines),
+            "action": {"type": "show_data"}
+        }
+
+@AIToolRegistry.register
+class GetLowStockTool(AITool):
+    name = "get_low_stock"
+    description = "Zaxirasi kam (tugayotgan) mahsulotlarni ko'rsatadi."
+    required_permission = "products.view"
+    risk_level = "LOW"
+    parameters = {
+        "type": "object",
+        "properties": {
+            "threshold": {"type": "integer", "description": "Minimal zaxira chegarasi (default: 10)"}
+        },
+        "required": []
+    }
+    def execute(self, db: Session, company_id: int, user: User, **kwargs):
+        from app.models.product import Product
+        from app.models.inventory import StockLevel
+        threshold = int(kwargs.get("threshold", 10))
+
+        low_items = db.query(
+            Product.name,
+            sqlfunc.sum(StockLevel.quantity).label("qty")
+        ).join(StockLevel, Product.id == StockLevel.product_id)\
+         .filter(Product.company_id == company_id)\
+         .group_by(Product.id, Product.name)\
+         .having(sqlfunc.sum(StockLevel.quantity) < threshold)\
+         .order_by(sqlfunc.sum(StockLevel.quantity)).limit(15).all()
+
+        if not low_items:
+            return {"reply": f"✅ Zaxirasi {threshold} tadan kam bo'lgan mahsulot topilmadi. Ombor to'la!"}
+
+        lines = [f"{i}. {name} — {int(qty or 0)} ta" for i, (name, qty) in enumerate(low_items, 1)]
+        return {
+            "reply": f"⚠️ Tugayotgan {len(lines)} ta mahsulot (zaxirasi {threshold} tadan kam):\n" + "\n".join(lines),
+            "action": {"type": "show_data"}
+        }
+
+@AIToolRegistry.register
+class GetDebtorsListTool(AITool):
+    name = "get_debtors_list"
+    description = "Qarz summasi bo'yicha eng yirik qarzdorlar ro'yxatini ko'rsatadi."
+    required_permission = "customers.view"
+    risk_level = "LOW"
+    parameters = {
+        "type": "object",
+        "properties": {
+            "min_amount": {"type": "number", "description": "Minimal qarz summasi (default: 0)"},
+            "limit": {"type": "integer", "description": "Ko'rsatiladigan mijozlar soni (default: 10)"}
+        },
+        "required": []
+    }
+    def execute(self, db: Session, company_id: int, user: User, **kwargs):
+        from app.models.customer import Customer
+        min_amount = _sf(kwargs.get("min_amount", 0))
+        limit = min(int(kwargs.get("limit", 10)), 20)
+
+        debtors = db.query(Customer).filter(
+            Customer.company_id == company_id,
+            Customer.debt_balance > min_amount
+        ).order_by(Customer.debt_balance.desc()).limit(limit).all()
+
+        if not debtors:
+            return {"reply": "✅ Qarz chegarasidan yuqori mijoz topilmadi."}
+
+        lines = []
+        for i, c in enumerate(debtors, 1):
+            lines.append(f"{i}. {c.name} — {_format_debt(c)}")
+
+        return {
+            "reply": f"📋 Qarzdorlar ro'yxati ({len(lines)} ta mijoz):\n" + "\n".join(lines),
+            "action": {"type": "show_data"}
+        }
+
+@AIToolRegistry.register
+class GetProfitTodayTool(AITool):
+    name = "get_profit_today"
+    description = "Bugungi yoki boshqa davr uchun foyda (sotish narxi - xarid narxi) hisoblab ko'rsatadi."
+    required_permission = "sales.view"
+    risk_level = "LOW"
+    parameters = {
+        "type": "object",
+        "properties": {
+            "period": {"type": "string", "description": "'today', 'yesterday', 'week', 'month'", "enum": ["today", "yesterday", "week", "month"]}
+        },
+        "required": []
+    }
+    def execute(self, db: Session, company_id: int, user: User, **kwargs):
+        from app.models.sale import Sale, SaleItem, SaleStatus
+        period = kwargs.get("period", "today")
+        today = date.today()
+        if period == "yesterday":
+            d = today - timedelta(days=1)
+            date_filter = sqlfunc.date(Sale.created_at) == d
+        elif period == "week":
+            date_filter = sqlfunc.date(Sale.created_at) >= today - timedelta(days=6)
+        elif period == "month":
+            date_filter = sqlfunc.date(Sale.created_at) >= today - timedelta(days=29)
+        else:
+            date_filter = sqlfunc.date(Sale.created_at) == today
+
+        items = db.query(SaleItem).join(Sale, Sale.id == SaleItem.sale_id).filter(
+            date_filter, Sale.company_id == company_id, Sale.status == SaleStatus.completed
+        ).all()
+
+        revenue = sum(_sf(i.subtotal) for i in items)
+        cost = sum(_sf(i.cost_price or 0) * _sf(i.quantity) for i in items)
+        profit = revenue - cost
+        margin = (profit / revenue * 100) if revenue > 0 else 0
+
+        period_names = {"today": "Bugun", "yesterday": "Kecha", "week": "Oxirgi 7 kun", "month": "Oxirgi 30 kun"}
+        pname = period_names.get(period, "Bugun")
+
+        return {
+            "reply": (
+                f"💰 {pname} foyda hisobi:\n"
+                f"• Jami tushum: {_fmt(revenue)}\n"
+                f"• Tannarx: {_fmt(cost)}\n"
+                f"• Sof foyda: {_fmt(profit)}\n"
+                f"• Marja: {margin:.1f}%"
+            ),
+            "action": {"type": "show_data", "data": {"revenue": revenue, "profit": profit, "margin": margin}}
+        }
+
+@AIToolRegistry.register
+class FindProductInfoTool(AITool):
+    name = "find_product_info"
+    description = "Mahsulot nomi bo'yicha narxi, zaxirasi va boshqa ma'lumotlarini ko'rsatadi."
+    required_permission = "products.view"
+    risk_level = "LOW"
+    parameters = {
+        "type": "object",
+        "properties": {
+            "product_name": {"type": "string", "description": "Qidirilayotgan mahsulot nomi"}
+        },
+        "required": ["product_name"]
+    }
+    def execute(self, db: Session, company_id: int, user: User, **kwargs):
+        from app.models.product import Product
+        from app.models.inventory import StockLevel
+        name = kwargs.get("product_name", "").strip()
+        products = db.query(Product).filter(
+            Product.company_id == company_id,
+            Product.name.ilike(f"%{name}%")
+        ).limit(5).all()
+
+        if not products:
+            return {"reply": f"❌ '{name}' nomli mahsulot topilmadi."}
+
+        lines = []
+        for p in products:
+            stock_qty = db.query(sqlfunc.sum(StockLevel.quantity)).filter(
+                StockLevel.product_id == p.id
+            ).scalar() or 0
+            price = _sf(p.sale_price)
+            lines.append(f"📦 {p.name}\n   Narxi: {_fmt(price)} | Zaxira: {int(stock_qty)} ta")
+
+        return {
+            "reply": "\n\n".join(lines),
+            "action": {"type": "show_data"}
+        }
+
+@AIToolRegistry.register  
+class GetNewCustomersStatTool(AITool):
+    name = "get_new_customers_stat"
+    description = "Yangi qo'shilgan mijozlar statistikasini ko'rsatadi."
+    required_permission = "customers.view"
+    risk_level = "LOW"
+    parameters = {
+        "type": "object",
+        "properties": {
+            "period": {"type": "string", "description": "'today', 'week', 'month'", "enum": ["today", "week", "month"]}
+        },
+        "required": []
+    }
+    def execute(self, db: Session, company_id: int, user: User, **kwargs):
+        from app.models.customer import Customer
+        period = kwargs.get("period", "week")
+        today = date.today()
+        if period == "today":
+            d = today
+            date_filter = sqlfunc.date(Customer.created_at) == d
+        elif period == "month":
+            d = today - timedelta(days=29)
+            date_filter = sqlfunc.date(Customer.created_at) >= d
+        else:
+            d = today - timedelta(days=6)
+            date_filter = sqlfunc.date(Customer.created_at) >= d
+
+        count = db.query(sqlfunc.count(Customer.id)).filter(
+            Customer.company_id == company_id,
+            date_filter
+        ).scalar() or 0
+
+        total = db.query(sqlfunc.count(Customer.id)).filter(
+            Customer.company_id == company_id
+        ).scalar() or 0
+
+        period_names = {"today": "bugun", "week": "oxirgi 7 kunda", "month": "oxirgi 30 kunda"}
+        pname = period_names.get(period, "oxirgi 7 kunda")
+
+        return {
+            "reply": f"👥 {pname.capitalize()} {count} ta yangi mijoz qo'shildi. Jami mijozlar: {total} ta.",
+            "action": {"type": "show_data", "data": {"new": count, "total": total}}
+        }

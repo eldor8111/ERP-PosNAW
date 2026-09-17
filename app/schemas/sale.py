@@ -16,6 +16,9 @@ class SaleItemCreate(BaseModel):
     warehouse_id: Optional[int] = None    # Desktop POS har item uchun sklad yuboradi
     currency_code: Optional[str] = "UZS"
     exchange_rate: Optional[Decimal] = Decimal("1.0")
+    # Har bir sotilgan birlik uchun skanerlangan Data Matrix (markirovka) kodi.
+    # Markirovka talab qilinadigan mahsulotlar uchun uzunligi quantity ga teng bo'lishi shart.
+    marking_codes: Optional[List[str]] = None
 
     @field_validator("quantity")
     @classmethod

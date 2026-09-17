@@ -25,6 +25,14 @@ import {
 } from './products/SharedComponents';
 import SizeMatrixModal from './products/SizeMatrixModal';
 
+/* MXIK sinxronizatsiya holati — rang va izoh */
+const MXIK_STATUS_META = {
+  unknown:  { color: 'bg-slate-300',  label: "Noma'lum — hali tekshirilmagan" },
+  active:   { color: 'bg-emerald-500', label: 'Faol — MXIK kod tasdiqlangan' },
+  disabled: { color: 'bg-red-500',    label: "O'chirilgan — shtrix kod tasnifda topilmadi" },
+  error:    { color: 'bg-amber-500',  label: 'Tasnif vaqtinchalik ishlamayapti' },
+};
+
 /* ═══════════════════════════════════════════════════ */
 export default function Products() {
   const { t } = useLang();
@@ -93,6 +101,10 @@ export default function Products() {
   const [showMxik, setShowMxik] = useState(false);
   const [mxikCode, setMxikCode] = useState();
   const [barcode_input, setBarcodeInput] = useState();
+
+  /* MXIK bulk sync + tarozi export modal */
+  const [mxikSyncing, setMxikSyncing] = useState(false);
+  const [scaleModalOpen, setScaleModalOpen] = useState(false);
 
   /* size matrix modal */
   const [sizeMatrix, setSizeMatrix] = useState(false);
@@ -215,6 +227,7 @@ export default function Products() {
     weight: p.weight !== undefined ? String(Number(p.weight)) : '',
     dimensions: p.dimensions || '',
     status: p.status,
+    requires_marking: !!p.requires_marking,
     product_type: (p.conversion || p.product_type === 'sell') ? 'sell' : (p.product_type || 'stock'),
     conversion_source_id: p.conversion?.source_product_id || '',
     conversion_source_name: p.conversion?.source_product_name || '',
@@ -365,6 +378,7 @@ export default function Products() {
         weight: form.weight !== '' ? Number(form.weight) : null,
         dimensions: form.dimensions?.trim() || null,
         status: form.status,
+        requires_marking: !!form.requires_marking,
         product_type: effectiveType,
         price_currency_id: form.sale_price_cur ? Number(form.sale_price_cur) : null,
         variants: (form.product_type === 'variant' || form.product_type === 'parent' || (form.variants && form.variants.length > 0)) ? (form.variants || []).filter(v => v.size || v.color).map(v => ({
@@ -1126,6 +1140,28 @@ export default function Products() {
     }
   };
 
+  const runScaleExport = (type) => {
+    setScaleModalOpen(false);
+    if (type === 'shtrix-m') exportToShtrixM(products);
+    else if (type === 'tma') exportToTMA();
+    else if (type === 'rongta') exportToRongta(products);
+  };
+
+  const syncMxikCodes = async () => {
+    setMxikSyncing(true);
+    try {
+      const { data } = await api.post('/products/mxik-sync-bulk');
+      toast.success(
+        `MXIK sinxronizatsiya tugadi: ${data.active} faol, ${data.disabled} topilmadi, ${data.error} xatolik (jami ${data.total})`
+      );
+      loadProducts();
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || "MXIK sinxronizatsiyasida xatolik yuz berdi");
+    } finally {
+      setMxikSyncing(false);
+    }
+  };
+
   /* ════════════════════════════════════════════════ */
   return (
     <div className="space-y-6">
@@ -1142,6 +1178,34 @@ export default function Products() {
             loadProducts();
           }}
         />
+      )}
+
+      {/* Tarozi fayli — qaysi tarozi formatini yuklab olishni tanlash */}
+      {scaleModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setScaleModalOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-slate-800 font-bold text-lg mb-1">Tarozi fayli</h3>
+            <p className="text-slate-500 text-sm mb-4">Qaysi tarozi uchun fayl yuklab olishni tanlang:</p>
+            <div className="space-y-2">
+              <button onClick={() => runScaleExport('shtrix-m')}
+                className="w-full cursor-pointer flex items-center gap-2 px-4 py-2.5 bg-mist-50 hover:bg-mist-100 text-mist-700 font-semibold rounded-lg border border-mist-200 transition-colors">
+                <Binary className="w-5 h-5" /> Shtrix-M uchun
+              </button>
+              <button onClick={() => runScaleExport('tma')}
+                className="w-full cursor-pointer flex items-center gap-2 px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded-lg border border-blue-200 transition-colors">
+                <Binary className="w-5 h-5" /> TM-A uchun
+              </button>
+              <button onClick={() => runScaleExport('rongta')}
+                className="w-full cursor-pointer flex items-center gap-2 px-4 py-2.5 bg-orange-50 hover:bg-orange-100 text-orange-700 font-semibold rounded-lg border border-orange-200 transition-colors">
+                <Binary className="w-5 h-5" /> RONGTA uchun
+              </button>
+            </div>
+            <button onClick={() => setScaleModalOpen(false)}
+              className="w-full cursor-pointer mt-4 px-4 py-2 text-slate-500 hover:text-slate-700 font-medium text-sm">
+              Bekor qilish
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Bulk Delete Confirmation Modal */}
@@ -1352,22 +1416,27 @@ export default function Products() {
                 </button>
 
                 <button
-                  onClick={() => exportToShtrixM(products)}
-                  className="cursor-pointer leading-none inline-flex items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-mist-600 hover:bg-mist-500 text-white text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-lg transition-colors border border-mist-200"
-                >
-                  <Binary className='w-5 h-5' /> Shtrix-M uchun
-                </button>
-                <button
-                  onClick={() => exportToTMA()}
-                  className="cursor-pointer leading-none inline-flex items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-blue-600 hover:bg-blue-500 text-white text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-lg transition-colors border border-blue-200"
-                >
-                  <Binary className='w-5 h-5' /> TM-A uchun
-                </button>
-                <button
-                  onClick={() => exportToRongta(products)}
+                  onClick={() => setScaleModalOpen(true)}
                   className="cursor-pointer leading-none inline-flex items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-orange-600 hover:bg-orange-500 text-white text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-lg transition-colors border border-orange-200"
                 >
-                  <Binary className='w-5 h-5' /> RONGTA uchun
+                  <Binary className='w-5 h-5' /> Tarozi fayli
+                </button>
+
+                <div className="flex items-center gap-1.5 px-2 xl:px-3 py-1 xl:py-2 bg-slate-50 border border-slate-200 rounded-md xl:rounded-lg">
+                  {Object.entries(MXIK_STATUS_META).map(([key, meta]) => (
+                    <span key={key} className={`w-2.5 h-2.5 rounded-full ${meta.color} cursor-help`} title={meta.label} />
+                  ))}
+                  <span className="text-[11px] xl:text-[13px] font-semibold text-slate-500 ml-0.5">MXIK</span>
+                </div>
+                <button
+                  onClick={syncMxikCodes}
+                  disabled={mxikSyncing}
+                  className="cursor-pointer leading-none inline-flex items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-lg transition-colors border border-violet-200"
+                >
+                  <svg className={`w-4 h-4 xl:w-5 xl:h-5 ${mxikSyncing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  {mxikSyncing ? 'Sinxronlanmoqda...' : 'MXIK-kodlarni sinxronizatsiya qilish'}
                 </button>
               </>
             )}
@@ -1816,7 +1885,11 @@ export default function Products() {
                                 )}
                               </button>
                               {p.brand && <div className="text-[14px] font-semibold text-amber-600 mt-0.5 uppercase tracking-wide truncate">{p.brand}</div>}
-                              <div className='flex gap-1'>
+                              <div className='flex gap-1 items-center'>
+                                <span
+                                  className={`inline-block w-2 h-2 rounded-full shrink-0 cursor-help ${MXIK_STATUS_META[p.mxik_sync_status || 'unknown']?.color || MXIK_STATUS_META.unknown.color}`}
+                                  title={MXIK_STATUS_META[p.mxik_sync_status || 'unknown']?.label || MXIK_STATUS_META.unknown.label}
+                                />
                                 <span className="text-[9px] xl:text-[10px] font-mono font-bold text-slate-800 truncate">{p.barcode}</span>
                                 {Array.isArray(p.extra_barcodes) && p.extra_barcodes.length > 0 && (
                                   <div className="flex flex-col gap-0.5 mt-0.5">
@@ -1829,6 +1902,11 @@ export default function Products() {
                                   </div>
                                 )}
                                 <span className="text-[8px] xl:text-[9px] text-blue-500 truncate">{p.sku}</span>
+                                {p.mxik_code && (
+                                  <span className="text-[8px] xl:text-[9px] font-mono text-violet-600 truncate" title="MXIK kod">
+                                    #{p.mxik_code}
+                                  </span>
+                                )}
                               </div>
                               {p.bin_location && <div className="text-xs text-slate-400 mt-0.5 truncate">📍 {p.bin_location}</div>}
                             </td>
@@ -2818,6 +2896,17 @@ export default function Products() {
                     </Field>
                   </div>
                 </div>
+
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={!!form.requires_marking}
+                    onChange={(e) => setForm({ ...form, requires_marking: e.target.checked })}
+                    className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span className="text-sm font-medium text-slate-700">Markirovka talab qilinadi</span>
+                  <span className="text-xs text-slate-400">(kassada Data Matrix kod skanerlanadi)</span>
+                </label>
               </div>
 
               {/* ── RIGHT: details (1/3) ── */}

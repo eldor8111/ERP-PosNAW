@@ -738,7 +738,7 @@ export default function UlgurjiSotuv() {
         setShowDebtDate(true);
       }
 
-      setEditingSale({ id: sale.id, number: sale.number, warehouse_id: sale.warehouse_id, created_at: sale.created_at });
+      setEditingSale({ id: sale.id, number: sale.number, warehouse_id: sale.warehouse_id, created_at: sale.created_at, status: sale.status });
       if (sale.warehouse_id) setWarehouseId(String(sale.warehouse_id));
       else setWarehouseId('');
       // MUHIM: tahrirlash rejimida session_sale_id YOZMAYMIZ
@@ -944,6 +944,8 @@ export default function UlgurjiSotuv() {
         package_code: p.parent_code || p.package_code || '',
         barcode:      p.barcode      || '',
         labels:       p.labels       || [],
+        requires_marking: !!p.requires_marking,
+        marking_codes: [],
         vat_rate_type: p.vat_rate_type || 'nds_12',
         addedAt: Date.now(),
       }];
@@ -951,8 +953,45 @@ export default function UlgurjiSotuv() {
     if (promo) toast.success(`🎁 "${promo.name}" aksiyasi qo'llandi!`, { duration: 2000 });
   }, [getProductPrice, getPromoDiscount, getRate, onlySom]);
 
-  const updateItem = useCallback((idx, field, val) => setCart(prev => prev.map((it, i) => i === idx ? { ...it, [field]: val } : it)), []);
+  const updateItem = useCallback((idx, field, val) => setCart(prev => prev.map((it, i) => {
+    if (i !== idx) return it;
+    const next = { ...it, [field]: val };
+    // Miqdor kamaytirilganda ortiqcha skanerlangan markirovka kodlarini kesib tashlaymiz
+    if (field === 'qty' && next.requires_marking && (next.marking_codes || []).length > Number(val)) {
+      next.marking_codes = next.marking_codes.slice(0, Math.floor(Number(val)) || 0);
+    }
+    return next;
+  })), []);
   const removeItem = useCallback((idx) => setCart(prev => prev.filter((_, i) => i !== idx)), []);
+
+  // Markirovka (Data Matrix) kod skanerlash — savat qatoriga kod qo'shish/o'chirish
+  const [markingModal, setMarkingModal] = useState(null); // { idx }
+
+  const addMarkingCode = useCallback((idx, code) => {
+    const trimmed = (code || '').trim();
+    if (!trimmed) return;
+    setCart(prev => {
+      const item = prev[idx];
+      if (!item) return prev;
+      const codes = [...(item.marking_codes || [])];
+      if (codes.includes(trimmed)) {
+        toast.error('Bu markirovka kodi allaqachon skanerlangan');
+        return prev;
+      }
+      if (codes.length >= item.qty) {
+        toast.error(`Miqdor (${item.qty}) ga yetarli kod skanerlangan`);
+        return prev;
+      }
+      codes.push(trimmed);
+      return prev.map((it, i) => i === idx ? { ...it, marking_codes: codes } : it);
+    });
+  }, []);
+
+  const removeMarkingCode = useCallback((idx, codeIdx) => {
+    setCart(prev => prev.map((it, i) => i === idx
+      ? { ...it, marking_codes: (it.marking_codes || []).filter((_, ci) => ci !== codeIdx) }
+      : it));
+  }, []);
 
   // Select product into form — mijoz narx turiga qarab narxni ko'rsatadi
   const selectFormProduct = useCallback((p) => {
@@ -1027,6 +1066,8 @@ export default function UlgurjiSotuv() {
         package_code: formProduct.parent_code || formProduct.package_code || '',
         barcode:      formProduct.barcode      || '',
         labels:       formProduct.labels       || [],
+        requires_marking: !!formProduct.requires_marking,
+        marking_codes: [],
         vat_rate_type: formProduct.vat_rate_type || 'nds_12',
         addedAt: Date.now(),
       }];
@@ -1152,6 +1193,12 @@ export default function UlgurjiSotuv() {
   const submitSale = async (overridePayType, pPaid = 0, pCash = 0, pCard = 0) => {
     if (!cart.length) return toast.error('Savat bo\'sh!');
     if (!custId) return toast.error('Mijoz tanlanmagan! Iltimos mijoz tanlang.');
+    const incompleteMarking = cart.find(it => it.requires_marking && (it.marking_codes || []).length < it.qty);
+    if (incompleteMarking) {
+      toast.error(`'${incompleteMarking.name}' uchun markirovka kodini to'liq skanerlang (${(incompleteMarking.marking_codes || []).length}/${incompleteMarking.qty})`);
+      setMarkingModal({ idx: cart.indexOf(incompleteMarking) });
+      return;
+    }
     setSaving(true);
     try {
       const items = cart.map(it => {
@@ -1164,6 +1211,7 @@ export default function UlgurjiSotuv() {
           warehouse_id: it.warehouse_id || undefined,
           currency_code: it.currency || 'UZS',
           exchange_rate: it.rate || 1,
+          marking_codes: it.marking_codes && it.marking_codes.length ? it.marking_codes : undefined,
         };
       });
       // To'lovlarni ham valyutasi bilan yuboramiz
@@ -1362,10 +1410,14 @@ export default function UlgurjiSotuv() {
       sessionStorage.removeItem('ulgurji_cart');
       sessionStorage.removeItem('ulgurji_customer');
 
-      // Fiskalizatsiya yoqilgan bo'lsa — tasdiqlash modalini ko'rsatamiz
+      // Fiskalizatsiya yoqilgan bo'lsa — tasdiqlash modalini ko'rsatamiz.
+      // Yangi sotuv YOKI avval "pending" bo'lib, hozir to'lov bilan yakunlanayotgan
+      // sotuv uchun so'raladi. Allaqachon "completed" bo'lgan sotuvni shunchaki
+      // tahrirlashda (masalan izoh o'zgartirish) qayta fiskal so'ralmaydi.
       const fiskalEnabled = JSON.parse(localStorage.getItem('fiskalSend') || 'false');
       const factoryId     = JSON.parse(localStorage.getItem('fiskalId')   || 'null');
-      if (fiskalEnabled && factoryId && !editingSale) {
+      const wasPendingBeforeEdit = editingSale && editingSale.status === 'pending';
+      if (fiskalEnabled && factoryId && (!editingSale || wasPendingBeforeEdit)) {
         setFiskalPending({ factoryId, cartSnap, paymentsSnap, discount: discSnap });
       }
 
@@ -1528,7 +1580,7 @@ export default function UlgurjiSotuv() {
       setNote(sale.note || '');
       setDiscType('sum');
       setDiscVal(sale.discount_amount > 0 ? String(sale.discount_amount) : '');
-      setEditingSale({ id: sale.id, number: sale.number, warehouse_id: sale.warehouse_id });
+      setEditingSale({ id: sale.id, number: sale.number, warehouse_id: sale.warehouse_id, status: sale.status });
     }).catch(() => {
       sessionStorage.removeItem('ulgurji_session_sale_id');
     });
@@ -2054,6 +2106,19 @@ export default function UlgurjiSotuv() {
                                   <span className="bg-violet-50 text-violet-600 border border-violet-200 text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1">
                                     🎁 {it.promo_name}
                                   </span>
+                                )}
+                                {it.requires_marking && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setMarkingModal({ idx })}
+                                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1 border ${
+                                      (it.marking_codes || []).length >= it.qty
+                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                                        : 'bg-red-50 text-red-600 border-red-200 animate-pulse'
+                                    }`}
+                                  >
+                                    📷 {(it.marking_codes || []).length}/{it.qty}
+                                  </button>
                                 )}
                               </div>
                             </td>
@@ -2827,6 +2892,61 @@ export default function UlgurjiSotuv() {
         </div>
       )}
       {/* ── VARIANT PICKER MODAL ── */}
+      {markingModal && cart[markingModal.idx] && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/70 p-4" onClick={() => setMarkingModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-red-500 px-5 py-3.5 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-black text-white">Markirovka kodini skanerlash</h2>
+                <p className="text-red-100 text-xs font-medium">{cart[markingModal.idx].name}</p>
+              </div>
+              <button onClick={() => setMarkingModal(null)} className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-lg flex items-center justify-center text-white">
+                <Ic d="M6 18L18 6M6 6l12 12" cls="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5 flex flex-col gap-3">
+              <p className="text-sm text-slate-500">
+                Har bir dona uchun Data Matrix kodini skanerlang yoki qo'lda kiritib Enter bosing.
+                Kerak: <span className="font-bold text-slate-700">{cart[markingModal.idx].qty}</span> ta.
+              </p>
+              <input
+                autoFocus
+                type="text"
+                placeholder="Kodni skanerlang..."
+                className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addMarkingCode(markingModal.idx, e.target.value);
+                    e.target.value = '';
+                  }
+                }}
+              />
+              <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
+                {(cart[markingModal.idx].marking_codes || []).length === 0 && (
+                  <div className="text-xs text-slate-400 text-center py-3">Hali kod skanerlanmagan</div>
+                )}
+                {(cart[markingModal.idx].marking_codes || []).map((code, ci) => (
+                  <div key={ci} className="flex items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5">
+                    <span className="text-xs font-mono text-slate-700 truncate">{code}</span>
+                    <button onClick={() => removeMarkingCode(markingModal.idx, ci)} className="text-red-400 hover:text-red-600 shrink-0">
+                      <Ic d="M6 18L18 6M6 6l12 12" cls="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => setMarkingModal(null)}
+                disabled={(cart[markingModal.idx].marking_codes || []).length < cart[markingModal.idx].qty}
+                className="w-full py-2.5 rounded-xl font-bold text-white bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 disabled:cursor-not-allowed"
+              >
+                {(cart[markingModal.idx].marking_codes || []).length}/{cart[markingModal.idx].qty} skanerlandi — Yopish
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {variantPickerProduct && (
         <VariantPickerModal
           parent={variantPickerProduct}

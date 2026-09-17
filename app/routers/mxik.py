@@ -1,6 +1,5 @@
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pip._internal.cli import status_codes
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user, require_roles
@@ -8,8 +7,6 @@ from app.database import get_db
 from app.models.mxik import MxikReference, MxikPackage
 from app.models.tovarlar_catalog import TovarlarCatalog
 from app.models.user import User, UserRole
-from app.routers.billing import require_super_admin
-from app.routers.users import create_user
 from app.schemas.mxik import MxikReferenceOut, MxikSyncRequest, MxikReferenceUpdate, MxikBarcode
 from app.services.tasnif_service import sync_mxik
 from app.config import settings
@@ -120,8 +117,8 @@ def update_mxik(
         db: Session = Depends(get_db),
         create_user: User = Depends(require_roles(UserRole.admin, UserRole.super_admin)),
 ):
-    ref = db.query(MxikReferenceUpdate).filter(MxikReferenceUpdate.mxik_code == mxik_code).first()
-    if not db:
+    ref = db.query(MxikReference).filter(MxikReference.mxik_code == mxik_code).first()
+    if not ref:
         raise HTTPException(status_code=404, detail="MXIK topilmadi")
     for field, value in data.model_dump().items():
         setattr(ref, field, value)
@@ -145,17 +142,20 @@ def delete_by_barcode(
     return None
 
 
-@router.put("barcode/{barcode}", response_model=MxikBarcode, status_code=status.HTTP_202_ACCEPTED)
+@router.put("/barcode/{barcode}", response_model=MxikBarcode, status_code=status.HTTP_202_ACCEPTED)
 def update_by_barcode(
         barcode: str,
         data: MxikBarcode,
         db: Session = Depends(get_db),
-        create_user: User = Depends(require_roles(UserRole.admin, UserRole.super_admin)),
+        current_user: User = Depends(require_roles(UserRole.admin, UserRole.super_admin)),
 
 ):
-    ref = db.query(MxikBarcode).filter(MxikBarcode.barcode == barcode).first()
+    ref = db.query(TovarlarCatalog).filter(TovarlarCatalog.barcode == barcode).first()
+    if not ref:
+        raise HTTPException(status_code=404, detail="Barcode topilmadi")
     for field, value in data.model_dump().items():
-        setattr(ref, field, value)
+        if hasattr(ref, field):
+            setattr(ref, field, value)
     db.commit()
     db.refresh(ref)
     return ref

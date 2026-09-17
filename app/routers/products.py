@@ -43,6 +43,7 @@ def _attach_stock(product: Product, db: Session = None, warehouse_id: int = None
     
     if product.product_type == 'parent' and db:
         from app.models.product_variant import ProductVariant
+        from app.models.attribute import AttributeValue, VariantAttributeValue
         from app.schemas.product_variant import ProductVariantOut
         children = db.query(ProductVariant).filter(ProductVariant.product_id == product.id).options(joinedload(ProductVariant.attribute_values).joinedload(VariantAttributeValue.attribute_value).joinedload(AttributeValue.attribute)).all()
         v_out = []
@@ -887,6 +888,121 @@ def bulk_delete_products(
     )
     db.commit()
     return {"deleted": len(products)}
+
+
+# Mahsulotning ichki `unit` maydoni bilan MXIK paketining unit_name'ini
+# moslashtirish uchun (vazn/hajm bo'yicha bir nechta birlik varianti bo'lganda)
+_MXIK_UNIT_NAME_MAP = {
+    "dona": "дона", "kg": "килограмм", "g": "грамм", "gramm": "грамм",
+    "litr": "литр", "l": "литр", "tonna": "тонна", "sentner": "центнер",
+    "mg": "миллиграмм",
+}
+
+
+@router.post("/mxik-sync-bulk", status_code=status.HTTP_200_OK)
+async def mxik_sync_bulk(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*WRITE_ROLES)),
+):
+    """
+    Kompaniyaning barcha (o'chirilmagan) mahsulotlarini shtrix kodi bo'yicha
+    MXIK bilan taqqoslaydi: avval tezkor lokal tovarlar_catalog jadvalidan,
+    topilmasa tasnif.soliq.uz ochiq qidiruv API'sidan qidiradi. Topilgan
+    mxik_code asosida to'liq ma'lumot (birlik, QQS) bilan boyitishga harakat
+    qiladi. mxik_sync_status:
+      unknown  — shtrix kodi yo'q, tekshirilmadi
+      active   — mxik_code topildi (lokal katalog yoki tasnif qidiruvi orqali)
+      disabled — shtrix kod na lokal katalogda, na tasnifda topilmadi
+      error    — qidiruv/tasnif so'rovida tarmoq xatoligi yuz berdi
+    """
+    from datetime import datetime, timezone
+
+    from app.config import settings
+    from app.models.mxik import MxikPackage
+    from app.models.tovarlar_catalog import TovarlarCatalog
+    from app.services.tasnif_service import sync_mxik, search_mxik_by_barcode
+
+    terminal_id = settings.DEFAULT_TERMINAL_ID
+
+    products = db.query(Product).filter(
+        Product.company_id == current_user.company_id,
+        Product.is_deleted == False,
+        Product.barcode.isnot(None),
+        Product.barcode != "",
+    ).all()
+
+    summary = {"total": len(products), "active": 0, "disabled": 0, "error": 0}
+    now = datetime.now(timezone.utc)
+
+    for product in products:
+        catalog_entry = db.query(TovarlarCatalog).filter(
+            TovarlarCatalog.barcode == product.barcode
+        ).first()
+        mxik_code = catalog_entry.mxik_code if catalog_entry else None
+
+        if not mxik_code:
+            try:
+                found = await search_mxik_by_barcode(product.barcode)
+            except Exception:
+                product.mxik_sync_status = "error"
+                product.mxik_synced_at = now
+                summary["error"] += 1
+                continue
+            mxik_code = found.get("mxikCode") if found else None
+
+        if not mxik_code:
+            product.mxik_sync_status = "disabled"
+            product.mxik_synced_at = now
+            summary["disabled"] += 1
+            continue
+
+        product.mxik_code = mxik_code
+        product.mxik_sync_status = "active"
+        summary["active"] += 1
+
+        # Qo'shimcha ma'lumot (birlik, QQS) — muvaffaqiyatsiz bo'lsa ham
+        # mxik_code allaqachon yozilgan, shuning uchun status "active" qoladi.
+        try:
+            ref = await sync_mxik(
+                db=db,
+                mxik_code=mxik_code,
+                terminal_id=terminal_id,
+                force_refresh=False,
+            )
+            unit_candidates = db.query(MxikPackage).filter(
+                MxikPackage.mxik_reference_id == ref.id,
+                MxikPackage.is_unit_package == 1,
+            ).all()
+
+            unit_pkg = None
+            if len(unit_candidates) == 1:
+                unit_pkg = unit_candidates[0]
+            elif unit_candidates:
+                # Vazn/hajm bo'yicha bir nechta birlik variant mavjud (gramm,
+                # kg, tonna...) — mahsulotning o'z birligiga mos kelganini tanlaymiz.
+                wanted = _MXIK_UNIT_NAME_MAP.get((product.unit or "").strip().lower())
+                unit_pkg = next(
+                    (c for c in unit_candidates if wanted and c.unit_name and wanted in c.unit_name.lower()),
+                    unit_candidates[0],
+                )
+
+            product.mxik_reference_id = ref.id
+            # Frontend "O'lchov kod" maydoni parent_code'dan o'qiydi (GET /mxik/barcode
+            # bilan bir xil konventsiya) — package'ning o'z kodi shu yerga yoziladi.
+            product.parent_code = unit_pkg.code if unit_pkg else None
+            product.package_code = unit_pkg.code if unit_pkg else None
+            product.unit_id = unit_pkg.unit_id if unit_pkg else None
+            product.vat_rate_type = ref.vat_rate_type
+            product.vat_lgota_id = ref.lgota_id
+            product.vat_lgota_name = ref.lgota_name
+            product.vat_checked_at = now
+        except Exception:
+            pass
+
+        product.mxik_synced_at = now
+
+    db.commit()
+    return summary
 
 
 from fastapi.responses import StreamingResponse

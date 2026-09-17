@@ -205,11 +205,25 @@ const navigate = useNavigate();
            );
            if (p) {
              addToCart(p);
-           } else {
-             // Topilmadi — yangi mahsulot qo'shish modalini och
-             setNewProd({ name:'', barcode: code, sale_price:'', cost_price:'', unit:'dona', category_id:'', stock_quantity:'0' });
-             setShowNewProduct(true);
+             return;
            }
+
+           // Oddiy mahsulot barkodiga to'g'ri kelmadi — uzun kod bo'lsa (Data Matrix
+           // markirovka kodlari odatda 20+ belgi), savatdagi kodi to'liq bo'lmagan
+           // markirovkali qatorga biriktiramiz, aks holda yangi mahsulot modalini ochamiz.
+           if (code.length >= 20) {
+             const pendingIdx = findPendingMarkingIdx();
+             if (pendingIdx >= 0) {
+               addMarkingCode(pendingIdx, code);
+               return;
+             }
+             toast.error("Markirovka kodi skanerlandi, lekin savatda mos mahsulot topilmadi. Avval mahsulotni skanerlang.");
+             return;
+           }
+
+           // Topilmadi — yangi mahsulot qo'shish modalini och
+           setNewProd({ name:'', barcode: code, sale_price:'', cost_price:'', unit:'dona', category_id:'', stock_quantity:'0' });
+           setShowNewProduct(true);
          }
          return;
       }
@@ -217,7 +231,7 @@ const navigate = useNavigate();
     };
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [products, showCheckout, showNewProduct]);
+  }, [products, cart, showCheckout, showNewProduct]);
 
   // Yangi mahsulotni bazaga saqlash va savatga qo'shish
   const saveNewProduct = async () => {
@@ -286,6 +300,8 @@ const navigate = useNavigate();
         package_code: p.parent_code || p.package_code || '',
         barcode: p.barcode || '',
         labels: p.labels || [],
+        requires_marking: !!p.requires_marking,
+        marking_codes: [],
         vat_rate_type: p.vat_rate_type || 'nds_12',
         qty_ordered: 1,
         max_stock: p.stock_quantity
@@ -293,10 +309,65 @@ const navigate = useNavigate();
     });
   };
 
+  // Markirovka (Data Matrix) kod skanerlash — savat qatoriga kod qo'shish/o'chirish
+  const [markingModal, setMarkingModal] = useState(null); // { idx }
+
+  const addMarkingCode = (idx, code) => {
+    const trimmed = (code || '').trim();
+    if (!trimmed) return;
+    setCart(prev => {
+      const next = [...prev];
+      const item = { ...next[idx] };
+      const codes = [...(item.marking_codes || [])];
+      if (codes.includes(trimmed)) {
+        toast.error('Bu markirovka kodi allaqachon skanerlangan');
+        return prev;
+      }
+      if (codes.length >= item.qty_ordered) {
+        toast.error(`Miqdor (${item.qty_ordered}) ga yetarli kod skanerlangan`);
+        return prev;
+      }
+      codes.push(trimmed);
+      item.marking_codes = codes;
+      next[idx] = item;
+      return next;
+    });
+  };
+
+  const removeMarkingCode = (idx, codeIdx) => {
+    setCart(prev => {
+      const next = [...prev];
+      const item = { ...next[idx] };
+      item.marking_codes = (item.marking_codes || []).filter((_, i) => i !== codeIdx);
+      next[idx] = item;
+      return next;
+    });
+  };
+
+  // Savatda markirovka talab qiluvchi, hali kodlari to'liq bo'lmagan oxirgi qator
+  // (global skaner orqali kelgan uzun DataMatrix kodini shu qatorga biriktirish uchun)
+  const findPendingMarkingIdx = () => {
+    for (let i = 0; i < cart.length; i++) {
+      const item = cart[i];
+      if (item.requires_marking && (item.marking_codes || []).length < item.qty_ordered) return i;
+    }
+    return -1;
+  };
+
+  // Miqdor kamaytirilganda ortiqcha skanerlangan markirovka kodlarini kesib tashlaymiz
+  const _trimMarkingCodes = (item) => {
+    if (item.requires_marking && (item.marking_codes || []).length > item.qty_ordered) {
+      item.marking_codes = item.marking_codes.slice(0, Math.floor(item.qty_ordered));
+    }
+    return item;
+  };
+
   const updateCartQty = (idx, delta) => {
     setCart(prev => {
       const next = [...prev];
+      next[idx] = { ...next[idx] };
       next[idx].qty_ordered = Math.max(0.1, next[idx].qty_ordered + delta);
+      _trimMarkingCodes(next[idx]);
       return next;
     });
   };
@@ -304,7 +375,9 @@ const navigate = useNavigate();
   const updateExtQty = (idx, qtyVal) => {
     setCart(prev => {
       const next = [...prev];
+      next[idx] = { ...next[idx] };
       next[idx].qty_ordered = Math.max(0.1, Number(qtyVal)||1);
+      _trimMarkingCodes(next[idx]);
       return next;
     });
   };
@@ -376,7 +449,16 @@ const navigate = useNavigate();
   const checkout = async (isDebtConfirm = false) => {
     if (!cart.length) return toast.warn("Savat bo'sh!");
     if (!hasShift) { setShowShiftModal(true); return; }
-    
+
+    // Markirovka talab qilinadigan mahsulotlar uchun skanerlangan kodlar
+    // miqdorga to'liq mos kelishi shart — aks holda fiskal chekda aks etmaydi.
+    const incompleteMarking = cart.find(c => c.requires_marking && (c.marking_codes || []).length < c.qty_ordered);
+    if (incompleteMarking) {
+      toast.error(`'${incompleteMarking.product_name}' uchun markirovka kodini to'liq skanerlang (${(incompleteMarking.marking_codes || []).length}/${incompleteMarking.qty_ordered})`);
+      setMarkingModal({ idx: cart.indexOf(incompleteMarking) });
+      return;
+    }
+
     // Pul yetarli emas va mijoz tanlanmagan → xato
     if (!isEnough && !custId) {
       toast.error("Mijoz tanlanmagan! Qarzga sotish uchun avval mijoz tanlang.");
@@ -408,9 +490,10 @@ const navigate = useNavigate();
           product_id: c.product_id,
           quantity: c.qty_ordered,
           unit_price: c.unit_price,
-          discount: c.discount_type === 'pct' 
-             ? c.unit_price * c.qty_ordered * (c.discount_val / 100) 
+          discount: c.discount_type === 'pct'
+             ? c.unit_price * c.qty_ordered * (c.discount_val / 100)
              : c.discount_val,
+          marking_codes: c.marking_codes && c.marking_codes.length ? c.marking_codes : undefined,
         })),
         payment_type: mainType,
         paid_amount: finalPaid > totalNet ? totalNet : finalPaid,
@@ -614,15 +697,29 @@ const navigate = useNavigate();
                     <div className="font-bold text-slate-400 text-[10px]">× {fmt(item.unit_price)}</div>
                   </div>
                   {/* Discount inline input */}
-                  <div className="mt-0 flex items-center">
-                    
-                    <input 
-                      type="text" 
+                  <div className="mt-0 flex items-center gap-1">
+
+                    <input
+                      type="text"
                       value={item.discount_val || ''}
                       onChange={e => updateDiscount(i, cleanNum(e.target.value))}
                       placeholder="0"
                       className="w-12 border border-slate-200 rounded px-1 py-0 text-[10px] h-5 font-bold text-red-500 outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400 placeholder:text-slate-300"
                     />
+                    {item.requires_marking && (
+                      <button
+                        type="button"
+                        onClick={() => setMarkingModal({ idx: i })}
+                        className={`flex items-center gap-0.5 px-1.5 h-5 rounded text-[9px] font-bold ${
+                          (item.marking_codes || []).length >= item.qty_ordered
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-red-100 text-red-600 animate-pulse'
+                        }`}
+                        title="Markirovka kodini skanerlash"
+                      >
+                        📷 {(item.marking_codes || []).length}/{item.qty_ordered}
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div className="flex flex-col items-end justify-between shrink-0">
@@ -880,6 +977,61 @@ const navigate = useNavigate();
       )}
 
       {/* ── YANGI MAHSULOT QO'SHISH MODALI ── */}
+      {markingModal && cart[markingModal.idx] && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/70 p-4" onClick={() => setMarkingModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-red-500 px-5 py-3.5 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-black text-white">Markirovka kodini skanerlash</h2>
+                <p className="text-red-100 text-xs font-medium">{cart[markingModal.idx].product_name}</p>
+              </div>
+              <button onClick={() => setMarkingModal(null)} className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-lg flex items-center justify-center text-white">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div className="p-5 flex flex-col gap-3">
+              <p className="text-sm text-slate-500">
+                Har bir dona uchun Data Matrix kodini skanerlang yoki qo'lda kiritib Enter bosing.
+                Kerak: <span className="font-bold text-slate-700">{cart[markingModal.idx].qty_ordered}</span> ta.
+              </p>
+              <input
+                autoFocus
+                type="text"
+                placeholder="Kodni skanerlang..."
+                className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addMarkingCode(markingModal.idx, e.target.value);
+                    e.target.value = '';
+                  }
+                }}
+              />
+              <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
+                {(cart[markingModal.idx].marking_codes || []).length === 0 && (
+                  <div className="text-xs text-slate-400 text-center py-3">Hali kod skanerlanmagan</div>
+                )}
+                {(cart[markingModal.idx].marking_codes || []).map((code, ci) => (
+                  <div key={ci} className="flex items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5">
+                    <span className="text-xs font-mono text-slate-700 truncate">{code}</span>
+                    <button onClick={() => removeMarkingCode(markingModal.idx, ci)} className="text-red-400 hover:text-red-600 shrink-0">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => setMarkingModal(null)}
+                disabled={(cart[markingModal.idx].marking_codes || []).length < cart[markingModal.idx].qty_ordered}
+                className="w-full py-2.5 rounded-xl font-bold text-white bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 disabled:cursor-not-allowed"
+              >
+                {(cart[markingModal.idx].marking_codes || []).length}/{cart[markingModal.idx].qty_ordered} skanerlandi — Yopish
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showNewProduct && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/70 p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden">

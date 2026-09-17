@@ -7,6 +7,7 @@ from app.models.product import Product
 from app.models.customer import Customer
 from app.models.inventory import StockLevel
 from app.models.sale import Sale, SaleItem, SaleStatus
+from app.models.supplier_product import SupplierProduct
 from app.services.ai_tools_registry import AITool, AIToolRegistry
 
 @AIToolRegistry.register
@@ -47,7 +48,7 @@ class DraftPurchaseOrderTool(AITool):
         results = db.query(
             Product.id,
             Product.name,
-            Product.buy_price,
+            Product.cost_price,
             sales_subquery.c.total_sold_14d,
             stock_subquery.c.current_stock
         ).join(sales_subquery, sales_subquery.c.product_id == Product.id)\
@@ -55,40 +56,66 @@ class DraftPurchaseOrderTool(AITool):
          .filter(Product.company_id == company_id).all()
 
         po_items = []
+        product_ids_needed = []
         for row in results:
             daily_speed = float(row.total_sold_14d or 0) / history_days
             current_qty = float(row.current_stock or 0)
-            
+
             if daily_speed > 0:
                 days_left = current_qty / daily_speed if daily_speed > 0 else 999
-                
+
                 # Agar urgent_only bo'lsa, faqat 3 kundan kam qolganlarini olamiz
                 if urgent_only and days_left > 3:
                     continue
-                    
+
                 # Ehtiyoj: kelasi days_ahead kunga qancha kerak
                 needed_for_period = daily_speed * days_ahead
                 suggested_order_qty = needed_for_period - current_qty
-                
+
                 if suggested_order_qty > 0:
                     # Kamida 10 ta yoki butun songa yaxlitlash
                     suggested_order_qty = max(10, int(suggested_order_qty + 0.5))
-                    
+
                     po_items.append({
                         "product_id": row.id,
                         "product_name": row.name,
                         "current_stock": current_qty,
                         "suggested_qty": suggested_order_qty,
-                        "estimated_cost": float(row.buy_price or 0) * suggested_order_qty
+                        "unit_cost": float(row.cost_price or 0),
+                        "estimated_cost": float(row.cost_price or 0) * suggested_order_qty,
+                        "supplier_id": None,
+                        "supplier_name": None,
                     })
+                    product_ids_needed.append(row.id)
 
         if not po_items:
             return {"reply": "Hozircha omborda zaxiralar yetarli. Zayavka qilishga ehtiyoj yo'q."}
 
+        # Mahsulot uchun avval bog'langan yetkazib beruvchi bo'lsa — avtomatik biriktiramiz
+        if product_ids_needed:
+            sp_rows = db.query(SupplierProduct).filter(
+                SupplierProduct.product_id.in_(product_ids_needed)
+            ).all()
+            supplier_by_product = {}
+            for sp in sp_rows:
+                supplier_by_product.setdefault(sp.product_id, sp)
+            for item in po_items:
+                sp = supplier_by_product.get(item["product_id"])
+                if sp:
+                    item["supplier_id"] = sp.supplier_id
+                    item["supplier_name"] = sp.supplier.name if sp.supplier else None
+                    if sp.purchase_price:
+                        item["unit_cost"] = float(sp.purchase_price)
+                        item["estimated_cost"] = float(sp.purchase_price) * item["suggested_qty"]
+
         total_cost = sum(item["estimated_cost"] for item in po_items)
-        
+        missing_supplier = sum(1 for item in po_items if not item["supplier_id"])
+        note = ""
+        if missing_supplier:
+            note = f" {missing_supplier} ta mahsulot uchun yetkazib beruvchi topilmadi — tasdiqlashda qo'lda tanlashingiz kerak bo'ladi."
+
         return {
-            "reply": f"Ombor tahlil qilindi. {len(po_items)} ta mahsulot bo'yicha zayavka qoralamasi tayyorlandi. Taxminiy xarajat: {total_cost:,.0f} so'm. Tasdiqlash uchun ekranga chiqardim.",
+            "reply": f"Ombor tahlil qilindi. {len(po_items)} ta mahsulot bo'yicha zayavka qoralamasi tayyorlandi. Taxminiy xarajat: {total_cost:,.0f} so'm.{note} Tasdiqlash uchun ekranga chiqardim.",
             "action": {
                 "type": "draft_purchase_order",
                 "items": po_items,
@@ -124,8 +151,8 @@ class DraftSmsCampaignTool(AITool):
         
         query = db.query(Customer).filter(
             Customer.company_id == company_id, 
-            Customer.phone_number != None,
-            Customer.phone_number != ""
+            Customer.phone != None,
+            Customer.phone != ""
         )
         
         customers = []
@@ -149,7 +176,7 @@ class DraftSmsCampaignTool(AITool):
         if not customers:
             return {"reply": f"'{target_group}' guruhiga mos keluvchi telefon raqamiga ega mijozlar topilmadi."}
 
-        recipients = [{"id": c.id, "name": c.name, "phone": c.phone_number} for c in customers[:50]] # Limit for draft safety
+        recipients = [{"id": c.id, "name": c.name, "phone": c.phone} for c in customers[:50]] # Limit for draft safety
 
         return {
             "reply": f"{len(recipients)} ta mijoz ('{target_group}' guruhi) uchun SMS kampaniya qoralamasi tayyorlandi. Matn: '{message_text}'. Tasdiqlash uchun ro'yxatni ekranga chiqardim.",

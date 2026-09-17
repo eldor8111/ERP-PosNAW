@@ -1629,8 +1629,14 @@ function AnnouncementsTab({ companies }) {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ title: '', message: '', company_id: '', expires_at: '' });
+  const [questions, setQuestions] = useState([]);
   const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState(null);
+
+  // Results view
+  const [showResultsModal, setShowResultsModal] = useState(false);
+  const [resultsData, setResultsData] = useState(null);
+  const [resultsLoading, setResultsLoading] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -1650,9 +1656,11 @@ function AnnouncementsTab({ companies }) {
         company_id: ann.company_id || '',
         expires_at: ann.expires_at ? ann.expires_at.slice(0, 16) : ''
       });
+      setQuestions([]);
     } else {
       setEditId(null);
       setForm({ title: '', message: '', company_id: '', expires_at: '' });
+      setQuestions([]);
     }
     setShowModal(true);
   };
@@ -1672,6 +1680,14 @@ function AnnouncementsTab({ companies }) {
         company_id: form.company_id ? Number(form.company_id) : null,
         expires_at: form.expires_at ? new Date(form.expires_at).toISOString() : null
       };
+
+      if (!editId && questions.length > 0) {
+        payload.questions = questions.map(q => ({
+          text: q.text,
+          question_type: q.question_type,
+          options: q.options ? q.options.filter(o => o.trim()) : null
+        }));
+      }
 
       if (editId) {
         await api.patch(`/super-admin/announcements/${editId}`, payload);
@@ -1706,6 +1722,21 @@ function AnnouncementsTab({ companies }) {
       load();
     } catch (e) {
       toast.error("Xatolik");
+    }
+  };
+
+  const openResults = async (id) => {
+    setShowResultsModal(true);
+    setResultsLoading(true);
+    setResultsData(null);
+    try {
+      const r = await api.get(`/super-admin/announcements/${id}/survey-results`);
+      setResultsData(r.data);
+    } catch (e) {
+      toast.error("Natijalarni yuklashda xatolik");
+      setShowResultsModal(false);
+    } finally {
+      setResultsLoading(false);
     }
   };
 
@@ -1763,6 +1794,9 @@ function AnnouncementsTab({ companies }) {
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex gap-2">
+                      {a.has_survey && (
+                        <button onClick={() => openResults(a.id)} className="text-blue-500 hover:text-blue-600 font-medium text-xs px-2 py-1 bg-blue-50 rounded-lg">Natijalar</button>
+                      )}
                       <button onClick={() => openModal(a)} className="text-amber-500 hover:text-amber-600 font-medium text-xs px-2 py-1 bg-amber-50 rounded-lg">Tahrirlash</button>
                       <button onClick={() => deleteAnn(a.id)} className="text-red-500 hover:text-red-600 font-medium text-xs px-2 py-1 bg-red-50 rounded-lg">O'chirish</button>
                     </div>
@@ -1804,12 +1838,217 @@ function AnnouncementsTab({ companies }) {
                 <input type="datetime-local" value={form.expires_at} onChange={e => setForm(p => ({ ...p, expires_at: e.target.value }))} className={inp} />
                 <p className="text-xs text-slate-400 mt-1">Belgilangan muddatdan keyin o'z-o'zidan yashirinadi.</p>
               </div>
+
+              {!editId && (
+                <div className="border-t border-slate-100 pt-4 mt-2">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="block text-xs font-bold text-slate-500">So'rovnoma savollari (ixtiyoriy)</label>
+                    <button 
+                      onClick={() => setQuestions([...questions, { text: '', question_type: 'text', options: ['', ''] }])}
+                      className="text-xs text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded-lg hover:bg-blue-100 transition-all"
+                    >
+                      + Savol qo'shish
+                    </button>
+                  </div>
+                  
+                  {questions.length > 0 ? (
+                    <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                      {questions.map((q, qIndex) => (
+                        <div key={qIndex} className="p-3 bg-slate-50 rounded-xl border border-slate-100 relative">
+                          <button 
+                            onClick={() => setQuestions(questions.filter((_, i) => i !== qIndex))}
+                            className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center bg-white rounded-md text-red-500 hover:bg-red-50 shadow-sm transition-all"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                          </button>
+                          
+                          <div className="mb-2 pr-8">
+                            <input 
+                              placeholder="Savol matni..." 
+                              value={q.text} 
+                              onChange={(e) => {
+                                const nq = [...questions];
+                                nq[qIndex].text = e.target.value;
+                                setQuestions(nq);
+                              }}
+                              className="w-full text-sm font-semibold bg-transparent border-b border-slate-200 pb-1 focus:outline-none focus:border-blue-400"
+                            />
+                          </div>
+                          <div className="flex gap-2 mb-2">
+                            <select 
+                              value={q.question_type}
+                              onChange={(e) => {
+                                const nq = [...questions];
+                                nq[qIndex].question_type = e.target.value;
+                                setQuestions(nq);
+                              }}
+                              className="text-xs bg-white border border-slate-200 rounded px-2 py-1 outline-none focus:border-blue-300"
+                            >
+                              <option value="text">Matnli javob</option>
+                              <option value="single_choice">Bitta variant tanlash</option>
+                              <option value="multiple_choice">Ko'p variant tanlash</option>
+                            </select>
+                          </div>
+                          
+                          {['single_choice', 'multiple_choice'].includes(q.question_type) && (
+                            <div className="space-y-1.5 mt-2">
+                              {q.options.map((opt, oIndex) => (
+                                <div key={oIndex} className="flex gap-1.5 items-center">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                                  <input 
+                                    placeholder="Variant..." 
+                                    value={opt}
+                                    onChange={(e) => {
+                                      const nq = [...questions];
+                                      nq[qIndex].options[oIndex] = e.target.value;
+                                      setQuestions(nq);
+                                    }}
+                                    className="flex-1 text-xs bg-white border border-slate-200 rounded px-2 py-1 outline-none focus:border-blue-300"
+                                  />
+                                  {q.options.length > 2 && (
+                                    <button 
+                                      onClick={() => {
+                                        const nq = [...questions];
+                                        nq[qIndex].options = nq[qIndex].options.filter((_, i) => i !== oIndex);
+                                        setQuestions(nq);
+                                      }}
+                                      className="text-slate-400 hover:text-red-500 transition-colors"
+                                    >
+                                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                              <button 
+                                onClick={() => {
+                                  const nq = [...questions];
+                                  nq[qIndex].options.push('');
+                                  setQuestions(nq);
+                                }}
+                                className="text-[10px] text-blue-500 font-bold px-2 py-1 hover:bg-blue-50 rounded mt-1 transition-colors"
+                              >
+                                + Variant qo'shish
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 bg-slate-50 rounded-xl border border-slate-100 border-dashed text-slate-400 text-sm">
+                      Hozircha so'rovnoma savollari yo'q
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            <div className="px-6 py-4 border-t border-slate-100 flex gap-2">
+            <div className="px-6 py-4 border-t border-slate-100 flex gap-2 shrink-0">
               <button onClick={closeModal} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-sm transition-all">Bekor qilish</button>
               <button onClick={save} disabled={saving} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm shadow-lg shadow-blue-200 transition-all disabled:opacity-50">
                 {saving ? 'Saqlanmoqda...' : 'Saqlash'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Results Modal */}
+      {showResultsModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 rounded-t-2xl">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <span className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                </span>
+                So'rovnoma Natijalari
+              </h3>
+              <button onClick={() => setShowResultsModal(false)} className="text-slate-400 hover:text-slate-600">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6">
+              {resultsLoading ? (
+                <div className="py-16 flex justify-center"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
+              ) : !resultsData ? (
+                <div className="py-16 text-center text-slate-400">Ma'lumot topilmadi</div>
+              ) : (
+                <div className="space-y-6">
+                  {resultsData.results && resultsData.results.map((q) => {
+                    const totalAnswers = q.answers ? q.answers.length : 0;
+                    
+                    let optionCounts = {};
+                    if (q.options) {
+                      q.options.forEach(opt => optionCounts[opt] = 0);
+                    }
+                    if (q.type !== 'text' && q.answers) {
+                      q.answers.forEach(ans => {
+                        let val = ans.answer;
+                        if (typeof val === 'string' && val.startsWith('[') && val.endsWith(']')) {
+                          try { val = JSON.parse(val); } catch (e) {}
+                        }
+                        let arr = Array.isArray(val) ? val : [val];
+                        arr.forEach(v => {
+                          if (optionCounts[v] !== undefined) optionCounts[v]++;
+                          else optionCounts[v] = 1;
+                        });
+                      });
+                    }
+
+                    return (
+                      <div key={q.question_id} className="border border-slate-100 rounded-xl overflow-hidden">
+                        <div className="bg-slate-50 px-4 py-3 border-b border-slate-100">
+                          <h4 className="font-bold text-slate-700 text-sm">{q.text}</h4>
+                          <span className="text-[10px] uppercase font-bold text-slate-400 mt-1 block">
+                            {q.type === 'text' ? 'Matnli' : q.type === 'single_choice' ? 'Bitta tanlov' : "Ko'p tanlov"} ({totalAnswers} ta javob)
+                          </span>
+                        </div>
+                        <div className="p-4 bg-white">
+                          {q.type === 'text' ? (
+                            <div className="space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar pr-2">
+                              {q.answers && q.answers.length > 0 ? (
+                                q.answers.map((ans, idx) => (
+                                  <div key={idx} className="text-sm text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                                    <div className="flex justify-between items-center mb-1">
+                                      <span className="font-semibold text-xs text-slate-700">{ans.company_name} - {ans.user_name}</span>
+                                      <span className="text-[10px] text-slate-400">{ans.date ? new Date(ans.date).toLocaleString('ru-RU', { hour: '2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric' }) : ''}</span>
+                                    </div>
+                                    <div>{ans.answer}</div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="text-xs text-slate-400 text-center py-2">Javoblar yo'q</div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {q.options && q.options.map((opt, idx) => {
+                                const count = optionCounts[opt] || 0;
+                                const percent = totalAnswers > 0 ? Math.round((count / totalAnswers) * 100) : 0;
+                                return (
+                                  <div key={idx} className="space-y-1">
+                                    <div className="flex justify-between text-xs font-semibold text-slate-600">
+                                      <span>{opt}</span>
+                                      <span>{count} ta ({percent}%)</span>
+                                    </div>
+                                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                                      <div 
+                                        className="h-full bg-blue-500 rounded-full transition-all duration-500" 
+                                        style={{ width: `${percent}%` }}
+                                      ></div>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>

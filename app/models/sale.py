@@ -87,6 +87,8 @@ class SaleItem(Base):
     returned_quantity = Column(Numeric(12, 3), nullable=True, default=0)
     currency_code = Column(String(10), default="UZS")
     exchange_rate = Column(Numeric(14, 2), default=1)
+    # Har bir sotilgan birlik uchun skanerlangan Data Matrix (markirovka) kodlari
+    marking_codes = Column(JSON, nullable=True)
 
     sale = relationship("Sale", back_populates="items")
     product = relationship("Product", back_populates="sale_items")

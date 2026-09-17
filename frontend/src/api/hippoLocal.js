@@ -45,7 +45,7 @@ function cartToItems(cart) {
       barcode:      item.barcode       || '',
       spic:         item.mxik_code     || '',
       package_code: item.package_code  ? String(item.package_code) : '',
-      labels:       item.labels        || [],
+      labels:       (item.marking_codes && item.marking_codes.length) ? item.marking_codes : (item.labels || []),
       quantity:     qty,
       price:        priceUZS,
       discount:     discountUZS,

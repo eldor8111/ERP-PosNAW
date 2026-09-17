@@ -39,6 +39,7 @@ const AgentsPage      = lazy(() => import('./pages/admin/SuperAdmin').then(m => 
 const Ombor           = lazy(() => import('./pages/admin/Ombor'))
 const Filiallar       = lazy(() => import('./pages/admin/Filiallar'))
 const Tariflar        = lazy(() => import('./pages/admin/Tariflar'))
+const AICopilot       = lazy(() => import('./pages/admin/AICopilot'))
 const Register        = lazy(() => import('./pages/Register'))
 const Landing         = lazy(() => import('./pages/Landing'))
 const VebSaytlar      = lazy(() => import('./pages/VebSaytlar'))
@@ -130,6 +131,7 @@ export default function App() {
             <Route path="ombor" element={<Suspense fallback={<PageLoader />}><Ombor /></Suspense>} />
             <Route path="filiallar" element={<Suspense fallback={<PageLoader />}><Filiallar /></Suspense>} />
             <Route path="tariflar" element={<Suspense fallback={<PageLoader />}><Tariflar /></Suspense>} />
+            <Route path="ai-copilot" element={<Suspense fallback={<PageLoader />}><AICopilot /></Suspense>} />
             <Route path="employees/create" element={
               <PrivateRoute roles={ROLE_GROUPS.MANAGEMENT}>
                 <Suspense fallback={<PageLoader />}><Register /></Suspense>

@@ -486,7 +486,15 @@ def delete_company_super(
 # ── Bildirish Nomalar (Announcements) ────────────────────────────────────────
 
 from datetime import datetime, timezone as _tz
-from app.models.announcement import Announcement
+from app.models.announcement import Announcement, SurveyQuestion, SurveyAnswer
+from typing import List, Dict, Any
+import json
+
+
+class SurveyQuestionCreate(BaseModel):
+    text: str
+    question_type: str  # 'text', 'single_choice', 'multiple_choice'
+    options: Optional[List[str]] = None
 
 
 class AnnouncementCreate(BaseModel):
@@ -494,6 +502,7 @@ class AnnouncementCreate(BaseModel):
     message: str
     company_id: Optional[int] = None   # NULL = barcha korxonalar
     expires_at: Optional[str] = None   # ISO format string yoki None
+    questions: Optional[List[SurveyQuestionCreate]] = None
 
 
 class AnnouncementUpdate(BaseModel):
@@ -511,6 +520,7 @@ def _ann_dict(a: Announcement, company_name: Optional[str] = None) -> dict:
         "company_id": a.company_id,
         "company_name": company_name,
         "is_active": a.is_active,
+        "has_survey": a.has_survey,
         "expires_at": a.expires_at.isoformat() if a.expires_at else None,
         "created_at": a.created_at.isoformat() if a.created_at else None,
     }
@@ -530,18 +540,32 @@ def create_announcement(
         except ValueError:
             raise HTTPException(status_code=400, detail="expires_at formati noto'g'ri")
 
+    has_survey = bool(data.questions and len(data.questions) > 0)
+
     ann = Announcement(
         title=data.title.strip(),
         message=data.message.strip(),
         company_id=data.company_id,
         expires_at=expires,
         is_active=True,
+        has_survey=has_survey,
         created_by=admin.id,
         created_at=datetime.now(_tz.utc),
     )
     db.add(ann)
     db.commit()
     db.refresh(ann)
+
+    if has_survey and data.questions:
+        for q in data.questions:
+            sq = SurveyQuestion(
+                announcement_id=ann.id,
+                text=q.text.strip(),
+                question_type=q.question_type,
+                options=json.dumps(q.options) if q.options else None
+            )
+            db.add(sq)
+        db.commit()
 
     company_name = None
     if ann.company_id:
@@ -564,7 +588,16 @@ def list_announcements(
         if a.company_id:
             c = db.query(Company).filter(Company.id == a.company_id).first()
             company_name = c.name if c else None
-        result.append(_ann_dict(a, company_name))
+        
+        adict = _ann_dict(a, company_name)
+        # Savollar sonini qo'shamiz
+        if a.has_survey:
+            questions_count = db.query(SurveyQuestion).filter(SurveyQuestion.announcement_id == a.id).count()
+            answers_count = db.query(SurveyAnswer.company_id).join(SurveyQuestion).filter(SurveyQuestion.announcement_id == a.id).distinct().count()
+            adict["questions_count"] = questions_count
+            adict["answers_count"] = answers_count
+            
+        result.append(adict)
     return result
 
 
@@ -635,4 +668,121 @@ def get_active_announcements(
         ),
     ).order_by(Announcement.id.desc())
 
-    return [_ann_dict(a) for a in q.all()]
+    announcements = q.all()
+    result = []
+    
+    for a in announcements:
+        adict = _ann_dict(a)
+        adict["has_answered"] = False
+        adict["questions"] = []
+        
+        if a.has_survey:
+            # Check if this company already answered
+            answered = db.query(SurveyAnswer).join(SurveyQuestion).filter(
+                SurveyQuestion.announcement_id == a.id,
+                SurveyAnswer.company_id == company_id
+            ).first()
+            
+            if answered:
+                adict["has_answered"] = True
+            else:
+                questions = db.query(SurveyQuestion).filter(SurveyQuestion.announcement_id == a.id).all()
+                adict["questions"] = [
+                    {
+                        "id": q.id,
+                        "text": q.text,
+                        "question_type": q.question_type,
+                        "options": json.loads(q.options) if q.options else None
+                    }
+                    for q in questions
+                ]
+                
+        result.append(adict)
+
+    return result
+
+
+class SurveySubmit(BaseModel):
+    answers: Dict[int, Any]  # question_id: answer_data
+
+@router.post("/announcements/active/{ann_id}/submit-survey", tags=["Announcements"])
+def submit_survey(
+    ann_id: int,
+    data: SurveySubmit,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    ann = db.query(Announcement).filter(Announcement.id == ann_id, Announcement.is_active == True).first()
+    if not ann or not ann.has_survey:
+        raise HTTPException(status_code=404, detail="So'rovnoma topilmadi yoki faol emas")
+        
+    company_id = current_user.company_id
+    
+    # Check if already answered
+    answered = db.query(SurveyAnswer).join(SurveyQuestion).filter(
+        SurveyQuestion.announcement_id == ann_id,
+        SurveyAnswer.company_id == company_id
+    ).first()
+    if answered:
+        raise HTTPException(status_code=400, detail="Siz allaqachon ushbu so'rovnomani to'ldirgansiz")
+
+    questions = db.query(SurveyQuestion).filter(SurveyQuestion.announcement_id == ann_id).all()
+    valid_q_ids = {q.id for q in questions}
+    
+    for q_id_str, answer_data in data.answers.items():
+        q_id = int(q_id_str)
+        if q_id not in valid_q_ids:
+            continue
+            
+        ans = SurveyAnswer(
+            question_id=q_id,
+            company_id=company_id,
+            user_id=current_user.id,
+            answer_data=json.dumps(answer_data) if not isinstance(answer_data, str) else answer_data
+        )
+        db.add(ans)
+        
+    db.commit()
+    return {"ok": True, "message": "Javobingiz qabul qilindi. Rahmat!"}
+
+
+@router.get("/announcements/{ann_id}/survey-results", tags=["Super Admin"])
+def get_survey_results(
+    ann_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_super_admin),
+):
+    ann = db.query(Announcement).filter(Announcement.id == ann_id).first()
+    if not ann or not ann.has_survey:
+        raise HTTPException(status_code=404, detail="So'rovnoma topilmadi")
+        
+    questions = db.query(SurveyQuestion).filter(SurveyQuestion.announcement_id == ann_id).all()
+    results = []
+    
+    for q in questions:
+        answers = db.query(SurveyAnswer, Company.name.label("company_name"), User.name.label("user_name"))\
+            .join(Company, SurveyAnswer.company_id == Company.id)\
+            .join(User, SurveyAnswer.user_id == User.id)\
+            .filter(SurveyAnswer.question_id == q.id).all()
+            
+        ans_list = []
+        for ans, comp_name, user_name in answers:
+            ans_list.append({
+                "company_name": comp_name,
+                "user_name": user_name,
+                "answer": ans.answer_data,
+                "date": ans.created_at.isoformat() if ans.created_at else None
+            })
+            
+        results.append({
+            "question_id": q.id,
+            "text": q.text,
+            "type": q.question_type,
+            "options": json.loads(q.options) if q.options else None,
+            "answers": ans_list
+        })
+        
+    return {
+        "announcement": _ann_dict(ann),
+        "results": results
+    }

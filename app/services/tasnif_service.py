@@ -7,6 +7,41 @@ from sqlalchemy.orm import Session
 from app.models.mxik import MxikReference, MxikPackage, VatRateType
 
 TASNIF_BASE_URL = "https://tasnif.soliq.uz/api/cl-api"
+TASNIF_SEARCH_URL = "https://tasnif.soliq.uz/api/cls-api/elasticsearch/search"
+TASNIF_PUBLIC_URL = "https://tasnif.soliq.uz/api/cls-api/mxik/get/by-mxik"
+
+
+async def search_mxik_by_barcode(barcode: str, lang: str = "uz") -> Optional[dict]:
+    """
+    tasnif.soliq.uz ochiq qidiruv API'si (auth/terminal_id talab qilmaydi).
+    Shtrix kodni qidiruv matni sifatida yuboradi va natijalar ichidan
+    internationalCode aynan barcode ga teng bo'lgan elementni qaytaradi.
+    Ichki tovarlar_catalog jadvalida topilmagan (yangi/kam tarqalgan) shtrix
+    kodlar uchun fallback sifatida ishlatiladi.
+    """
+    params = {"lang": lang, "search": barcode, "page": 0, "size": 20}
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.get(TASNIF_SEARCH_URL, params=params)
+        resp.raise_for_status()
+        items = resp.json().get("data") or []
+    return next((item for item in items if item.get("internationalCode") == barcode), None)
+
+
+async def fetch_mxik_public(mxik_code: str, lang: str = "uz") -> Optional[dict]:
+    """
+    tasnif.soliq.uz ochiq (auth/terminal_id talab qilmaydigan) API'si.
+    To'liq tasnif ma'lumoti (guruh/sinf/pozitsiya/brend) VA barcha o'lchov
+    birligi/paket variantlarini (har biri unitId bilan) bitta so'rovda beradi.
+    Terminalga bog'langan cl-api'dan farqli o'laroq, bu yerda vazn/hajm bo'yicha
+    sotiladigan mahsulotlar uchun barcha birlik variantlari (gramm, kg, tonna...)
+    alohida "asosiy" (isUnitPackage=1) paket sifatida qaytadi.
+    """
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.get(TASNIF_PUBLIC_URL, params={"mxikCode": mxik_code, "lang": lang})
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+    return data if data and data.get("mxikCode") else None
 
 
 async def fetch_mxik_info(mxik_code: str, terminal_id: str, lang: str = "uz") -> dict:
@@ -133,21 +168,28 @@ def upsert_mxik_reference(
 
     # Paketlarni qayta yozish — packages endpointidan kelgan ro'yxat ustunlik qiladi
     pkg_list = packages if packages is not None else (data.get("packages") or [])
-    # packageType=1 (asosiy birlik) ning code ini topamiz — parent_code uchun
-    base_code = next((p.get("code") for p in pkg_list if str(p.get("packageType")) == "1"), None)
 
     db.query(MxikPackage).filter(MxikPackage.mxik_reference_id == ref.id).delete()
     for pkg in pkg_list:
-        pkg_type = int(pkg["packageType"]) if pkg.get("packageType") else None
-        is_unit = 1 if pkg_type == 1 else 0
-        # parent_code: asosiy birlik uchun null, qolganlar uchun base_code
-        derived_parent = None if pkg_type == 1 else base_code
+        # Ikki xil manba formatini qo'llab-quvvatlaymiz:
+        # - ochiq (cls-api) format: type, isUnitPackage, unitId, unitName, containerCode, parentCode, name
+        # - eski (cl-api) format: packageType, nameUz/nameRu
+        pkg_type_raw = pkg.get("type") if "type" in pkg else pkg.get("packageType")
+        pkg_type = int(pkg_type_raw) if pkg_type_raw not in (None, "") else None
+        if "isUnitPackage" in pkg:
+            is_unit = 1 if str(pkg.get("isUnitPackage")) == "1" else 0
+        else:
+            is_unit = 1 if pkg_type == 1 else 0
         db.add(MxikPackage(
             mxik_reference_id = ref.id,
             code              = pkg.get("code"),
-            parent_code       = derived_parent,
-            unit_name         = pkg.get("nameUz") or pkg.get("unitName"),
-            name              = pkg.get("nameUz") or pkg.get("name"),
+            parent_code       = pkg.get("parentCode"),
+            container_code    = pkg.get("containerCode"),
+            container_name    = pkg.get("containerName"),
+            unit_id           = pkg.get("unitId"),
+            unit_name         = pkg.get("unitName") or pkg.get("nameUz"),
+            parent_value      = pkg.get("parentValue"),
+            name              = pkg.get("name") or pkg.get("nameUz"),
             type              = pkg_type,
             is_unit_package   = is_unit,
         ))
@@ -160,12 +202,17 @@ def upsert_mxik_reference(
 async def sync_mxik(
     db: Session,
     mxik_code: str,
-    terminal_id: str,
+    terminal_id: str = "",
     force_refresh: bool = False,
 ) -> MxikReference:
     """
     MXIK ma'lumotini DB dan qaytaradi.
-    DB da yo'q bo'lsa yoki force_refresh=True bo'lsa, API 1 + API 2 dan oladi.
+    DB da yo'q bo'lsa yoki force_refresh=True bo'lsa, tasnif.soliq.uz dan oladi.
+
+    Asosiy manba — ochiq (auth/terminal_id talab qilmaydigan) cls-api, chunki
+    u bir so'rovda to'liq tasnif + barcha o'lchov birligi/paket variantlarini
+    (unitId bilan) beradi. terminal_id faqat orqaga moslik uchun qabul
+    qilinadi, ochiq API'da ishlatilmaydi.
     """
     if not force_refresh:
         existing = db.query(MxikReference).filter(
@@ -174,20 +221,19 @@ async def sync_mxik(
         if existing:
             return existing
 
-    # API 1: asosiy ma'lumotlar
-    response = await fetch_mxik_info(mxik_code, terminal_id)
+    data = await fetch_mxik_public(mxik_code)
 
-    if response.get("data"):
-        items = response["data"]
-    elif response.get("content"):
-        items = response["content"]
-    else:
-        items = [response]
+    if not data:
+        # Fallback: eski, terminal_id talab qiladigan cl-api
+        if not terminal_id:
+            raise ValueError(f"MXIK {mxik_code} topilmadi")
+        response = await fetch_mxik_info(mxik_code, terminal_id)
+        items = response.get("data") or response.get("content") or [response]
+        if not items:
+            raise ValueError(f"MXIK {mxik_code} topilmadi")
+        data = items[0]
 
-    if not items:
-        raise ValueError(f"MXIK {mxik_code} topilmadi")
-
-    # API 2: QQS lgota ma'lumotlari (xato bo'lsa o'tkazib yuboramiz)
+    # QQS lgota ma'lumotlari (xato bo'lsa o'tkazib yuboramiz)
     vat_data: dict = {}
     try:
         vat_response = await fetch_vat_lgota([mxik_code])
@@ -195,11 +241,4 @@ async def sync_mxik(
     except Exception:
         pass
 
-    # API 3: to'liq paket ro'yxati — parent_code ni chiqarish uchun
-    pkg_list: list = []
-    try:
-        pkg_list = await fetch_mxik_packages(mxik_code, terminal_id)
-    except Exception:
-        pass
-
-    return upsert_mxik_reference(db, items[0], vat_info=vat_data or None, packages=pkg_list or None)
+    return upsert_mxik_reference(db, data, vat_info=vat_data or None)

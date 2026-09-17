@@ -1,0 +1,255 @@
+========================================================================
+E-CODE — YANGI QO'SHILGAN API'LAR
+Base URL: https://<server>/api
+Barcha so'rovlarga qo'shing: Authorization: Bearer <access_token>
+========================================================================
+
+
+------------------------------------------------------------------------
+0) LOGIN (mavjud, o'zgarmagan — token olish uchun)
+------------------------------------------------------------------------
+POST /auth/login
+
+Body:
+{
+  "phone": "+998901234567",
+  "password": "••••••"
+}
+
+Javob:
+{
+  "access_token": "eyJ...",
+  "token_type": "bearer",
+  ...
+}
+
+
+========================================================================
+1) MXIK SINXRONIZATSIYA
+========================================================================
+
+POST /products/mxik-sync-bulk
+
+Ruxsat: admin, direktor, ombor, menejer
+Body: kerak emas (bo'sh)
+
+Nima qiladi:
+  Kompaniyaning barcha shtrix kodli mahsulotlarini avval lokal katalog,
+  topilmasa tasnif.soliq.uz ochiq qidiruvi orqali tekshiradi va
+  mxik_code + o'lchov birligini avtomatik yozadi.
+
+Javob (200):
+{
+  "total": 42,
+  "active": 37,     // mxik_code topildi
+  "disabled": 4,    // tasnifda topilmadi
+  "error": 1        // tarmoq xatosi
+}
+
+
+========================================================================
+2) MARKIROVKA (Data Matrix / Chestny Znak)
+========================================================================
+
+--- 2.1 Mahsulotga belgi qo'yish -----------------------------------
+
+PUT /products/{id}     (yoki POST /products yaratishda)
+
+Yangi maydon:
+  requires_marking : boolean
+    true bo'lsa — bu mahsulot sotuvda Data Matrix kod talab qiladi.
+
+
+--- 2.2 Sotuvda markirovka kodlarini yuborish -----------------------
+
+POST /sales/            (yoki PUT /sales/{id})
+
+items[] massividagi har bir qatorga yangi maydon qo'shildi:
+
+{
+  "items": [
+    {
+      "product_id": 128,
+      "quantity": 2,
+      "marking_codes": [
+        "0104780012030412215K8F...",
+        "0104780012030412219Q2Z..."
+      ]
+    }
+  ],
+  "payment_type": "cash",
+  "paid_amount": 76000
+}
+
+MUHIM — majburiy son mosligi:
+  Agar mahsulotda requires_marking = true bo'lsa, marking_codes.length
+  aynan quantity ga teng bo'lishi SHART. Mos kelmasa server 400 qaytaradi:
+
+  "'Mahsulot nomi' — markirovka talab qilinadi.
+   2 ta kod skanerlanishi kerak, 1 ta kiritildi."
+
+
+========================================================================
+3) AI COPILOT
+========================================================================
+
+AI bitta chat endpointi orqali ishlaydi — tabiiy tilda yozasiz, u mos
+"tool"ni tanlab bajaradi. Xavfli (HIGH) amallar avval tasdiqlash talab
+qiladi (2 bosqichli oqim).
+
+--- 3.1 Chat -------------------------------------------------------
+
+POST /ai/chat
+(bir xil ishlaydigan ikkinchi nom: POST /ai/copilot/chat)
+
+Ruxsat: admin, direktor, menejer, super_admin
+
+So'rov:
+{
+  "message": "Aliga 2 dona Coca cola sot, naqd",
+  "conversation_id": "mob-19"
+}
+
+Javob — LOW / MEDIUM tool (darhol bajariladi):
+{
+  "reply": "✅ Yangi mijoz qo'shildi: Aziz",
+  "action": {
+    "type": "customer_created",
+    "customer_id": 55
+  }
+}
+
+Javob — HIGH tool (tasdiqlash kerak):
+{
+  "reply": "⚠️ Ushbu amalni bajarish uchun tasdiqlash talab qilinadi.",
+  "action": {
+    "type": "confirm_action",
+    "confirmation_id": "9f3e2a-...",
+    "tool_name": "create_sale",
+    "arguments": { /* AI tanlagan parametrlar */ }
+  }
+}
+
+  Mobil oqim: action.type === "confirm_action" kelsa — foydalanuvchiga
+  "Tasdiqlaysizmi?" ko'rsating, so'ng confirmation_id ni pastdagi
+  /ai/confirm ga yuboring.
+
+
+--- 3.2 Tasdiqlash (HIGH-risk uchun) ---------------------------------
+
+POST /ai/confirm
+
+Ruxsat: admin, direktor, menejer*, super_admin
+
+So'rov:
+{ "confirmation_id": "9f3e2a-..." }
+
+Javob:
+{
+  "reply": "✅ Sotuv yaratildi (#S-0912)!...",
+  "action": { "type": "sale_created", ... }
+}
+
+  *Menejer cheklovi: tool risk_level = HIGH bo'lsa, faqat
+  admin/direktor/super_admin tasdiqlay oladi — menejer /confirm ni
+  chaqira oladi, lekin natija "❌ ...ruxsat yo'q" bo'ladi. Shuningdek
+  faqat amalni BOSHLAGAN foydalanuvchi uni tasdiqlay oladi.
+
+  Xatoni aniqlash: ko'p holatlarda server 200 OK qaytaradi, lekin
+  reply matni "❌" bilan boshlanadi (masalan ruxsat yo'q, mijoz
+  topilmadi). Faqat HTTP status'ga emas, reply prefiksiga ham qarang.
+
+
+--- 3.3 /ai/chat orqali chaqiriladigan barcha tool'lar (22 ta) -------
+
+Tool nomi                    | Xavf   | Namuna so'rov (tabiiy til)
+------------------------------------------------------------------------
+create_sale                  | HIGH   | "Aliga 2 dona Coca cola sot, naqd"
+update_product                | HIGH   | "Coca cola narxini 20000 qil"
+record_debt_payment          | HIGH   | "Ali 50000 so'm to'ladi"
+record_new_debt               | HIGH   | "Vali 30000 nasiya oldi"
+create_product                | MEDIUM | "Fanta 1.5L, narxi 18000 qo'sh"
+create_customer               | MEDIUM | "Yangi mijoz: Aziz, +998901234567"
+update_customer                | MEDIUM | "Alining telefonini +998... ga o'zgartir"
+draft_purchase_order          | MEDIUM | "Tugayotgan tovarlar uchun zayavka tayyorla"
+                                          -> keyin /ai/actions/purchase-order
+draft_sms_campaign             | MEDIUM | "Qarzdorlarga SMS tayyorla"
+                                          -> keyin /ai/actions/sms-campaign
+get_sales_summary              | LOW    | "Bugungi savdo qancha?"
+get_profit_today                | LOW    | "Bugungi foyda qancha?"
+get_top_products                | LOW    | "Eng ko'p sotilgan mahsulotlar"
+get_low_stock                   | LOW    | "Zaxirasi kam mahsulotlar"
+predict_stock_depletion         | LOW    | "Qaysi mahsulot tez tugaydi?"
+get_product_profit              | LOW    | "Coca cola'dan qancha foyda?"
+find_product_info               | LOW    | "Coca cola narxi qancha?"
+get_debtors_list                 | LOW    | "Eng yirik qarzdorlar"
+check_customer_debt              | LOW    | "Alining qarzi bormi?"
+get_top_customers                | LOW    | "Eng ko'p xarid qiluvchi mijozlar"
+get_inactive_customers           | LOW    | "Passiv mijozlar ro'yxati"
+get_churn_risk_customers         | LOW    | "Yo'qolayotgan mijozlar"
+get_new_customers_stat           | LOW    | "Bu haftadagi yangi mijozlar"
+
+
+--- 3.4 Xarid buyurtmasini yaratish ----------------------------------
+
+POST /ai/actions/purchase-order
+
+Ruxsat: admin, direktor, menejer, super_admin
+
+draft_purchase_order qoralamasini haqiqiy xarid buyurtmasiga aylantiradi.
+Yetkazib beruvchi bo'yicha guruhlab, har biriga alohida buyurtma yaratadi.
+
+So'rov:
+{
+  "warehouse_id": 3,
+  "items": [
+    {
+      "product_id": 128,
+      "quantity": 50,
+      "unit_cost": 9500,
+      "supplier_id": 7
+    }
+  ]
+}
+
+Javob:
+{
+  "reply": "✅ 1 ta xarid buyurtmasi yaratildi: PO-0042",
+  "purchase_order_ids": [42],
+  "purchase_order_numbers": ["PO-0042"]
+}
+
+MUHIM: Har bir qatorda supplier_id majburiy — yo'q bo'lsa 400:
+  "N ta mahsulot uchun yetkazib beruvchi tanlanmagan."
+
+
+--- 3.5 SMS kampaniya yuborish ----------------------------------------
+
+POST /ai/actions/sms-campaign
+
+Ruxsat: admin, direktor, super_admin   (menejer YO'Q)
+
+draft_sms_campaign ro'yxatini haqiqiy Eskiz SMS yuborishga aylantiradi
+va har birini SMSLog'ga yozadi.
+
+So'rov:
+{
+  "recipients": [
+    { "id": 12, "name": "Ali", "phone": "998901234567" }
+  ],
+  "message": "Assalomu alaykum! Sizga maxsus chegirma..."
+}
+
+Javob:
+{
+  "reply": "✅ 1 ta mijozga SMS yuborildi.",
+  "sent": 1,
+  "failed": 0
+}
+
+MUHIM: Bir martada maksimal 50 ta qabul qiluvchi.
+
+
+========================================================================
+Xato javoblari odatda { "detail": "..." } shaklida (FastAPI standarti)
+========================================================================

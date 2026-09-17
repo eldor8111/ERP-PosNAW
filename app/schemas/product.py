@@ -69,6 +69,7 @@ class ProductCreate(BaseModel):
     mxik_code: Optional[str] = None
     parent_code: Optional[int] = None
     unit_id: Optional[int] = None
+    requires_marking: bool = False
     cost_currency: str = "UZS"
     wholesale_currency: str = "UZS"
     sale_currency: str = "UZS"
@@ -118,6 +119,7 @@ class ProductUpdate(BaseModel):
     mxik_code: Optional[str] = None
     parent_code: Optional[int] = None
     unit_id: Optional[int] = None
+    requires_marking: Optional[bool] = None
     cost_currency: Optional[str] = None
     wholesale_currency: Optional[str] = None
     sale_currency: Optional[str] = None
@@ -174,6 +176,8 @@ class ProductOut(BaseModel):
     mxik_code: Optional[str] = None
     parent_code: Optional[int] = None
     unit_id: Optional[int] = None
+    mxik_sync_status: Optional[str] = "unknown"
+    requires_marking: bool = False
     cost_currency: str = "UZS"
     wholesale_currency: str = "UZS"
     sale_currency: str = "UZS"
@@ -241,6 +245,8 @@ class ProductListOut(BaseModel):
     mxik_code: Optional[str] = None
     parent_code: Optional[int] = None
     unit_id: Optional[int] = None
+    mxik_sync_status: Optional[str] = "unknown"
+    requires_marking: bool = False
     cost_currency: str = "UZS"
     wholesale_currency: str = "UZS"
     sale_currency: str = "UZS"

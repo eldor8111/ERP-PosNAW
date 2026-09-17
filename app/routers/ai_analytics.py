@@ -22,6 +22,7 @@ router = APIRouter(prefix="/ai", tags=["AI Analytics & Copilot"])
 
 class ChatRequest(BaseModel):
     message: str
+    conversation_id: str = ""
 
 @router.get("/status")
 def get_ai_status():
@@ -38,49 +39,106 @@ def get_ai_status():
         ]
     }
 
-@router.post("/chat")
-def ai_chat(
-    request: ChatRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
-):
-    forbidden_words = ["boshqa korxona", "admin", "barcha korxona", "unut", "ignore"]
+_FORBIDDEN_WORDS = ["boshqa korxona", "admin", "barcha korxona", "unut", "ignore"]
+
+
+def _run_copilot_chat(request: "ChatRequest", db: Session, current_user: User) -> dict:
+    """
+    /chat va /copilot/chat endpointlari uchun umumiy mantiq.
+    Ikki endpoint ilgari bir xil kodni deyarli aynan takrorlagan; biri esa
+    hech qachon import qilinmagan `execute_copilot_action()` ni chaqirib,
+    ishga tushsa 500 bilan yiqiladigan o'lik kodga ega edi. Shu sabab yagona
+    joyga birlashtirildi.
+    """
     msg_lower = request.message.lower()
-    if any(word in msg_lower for word in forbidden_words):
+    if any(word in msg_lower for word in _FORBIDDEN_WORDS):
         return {"reply": "Kechirasiz, faqat o'z korxonangizga tegishli ma'lumotlarga javob bera olaman."}
-        
+
     context = build_daily_context(db, current_user.company_id)
     api_key = os.getenv("OPENROUTER_API_KEY", "")
-    
-    intent_data = call_copilot_ai(request.message, context, api_key, user=current_user)
+
+    from app.models.ai_chat_history import AiChatHistory
+
+    # 1. Oxirgi 10 ta xabarni olish
+    history_records = db.query(AiChatHistory).filter(
+        AiChatHistory.user_id == current_user.id,
+        AiChatHistory.company_id == current_user.company_id
+    ).order_by(AiChatHistory.created_at.desc()).limit(20).all()
+    history_records.reverse()
+
+    conversation_history = [
+        {"role": r.role, "content": r.message}
+        for r in history_records
+    ]
+
+    # 2. Foydalanuvchi xabarini saqlash
+    db.add(AiChatHistory(
+        user_id=current_user.id,
+        company_id=current_user.company_id,
+        role="user",
+        message=request.message,
+        intent="pending"
+    ))
+    db.commit()
+
+    # 3. call_copilot_ai ga conversation_history uzatish
+    intent_data = call_copilot_ai(request.message, context, api_key, user=current_user, conversation_history=conversation_history)
 
     if intent_data.get("intent") == "execute_tool":
         tool_name = intent_data.get("tool_name")
         tool_arguments = intent_data.get("tool_arguments", {})
-        
+
         result = AIToolRegistry.execute_tool(
             db=db,
             name=tool_name,
             kwargs=tool_arguments,
             user=current_user,
             prompt=request.message,
-            conversation_id="" # Optional
+            conversation_id=request.conversation_id
         )
-        
+
         # Agar bu analitika tool bo'lsa, javobni AI orqali "human-friendly" qilamiz
         if result.get("action") and result["action"].get("type") == "show_data":
             from app.services.openrouter_copilot_service import summarize_tool_result_with_llm
             ai_summary = summarize_tool_result_with_llm(request.message, tool_name, result["reply"], api_key)
             result["reply"] = ai_summary
 
+        result_reply = result.get("reply", "")
+
+        # 4. AI javobini saqlash
+        db.add(AiChatHistory(
+            user_id=current_user.id,
+            company_id=current_user.company_id,
+            role="assistant",
+            message=result_reply,
+            intent=intent_data.get("intent", "query")
+        ))
+        db.commit()
         return result
 
+    result_reply = intent_data.get("reply", "Kechirasiz, men bu so'rovni tushunmadim.")
+
+    db.add(AiChatHistory(
+        user_id=current_user.id,
+        company_id=current_user.company_id,
+        role="assistant",
+        message=result_reply,
+        intent=intent_data.get("intent", "query")
+    ))
+    db.commit()
+
     return {
-        "reply": intent_data.get(
-            "reply",
-            "Kechirasiz, men bu so'rovni tushunmadim."
-        )
+        "reply": result_reply
     }
+
+
+@router.post("/chat")
+def ai_chat(
+    request: ChatRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
+):
+    return _run_copilot_chat(request, db, current_user)
 
 # Also keeping the old endpoints like /daily-summary unchanged.
 @router.get("/daily-summary")
@@ -244,33 +302,7 @@ def chat_with_copilot(
     - Nasiya yozish: «Vali 30000 so'm nasiya oldi»
     - Savdo savollari: «Bugungi tushum qancha?»
     """
-    # Qat'iy tenant izolyatsiyasi (Prompt Injection himoyasi)
-    forbidden_words = ["boshqa korxona", "admin", "barcha korxona", "unut", "ignore"]
-    msg_lower = request.message.lower()
-    if any(word in msg_lower for word in forbidden_words):
-        return {"reply": "Kechirasiz, faqat o'z korxonangizga tegishli ma'lumotlarga javob bera olaman."}
-        
-    context = build_daily_context(db, current_user.company_id)
-    api_key = os.getenv("OPENROUTER_API_KEY", "")
-    
-    # AI ga so'rov yuboramiz
-    intent_data = call_copilot_ai(request.message, context, api_key)
-
-    # Agar AI funksiya (tool) tanlagan bo'lsa, uni bajarish
-    if intent_data.get("intent") in ["debt_payment", "add_debt", "check_debt"]:
-        # execute_copilot_action ichida company_id qat'iy ravishda tokendan(current_user) olinadi!
-        result = execute_copilot_action(
-            intent_data, db, current_user.company_id, current_user.id
-        )
-        return result
-
-    # Agar xato bo'lsa yoki shunchaki matnli javob bo'lsa
-    return {
-        "reply": intent_data.get(
-            "reply",
-            "Kechirasiz, men bu so'rovni tushunmadim."
-        )
-    }
+    return _run_copilot_chat(request, db, current_user)
 
 @router.get("/recommendations")
 def get_ai_recommendations(
@@ -411,3 +443,192 @@ async def process_voice_command(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ovozli xabarni qayta ishlashda xatolik: {str(e)}")
+
+class ConfirmRequest(BaseModel):
+    confirmation_id: str
+
+@router.post("/confirm")
+def confirm_ai_action(
+    request: ConfirmRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
+):
+    from app.models.ai_audit import AIAuditLog
+    import time
+    
+    log = db.query(AIAuditLog).filter(
+        AIAuditLog.confirmation_id == request.confirmation_id,
+        AIAuditLog.company_id == current_user.company_id,
+        AIAuditLog.status == "PENDING_CONFIRMATION"
+    ).first()
+
+    if not log:
+        return {"reply": "❌ Tasdiqlash topilmadi yoki allaqachon bajarilgan."}
+
+    # Faqat amalni boshlagan foydalanuvchining o'zi tasdiqlashi mumkin —
+    # aks holda bir kompaniyadagi boshqa foydalanuvchi (masalan manager)
+    # o'ziga ruxsat berilmagan HIGH-risk amalni confirmation_id orqali
+    # bajarib yuborishi mumkin edi.
+    if log.user_id != current_user.id:
+        return {"reply": "❌ Bu tasdiqlashni faqat uni boshlagan foydalanuvchi bajarishi mumkin."}
+
+    tool_class = AIToolRegistry.get_tool(log.tool_name)
+    if not tool_class:
+        return {"reply": "❌ Tool topilmadi."}
+
+    # Tool'ning risk_level'iga qarab rolni qayta tekshiramiz — endpoint
+    # decoratoridagi keng rol ro'yxati (manager ham kiradi) HIGH-risk tool
+    # uchun yetarli emas.
+    from app.models.user import UserRole
+    HIGH_RISK_ROLES = [UserRole.admin, UserRole.director, UserRole.super_admin]
+    if tool_class.risk_level == "HIGH" and current_user.role not in HIGH_RISK_ROLES:
+        return {"reply": "❌ Kechirasiz, sizda bu amalni tasdiqlash uchun ruxsat yo'q."}
+
+    start_time = time.time()
+    try:
+        tool_instance = tool_class()
+        result = tool_instance.execute(db, current_user.company_id, current_user, **log.tool_arguments)
+        log.status = "SUCCESS"
+        log.result_summary = result.get("reply", "")
+    except Exception as e:
+        db.rollback()
+        log.status = "ERROR"
+        log.error = str(e)
+        result = {"reply": f"❌ Xatolik yuz berdi: {str(e)}"}
+
+    log.execution_time_ms = (time.time() - start_time) * 1000
+    db.commit()
+    return result
+
+
+# ─── AI qoralamalarini haqiqiy yozuvga aylantirish ───────────────────────────
+
+from decimal import Decimal
+from typing import List, Optional
+
+
+class ConfirmPOItem(BaseModel):
+    product_id: int
+    quantity: Decimal
+    unit_cost: Decimal
+    supplier_id: int
+
+
+class ConfirmPORequest(BaseModel):
+    warehouse_id: int
+    items: List[ConfirmPOItem]
+    note: Optional[str] = None
+
+
+@router.post("/actions/purchase-order")
+def confirm_ai_purchase_order(
+    request: ConfirmPORequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin)),
+):
+    """
+    AI tomonidan tayyorlangan zayavka qoralamasini haqiqiy xarid buyurtmasi(lari)ga
+    aylantiradi. Har bir yetkazib beruvchi uchun alohida PurchaseOrder yaratiladi.
+    """
+    if not request.items:
+        raise HTTPException(status_code=400, detail="Mahsulotlar ro'yxati bo'sh")
+
+    missing = [i for i in request.items if not i.supplier_id]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{len(missing)} ta mahsulot uchun yetkazib beruvchi tanlanmagan. Iltimos, barcha mahsulotlarga yetkazib beruvchi tanlang.",
+        )
+
+    from collections import defaultdict
+    from app.schemas.purchase_order import POCreate, POItemCreate
+    from app.services.purchase_order_service import create_purchase_order
+
+    groups: dict = defaultdict(list)
+    for item in request.items:
+        groups[item.supplier_id].append(item)
+
+    created_pos = []
+    for supplier_id, items in groups.items():
+        po_data = POCreate(
+            supplier_id=supplier_id,
+            warehouse_id=request.warehouse_id,
+            note=request.note or "AI Copilot orqali avtomatik tayyorlangan zayavka",
+            items=[
+                POItemCreate(product_id=i.product_id, qty_ordered=i.quantity, unit_cost=i.unit_cost)
+                for i in items
+            ],
+        )
+        po = create_purchase_order(db, po_data, current_user)
+        created_pos.append(po)
+
+    db.commit()
+    for po in created_pos:
+        db.refresh(po)
+
+    numbers = ", ".join(po.number for po in created_pos)
+    return {
+        "reply": f"✅ {len(created_pos)} ta xarid buyurtmasi yaratildi: {numbers}",
+        "purchase_order_ids": [po.id for po in created_pos],
+        "purchase_order_numbers": [po.number for po in created_pos],
+    }
+
+
+class ConfirmSmsRecipient(BaseModel):
+    id: Optional[int] = None
+    name: Optional[str] = None
+    phone: str
+
+
+class ConfirmSmsRequest(BaseModel):
+    recipients: List[ConfirmSmsRecipient]
+    message: str
+
+
+SMS_SEND_ROLES = (UserRole.admin, UserRole.director, UserRole.super_admin)
+
+
+@router.post("/actions/sms-campaign")
+async def confirm_ai_sms_campaign(
+    request: ConfirmSmsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*SMS_SEND_ROLES)),
+):
+    """
+    AI tomonidan tayyorlangan SMS kampaniya qoralamasini haqiqatan yuboradi
+    (Eskiz orqali), har bir xabarni SMSLog'ga yozadi.
+    """
+    if not request.recipients:
+        raise HTTPException(status_code=400, detail="Qabul qiluvchilar ro'yxati bo'sh")
+    if len(request.recipients) > 50:
+        raise HTTPException(status_code=400, detail="Bir martada 50 tadan ortiq mijozga yuborib bo'lmaydi")
+    if not request.message or not request.message.strip():
+        raise HTTPException(status_code=400, detail="Xabar matni bo'sh bo'lishi mumkin emas")
+
+    from app.models.sms_log import SMSLog
+    from app.services import eskiz_service
+
+    sent, failed = 0, 0
+    for r in request.recipients:
+        result = await eskiz_service.send_sms(r.phone, request.message)
+        db.add(SMSLog(
+            company_id=current_user.company_id,
+            phone=r.phone,
+            message=request.message,
+            status="sent" if result["success"] else "failed",
+            eskiz_id=result.get("eskiz_id"),
+            sms_type="ai_campaign",
+            error=result.get("error"),
+        ))
+        if result["success"]:
+            sent += 1
+        else:
+            failed += 1
+
+    db.commit()
+
+    reply = f"✅ {sent} ta mijozga SMS yuborildi."
+    if failed:
+        reply += f" {failed} tasi yuborilmadi (xato)."
+
+    return {"reply": reply, "sent": sent, "failed": failed}

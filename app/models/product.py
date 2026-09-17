@@ -70,6 +70,13 @@ class Product(Base):
     parent_code = Column(Integer, nullable=True)
     unit_id = Column(Integer, nullable=True) # unit_id for MXIK
 
+    # MXIK sinxronizatsiya holati: unknown | active | disabled | error
+    mxik_sync_status = Column(String(20), nullable=False, default="unknown", server_default="unknown")
+    mxik_synced_at = Column(DateTime, nullable=True)
+
+    # Milliy raqamli markirovka (Data Matrix / Chestny Znak) talab qilinadimi
+    requires_marking = Column(Boolean, nullable=False, default=False, server_default="false")
+
     @property
     def category_name(self):
         return self.category.name if self.category else None

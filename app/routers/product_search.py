@@ -61,6 +61,11 @@ def list_products_for_pos(
         Product.category_id,
         Product.image_url,
         Product.product_type,
+        Product.mxik_code,
+        Product.package_code,
+        Product.parent_code,
+        Product.requires_marking,
+        Product.vat_rate_type,
     ).filter(
         Product.is_deleted == False,
         Product.company_id == current_user.company_id,
@@ -176,6 +181,11 @@ def list_products_for_pos(
             "product_type": p.product_type or "stock",
             "stock_quantity": get_stock(p),
             "conversion": conversion_map.get(p.id),
+            "mxik_code": p.mxik_code,
+            "package_code": p.package_code,
+            "parent_code": p.parent_code,
+            "requires_marking": bool(p.requires_marking),
+            "vat_rate_type": p.vat_rate_type.value if p.vat_rate_type else None,
         }
         for p in products_raw
     ]

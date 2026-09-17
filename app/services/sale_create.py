@@ -23,6 +23,26 @@ from app.services.sale_helpers import (
 )
 
 
+def _resolve_marking_codes(product: Product, item_data) -> list:
+    """
+    Markirovka (Data Matrix) kodlarini tekshiradi.
+    Mahsulot requires_marking=True bo'lsa, skanerlangan kodlar soni miqdorga
+    teng bo'lishi shart — aks holda fiskal chekda markirovka aks etmaydi.
+    """
+    codes = [c for c in (getattr(item_data, "marking_codes", None) or []) if c and c.strip()]
+    if product.requires_marking:
+        expected = int(item_data.quantity)
+        if len(codes) != expected:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"'{product.name}' — markirovka talab qilinadi. "
+                    f"{expected} ta kod skanerlanishi kerak, {len(codes)} ta kiritildi."
+                ),
+            )
+    return codes
+
+
 def create_sale(
     db: Session,
     data: SaleCreate,
@@ -133,7 +153,7 @@ def create_sale(
                 detail=f"'{product.name}' uchun chegirma ({discount}) narxdan oshib ketdi",
             )
         subtotal = (unit_price * item_data.quantity) - discount
-        
+
         # O'zining asl valyutasida saqlanadi
         item_currency_code = getattr(item_data, "currency_code", "UZS")
         item_exchange_rate = getattr(item_data, "exchange_rate", Decimal("1.0"))
@@ -144,6 +164,8 @@ def create_sale(
             source_product = source_products_map.get(conversion.source_product_id)
             if not source_product:
                 conversion = None
+
+        marking_codes = _resolve_marking_codes(product, item_data)
 
         sale_items_data.append({
             "product": product,
@@ -158,6 +180,7 @@ def create_sale(
             "conversion": conversion,
             "source_product": source_product,
             "item_warehouse_id": item_data.warehouse_id,
+            "marking_codes": marking_codes,
         })
         
         # Jami sotuv summasi doim UZS (asosiy valyuta) da yig'iladi
@@ -582,6 +605,7 @@ def create_sale(
             subtotal=item_d["subtotal"],
             currency_code=item_d["currency_code"],
             exchange_rate=item_d["exchange_rate"],
+            marking_codes=item_d["marking_codes"] or None,
         )
         new_sale_items.append((sale_item, allocated_batches))
 
@@ -790,6 +814,11 @@ def create_pending_sale(
             if source:
                 cost_price = (source.cost_price or Decimal("0")) * conversion.ratio
 
+        # Pending (qoralama) sotuv — markirovka hali to'liq skanerlanmagan bo'lishi
+        # mumkin, shuning uchun bu bosqichda majburiy tekshirilmaydi. Qat'iy
+        # tekshiruv sotuv "completed" holatiga o'tganda (update_sale) qo'llanadi.
+        marking_codes = [c for c in (getattr(item_data, "marking_codes", None) or []) if c and c.strip()]
+
         sale_items_data.append({
             "product": product,
             "quantity": item_data.quantity,
@@ -797,6 +826,7 @@ def create_pending_sale(
             "cost_price": cost_price,
             "discount": discount,
             "subtotal": subtotal,
+            "marking_codes": marking_codes,
         })
         total_amount += subtotal
 
@@ -834,6 +864,7 @@ def create_pending_sale(
             cost_price=item_d["cost_price"],
             discount=item_d["discount"],
             subtotal=item_d["subtotal"],
+            marking_codes=item_d["marking_codes"] or None,
         ))
 
     log_action(
