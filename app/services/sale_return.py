@@ -25,6 +25,12 @@ def create_return_sale(
     current_user: User,
     ip: Optional[str] = None,
 ) -> Sale:
+    # warehouse_id majburiy — bo'lmasa qaytarilgan tovar "hech kimga tegishli
+    # bo'lmagan" NULL-warehouse StockLevel'ga tushib, real ombor balansida
+    # ko'rinmay qoladi (inventarizatsiyada yo'qolib qoladi).
+    if not data.warehouse_id:
+        raise HTTPException(status_code=400, detail="Ombor tanlanmagan — qaytarish uchun ombor majburiy")
+
     total_amount = Decimal("0")
     sale_items_data = []
 

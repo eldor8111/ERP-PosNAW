@@ -69,6 +69,8 @@ const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
+  const [warehouseId, setWarehouseId] = useState('');
   const [cart, setCart] = useState([]);
   const [custId, setCustId] = useState('');
   const [search, setSearch] = useState('');
@@ -112,6 +114,19 @@ const navigate = useNavigate();
           if (s.defaultCustomer) setCustId(s.defaultCustomer);
         } catch { /* ignore */ }
       }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/warehouses')
+      .then(r => {
+        const whs = Array.isArray(r.data) ? r.data : (r.data.items || []);
+        setWarehouses(whs);
+        try {
+          const s = JSON.parse(localStorage.getItem('pos_return_settings') || '{}');
+          if (s.warehouseId && whs.some(w => String(w.id) === String(s.warehouseId))) {
+            setWarehouseId(String(s.warehouseId));
+          } else if (whs.length === 1) {
+            setWarehouseId(String(whs[0].id));
+          }
+        } catch { /* ignore */ }
+      }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Omborlarni yuklashda xatolik") });
   }, []);
 
   const filteredProducts = products.filter(p => {
@@ -269,7 +284,8 @@ const navigate = useNavigate();
 
   const submitSale = async () => {
     if (!cart.length) { setErr("Vazvrat savati bo'sh!"); setTimeout(()=>setErr(''),3000); return; }
-    
+    if (!warehouseId) { setErr("Omborni tanlang!"); setTimeout(()=>setErr(''),3000); return; }
+
     setIsPaying(true);
     setErr('');
     try {
@@ -308,6 +324,7 @@ const navigate = useNavigate();
         discount_amount: 0,
         note: noteTxt,
         customer_id: Number(custId) || null,
+        warehouse_id: Number(warehouseId),
       };
 
       const res = await api.post('/sales/return', payload);
@@ -393,6 +410,24 @@ const navigate = useNavigate();
             <div className="text-sm font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">#{(Math.floor(Math.random()*90000)+10000).toString()}</div>
           </div>
           <CustSearch customers={customers} value={custId} onChange={setCustId} placeholder="Mijozni tanlang (Majburiy)..." />
+          <select
+            value={warehouseId}
+            onChange={e => {
+              setWarehouseId(e.target.value);
+              try {
+                const s = JSON.parse(localStorage.getItem('pos_return_settings') || '{}');
+                localStorage.setItem('pos_return_settings', JSON.stringify({ ...s, warehouseId: e.target.value }));
+              } catch { /* ignore */ }
+            }}
+            className={`mt-2 w-full px-3 py-3 text-sm font-semibold rounded-xl border-2 outline-none transition-all ${
+              warehouseId ? 'border-slate-200 text-slate-700 bg-white' : 'border-red-300 text-red-500 bg-red-50'
+            }`}
+          >
+            <option value="">Omborni tanlang (Majburiy)...</option>
+            {warehouses.map(w => (
+              <option key={w.id} value={w.id}>{w.name}</option>
+            ))}
+          </select>
         </div>
 
         {/* Middle: Cart Items */}
