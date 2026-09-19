@@ -12,7 +12,7 @@ const STATUS_COLORS = {
   cancelled: { bg: 'bg-red-50', text: 'text-red-700', icon: AlertCircle },
 };
 
-export default function Orders() {
+export default function Orders({ embedded = false }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('pending');
@@ -52,13 +52,15 @@ export default function Orders() {
   ];
 
   return (
-    <div className="p-6 bg-slate-50 min-h-screen">
-      <div className="max-w-7xl mx-auto">
+    <div className={embedded ? '' : 'p-6 bg-slate-50 min-h-screen'}>
+      <div className={embedded ? '' : 'max-w-7xl mx-auto'}>
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-slate-800">📦 Buyurtmalar</h1>
-          <p className="text-slate-600 mt-1">Pelanggan buyurtmalarini boshqarish</p>
-        </div>
+        {!embedded && (
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold text-slate-800">📦 Buyurtmalar</h1>
+            <p className="text-slate-600 mt-1">Pelanggan buyurtmalarini boshqarish</p>
+          </div>
+        )}
 
         {/* Filter */}
         <div className="mb-6 flex gap-2">
