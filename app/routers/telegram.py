@@ -264,6 +264,53 @@ async def _handle_yordam(db, token, chat_id, company, customer, bg):
     bg.add_task(send_telegram_message, token, chat_id, msg, _build_main_keyboard())
 
 
+async def _handle_order_from_telegram(db: Session, token: str, chat_id: str, company, customer, bg: BackgroundTasks, product_name: str, quantity: int, payment_type: str = "cash"):
+    """Telegram orqali buyurtma qabul qilish."""
+    if not customer or not customer.branch_id:
+        bg.add_task(send_telegram_message, token, chat_id,
+            "❌ Profilingiz topilmadi yoki dokon biriktirilmagan.",
+            _build_main_keyboard())
+        return
+
+    from app.models.product import Product
+    from app.routers.orders import create_order, OrderIn
+
+    prod = db.query(Product).filter(
+        Product.name.ilike(f"%{product_name}%"),
+        Product.company_id == company.id
+    ).first()
+
+    if not prod:
+        bg.add_task(send_telegram_message, token, chat_id,
+            f"❌ Mahsulot '{product_name}' topilmadi.",
+            _build_main_keyboard())
+        return
+
+    try:
+        order_data = OrderIn(
+            customer_id=customer.id,
+            product_id=prod.id,
+            quantity=quantity,
+            payment_type=payment_type,
+        )
+        order = create_order(order_data, db, customer)
+
+        msg = (
+            f"✅ <b>Buyurtma qabul qilindi!</b>\n\n"
+            f"📦 Mahsulot: {prod.name}\n"
+            f"📊 Miqdor: {quantity}\n"
+            f"💰 Narx: {FMT(order.total_amount)} so'm\n"
+            f"💳 To'lov: {payment_type}\n\n"
+            f"🆔 Buyurtma ID: #{order.id}\n"
+            f"📅 Vaqt: {order.created_at.strftime('%d.%m.%Y %H:%M')}"
+        )
+        bg.add_task(send_telegram_message, token, chat_id, msg, _build_main_keyboard())
+    except Exception as e:
+        bg.add_task(send_telegram_message, token, chat_id,
+            f"❌ Buyurtma xatosi: {str(e)[:100]}",
+            _build_main_keyboard())
+
+
 async def _handle_dokon(db: Session, token: str, chat_id: str, company, customer, bg: BackgroundTasks):
     """Dokon va mahsulotlarni ko'rish."""
     if not customer:
