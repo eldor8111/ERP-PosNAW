@@ -263,6 +263,35 @@ async def _handle_yordam(db, token, chat_id, company, customer, bg):
     bg.add_task(send_telegram_message, token, chat_id, msg, _build_main_keyboard())
 
 
+async def _handle_barcode_search(db: Session, token: str, chat_id: str, company, bg: BackgroundTasks, barcode_input: str):
+    """Shtrix kod orqali mijozni qidiradi va kartasini yuboradi."""
+    if not barcode_input or not barcode_input.strip():
+        bg.add_task(send_telegram_message, token, chat_id,
+            "❌ Shtrix kod bo'sh bo'lishi mumkin emas. Qayta urinib ko'ring.",
+            _build_main_keyboard())
+        return
+
+    customer = db.query(Customer).filter(
+        Customer.company_id == company.id,
+        Customer.card_number == barcode_input.strip(),
+    ).first()
+
+    if not customer:
+        bg.add_task(send_telegram_message, token, chat_id,
+            f"❌ Shtrix kod <code>{barcode_input}</code> bilan mijoz topilmadi.",
+            _build_main_keyboard())
+        return
+
+    cashback = float(customer.cashback_percent or 0)
+    welcome = (
+        f"✅ <b>{customer.name}</b> topildi!\n\n"
+        f"💳 Karta raqami: <code>{customer.card_number}</code>\n"
+        f"🔄 Keshbek: <b>{customer.cashback_percent}%</b>"
+    )
+    bg.add_task(send_telegram_message, token, chat_id, welcome, _build_main_keyboard())
+    bg.add_task(send_loyalty_card, token, chat_id, customer.name, customer.card_number, cashback)
+
+
 COMMAND_MAP = {
     "/balans": _handle_balans,
     "💰 balans": _handle_balans,
@@ -454,6 +483,12 @@ async def telegram_webhook(
                     "❌ Kompaniya topilmadi.", {"remove_keyboard": True})
             else:
                 await handler(db, token, chat_id, company, customer, background_tasks)
+            return {"ok": True}
+
+        # ── Shtrix kod orqali qidirish ────────────────────────────
+        company, customer = _find_customer_by_chat(db, token, chat_id)
+        if company and customer and text and not text.startswith("/"):
+            await _handle_barcode_search(db, token, chat_id, company, background_tasks, text)
             return {"ok": True}
 
         # ── Noma'lum buyruq ───────────────────────────────────────

@@ -18,6 +18,7 @@ from app.core.dependencies import get_current_user  # type: ignore
 from app.models.user import User, UserRole  # type: ignore
 from app.models.moliya import Wallet  # type: ignore
 from app.models.currency import Currency  # type: ignore
+from app.models.company import Company  # type: ignore
 
 def parse_decimal_clean(val) -> Optional[Decimal]:
     if val is None or str(val).strip() == "":
@@ -1148,3 +1149,40 @@ def delete_customer_price(
         raise HTTPException(status_code=404, detail="Narx topilmadi")
     db.delete(cp)
     db.commit()
+
+
+@router.post("/{customer_id}/send-barcode-to-telegram")
+async def send_barcode_to_telegram(
+        customer_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    customer = db.query(Customer).filter(
+        Customer.id == customer_id,
+        Customer.company_id == current_user.company_id,
+    ).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Mijoz topilmadi")
+
+    company = db.query(Company).filter(Company.id == current_user.company_id).first()
+    if not company or not company.tg_bot_token:
+        raise HTTPException(status_code=400, detail="Telegram boti sozlanmagan")
+
+    if not customer.tg_chat_id:
+        raise HTTPException(status_code=400, detail="Mijoz Telegram'da ulangan emas")
+
+    if not customer.card_number:
+        raise HTTPException(status_code=400, detail="Mijozning karta raqami yo'q")
+
+    from app.routers.telegram import send_loyalty_card
+
+    cashback = float(customer.cashback_percent or 0)
+    await send_loyalty_card(
+        str(company.tg_bot_token),
+        str(customer.tg_chat_id),
+        str(customer.name),
+        str(customer.card_number),
+        cashback
+    )
+
+    return {"message": "Shtrix kod Telegram orqali yuborildi", "customer": customer.name}

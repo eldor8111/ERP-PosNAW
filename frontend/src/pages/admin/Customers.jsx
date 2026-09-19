@@ -75,7 +75,7 @@ function CustSearch({ customers, value, onChange, onAfterSelect }) {
   );
 }
 
-function RowMenu({ onEdit, onDelete, onPay, onPoints, onHistory, hasDebt }) {
+function RowMenu({ onEdit, onDelete, onPay, onPoints, onHistory, onPrintBarcode, hasDebt }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, right: 0, visible: false });
   const { t } = useLang();
@@ -144,6 +144,18 @@ function RowMenu({ onEdit, onDelete, onPay, onPoints, onHistory, hasDebt }) {
             <History className="w-4 h-4" />
             {t('customer.history')}
           </button>
+          {onPrintBarcode && (
+            <>
+              <div className="mx-3 my-1 border-t border-slate-100" />
+              <button onClick={() => { onPrintBarcode(); setOpen(false); }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-purple-600 hover:bg-purple-50 transition-colors font-medium">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 9V2m12 0v7M6 9a2 2 0 002 2h8a2 2 0 002-2m0 0V2m0 11v11m0 0a2 2 0 01-2 2H8a2 2 0 01-2-2m16 0V8a2 2 0 00-2-2m-2-2H8a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2z" />
+                </svg>
+                🖨️ Shtrix kod chop etish
+              </button>
+            </>
+          )}
           <div className="mx-3 my-1 border-t border-slate-100" />
           <button onClick={() => { onEdit(); setOpen(false); }}
             className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
@@ -455,6 +467,15 @@ export function SotuvMijozlar({ stats, reloadStats }) {
       setError("Tarixni yuklashda xatolik yuz berdi");
     } finally {
       setLoadingHistory(false);
+    }
+  };
+  const printBarcode = async (customerId) => {
+    try {
+      await api.post(`/customers/${customerId}/send-barcode-to-telegram`);
+      toast.success('Shtrix kod Telegram orqali yuborildi');
+    } catch (err) {
+      const msg = err.response?.data?.detail || "Shtrix kodni yuborishda xatolik";
+      toast.error(msg);
     }
   };
   const closeModal = () => { setModal(null); setSelected(null); setError(''); setHistory([]); };
@@ -871,6 +892,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                         onPay={() => openPay(c)}
                         onPoints={() => openPoints(c)}
                         onHistory={() => openHistory(c)}
+                        onPrintBarcode={() => printBarcode(c.id)}
                         hasDebt={Number(c.debt_balance) > 0 || (c.debt_balances && typeof c.debt_balances === 'object' && Object.values(c.debt_balances).some(v => Number(v) > 0))}
                       />
                     </td>
