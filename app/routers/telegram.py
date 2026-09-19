@@ -153,11 +153,13 @@ def _build_main_keyboard(company=None, chat_id=None):
         url = f"{SHOP_BASE_URL}?c={company.id}&u={chat_id}&t={token}"
         dokon_button = {"text": "🏪 Dokon", "web_app": {"url": url}}
 
+    # Barcha funksiyalar (Balans, Kartam, Buyurtmalarim, Xaridlar tarixi)
+    # endi Mini App ichida (hamburger menyu) — pastki klaviaturada faqat
+    # Dokon qoladi. Eski matn buyruqlari (/balans, /karta, /yordam) hali
+    # ham ishlaydi, faqat alohida tugma sifatida ko'rsatilmaydi.
     return {
         "keyboard": [
-            [{"text": "💰 Qarz va to'lovlar"}, {"text": "📦 Oxirgi xaridlar"}],
-            [{"text": "🎫 Mening kartam"}, dokon_button],
-            [{"text": "❓ Yordam"}],
+            [dokon_button],
         ],
         "resize_keyboard": True,
     }
@@ -269,9 +271,9 @@ async def _handle_karta(db: Session, token: str, chat_id: str, company, customer
 async def _handle_yordam(db, token, chat_id, company, customer, bg):
     msg = (
         "📋 <b>Botdan foydalanish yo'riqnomasi:</b>\n\n"
-        "💰 <b>Qarz va to'lovlar</b> — Joriy qarz, muddat va bonus\n"
-        "📦 <b>Oxirgi xaridlar</b> — So'nggi 5 ta xarid\n"
-        "🎫 <b>Mening kartam</b> — Loyallik karta va barcode\n\n"
+        "🏪 <b>Dokon</b> tugmasini bosing — mahsulotlar katalogi, "
+        "buyurtma berish, balansingiz, loyallik kartangiz va xaridlar "
+        "tarixi bir oynada ochiladi.\n\n"
         "<b>Buyruqlar:</b>\n"
         "/balans — Qarz holati\n"
         "/karta — Loyallik kartam\n"

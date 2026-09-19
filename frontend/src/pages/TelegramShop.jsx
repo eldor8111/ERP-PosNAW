@@ -14,6 +14,32 @@ const ORDER_STATUS = {
   cancelled: { label: 'Bekor qilindi', icon: AlertCircle, bg: 'bg-red-50', text: 'text-red-700' },
 }
 
+const MENU_ITEM_COLORS = {
+  blue: 'bg-blue-50 text-blue-600',
+  amber: 'bg-amber-50 text-amber-600',
+  green: 'bg-green-50 text-green-600',
+  violet: 'bg-violet-50 text-violet-600',
+  rose: 'bg-rose-50 text-rose-600',
+}
+
+function MenuItem({ icon: Icon, color, label, sub, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full flex items-center gap-3 px-3 py-3 rounded-2xl hover:bg-white active:scale-[0.98] transition-all group"
+    >
+      <div className={`w-10 h-10 rounded-xl ${MENU_ITEM_COLORS[color]} flex items-center justify-center shrink-0 group-active:scale-90 transition-transform`}>
+        <Icon className="w-[18px] h-[18px]" />
+      </div>
+      <div className="flex-1 text-left min-w-0">
+        <p className="text-sm font-semibold text-slate-700">{label}</p>
+        {sub && <p className="text-[11px] text-slate-400 truncate">{sub}</p>}
+      </div>
+      <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-400 group-hover:translate-x-0.5 transition-all shrink-0" />
+    </button>
+  )
+}
+
 function getTg() {
   return typeof window !== 'undefined' ? window.Telegram?.WebApp : null
 }
@@ -458,87 +484,80 @@ export default function TelegramShop() {
       {/* Side menu */}
       {showMenu && (
         <div className="fixed inset-0 z-[60] flex">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowMenu(false)} />
-          <div className="relative w-[82%] max-w-[320px] h-full bg-white flex flex-col animate-[slideInLeft_0.22s_ease-out] shadow-2xl">
-            {/* Profile header */}
-            <div className="px-5 pt-6 pb-5 bg-gradient-to-br from-blue-600 to-indigo-700 text-white">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-11 h-11 rounded-2xl bg-white/15 flex items-center justify-center">
-                  <ECodeIconLight size={26} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={() => setShowMenu(false)} />
+          <div className="relative w-[85%] max-w-[340px] h-full bg-slate-50 flex flex-col animate-[slideInLeft_0.25s_cubic-bezier(0.16,1,0.3,1)] shadow-2xl">
+            {/* Premium header — mesh gradient */}
+            <div className="relative px-5 pt-6 pb-9 overflow-hidden shrink-0">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-700" />
+              <div className="absolute -top-10 -right-10 w-36 h-36 rounded-full bg-white/10 blur-2xl pointer-events-none" />
+              <div className="absolute -bottom-16 -left-8 w-36 h-36 rounded-full bg-blue-400/20 blur-2xl pointer-events-none" />
+
+              <div className="relative flex items-center justify-between mb-5">
+                <div className="w-11 h-11 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center ring-1 ring-white/20">
+                  <ECodeIconLight size={24} />
                 </div>
-                <button onClick={() => setShowMenu(false)} className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center active:scale-95 transition-transform">
-                  <X className="w-4 h-4" />
+                <button onClick={() => setShowMenu(false)} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center active:scale-90 transition-all">
+                  <X className="w-4 h-4 text-white" />
                 </button>
               </div>
-              <p className="text-sm font-bold truncate">{shopName}</p>
-              <p className="text-[11px] text-blue-100 mt-0.5">{meData?.name || 'Mijoz'}</p>
-              {meData?.card_number && (
-                <p className="text-xs font-mono text-blue-100 mt-2 tracking-wider">
-                  •••• {meData.card_number.slice(-4)}
-                </p>
-              )}
+
+              <div className="relative">
+                <p className="text-[11px] text-blue-200/80 font-semibold uppercase tracking-wide mb-0.5">{shopName}</p>
+                <p className="text-lg font-bold text-white truncate">{meData?.name || 'Mijoz'}</p>
+                {meData?.card_number && (
+                  <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+                    <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur rounded-lg px-2.5 py-1 ring-1 ring-white/10">
+                      <CreditCard className="w-3 h-3 text-blue-200" />
+                      <span className="text-xs font-mono text-white tracking-wider">•••• {meData.card_number.slice(-4)}</span>
+                    </div>
+                    {meData.cashback_percent > 0 && (
+                      <div className="bg-amber-400/20 rounded-lg px-2 py-1">
+                        <span className="text-[11px] font-bold text-amber-200">🔄 {meData.cashback_percent}%</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Menu items */}
-            <div className="flex-1 overflow-y-auto py-2">
-              <button
-                onClick={() => setShowMenu(false)}
-                className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 active:bg-slate-100 transition-colors"
-              >
-                <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-                  <Store className="w-4 h-4 text-blue-600" />
+            {/* Floating quick-stats card */}
+            {meData && (
+              <div className="px-4 -mt-5 relative z-10 shrink-0">
+                <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/70 p-3.5 flex items-center divide-x divide-slate-100">
+                  <div className="flex-1 text-center px-1">
+                    <p className={`text-sm font-extrabold truncate ${meData.debt_balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>{fmt(meData.debt_balance)}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Qarz (so'm)</p>
+                  </div>
+                  <div className="flex-1 text-center px-1">
+                    <p className="text-sm font-extrabold text-amber-600 truncate">{fmt(meData.bonus_balance)}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Bonus</p>
+                  </div>
+                  <div className="flex-1 text-center px-1">
+                    <p className="text-sm font-extrabold text-blue-600 truncate">{meData.tier || '—'}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Daraja</p>
+                  </div>
                 </div>
-                <span className="flex-1 text-left text-sm font-medium text-slate-700">Katalog</span>
-                <ChevronRight className="w-4 h-4 text-slate-300" />
-              </button>
+              </div>
+            )}
 
-              <button
-                onClick={openMyOrders}
-                className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 active:bg-slate-100 transition-colors"
-              >
-                <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
-                  <ClipboardList className="w-4 h-4 text-amber-600" />
-                </div>
-                <span className="flex-1 text-left text-sm font-medium text-slate-700">Buyurtmalarim</span>
-                <ChevronRight className="w-4 h-4 text-slate-300" />
-              </button>
+            {/* Menu — grouped sections */}
+            <div className="flex-1 overflow-y-auto px-3 pt-4 pb-2">
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-1.5">Xarid qilish</p>
+              <div className="space-y-0.5 mb-4">
+                <MenuItem icon={Store} color="blue" label="Katalog" sub="Barcha mahsulotlar" onClick={() => setShowMenu(false)} />
+                <MenuItem icon={ClipboardList} color="amber" label="Buyurtmalarim" sub="Holat va tafsilotlar" onClick={openMyOrders} />
+                <MenuItem icon={Receipt} color="rose" label="Xaridlar tarixi" sub="Oldingi to'lovlar" onClick={openPurchases} />
+              </div>
 
-              <button
-                onClick={openBalance}
-                className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 active:bg-slate-100 transition-colors"
-              >
-                <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center shrink-0">
-                  <Wallet className="w-4 h-4 text-green-600" />
-                </div>
-                <span className="flex-1 text-left text-sm font-medium text-slate-700">Balansim</span>
-                <ChevronRight className="w-4 h-4 text-slate-300" />
-              </button>
-
-              <button
-                onClick={openCard}
-                className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 active:bg-slate-100 transition-colors"
-              >
-                <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
-                  <CreditCard className="w-4 h-4 text-violet-600" />
-                </div>
-                <span className="flex-1 text-left text-sm font-medium text-slate-700">Loyallik kartam</span>
-                <ChevronRight className="w-4 h-4 text-slate-300" />
-              </button>
-
-              <button
-                onClick={openPurchases}
-                className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 active:bg-slate-100 transition-colors"
-              >
-                <div className="w-9 h-9 rounded-xl bg-rose-50 flex items-center justify-center shrink-0">
-                  <Receipt className="w-4 h-4 text-rose-600" />
-                </div>
-                <span className="flex-1 text-left text-sm font-medium text-slate-700">Xaridlar tarixi</span>
-                <ChevronRight className="w-4 h-4 text-slate-300" />
-              </button>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-1.5">Hisobim</p>
+              <div className="space-y-0.5">
+                <MenuItem icon={Wallet} color="green" label="Balansim" sub="Qarz, bonus, muddatlar" onClick={openBalance} />
+                <MenuItem icon={CreditCard} color="violet" label="Loyallik kartam" sub="Shtrix kod va keshbek" onClick={openCard} />
+              </div>
             </div>
 
-            <div className="px-5 py-4 border-t border-slate-100">
-              <p className="text-[11px] text-slate-300 text-center">E-Code orqali ishga tushirilgan</p>
+            <div className="px-5 py-4 border-t border-slate-100 bg-white shrink-0">
+              <p className="text-[11px] text-slate-300 text-center font-medium">E-Code orqali ishga tushirilgan</p>
             </div>
           </div>
         </div>
