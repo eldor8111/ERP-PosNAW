@@ -23,8 +23,8 @@ const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const selected = customers.find(c => String(c.id) === String(value));
-  const filtered = q.trim() 
-    ? customers.filter(c => matchesSearch(c.name, q) || (c.phone && c.phone.includes(q))).slice(0, 12) 
+  const filtered = q.trim()
+    ? customers.filter(c => matchesSearch(c.name, q) || (c.phone && c.phone.includes(q)) || (c.card_number && c.card_number.includes(q))).slice(0, 12)
     : customers.slice(0, 12);
 
   useEffect(() => {
@@ -35,18 +35,36 @@ const [q, setQ] = useState('');
 
   const select = (c) => { onChange(c ? c.id : ''); setQ(''); setOpen(false); };
 
+  const handleInputChange = (e) => {
+    const input = e.target.value;
+    setQ(input);
+    setOpen(true);
+    if (!input) {
+      onChange('');
+      return;
+    }
+    // Agar barcode bo'lsa (13 raqam), avtomatik topib select qil
+    if (/^\d{13}$/.test(input)) {
+      const match = customers.find(c => c.card_number === input);
+      if (match) {
+        select(match);
+        return;
+      }
+    }
+  };
+
   return (
     <div className="relative w-full" ref={ref}>
       <div className="flex items-center border-[2px] border-slate-300 rounded-xl bg-white overflow-hidden focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-500/20 transition-all pr-2">
         <div className="pl-3 text-slate-400">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
         </div>
-        <input 
-          value={open ? q : (selected ? selected.name : '')} 
-          onChange={e => { setQ(e.target.value); setOpen(true); if (!e.target.value) onChange(''); }} 
-          onFocus={() => setOpen(true)} 
-          placeholder={placeholder} 
-          className="w-full px-3 py-3 text-base font-bold text-slate-700 outline-none bg-transparent placeholder:text-slate-400" 
+        <input
+          value={open ? q : (selected ? selected.name : '')}
+          onChange={handleInputChange}
+          onFocus={() => setOpen(true)}
+          placeholder={placeholder}
+          className="w-full px-3 py-3 text-base font-bold text-slate-700 outline-none bg-transparent placeholder:text-slate-400"
         />
         {selected && <button onClick={() => select(null)} className="text-slate-400 hover:text-red-500 font-bold p-1">×</button>}
       </div>
