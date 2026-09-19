@@ -18,6 +18,9 @@ class Order(Base):
     __tablename__ = "orders"
 
     id = Column(Integer, primary_key=True, index=True)
+    # Bir checkout'da savatga solingan bir nechta mahsulot shu ID bilan
+    # bog'lanadi — CRM/bot'da bitta buyurtma sifatida guruhlab ko'rsatish uchun.
+    order_group_id = Column(String(36), nullable=True, index=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)

@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import uuid
 from datetime import datetime, timezone
 from typing import Optional, List
 from decimal import Decimal
@@ -368,6 +369,10 @@ def shop_create_order(
     if not default_branch_id:
         raise HTTPException(status_code=400, detail="Kompaniyada filial topilmadi")
 
+    # Bitta checkout'dagi barcha mahsulotlarni bitta buyurtma sifatida
+    # guruhlash uchun — CRM'da alohida qatorlarga bo'linib ketmasin.
+    order_group_id = str(uuid.uuid4())
+
     created_orders = []
     for item in data.items:
         if item.quantity <= 0:
@@ -385,6 +390,7 @@ def shop_create_order(
         total_amount = unit_price * item.quantity
 
         order = Order(
+            order_group_id=order_group_id,
             customer_id=customer.id,
             branch_id=default_branch_id,
             product_id=product.id,

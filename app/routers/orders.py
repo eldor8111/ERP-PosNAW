@@ -89,6 +89,12 @@ def create_order(
     return order
 
 
+def _group_key(order: Order) -> str:
+    """Bir checkout'dagi itemlar order_group_id bilan bog'langan; eski
+    yozuvlarda (order_group_id yo'q) har biri o'z-o'zining guruhi."""
+    return order.order_group_id or f"single-{order.id}"
+
+
 @router.get("", response_model=List[dict])
 def list_orders(
     branch_id: Optional[int] = None,
@@ -96,7 +102,8 @@ def list_orders(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Buyurtmalarni ko'rish (status bo'yicha filter)."""
+    """Buyurtmalarni guruhlab ko'rish (bitta checkout = bitta guruh, ichida
+    bir nechta mahsulot bo'lishi mumkin)."""
     query = db.query(Order).join(Customer).filter(
         Customer.company_id == current_user.company_id
     )
@@ -108,33 +115,107 @@ def list_orders(
 
     orders = query.order_by(Order.created_at.desc()).all()
 
-    result = []
+    groups: dict = {}
     for order in orders:
-        customer = db.query(Customer).filter(Customer.id == order.customer_id).first()
-        product = db.query(Product).filter(Product.id == order.product_id).first()
+        key = _group_key(order)
+        if key not in groups:
+            customer = db.query(Customer).filter(Customer.id == order.customer_id).first()
+            groups[key] = {
+                "group_id": key,
+                "customer_id": order.customer_id,
+                "customer_name": customer.name if customer else "—",
+                "customer_phone": customer.phone if customer else "—",
+                "status": order.status,
+                "payment_type": order.payment_type,
+                "notes": order.notes,
+                "created_at": order.created_at.isoformat(),
+                "confirmed_at": order.confirmed_at.isoformat() if order.confirmed_at else None,
+                "total_amount": 0.0,
+                "items": [],
+            }
 
-        result.append({
+        product = db.query(Product).filter(Product.id == order.product_id).first()
+        groups[key]["items"].append({
             "id": order.id,
-            "customer_id": order.customer_id,
-            "customer_name": customer.name if customer else "—",
-            "customer_phone": customer.phone if customer else "—",
             "product_id": order.product_id,
             "product_name": product.name if product else "—",
             "quantity": order.quantity,
             "unit_price": float(order.unit_price),
             "total_amount": float(order.total_amount),
-            "status": order.status,
-            "payment_type": order.payment_type,
-            "notes": order.notes,
-            "created_at": order.created_at.isoformat(),
-            "confirmed_at": order.confirmed_at.isoformat() if order.confirmed_at else None,
         })
+        groups[key]["total_amount"] += float(order.total_amount)
 
-    return result
+    # dict Python 3.7+da qo'shilish tartibini saqlaydi (created_at desc bo'yicha)
+    return list(groups.values())
 
 
 class StatusIn(BaseModel):
     status: Optional[OrderStatus] = None
+
+
+@router.put("/group/{group_id}/status")
+def update_order_group_status(
+    group_id: str,
+    data: Optional[StatusIn] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Guruhdagi barcha buyurtmalar statusini birgalikda yangilaydi."""
+    if group_id.startswith("single-"):
+        order_ids = [int(group_id.split("-", 1)[1])]
+        orders = db.query(Order).join(Customer).filter(
+            Order.id.in_(order_ids),
+            Customer.company_id == current_user.company_id,
+        ).all()
+    else:
+        orders = db.query(Order).join(Customer).filter(
+            Order.order_group_id == group_id,
+            Customer.company_id == current_user.company_id,
+        ).all()
+
+    if not orders:
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+
+    new_status = data.status if (data and data.status) else OrderStatus.confirmed
+    for order in orders:
+        order.status = new_status
+        if new_status == OrderStatus.confirmed:
+            order.confirmed_at = datetime.now(timezone.utc)
+    db.commit()
+
+    return {"message": "Buyurtma yangilandi", "count": len(orders)}
+
+
+@router.delete("/group/{group_id}")
+def cancel_order_group(
+    group_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Guruhdagi barcha buyurtmalarni bekor qiladi."""
+    if group_id.startswith("single-"):
+        order_ids = [int(group_id.split("-", 1)[1])]
+        orders = db.query(Order).join(Customer).filter(
+            Order.id.in_(order_ids),
+            Customer.company_id == current_user.company_id,
+        ).all()
+    else:
+        orders = db.query(Order).join(Customer).filter(
+            Order.order_group_id == group_id,
+            Customer.company_id == current_user.company_id,
+        ).all()
+
+    if not orders:
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+
+    if any(o.status == OrderStatus.confirmed for o in orders):
+        raise HTTPException(status_code=400, detail="Tasdiqlangan buyurtmani bekor qila olmaysiz")
+
+    for order in orders:
+        order.status = OrderStatus.cancelled
+    db.commit()
+
+    return {"message": "Buyurtma bekor qilindi"}
 
 
 @router.put("/{order_id}/confirm")
@@ -144,11 +225,8 @@ def confirm_order(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Buyurtma statusini yangilash (Dokon egasi).
-
-    Body bo'lmasa yoki status ko'rsatilmasa — pending → confirmed.
-    Body bilan status yuborilsa (masalan 'delivered') — o'sha statusga o'tadi.
-    """
+    """[Eskirgan] Bitta buyurtma statusini yangilash — endi /group/{id}/status ishlatiladi,
+    backward-compat uchun saqlanmoqda."""
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
@@ -169,7 +247,7 @@ def cancel_order(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Buyurtmani bekor qilish."""
+    """[Eskirgan] Bitta buyurtmani bekor qilish — endi /group/{id} ishlatiladi."""
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")

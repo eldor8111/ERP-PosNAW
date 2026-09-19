@@ -1,21 +1,22 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
-import { CheckCircle, Clock, Truck, AlertCircle } from 'lucide-react';
+import { CheckCircle, Clock, Truck, AlertCircle, X, Package } from 'lucide-react';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 
 const STATUS_COLORS = {
-  pending: { bg: 'bg-yellow-50', text: 'text-yellow-700', icon: Clock },
-  confirmed: { bg: 'bg-blue-50', text: 'text-blue-700', icon: CheckCircle },
-  delivered: { bg: 'bg-green-50', text: 'text-green-700', icon: Truck },
-  cancelled: { bg: 'bg-red-50', text: 'text-red-700', icon: AlertCircle },
+  pending: { bg: 'bg-yellow-50', text: 'text-yellow-700', icon: Clock, label: 'Kutilmoqda' },
+  confirmed: { bg: 'bg-blue-50', text: 'text-blue-700', icon: CheckCircle, label: 'Tasdiqlangan' },
+  delivered: { bg: 'bg-green-50', text: 'text-green-700', icon: Truck, label: 'Yetkazildi' },
+  cancelled: { bg: 'bg-red-50', text: 'text-red-700', icon: AlertCircle, label: 'Bekor qilindi' },
 };
 
 export default function Orders({ embedded = false }) {
-  const [orders, setOrders] = useState([]);
+  const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('pending');
+  const [detailGroup, setDetailGroup] = useState(null);
 
   useEffect(() => {
     loadOrders();
@@ -27,7 +28,7 @@ export default function Orders({ embedded = false }) {
       const { data } = await api.get('/orders', {
         params: { status: filter }
       });
-      setOrders(data);
+      setGroups(data);
     } catch (err) {
       toast.error('Buyurtmalarni yuklashda xatolik');
     } finally {
@@ -35,10 +36,11 @@ export default function Orders({ embedded = false }) {
     }
   };
 
-  const updateStatus = async (orderId, newStatus) => {
+  const updateStatus = async (groupId, newStatus) => {
     try {
-      await api.put(`/orders/${orderId}/confirm`, { status: newStatus });
+      await api.put(`/orders/group/${groupId}/status`, { status: newStatus });
       toast.success(newStatus === 'confirmed' ? 'Buyurtma tasdiqlandi' : 'Yetkazildi deb belgilandi');
+      setDetailGroup(null);
       loadOrders();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Yangilashda xatolik');
@@ -85,7 +87,7 @@ export default function Orders({ embedded = false }) {
             <div className="p-8 text-center text-slate-500">
               Yuklanimoqda...
             </div>
-          ) : orders.length === 0 ? (
+          ) : groups.length === 0 ? (
             <div className="p-8 text-center text-slate-500">
               Buyurtmalar topilmadi
             </div>
@@ -94,53 +96,60 @@ export default function Orders({ embedded = false }) {
               <table className="w-full">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">ID</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Mijoz</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Mahsulot</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Miqdor</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Narx</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Mahsulotlar</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Jami narx</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Status</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Vaqt</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Amal</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
-                  {orders.map(order => {
-                    const StatusIcon = STATUS_COLORS[order.status]?.icon || Clock;
-                    const colors = STATUS_COLORS[order.status];
+                  {groups.map(group => {
+                    const StatusIcon = STATUS_COLORS[group.status]?.icon || Clock;
+                    const colors = STATUS_COLORS[group.status];
+                    const itemsCount = group.items.length;
                     return (
-                      <tr key={order.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-6 py-4 text-sm font-medium text-slate-800">#{order.id}</td>
+                      <tr
+                        key={group.group_id}
+                        className="hover:bg-slate-50 transition-colors cursor-pointer"
+                        onClick={() => setDetailGroup(group)}
+                      >
                         <td className="px-6 py-4 text-sm">
-                          <div className="font-medium text-slate-800">{order.customer_name}</div>
-                          <div className="text-xs text-slate-500">{order.customer_phone}</div>
+                          <div className="font-medium text-slate-800">{group.customer_name}</div>
+                          <div className="text-xs text-slate-500">{group.customer_phone}</div>
                         </td>
-                        <td className="px-6 py-4 text-sm text-slate-800">{order.product_name}</td>
-                        <td className="px-6 py-4 text-sm text-slate-800">{order.quantity}</td>
-                        <td className="px-6 py-4 text-sm font-medium text-slate-800">{fmt(order.total_amount)} so'm</td>
+                        <td className="px-6 py-4 text-sm text-slate-800">
+                          {itemsCount === 1 ? (
+                            <span>{group.items[0].product_name} <span className="text-slate-400">× {group.items[0].quantity}</span></span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 text-blue-600 font-medium">
+                              <Package className="w-3.5 h-3.5" /> {itemsCount} ta mahsulot
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-sm font-medium text-slate-800">{fmt(group.total_amount)} so'm</td>
                         <td className="px-6 py-4">
                           <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${colors?.bg} ${colors?.text}`}>
                             <StatusIcon className="w-4 h-4" />
-                            {order.status === 'pending' && 'Kutilmoqda'}
-                            {order.status === 'confirmed' && 'Tasdiqlangan'}
-                            {order.status === 'delivered' && 'Yetkazildi'}
+                            {colors?.label}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-600">
-                          {new Date(order.created_at).toLocaleDateString('uz-UZ')}
+                          {new Date(group.created_at).toLocaleDateString('uz-UZ')}
                         </td>
-                        <td className="px-6 py-4">
-                          {order.status === 'pending' && (
+                        <td className="px-6 py-4" onClick={e => e.stopPropagation()}>
+                          {group.status === 'pending' && (
                             <button
-                              onClick={() => updateStatus(order.id, 'confirmed')}
+                              onClick={() => updateStatus(group.group_id, 'confirmed')}
                               className="px-3 py-1 bg-green-100 text-green-700 rounded text-sm hover:bg-green-200 transition-colors"
                             >
                               Tasdiqlash
                             </button>
                           )}
-                          {order.status === 'confirmed' && (
+                          {group.status === 'confirmed' && (
                             <button
-                              onClick={() => updateStatus(order.id, 'delivered')}
+                              onClick={() => updateStatus(group.group_id, 'delivered')}
                               className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm hover:bg-blue-200 transition-colors"
                             >
                               Yetkazildi
@@ -161,23 +170,87 @@ export default function Orders({ embedded = false }) {
           <div className="bg-white p-4 rounded-lg shadow">
             <div className="text-sm text-slate-600 mb-1">⏳ Kutilmoqda</div>
             <div className="text-2xl font-bold text-yellow-600">
-              {orders.filter(o => o.status === 'pending').length}
+              {groups.filter(g => g.status === 'pending').length}
             </div>
           </div>
           <div className="bg-white p-4 rounded-lg shadow">
             <div className="text-sm text-slate-600 mb-1">✅ Tasdiqlangan</div>
             <div className="text-2xl font-bold text-blue-600">
-              {orders.filter(o => o.status === 'confirmed').length}
+              {groups.filter(g => g.status === 'confirmed').length}
             </div>
           </div>
           <div className="bg-white p-4 rounded-lg shadow">
             <div className="text-sm text-slate-600 mb-1">🚚 Yetkazildi</div>
             <div className="text-2xl font-bold text-green-600">
-              {orders.filter(o => o.status === 'delivered').length}
+              {groups.filter(g => g.status === 'delivered').length}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Detail modal */}
+      {detailGroup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setDetailGroup(null)} />
+          <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-xl max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100">
+              <div>
+                <h2 className="text-lg font-bold text-slate-800">{detailGroup.customer_name}</h2>
+                <p className="text-xs text-slate-500">{detailGroup.customer_phone}</p>
+              </div>
+              <button onClick={() => setDetailGroup(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100">
+                <X className="w-4 h-4 text-slate-500" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
+              {detailGroup.items.map(item => (
+                <div key={item.id} className="flex items-center justify-between border border-slate-100 rounded-xl px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">{item.product_name}</p>
+                    <p className="text-xs text-slate-400">{fmt(item.unit_price)} so'm × {item.quantity}</p>
+                  </div>
+                  <p className="text-sm font-semibold text-slate-800">{fmt(item.total_amount)} so'm</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm text-slate-500">Jami</span>
+                <span className="text-lg font-bold text-slate-800">{fmt(detailGroup.total_amount)} so'm</span>
+              </div>
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-sm text-slate-500">Sana</span>
+                <span className="text-sm text-slate-700">{new Date(detailGroup.created_at).toLocaleString('uz-UZ')}</span>
+              </div>
+              <div className="flex gap-2">
+                {detailGroup.status === 'pending' && (
+                  <button
+                    onClick={() => updateStatus(detailGroup.group_id, 'confirmed')}
+                    className="flex-1 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-xl font-semibold text-sm transition-colors"
+                  >
+                    Tasdiqlash
+                  </button>
+                )}
+                {detailGroup.status === 'confirmed' && (
+                  <button
+                    onClick={() => updateStatus(detailGroup.group_id, 'delivered')}
+                    className="flex-1 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-semibold text-sm transition-colors"
+                  >
+                    Yetkazildi deb belgilash
+                  </button>
+                )}
+                {(detailGroup.status === 'delivered' || detailGroup.status === 'cancelled') && (
+                  <span className={`flex-1 py-2.5 text-center rounded-xl font-semibold text-sm ${STATUS_COLORS[detailGroup.status]?.bg} ${STATUS_COLORS[detailGroup.status]?.text}`}>
+                    {STATUS_COLORS[detailGroup.status]?.label}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

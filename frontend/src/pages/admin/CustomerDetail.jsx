@@ -1864,7 +1864,7 @@ function CustomerOrders({ customerId, loading }) {
     setOrdersLoading(true)
     try {
       const { data } = await api.get('/orders')
-      setOrders(data.filter(o => o.customer_id === customerId))
+      setOrders(data.filter(g => g.customer_id === customerId))
     } catch (err) {
       console.error(err)
     } finally {
@@ -1880,37 +1880,35 @@ function CustomerOrders({ customerId, loading }) {
       <table className="w-full">
         <thead className="bg-slate-50 border-b border-slate-200">
           <tr>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">ID</th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">Mahsulot</th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">Miqdor</th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">Narx</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">Mahsulotlar</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">Jami</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">Status</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">Vaqt</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200">
-          {orders.map(order => (
-            <tr key={order.id} className="hover:bg-slate-50 transition-colors">
-              <td className="px-4 py-3 text-sm font-medium">#{order.id}</td>
-              <td className="px-4 py-3 text-sm">{order.product_name}</td>
-              <td className="px-4 py-3 text-sm">{order.quantity}</td>
-              <td className="px-4 py-3 text-sm">{fmt(order.unit_price)} so'm</td>
-              <td className="px-4 py-3 text-sm font-semibold">{fmt(order.total_amount)} so'm</td>
+          {orders.map(group => (
+            <tr key={group.group_id} className="hover:bg-slate-50 transition-colors">
+              <td className="px-4 py-3 text-sm">
+                {group.items.length === 1
+                  ? <span>{group.items[0].product_name} <span className="text-slate-400">× {group.items[0].quantity}</span></span>
+                  : <span className="text-slate-700">{group.items.map(i => `${i.product_name} ×${i.quantity}`).join(', ')}</span>}
+              </td>
+              <td className="px-4 py-3 text-sm font-semibold">{fmt(group.total_amount)} so'm</td>
               <td className="px-4 py-3 text-sm">
                 <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                  order.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                  order.status === 'confirmed' ? 'bg-blue-100 text-blue-700' :
-                  order.status === 'delivered' ? 'bg-green-100 text-green-700' :
+                  group.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                  group.status === 'confirmed' ? 'bg-blue-100 text-blue-700' :
+                  group.status === 'delivered' ? 'bg-green-100 text-green-700' :
                   'bg-slate-100 text-slate-700'
                 }`}>
-                  {order.status === 'pending' ? '⏳ Kutilmoqda' :
-                   order.status === 'confirmed' ? '✅ Tasdiqlangan' :
-                   order.status === 'delivered' ? '🚚 Yetkazildi' :
-                   order.status}
+                  {group.status === 'pending' ? '⏳ Kutilmoqda' :
+                   group.status === 'confirmed' ? '✅ Tasdiqlangan' :
+                   group.status === 'delivered' ? '🚚 Yetkazildi' :
+                   group.status}
                 </span>
               </td>
-              <td className="px-4 py-3 text-sm text-slate-500">{fmtDate(order.created_at)}</td>
+              <td className="px-4 py-3 text-sm text-slate-500">{fmtDate(group.created_at)}</td>
             </tr>
           ))}
         </tbody>
