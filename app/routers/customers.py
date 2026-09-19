@@ -1151,6 +1151,72 @@ def delete_customer_price(
     db.commit()
 
 
+@router.get("/{customer_id}/barcode.svg")
+def get_customer_barcode_svg(
+        customer_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    """Mijozning shtrix kodini SVG qilib qaytaradi."""
+    customer = db.query(Customer).filter(
+        Customer.id == customer_id,
+        Customer.company_id == current_user.company_id,
+    ).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Mijoz topilmadi")
+
+    if not customer.card_number:
+        raise HTTPException(status_code=400, detail="Mijozning karta raqami yo'q")
+
+    import barcode
+    import io
+    from barcode.writer import ImageWriter
+
+    Code128 = barcode.get_barcode_class("code128")
+    buf = io.BytesIO()
+    Code128(customer.card_number, writer=ImageWriter()).write(buf, options={
+        "module_height": 12.0,
+        "module_width": 0.38,
+        "quiet_zone": 6.5,
+        "font_size": 10,
+        "text_distance": 4.0,
+    })
+    buf.seek(0)
+
+    from fastapi.responses import Response
+    return Response(content=buf.getvalue(), media_type="image/png")
+
+
+@router.put("/{customer_id}/assign-branch")
+def assign_branch_to_customer(
+        customer_id: int,
+        branch_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    """Mijozga dokon biriktirish."""
+    customer = db.query(Customer).filter(
+        Customer.id == customer_id,
+        Customer.company_id == current_user.company_id,
+    ).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Mijoz topilmadi")
+
+    from app.models.branch import Branch
+    branch = db.query(Branch).filter(
+        Branch.id == branch_id,
+        Branch.company_id == current_user.company_id,
+    ).first()
+    if not branch:
+        raise HTTPException(status_code=404, detail="Dokon topilmadi")
+
+    customer.branch_id = branch_id
+    db.commit()
+    db.refresh(customer)
+
+    return {"message": f"Mijoz {branch.name} dokoniga biriktirildi", "branch_id": branch_id}
+
+
 @router.post("/{customer_id}/send-barcode-to-telegram")
 async def send_barcode_to_telegram(
         customer_id: int,

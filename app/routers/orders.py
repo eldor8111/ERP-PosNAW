@@ -145,3 +145,37 @@ def cancel_order(
     db.commit()
 
     return {"message": "Buyurtma bekor qilindi"}
+
+
+@router.get("/branch/{branch_id}/pending")
+def get_pending_orders_for_branch(
+    branch_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Dokon uchun pending buyurtmalar."""
+    orders = db.query(Order).filter(
+        Order.branch_id == branch_id,
+        Order.status == OrderStatus.pending
+    ).order_by(Order.created_at.desc()).all()
+
+    result = []
+    for order in orders:
+        customer = db.query(Customer).filter(Customer.id == order.customer_id).first()
+        product = db.query(Product).filter(Product.id == order.product_id).first()
+
+        result.append({
+            "id": order.id,
+            "customer_name": customer.name if customer else "—",
+            "customer_phone": customer.phone if customer else "—",
+            "product_name": product.name if product else "—",
+            "quantity": order.quantity,
+            "unit_price": float(order.unit_price),
+            "total_amount": float(order.total_amount),
+            "payment_type": order.payment_type,
+            "status": order.status,
+            "created_at": order.created_at.isoformat(),
+            "notes": order.notes,
+        })
+
+    return result
