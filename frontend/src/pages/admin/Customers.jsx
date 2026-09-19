@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import { ChevronDown, CreditCard, Users, ListOrdered, ChevronsUpDown, CheckIcon, AlertTriangle, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, EllipsisVertical, History, Star, Banknote, Layers, CircleCheck, Plus, Minus, Package } from 'lucide-react';
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
 import Orders from './Orders';
+import CustomerBarcodePrintModal from '../../components/CustomerBarcodeTemplates';
 
 const getEmptyForm = () => ({ name: '', phone: '', debt_limit: '', loyalty_points: 0, card_number: '', cashback_percent: 0, price_type: 'retail', debts: [{ amount: '', currency: 'UZS' }] });
 const emptyForm = getEmptyForm();
@@ -75,7 +76,7 @@ function CustSearch({ customers, value, onChange, onAfterSelect }) {
   );
 }
 
-function RowMenu({ onEdit, onDelete, onPay, onPoints, onHistory, hasDebt }) {
+function RowMenu({ onEdit, onDelete, onPay, onPoints, onHistory, onPrintBarcode, hasDebt }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, right: 0, visible: false });
   const { t } = useLang();
@@ -144,6 +145,13 @@ function RowMenu({ onEdit, onDelete, onPay, onPoints, onHistory, hasDebt }) {
             <History className="w-4 h-4" />
             {t('customer.history')}
           </button>
+          <button onClick={() => { onPrintBarcode(); setOpen(false); }}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-violet-600 hover:bg-violet-50 transition-colors font-medium">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            Shtrix-kod chop
+          </button>
           <div className="mx-3 my-1 border-t border-slate-100" />
           <button onClick={() => { onEdit(); setOpen(false); }}
             className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
@@ -202,6 +210,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(null);
   const [selected, setSelected] = useState(null);
+  const [barcodeCustomer, setBarcodeCustomer] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [payWallet, setPayWallet] = useState('');
   const [payInfo, setPayInfo] = useState('');
@@ -874,6 +883,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                         onPay={() => openPay(c)}
                         onPoints={() => openPoints(c)}
                         onHistory={() => openHistory(c)}
+                        onPrintBarcode={() => setBarcodeCustomer(c)}
                         hasDebt={Number(c.debt_balance) > 0 || (c.debt_balances && typeof c.debt_balances === 'object' && Object.values(c.debt_balances).some(v => Number(v) > 0))}
                       />
                     </td>
@@ -1904,6 +1914,10 @@ export function SotuvMijozlar({ stats, reloadStats }) {
             )}
           </div>
         </div>
+      )}
+
+      {barcodeCustomer && (
+        <CustomerBarcodePrintModal customer={barcodeCustomer} onClose={() => setBarcodeCustomer(null)} />
       )}
     </div>
   );
