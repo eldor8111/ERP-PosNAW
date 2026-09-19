@@ -46,13 +46,33 @@ def _verify_init_data(init_data: str, bot_token: str) -> Optional[dict]:
 
 
 def _shop_warehouse_ids(db: Session, company_id: int) -> List[int]:
-    """Faqat 'Do'kon' (shop) turidagi omborlar — asosiy sklad/tranzit/qaytarish
-    omborlari mijozlarga ko'rsatilmasligi kerak."""
-    warehouses = db.query(Warehouse).filter(
+    """Mijozlarga ko'rsatiladigan omborlar.
+
+    Amaliyotda WarehouseType.shop deyarli ishlatilmaydi — foydalanuvchilar
+    ombor turini "main" holida qoldirib, faqat nomini "Do'kon" deb qo'yishadi.
+    Shuning uchun avval type=shop, topilmasa nomi "do'kon"/"dokon"/"shop"
+    so'zini o'z ichiga olgan faol omborlarni ishlatamiz.
+    """
+    typed = db.query(Warehouse).filter(
         Warehouse.company_id == company_id,
         Warehouse.type == WarehouseType.shop,
+        Warehouse.is_active == True,  # noqa: E712
     ).all()
-    return [w.id for w in warehouses]
+    if typed:
+        return [w.id for w in typed]
+
+    all_active = db.query(Warehouse).filter(
+        Warehouse.company_id == company_id,
+        Warehouse.is_active == True,  # noqa: E712
+    ).all()
+
+    def _looks_like_shop(name: str) -> bool:
+        n = (name or "").lower()
+        for ch in ("'", "ʼ", "’", "`"):
+            n = n.replace(ch, "")
+        return "dokon" in n or "shop" in n or "магазин" in n
+
+    return [w.id for w in all_active if _looks_like_shop(w.name)]
 
 
 def _verify_shop_token(chat_id: str, token: str, bot_token: str) -> bool:
@@ -117,22 +137,6 @@ class OrderIn(BaseModel):
     items: List[CartItemIn]
     payment_type: Optional[str] = "cash"
     notes: Optional[str] = None
-
-
-@router.get("/{company_id}/debug-warehouses")
-def shop_debug_warehouses(company_id: int, db: Session = Depends(get_db)):
-    """Vaqtinchalik debug — omborlar ro'yxati va turi."""
-    warehouses = db.query(Warehouse).filter(Warehouse.company_id == company_id).all()
-    result = []
-    for w in warehouses:
-        stock_sum = db.query(StockLevel).filter(StockLevel.warehouse_id == w.id).all()
-        total = sum(float(s.quantity or 0) for s in stock_sum)
-        result.append({
-            "id": w.id, "name": w.name, "type": str(w.type),
-            "branch_id": w.branch_id, "is_active": w.is_active,
-            "stock_lines": len(stock_sum), "total_qty": total,
-        })
-    return result
 
 
 @router.get("/{company_id}/info")
