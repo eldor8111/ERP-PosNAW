@@ -113,7 +113,9 @@ function buildLabelHTML(tpl, customer, opts = {}) {
     : '';
 
   const barcodeHtml = (showBarcode && cardNumber)
-    ? `<svg class="bc" data-val="${cardNumber}" data-linecolor="${colors.text || '#000'}" data-height="${barcodeSize * 2.4}" data-fontsize="${barcodeSize * 0.7}" data-barwidth="${(barcodeSize * 0.1).toFixed(2)}" style="width:100%; max-height:${h * 0.55}mm; margin:0.5mm 0;"></svg>`
+    ? `<div style="width:100%; display:flex; justify-content:center; overflow:hidden; max-height:${h * 0.55}mm; margin:0.5mm 0;">
+         <svg class="bc" data-val="${cardNumber}" data-linecolor="${colors.text || '#000'}" data-height="${barcodeSize * 2.4}" data-fontsize="${barcodeSize * 0.7}" data-barwidth="${(barcodeSize * 0.1).toFixed(2)}" style="max-width:100%; width:auto; height:auto; max-height:${h * 0.55}mm;"></svg>
+       </div>`
     : '';
 
   const upElements = [];
