@@ -39,6 +39,7 @@ const TABS = [
   { id: 'umumiy', label: 'Umumiy' },
   { id: 'sotuvlar', label: 'Sotuvlar' },
   { id: 'qaytarishlar', label: 'Qaytarishlar' },
+  { id: 'buyurtmalar', label: 'Buyurtmalar' },
   { id: 'operatsiyalar', label: 'Operatsiyalar' },
   { id: 'akt', label: 'Akt Sverka' },
   { id: 'kirim_tolovlar', label: "Kirim to'lovlar" },
@@ -385,6 +386,11 @@ export default function CustomerDetail() {
                 />
               )}
             </div>
+          )}
+
+          {/* BUYURTMALAR TAB */}
+          {tab === 'buyurtmalar' && (
+            <CustomerOrders customerId={customerId} loading={loadingTab} />
           )}
 
           {/* OPERATSIYALAR TAB */}
@@ -1842,6 +1848,73 @@ function Empty({ text }) {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
       </svg>
       <p className="text-sm">{text}</p>
+    </div>
+  )
+}
+
+function CustomerOrders({ customerId, loading }) {
+  const [orders, setOrders] = useState([])
+  const [ordersLoading, setOrdersLoading] = useState(false)
+
+  useEffect(() => {
+    if (customerId) loadOrders()
+  }, [customerId])
+
+  const loadOrders = async () => {
+    setOrdersLoading(true)
+    try {
+      const { data } = await api.get('/orders')
+      setOrders(data.filter(o => o.customer_id === customerId))
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setOrdersLoading(false)
+    }
+  }
+
+  if (ordersLoading || loading) return <LoadingSpinner />
+  if (!orders.length) return <Empty text="Buyurtmalar yo'q" />
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full">
+        <thead className="bg-slate-50 border-b border-slate-200">
+          <tr>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">ID</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">Mahsulot</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">Miqdor</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">Narx</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">Jami</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">Status</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">Vaqt</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-200">
+          {orders.map(order => (
+            <tr key={order.id} className="hover:bg-slate-50 transition-colors">
+              <td className="px-4 py-3 text-sm font-medium">#{order.id}</td>
+              <td className="px-4 py-3 text-sm">{order.product_name}</td>
+              <td className="px-4 py-3 text-sm">{order.quantity}</td>
+              <td className="px-4 py-3 text-sm">{fmt(order.unit_price)} so'm</td>
+              <td className="px-4 py-3 text-sm font-semibold">{fmt(order.total_amount)} so'm</td>
+              <td className="px-4 py-3 text-sm">
+                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                  order.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                  order.status === 'confirmed' ? 'bg-blue-100 text-blue-700' :
+                  order.status === 'delivered' ? 'bg-green-100 text-green-700' :
+                  'bg-slate-100 text-slate-700'
+                }`}>
+                  {order.status === 'pending' ? '⏳ Kutilmoqda' :
+                   order.status === 'confirmed' ? '✅ Tasdiqlangan' :
+                   order.status === 'delivered' ? '🚚 Yetkazildi' :
+                   order.status}
+                </span>
+              </td>
+              <td className="px-4 py-3 text-sm text-slate-500">{fmtDate(order.created_at)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
