@@ -14,7 +14,7 @@ from app.models.company import Company  # type: ignore
 from app.models.customer import Customer  # type: ignore
 from app.models.product import Product  # type: ignore
 from app.models.category import Category  # type: ignore
-from app.models.warehouse import Warehouse  # type: ignore
+from app.models.warehouse import Warehouse, WarehouseType  # type: ignore
 from app.models.inventory import StockLevel  # type: ignore
 from app.models.order import Order, OrderStatus  # type: ignore
 from app.models.branch import Branch  # type: ignore
@@ -43,6 +43,16 @@ def _verify_init_data(init_data: str, bot_token: str) -> Optional[dict]:
         return json.loads(user_raw)
     except Exception:
         return None
+
+
+def _shop_warehouse_ids(db: Session, company_id: int) -> List[int]:
+    """Faqat 'Do'kon' (shop) turidagi omborlar — asosiy sklad/tranzit/qaytarish
+    omborlari mijozlarga ko'rsatilmasligi kerak."""
+    warehouses = db.query(Warehouse).filter(
+        Warehouse.company_id == company_id,
+        Warehouse.type == WarehouseType.shop,
+    ).all()
+    return [w.id for w in warehouses]
 
 
 def _verify_shop_token(chat_id: str, token: str, bot_token: str) -> bool:
@@ -130,8 +140,9 @@ def shop_products(
 ):
     company, customer = _resolve_shop_context(db, company_id, x_init_data, u, t)
 
-    warehouses = db.query(Warehouse).filter(Warehouse.company_id == company.id).all()
-    wh_ids = [w.id for w in warehouses]
+    wh_ids = _shop_warehouse_ids(db, company.id)
+    if not wh_ids:
+        return []
 
     stock_query = db.query(StockLevel).filter(StockLevel.warehouse_id.in_(wh_ids))
     stock_by_product = {}
@@ -206,12 +217,14 @@ def shop_create_order(
     if not data.items:
         raise HTTPException(status_code=400, detail="Savat bo'sh")
 
-    warehouses = db.query(Warehouse).filter(Warehouse.company_id == company.id).all()
-    wh_ids = [w.id for w in warehouses]
+    wh_ids = _shop_warehouse_ids(db, company.id)
+    if not wh_ids:
+        raise HTTPException(status_code=400, detail="Do'konda sotuvga qo'yilgan ombor topilmadi")
+    shop_warehouses = db.query(Warehouse).filter(Warehouse.id.in_(wh_ids)).all()
 
     default_branch_id = customer.branch_id
     if not default_branch_id:
-        wh_with_branch = next((w for w in warehouses if w.branch_id), None)
+        wh_with_branch = next((w for w in shop_warehouses if w.branch_id), None)
         default_branch_id = wh_with_branch.branch_id if wh_with_branch else None
     if not default_branch_id:
         first_branch = db.query(Branch).filter(Branch.company_id == company.id).first()
@@ -255,7 +268,17 @@ def shop_create_order(
         db.add(order)
         created_orders.append(order)
 
-    db.commit()
+    if not created_orders:
+        raise HTTPException(status_code=400, detail="Savatdagi mahsulotlar topilmadi")
+
+    try:
+        db.commit()
+    except Exception as ex:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Buyurtmani saqlashda xatolik: {ex}")
+
+    for order in created_orders:
+        db.refresh(order)
 
     return {
         "message": "Buyurtma qabul qilindi",
