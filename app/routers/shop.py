@@ -197,16 +197,22 @@ def shop_products(
     if q:
         products_query = products_query.filter(Product.name.ilike(f"%{q}%"))
 
+    products = products_query.all()
+    category_ids = {p.category_id for p in products if p.category_id}
+    categories_by_id = {}
+    if category_ids:
+        for cat in db.query(Category).filter(Category.id.in_(category_ids)).all():
+            categories_by_id[cat.id] = cat.name
+
     result = []
-    for prod in products_query.all():
+    for prod in products:
         available = max(0, int(stock_by_product.get(prod.id, 0)))
-        cat = db.query(Category).filter(Category.id == prod.category_id).first() if prod.category_id else None
         result.append(ProductOut(
             id=prod.id,
             name=prod.name,
             price=float(prod.sale_price or 0),
             available=available,
-            category=cat.name if cat else None,
+            category=categories_by_id.get(prod.category_id),
             image_url=getattr(prod, "image_url", None),
         ))
 
@@ -240,12 +246,17 @@ def shop_my_orders(
         Order.customer_id == customer.id,
     ).order_by(Order.created_at.desc()).limit(50).all()
 
+    product_ids = {o.product_id for o in orders}
+    product_names = {}
+    if product_ids:
+        for p in db.query(Product.id, Product.name).filter(Product.id.in_(product_ids)).all():
+            product_names[p.id] = p.name
+
     result = []
     for order in orders:
-        product = db.query(Product).filter(Product.id == order.product_id).first()
         result.append({
             "id": order.id,
-            "product_name": product.name if product else "—",
+            "product_name": product_names.get(order.product_id, "—"),
             "quantity": order.quantity,
             "unit_price": float(order.unit_price),
             "total_amount": float(order.total_amount),

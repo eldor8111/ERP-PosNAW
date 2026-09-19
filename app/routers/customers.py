@@ -167,16 +167,24 @@ class PaginatedCustomersOut(BaseModel):
     debt_edited: List[Dict[str, Any]] = []
 
 
-def _calc_debt_in_uzs(balances: dict, db: Session) -> Decimal:
-    """debt_balances dict va joriy kurslardan UZS ekvivalentini hisoblaydi."""
-    from app.models.currency import Currency as CurrencyModel
+def _calc_debt_in_uzs(balances: dict, db: Session, currency_map: Optional[dict] = None) -> Decimal:
+    """debt_balances dict va joriy kurslardan UZS ekvivalentini hisoblaydi.
+
+    currency_map berilsa ({code: rate}), DB'ga so'rov qilinmaydi — bir
+    nechta mijoz ustida ketma-ket chaqirilganda (masalan recalc-debts)
+    N+1 so'rovning oldini olish uchun oldindan yuklab uzatiladi.
+    """
     total = Decimal("0")
     for curr, amt in (balances or {}).items():
         if curr == "UZS":
             total += Decimal(str(amt))
         else:
-            curr_obj = db.query(CurrencyModel).filter(CurrencyModel.code == curr).first()
-            rate = Decimal(str(curr_obj.rate)) if curr_obj and curr_obj.rate else Decimal("1")
+            if currency_map is not None:
+                rate = currency_map.get(curr, Decimal("1"))
+            else:
+                from app.models.currency import Currency as CurrencyModel
+                curr_obj = db.query(CurrencyModel).filter(CurrencyModel.code == curr).first()
+                rate = Decimal(str(curr_obj.rate)) if curr_obj and curr_obj.rate else Decimal("1")
             total += Decimal(str(amt)) * rate
     return total
 
@@ -229,6 +237,9 @@ def recalc_all_debts(
 ):
     """Barcha mijozlarning debt_balance ni debt_balances + joriy kurs asosida qayta hisoblaydi.
     Bu endpoint faqat bir martalik fix uchun yoki kurs o'zgarganda chaqiriladi."""
+    from app.models.currency import Currency as CurrencyModel
+    currency_map = {c.code: Decimal(str(c.rate)) for c in db.query(CurrencyModel).all() if c.rate}
+
     customers = db.query(Customer).filter(
         Customer.company_id == current_user.company_id
     ).all()
@@ -237,7 +248,7 @@ def recalc_all_debts(
         balances = dict(cust.debt_balances or {})
         if not balances:
             continue
-        new_balance = _calc_debt_in_uzs(balances, db)
+        new_balance = _calc_debt_in_uzs(balances, db, currency_map)
         cust.debt_balance = new_balance
         updated += 1
     db.commit()

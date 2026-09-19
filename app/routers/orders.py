@@ -115,11 +115,22 @@ def list_orders(
 
     orders = query.order_by(Order.created_at.desc()).all()
 
+    customer_ids = {o.customer_id for o in orders}
+    product_ids = {o.product_id for o in orders}
+    customers_by_id = {}
+    if customer_ids:
+        for c in db.query(Customer.id, Customer.name, Customer.phone).filter(Customer.id.in_(customer_ids)).all():
+            customers_by_id[c.id] = c
+    products_by_id = {}
+    if product_ids:
+        for p in db.query(Product.id, Product.name).filter(Product.id.in_(product_ids)).all():
+            products_by_id[p.id] = p.name
+
     groups: dict = {}
     for order in orders:
         key = _group_key(order)
         if key not in groups:
-            customer = db.query(Customer).filter(Customer.id == order.customer_id).first()
+            customer = customers_by_id.get(order.customer_id)
             groups[key] = {
                 "group_id": key,
                 "customer_id": order.customer_id,
@@ -134,11 +145,10 @@ def list_orders(
                 "items": [],
             }
 
-        product = db.query(Product).filter(Product.id == order.product_id).first()
         groups[key]["items"].append({
             "id": order.id,
             "product_id": order.product_id,
-            "product_name": product.name if product else "—",
+            "product_name": products_by_id.get(order.product_id, "—"),
             "quantity": order.quantity,
             "unit_price": float(order.unit_price),
             "total_amount": float(order.total_amount),
@@ -273,16 +283,26 @@ def get_pending_orders_for_branch(
         Order.status == OrderStatus.pending
     ).order_by(Order.created_at.desc()).all()
 
+    customer_ids = {o.customer_id for o in orders}
+    product_ids = {o.product_id for o in orders}
+    customers_by_id = {}
+    if customer_ids:
+        for c in db.query(Customer.id, Customer.name, Customer.phone).filter(Customer.id.in_(customer_ids)).all():
+            customers_by_id[c.id] = c
+    products_by_id = {}
+    if product_ids:
+        for p in db.query(Product.id, Product.name).filter(Product.id.in_(product_ids)).all():
+            products_by_id[p.id] = p.name
+
     result = []
     for order in orders:
-        customer = db.query(Customer).filter(Customer.id == order.customer_id).first()
-        product = db.query(Product).filter(Product.id == order.product_id).first()
+        customer = customers_by_id.get(order.customer_id)
 
         result.append({
             "id": order.id,
             "customer_name": customer.name if customer else "—",
             "customer_phone": customer.phone if customer else "—",
-            "product_name": product.name if product else "—",
+            "product_name": products_by_id.get(order.product_id, "—"),
             "quantity": order.quantity,
             "unit_price": float(order.unit_price),
             "total_amount": float(order.total_amount),
