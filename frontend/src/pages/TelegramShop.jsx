@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import axios from 'axios'
-import { ShoppingCart, Search, Plus, Minus, X, Package, CheckCircle2, Loader2, ClipboardList, Clock, Truck, AlertCircle, Wallet, CreditCard, Copy, Receipt } from 'lucide-react'
+import { ShoppingCart, Search, Plus, Minus, X, Package, CheckCircle2, Loader2, ClipboardList, Clock, Truck, AlertCircle, Wallet, CreditCard, Copy, Receipt, Menu, Store, ChevronRight } from 'lucide-react'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8010/api'
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ')
@@ -103,6 +103,7 @@ export default function TelegramShop() {
   const hasAuth = !!initData || hasUrlAuth
 
   const [shopName, setShopName] = useState('')
+  const [showMenu, setShowMenu] = useState(false)
   const [products, setProducts] = useState([])
   const [categories, setCategories] = useState([])
   const [activeCategory, setActiveCategory] = useState(null)
@@ -159,6 +160,8 @@ export default function TelegramShop() {
       }
       setLoading(false)
     })
+
+    api.get(`/shop/${companyId}/me`).then(r => { if (!cancelled) setMeData(r.data) }).catch(() => {})
 
     return () => { cancelled = true }
   }, [tgReady, companyId, hasAuth, api])
@@ -224,6 +227,7 @@ export default function TelegramShop() {
   }, [cartCount, cartTotal, showCart])
 
   const openMyOrders = useCallback(() => {
+    setShowMenu(false)
     setShowOrders(true)
     setOrdersLoading(true)
     api.get(`/shop/${companyId}/my-orders`)
@@ -241,16 +245,19 @@ export default function TelegramShop() {
   }, [api, companyId])
 
   const openBalance = useCallback(() => {
+    setShowMenu(false)
     setShowBalance(true)
     loadMe()
   }, [loadMe])
 
   const openCard = useCallback(() => {
+    setShowMenu(false)
     setShowCard(true)
     if (!meData) loadMe()
   }, [meData, loadMe])
 
   const openPurchases = useCallback(() => {
+    setShowMenu(false)
     setShowPurchases(true)
     setPurchasesLoading(true)
     api.get(`/shop/${companyId}/purchases`)
@@ -332,47 +339,31 @@ export default function TelegramShop() {
       {/* Header */}
       <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-slate-200 px-4 pt-4 pb-3 shadow-sm">
         <div className="flex items-center justify-between mb-3">
-          <div>
-            <h1 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-              🏪 {shopName}
-            </h1>
-            <p className="text-xs text-slate-400">{products.length} ta mahsulot mavjud</p>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <button
+              onClick={() => setShowMenu(true)}
+              className="w-9 h-9 shrink-0 rounded-xl bg-slate-100 flex items-center justify-center active:scale-95 transition-transform"
+              title="Menyu"
+            >
+              <Menu className="w-[18px] h-[18px] text-slate-700" />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-base font-bold text-slate-800 truncate">{shopName}</h1>
+              <p className="text-[11px] text-slate-400">{products.length} ta mahsulot</p>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={openCard}
-              className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center active:scale-95 transition-transform"
-              title="Kartam"
-            >
-              <CreditCard className="w-4 h-4 text-slate-600" />
-            </button>
-            <button
-              onClick={openBalance}
-              className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center active:scale-95 transition-transform"
-              title="Balans"
-            >
-              <Wallet className="w-4 h-4 text-slate-600" />
-            </button>
-            <button
-              onClick={openMyOrders}
-              className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center active:scale-95 transition-transform"
-              title="Buyurtmalarim"
-            >
-              <ClipboardList className="w-4 h-4 text-slate-600" />
-            </button>
-            <button
-              onClick={() => setShowCart(true)}
-              className="relative w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center active:scale-95 transition-transform"
-              title="Savat"
-            >
-              <ShoppingCart className="w-4 h-4 text-blue-600" />
-              {cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
-                  {cartCount}
-                </span>
-              )}
-            </button>
-          </div>
+          <button
+            onClick={() => setShowCart(true)}
+            className="relative w-9 h-9 shrink-0 rounded-xl bg-blue-500 flex items-center justify-center active:scale-95 transition-transform shadow-sm shadow-blue-200"
+            title="Savat"
+          >
+            <ShoppingCart className="w-4 h-4 text-white" />
+            {cartCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
+                {cartCount}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Search */}
@@ -462,6 +453,95 @@ export default function TelegramShop() {
           </div>
         )}
       </div>
+
+      {/* Side menu */}
+      {showMenu && (
+        <div className="fixed inset-0 z-[60] flex">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowMenu(false)} />
+          <div className="relative w-[82%] max-w-[320px] h-full bg-white flex flex-col animate-[slideInLeft_0.22s_ease-out] shadow-2xl">
+            {/* Profile header */}
+            <div className="px-5 pt-6 pb-5 bg-gradient-to-br from-blue-600 to-indigo-700 text-white">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-11 h-11 rounded-2xl bg-white/15 flex items-center justify-center">
+                  <Store className="w-[22px] h-[22px]" />
+                </div>
+                <button onClick={() => setShowMenu(false)} className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center active:scale-95 transition-transform">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <p className="text-sm font-bold truncate">{shopName}</p>
+              <p className="text-[11px] text-blue-100 mt-0.5">{meData?.name || 'Mijoz'}</p>
+              {meData?.card_number && (
+                <p className="text-xs font-mono text-blue-100 mt-2 tracking-wider">
+                  •••• {meData.card_number.slice(-4)}
+                </p>
+              )}
+            </div>
+
+            {/* Menu items */}
+            <div className="flex-1 overflow-y-auto py-2">
+              <button
+                onClick={() => setShowMenu(false)}
+                className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 active:bg-slate-100 transition-colors"
+              >
+                <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+                  <Store className="w-4 h-4 text-blue-600" />
+                </div>
+                <span className="flex-1 text-left text-sm font-medium text-slate-700">Katalog</span>
+                <ChevronRight className="w-4 h-4 text-slate-300" />
+              </button>
+
+              <button
+                onClick={openMyOrders}
+                className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 active:bg-slate-100 transition-colors"
+              >
+                <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
+                  <ClipboardList className="w-4 h-4 text-amber-600" />
+                </div>
+                <span className="flex-1 text-left text-sm font-medium text-slate-700">Buyurtmalarim</span>
+                <ChevronRight className="w-4 h-4 text-slate-300" />
+              </button>
+
+              <button
+                onClick={openBalance}
+                className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 active:bg-slate-100 transition-colors"
+              >
+                <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center shrink-0">
+                  <Wallet className="w-4 h-4 text-green-600" />
+                </div>
+                <span className="flex-1 text-left text-sm font-medium text-slate-700">Balansim</span>
+                <ChevronRight className="w-4 h-4 text-slate-300" />
+              </button>
+
+              <button
+                onClick={openCard}
+                className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 active:bg-slate-100 transition-colors"
+              >
+                <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
+                  <CreditCard className="w-4 h-4 text-violet-600" />
+                </div>
+                <span className="flex-1 text-left text-sm font-medium text-slate-700">Loyallik kartam</span>
+                <ChevronRight className="w-4 h-4 text-slate-300" />
+              </button>
+
+              <button
+                onClick={openPurchases}
+                className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 active:bg-slate-100 transition-colors"
+              >
+                <div className="w-9 h-9 rounded-xl bg-rose-50 flex items-center justify-center shrink-0">
+                  <Receipt className="w-4 h-4 text-rose-600" />
+                </div>
+                <span className="flex-1 text-left text-sm font-medium text-slate-700">Xaridlar tarixi</span>
+                <ChevronRight className="w-4 h-4 text-slate-300" />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 border-t border-slate-100">
+              <p className="text-[11px] text-slate-300 text-center">E-Code orqali ishga tushirilgan</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Cart drawer */}
       {showCart && (
@@ -771,6 +851,7 @@ export default function TelegramShop() {
 
       <style>{`
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        @keyframes slideInLeft { from { transform: translateX(-100%); } to { transform: translateX(0); } }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
