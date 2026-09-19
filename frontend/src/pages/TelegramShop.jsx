@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import axios from 'axios'
 import { ShoppingCart, Search, Plus, Minus, X, Package, CheckCircle2, Loader2, ClipboardList, Clock, Truck, AlertCircle, Wallet, CreditCard, Copy, Receipt, Menu, Store, ChevronRight } from 'lucide-react'
+import { ECodeIconLight } from '../components/ECodeLogo'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8010/api'
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ')
@@ -463,7 +464,7 @@ export default function TelegramShop() {
             <div className="px-5 pt-6 pb-5 bg-gradient-to-br from-blue-600 to-indigo-700 text-white">
               <div className="flex items-center justify-between mb-4">
                 <div className="w-11 h-11 rounded-2xl bg-white/15 flex items-center justify-center">
-                  <Store className="w-[22px] h-[22px]" />
+                  <ECodeIconLight size={26} />
                 </div>
                 <button onClick={() => setShowMenu(false)} className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center active:scale-95 transition-transform">
                   <X className="w-4 h-4" />
