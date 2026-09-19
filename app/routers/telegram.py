@@ -273,7 +273,8 @@ async def _handle_order_from_telegram(db: Session, token: str, chat_id: str, com
         return
 
     from app.models.product import Product
-    from app.routers.orders import create_order, OrderIn
+    from app.models.order import Order, OrderStatus
+    from decimal import Decimal
 
     prod = db.query(Product).filter(
         Product.name.ilike(f"%{product_name}%"),
@@ -286,14 +287,29 @@ async def _handle_order_from_telegram(db: Session, token: str, chat_id: str, com
             _build_main_keyboard())
         return
 
+    if quantity <= 0:
+        bg.add_task(send_telegram_message, token, chat_id,
+            "❌ Miqdor 0 dan katta bo'lishi kerak.",
+            _build_main_keyboard())
+        return
+
     try:
-        order_data = OrderIn(
+        unit_price = Decimal(str(prod.sale_price))
+        total_amount = unit_price * quantity
+
+        order = Order(
             customer_id=customer.id,
+            branch_id=customer.branch_id,
             product_id=prod.id,
             quantity=quantity,
+            unit_price=unit_price,
+            total_amount=total_amount,
+            status=OrderStatus.pending,
             payment_type=payment_type,
         )
-        order = create_order(order_data, db, customer)
+        db.add(order)
+        db.commit()
+        db.refresh(order)
 
         msg = (
             f"✅ <b>Buyurtma qabul qilindi!</b>\n\n"
@@ -306,6 +322,7 @@ async def _handle_order_from_telegram(db: Session, token: str, chat_id: str, com
         )
         bg.add_task(send_telegram_message, token, chat_id, msg, _build_main_keyboard())
     except Exception as e:
+        db.rollback()
         bg.add_task(send_telegram_message, token, chat_id,
             f"❌ Buyurtma xatosi: {str(e)[:100]}",
             _build_main_keyboard())
@@ -325,15 +342,16 @@ async def _handle_dokon(db: Session, token: str, chat_id: str, company, customer
             _build_main_keyboard())
         return
 
-    branch = db.query(Company).filter(Company.id == customer.branch_id).first()
+    from app.models.branch import Branch
+    from app.models.warehouse import Warehouse
+    from app.models.inventory import StockLevel
+
+    branch = db.query(Branch).filter(Branch.id == customer.branch_id).first()
     if not branch:
         bg.add_task(send_telegram_message, token, chat_id,
             "❌ Dokon topilmadi.",
             _build_main_keyboard())
         return
-
-    from app.models.warehouse import Warehouse
-    from app.models.inventory import StockLevel
 
     msg = f"🏪 <b>{branch.name if hasattr(branch, 'name') else 'Dokon'}</b>\n\n"
     msg += "📦 Mavjud mahsulotlar:\n\n"
@@ -343,14 +361,14 @@ async def _handle_dokon(db: Session, token: str, chat_id: str, company, customer
     for wh in warehouses:
         stocks = db.query(StockLevel).filter(StockLevel.warehouse_id == wh.id).all()
         for stock in stocks:
-            if stock.available_quantity > 0:
+            if float(stock.quantity or 0) > 0:
                 from app.models.product import Product
                 prod = db.query(Product).filter(Product.id == stock.product_id).first()
                 if prod:
                     all_products.append({
                         'name': prod.name,
                         'price': prod.sale_price,
-                        'available': stock.available_quantity
+                        'available': int(float(stock.quantity or 0))
                     })
 
     if not all_products:
