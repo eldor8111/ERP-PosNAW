@@ -72,6 +72,7 @@ class CompanyUpdate(BaseModel):
     debt_deadline_alert: Optional[bool] = None
     daily_report_enabled: Optional[bool] = None
     daily_report_recipients: Optional[str] = None
+    shop_allow_out_of_stock_orders: Optional[bool] = None
 
 
 class ReceiptTemplatesUpdate(BaseModel):
@@ -95,6 +96,7 @@ class CompanyOut(BaseModel):
     debt_deadline_alert: bool = True
     daily_report_enabled: bool = True
     daily_report_recipients: str = "owners_and_admins"
+    shop_allow_out_of_stock_orders: bool = True
 
     class Config:
         from_attributes = True
@@ -122,7 +124,8 @@ def list_companies(
             expiration_alert=c.expiration_alert if c.expiration_alert is not None else True,
             debt_deadline_alert=c.debt_deadline_alert if c.debt_deadline_alert is not None else True,
             daily_report_enabled=c.daily_report_enabled if c.daily_report_enabled is not None else True,
-            daily_report_recipients=c.daily_report_recipients or "owners_and_admins"
+            daily_report_recipients=c.daily_report_recipients or "owners_and_admins",
+            shop_allow_out_of_stock_orders=c.shop_allow_out_of_stock_orders if c.shop_allow_out_of_stock_orders is not None else True,
         ))  # type: ignore[call-arg]
     return result
 
@@ -175,7 +178,8 @@ def create_company(
         expiration_alert=c.expiration_alert if c.expiration_alert is not None else True,
         debt_deadline_alert=c.debt_deadline_alert if c.debt_deadline_alert is not None else True,
         daily_report_enabled=c.daily_report_enabled if c.daily_report_enabled is not None else True,
-        daily_report_recipients=c.daily_report_recipients or "owners_and_admins"
+        daily_report_recipients=c.daily_report_recipients or "owners_and_admins",
+        shop_allow_out_of_stock_orders=c.shop_allow_out_of_stock_orders if c.shop_allow_out_of_stock_orders is not None else True,
     )  # type: ignore[call-arg]
 
 
@@ -219,7 +223,8 @@ def update_company(
         expiration_alert=c.expiration_alert if c.expiration_alert is not None else True,
         debt_deadline_alert=c.debt_deadline_alert if c.debt_deadline_alert is not None else True,
         daily_report_enabled=c.daily_report_enabled if c.daily_report_enabled is not None else True,
-        daily_report_recipients=c.daily_report_recipients or "owners_and_admins"
+        daily_report_recipients=c.daily_report_recipients or "owners_and_admins",
+        shop_allow_out_of_stock_orders=c.shop_allow_out_of_stock_orders if c.shop_allow_out_of_stock_orders is not None else True,
     )  # type: ignore[call-arg]
 
 

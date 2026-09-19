@@ -204,9 +204,13 @@ def shop_products(
         for cat in db.query(Category).filter(Category.id.in_(category_ids)).all():
             categories_by_id[cat.id] = cat.name
 
+    allow_out_of_stock = company.shop_allow_out_of_stock_orders is not False
+
     result = []
     for prod in products:
         available = max(0, int(stock_by_product.get(prod.id, 0)))
+        if available <= 0 and not allow_out_of_stock:
+            continue
         result.append(ProductOut(
             id=prod.id,
             name=prod.name,
@@ -384,6 +388,14 @@ def shop_create_order(
     # guruhlash uchun — CRM'da alohida qatorlarga bo'linib ketmasin.
     order_group_id = str(uuid.uuid4())
 
+    # CRM > Sozlamalar > Telegram bot orqali boshqariladi: agar False bo'lsa,
+    # qoldig'i yetarli bo'lmagan mahsulotlarga buyurtma berish rad etiladi.
+    allow_out_of_stock = company.shop_allow_out_of_stock_orders is not False
+    stock_by_product = {}
+    if not allow_out_of_stock:
+        for stock in db.query(StockLevel).filter(StockLevel.warehouse_id.in_(wh_ids)).all():
+            stock_by_product[stock.product_id] = stock_by_product.get(stock.product_id, 0) + float(stock.quantity or 0)
+
     created_orders = []
     for item in data.items:
         if item.quantity <= 0:
@@ -395,7 +407,15 @@ def shop_create_order(
         if not product:
             continue
 
-        # Buyurtma — so'rov: qoldiq yetarli bo'lmasa ham qabul qilinadi,
+        if not allow_out_of_stock:
+            available = stock_by_product.get(product.id, 0)
+            if available < item.quantity:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{product.name}: yetarli qoldiq yo'q ({int(max(0, available))} ta bor)",
+                )
+
+        # Sozlama yoqilgan bo'lsa: qoldiq yetarli bo'lmasa ham qabul qilinadi,
         # do'kon xodimi keyinroq tasdiqlash/rad etish orqali hal qiladi.
         unit_price = Decimal(str(product.sale_price or 0))
         total_amount = unit_price * item.quantity

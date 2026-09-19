@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
-import { CheckCircle, Clock, Truck, AlertCircle, X, Package } from 'lucide-react';
+import { CheckCircle, Clock, Truck, AlertCircle, X, Package, Download } from 'lucide-react';
+import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 
@@ -53,6 +54,36 @@ export default function Orders({ embedded = false }) {
     { value: 'delivered', label: '🚚 Yetkazildi' },
   ];
 
+  const exportExcel = async () => {
+    if (!groups.length) {
+      toast.error('Eksport qilish uchun buyurtma topilmadi');
+      return;
+    }
+    const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
+    const rows = [];
+    groups.forEach(group => {
+      group.items.forEach(item => {
+        rows.push({
+          'Mijoz': group.customer_name,
+          'Telefon': group.customer_phone,
+          'Mahsulot': item.product_name,
+          'Miqdor': item.quantity,
+          'Narx': Number(item.unit_price),
+          'Jami': Number(item.total_amount),
+          'Status': STATUS_COLORS[group.status]?.label || group.status,
+          "To'lov turi": group.payment_type || '',
+          'Izoh': group.notes || '',
+          'Sana': new Date(group.created_at).toLocaleString('uz-UZ'),
+        });
+      });
+    });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Buyurtmalar');
+    const today = new Date().toISOString().slice(0, 10);
+    saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `buyurtmalar_${today}.xlsx`);
+  };
+
   return (
     <div className={embedded ? '' : 'p-6 bg-slate-50 min-h-screen'}>
       <div className={embedded ? '' : 'max-w-7xl mx-auto'}>
@@ -65,20 +96,29 @@ export default function Orders({ embedded = false }) {
         )}
 
         {/* Filter */}
-        <div className="mb-6 flex gap-2">
-          {statusOptions.map(opt => (
-            <button
-              key={opt.value}
-              onClick={() => setFilter(opt.value)}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filter === opt.value
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-white text-slate-700 hover:bg-slate-100'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
+        <div className="mb-6 flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex gap-2">
+            {statusOptions.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setFilter(opt.value)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  filter === opt.value
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={exportExcel}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-semibold rounded-lg border border-emerald-200 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Excelga eksport
+          </button>
         </div>
 
         {/* Orders Table */}

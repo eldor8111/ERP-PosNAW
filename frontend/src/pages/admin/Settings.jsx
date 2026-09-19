@@ -861,6 +861,8 @@ function TelegramBotTab({ companyId }) {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
   const [showAdminSettings, setShowAdminSettings] = useState(false);
+  const [shopAllowOutOfStock, setShopAllowOutOfStock] = useState(true);
+  const [savingShopSetting, setSavingShopSetting] = useState(false);
 
   const load = () => {
     api.get('/companies').then(r => {
@@ -871,6 +873,7 @@ function TelegramBotTab({ companyId }) {
         } else {
            setUserBot(null);
         }
+        setShopAllowOutOfStock(co.shop_allow_out_of_stock_orders !== false);
       }
     }).catch(e => toast.error(e.response?.data?.detail || e.message));
 
@@ -944,6 +947,21 @@ function TelegramBotTab({ companyId }) {
     }
   };
 
+  const handleShopSettingToggle = async (checked) => {
+    if (!companyId) return;
+    setShopAllowOutOfStock(checked);
+    setSavingShopSetting(true);
+    try {
+      await api.put(`/companies/${companyId}`, { shop_allow_out_of_stock_orders: checked });
+      toast.success('Sozlama saqlandi');
+    } catch (e) {
+      setShopAllowOutOfStock(!checked);
+      toast.error(e.response?.data?.detail || 'Xatolik yuz berdi');
+    } finally {
+      setSavingShopSetting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {!companyId && (
@@ -998,6 +1016,26 @@ function TelegramBotTab({ companyId }) {
                   className="flex-1 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg transition-colors">Yangilash</button>
                 <button onClick={() => handleDelete('user')}
                   className="flex-1 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-lg transition-colors">O'chirish</button>
+              </div>
+
+              {/* ── Do'kon (Mini App) sozlamalari ── */}
+              <div className="pt-3 border-t border-slate-50">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-slate-700">Qoldiqsiz mahsulotlarga buyurtma</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
+                      Yoqilgan bo'lsa, mijoz Dokon (Mini App) orqali qoldig'i tugagan mahsulotga ham buyurtma bera oladi — do'kon xodimi keyin tasdiqlaydi yoki rad etadi.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={savingShopSetting}
+                    onClick={() => handleShopSettingToggle(!shopAllowOutOfStock)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${shopAllowOutOfStock ? 'bg-blue-600' : 'bg-slate-200'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${shopAllowOutOfStock ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
               </div>
             </div>
           ) : (

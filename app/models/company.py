@@ -33,6 +33,13 @@ class Company(Base):
     debt_deadline_alert = Column(Boolean, default=True)
     daily_report_enabled = Column(Boolean, default=True)
     daily_report_recipients = Column(String(50), default="owners_and_admins")
+
+    # ── Mijoz do'koni (Telegram Mini App) sozlamalari ──
+    # True (standart) — mavjud xatti-harakat: qoldig'i 0/manfiy bo'lgan
+    # mahsulotlar ham ko'rsatiladi va ularga buyurtma berish mumkin
+    # (do'kon xodimi keyin tasdiqlash/rad etish orqali hal qiladi).
+    shop_allow_out_of_stock_orders = Column(Boolean, default=True)
+
     # bot = relationship("CompanyBot", back_populates="company", uselist=False)
     # ── Billing ──────────────────────────────────────────────
     tariff_id = Column(Integer, ForeignKey("tariffs.id"), nullable=True)
