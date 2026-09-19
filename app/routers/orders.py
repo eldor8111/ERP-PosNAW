@@ -97,7 +97,9 @@ def list_orders(
     current_user: User = Depends(get_current_user),
 ):
     """Buyurtmalarni ko'rish (status bo'yicha filter)."""
-    query = db.query(Order)
+    query = db.query(Order).join(Customer).filter(
+        Customer.company_id == current_user.company_id
+    )
 
     if branch_id:
         query = query.filter(Order.branch_id == branch_id)

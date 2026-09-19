@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useLang } from '../../context/LangContext';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
 import { CheckCircle, Clock, Truck, AlertCircle } from 'lucide-react';
@@ -14,7 +13,6 @@ const STATUS_COLORS = {
 };
 
 export default function Orders() {
-  const { t } = useLang();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('pending');
@@ -40,10 +38,10 @@ export default function Orders() {
   const updateStatus = async (orderId, newStatus) => {
     try {
       await api.put(`/orders/${orderId}/confirm`);
-      toast.success('Status yangilandi');
+      toast.success(newStatus === 'confirmed' ? 'Buyurtma tasdiqlandi' : 'Status yangilandi');
       loadOrders();
     } catch (err) {
-      toast.error('Yangilashda xatolik');
+      toast.error(err.response?.data?.detail || 'Yangilashda xatolik');
     }
   };
 
