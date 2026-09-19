@@ -12,6 +12,7 @@ class Customer(Base):
     name = Column(String(100), nullable=False, index=True)
     phone = Column(String(20), nullable=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True, index=True)
     debt_balance = Column(Numeric(14, 2), default=0)
     debt_currency = Column(String(3), nullable=False, server_default="UZS", default='UZS')
     debt_balances = Column(JSON, nullable=False, server_default='{}')
@@ -35,6 +36,8 @@ class Customer(Base):
     total_spent = Column(Numeric(14, 2), default=0)
 
     debt_edited = Column(JSON, nullable=False, server_default='[]', default=list)
+
+    branch = relationship("Branch", back_populates="customers")
 
     __table_args__ = (
         UniqueConstraint('company_id', 'phone', name='uq_company_customer_phone'),

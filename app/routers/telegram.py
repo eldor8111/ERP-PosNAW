@@ -139,7 +139,8 @@ def _build_main_keyboard():
     return {
         "keyboard": [
             [{"text": "💰 Qarz va to'lovlar"}, {"text": "📦 Oxirgi xaridlar"}],
-            [{"text": "🎫 Mening kartam"}, {"text": "❓ Yordam"}],
+            [{"text": "🎫 Mening kartam"}, {"text": "🏪 Dokon"}],
+            [{"text": "❓ Yordam"}],
         ],
         "resize_keyboard": True,
     }
@@ -263,6 +264,60 @@ async def _handle_yordam(db, token, chat_id, company, customer, bg):
     bg.add_task(send_telegram_message, token, chat_id, msg, _build_main_keyboard())
 
 
+async def _handle_dokon(db: Session, token: str, chat_id: str, company, customer, bg: BackgroundTasks):
+    """Dokon va mahsulotlarni ko'rish."""
+    if not customer:
+        bg.add_task(send_telegram_message, token, chat_id,
+            "🏪 Profilingiz topilmadi. /start buyrug'i bilan ro'yxatdan o'ting.",
+            _build_main_keyboard())
+        return
+
+    if not customer.branch_id:
+        bg.add_task(send_telegram_message, token, chat_id,
+            "❌ Sizga dokon biriktirilmagan. Do'kon xodimlari bilan bog'laning.",
+            _build_main_keyboard())
+        return
+
+    branch = db.query(Company).filter(Company.id == customer.branch_id).first()
+    if not branch:
+        bg.add_task(send_telegram_message, token, chat_id,
+            "❌ Dokon topilmadi.",
+            _build_main_keyboard())
+        return
+
+    from app.models.warehouse import Warehouse
+    from app.models.inventory import StockLevel
+
+    msg = f"🏪 <b>{branch.name if hasattr(branch, 'name') else 'Dokon'}</b>\n\n"
+    msg += "📦 Mavjud mahsulotlar:\n\n"
+
+    warehouses = db.query(Warehouse).filter(Warehouse.branch_id == customer.branch_id).all()
+    all_products = []
+    for wh in warehouses:
+        stocks = db.query(StockLevel).filter(StockLevel.warehouse_id == wh.id).all()
+        for stock in stocks:
+            if stock.available_quantity > 0:
+                from app.models.product import Product
+                prod = db.query(Product).filter(Product.id == stock.product_id).first()
+                if prod:
+                    all_products.append({
+                        'name': prod.name,
+                        'price': prod.sale_price,
+                        'available': stock.available_quantity
+                    })
+
+    if not all_products:
+        msg += "Hozircha mahsulot yo'q"
+    else:
+        for i, p in enumerate(all_products[:10], 1):
+            msg += f"{i}. {p['name']} — {FMT(p['price'])} so'm (Qoldi: {p['available']})\n"
+        if len(all_products) > 10:
+            msg += f"\n... va {len(all_products) - 10} ta boshqa mahsulot"
+
+    msg += "\n\n💬 Buyurtma uchun mahsulot nomini kiriting"
+    bg.add_task(send_telegram_message, token, chat_id, msg, _build_main_keyboard())
+
+
 async def _handle_barcode_search(db: Session, token: str, chat_id: str, company, bg: BackgroundTasks, barcode_input: str):
     """Shtrix kod orqali mijozni qidiradi va kartasini yuboradi."""
     if not barcode_input or not barcode_input.strip():
@@ -300,6 +355,8 @@ COMMAND_MAP = {
     "/sotuvlar": _handle_sotuvlar,
     "🎫 mening kartam": _handle_karta,
     "/karta": _handle_karta,
+    "🏪 dokon": _handle_dokon,
+    "/dokon": _handle_dokon,
     "❓ yordam": _handle_yordam,
     "/yordam": _handle_yordam,
     "/help": _handle_yordam,
