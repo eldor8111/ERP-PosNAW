@@ -81,6 +81,7 @@ function buildLabelHTML(tpl, customer, opts = {}) {
   const cashbackSize = opts.cashbackSize || 8;
   const cardNumberSize = opts.cardNumberSize || 6;
   const barcodeSize = opts.barcodeSize || 10;
+  const barcodeHeight = opts.barcodeHeight || (barcodeSize * 2.4);
 
   const name = customer.name || '';
   const cardNumber = customer.card_number || '';
@@ -114,7 +115,7 @@ function buildLabelHTML(tpl, customer, opts = {}) {
 
   const barcodeHtml = (showBarcode && cardNumber)
     ? `<div style="width:100%; display:flex; justify-content:center; overflow:hidden; max-height:${h * 0.55}mm; margin:0.5mm 0;">
-         <svg class="bc" data-val="${cardNumber}" data-linecolor="${colors.text || '#000'}" data-height="${barcodeSize * 2.4}" data-fontsize="${barcodeSize * 0.7}" data-barwidth="${(barcodeSize * 0.1).toFixed(2)}" style="max-width:100%; width:auto; height:auto; max-height:${h * 0.55}mm;"></svg>
+         <svg class="bc" data-val="${cardNumber}" data-linecolor="${colors.text || '#000'}" data-height="${barcodeHeight}" data-fontsize="${barcodeSize * 0.7}" data-barwidth="${(barcodeSize * 0.1).toFixed(2)}" style="max-width:100%; width:auto; height:auto; max-height:${h * 0.55}mm;"></svg>
        </div>`
     : '';
 
@@ -211,6 +212,7 @@ export default function CustomerBarcodePrintModal({ customer, onClose }) {
   const [cashbackSize, setCashbackSize] = useState(8);
   const [cardNumberSize, setCardNumberSize] = useState(6);
   const [barcodeSize, setBarcodeSize] = useState(10);
+  const [barcodeHeight, setBarcodeHeight] = useState(24);
 
   const [companyName, setCompanyName] = useState('');
 
@@ -245,6 +247,7 @@ export default function CustomerBarcodePrintModal({ customer, onClose }) {
     cashbackSize,
     cardNumberSize,
     barcodeSize,
+    barcodeHeight,
     showCompanyName,
     showCustomerName,
     showCashback,
@@ -263,7 +266,7 @@ export default function CustomerBarcodePrintModal({ customer, onClose }) {
       name: saveName.trim(),
       description: `${selectedTpl.size} mm — saqlangan shablon`,
       _opts: {
-        fontSize, customerNameSize, cashbackSize, cardNumberSize, barcodeSize,
+        fontSize, customerNameSize, cashbackSize, cardNumberSize, barcodeSize, barcodeHeight,
         companyName, showCompanyName, showCustomerName, showCashback, showBarcode, showCardNumber,
         companyNamePos, customerNamePos, cashbackPos,
       },
@@ -292,6 +295,7 @@ export default function CustomerBarcodePrintModal({ customer, onClose }) {
     if (o.cashbackSize !== undefined) setCashbackSize(o.cashbackSize);
     if (o.cardNumberSize !== undefined) setCardNumberSize(o.cardNumberSize);
     if (o.barcodeSize !== undefined) setBarcodeSize(o.barcodeSize);
+    if (o.barcodeHeight !== undefined) setBarcodeHeight(o.barcodeHeight);
     if (o.companyName !== undefined) setCompanyName(o.companyName);
     if (o.showCompanyName !== undefined) setShowCompanyName(o.showCompanyName);
     if (o.showCustomerName !== undefined) setShowCustomerName(o.showCustomerName);
@@ -466,9 +470,14 @@ export default function CustomerBarcodePrintModal({ customer, onClose }) {
                   <div className="flex justify-between text-xs text-slate-400"><span>4</span><span>22</span></div>
                 </div>
                 <div>
-                  <div className="text-sm font-medium text-slate-600 mb-1">Shtrix: {barcodeSize}px</div>
+                  <div className="text-sm font-medium text-slate-600 mb-1">Shtrix eni: {barcodeSize}px</div>
                   <input type="range" min="10" max="30" value={barcodeSize} onChange={e => setBarcodeSize(+e.target.value)} className="w-full accent-blue-600" />
                   <div className="flex justify-between text-xs text-slate-400"><span>10</span><span>30</span></div>
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-slate-600 mb-1">Shtrix balandligi: {barcodeHeight}px</div>
+                  <input type="range" min="15" max="80" value={barcodeHeight} onChange={e => setBarcodeHeight(+e.target.value)} className="w-full accent-blue-600" />
+                  <div className="flex justify-between text-xs text-slate-400"><span>15</span><span>80</span></div>
                 </div>
               </div>
             </div>

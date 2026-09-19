@@ -189,6 +189,7 @@ function buildLabelHTML(tpl, product, opts = {}) {
   const productSkuSize = opts.productSkuSize || 6;
   const productCodeSize = opts.productCodeSize || 6;
   const barcodeSize = opts.barcodeSize || 10;
+  const barcodeHeight = opts.barcodeHeight || (barcodeSize * 2.4);
   const dateVal = opts.date || '';
 
   // Get and convert pricing
@@ -261,7 +262,7 @@ function buildLabelHTML(tpl, product, opts = {}) {
 
   const barcodeHtml = (showBarcode && barcode)
     ? `<div style="width:100%; display:flex; justify-content:center; overflow:hidden; max-height:${h * 0.55}mm; margin:0.5mm 0;">
-         <svg class="bc" data-val="${barcode}" data-linecolor="${colors.text || '#000'}" data-height="${barcodeSize * 2.4}" data-fontsize="${barcodeSize * 0.7}" data-barwidth="${(barcodeSize * 0.1).toFixed(2)}" style="max-width:100%; width:auto; height:auto; max-height:${h * 0.55}mm;"></svg>
+         <svg class="bc" data-val="${barcode}" data-linecolor="${colors.text || '#000'}" data-height="${barcodeHeight}" data-fontsize="${barcodeSize * 0.7}" data-barwidth="${(barcodeSize * 0.1).toFixed(2)}" style="max-width:100%; width:auto; height:auto; max-height:${h * 0.55}mm;"></svg>
        </div>`
     : '';
 
@@ -436,6 +437,7 @@ export default function BarcodePrintModal({ product, onClose }) {
   const [productSkuSize, setProductSkuSize] = useState(6);
   const [productCodeSize, setProductCodeSize] = useState(6);
   const [barcodeSize, setBarcodeSize] = useState(10);
+  const [barcodeHeight, setBarcodeHeight] = useState(24);
 
   const [companyName, setCompanyName] = useState("");
 
@@ -490,6 +492,7 @@ export default function BarcodePrintModal({ product, onClose }) {
     productPriceSize,
     productCurrencySize,
     barcodeSize,
+    barcodeHeight,
     productSkuSize,
     productCodeSize,
     showCompanyName,
@@ -524,6 +527,7 @@ export default function BarcodePrintModal({ product, onClose }) {
         productSkuSize,
         productCodeSize,
         barcodeSize,
+        barcodeHeight,
         companyName,
         currencyVal,
         showCompanyName,
@@ -568,6 +572,7 @@ export default function BarcodePrintModal({ product, onClose }) {
     if (o.productSkuSize !== undefined) setProductSkuSize(o.productSkuSize);
     if (o.productCodeSize !== undefined) setProductCodeSize(o.productCodeSize);
     if (o.barcodeSize !== undefined) setBarcodeSize(o.barcodeSize);
+    if (o.barcodeHeight !== undefined) setBarcodeHeight(o.barcodeHeight);
     if (o.companyName !== undefined) setCompanyName(o.companyName);
     if (o.currencyVal !== undefined) setCurrencyVal(o.currencyVal);
     if (o.showCompanyName !== undefined) setShowCompanyName(o.showCompanyName);
@@ -910,9 +915,9 @@ export default function BarcodePrintModal({ product, onClose }) {
                   </div>
                 </div>
 
-                {/* Shtrix */}
+                {/* Shtrix eni */}
                 <div>
-                  <div className="text-sm font-medium text-slate-600 mb-1">Shtrix: {barcodeSize}px</div>
+                  <div className="text-sm font-medium text-slate-600 mb-1">Shtrix eni: {barcodeSize}px</div>
                   <input
                     type="range"
                     min="10"
@@ -923,6 +928,22 @@ export default function BarcodePrintModal({ product, onClose }) {
                   />
                   <div className="flex justify-between text-xs text-slate-400">
                     <span>10</span><span>30</span>
+                  </div>
+                </div>
+
+                {/* Shtrix balandligi */}
+                <div>
+                  <div className="text-sm font-medium text-slate-600 mb-1">Shtrix balandligi: {barcodeHeight}px</div>
+                  <input
+                    type="range"
+                    min="15"
+                    max="80"
+                    value={barcodeHeight}
+                    onChange={e => setBarcodeHeight(+e.target.value)}
+                    className="w-full accent-blue-600"
+                  />
+                  <div className="flex justify-between text-xs text-slate-400">
+                    <span>15</span><span>80</span>
                   </div>
                 </div>
 
