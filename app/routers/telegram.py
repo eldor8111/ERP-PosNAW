@@ -336,36 +336,23 @@ async def _handle_dokon(db: Session, token: str, chat_id: str, company, customer
             _build_main_keyboard())
         return
 
-    if not customer.branch_id:
-        bg.add_task(send_telegram_message, token, chat_id,
-            "❌ Sizga dokon biriktirilmagan. Do'kon xodimlari bilan bog'laning.",
-            _build_main_keyboard())
-        return
-
-    from app.models.branch import Branch
     from app.models.warehouse import Warehouse
     from app.models.inventory import StockLevel
+    from app.models.product import Product
 
-    branch = db.query(Branch).filter(Branch.id == customer.branch_id).first()
-    if not branch:
-        bg.add_task(send_telegram_message, token, chat_id,
-            "❌ Dokon topilmadi.",
-            _build_main_keyboard())
-        return
-
-    msg = f"🏪 <b>{branch.name if hasattr(branch, 'name') else 'Dokon'}</b>\n\n"
+    msg = f"🏪 <b>Tovarlar do'koni</b>\n\n"
     msg += "📦 Mavjud mahsulotlar:\n\n"
 
-    warehouses = db.query(Warehouse).filter(Warehouse.branch_id == customer.branch_id).all()
+    warehouses = db.query(Warehouse).filter(Warehouse.company_id == company.id).all()
     all_products = []
     for wh in warehouses:
         stocks = db.query(StockLevel).filter(StockLevel.warehouse_id == wh.id).all()
         for stock in stocks:
             if float(stock.quantity or 0) > 0:
-                from app.models.product import Product
                 prod = db.query(Product).filter(Product.id == stock.product_id).first()
-                if prod:
+                if prod and prod.company_id == company.id:
                     all_products.append({
+                        'id': prod.id,
                         'name': prod.name,
                         'price': prod.sale_price,
                         'available': int(float(stock.quantity or 0))
