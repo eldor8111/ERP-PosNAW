@@ -93,6 +93,14 @@ async def process_daily_debts():
             if not customer or not customer.tg_chat_id:
                 continue
 
+            # Mijoz "Qarz to'lash" orqali qarzini yopganda faqat Customer.debt_balance
+            # yangilanadi — bu Sale.paid_amount ni o'zgartirmaydi. Shu sabab eski Sale
+            # hamon "to'lanmagan" ko'rinib, qarz allaqachon yopilgan bo'lsa ham eslatma
+            # ketaveradi. Mijozning haqiqiy (joriy) umumiy qarzini tekshirib chiqib
+            # yuboramiz.
+            if float(customer.debt_balance or 0) <= 0:
+                continue
+
             company = db.query(Company).filter(Company.id == sale.company_id).first()
             if not company or not company.tg_bot_token:
                 continue
@@ -177,6 +185,17 @@ async def notify_managers_overdue():
                 Sale.debt_due_date < today,
                 Sale.debt_due_date.isnot(None)
             ).all()
+
+            # "Qarz to'lash" orqali yopilgan qarzlar Sale.paid_amount'ni
+            # yangilamaydi — Customer.debt_balance orqali haqiqiy qarzi
+            # qolganlarini ajratamiz (process_daily_debts bilan bir xil mantiq).
+            customer_ids = {s.customer_id for s in overdue_sales}
+            debt_positive_ids = set()
+            if customer_ids:
+                for c in db.query(Customer.id, Customer.debt_balance).filter(Customer.id.in_(customer_ids)).all():
+                    if float(c.debt_balance or 0) > 0:
+                        debt_positive_ids.add(c.id)
+            overdue_sales = [s for s in overdue_sales if s.customer_id in debt_positive_ids]
 
             if not overdue_sales:
                 continue
