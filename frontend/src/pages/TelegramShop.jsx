@@ -210,10 +210,25 @@ export default function TelegramShop() {
   }
 
   if (error) {
+    const tg = getTg()
+    const debug = {
+      hasWindowTelegram: typeof window !== 'undefined' && !!window.Telegram,
+      hasWebApp: !!tg,
+      initDataLength: tg?.initData?.length || 0,
+      initDataUnsafeKeys: tg?.initDataUnsafe ? Object.keys(tg.initDataUnsafe) : [],
+      platform: tg?.platform || 'n/a',
+      version: tg?.version || 'n/a',
+      href: window.location.href,
+      search: window.location.search,
+      hash: window.location.hash,
+    }
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-3 px-6 text-center bg-[var(--tg-theme-bg-color,#f8fafc)]">
         <Package className="w-12 h-12 text-slate-300" />
         <p className="text-slate-500 text-sm">{error}</p>
+        <pre className="mt-4 text-left text-[10px] text-slate-400 bg-slate-50 rounded-lg p-3 max-w-full overflow-x-auto whitespace-pre-wrap break-all">
+          {JSON.stringify(debug, null, 2)}
+        </pre>
       </div>
     )
   }
