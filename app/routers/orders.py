@@ -133,23 +133,34 @@ def list_orders(
     return result
 
 
+class StatusIn(BaseModel):
+    status: Optional[OrderStatus] = None
+
+
 @router.put("/{order_id}/confirm")
 def confirm_order(
     order_id: int,
+    data: Optional[StatusIn] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Buyurtmani tasdiqlash (Dokon egasi)."""
+    """Buyurtma statusini yangilash (Dokon egasi).
+
+    Body bo'lmasa yoki status ko'rsatilmasa — pending → confirmed.
+    Body bilan status yuborilsa (masalan 'delivered') — o'sha statusga o'tadi.
+    """
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
 
-    order.status = OrderStatus.confirmed
-    order.confirmed_at = datetime.now(timezone.utc)
+    new_status = data.status if (data and data.status) else OrderStatus.confirmed
+    order.status = new_status
+    if new_status == OrderStatus.confirmed:
+        order.confirmed_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(order)
 
-    return {"message": "Buyurtma tasdiqlandi", "order": order}
+    return {"message": "Buyurtma yangilandi", "order": order}
 
 
 @router.delete("/{order_id}")

@@ -37,8 +37,8 @@ export default function Orders() {
 
   const updateStatus = async (orderId, newStatus) => {
     try {
-      await api.put(`/orders/${orderId}/confirm`);
-      toast.success(newStatus === 'confirmed' ? 'Buyurtma tasdiqlandi' : 'Status yangilandi');
+      await api.put(`/orders/${orderId}/confirm`, { status: newStatus });
+      toast.success(newStatus === 'confirmed' ? 'Buyurtma tasdiqlandi' : 'Yetkazildi deb belgilandi');
       loadOrders();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Yangilashda xatolik');
