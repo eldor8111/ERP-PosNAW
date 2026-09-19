@@ -70,9 +70,11 @@ def process_partial_return(
     sale_currency = original_sale.currency.code if original_sale.currency else "UZS"
     exchange_rate = Decimal(str(original_sale.exchange_rate or "1.0"))
     
-    amount_to_return_cash = total_refund_amount if data.payment_type == PaymentType.cash else Decimal("0")
+    # debt bo'lmagan har qanday to'lov turi (cash, card, uzcard, humo, bank,
+    # click, payme, visa, uzum) uchun pul kassadan/hisobdan qaytariladi.
+    amount_to_return_money = total_refund_amount if data.payment_type != PaymentType.debt else Decimal("0")
     amount_to_reduce_debt = total_refund_amount if data.payment_type == PaymentType.debt else Decimal("0")
-    
+
     return_sale = Sale(
         number=generate_return_number(db),
         cashier_id=current_user.id,
@@ -81,9 +83,9 @@ def process_partial_return(
         customer_id=original_sale.customer_id,
         total_amount=total_refund_amount,
         discount_amount=Decimal("0"),
-        paid_amount=amount_to_return_cash,
-        paid_cash=amount_to_return_cash if data.payment_type == PaymentType.cash else Decimal("0"),
-        paid_card=Decimal("0"), # Hozircha partial return modalida faqat naqd/qarz bor
+        paid_amount=amount_to_return_money,
+        paid_cash=amount_to_return_money if data.payment_type == PaymentType.cash else Decimal("0"),
+        paid_card=amount_to_return_money if data.payment_type not in (PaymentType.cash, PaymentType.debt) else Decimal("0"),
         payment_type=data.payment_type,
         status=SaleStatus.refunded,
         note=f"Qisman qaytarish (Sotuv #{original_sale.number})",
@@ -146,7 +148,7 @@ def process_partial_return(
             original_sale.debt_amounts[sale_currency] = float(max(Decimal("0"), cur_sale_debt - amount_to_reduce_debt))
             flag_modified(original_sale, "debt_amounts")
             
-    if amount_to_return_cash > 0:
+    if amount_to_return_money > 0:
         tx_branch_id = resolve_branch_id(db, current_user, original_sale.warehouse_id)
         _w = db.query(Wallet).filter(
             Wallet.company_id == current_user.company_id,
@@ -154,22 +156,22 @@ def process_partial_return(
             Wallet.is_active == True
         ).first()
         wallet_id = _w.id if _w else None
-        
+
         if wallet_id:
             from app.models.moliya import WalletBalance
             if _w.balance is not None:
-                _w.balance = Decimal(str(_w.balance)) - amount_to_return_cash
+                _w.balance = Decimal(str(_w.balance)) - amount_to_return_money
             else:
-                _w.balance = -amount_to_return_cash
-            
+                _w.balance = -amount_to_return_money
+
             wb = db.query(WalletBalance).filter(
                 WalletBalance.wallet_id == wallet_id,
                 WalletBalance.payment_type == data.payment_type.value
             ).first()
             if wb:
-                wb.balance = Decimal(str(wb.balance or 0)) - amount_to_return_cash
+                wb.balance = Decimal(str(wb.balance or 0)) - amount_to_return_money
             else:
-                wb = WalletBalance(wallet_id=wallet_id, payment_type=data.payment_type.value, balance=-amount_to_return_cash)
+                wb = WalletBalance(wallet_id=wallet_id, payment_type=data.payment_type.value, balance=-amount_to_return_money)
                 db.add(wb)
 
             db.add(Transaction(
@@ -177,13 +179,25 @@ def process_partial_return(
                 branch_id=tx_branch_id,
                 wallet_id=wallet_id,
                 type="expense",
-                amount=amount_to_return_cash,
+                amount=amount_to_return_money,
                 currency_code=sale_currency,
                 payment_type=data.payment_type.value,
                 reference_type="sale_refund",
                 reference_id=return_sale.id,
                 description=f"Qisman qaytarish (Sotuv #{original_sale.number})"
             ))
+
+            if data.payment_type.value not in ("debt", "cashback"):
+                from app.models.moliya import KassaSession as _KS
+                _ks = db.query(_KS).filter(_KS.wallet_id == wallet_id, _KS.status == "open").first()
+                db.add(KassaMovement(
+                    wallet_id=wallet_id, company_id=current_user.company_id,
+                    session_id=_ks.id if _ks else None,
+                    direction="out", payment_type=data.payment_type.value, amount=amount_to_return_money,
+                    reference_type="sale_refund", reference_id=return_sale.id,
+                    description=f"Qisman qaytarish (Sotuv #{original_sale.number})",
+                    created_by=current_user.id,
+                ))
 
     # Original sotuv statusini to'lov turidan qat'iy nazar, MIQDOR asosida
     # yangilaymiz — naqd/karta bilan sotilgan tovar qaytarilganda ham
