@@ -38,6 +38,7 @@ class Customer(Base):
     debt_edited = Column(JSON, nullable=False, server_default='[]', default=list)
 
     branch = relationship("Branch", back_populates="customers")
+    orders = relationship("Order", back_populates="customer")
 
     __table_args__ = (
         UniqueConstraint('company_id', 'phone', name='uq_company_customer_phone'),

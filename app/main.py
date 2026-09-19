@@ -17,7 +17,7 @@ from app.routers import (
     reports, sales_report, finance_report, sales, users,
     suppliers, purchase_orders, transfers, inventory_counts,
     finance, customers, shifts, dashboard_mobile, currencies, api_keys,
-    warehouses, branches, super_admin, companies, dashboard, promotions, roles
+    warehouses, branches, super_admin, companies, dashboard, promotions, roles, orders
 )
 from app.admin_tg_bot.bot_routers import admin_router
 from app.routers import bin_locations, uploads, agents, telegram, lead  # type: ignore
@@ -32,6 +32,7 @@ from app.models import agent  # noqa: F401 — ensure Alembic detects Agent mode
 from app.models import billing as billing_models  # noqa: F401 — ensure Alembic detects Tariff, BalanceLog
 from app.models import bot_session  # noqa: F401 — ensure bot_sessions table exists
 from app.models import payme_transaction  # noqa: F401 — ensure payme_transactions table exists
+from app.models import order  # noqa: F401 — ensure orders table exists
 from dotenv import load_dotenv
 from app.services.scheduler import start_scheduler
 
@@ -346,6 +347,7 @@ app.include_router(ai_analytics.router, prefix=API_PREFIX)
 app.include_router(ai_products.router, prefix=API_PREFIX)
 app.include_router(ai_reports.router, prefix=API_PREFIX)
 app.include_router(promotions.router, prefix=API_PREFIX)
+app.include_router(orders.router, prefix=API_PREFIX)
 
 # Serve uploaded static files
 import os

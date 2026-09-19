@@ -20,3 +20,4 @@ class Branch(Base):
     warehouses = relationship("Warehouse", back_populates="branch")
     users = relationship("User", back_populates="branch")
     customers = relationship("Customer", back_populates="branch")
+    orders = relationship("Order", back_populates="branch")
