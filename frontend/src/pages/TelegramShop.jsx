@@ -20,19 +20,33 @@ function getInitData() {
   return ''
 }
 
-function shopApi(initData) {
-  return axios.create({
+function shopApi(initData, u, t) {
+  const instance = axios.create({
     baseURL: API_URL,
     headers: { 'X-Init-Data': initData || '' },
     timeout: 15000,
   })
+  // Reply-keyboard web_app tugmasi ba'zi Telegram klientlarida initData'ni
+  // bo'sh qaytaradi — shu sabab bot shaxsiy imzolangan havola (u, t) ham beradi
+  instance.interceptors.request.use(config => {
+    if (u && t) config.params = { ...config.params, u, t }
+    return config
+  })
+  return instance
 }
 
 export default function TelegramShop() {
+  const params = new URLSearchParams(window.location.search)
+  const companyId = params.get('c')
+  const urlUser = params.get('u')
+  const urlToken = params.get('t')
+  const hasUrlAuth = !!(urlUser && urlToken)
+
   const [tgReady, setTgReady] = useState(false)
   const [initData, setInitData] = useState('')
 
-  // Telegram WebApp skripti async yuklanishi mumkin — bir necha marta poll qilamiz
+  // Telegram WebApp skripti async yuklanishi mumkin — bir necha marta poll qilamiz.
+  // Agar bot shaxsiy havola (u, t) bergan bo'lsa, initData'ni kutish shart emas.
   useEffect(() => {
     let attempts = 0
     let cancelled = false
@@ -53,6 +67,10 @@ export default function TelegramShop() {
         setTgReady(true)
         return
       }
+      if (hasUrlAuth) {
+        setTgReady(true)
+        return
+      }
       attempts += 1
       if (attempts < 20) {
         setTimeout(tryInit, 150)
@@ -63,10 +81,9 @@ export default function TelegramShop() {
 
     tryInit()
     return () => { cancelled = true }
-  }, [])
+  }, [hasUrlAuth])
 
-  const params = new URLSearchParams(window.location.search)
-  const companyId = params.get('c')
+  const hasAuth = !!initData || hasUrlAuth
 
   const [shopName, setShopName] = useState('')
   const [products, setProducts] = useState([])
@@ -80,7 +97,7 @@ export default function TelegramShop() {
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
 
-  const api = useMemo(() => shopApi(initData), [initData])
+  const api = useMemo(() => shopApi(initData, urlUser, urlToken), [initData, urlUser, urlToken])
 
   useEffect(() => {
     if (!tgReady) return // Telegram WebApp SDK hali tekshirilmoqda
@@ -90,7 +107,7 @@ export default function TelegramShop() {
       setLoading(false)
       return
     }
-    if (!initData) {
+    if (!hasAuth) {
       setError('Telegram orqali ochilmagan. Botdan "Dokon" tugmasini bosing.')
       setLoading(false)
       return
@@ -115,7 +132,7 @@ export default function TelegramShop() {
     })
 
     return () => { cancelled = true }
-  }, [tgReady, companyId, initData, api])
+  }, [tgReady, companyId, hasAuth, api])
 
   const filteredProducts = useMemo(() => {
     let list = products

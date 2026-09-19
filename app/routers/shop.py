@@ -45,22 +45,40 @@ def _verify_init_data(init_data: str, bot_token: str) -> Optional[dict]:
         return None
 
 
-def _resolve_shop_context(db: Session, company_id: int, x_init_data: Optional[str]):
-    """company va customer'ni initData orqali aniqlaydi."""
+def _verify_shop_token(chat_id: str, token: str, bot_token: str) -> bool:
+    """Bot yaratgan shaxsiy havola imzosini tekshiradi (initData'ga muqobil)."""
+    expected = hmac.new(bot_token.encode(), chat_id.encode(), hashlib.sha256).hexdigest()[:24]
+    return hmac.compare_digest(expected, token or "")
+
+
+def _resolve_shop_context(
+    db: Session,
+    company_id: int,
+    x_init_data: Optional[str],
+    u: Optional[str] = None,
+    t: Optional[str] = None,
+):
+    """company va customer'ni initData yoki shaxsiy havola tokeni orqali aniqlaydi."""
     company = db.query(Company).filter(Company.id == company_id).first()
     if not company:
         raise HTTPException(status_code=404, detail="Do'kon topilmadi")
     if not company.tg_bot_token:
         raise HTTPException(status_code=404, detail="Bot ulanmagan")
 
-    if not x_init_data:
-        raise HTTPException(status_code=401, detail="initData yo'q")
+    chat_id = None
 
-    tg_user = _verify_init_data(x_init_data, company.tg_bot_token)
-    if not tg_user:
+    if x_init_data:
+        tg_user = _verify_init_data(x_init_data, company.tg_bot_token)
+        if tg_user:
+            chat_id = str(tg_user.get("id"))
+
+    if not chat_id and u and t:
+        if _verify_shop_token(str(u), t, company.tg_bot_token):
+            chat_id = str(u)
+
+    if not chat_id:
         raise HTTPException(status_code=401, detail="Autentifikatsiya xato")
 
-    chat_id = str(tg_user.get("id"))
     customer = db.query(Customer).filter(
         Customer.company_id == company.id,
         Customer.tg_chat_id == chat_id,
@@ -105,10 +123,12 @@ def shop_products(
     company_id: int,
     q: Optional[str] = None,
     category_id: Optional[int] = None,
+    u: Optional[str] = None,
+    t: Optional[str] = None,
     db: Session = Depends(get_db),
     x_init_data: Optional[str] = Header(None, alias="X-Init-Data"),
 ):
-    company, customer = _resolve_shop_context(db, company_id, x_init_data)
+    company, customer = _resolve_shop_context(db, company_id, x_init_data, u, t)
 
     warehouses = db.query(Warehouse).filter(Warehouse.company_id == company.id).all()
     wh_ids = [w.id for w in warehouses]
@@ -145,10 +165,12 @@ def shop_products(
 @router.get("/{company_id}/categories")
 def shop_categories(
     company_id: int,
+    u: Optional[str] = None,
+    t: Optional[str] = None,
     db: Session = Depends(get_db),
     x_init_data: Optional[str] = Header(None, alias="X-Init-Data"),
 ):
-    company, customer = _resolve_shop_context(db, company_id, x_init_data)
+    company, customer = _resolve_shop_context(db, company_id, x_init_data, u, t)
     cats = db.query(Category).filter(Category.company_id == company.id).all()
     return [{"id": c.id, "name": c.name} for c in cats]
 
@@ -156,10 +178,12 @@ def shop_categories(
 @router.get("/{company_id}/me")
 def shop_me(
     company_id: int,
+    u: Optional[str] = None,
+    t: Optional[str] = None,
     db: Session = Depends(get_db),
     x_init_data: Optional[str] = Header(None, alias="X-Init-Data"),
 ):
-    company, customer = _resolve_shop_context(db, company_id, x_init_data)
+    company, customer = _resolve_shop_context(db, company_id, x_init_data, u, t)
     return {
         "id": customer.id,
         "name": customer.name,
@@ -172,10 +196,12 @@ def shop_me(
 def shop_create_order(
     company_id: int,
     data: OrderIn,
+    u: Optional[str] = None,
+    t: Optional[str] = None,
     db: Session = Depends(get_db),
     x_init_data: Optional[str] = Header(None, alias="X-Init-Data"),
 ):
-    company, customer = _resolve_shop_context(db, company_id, x_init_data)
+    company, customer = _resolve_shop_context(db, company_id, x_init_data, u, t)
 
     if not data.items:
         raise HTTPException(status_code=400, detail="Savat bo'sh")

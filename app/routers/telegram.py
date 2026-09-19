@@ -77,7 +77,7 @@ async def send_loyalty_card(token: str, chat_id: str, customer_name: str, card_n
     except Exception as e:
         print("Barcode xato:", e)
         # Fallback: matn ko'rinishida yuboradi
-        await send_telegram_message(token, chat_id, caption, _build_main_keyboard(company))
+        await send_telegram_message(token, chat_id, caption, _build_main_keyboard(company, chat_id))
 
 
 # ── DB helpers ────────────────────────────────────────────────────────────────
@@ -138,10 +138,20 @@ def _generate_card_number(db: Session, company_id: int) -> str:
 SHOP_BASE_URL = "https://savdo.e-code.uz/shop"
 
 
-def _build_main_keyboard(company=None):
+def _generate_shop_token(chat_id: str, bot_token: str) -> str:
+    """Mijozga xos shaxsiy havola uchun imzo — Telegram initData'ga muqobil,
+    chunki reply-keyboard web_app tugmasi ba'zi klientlarda initData'ni bo'sh qaytaradi."""
+    import hmac
+    import hashlib
+    return hmac.new(bot_token.encode(), chat_id.encode(), hashlib.sha256).hexdigest()[:24]
+
+
+def _build_main_keyboard(company=None, chat_id=None):
     dokon_button = {"text": "🏪 Dokon"}
-    if company is not None and getattr(company, "id", None):
-        dokon_button = {"text": "🏪 Dokon", "web_app": {"url": f"{SHOP_BASE_URL}?c={company.id}"}}
+    if company is not None and getattr(company, "id", None) and chat_id and getattr(company, "tg_bot_token", None):
+        token = _generate_shop_token(str(chat_id), company.tg_bot_token)
+        url = f"{SHOP_BASE_URL}?c={company.id}&u={chat_id}&t={token}"
+        dokon_button = {"text": "🏪 Dokon", "web_app": {"url": url}}
 
     return {
         "keyboard": [
@@ -166,7 +176,7 @@ async def _handle_balans(db: Session, token: str, chat_id: str, company, custome
     if not customer:
         bg.add_task(send_telegram_message, token, chat_id,
             "💰 Profilingiz topilmadi. /start buyrug'i bilan ro'yxatdan o'ting.",
-            _build_main_keyboard(company))
+            _build_main_keyboard(company, chat_id))
         return
 
     lines = [f"💳 <b>{customer.name}</b>\n"]
@@ -206,14 +216,14 @@ async def _handle_balans(db: Session, token: str, chat_id: str, company, custome
             else:
                 lines.append(f"🟢 {s.debt_due_date.strftime('%d.%m.%Y')} — {delta} kun qoldi")
 
-    bg.add_task(send_telegram_message, token, chat_id, "\n".join(lines), _build_main_keyboard(company))
+    bg.add_task(send_telegram_message, token, chat_id, "\n".join(lines), _build_main_keyboard(company, chat_id))
 
 
 async def _handle_sotuvlar(db: Session, token: str, chat_id: str, company, customer, bg: BackgroundTasks):
     if not customer:
         bg.add_task(send_telegram_message, token, chat_id,
             "📦 Profil topilmadi. /start buyrug'i bilan ro'yxatdan o'ting.",
-            _build_main_keyboard(company))
+            _build_main_keyboard(company, chat_id))
         return
 
     sales = (
@@ -235,14 +245,14 @@ async def _handle_sotuvlar(db: Session, token: str, chat_id: str, company, custo
                 lines.append(f"   └ Muddat: {s.debt_due_date.strftime('%d.%m.%Y')}")
         msg = "\n".join(lines)
 
-    bg.add_task(send_telegram_message, token, chat_id, msg, _build_main_keyboard(company))
+    bg.add_task(send_telegram_message, token, chat_id, msg, _build_main_keyboard(company, chat_id))
 
 
 async def _handle_karta(db: Session, token: str, chat_id: str, company, customer, bg: BackgroundTasks):
     if not customer:
         bg.add_task(send_telegram_message, token, chat_id,
             "🎫 Profil topilmadi. /start buyrug'i bilan ro'yxatdan o'ting.",
-            _build_main_keyboard(company))
+            _build_main_keyboard(company, chat_id))
         return
 
     if not customer.card_number:
@@ -268,7 +278,7 @@ async def _handle_yordam(db, token, chat_id, company, customer, bg):
         "/start — Qayta ro'yxatdan o'tish\n\n"
         "❓ Muammolar bo'lsa do'kon xodimlari bilan bog'laning."
     )
-    bg.add_task(send_telegram_message, token, chat_id, msg, _build_main_keyboard(company))
+    bg.add_task(send_telegram_message, token, chat_id, msg, _build_main_keyboard(company, chat_id))
 
 
 async def _handle_order_from_telegram(db: Session, token: str, chat_id: str, company, customer, bg: BackgroundTasks, product_name: str, quantity: int, payment_type: str = "cash"):
@@ -276,7 +286,7 @@ async def _handle_order_from_telegram(db: Session, token: str, chat_id: str, com
     if not customer or not customer.branch_id:
         bg.add_task(send_telegram_message, token, chat_id,
             "❌ Profilingiz topilmadi yoki dokon biriktirilmagan.",
-            _build_main_keyboard(company))
+            _build_main_keyboard(company, chat_id))
         return
 
     from app.models.product import Product
@@ -291,13 +301,13 @@ async def _handle_order_from_telegram(db: Session, token: str, chat_id: str, com
     if not prod:
         bg.add_task(send_telegram_message, token, chat_id,
             f"❌ Mahsulot '{product_name}' topilmadi.",
-            _build_main_keyboard(company))
+            _build_main_keyboard(company, chat_id))
         return
 
     if quantity <= 0:
         bg.add_task(send_telegram_message, token, chat_id,
             "❌ Miqdor 0 dan katta bo'lishi kerak.",
-            _build_main_keyboard(company))
+            _build_main_keyboard(company, chat_id))
         return
 
     try:
@@ -327,12 +337,12 @@ async def _handle_order_from_telegram(db: Session, token: str, chat_id: str, com
             f"🆔 Buyurtma ID: #{order.id}\n"
             f"📅 Vaqt: {order.created_at.strftime('%d.%m.%Y %H:%M')}"
         )
-        bg.add_task(send_telegram_message, token, chat_id, msg, _build_main_keyboard(company))
+        bg.add_task(send_telegram_message, token, chat_id, msg, _build_main_keyboard(company, chat_id))
     except Exception as e:
         db.rollback()
         bg.add_task(send_telegram_message, token, chat_id,
             f"❌ Buyurtma xatosi: {str(e)[:100]}",
-            _build_main_keyboard(company))
+            _build_main_keyboard(company, chat_id))
 
 
 async def _handle_dokon(db: Session, token: str, chat_id: str, company, customer, bg: BackgroundTasks):
@@ -340,7 +350,7 @@ async def _handle_dokon(db: Session, token: str, chat_id: str, company, customer
     if not customer:
         bg.add_task(send_telegram_message, token, chat_id,
             "🏪 Profilingiz topilmadi. /start buyrug'i bilan ro'yxatdan o'ting.",
-            _build_main_keyboard(company))
+            _build_main_keyboard(company, chat_id))
         return
 
     from app.models.warehouse import Warehouse
@@ -374,7 +384,7 @@ async def _handle_dokon(db: Session, token: str, chat_id: str, company, customer
             msg += f"\n... va {len(all_products) - 10} ta boshqa mahsulot"
 
     msg += "\n\n💬 Buyurtma uchun mahsulot nomini kiriting"
-    bg.add_task(send_telegram_message, token, chat_id, msg, _build_main_keyboard(company))
+    bg.add_task(send_telegram_message, token, chat_id, msg, _build_main_keyboard(company, chat_id))
 
 
 async def _handle_barcode_search(db: Session, token: str, chat_id: str, company, bg: BackgroundTasks, barcode_input: str):
@@ -382,7 +392,7 @@ async def _handle_barcode_search(db: Session, token: str, chat_id: str, company,
     if not barcode_input or not barcode_input.strip():
         bg.add_task(send_telegram_message, token, chat_id,
             "❌ Shtrix kod bo'sh bo'lishi mumkin emas. Qayta urinib ko'ring.",
-            _build_main_keyboard(company))
+            _build_main_keyboard(company, chat_id))
         return
 
     customer = db.query(Customer).filter(
@@ -393,7 +403,7 @@ async def _handle_barcode_search(db: Session, token: str, chat_id: str, company,
     if not customer:
         bg.add_task(send_telegram_message, token, chat_id,
             f"❌ Shtrix kod <code>{barcode_input}</code> bilan mijoz topilmadi.",
-            _build_main_keyboard(company))
+            _build_main_keyboard(company, chat_id))
         return
 
     cashback = float(customer.cashback_percent or 0)
@@ -402,7 +412,7 @@ async def _handle_barcode_search(db: Session, token: str, chat_id: str, company,
         f"💳 Karta raqami: <code>{customer.card_number}</code>\n"
         f"🔄 Keshbek: <b>{customer.cashback_percent}%</b>"
     )
-    bg.add_task(send_telegram_message, token, chat_id, welcome, _build_main_keyboard(company))
+    bg.add_task(send_telegram_message, token, chat_id, welcome, _build_main_keyboard(company, chat_id))
     bg.add_task(send_loyalty_card, token, chat_id, customer.name, customer.card_number, cashback, company)
 
 
@@ -456,7 +466,7 @@ async def telegram_webhook(
                     f"Siz <b>{company.name}</b> tizimiga ulangansiz.\n"
                     "Quyidagi tugmalardan foydalaning 👇"
                 )
-                background_tasks.add_task(send_telegram_message, token, chat_id, reply, _build_main_keyboard(company))
+                background_tasks.add_task(send_telegram_message, token, chat_id, reply, _build_main_keyboard(company, chat_id))
             else:
                 # Yangi foydalanuvchi — ismini so'raymiz
                 _upsert_session(db, chat_id, token, step="awaiting_name")
@@ -516,7 +526,7 @@ async def telegram_webhook(
                     f"Profilingiz <b>{company.name}</b> tizimiga ulandi. 🎉\n\n"
                     "Loyallik kartangiz:"
                 )
-                background_tasks.add_task(send_telegram_message, token, chat_id, welcome, _build_main_keyboard(company))
+                background_tasks.add_task(send_telegram_message, token, chat_id, welcome, _build_main_keyboard(company, chat_id))
                 background_tasks.add_task(send_loyalty_card, token, chat_id,
                     str(found_customer.name), str(found_customer.card_number or ""), cashback, company)
             elif session and session.temp_name:
@@ -542,7 +552,7 @@ async def telegram_webhook(
                         f"📞 Telefon: <b>{phone}</b>\n\n"
                         f"🎫 Loyallik kartangiz tayyor! Har bir xaridingizda keshbek to'planadi."
                     )
-                    background_tasks.add_task(send_telegram_message, token, chat_id, welcome, _build_main_keyboard(company))
+                    background_tasks.add_task(send_telegram_message, token, chat_id, welcome, _build_main_keyboard(company, chat_id))
                     background_tasks.add_task(send_loyalty_card, token, chat_id,
                         temp_name, card_number, cashback, company)
                 except Exception as ex:
@@ -554,7 +564,7 @@ async def telegram_webhook(
                         f"✅ <b>Siz <u>{company.name}</u> do'konidan ro'yxatdan o'tdingiz!</b> 🎉\n\n"
                         f"👤 Ism: <b>{temp_name}</b>\n"
                         f"📞 Telefon: <b>{phone}</b>",
-                        _build_main_keyboard(company),
+                        _build_main_keyboard(company, chat_id),
                     )
             else:
                 # Sessiya topilmadi — qayta boshlashni so'raymiz
@@ -617,12 +627,12 @@ async def telegram_webhook(
                 "/yordam — ❓ Yordam\n"
                 "/start — 🔄 Qayta ro'yxatdan o'tish"
             )
-            background_tasks.add_task(send_telegram_message, token, chat_id, help_msg, _build_main_keyboard(company))
+            background_tasks.add_task(send_telegram_message, token, chat_id, help_msg, _build_main_keyboard(company, chat_id))
         else:
             background_tasks.add_task(
                 send_telegram_message, token, chat_id,
                 "⚙️ Menyu yangilandi. Quyidagi tugmalardan foydalaning:",
-                _build_main_keyboard(company),
+                _build_main_keyboard(company, chat_id),
             )
 
         return {"ok": True}
