@@ -24,7 +24,10 @@ class Order(Base):
     quantity = Column(Integer, nullable=False)
     unit_price = Column(Numeric(16, 4), nullable=False)
     total_amount = Column(Numeric(20, 4), nullable=False)
-    status = Column(SQLEnum(OrderStatus), default=OrderStatus.pending)
+    # DB ustuni oddiy VARCHAR (migration'da sa.String(50) sifatida yaratilgan) —
+    # native_enum=False bo'lmasa SQLAlchemy PostgreSQL'da mavjud bo'lmagan
+    # "orderstatus" native enum type'ga CAST qilishga urinib xato beradi.
+    status = Column(SQLEnum(OrderStatus, native_enum=False, length=20), default=OrderStatus.pending)
     payment_type = Column(String(20), nullable=True)  # cash, card, debt, etc
     notes = Column(String(500), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
