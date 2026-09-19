@@ -181,9 +181,7 @@ def shop_products(
 
     result = []
     for prod in products_query.all():
-        available = int(stock_by_product.get(prod.id, 0))
-        if available <= 0:
-            continue
+        available = max(0, int(stock_by_product.get(prod.id, 0)))
         cat = db.query(Category).filter(Category.id == prod.category_id).first() if prod.category_id else None
         result.append(ProductOut(
             id=prod.id,
@@ -208,6 +206,37 @@ def shop_categories(
     company, customer = _resolve_shop_context(db, company_id, x_init_data, u, t)
     cats = db.query(Category).filter(Category.company_id == company.id).all()
     return [{"id": c.id, "name": c.name} for c in cats]
+
+
+@router.get("/{company_id}/my-orders")
+def shop_my_orders(
+    company_id: int,
+    u: Optional[str] = None,
+    t: Optional[str] = None,
+    db: Session = Depends(get_db),
+    x_init_data: Optional[str] = Header(None, alias="X-Init-Data"),
+):
+    company, customer = _resolve_shop_context(db, company_id, x_init_data, u, t)
+
+    orders = db.query(Order).filter(
+        Order.customer_id == customer.id,
+    ).order_by(Order.created_at.desc()).limit(50).all()
+
+    result = []
+    for order in orders:
+        product = db.query(Product).filter(Product.id == order.product_id).first()
+        result.append({
+            "id": order.id,
+            "product_name": product.name if product else "—",
+            "quantity": order.quantity,
+            "unit_price": float(order.unit_price),
+            "total_amount": float(order.total_amount),
+            "status": order.status.value if hasattr(order.status, "value") else str(order.status),
+            "created_at": order.created_at.isoformat() if order.created_at else None,
+            "confirmed_at": order.confirmed_at.isoformat() if order.confirmed_at else None,
+        })
+
+    return result
 
 
 @router.get("/{company_id}/me")
@@ -267,14 +296,8 @@ def shop_create_order(
         if not product:
             continue
 
-        available = db.query(StockLevel).filter(
-            StockLevel.product_id == product.id,
-            StockLevel.warehouse_id.in_(wh_ids),
-        ).all()
-        total_available = sum(float(s.quantity or 0) for s in available)
-        if total_available < item.quantity:
-            raise HTTPException(status_code=400, detail=f"{product.name}: yetarli qoldiq yo'q ({int(total_available)} ta bor)")
-
+        # Buyurtma — so'rov: qoldiq yetarli bo'lmasa ham qabul qilinadi,
+        # do'kon xodimi keyinroq tasdiqlash/rad etish orqali hal qiladi.
         unit_price = Decimal(str(product.sale_price or 0))
         total_amount = unit_price * item.quantity
 

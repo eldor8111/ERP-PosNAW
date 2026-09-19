@@ -1,9 +1,17 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import axios from 'axios'
-import { ShoppingCart, Search, Plus, Minus, X, Package, CheckCircle2, Loader2 } from 'lucide-react'
+import { ShoppingCart, Search, Plus, Minus, X, Package, CheckCircle2, Loader2, ClipboardList, Clock, Truck, AlertCircle } from 'lucide-react'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8010/api'
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ')
+const fmtDate = (d) => d ? new Date(d).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''
+
+const ORDER_STATUS = {
+  pending: { label: 'Kutilmoqda', icon: Clock, bg: 'bg-yellow-50', text: 'text-yellow-700' },
+  confirmed: { label: 'Tasdiqlangan', icon: CheckCircle2, bg: 'bg-blue-50', text: 'text-blue-700' },
+  delivered: { label: 'Yetkazildi', icon: Truck, bg: 'bg-green-50', text: 'text-green-700' },
+  cancelled: { label: 'Bekor qilindi', icon: AlertCircle, bg: 'bg-red-50', text: 'text-red-700' },
+}
 
 function getTg() {
   return typeof window !== 'undefined' ? window.Telegram?.WebApp : null
@@ -92,6 +100,9 @@ export default function TelegramShop() {
   const [search, setSearch] = useState('')
   const [cart, setCart] = useState({})
   const [showCart, setShowCart] = useState(false)
+  const [showOrders, setShowOrders] = useState(false)
+  const [myOrders, setMyOrders] = useState([])
+  const [ordersLoading, setOrdersLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
@@ -192,6 +203,15 @@ export default function TelegramShop() {
     return () => { tg.MainButton.offClick?.(onClick) }
   }, [cartCount, cartTotal, showCart])
 
+  const openMyOrders = useCallback(() => {
+    setShowOrders(true)
+    setOrdersLoading(true)
+    api.get(`/shop/${companyId}/my-orders`)
+      .then(r => setMyOrders(r.data || []))
+      .catch(() => setMyOrders([]))
+      .finally(() => setOrdersLoading(false))
+  }, [api, companyId])
+
   const submitOrder = async () => {
     if (!cartItems.length || submitting) return
     setSubmitting(true)
@@ -261,17 +281,25 @@ export default function TelegramShop() {
             </h1>
             <p className="text-xs text-slate-400">{products.length} ta mahsulot mavjud</p>
           </div>
-          <button
-            onClick={() => setShowCart(true)}
-            className="relative w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center active:scale-95 transition-transform"
-          >
-            <ShoppingCart className="w-5 h-5 text-blue-600" />
-            {cartCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                {cartCount}
-              </span>
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={openMyOrders}
+              className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center active:scale-95 transition-transform"
+            >
+              <ClipboardList className="w-5 h-5 text-slate-600" />
+            </button>
+            <button
+              onClick={() => setShowCart(true)}
+              className="relative w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center active:scale-95 transition-transform"
+            >
+              <ShoppingCart className="w-5 h-5 text-blue-600" />
+              {cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Search */}
@@ -429,6 +457,58 @@ export default function TelegramShop() {
                   </button>
                 </div>
               </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Buyurtmalarim drawer */}
+      {showOrders && (
+        <div className="fixed inset-0 z-50 flex items-end">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowOrders(false)} />
+          <div className="relative w-full bg-white rounded-t-3xl max-h-[85vh] flex flex-col animate-[slideUp_0.25s_ease-out]">
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-100">
+              <h2 className="text-base font-bold text-slate-800">📋 Buyurtmalarim</h2>
+              <button onClick={() => setShowOrders(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100">
+                <X className="w-4 h-4 text-slate-500" />
+              </button>
+            </div>
+
+            {ordersLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+              </div>
+            ) : myOrders.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-2 py-16 text-slate-400">
+                <ClipboardList className="w-10 h-10" />
+                <p className="text-sm">Hali buyurtma yo'q</p>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto px-5 py-3 space-y-2 pb-6">
+                {myOrders.map(order => {
+                  const st = ORDER_STATUS[order.status] || ORDER_STATUS.pending
+                  const StIcon = st.icon
+                  return (
+                    <div key={order.id} className="border border-slate-100 rounded-xl p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-800 truncate">{order.product_name}</p>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            {order.quantity} ta × {fmt(order.unit_price)} so'm
+                          </p>
+                          <p className="text-[11px] text-slate-400 mt-1">{fmtDate(order.created_at)}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-bold text-slate-800">{fmt(order.total_amount)} so'm</p>
+                          <span className={`mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${st.bg} ${st.text}`}>
+                            <StIcon className="w-3 h-3" /> {st.label}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             )}
           </div>
         </div>
