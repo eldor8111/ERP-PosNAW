@@ -17,6 +17,15 @@ function getTg() {
   return typeof window !== 'undefined' ? window.Telegram?.WebApp : null
 }
 
+// Telegram Desktop/Web'da ba'zi WebApp metodlari (showAlert, HapticFeedback)
+// qo'llab-quvvatlanmasligi yoki xato tashlashi mumkin — hech qachon asosiy
+// oqimni to'xtatib qo'ymasligi uchun har doim try/catch bilan chaqiramiz.
+function safeTg(fn) {
+  try {
+    fn(getTg())
+  } catch { /* Telegram metodi mavjud emas yoki ishlamadi — e'tiborsiz qoldiramiz */ }
+}
+
 function getInitData() {
   const tg = getTg()
   if (tg?.initData) return tg.initData
@@ -115,6 +124,7 @@ export default function TelegramShop() {
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [orderError, setOrderError] = useState(null)
 
   const api = useMemo(() => shopApi(initData, urlUser, urlToken), [initData, urlUser, urlToken])
 
@@ -177,7 +187,7 @@ export default function TelegramShop() {
   const cartCount = useMemo(() => cartItems.reduce((sum, i) => sum + i.qty, 0), [cartItems])
 
   const addToCart = useCallback((product) => {
-    getTg()?.HapticFeedback?.impactOccurred?.('light')
+    safeTg(tg => tg?.HapticFeedback?.impactOccurred?.('light'))
     setCart(prev => {
       const current = prev[product.id] || 0
       const next = Math.min(current + 1, product.available)
@@ -186,7 +196,7 @@ export default function TelegramShop() {
   }, [])
 
   const removeFromCart = useCallback((productId) => {
-    getTg()?.HapticFeedback?.impactOccurred?.('light')
+    safeTg(tg => tg?.HapticFeedback?.impactOccurred?.('light'))
     setCart(prev => {
       const current = prev[productId] || 0
       if (current <= 1) {
@@ -201,14 +211,16 @@ export default function TelegramShop() {
     const tg = getTg()
     if (!tg?.MainButton) return
     const onClick = () => setShowCart(true)
-    if (cartCount > 0 && !showCart) {
-      tg.MainButton.setText(`🛒 Savat — ${fmt(cartTotal)} so'm`)
-      tg.MainButton.show()
-      tg.MainButton.onClick(onClick)
-    } else {
-      tg.MainButton.hide()
-    }
-    return () => { tg.MainButton.offClick?.(onClick) }
+    try {
+      if (cartCount > 0 && !showCart) {
+        tg.MainButton.setText(`🛒 Savat — ${fmt(cartTotal)} so'm`)
+        tg.MainButton.show()
+        tg.MainButton.onClick(onClick)
+      } else {
+        tg.MainButton.hide()
+      }
+    } catch { /* Desktop/Web'da MainButton to'liq qo'llab-quvvatlanmasligi mumkin */ }
+    return () => { try { tg.MainButton.offClick?.(onClick) } catch { /* ignore */ } }
   }, [cartCount, cartTotal, showCart])
 
   const openMyOrders = useCallback(() => {
@@ -251,7 +263,7 @@ export default function TelegramShop() {
     if (!meData?.card_number) return
     navigator.clipboard?.writeText(meData.card_number).then(() => {
       setCopied(true)
-      getTg()?.HapticFeedback?.impactOccurred?.('light')
+      safeTg(tg => tg?.HapticFeedback?.impactOccurred?.('light'))
       setTimeout(() => setCopied(false), 1500)
     }).catch(() => {})
   }, [meData])
@@ -259,24 +271,25 @@ export default function TelegramShop() {
   const submitOrder = async () => {
     if (!cartItems.length || submitting) return
     setSubmitting(true)
+    setOrderError(null)
     try {
       await api.post(`/shop/${companyId}/order`, {
         items: cartItems.map(i => ({ product_id: i.id, quantity: i.qty })),
         payment_type: 'cash',
       })
-      getTg()?.HapticFeedback?.notificationOccurred?.('success')
+      safeTg(tg => tg?.HapticFeedback?.notificationOccurred?.('success'))
       setSuccess(true)
       setCart({})
       setTimeout(() => {
         setShowCart(false)
         setSuccess(false)
-        getTg()?.close?.()
+        safeTg(tg => tg?.close?.())
       }, 2000)
     } catch (err) {
-      getTg()?.HapticFeedback?.notificationOccurred?.('error')
-      const msg = err.response?.data?.detail || 'Buyurtma berishda xatolik yuz berdi'
-      const shown = getTg()?.showAlert?.(msg)
-      if (!shown) alert(msg)
+      safeTg(tg => tg?.HapticFeedback?.notificationOccurred?.('error'))
+      const msg = err.response?.data?.detail || err.message || 'Buyurtma berishda xatolik yuz berdi'
+      setOrderError(msg)
+      safeTg(tg => tg?.showAlert?.(String(msg)))
     } finally {
       setSubmitting(false)
     }
@@ -503,6 +516,11 @@ export default function TelegramShop() {
                 </div>
 
                 <div className="px-5 py-4 border-t border-slate-100 bg-white">
+                  {orderError && (
+                    <div className="mb-3 px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">
+                      {orderError}
+                    </div>
+                  )}
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-sm text-slate-500">Jami</span>
                     <span className="text-lg font-bold text-slate-800">{fmt(cartTotal)} so'm</span>
