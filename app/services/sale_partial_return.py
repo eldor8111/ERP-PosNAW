@@ -135,14 +135,11 @@ def process_partial_return(
             customer.debt_balances[sale_currency] = float(max(Decimal("0"), cur_debt - amount_to_reduce_debt))
             flag_modified(customer, "debt_balances")
         
-        # Original sotuvning paid_amount ni oshirish va statusini yangilash
+        # Original sotuvning paid_amount ni oshirish
         original_paid = Decimal(str(original_sale.paid_amount or "0"))
         original_total = Decimal(str(original_sale.total_amount or "0"))
         new_paid = min(original_total, original_paid + (amount_to_reduce_debt * exchange_rate))
         original_sale.paid_amount = new_paid  # type: ignore
-        # Agar to'liq to'langan bo'lsa statusni yangilash
-        if new_paid >= original_total:
-            original_sale.status = SaleStatus.partial_refund  # type: ignore
         # debt_amounts ni ham yangilash
         if original_sale.debt_amounts and sale_currency in (original_sale.debt_amounts or {}):
             cur_sale_debt = Decimal(str(original_sale.debt_amounts[sale_currency]))
@@ -188,8 +185,20 @@ def process_partial_return(
                 description=f"Qisman qaytarish (Sotuv #{original_sale.number})"
             ))
 
+    # Original sotuv statusini to'lov turidan qat'iy nazar, MIQDOR asosida
+    # yangilaymiz — naqd/karta bilan sotilgan tovar qaytarilganda ham
+    # status to'g'ri o'zgarishi kerak (avval faqat qarzli sotuvda ishlardi).
+    all_items = db.query(SaleItem).filter(SaleItem.sale_id == original_sale.id).all()
+    total_qty = sum(Decimal(str(si.quantity or 0)) for si in all_items)
+    total_returned = sum(Decimal(str(si.returned_quantity or 0)) for si in all_items)
+    if total_qty > 0:
+        if total_returned >= total_qty:
+            original_sale.status = SaleStatus.refunded  # type: ignore
+        elif total_returned > 0:
+            original_sale.status = SaleStatus.partial_refund  # type: ignore
+
     log_action(db, "RETURN_ITEMS", "sale", return_sale.id, current_user.id, {"items": returned_items_info, "amount": float(total_refund_amount), "original_sale_id": original_sale.id})
-    
+
     db.commit()
     db.refresh(original_sale)
     return original_sale
