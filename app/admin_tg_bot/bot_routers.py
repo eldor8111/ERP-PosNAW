@@ -6,12 +6,28 @@ from aiogram import Bot
 from app.database import get_db
 from app.admin_tg_bot.models import CompanyBot
 from app.admin_tg_bot.bot_schemas import CompanyBotCreate, CompanyBotOut, CompanyBotSettingsUpdate
+from app.core.dependencies import require_roles  # type: ignore
+from app.models.user import User, UserRole  # type: ignore
 
 router = APIRouter(prefix="/companies/{company_id}/bot", tags=["Company Bot"])
 
+_bot_admin_roles = require_roles(UserRole.super_admin, UserRole.admin, UserRole.director)
+
+
+def _check_company_access(company_id: int, current_user: User) -> None:
+    """Faqat o'z kompaniyasining bot sozlamalarini boshqarishga ruxsat (super_admin bundan mustasno)."""
+    if current_user.role != UserRole.super_admin and current_user.company_id != company_id:
+        raise HTTPException(403, "Sizda bu kompaniya botini boshqarish huquqi yo'q")
+
 
 @router.post("", response_model=CompanyBotOut)
-async def add_company_bot(company_id: int, payload: CompanyBotCreate, db: Session = Depends(get_db)):
+async def add_company_bot(
+    company_id: int,
+    payload: CompanyBotCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(_bot_admin_roles),
+):
+    _check_company_access(company_id, current_user)
     existing = db.query(CompanyBot).filter(CompanyBot.company_id == company_id).first()
     if existing:
         raise HTTPException(400, "Bu kompaniyaga bot allaqachon ulangan")
@@ -41,7 +57,13 @@ admin_router = APIRouter(prefix="/companies/{company_id}/admin-bot", tags=["Admi
 
 
 @admin_router.post("", response_model=CompanyBotOut)
-async def add_admin_bot(company_id: int, payload: CompanyBotCreate, db: Session = Depends(get_db)):
+async def add_admin_bot(
+    company_id: int,
+    payload: CompanyBotCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(_bot_admin_roles),
+):
+    _check_company_access(company_id, current_user)
     existing = db.query(CompanyBot).filter(
         CompanyBot.company_id == company_id,
         CompanyBot.bot_type == "admin"
@@ -71,7 +93,12 @@ async def add_admin_bot(company_id: int, payload: CompanyBotCreate, db: Session 
 
 
 @admin_router.get("", response_model=CompanyBotOut)
-async def get_admin_bot(company_id: int, db: Session = Depends(get_db)):
+async def get_admin_bot(
+    company_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(_bot_admin_roles),
+):
+    _check_company_access(company_id, current_user)
     admin_bot = db.query(CompanyBot).filter(
         CompanyBot.company_id == company_id,
         CompanyBot.bot_type == "admin"
@@ -82,7 +109,13 @@ async def get_admin_bot(company_id: int, db: Session = Depends(get_db)):
 
 
 @admin_router.put("", response_model=CompanyBotOut)
-async def update_admin_bot(company_id: int, payload: CompanyBotCreate, db: Session = Depends(get_db)):
+async def update_admin_bot(
+    company_id: int,
+    payload: CompanyBotCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(_bot_admin_roles),
+):
+    _check_company_access(company_id, current_user)
     # Validate new token
     bot = Bot(token=payload.bot_token)
     try:
@@ -116,7 +149,12 @@ async def update_admin_bot(company_id: int, payload: CompanyBotCreate, db: Sessi
 
 
 @admin_router.delete("")
-async def delete_admin_bot(company_id: int, db: Session = Depends(get_db)):
+async def delete_admin_bot(
+    company_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(_bot_admin_roles),
+):
+    _check_company_access(company_id, current_user)
     admin_bot = db.query(CompanyBot).filter(
         CompanyBot.company_id == company_id,
         CompanyBot.bot_type == "admin"
@@ -130,7 +168,13 @@ async def delete_admin_bot(company_id: int, db: Session = Depends(get_db)):
 
 
 @admin_router.put("/settings", response_model=CompanyBotOut)
-async def update_admin_bot_settings(company_id: int, payload: CompanyBotSettingsUpdate, db: Session = Depends(get_db)):
+async def update_admin_bot_settings(
+    company_id: int,
+    payload: CompanyBotSettingsUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(_bot_admin_roles),
+):
+    _check_company_access(company_id, current_user)
     admin_bot = db.query(CompanyBot).filter(
         CompanyBot.company_id == company_id,
         CompanyBot.bot_type == "admin"

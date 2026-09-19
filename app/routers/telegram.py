@@ -387,25 +387,24 @@ async def _handle_dokon(db: Session, token: str, chat_id: str, company, customer
     bg.add_task(send_telegram_message, token, chat_id, msg, _build_main_keyboard(company, chat_id))
 
 
-async def _handle_barcode_search(db: Session, token: str, chat_id: str, company, bg: BackgroundTasks, barcode_input: str):
-    """Shtrix kod orqali mijozni qidiradi va kartasini yuboradi."""
+async def _handle_barcode_search(db: Session, token: str, chat_id: str, company, requester, bg: BackgroundTasks, barcode_input: str):
+    """Foydalanuvchi noma'lum matn yuborganda, agar bu uning O'Z karta raqami
+    bo'lsa, kartasini qayta yuboradi. Boshqa mijozlarni qidirish uchun EMAS —
+    mijoz botida begona mijozning ismi/kartasini oshkor qilmaslik kerak
+    (bu faqat kassir/admin panelida ruxsat etilgan amal)."""
     if not barcode_input or not barcode_input.strip():
         bg.add_task(send_telegram_message, token, chat_id,
-            "❌ Shtrix kod bo'sh bo'lishi mumkin emas. Qayta urinib ko'ring.",
+            "❌ Buyruqni tushunmadim. Quyidagi tugmalardan birini tanlang.",
             _build_main_keyboard(company, chat_id))
         return
 
-    customer = db.query(Customer).filter(
-        Customer.company_id == company.id,
-        Customer.card_number == barcode_input.strip(),
-    ).first()
-
-    if not customer:
+    if not requester or requester.card_number != barcode_input.strip():
         bg.add_task(send_telegram_message, token, chat_id,
-            f"❌ Shtrix kod <code>{barcode_input}</code> bilan mijoz topilmadi.",
+            "❌ Buyruqni tushunmadim. Quyidagi tugmalardan birini tanlang.",
             _build_main_keyboard(company, chat_id))
         return
 
+    customer = requester
     cashback = float(customer.cashback_percent or 0)
     welcome = (
         f"✅ <b>{customer.name}</b> topildi!\n\n"
@@ -614,7 +613,7 @@ async def telegram_webhook(
         # ── Shtrix kod orqali qidirish ────────────────────────────
         company, customer = _find_customer_by_chat(db, token, chat_id)
         if company and customer and text and not text.startswith("/"):
-            await _handle_barcode_search(db, token, chat_id, company, background_tasks, text)
+            await _handle_barcode_search(db, token, chat_id, company, customer, background_tasks, text)
             return {"ok": True}
 
         # ── Noma'lum buyruq ───────────────────────────────────────
