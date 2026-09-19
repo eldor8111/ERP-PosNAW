@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import axios from 'axios'
-import { ShoppingCart, Search, Plus, Minus, X, Package, CheckCircle2, Loader2, ClipboardList, Clock, Truck, AlertCircle } from 'lucide-react'
+import { ShoppingCart, Search, Plus, Minus, X, Package, CheckCircle2, Loader2, ClipboardList, Clock, Truck, AlertCircle, Wallet, CreditCard, Copy, Receipt } from 'lucide-react'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8010/api'
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ')
@@ -103,6 +103,14 @@ export default function TelegramShop() {
   const [showOrders, setShowOrders] = useState(false)
   const [myOrders, setMyOrders] = useState([])
   const [ordersLoading, setOrdersLoading] = useState(false)
+  const [showBalance, setShowBalance] = useState(false)
+  const [meData, setMeData] = useState(null)
+  const [balanceLoading, setBalanceLoading] = useState(false)
+  const [showPurchases, setShowPurchases] = useState(false)
+  const [purchases, setPurchases] = useState([])
+  const [purchasesLoading, setPurchasesLoading] = useState(false)
+  const [showCard, setShowCard] = useState(false)
+  const [copied, setCopied] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
@@ -212,6 +220,42 @@ export default function TelegramShop() {
       .finally(() => setOrdersLoading(false))
   }, [api, companyId])
 
+  const loadMe = useCallback(() => {
+    setBalanceLoading(true)
+    return api.get(`/shop/${companyId}/me`)
+      .then(r => { setMeData(r.data); return r.data })
+      .catch(() => { setMeData(null); return null })
+      .finally(() => setBalanceLoading(false))
+  }, [api, companyId])
+
+  const openBalance = useCallback(() => {
+    setShowBalance(true)
+    loadMe()
+  }, [loadMe])
+
+  const openCard = useCallback(() => {
+    setShowCard(true)
+    if (!meData) loadMe()
+  }, [meData, loadMe])
+
+  const openPurchases = useCallback(() => {
+    setShowPurchases(true)
+    setPurchasesLoading(true)
+    api.get(`/shop/${companyId}/purchases`)
+      .then(r => setPurchases(r.data || []))
+      .catch(() => setPurchases([]))
+      .finally(() => setPurchasesLoading(false))
+  }, [api, companyId])
+
+  const copyCardNumber = useCallback(() => {
+    if (!meData?.card_number) return
+    navigator.clipboard?.writeText(meData.card_number).then(() => {
+      setCopied(true)
+      getTg()?.HapticFeedback?.impactOccurred?.('light')
+      setTimeout(() => setCopied(false), 1500)
+    }).catch(() => {})
+  }, [meData])
+
   const submitOrder = async () => {
     if (!cartItems.length || submitting) return
     setSubmitting(true)
@@ -281,20 +325,36 @@ export default function TelegramShop() {
             </h1>
             <p className="text-xs text-slate-400">{products.length} ta mahsulot mavjud</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={openCard}
+              className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center active:scale-95 transition-transform"
+              title="Kartam"
+            >
+              <CreditCard className="w-4 h-4 text-slate-600" />
+            </button>
+            <button
+              onClick={openBalance}
+              className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center active:scale-95 transition-transform"
+              title="Balans"
+            >
+              <Wallet className="w-4 h-4 text-slate-600" />
+            </button>
             <button
               onClick={openMyOrders}
-              className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center active:scale-95 transition-transform"
+              className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center active:scale-95 transition-transform"
+              title="Buyurtmalarim"
             >
-              <ClipboardList className="w-5 h-5 text-slate-600" />
+              <ClipboardList className="w-4 h-4 text-slate-600" />
             </button>
             <button
               onClick={() => setShowCart(true)}
-              className="relative w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center active:scale-95 transition-transform"
+              className="relative w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center active:scale-95 transition-transform"
+              title="Savat"
             >
-              <ShoppingCart className="w-5 h-5 text-blue-600" />
+              <ShoppingCart className="w-4 h-4 text-blue-600" />
               {cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
                   {cartCount}
                 </span>
               )}
@@ -508,6 +568,183 @@ export default function TelegramShop() {
                     </div>
                   )
                 })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Balans drawer */}
+      {showBalance && (
+        <div className="fixed inset-0 z-50 flex items-end">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowBalance(false)} />
+          <div className="relative w-full bg-white rounded-t-3xl max-h-[85vh] flex flex-col animate-[slideUp_0.25s_ease-out]">
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-100">
+              <h2 className="text-base font-bold text-slate-800">💰 Balansim</h2>
+              <button onClick={() => setShowBalance(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100">
+                <X className="w-4 h-4 text-slate-500" />
+              </button>
+            </div>
+
+            {balanceLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+              </div>
+            ) : !meData ? (
+              <div className="flex flex-col items-center justify-center gap-2 py-16 text-slate-400">
+                <Wallet className="w-10 h-10" />
+                <p className="text-sm">Ma'lumot topilmadi</p>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 pb-6">
+                <div className={`rounded-2xl p-4 ${meData.debt_balance > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
+                  <p className="text-xs text-slate-500 mb-1">Joriy qarz</p>
+                  <p className={`text-2xl font-extrabold ${meData.debt_balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {fmt(meData.debt_balance)} so'm
+                  </p>
+                  {meData.debt_limit > 0 && (
+                    <p className="text-xs text-slate-400 mt-1">Limit: {fmt(meData.debt_limit)} so'm</p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-amber-50 rounded-xl p-3">
+                    <p className="text-[11px] text-amber-700 mb-1">⭐ Bonus</p>
+                    <p className="text-base font-bold text-amber-700">{fmt(meData.bonus_balance)} so'm</p>
+                  </div>
+                  <div className="bg-blue-50 rounded-xl p-3">
+                    <p className="text-[11px] text-blue-700 mb-1">🏆 Daraja</p>
+                    <p className="text-base font-bold text-blue-700">{meData.tier || '—'}</p>
+                  </div>
+                  {meData.discount_percent > 0 && (
+                    <div className="bg-violet-50 rounded-xl p-3">
+                      <p className="text-[11px] text-violet-700 mb-1">🏷 Chegirma</p>
+                      <p className="text-base font-bold text-violet-700">{meData.discount_percent}%</p>
+                    </div>
+                  )}
+                  {meData.cashback_percent > 0 && (
+                    <div className="bg-emerald-50 rounded-xl p-3">
+                      <p className="text-[11px] text-emerald-700 mb-1">🔄 Keshbek</p>
+                      <p className="text-base font-bold text-emerald-700">{meData.cashback_percent}%</p>
+                    </div>
+                  )}
+                </div>
+
+                {meData.debt_schedule?.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 mb-2">📅 Qarz muddatlari</p>
+                    <div className="space-y-1.5">
+                      {meData.debt_schedule.map((d, i) => {
+                        const overdue = d.days_left < 0
+                        const today = d.days_left === 0
+                        const soon = d.days_left > 0 && d.days_left <= 3
+                        const dot = overdue ? '🔴' : today ? '🟠' : soon ? '🟡' : '🟢'
+                        return (
+                          <div key={i} className="flex items-center justify-between text-xs bg-slate-50 rounded-lg px-3 py-2">
+                            <span>{dot} {new Date(d.due_date).toLocaleDateString('uz-UZ')}</span>
+                            <span className="font-semibold">{fmt(d.amount)} so'm</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={openPurchases}
+                  className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Receipt className="w-4 h-4" /> Oxirgi xaridlarim
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Kartam drawer */}
+      {showCard && (
+        <div className="fixed inset-0 z-50 flex items-end">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowCard(false)} />
+          <div className="relative w-full bg-white rounded-t-3xl max-h-[85vh] flex flex-col animate-[slideUp_0.25s_ease-out]">
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-100">
+              <h2 className="text-base font-bold text-slate-800">🎫 Mening kartam</h2>
+              <button onClick={() => setShowCard(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100">
+                <X className="w-4 h-4 text-slate-500" />
+              </button>
+            </div>
+
+            {!meData ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+              </div>
+            ) : (
+              <div className="px-5 py-5 pb-8">
+                <div className="rounded-2xl p-5 bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-lg">
+                  <p className="text-xs text-blue-100 mb-4">{shopName}</p>
+                  <p className="text-xl font-mono tracking-widest mb-1">
+                    {(meData.card_number || '').replace(/(\d{4})(?=\d)/g, '$1 ')}
+                  </p>
+                  <div className="flex items-center justify-between mt-4">
+                    <p className="text-sm font-medium">{meData.name}</p>
+                    {meData.cashback_percent > 0 && (
+                      <p className="text-xs bg-white/20 rounded-full px-2 py-1">🔄 {meData.cashback_percent}%</p>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  onClick={copyCardNumber}
+                  className="w-full mt-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Copy className="w-4 h-4" /> {copied ? 'Nusxalandi!' : 'Raqamni nusxalash'}
+                </button>
+                <p className="text-xs text-slate-400 text-center mt-3">
+                  Kassirga shu karta raqamini ko'rsating — naqd pul yig'asiz
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Xaridlar tarixi drawer */}
+      {showPurchases && (
+        <div className="fixed inset-0 z-50 flex items-end">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowPurchases(false)} />
+          <div className="relative w-full bg-white rounded-t-3xl max-h-[85vh] flex flex-col animate-[slideUp_0.25s_ease-out]">
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-100">
+              <h2 className="text-base font-bold text-slate-800">🧾 Xaridlarim</h2>
+              <button onClick={() => setShowPurchases(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100">
+                <X className="w-4 h-4 text-slate-500" />
+              </button>
+            </div>
+
+            {purchasesLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+              </div>
+            ) : purchases.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-2 py-16 text-slate-400">
+                <Receipt className="w-10 h-10" />
+                <p className="text-sm">Xarid tarixi yo'q</p>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto px-5 py-3 space-y-2 pb-6">
+                {purchases.map(p => (
+                  <div key={p.id} className="flex items-center justify-between border border-slate-100 rounded-xl px-3 py-2.5">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">{fmt(p.total_amount)} so'm</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">{fmtDate(p.created_at)}</p>
+                      {p.debt_due_date && (
+                        <p className="text-[11px] text-red-500 mt-0.5">Muddat: {new Date(p.debt_due_date).toLocaleDateString('uz-UZ')}</p>
+                      )}
+                    </div>
+                    <span className="text-[11px] px-2 py-1 rounded-full bg-slate-100 text-slate-600 font-medium">
+                      {p.payment_type}
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
           </div>

@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+from datetime import datetime, timezone
 from typing import Optional, List
 from decimal import Decimal
 from urllib.parse import parse_qsl
@@ -18,6 +19,7 @@ from app.models.warehouse import Warehouse, WarehouseType  # type: ignore
 from app.models.inventory import StockLevel  # type: ignore
 from app.models.order import Order, OrderStatus  # type: ignore
 from app.models.branch import Branch  # type: ignore
+from app.models.sale import Sale, PaymentType  # type: ignore
 
 router = APIRouter(prefix="/shop", tags=["shop"])
 
@@ -43,6 +45,21 @@ def _verify_init_data(init_data: str, bot_token: str) -> Optional[dict]:
         return json.loads(user_raw)
     except Exception:
         return None
+
+
+def _generate_card_number_for_shop(db: Session, company_id: int) -> str:
+    """13 xonali unique loyallik karta raqami (telegram.py bilan bir xil mantiq)."""
+    import random
+    existing = {
+        r[0] for r in db.query(Customer.card_number).filter(
+            Customer.company_id == company_id,
+            Customer.card_number.isnot(None),
+        ).all()
+    }
+    while True:
+        num = "2" + "".join(str(random.randint(0, 9)) for _ in range(12))
+        if num not in existing:
+            return num
 
 
 def _shop_warehouse_ids(db: Session, company_id: int) -> List[int]:
@@ -248,12 +265,78 @@ def shop_me(
     x_init_data: Optional[str] = Header(None, alias="X-Init-Data"),
 ):
     company, customer = _resolve_shop_context(db, company_id, x_init_data, u, t)
+
+    if not customer.card_number:
+        customer.card_number = _generate_card_number_for_shop(db, company.id)
+        db.commit()
+        db.refresh(customer)
+
+    today = datetime.now(timezone.utc).date()
+    debt_sales = (
+        db.query(Sale)
+        .filter(
+            Sale.customer_id == customer.id,
+            Sale.payment_type == PaymentType.debt,
+            Sale.status == "completed",
+            Sale.debt_due_date.isnot(None),
+        )
+        .order_by(Sale.debt_due_date)
+        .limit(10)
+        .all()
+    )
+    debt_schedule = []
+    for s in debt_sales:
+        delta = (s.debt_due_date - today).days
+        debt_schedule.append({
+            "due_date": s.debt_due_date.isoformat(),
+            "days_left": delta,
+            "amount": float(s.total_amount or 0),
+        })
+
     return {
         "id": customer.id,
         "name": customer.name,
+        "phone": customer.phone,
         "card_number": customer.card_number,
         "loyalty_points": float(customer.loyalty_points or 0),
+        "tier": customer.tier,
+        "debt_balance": float(customer.debt_balance or 0),
+        "debt_limit": float(customer.debt_limit or 0),
+        "bonus_balance": float(customer.bonus_balance or 0),
+        "discount_percent": float(customer.discount_percent or 0),
+        "cashback_percent": float(customer.cashback_percent or 0),
+        "debt_schedule": debt_schedule,
     }
+
+
+@router.get("/{company_id}/purchases")
+def shop_purchases(
+    company_id: int,
+    u: Optional[str] = None,
+    t: Optional[str] = None,
+    db: Session = Depends(get_db),
+    x_init_data: Optional[str] = Header(None, alias="X-Init-Data"),
+):
+    company, customer = _resolve_shop_context(db, company_id, x_init_data, u, t)
+
+    sales = (
+        db.query(Sale)
+        .filter(Sale.customer_id == customer.id)
+        .order_by(Sale.created_at.desc())
+        .limit(30)
+        .all()
+    )
+    result = []
+    for s in sales:
+        result.append({
+            "id": s.id,
+            "total_amount": float(s.total_amount or 0),
+            "payment_type": s.payment_type.value if hasattr(s.payment_type, "value") else str(s.payment_type),
+            "status": s.status.value if hasattr(s.status, "value") else str(s.status),
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+            "debt_due_date": s.debt_due_date.isoformat() if getattr(s, "debt_due_date", None) else None,
+        })
+    return result
 
 
 @router.post("/{company_id}/order")
