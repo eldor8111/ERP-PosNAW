@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { useLang } from '../../context/LangContext';
 import toast from 'react-hot-toast';
-import * as XLSX from 'xlsx';
-import { saveAs } from 'file-saver';
+import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
 
 const fmtDate = (s) => s ? new Date(s).toLocaleString('ru-RU', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' }).replace(',','') : '—';
 const today = () => (new Date(Date.now() - new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 10);
@@ -191,7 +190,8 @@ export default function Warehouse() {
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
               <span className="text-sm font-semibold text-slate-700">Ombor qoldiqlari hisoboti</span>
               <ExportBtns
-                onExcel={() => {
+                onExcel={async () => {
+                  const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(inventoryData.map(i => ({
                     'Mahsulot': i.product_name, 'SKU': i.sku, 'Qoldiq': i.quantity,
                     'Min. qoldiq': i.min_stock, 'Qiymat': i.value, 'Holat': i.is_low ? 'Kam' : 'Yetarli',

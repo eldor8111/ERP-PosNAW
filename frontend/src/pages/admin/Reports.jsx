@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLang } from '../../context/LangContext';
-import * as XLSX from 'xlsx';
-import { saveAs } from 'file-saver';
+import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
 
@@ -375,7 +374,8 @@ export default function Reports() {
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
               <span className="text-sm font-semibold text-slate-700">Sotuvlar ro'yxati</span>
               <ExportBtns
-                onExcel={() => {
+                onExcel={async () => {
+                  const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(items.map(s => ({
                     'Raqam': s.number, 'Kassir': s.cashier_name,
                     'Summa': s.total_amount, 'Chegirma': s.discount_amount,
@@ -391,6 +391,7 @@ export default function Reports() {
                   ['', 'JAMI', fmtS(totalSum), '', '']
                 )}
                 on1c={async () => {
+                  const saveAs = await loadSaveAs();
                   const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo, format: 'csv' });
                   const r = await api.get(`/reports/1c-export?${params}`, { responseType: 'blob' });
                   saveAs(r.data, `1c_export_${today()}.csv`);
@@ -444,7 +445,8 @@ export default function Reports() {
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
               <span className="text-sm font-semibold text-slate-700">Mahsulot bo'yicha foyda hisoboti</span>
               <ExportBtns
-                onExcel={() => {
+                onExcel={async () => {
+                  const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(profitData.map(r => ({
                     'Mahsulot': r.product_name, 'SKU': r.sku, 'Kategoriya': r.category_name,
                     'Sotildi': r.qty_sold, 'Daromad': fmtDebt(r.revenue), 'Tannarx': fmtDebt(r.cost),
@@ -518,7 +520,8 @@ export default function Reports() {
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
               <span className="text-sm font-semibold text-slate-700">Mahsulotlar (Sotuv) hisoboti</span>
               <ExportBtns
-                onExcel={() => {
+                onExcel={async () => {
+                  const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(productSalesData.map(r => ({
                     'Mahsulot': r.product_name, 'SKU': r.sku,
                     'Sotilgan Miqdor': r.total_qty, 'Daromad': fmtDebt(r.total_revenue), 'Foyda': fmtDebt(r.total_profit),
@@ -631,7 +634,8 @@ export default function Reports() {
               {/* Header */}
               <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
                 <span className="text-sm font-bold text-slate-700">📦 Mahsulot harakatlari hisoboti</span>
-                <button onClick={() => {
+                <button onClick={async () => {
+                  const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(movementsData.map(m => ({
                     'Sana': new Date(m.created_at).toLocaleString('uz-UZ'),
                     'Operatsiya': getOp(m).label,
@@ -909,7 +913,8 @@ export default function Reports() {
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
               <span className="text-sm font-semibold text-slate-700">Kassir bo'yicha hisobot</span>
               <ExportBtns
-                onExcel={() => {
+                onExcel={async () => {
+                  const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(cashierData.map(r => ({
                     'Kassir': r.cashier_name, 'Sotuvlar': r.sales_count,
                     'Jami summa': fmtDebt(r.total_amount), 'O\'rt. chek': fmtDebt(r.avg_check), 'Chegirma': fmtDebt(r.total_discount),
@@ -976,8 +981,9 @@ export default function Reports() {
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
               <span className="text-sm font-semibold text-slate-700">O'lik stok (6+ oy sotilmagan)</span>
               <ExportBtns
-                onExcel={() => {
+                onExcel={async () => {
                   if (!deadStockData) return;
+                  const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(deadStockData.items.map(i => ({
                     'Mahsulot': i.product_name, 'SKU': i.sku,
                     'Miqdor': i.quantity, 'Tannarx': fmtRowDebt(i.cost_price, i.currency), 'Qiymat': fmtRowDebt(i.value, i.currency),
@@ -1048,8 +1054,9 @@ export default function Reports() {
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
               <span className="text-sm font-semibold text-slate-700">Xarajatlar hisoboti</span>
               <ExportBtns
-                onExcel={() => {
+                onExcel={async () => {
                   if (!expenseData) return;
+                  const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(expenseData.items.map(e => ({
                     'Kategoriya': e.category, 'Summa': e.amount,
                     'Izoh': e.description, 'Sana': new Date(e.created_at).toLocaleDateString('uz-UZ'),
@@ -1108,7 +1115,8 @@ export default function Reports() {
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
               <span className="text-sm font-semibold text-slate-700">Supplier bo'yicha xaridlar</span>
               <ExportBtns
-                onExcel={() => {
+                onExcel={async () => {
+                  const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(purchasesData.map(r => ({
                     'Supplier': r.supplier_name, 'Telefon': r.phone,
                     'PO soni': r.po_count, 'Jami summa': r.total_amount,
@@ -1158,8 +1166,9 @@ export default function Reports() {
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
               <span className="text-sm font-semibold text-slate-700">Debitor qarzdorlik — mijozlar</span>
               <ExportBtns
-                onExcel={() => {
+                onExcel={async () => {
                   if (!customerDebts) return;
+                  const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(customerDebts.items.map(c => ({
                     'Mijoz': c.customer_name, 'Telefon': c.phone,
                     'Qarz': c.debt_balance, 'Limit': c.debt_limit, 'Foydalanish %': c.usage_pct,
@@ -1226,8 +1235,9 @@ export default function Reports() {
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
               <span className="text-sm font-semibold text-slate-700">Kreditor qarzdorlik — supplierlar</span>
               <ExportBtns
-                onExcel={() => {
+                onExcel={async () => {
                   if (!supplierDebts) return;
+                  const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(supplierDebts.items.map(s => ({
                     'Supplier': s.supplier_name, 'Telefon': s.phone,
                     'Qarz': s.debt_balance, 'To\'lov muddati': s.payment_terms + ' kun',
@@ -1288,7 +1298,8 @@ export default function Reports() {
                 <p className="text-xs text-slate-400 mt-0.5">A=top 80% daromad, B=80-95%, C=qolgan • X=tez aylanuvchi, Y=o'rta, Z=sekin</p>
               </div>
               <ExportBtns
-                onExcel={() => {
+                onExcel={async () => {
+                  const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(abcData.map(r => ({
                     'Mahsulot': r.product_name, 'SKU': r.sku,
                     'Daromad': r.revenue, 'Chastota': r.frequency, 'Miqdor': r.qty,
@@ -1358,7 +1369,8 @@ export default function Reports() {
                 <p className="text-xs text-slate-400 mt-0.5">Har bir partiyaning kirim narxi, qoldig&apos;i va foydasi</p>
               </div>
               <ExportBtns
-                onExcel={() => {
+                onExcel={async () => {
+                  const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(batchData.map(r => ({
                     Tovar: r.product_name, Lot: r.lot_number,
                     KirimNarxi: r.purchase_price, Boshlangich: r.initial_quantity,

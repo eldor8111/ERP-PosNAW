@@ -1,7 +1,6 @@
 import { useRef, useState, useEffect, useLayoutEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import * as XLSX from 'xlsx';
-import { saveAs } from 'file-saver';
+import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
 import api from '../../api/axios';
 import BarcodePrintModal from '../../components/BarcodeTemplates';
 import { useLang } from '../../context/LangContext';
@@ -705,8 +704,9 @@ export default function Products() {
     setColMap(map);
   };
 
-  const parseExcel = (file) => {
+  const parseExcel = async (file) => {
     setImportFile(file); setImportResult(null); setImportError(''); setImportPage(1);
+    const XLSX = await loadXLSX();
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -722,7 +722,8 @@ export default function Products() {
     reader.readAsArrayBuffer(file);
   };
 
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
+    const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
     const ws = XLSX.utils.json_to_sheet([{
       'Nomi': 'Coca-Cola 0.5L', 'SKU': '', 'Kod': 'CL-001', 'Barkod': '12345678',
       "O'lchov": 'dona', 'Tan narxi': 5000, 'Chakana narxi': 8000,
@@ -1317,6 +1318,7 @@ export default function Products() {
                     }
 
                     // ── Professional multi‑header Excel export ──────────────
+                    const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                     const wb = XLSX.utils.book_new();
                     const ws = {};
 

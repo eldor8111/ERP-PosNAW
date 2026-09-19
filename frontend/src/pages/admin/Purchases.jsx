@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLang } from '../../context/LangContext';
-import * as XLSX from 'xlsx';
-import { saveAs } from 'file-saver';
+import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
 import api from '../../api/axios';
 import { matchesSearch, searchVariants } from '../../utils/translit';
 import toast from 'react-hot-toast';
@@ -2021,8 +2020,9 @@ function SuppliersTab() {
     setColMap(map);
   };
 
-  const parseExcel = (file) => {
+  const parseExcel = async (file) => {
     setImportFile(file); setImportResult(null); setImportError(''); setImportPage(1);
+    const XLSX = await loadXLSX();
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -2052,7 +2052,8 @@ function SuppliersTab() {
     }).filter(r => r['Nomi'] || r['INN']);
   };
 
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
+    const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
     const ws = XLSX.utils.json_to_sheet([{
       'Nomi': "Euro Print MChJ", 'INN': '123456789',
       'Telefon': '+998901234567', 'Email': 'info@europrint.uz',
@@ -2180,7 +2181,8 @@ function SuppliersTab() {
           <input className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder={t('purchase.searchSupplier')} value={search} onChange={e => setSearch(e.target.value)} /></div>
 
         <button
-          onClick={() => {
+          onClick={async () => {
+            const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
             const ws = XLSX.utils.json_to_sheet(list.map(s => {
               // ✅ Kichik-14 TUZATILDI: har bir valyuta alohida ustun
               const base = {

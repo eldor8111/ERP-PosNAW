@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import * as XLSX from 'xlsx';
-import { saveAs } from 'file-saver';
+import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
 import api from '../../api/axios';
 import { useLang } from '../../context/LangContext';
 import { matchesSearch } from '../../utils/translit';
@@ -153,7 +152,8 @@ export default function Finance() {
     } finally { setPaying(false); }
   };
 
-  const exportExpenses = () => {
+  const exportExpenses = async () => {
+    const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
     const ws = XLSX.utils.json_to_sheet(expenses.map(e => ({
       'Kategoriya': e.category_name, 'Summa': e.amount,
       'Izoh': e.description, 'Sana': new Date(e.created_at).toLocaleDateString('uz-UZ'),
@@ -498,11 +498,12 @@ export default function Finance() {
                   className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-300 w-52"
                 />
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     if (!customerDebts?.items) return;
                     const filtered = customerDebts.items.filter(c =>
                       !debtSearch || matchesSearch(c.name, debtSearch) || (c.phone||'').includes(debtSearch)
                     );
+                    const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                     const ws = XLSX.utils.json_to_sheet(filtered.map(c => ({
                       'Mijoz': c.name,
                       'Telefon': c.phone || '',

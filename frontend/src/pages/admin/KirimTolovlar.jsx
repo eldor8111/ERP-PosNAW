@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../../api/axios';
-import * as XLSX from 'xlsx';
-import { saveAs } from 'file-saver';
+import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ') + " so'm";
 const fmtCurr = (v, curr) => {
@@ -115,8 +114,9 @@ export default function KirimTolovlar() {
     }
   };
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
     if (!data?.items) return;
+    const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
     const ws = XLSX.utils.json_to_sheet(data.items.map((i, index) => ({
       '#': index + 1,
       'CONTRAGENT': i.contragent,

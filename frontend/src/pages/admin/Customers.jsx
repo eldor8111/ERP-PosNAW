@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { matchesSearch } from '../../utils/translit';
-import * as XLSX from 'xlsx';
-import { saveAs } from 'file-saver';
+import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
 import api from '../../api/axios';
 import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
 import { useLang } from '../../context/LangContext';
@@ -297,8 +296,9 @@ export function SotuvMijozlar({ stats, reloadStats }) {
     setColMap(map);
   };
 
-  const parseExcel = (file) => {
+  const parseExcel = async (file) => {
     setImportFile(file); setImportResult(null); setImportError(''); setImportPage(1);
+    const XLSX = await loadXLSX();
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -335,7 +335,8 @@ export function SotuvMijozlar({ stats, reloadStats }) {
     }).filter(r => r['Ism'] || r['Telefon'] || r['Karta raqami']);
   };
 
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
+    const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
     const ws = XLSX.utils.json_to_sheet([{
       'Ism': 'Javohir Toshmatov', 'Telefon': '+998901234567',
       'Qarz': 0, 'Kredit limit': 1000000, 'Sodiqlik ballari': 100,
@@ -609,7 +610,8 @@ export function SotuvMijozlar({ stats, reloadStats }) {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => {
+            onClick={async () => {
+              const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
               const ws = XLSX.utils.json_to_sheet(customers.map(c => {
                 let debtInUzs = 0;
                 if (c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).length > 0) {
