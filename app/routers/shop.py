@@ -12,7 +12,7 @@ from pydantic import BaseModel  # type: ignore
 from app.database import get_db  # type: ignore
 from app.models.company import Company  # type: ignore
 from app.models.customer import Customer  # type: ignore
-from app.models.product import Product  # type: ignore
+from app.models.product import Product, ProductStatus  # type: ignore
 from app.models.category import Category  # type: ignore
 from app.models.warehouse import Warehouse, WarehouseType  # type: ignore
 from app.models.inventory import StockLevel  # type: ignore
@@ -169,7 +169,11 @@ def shop_products(
     for stock in stock_query.all():
         stock_by_product[stock.product_id] = stock_by_product.get(stock.product_id, 0) + float(stock.quantity or 0)
 
-    products_query = db.query(Product).filter(Product.company_id == company.id)
+    products_query = db.query(Product).filter(
+        Product.company_id == company.id,
+        Product.is_deleted == False,  # noqa: E712
+        Product.status == ProductStatus.active,
+    )
     if category_id:
         products_query = products_query.filter(Product.category_id == category_id)
     if q:
