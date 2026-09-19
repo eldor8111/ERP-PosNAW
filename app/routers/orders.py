@@ -4,14 +4,13 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
-from pydantic import BaseModel, Field  # type: ignore
+from pydantic import BaseModel  # type: ignore
 
 from app.database import get_db  # type: ignore
 from app.core.dependencies import get_current_user  # type: ignore
 from app.models.user import User  # type: ignore
 from app.models.order import Order, OrderStatus  # type: ignore
 from app.models.customer import Customer  # type: ignore
-from app.models.branch import Branch  # type: ignore
 from app.models.product import Product  # type: ignore
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -90,7 +89,7 @@ def create_order(
     return order
 
 
-@router.get("", response_model=List[OrderOut])
+@router.get("", response_model=List[dict])
 def list_orders(
     branch_id: Optional[int] = None,
     status: Optional[OrderStatus] = None,
@@ -105,7 +104,31 @@ def list_orders(
     if status:
         query = query.filter(Order.status == status)
 
-    return query.order_by(Order.created_at.desc()).all()
+    orders = query.order_by(Order.created_at.desc()).all()
+
+    result = []
+    for order in orders:
+        customer = db.query(Customer).filter(Customer.id == order.customer_id).first()
+        product = db.query(Product).filter(Product.id == order.product_id).first()
+
+        result.append({
+            "id": order.id,
+            "customer_id": order.customer_id,
+            "customer_name": customer.name if customer else "—",
+            "customer_phone": customer.phone if customer else "—",
+            "product_id": order.product_id,
+            "product_name": product.name if product else "—",
+            "quantity": order.quantity,
+            "unit_price": float(order.unit_price),
+            "total_amount": float(order.total_amount),
+            "status": order.status,
+            "payment_type": order.payment_type,
+            "notes": order.notes,
+            "created_at": order.created_at.isoformat(),
+            "confirmed_at": order.confirmed_at.isoformat() if order.confirmed_at else None,
+        })
+
+    return result
 
 
 @router.put("/{order_id}/confirm")
