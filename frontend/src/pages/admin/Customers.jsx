@@ -75,7 +75,7 @@ function CustSearch({ customers, value, onChange, onAfterSelect }) {
   );
 }
 
-function RowMenu({ onEdit, onDelete, onPay, onPoints, onHistory, onPrintBarcode, hasDebt }) {
+function RowMenu({ onEdit, onDelete, onPay, onPoints, onHistory, onPrintBarcode, onPrintBarcodeLocal, onAssignBranch, branches, currentBranch, hasDebt }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, right: 0, visible: false });
   const { t } = useLang();
@@ -152,8 +152,38 @@ function RowMenu({ onEdit, onDelete, onPay, onPoints, onHistory, onPrintBarcode,
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 9V2m12 0v7M6 9a2 2 0 002 2h8a2 2 0 002-2m0 0V2m0 11v11m0 0a2 2 0 01-2 2H8a2 2 0 01-2-2m16 0V8a2 2 0 00-2-2m-2-2H8a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2z" />
                 </svg>
-                🖨️ Shtrix kod chop etish
+                🤖 Telegram'ga yuborish
               </button>
+              <button onClick={() => { onPrintBarcodeLocal(); setOpen(false); }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-green-600 hover:bg-green-50 transition-colors font-medium">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+                🖨️ Printer'dan chop etish
+              </button>
+            </>
+          )}
+          {onAssignBranch && branches && (
+            <>
+              <div className="mx-3 my-1 border-t border-slate-100" />
+              <div className="px-4 py-2.5">
+                <div className="text-xs font-semibold text-slate-600 mb-2">🏪 Dokon tanlang</div>
+                <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
+                  {branches.map(b => (
+                    <button
+                      key={b.id}
+                      onClick={() => { onAssignBranch(b.id); setOpen(false); }}
+                      className={`text-xs px-2 py-1.5 rounded transition-colors ${
+                        currentBranch === b.id
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {b.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </>
           )}
           <div className="mx-3 my-1 border-t border-slate-100" />
@@ -211,6 +241,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
   const navigate = useNavigate();
   const { t } = useLang();
   const [customers, setCustomers] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -475,6 +506,31 @@ export function SotuvMijozlar({ stats, reloadStats }) {
       toast.success('Shtrix kod Telegram orqali yuborildi');
     } catch (err) {
       const msg = err.response?.data?.detail || "Shtrix kodni yuborishda xatolik";
+      toast.error(msg);
+    }
+  };
+  const assignBranch = async (customerId, branchId) => {
+    try {
+      await api.put(`/customers/${customerId}/assign-branch?branch_id=${branchId}`);
+      toast.success('Mijoz dokoniga biriktirildi');
+      loadCustomers();
+    } catch (err) {
+      const msg = err.response?.data?.detail || "Biriktirish xatosi";
+      toast.error(msg);
+    }
+  };
+  const printBarcodeLocal = async (customerId) => {
+    try {
+      const response = await api.get(`/customers/${customerId}/barcode.svg`, { responseType: 'blob' });
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `barcode_${customerId}.png`;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast.success('Shtrix kod yuklandi');
+    } catch (err) {
+      const msg = err.response?.data?.detail || "Shtrix kodni yuklashda xatolik";
       toast.error(msg);
     }
   };
@@ -893,6 +949,10 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                         onPoints={() => openPoints(c)}
                         onHistory={() => openHistory(c)}
                         onPrintBarcode={() => printBarcode(c.id)}
+                        onPrintBarcodeLocal={() => printBarcodeLocal(c.id)}
+                        onAssignBranch={(branchId) => assignBranch(c.id, branchId)}
+                        branches={branches}
+                        currentBranch={c.branch_id}
                         hasDebt={Number(c.debt_balance) > 0 || (c.debt_balances && typeof c.debt_balances === 'object' && Object.values(c.debt_balances).some(v => Number(v) > 0))}
                       />
                     </td>
