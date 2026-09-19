@@ -119,6 +119,22 @@ class OrderIn(BaseModel):
     notes: Optional[str] = None
 
 
+@router.get("/{company_id}/debug-warehouses")
+def shop_debug_warehouses(company_id: int, db: Session = Depends(get_db)):
+    """Vaqtinchalik debug — omborlar ro'yxati va turi."""
+    warehouses = db.query(Warehouse).filter(Warehouse.company_id == company_id).all()
+    result = []
+    for w in warehouses:
+        stock_sum = db.query(StockLevel).filter(StockLevel.warehouse_id == w.id).all()
+        total = sum(float(s.quantity or 0) for s in stock_sum)
+        result.append({
+            "id": w.id, "name": w.name, "type": str(w.type),
+            "branch_id": w.branch_id, "is_active": w.is_active,
+            "stock_lines": len(stock_sum), "total_qty": total,
+        })
+    return result
+
+
 @router.get("/{company_id}/info")
 def shop_info(company_id: int, db: Session = Depends(get_db)):
     """Do'kon nomi va ma'lumotlarini ochiq (auth'siz) qaytaradi — UI sarlavhasi uchun."""
