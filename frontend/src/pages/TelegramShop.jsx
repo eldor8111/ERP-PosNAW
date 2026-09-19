@@ -5,16 +5,19 @@ import { ShoppingCart, Search, Plus, Minus, X, Package, CheckCircle2, Loader2 } 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8010/api'
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ')
 
-const tg = typeof window !== 'undefined' ? window.Telegram?.WebApp : null
+function getTg() {
+  return typeof window !== 'undefined' ? window.Telegram?.WebApp : null
+}
 
-function useTelegram() {
-  useEffect(() => {
-    if (!tg) return
-    tg.ready()
-    tg.expand()
-    try { tg.setHeaderColor?.('secondary_bg_color') } catch { /* ignore */ }
-  }, [])
-  return tg
+function getInitData() {
+  const tg = getTg()
+  if (tg?.initData) return tg.initData
+  // Fallback: Telegram ba'zan initData'ni URL hash orqali ham beradi
+  const hash = window.location.hash?.replace(/^#/, '') || ''
+  const hashParams = new URLSearchParams(hash)
+  const fromHash = hashParams.get('tgWebAppData')
+  if (fromHash) return fromHash
+  return ''
 }
 
 function shopApi(initData) {
@@ -26,11 +29,44 @@ function shopApi(initData) {
 }
 
 export default function TelegramShop() {
-  useTelegram()
+  const [tgReady, setTgReady] = useState(false)
+  const [initData, setInitData] = useState('')
+
+  // Telegram WebApp skripti async yuklanishi mumkin — bir necha marta poll qilamiz
+  useEffect(() => {
+    let attempts = 0
+    let cancelled = false
+
+    const tryInit = () => {
+      if (cancelled) return
+      const tg = getTg()
+      const data = getInitData()
+      if (tg) {
+        try {
+          tg.ready()
+          tg.expand()
+          tg.setHeaderColor?.('secondary_bg_color')
+        } catch { /* ignore */ }
+      }
+      if (data) {
+        setInitData(data)
+        setTgReady(true)
+        return
+      }
+      attempts += 1
+      if (attempts < 20) {
+        setTimeout(tryInit, 150)
+      } else {
+        setTgReady(true) // to'xtatamiz, xato holatini ko'rsatamiz
+      }
+    }
+
+    tryInit()
+    return () => { cancelled = true }
+  }, [])
 
   const params = new URLSearchParams(window.location.search)
   const companyId = params.get('c')
-  const initData = tg?.initData || ''
 
   const [shopName, setShopName] = useState('')
   const [products, setProducts] = useState([])
@@ -47,6 +83,8 @@ export default function TelegramShop() {
   const api = useMemo(() => shopApi(initData), [initData])
 
   useEffect(() => {
+    if (!tgReady) return // Telegram WebApp SDK hali tekshirilmoqda
+
     if (!companyId) {
       setError('Do\'kon aniqlanmadi. Botdan qayta urinib ko\'ring.')
       setLoading(false)
@@ -77,7 +115,7 @@ export default function TelegramShop() {
     })
 
     return () => { cancelled = true }
-  }, [companyId, initData, api])
+  }, [tgReady, companyId, initData, api])
 
   const filteredProducts = useMemo(() => {
     let list = products
@@ -103,7 +141,7 @@ export default function TelegramShop() {
   const cartCount = useMemo(() => cartItems.reduce((sum, i) => sum + i.qty, 0), [cartItems])
 
   const addToCart = useCallback((product) => {
-    tg?.HapticFeedback?.impactOccurred?.('light')
+    getTg()?.HapticFeedback?.impactOccurred?.('light')
     setCart(prev => {
       const current = prev[product.id] || 0
       const next = Math.min(current + 1, product.available)
@@ -112,7 +150,7 @@ export default function TelegramShop() {
   }, [])
 
   const removeFromCart = useCallback((productId) => {
-    tg?.HapticFeedback?.impactOccurred?.('light')
+    getTg()?.HapticFeedback?.impactOccurred?.('light')
     setCart(prev => {
       const current = prev[productId] || 0
       if (current <= 1) {
@@ -124,15 +162,17 @@ export default function TelegramShop() {
   }, [])
 
   useEffect(() => {
-    if (!tg) return
+    const tg = getTg()
+    if (!tg?.MainButton) return
+    const onClick = () => setShowCart(true)
     if (cartCount > 0 && !showCart) {
       tg.MainButton.setText(`🛒 Savat — ${fmt(cartTotal)} so'm`)
       tg.MainButton.show()
-      tg.MainButton.onClick(() => setShowCart(true))
+      tg.MainButton.onClick(onClick)
     } else {
       tg.MainButton.hide()
     }
-    return () => { tg.MainButton.offClick?.(() => setShowCart(true)) }
+    return () => { tg.MainButton.offClick?.(onClick) }
   }, [cartCount, cartTotal, showCart])
 
   const submitOrder = async () => {
@@ -143,18 +183,19 @@ export default function TelegramShop() {
         items: cartItems.map(i => ({ product_id: i.id, quantity: i.qty })),
         payment_type: 'cash',
       })
-      tg?.HapticFeedback?.notificationOccurred?.('success')
+      getTg()?.HapticFeedback?.notificationOccurred?.('success')
       setSuccess(true)
       setCart({})
       setTimeout(() => {
         setShowCart(false)
         setSuccess(false)
-        tg?.close?.()
+        getTg()?.close?.()
       }, 2000)
     } catch (err) {
-      tg?.HapticFeedback?.notificationOccurred?.('error')
+      getTg()?.HapticFeedback?.notificationOccurred?.('error')
       const msg = err.response?.data?.detail || 'Buyurtma berishda xatolik yuz berdi'
-      window.Telegram?.WebApp?.showAlert?.(msg) || alert(msg)
+      const shown = getTg()?.showAlert?.(msg)
+      if (!shown) alert(msg)
     } finally {
       setSubmitting(false)
     }
