@@ -857,6 +857,11 @@ def create_pending_sale(
         _customer_price = _pend_customer_prices.get(item_data.product_id) if data.customer_id else None
         unit_price = resolve_price(item_data, product, _customer_price, _pend_customer)
         discount = item_data.discount
+        if discount > unit_price * item_data.quantity:
+            raise HTTPException(
+                status_code=400,
+                detail=f"'{product.name}' uchun chegirma ({discount}) narxdan oshib ketdi",
+            )
         subtotal = max(Decimal("0"), (unit_price * item_data.quantity) - discount)
 
         conversion = _pend_conversions.get(product.id)

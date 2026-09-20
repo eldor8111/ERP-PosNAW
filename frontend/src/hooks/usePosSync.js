@@ -14,6 +14,7 @@ import toast from 'react-hot-toast';
 
 const PENDING_SALES_KEY = 'pos_pending_sales';
 const PENDING_RETURNS_KEY = 'pos_pending_returns';
+const REJECTED_SALES_KEY = 'pos_rejected_sales';
 const CACHE_PRODUCTS_KEY = 'pos_cache_products';
 const CACHE_CUSTOMERS_KEY = 'pos_cache_customers';
 const CACHE_CATEGORIES_KEY = 'pos_cache_categories';
@@ -61,14 +62,32 @@ export default function usePosSync({ onSyncSuccess } = {}) {
     syncRef.current = true;
     setSyncing(true);
 
+    // Server 4xx (validatsiya) xatosi bergan savdoni cheksiz qayta urinish
+    // o'rniga alohida "rad etilgan" ro'yxatga o'tkazamiz va kassirga
+    // ko'rsatamiz — aks holda savdo jimgina yo'qolib qolardi (chek bosilgan,
+    // lekin bazaga hech qachon yozilmaydi). Tarmoq xatolari navbatda qoladi.
+    const rejected = getPending(REJECTED_SALES_KEY);
+    const rejectSale = (item, kind, detail) => {
+      rejected.push({ ...item, kind, detail, rejectedAt: Date.now() });
+      toast.error(
+        `DIQQAT: oflayn ${kind === 'return' ? 'vazvrat' : 'sotuv'} server tomonidan RAD ETILDI va saqlanmadi: ${detail}`,
+        { duration: 15000 }
+      );
+    };
+
     // 1. Sotuvlar
     const pendingSales = getPending(PENDING_SALES_KEY);
     const failedSales = [];
     for (const sale of pendingSales) {
       try {
         await api.post('/sales/', sale.payload);
-      } catch {
-        failedSales.push(sale);
+      } catch (e) {
+        const status = e.response?.status;
+        if (status >= 400 && status < 500) {
+          rejectSale(sale, 'sale', e.response?.data?.detail || `HTTP ${status}`);
+        } else {
+          failedSales.push(sale);
+        }
       }
     }
     setPending(PENDING_SALES_KEY, failedSales);
@@ -79,11 +98,17 @@ export default function usePosSync({ onSyncSuccess } = {}) {
     for (const ret of pendingReturns) {
       try {
         await api.post('/sales/return', ret.payload);
-      } catch {
-        failedReturns.push(ret);
+      } catch (e) {
+        const status = e.response?.status;
+        if (status >= 400 && status < 500) {
+          rejectSale(ret, 'return', e.response?.data?.detail || `HTTP ${status}`);
+        } else {
+          failedReturns.push(ret);
+        }
       }
     }
     setPending(PENDING_RETURNS_KEY, failedReturns);
+    setPending(REJECTED_SALES_KEY, rejected);
 
     refreshPendingCount();
     setSyncing(false);

@@ -960,6 +960,12 @@ export default function UlgurjiSotuv() {
     if (field === 'qty' && next.requires_marking && (next.marking_codes || []).length > Number(val)) {
       next.marking_codes = next.marking_codes.slice(0, Math.floor(Number(val)) || 0);
     }
+    // Chegirma [0, narx x miqdor] (pct uchun [0, 100]) oralig'ida bo'lishi
+    // shart - aks holda manfiy summali sotuv bazaga yozilishi mumkin edi.
+    if (field === 'discount_val' || field === 'qty' || field === 'price' || field === 'discount_type') {
+      const maxDisc = next.discount_type === 'pct' ? 100 : (Number(next.price) || 0) * (Number(next.qty) || 0);
+      next.discount_val = Math.min(maxDisc, Math.max(0, Number(next.discount_val) || 0));
+    }
     return next;
   })), []);
   const removeItem = useCallback((idx) => setCart(prev => prev.filter((_, i) => i !== idx)), []);

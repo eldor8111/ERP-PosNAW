@@ -434,7 +434,14 @@ const navigate = useNavigate();
   const updateDiscount = (idx, val) => {
     setCart(prev => {
       const next = [...prev];
-      next[idx].discount_val = Number(val) || 0;
+      const item = next[idx];
+      // Chegirma [0, narx x miqdor] oralig'ida bo'lishi shart - aks holda
+      // manfiy summali sotuv yuzaga keladi (backend baribir rad etadi,
+      // oflaynda esa savdo sinxronlanmay qolardi).
+      const maxDisc = item.discount_type === 'pct'
+        ? 100
+        : item.unit_price * item.qty_ordered;
+      next[idx].discount_val = Math.min(maxDisc, Math.max(0, Number(val) || 0));
       return next;
     });
   };

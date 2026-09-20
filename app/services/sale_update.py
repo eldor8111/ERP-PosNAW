@@ -185,6 +185,11 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
 
             unit_price = resolve_price(item_d, product, _customer_price, _customer)
             discount = item_d.discount
+            if discount > unit_price * item_d.quantity:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"'{product.name}' uchun chegirma ({discount}) narxdan oshib ketdi",
+                )
             subtotal = (unit_price * item_d.quantity) - discount
             
             item_currency_code = getattr(item_d, "currency_code", "UZS")
