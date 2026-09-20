@@ -94,7 +94,7 @@ export default function Couriers() {
                   <a href={`tel:${c.phone}`} className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-0.5">
                     <Phone className="w-3 h-3" /> {c.phone}
                   </a>
-                  {c.transport && <p className="text-[11px] text-slate-400 mt-0.5">🛵 {c.transport}</p>}
+                  {c.transport && <p className="text-[11px] text-slate-400 mt-0.5">{c.transport}</p>}
                 </div>
                 <div className="flex gap-1 shrink-0">
                   <button onClick={() => openEdit(c)} title="Tahrirlash"
