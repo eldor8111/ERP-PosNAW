@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException  # type: ignore
 from pydantic import BaseModel  # type: ignore
@@ -130,6 +131,25 @@ def update_currency(
         rate_record.updated_history = history
         db.add(rate_record)
         currency.rate = data.rate
+
+        # Ushbu valyutada qarzi bor mijozlarning debt_balance (UZS ekvivalenti)
+        # ni yangi kursga moslab qayta hisoblaymiz - aks holda kurs
+        # o'zgargani sari ko'rsatilgan qarz haqiqiy qiymatdan chetlashib boradi.
+        from app.models.customer import Customer as CustomerModel
+        from app.routers.customers import _calc_debt_in_uzs
+        currency_map = {
+            c.code: Decimal(str(c.rate))
+            for c in db.query(Currency).filter(Currency.company_id == current_user.company_id).all()
+            if c.rate
+        }
+        affected_customers = db.query(CustomerModel).filter(
+            CustomerModel.company_id == current_user.company_id,
+            CustomerModel.debt_balances.isnot(None),
+        ).all()
+        for cust in affected_customers:
+            bal = cust.debt_balances or {}
+            if currency.code in bal and float(bal.get(currency.code) or 0) != 0:
+                cust.debt_balance = _calc_debt_in_uzs(bal, db, currency_map)
 
     if data.name is not None:
         currency.name = data.name
