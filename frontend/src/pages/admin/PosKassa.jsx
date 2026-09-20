@@ -118,6 +118,9 @@ const navigate = useNavigate();
   // Savat va UI holatlari
   const [cart, setCart] = useState([]);
   const [custId, setCustId] = useState('');
+  // Tanlangan mijozning YANGI (backenddan) qarz malumoti - ro'yxatdagi
+  // nusxa sahifa ochilgandagi holat bolib, eskirgan bolishi mumkin.
+  const [freshCust, setFreshCust] = useState(null);
   const [search, setSearch] = useState('');
   const [activeCat, setActiveCat] = useState(null);
   const [variantParent, setVariantParent] = useState(null);
@@ -194,6 +197,17 @@ const navigate = useNavigate();
     }).catch(() => { /* ignore - lokal keshdan foydalanaveradi */ });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Mijoz tanlanganda yangi qarz/bonus malumotini fonda olamiz - chekda
+  // eskirgan qarz chop etilmasligi uchun.
+  useEffect(() => {
+    if (!custId) { setFreshCust(null); return; }
+    let cancelled = false;
+    api.get(`/customers/${custId}/cashback`)
+      .then(r => { if (!cancelled) setFreshCust(r.data); })
+      .catch(() => { if (!cancelled) setFreshCust(null); });
+    return () => { cancelled = true; };
+  }, [custId]);
 
   // Global Skaner Listener
   useEffect(() => {
@@ -546,6 +560,15 @@ const navigate = useNavigate();
         const templateType = posSettings.template || (posSettings.paper === '58mm' ? '58' : '80');
         const tmplCfg = settings['r' + templateType] || settings[templateType] || {};
         const selectedCust = customers.find(c => String(c.id) === String(custId));
+        // Yangi (backenddan olingan) qarz malumotini afzal koramiz - royxatdagi
+        // nusxa sahifa ochilgandan beri eskirgan bolishi mumkin.
+        const fresh = freshCust && String(freshCust.customer_id) === String(custId) ? freshCust : null;
+        const debtSource = fresh || selectedCust;
+        const debtBalances = debtSource
+          ? ((debtSource.debt_balances && Object.keys(debtSource.debt_balances).length > 0)
+              ? debtSource.debt_balances
+              : { UZS: Number(debtSource.debt_balance || 0) })
+          : null;
         const localMeta = {
           id: orderId, number: orderId,
           cashier_name: 'Kassa',
@@ -557,8 +580,8 @@ const navigate = useNavigate();
           items: cart,
           contractor_name: selectedCust ? selectedCust.name : undefined,
           customer_name: selectedCust ? selectedCust.name : undefined,
-          before_debt_balances: selectedCust ? (selectedCust.debt_balances || { UZS: Number(selectedCust.debt_balance || 0) }) : null,
-          before_debt: selectedCust ? (selectedCust.debt_balances ? (selectedCust.debt_balances['UZS'] || 0) : Number(selectedCust.debt_balance || 0)) : 0,
+          before_debt_balances: debtBalances,
+          before_debt: debtBalances ? (debtBalances['UZS'] || 0) : 0,
         };
         printReceiptHtml(buildReceiptHtml(localMeta, templateType, tmplCfg));
         receiptPrintedThisAttempt = true;

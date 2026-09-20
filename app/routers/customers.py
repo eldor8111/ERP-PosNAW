@@ -1082,6 +1082,7 @@ def get_customer_cashback(
         "loyalty_points": cust.loyalty_points or 0,
         "tier": cust.tier,
         "debt_balance": float(cust.debt_balance or 0),
+        "debt_balances": cust.debt_balances or {},
         "debt_limit": float(cust.debt_limit or 0),
     }
 
