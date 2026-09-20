@@ -2270,15 +2270,33 @@ function GeneralTab({ companyId }) {
   const [savingSetting, setSavingSetting] = useState(false);
   const [deliveryFee, setDeliveryFee] = useState('');
   const [savingFee, setSavingFee] = useState(false);
+  const [autoSale, setAutoSale] = useState(false);
+  const [savingAutoSale, setSavingAutoSale] = useState(false);
 
   useEffect(() => {
     api.get('/companies').then(r => {
       if (r.data?.length > 0) {
         setPosAllowNegative(r.data[0].pos_allow_negative_stock !== false);
         setDeliveryFee(String(r.data[0].delivery_fee ?? 0));
+        setAutoSale(r.data[0].orders_auto_create_sale === true);
       }
     }).catch(e => toast.error(e.response?.data?.detail || e.message));
   }, []);
+
+  const toggleAutoSale = async (checked) => {
+    if (!companyId) return;
+    setAutoSale(checked);
+    setSavingAutoSale(true);
+    try {
+      await api.put(`/companies/${companyId}`, { orders_auto_create_sale: checked });
+      toast.success('Sozlama saqlandi');
+    } catch (e) {
+      setAutoSale(!checked);
+      toast.error(e.response?.data?.detail || 'Xatolik yuz berdi');
+    } finally {
+      setSavingAutoSale(false);
+    }
+  };
 
   const saveDeliveryFee = async () => {
     if (!companyId) return;
@@ -2333,6 +2351,23 @@ function GeneralTab({ companyId }) {
 
       <div className="max-w-xl bg-white border border-slate-200 rounded-2xl p-5">
         <h3 className="text-sm font-bold text-slate-800 mb-4">Yetkazib berish sozlamalari</h3>
+        <div className="flex items-start justify-between gap-3 mb-5 pb-5 border-b border-slate-100">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-slate-700">Yetkazilganda avtomatik sotuv yaratish</p>
+            <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
+              Buyurtma "Yetkazildi" bo'lganda avtomatik Sale yaratiladi: ombor kamayadi,
+              pul kassaga (yoki qarzga) yoziladi. O'chirilsa — POS orqali qo'lda kiritiladi.
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={savingAutoSale}
+            onClick={() => toggleAutoSale(!autoSale)}
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${autoSale ? 'bg-blue-600' : 'bg-slate-200'}`}
+          >
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${autoSale ? 'translate-x-6' : 'translate-x-1'}`} />
+          </button>
+        </div>
         <div className="flex items-end gap-3">
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-slate-700 mb-1.5">Yetkazish haqi (so'm)</p>

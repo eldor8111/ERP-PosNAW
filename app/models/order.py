@@ -55,6 +55,9 @@ class Order(Base):
     on_way_at = Column(DateTime, nullable=True)
     delivered_at = Column(DateTime, nullable=True)
     cancel_reason = Column(String(300), nullable=True)
+    # Yetkazilganda avtomatik yaratilgan Sale (sozlama yoqilgan bolsa) -
+    # ham boglanish, ham takror yaratmaslik uchun idempotent belgi.
+    sale_id = Column(Integer, ForeignKey("sales.id"), nullable=True)
 
     customer = relationship("Customer", back_populates="orders")
     branch = relationship("Branch", back_populates="orders")

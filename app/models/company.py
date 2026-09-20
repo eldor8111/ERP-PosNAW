@@ -47,6 +47,10 @@ class Company(Base):
     # buyurtma summasiga qo'shiladi). 0 = bepul yetkazish.
     delivery_fee = Column(Numeric(14, 2), default=0)
 
+    # True bolsa: buyurtma "yetkazildi" bolganda avtomatik Sale yaratiladi
+    # (ombor kamayadi, kassa/qarz yoziladi). Standart False - qolda POS.
+    orders_auto_create_sale = Column(Boolean, default=False)
+
     # ── POS sozlamalari ──
     # True (standart) — mavjud xatti-harakat: qoldiq yetarli bo'lmasa ham
     # sotish mumkin (qoldiq minusga tushadi). False — sotuvda minus

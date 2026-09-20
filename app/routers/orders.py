@@ -256,6 +256,10 @@ def update_order_group_status(
 
     background_tasks.add_task(_notify_customer_status, db, orders, new_status)
 
+    if new_status == OrderStatus.delivered:
+        from app.services.order_to_sale import maybe_create_sale_for_delivered_group
+        background_tasks.add_task(maybe_create_sale_for_delivered_group, db, orders)
+
     return {"message": "Buyurtma yangilandi", "count": len(orders)}
 
 

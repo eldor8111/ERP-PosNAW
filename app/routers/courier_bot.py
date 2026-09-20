@@ -298,4 +298,9 @@ def courier_update_order_status(
     from app.routers.orders import _notify_customer_status
     bg.add_task(_notify_customer_status, db, orders, new_status)
 
+    # Yetkazilganda (sozlama yoqiq bo'lsa) avtomatik Sale yaratish
+    if new_status == OrderStatus.delivered:
+        from app.services.order_to_sale import maybe_create_sale_for_delivered_group
+        bg.add_task(maybe_create_sale_for_delivered_group, db, orders)
+
     return {"message": "Status yangilandi", "status": data.status}

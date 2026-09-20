@@ -76,6 +76,7 @@ class CompanyUpdate(BaseModel):
     pos_allow_negative_stock: Optional[bool] = None
     delivery_fee: Optional[float] = None
     courier_bot_token: Optional[str] = None
+    orders_auto_create_sale: Optional[bool] = None
 
 
 class ReceiptTemplatesUpdate(BaseModel):
@@ -103,6 +104,7 @@ class CompanyOut(BaseModel):
     pos_allow_negative_stock: bool = True
     delivery_fee: float = 0
     courier_bot_username: Optional[str] = None
+    orders_auto_create_sale: bool = False
 
     class Config:
         from_attributes = True
@@ -135,6 +137,7 @@ def list_companies(
         pos_allow_negative_stock=c.pos_allow_negative_stock if c.pos_allow_negative_stock is not None else True,
         delivery_fee=float(c.delivery_fee or 0) if hasattr(c, 'delivery_fee') else 0,
         courier_bot_username=getattr(c, 'courier_bot_username', None),
+        orders_auto_create_sale=bool(getattr(c, 'orders_auto_create_sale', False) or False),
         ))  # type: ignore[call-arg]
     return result
 
@@ -192,6 +195,7 @@ def create_company(
         pos_allow_negative_stock=c.pos_allow_negative_stock if c.pos_allow_negative_stock is not None else True,
         delivery_fee=float(c.delivery_fee or 0) if hasattr(c, 'delivery_fee') else 0,
         courier_bot_username=getattr(c, 'courier_bot_username', None),
+        orders_auto_create_sale=bool(getattr(c, 'orders_auto_create_sale', False) or False),
     )  # type: ignore[call-arg]
 
 
@@ -252,6 +256,7 @@ def update_company(
         pos_allow_negative_stock=c.pos_allow_negative_stock if c.pos_allow_negative_stock is not None else True,
         delivery_fee=float(c.delivery_fee or 0) if hasattr(c, 'delivery_fee') else 0,
         courier_bot_username=getattr(c, 'courier_bot_username', None),
+        orders_auto_create_sale=bool(getattr(c, 'orders_auto_create_sale', False) or False),
     )  # type: ignore[call-arg]
 
 
