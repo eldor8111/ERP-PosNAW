@@ -1216,7 +1216,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                     <div className="font-bold text-slate-800 text-sm md:text-base truncate">{selected.name}</div>
                     {selected.phone && <div className="text-xs md:text-sm text-slate-500 mt-0.5 truncate">{selected.phone}</div>}
                     <div className="text-sm md:text-base font-bold text-red-500 mt-1">
-                      Joriy qarz: {fmt((selected.debt_balances && typeof selected.debt_balances === 'object' && Object.keys(selected.debt_balances).length > 0) ? (selected.debt_balances.UZS || 0) : selected.debt_balance)} so'm
+                      Joriy qarz: {fmt(debt)} so'm
                       {selected.debt_balances && Object.keys(selected.debt_balances).length > 0 && (
                         <div className="flex flex-wrap gap-x-2 mt-0.5">
                           {Object.entries(selected.debt_balances).map(([curr, amt]) => (
