@@ -490,6 +490,7 @@ const navigate = useNavigate();
     }
     
     setIsPaying(true);
+    let receiptPrintedThisAttempt = false;
     try {
       let mainType = 'debt';
       if (finalPaid > 0) {
@@ -544,6 +545,7 @@ const navigate = useNavigate();
           before_debt: selectedCust ? (selectedCust.debt_balances ? (selectedCust.debt_balances['UZS'] || 0) : Number(selectedCust.debt_balance || 0)) : 0,
         };
         printReceiptHtml(buildReceiptHtml(localMeta, templateType, tmplCfg));
+        receiptPrintedThisAttempt = true;
       }
 
       const result = await submitSaleOrQueue(payload, false);
@@ -576,7 +578,15 @@ const navigate = useNavigate();
       }
 
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Xatolik yuz berdi");
+      const detail = e.response?.data?.detail || "Xatolik yuz berdi";
+      toast.error(detail);
+      if (receiptPrintedThisAttempt) {
+        window.alert(
+          "DIQQAT! Chek allaqachon chop etildi, lekin sotuv AMALGA OSHMADI:\n\n" +
+          detail +
+          "\n\nUshbu chekni mijozga BERMANG va uni bekor qiling!"
+        );
+      }
     } finally {
       setIsPaying(false);
     }
