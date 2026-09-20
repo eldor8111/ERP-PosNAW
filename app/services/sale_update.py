@@ -67,15 +67,37 @@ def _reverse_sale_effects(db: Session, sale: Sale) -> None:
                 from sqlalchemy.orm.attributes import flag_modified
                 if not customer.debt_balances:
                     customer.debt_balances = {}
+
+                exr = Decimal(str(sale.exchange_rate or 1))
+
+                # debt_amounts sotuv oxirgi marta saqlanganda yozilgan qarz
+                # miqdori - agar shundan beri pay_debt orqali qisman to'lov
+                # bo'lgan bo'lsa (paid_amount ortgan, debt_amounts esa
+                # yangilanmagan), uni to'liq ayirish allaqachon to'langan
+                # qismni IKKINCHI marta ayirib, mijozning BOSHQA sotuvidagi
+                # qarzini ham yo'q qilib yuborishi mumkin. Shuning uchun
+                # reversalni joriy haqiqiy qoldiqqa moslab proportsional
+                # kichraytiramiz.
+                recorded_uzs = sum(
+                    (Decimal(str(amt)) * (Decimal("1") if curr == "UZS" else exr))
+                    for curr, amt in debt_amounts.items()
+                )
+                actual_outstanding_uzs = max(
+                    Decimal("0"),
+                    (Decimal(str(sale.total_amount or 0)) - Decimal(str(sale.paid_amount or 0))) * exr,
+                )
+                scale = Decimal("1")
+                if recorded_uzs > Decimal("0.01"):
+                    scale = min(Decimal("1"), actual_outstanding_uzs / recorded_uzs)
+
                 for curr_code, amt in debt_amounts.items():
-                    amt_d = Decimal(str(amt))
+                    amt_d = Decimal(str(amt)) * scale
                     if amt_d > Decimal("0.001"):
                         curr_val = Decimal(str(customer.debt_balances.get(curr_code, 0)))
                         customer.debt_balances[curr_code] = float(
                             max(Decimal("0"), curr_val - amt_d)
                         )
                         # Aggregate UZS balance
-                        exr = Decimal(str(sale.exchange_rate or 1))
                         uzs_equiv = amt_d * (Decimal("1") if curr_code == "UZS" else exr)
                         customer.debt_balance = max(
                             Decimal("0"),
