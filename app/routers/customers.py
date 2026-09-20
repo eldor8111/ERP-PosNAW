@@ -214,7 +214,7 @@ class PaymentInput(BaseModel):
     amount: Decimal
     currency: Optional[str] = "UZS"
     payment_type: Optional[str] = "cash"
-    rate: Optional[Decimal] = Decimal("1.0")
+    rate: Optional[Decimal] = None
 
 class DebtUpdate(BaseModel):
     amount: Optional[Decimal] = Decimal("0")
@@ -923,7 +923,7 @@ def pay_debt(customer_id: int, data: DebtUpdate, db: Session = Depends(get_db),
                 amount=data.amount,
                 currency=data.currency or "UZS",
                 payment_type=data.payment_type or "cash",
-                rate=Decimal("1.0")
+                rate=None
             )
         ]
 
