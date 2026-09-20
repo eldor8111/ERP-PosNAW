@@ -87,21 +87,27 @@ def get_current_shift(db: Session = Depends(get_db), user: User = Depends(get_cu
         Sale.status != "cancelled"
     ).group_by(SalePayment.payment_type, Currency.code).all()
 
-    balances = {}
+    balances_dec = {}
     total_sales_by_currency = {}
     for p in payments:
         ptype = p.payment_type
         curr = p.currency or 'UZS'
-        if ptype not in balances:
-            balances[ptype] = {}
-        balances[ptype][curr] = str(p.total)
+        if ptype not in balances_dec:
+            balances_dec[ptype] = {}
+        balances_dec[ptype][curr] = Decimal(str(p.total))
         total_sales_by_currency[curr] = float(total_sales_by_currency.get(curr, 0)) + float(p.total)
 
+    # Qaytarishlar (-) va qarz to'lovlari (+) — kutilgan qoldiq real bo'lsin
+    _apply_shift_adjustments(db, shift, balances_dec)
+
+    balances = {
+        ptype: {curr: str(amt) for curr, amt in curr_map.items()}
+        for ptype, curr_map in balances_dec.items()
+    }
     if "cash" not in balances:
         balances["cash"] = {}
-    
-    cash_balances = balances.get("cash", {})
-    cash_uzs = Decimal(cash_balances.get("UZS", "0"))
+
+    cash_uzs = balances_dec.get("cash", {}).get("UZS", Decimal("0"))
     expected_cash = shift.opening_cash + cash_uzs
     
     return {
@@ -140,6 +146,77 @@ def open_shift(data: ShiftOpen, db: Session = Depends(get_db), user: User = Depe
     }
 
 
+def _apply_shift_adjustments(db: Session, shift: Shift, balances: dict) -> None:
+    """Smena balansiga sotuvdan tashqari pul oqimlarini kiritadi:
+
+    (a) Qaytarishlar (vazvrat hujjatlari, number 'R...' bilan boshlanadi) —
+        kassirdan mijozga qaytarilgan pul mos payment_type dan AYIRILADI.
+        Aks holda naqd qaytarish bo'lgan smenada halol kassir "kamomad"
+        bilan yopiladi.
+    (b) Mijoz qarz to'lovlari (KassaMovement, reference_type=customer_payment)
+        — kassir qabul qilgan pul QO'SHILADI. Aks holda hisobotda
+        ko'rinmaydigan "ortiqcha" pul paydo bo'ladi.
+    """
+    from app.models.moliya import KassaMovement
+
+    def _sub(ptype: str, curr: str, amt: Decimal):
+        if amt <= 0:
+            return
+        if ptype not in balances:
+            balances[ptype] = {}
+        balances[ptype][curr] = balances[ptype].get(curr, Decimal("0")) - amt
+
+    def _add(ptype: str, curr: str, amt: Decimal):
+        if amt <= 0:
+            return
+        if ptype not in balances:
+            balances[ptype] = {}
+        balances[ptype][curr] = balances[ptype].get(curr, Decimal("0")) + amt
+
+    # (a) Qaytarishlar. Faqat vazvrat HUJJATLARI (number 'R%') — to'liq
+    # qaytarilgan original sotuvlar ham status=refunded bo'ladi, lekin
+    # ularning paid_* qiymati kirim bo'lib qoladi (vazvrat hujjati ayiradi).
+    refund_rows = db.query(
+        Sale.payment_type,
+        func.coalesce(Currency.code, 'UZS').label("currency"),
+        func.coalesce(func.sum(Sale.paid_amount), 0).label("paid_total"),
+        func.coalesce(func.sum(Sale.paid_cash), 0).label("cash_total"),
+        func.coalesce(func.sum(Sale.paid_card), 0).label("card_total"),
+    ).outerjoin(Currency, Currency.id == Sale.currency_id).filter(
+        Sale.cashier_id == shift.cashier_id,
+        Sale.created_at >= shift.opened_at,
+        Sale.status == "refunded",
+        Sale.number.like("R%"),
+    ).group_by(Sale.payment_type, Currency.code).all()
+
+    for r in refund_rows:
+        curr = r.currency or 'UZS'
+        ptype = r.payment_type.value if hasattr(r.payment_type, 'value') else str(r.payment_type)
+        if ptype == "mixed":
+            _sub("cash", curr, Decimal(str(r.cash_total)))
+            _sub("card", curr, Decimal(str(r.card_total)))
+        elif ptype not in ("debt", "cashback"):
+            _sub(ptype, curr, Decimal(str(r.paid_total)))
+
+    # (b) Mijoz qarz to'lovlari — shu kassir qabul qilganlari.
+    debt_rows = db.query(
+        KassaMovement.payment_type,
+        func.coalesce(KassaMovement.currency, 'UZS').label("currency"),
+        func.coalesce(func.sum(KassaMovement.amount), 0).label("total"),
+    ).filter(
+        KassaMovement.created_by == shift.cashier_id,
+        KassaMovement.created_at >= shift.opened_at,
+        KassaMovement.reference_type == "customer_payment",
+        KassaMovement.direction == "in",
+    ).group_by(KassaMovement.payment_type, KassaMovement.currency).all()
+
+    for r in debt_rows:
+        ptype = r.payment_type or "cash"
+        if ptype in ("debt", "cashback"):
+            continue
+        _add(ptype, r.currency or 'UZS', Decimal(str(r.total)))
+
+
 def _calc_shift_payment_balances(db: Session, shift: Shift):
     """SalePayment jadvalidan smena davomidagi to'lovlarni hisoblaydi."""
     payments = db.query(
@@ -158,6 +235,10 @@ def _calc_shift_payment_balances(db: Session, shift: Shift):
         if ptype not in balances:
             balances[ptype] = {}
         balances[ptype][curr] = Decimal(str(p.total))
+
+    # Qaytarishlar (-) va qarz to'lovlari (+)
+    _apply_shift_adjustments(db, shift, balances)
+
     cash_balances = balances.get("cash", {})
     cash_total = cash_balances.get("UZS", Decimal("0"))
     return cash_total, balances
@@ -202,8 +283,13 @@ def _do_close_shift(db: Session, shift: Shift, data: ShiftClose, user: "User") -
     if data.wallet_card_id:
         wallet_card = db.get(Wallet, data.wallet_card_id)
         if wallet_card:
-            for p_type, amount in balances.items():
-                if p_type == "cash" or amount <= 0:
+            for p_type, curr_map in balances.items():
+                if p_type == "cash":
+                    continue
+                # balances endi {ptype: {currency: Decimal}} tuzilmasida —
+                # hamyon balansi UZS da yuritiladi, shu qismini olamiz.
+                amount = curr_map.get("UZS", Decimal("0")) if isinstance(curr_map, dict) else Decimal(str(curr_map or 0))
+                if amount <= 0:
                     continue
                 wallet_card.balance = Decimal(str(wallet_card.balance or 0)) + amount
                 wb = db.query(WalletBalance).filter(
