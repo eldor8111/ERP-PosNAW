@@ -2,7 +2,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, BackgroundTasks
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload, aliased
 
@@ -11,7 +11,7 @@ from app.database import get_db
 from app.models.customer import Customer
 from app.models.sale import Sale, SaleItem, SaleStatus
 from app.models.user import User, UserRole
-from app.schemas.sale import SaleCreate, SaleItemOut, SaleListOut, SaleOut, SaleUpdate, SaleReturnRequest, SaleBulkCreate
+from app.schemas.sale import SaleCreate, SaleItemOut, SaleListOut, SaleOut, SaleUpdate, SaleReturnRequest, SaleBulkCreate, SaleFiscalUpdate
 from app.services.sale_service import create_sale, create_return_sale, delete_sale, update_sale, create_pending_sale
 from app.services.sale_partial_return import process_partial_return
 from app.services.hippo_fiscalize import fiscalize_sale
@@ -99,6 +99,11 @@ def _build_sale_out(sale: Sale) -> SaleOut:
         exchange_rate=getattr(sale, 'exchange_rate', 1.0) or 1.0,
         debt_amounts=getattr(sale, 'debt_amounts', None),
         before_debt_balances=getattr(sale, 'before_debt_balances', None),
+        fiscal_sign=getattr(sale, 'fiscal_sign', None),
+        fiscal_qr_url=getattr(sale, 'fiscal_qr_url', None),
+        fiscal_receipt_seq=getattr(sale, 'fiscal_receipt_seq', None),
+        fiscal_transaction_id=getattr(sale, 'fiscal_transaction_id', None),
+        fiscal_at=getattr(sale, 'fiscal_at', None),
     )
 
 
@@ -125,7 +130,41 @@ def make_sale(
         f.write(data.model_dump_json(indent=2) + "\\n")
 
     ip = request.client.host if request.client else None
-    sale = create_sale(db=db, data=data, current_user=current_user, ip=ip, background_tasks=background_tasks)
+
+    # Takroriy sotuvdan himoya: POS Idempotency-Key: <uuid> yuboradi
+    # (oflayn navbatdan qayta yuborilganda ham xuddi shu kalit). Shu kalit
+    # bilan sotuv allaqachon yaratilgan bo'lsa — yangisini yaratmasdan
+    # mavjudini qaytaramiz.
+    idem_key = (request.headers.get("Idempotency-Key") or "").strip() or None
+    if idem_key:
+        existing = db.query(Sale).filter(
+            Sale.idempotency_key == idem_key,
+            Sale.company_id == current_user.company_id,
+        ).first()
+        if existing:
+            ex_cust = existing.customer.name if getattr(existing, 'customer', None) else None
+            return SaleListOut(
+                id=existing.id,  # type: ignore
+                number=existing.number,  # type: ignore
+                cashier_name=existing.cashier.name if existing.cashier else f"ID={existing.cashier_id}",
+                total_amount=existing.total_amount,  # type: ignore
+                discount_amount=existing.discount_amount,  # type: ignore
+                paid_amount=existing.paid_amount,  # type: ignore
+                paid_cash=existing.paid_cash,  # type: ignore
+                paid_card=existing.paid_card,  # type: ignore
+                paid_cashback=getattr(existing, 'paid_cashback', 0) or 0,
+                payment_type=existing.payment_type,
+                status=existing.status,
+                customer_id=existing.customer_id,  # type: ignore
+                customer_name=ex_cust,
+                items_count=len(existing.items),
+                created_at=existing.created_at,  # type: ignore
+                currency_code=existing.currency.code if getattr(existing, 'currency', None) else "UZS",
+                debt_amounts=getattr(existing, 'debt_amounts', None),
+                before_debt_balances=getattr(existing, 'before_debt_balances', None),
+            )
+
+    sale = create_sale(db=db, data=data, current_user=current_user, ip=ip, background_tasks=background_tasks, idempotency_key=idem_key)
     cust_name = sale.customer.name if getattr(sale, 'customer', None) else (db.query(Customer.name).filter(Customer.id == sale.customer_id).scalar() if sale.customer_id else None)
 
     # ── Hippo fiskalizatsiya (background) ────────────────────────────────────
@@ -310,8 +349,9 @@ def make_return_sale(
     )
 
 
-@router.get("/", response_model=List[SaleListOut])
+@router.get("/")
 def list_sales(
+        response: Response,
         cashier_id: Optional[int] = Query(None),
         branch_id: Optional[int] = Query(None),
         customer_id: Optional[int] = Query(None),
@@ -320,6 +360,7 @@ def list_sales(
         date_today: Optional[bool] = Query(None, description="Faqat bugungi sotuvlar"),
         status: Optional[SaleStatus] = Query(None),
         search: Optional[str] = Query(None, description="Sotuv raqami yoki mijoz nomi bo'yicha qidiruv"),
+        with_total: bool = Query(False, description="true bo'lsa {items, total} shaklida qaytaradi"),
         skip: int = Query(0, ge=0),
         limit: int = Query(50, ge=1, le=200),
         db: Session = Depends(get_db),
@@ -345,7 +386,7 @@ def list_sales(
     if current_user.role not in ADMIN_ROLES_S:
         if not current_user.branch_id:
             # Filialsiz non-admin foydalanuvchi hech qanday sotuvni ko'ra olmaydi
-            return []
+            return {"items": [], "total": 0} if with_total else []
         branch_wh_ids = [
             wh.id for wh in db.query(Warehouse.id).filter(
                 Warehouse.branch_id == current_user.branch_id
@@ -385,9 +426,11 @@ def list_sales(
                 CustomerQ.name.ilike(f"%{search}%"),
             )
         )
+    total = q.count()
+    response.headers["X-Total-Count"] = str(total)
     rows = q.order_by(Sale.created_at.desc()).offset(skip).limit(limit).all()
 
-    return [
+    items = [
         SaleListOut(
             id=s.id,
             number=s.number,
@@ -409,6 +452,9 @@ def list_sales(
         )
         for s, cnt in rows
     ]
+    if with_total:
+        return {"items": items, "total": total}
+    return items
 
 
 @router.get("/{sale_id}", response_model=SaleOut)
@@ -420,6 +466,32 @@ def get_sale(
     sale = _load_sale(db, sale_id, current_user)
     if not sale:
         raise HTTPException(status_code=404, detail="Sotuv topilmadi")
+    return _build_sale_out(sale)
+
+
+@router.patch("/{sale_id}/fiscal", response_model=SaleOut)
+def update_sale_fiscal(
+        sale_id: int,
+        data: SaleFiscalUpdate,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*POS_ROLES)),
+):
+    """POS fiskalizatsiya natijasini (fiskal belgi, QR va h.k.) sotuvga yozadi.
+
+    FAQAT fiskal maydonlarni yangilaydi — sotuvning boshqa maydonlariga
+    tegmaydi (summalar, qoldiq, qarz va h.k. o'zgarmaydi).
+    """
+    sale = _load_sale(db, sale_id, current_user)
+    if not sale:
+        raise HTTPException(status_code=404, detail="Sotuv topilmadi")
+
+    update_data = data.model_dump(exclude_unset=True)
+    ALLOWED = {"fiscal_sign", "fiscal_qr_url", "fiscal_receipt_seq", "fiscal_transaction_id", "fiscal_at"}
+    for k, v in update_data.items():
+        if k in ALLOWED:
+            setattr(sale, k, v)
+    db.commit()
+    db.refresh(sale)
     return _build_sale_out(sale)
 
 

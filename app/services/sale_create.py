@@ -4,6 +4,7 @@ from typing import Optional
 import threading
 
 from fastapi import HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.audit import log_action
@@ -49,6 +50,7 @@ def create_sale(
     current_user: User,
     ip: Optional[str] = None,
     background_tasks=None,
+    idempotency_key: Optional[str] = None,
 ) -> Sale:
     # ── Warehouse aniqlash ────────────────────────────────────────────────────
     if data.warehouse_id is None:
@@ -371,16 +373,28 @@ def create_sale(
     if getattr(data, 'created_at', None):
         sale_create_kwargs['created_at'] = data.created_at
 
-    # Sotuvni kassirning OCHIQ smenasiga aniq bog'laymiz (vaqt-oyna taxmini
-    # o'rniga) — oflayn sotuv kech sinxronlansa ham, pul haqiqatda hozirgi
-    # ochiq smena g'aladonida bo'ladi.
+    if idempotency_key:
+        sale_create_kwargs['idempotency_key'] = idempotency_key
+
+    # Sotuvni kassir smenasiga aniq bog'laymiz. Oflayn sotuv (created_at
+    # yuborilgan) uchun avval O'SHA VAQTDA ochiq bo'lgan smenani qidiramiz —
+    # pul jismonan o'sha smena g'aladonida bo'lgan va uning yopilish sanog'iga
+    # kirgan. Topilmasa (yoki oddiy onlayn sotuv) — hozirgi ochiq smena.
     from app.models.shift import Shift as _Shift
-    _open_shift = db.query(_Shift).filter(
-        _Shift.cashier_id == current_user.id,
-        _Shift.status == "open",
-    ).first()
-    if _open_shift:
-        sale_create_kwargs['shift_id'] = _open_shift.id
+    _shift = None
+    if getattr(data, 'created_at', None):
+        _shift = db.query(_Shift).filter(
+            _Shift.cashier_id == current_user.id,
+            _Shift.opened_at <= data.created_at,
+            or_(_Shift.closed_at.is_(None), _Shift.closed_at >= data.created_at),
+        ).order_by(_Shift.opened_at.desc()).first()
+    if _shift is None:
+        _shift = db.query(_Shift).filter(
+            _Shift.cashier_id == current_user.id,
+            _Shift.status == "open",
+        ).first()
+    if _shift:
+        sale_create_kwargs['shift_id'] = _shift.id
 
     sale = Sale(**sale_create_kwargs)
     db.add(sale)

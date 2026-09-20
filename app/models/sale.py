@@ -57,6 +57,19 @@ class Sale(Base):
     # Sotuv qaysi kassir smenasida qilingani — aniq bog'lanish (vaqt-oyna
     # taxmini o'rniga). Eski sotuvlarda NULL, ular uchun vaqt-oyna zaxira.
     shift_id = Column(Integer, ForeignKey("shifts.id"), nullable=True, index=True)
+
+    # Takroriy sotuvdan himoya: POS har sotuvni Idempotency-Key: <uuid>
+    # headeri bilan yuboradi (oflayn navbatdan qayta yuborilganda ham
+    # xuddi shu kalit) — takror kelsa mavjud sotuv qaytariladi.
+    idempotency_key = Column(String(64), nullable=True, unique=True, index=True)
+
+    # Fiskal chek ma'lumotlari (Hippo Communicator natijasi) — POS
+    # fiskalizatsiyadan keyin PATCH /sales/{id}/fiscal orqali yuboradi.
+    fiscal_sign = Column(String(64), nullable=True)
+    fiscal_qr_url = Column(Text, nullable=True)
+    fiscal_receipt_seq = Column(Integer, nullable=True)
+    fiscal_transaction_id = Column(String(64), nullable=True)
+    fiscal_at = Column(DateTime, nullable=True)
     debt_due_date = Column(Date, nullable=True)
     debt_amounts = Column(JSON, nullable=True, server_default='{}')
     before_debt_balances = Column(JSON, nullable=True)

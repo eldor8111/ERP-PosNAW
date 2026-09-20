@@ -151,8 +151,23 @@ class SaleOut(BaseModel):
     exchange_rate: Optional[Decimal] = Decimal("1.0")
     debt_amounts: Optional[dict] = None
     before_debt_balances: Optional[dict] = None
+    # Fiskal chek ma'lumotlari (Hippo Communicator natijasi)
+    fiscal_sign: Optional[str] = None
+    fiscal_qr_url: Optional[str] = None
+    fiscal_receipt_seq: Optional[int] = None
+    fiscal_transaction_id: Optional[str] = None
+    fiscal_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
+
+
+class SaleFiscalUpdate(BaseModel):
+    """PATCH /sales/{id}/fiscal — faqat fiskal maydonlarni yangilaydi."""
+    fiscal_sign: Optional[str] = None
+    fiscal_qr_url: Optional[str] = None
+    fiscal_receipt_seq: Optional[int] = None
+    fiscal_transaction_id: Optional[str] = None
+    fiscal_at: Optional[datetime] = None
 
 
 class SaleListOut(BaseModel):

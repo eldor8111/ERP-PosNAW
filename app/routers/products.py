@@ -163,6 +163,7 @@ def list_products(
         status: Optional[ProductStatus] = Query(None),
         warehouse_id: Optional[int] = Query(None, description="Ombor bo'yicha filter"),
         skip: int = Query(0, ge=0),
+        page: Optional[int] = Query(None, ge=1, description="Sahifa raqami (berilsa skip = (page-1)*limit)"),
         limit: int = Query(50, ge=1, le=20000),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
@@ -170,6 +171,9 @@ def list_products(
     from app.models.inventory import StockLevel
     from app.models.warehouse import Warehouse
     from app.schemas.product import WarehouseStockOut
+
+    if page is not None:
+        skip = (page - 1) * limit
 
     from sqlalchemy.orm import joinedload
 

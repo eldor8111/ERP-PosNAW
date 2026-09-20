@@ -3,7 +3,7 @@ Customers API: CRM module for managing customers, debt and loyalty.
 """
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Query  # type: ignore
+from fastapi import APIRouter, Depends, HTTPException, Query, Response  # type: ignore
 from sqlalchemy import func  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
 from pydantic import BaseModel, field_validator, model_validator  # type: ignore
@@ -295,9 +295,11 @@ def recalc_all_debts(
 
 @router.get("", response_model=list[CustomerOut])
 def list_customers(
+        response: Response,
         search: Optional[str] = None,
         skip: int = Query(0, ge=0),
-        limit: int = Query(100, ge=1, le=500),
+        page: Optional[int] = Query(None, ge=1, description="Sahifa raqami (berilsa skip = (page-1)*limit)"),
+        limit: int = Query(100, ge=1, le=2000),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
 ):
@@ -307,6 +309,9 @@ def list_customers(
         q = q.filter(
             name_phone_search_filter(Customer.name, Customer.phone, search)
         )
+    if page is not None:
+        skip = (page - 1) * limit
+    response.headers["X-Total-Count"] = str(q.count())
     items = q.order_by(Customer.name).offset(skip).limit(limit).all()
     return items
 
@@ -399,6 +404,20 @@ def list_customers_paginated(
 @router.post("", status_code=201, response_model=CustomerOut)
 def create_customer(data: CustomerIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     from app.models.currency import Currency as CurrencyModel
+
+    # Telefon takrorlanishini bloklash — POS oflayn yaratilgan mijozni
+    # sinxronlashda 4xx olsa, kassirga "yuborilmadi" deb korsatadi.
+    if data.phone and str(data.phone).strip():
+        _dup = db.query(Customer).filter(
+            Customer.company_id == current_user.company_id,
+            Customer.phone == str(data.phone).strip(),
+        ).first()
+        if _dup:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Bu telefon raqami allaqachon mavjud: {_dup.name} (ID: {_dup.id})",
+            )
+
     customer_data = data.model_dump()
     customer_data["company_id"] = current_user.company_id
 
