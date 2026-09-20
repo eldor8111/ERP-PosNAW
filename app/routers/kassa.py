@@ -664,6 +664,10 @@ def open_kassa(wallet_id: int, data: OpenKassaIn, db: Session = Depends(get_db),
             created_by=current_user.id,
         )
         db.add(mv)
+        # Yopilishdagi inkasso (close_kassa) bu pulni balansdan ayiradi —
+        # simmetriya uchun ochilishda qo'shamiz (faqat UZS, close bilan bir xil).
+        if (data.currency or "UZS").upper() == "UZS":
+            w.balance = float(w.balance or 0) + float(data.opening_balance)
 
     db.commit()
     return {"ok": True, "session_id": session.id, "opened_at": now}

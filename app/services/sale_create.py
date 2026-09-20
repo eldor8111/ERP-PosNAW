@@ -413,6 +413,25 @@ def create_sale(
         except AttributeError:
             pass  # wallet_id ustuni olib tashlangan
 
+    # Sotuv tushumini Wallet.balance ga ham qo'shamiz — kassa yopilishida
+    # (close_kassa) inkasso balansdan AYIRILADI, sotuvda esa avval hech
+    # narsa qo'shilmasdi, natijada balans har smenada manfiylashib borardi.
+    # close_kassa bilan simmetriya: faqat UZS harakatlari balansga yoziladi.
+    _cashier_wallet = None
+    if _cashier_wallet_id:
+        from app.models.moliya import Wallet as _WOBJ
+        _cashier_wallet = db.get(_WOBJ, _cashier_wallet_id)
+
+    def _credit_cashier_wallet(amount, mv_currency):
+        if _cashier_wallet is None:
+            return
+        if (mv_currency or "UZS").upper() != "UZS":
+            return
+        amt = Decimal(str(amount or 0))
+        if amt <= 0:
+            return
+        _cashier_wallet.balance = Decimal(str(_cashier_wallet.balance or 0)) + amt
+
     if data.payments and len(data.payments) > 0:
         for p in data.payments:
             if p.amount > 0:
@@ -445,9 +464,10 @@ def create_sale(
                         direction="in", payment_type=p.type.value, amount=p.amount,
                         currency=p_currency,
                         reference_type="sale", reference_id=sale.id,
-                        description=f"Sotuv #{sale.number}" + (f" ({p.amount} {p_currency})" if p_currency != "UZS" else ""), 
+                        description=f"Sotuv #{sale.number}" + (f" ({p.amount} {p_currency})" if p_currency != "UZS" else ""),
                         created_by=current_user.id,
                     ))
+                    _credit_cashier_wallet(p.amount, p_currency)
     elif data.paid_amount > 0:
         if data.payment_type == PaymentType.mixed:
             for _pt, _amt in [("cash", data.paid_cash), ("card", data.paid_card)]:
@@ -471,6 +491,7 @@ def create_sale(
                             reference_type="sale", reference_id=sale.id,
                             description=f"Sotuv #{sale.number}", created_by=current_user.id,
                         ))
+                        _credit_cashier_wallet(_amt, currency.code if currency else "UZS")
         else:
             db.add(SalePayment(sale_id=sale.id, payment_type=data.payment_type.value, amount=data.paid_amount))
             if tx_branch_id:
@@ -493,6 +514,7 @@ def create_sale(
                     reference_type="sale", reference_id=sale.id,
                     description=f"Sotuv #{sale.number}", created_by=current_user.id,
                 ))
+                _credit_cashier_wallet(data.paid_amount, currency.code if currency else "UZS")
 
     # ── Stock kamaytirish (FIFO Batch) ────────────────────────────────────────
     virtual_source_ids = list({
