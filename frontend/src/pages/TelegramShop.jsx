@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import axios from 'axios'
 import { ShoppingCart, Search, Plus, Minus, X, Package, CheckCircle2, Loader2, ClipboardList, Clock, Truck, AlertCircle, Wallet, CreditCard, Copy, Receipt, Menu, Store, ChevronRight, Download } from 'lucide-react'
 import { ECodeIconLight } from '../components/ECodeLogo'
-import { loadXLSX, loadSaveAs } from '../utils/excelLazy'
+import { loadXLSX } from '../utils/excelLazy'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8010/api'
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ')
@@ -307,7 +307,9 @@ export default function TelegramShop() {
 
   const exportPurchasesExcel = useCallback(async () => {
     if (!purchases.length) return
-    const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()])
+    // Telegram webview (ayniqsa iOS) blob yuklab olishni qo'llamaydi -
+    // faylni base64 qilib backendga yuboramiz, u bot chatiga jo'natadi.
+    const XLSX = await loadXLSX()
     const rows = purchases.map(p => ({
       'Sana': fmtDate(p.created_at),
       'Summa': Number(p.total_amount),
@@ -319,9 +321,19 @@ export default function TelegramShop() {
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Xaridlarim')
     const today = new Date().toISOString().slice(0, 10)
-    saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `xaridlarim_${today}.xlsx`)
-    safeTg(tg => tg?.HapticFeedback?.impactOccurred?.('light'))
-  }, [purchases])
+    const b64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' })
+    try {
+      await api.post(`/shop/${companyId}/send-file`, {
+        filename: `xaridlarim_${today}.xlsx`,
+        content_base64: b64,
+      })
+      safeTg(tg => tg?.HapticFeedback?.notificationOccurred?.('success'))
+      safeTg(tg => tg?.showAlert?.('📄 Excel fayl botdagi chatingizga yuborildi!'))
+    } catch (err) {
+      safeTg(tg => tg?.HapticFeedback?.notificationOccurred?.('error'))
+      safeTg(tg => tg?.showAlert?.(err.response?.data?.detail || 'Faylni yuborishda xatolik'))
+    }
+  }, [purchases, api, companyId])
 
   const copyCardNumber = useCallback(() => {
     if (!meData?.card_number) return

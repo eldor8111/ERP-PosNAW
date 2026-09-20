@@ -151,6 +151,11 @@ class CartItemIn(BaseModel):
     quantity: int
 
 
+class SendFileIn(BaseModel):
+    filename: str
+    content_base64: str
+
+
 class OrderIn(BaseModel):
     items: List[CartItemIn]
     payment_type: Optional[str] = "cash"
@@ -285,6 +290,56 @@ def shop_my_orders(
         })
 
     return result
+
+
+@router.post("/{company_id}/send-file")
+def shop_send_file(
+    company_id: int,
+    data: SendFileIn,
+    u: Optional[str] = None,
+    t: Optional[str] = None,
+    db: Session = Depends(get_db),
+    x_init_data: Optional[str] = Header(None, alias="X-Init-Data"),
+):
+    """Mini App'da yaratilgan faylni (masalan Excel) mijozning bot chatiga
+    hujjat sifatida yuboradi. Telegram webview (ayniqsa iOS) blob orqali
+    yuklab olishni qo'llamaydi — shu sababli fayl bot chatiga jo'natiladi."""
+    import base64
+    import re as _re
+
+    company, customer = _resolve_shop_context(db, company_id, x_init_data, u, t)
+    if not customer.tg_chat_id:
+        raise HTTPException(status_code=400, detail="Telegram chat topilmadi")
+
+    # Fayl nomini xavfsizlash va hajmni cheklash (maks 2 MB)
+    safe_name = _re.sub(r"[^A-Za-z0-9_.\-]", "_", data.filename or "fayl.xlsx")[:80] or "fayl.xlsx"
+    try:
+        content = base64.b64decode(data.content_base64 or "", validate=True)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Fayl mazmuni noto'g'ri (base64)")
+    if not content:
+        raise HTTPException(status_code=400, detail="Fayl bo'sh")
+    if len(content) > 2 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Fayl juda katta (maks 2 MB)")
+
+    import httpx
+    try:
+        with httpx.Client(timeout=20) as client:
+            r = client.post(
+                f"https://api.telegram.org/bot{company.tg_bot_token}/sendDocument",
+                data={"chat_id": customer.tg_chat_id, "caption": "📄 So'ralgan fayl"},
+                files={"document": (safe_name, content,
+                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+            )
+            resp = r.json()
+            if not resp.get("ok"):
+                raise HTTPException(status_code=502, detail="Telegram faylni qabul qilmadi")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=502, detail="Faylni yuborishda xatolik")
+
+    return {"ok": True, "message": "Fayl bot chatiga yuborildi"}
 
 
 @router.get("/{company_id}/me")
