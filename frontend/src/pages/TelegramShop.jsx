@@ -164,6 +164,8 @@ export default function TelegramShop() {
   const [geoLoc, setGeoLoc] = useState(null) // {lat, lng}
   const [geoBusy, setGeoBusy] = useState(false)
   const [deliveryFee, setDeliveryFee] = useState(0)
+  // CRM sozlamasi: qoldiqsiz mahsulotlarga buyurtma ruxsati
+  const [allowOutOfStock, setAllowOutOfStock] = useState(true)
 
   const api = useMemo(() => shopApi(initData, urlUser, urlToken), [initData, urlUser, urlToken])
 
@@ -194,6 +196,7 @@ export default function TelegramShop() {
       } else {
         setShopName(info?.name || 'Do\'kon')
         setDeliveryFee(Number(info?.delivery_fee || 0))
+        setAllowOutOfStock(info?.allow_out_of_stock !== false)
         setProducts(prods)
         setCategories(cats || [])
       }
@@ -232,10 +235,13 @@ export default function TelegramShop() {
     safeTg(tg => tg?.HapticFeedback?.impactOccurred?.('light'))
     setCart(prev => {
       const current = prev[product.id] || 0
-      const next = Math.min(current + 1, product.available)
+      // Qoldiqsiz buyurtma ruxsat etilgan bo'lsa qoldiq bilan cheklamaymiz —
+      // do'kon xodimi keyin tasdiqlaydi/rad etadi (CRM sozlamasi).
+      const cap = allowOutOfStock ? 9999 : product.available
+      const next = Math.min(current + 1, cap)
       return { ...prev, [product.id]: next }
     })
-  }, [])
+  }, [allowOutOfStock])
 
   const removeFromCart = useCallback((productId) => {
     safeTg(tg => tg?.HapticFeedback?.impactOccurred?.('light'))
@@ -518,7 +524,11 @@ export default function TelegramShop() {
                   <div className="p-2.5 flex-1 flex flex-col gap-1.5">
                     <p className="text-xs font-medium text-slate-700 line-clamp-2 min-h-[32px]">{product.name}</p>
                     <p className="text-sm font-bold text-blue-600">{fmt(product.price)} so'm</p>
-                    <p className="text-[10px] text-slate-400">Qoldiq: {product.available} ta</p>
+                    {product.available > 0 ? (
+                      <p className="text-[10px] text-slate-400">Qoldiq: {product.available} ta</p>
+                    ) : (
+                      <p className="text-[10px] text-orange-500 font-medium">Tugagan — buyurtma berish mumkin</p>
+                    )}
 
                     {qty === 0 ? (
                       <button

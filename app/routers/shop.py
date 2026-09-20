@@ -178,6 +178,9 @@ def shop_info(company_id: int, db: Session = Depends(get_db)):
         "id": company.id,
         "name": company.name,
         "delivery_fee": float(getattr(company, "delivery_fee", 0) or 0),
+        # Qoldiqsiz mahsulotlarga buyurtma ruxsati (CRM sozlamasi) —
+        # frontend savat cheklovini shu bayroqqa qarab qo'llaydi.
+        "allow_out_of_stock": company.shop_allow_out_of_stock_orders is not False,
     }
 
 
