@@ -117,6 +117,12 @@ def list_orders(
 
     customer_ids = {o.customer_id for o in orders}
     product_ids = {o.product_id for o in orders}
+    courier_ids = {o.courier_id for o in orders if getattr(o, "courier_id", None)}
+    couriers_by_id = {}
+    if courier_ids:
+        from app.models.courier import Courier
+        for c in db.query(Courier.id, Courier.name, Courier.phone).filter(Courier.id.in_(courier_ids)).all():
+            couriers_by_id[c.id] = c
     customers_by_id = {}
     if customer_ids:
         for c in db.query(Customer.id, Customer.name, Customer.phone).filter(Customer.id.in_(customer_ids)).all():
@@ -151,6 +157,8 @@ def list_orders(
                 "contact_phone": getattr(order, "contact_phone", None),
                 "delivery_fee": float(getattr(order, "delivery_fee", 0) or 0),
                 "courier_id": getattr(order, "courier_id", None),
+                "courier_name": couriers_by_id[order.courier_id].name if getattr(order, "courier_id", None) in couriers_by_id else None,
+                "courier_phone": couriers_by_id[order.courier_id].phone if getattr(order, "courier_id", None) in couriers_by_id else None,
                 "assigned_at": order.assigned_at.isoformat() if getattr(order, "assigned_at", None) else None,
                 "on_way_at": order.on_way_at.isoformat() if getattr(order, "on_way_at", None) else None,
                 "delivered_at": order.delivered_at.isoformat() if getattr(order, "delivered_at", None) else None,
@@ -249,6 +257,59 @@ def update_order_group_status(
     background_tasks.add_task(_notify_customer_status, db, orders, new_status)
 
     return {"message": "Buyurtma yangilandi", "count": len(orders)}
+
+
+class AssignIn(BaseModel):
+    courier_id: int
+
+
+@router.put("/group/{group_id}/assign")
+def assign_order_group_courier(
+    group_id: str,
+    data: AssignIn,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Buyurtma guruhiga dostavchik biriktiradi (status -> assigned)."""
+    from app.models.courier import Courier
+
+    courier = db.query(Courier).filter(
+        Courier.id == data.courier_id,
+        Courier.company_id == current_user.company_id,
+        Courier.is_active == True,  # noqa: E712
+    ).first()
+    if not courier:
+        raise HTTPException(status_code=404, detail="Faol dostavchik topilmadi")
+
+    if group_id.startswith("single-"):
+        order_ids = [int(group_id.split("-", 1)[1])]
+        orders = db.query(Order).join(Customer).filter(
+            Order.id.in_(order_ids),
+            Customer.company_id == current_user.company_id,
+        ).all()
+    else:
+        orders = db.query(Order).join(Customer).filter(
+            Order.order_group_id == group_id,
+            Customer.company_id == current_user.company_id,
+        ).all()
+
+    if not orders:
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    if any(o.status in (OrderStatus.delivered, OrderStatus.cancelled) for o in orders):
+        raise HTTPException(status_code=400, detail="Yetkazilgan/bekor qilingan buyurtmaga kuryer biriktirib bo'lmaydi")
+
+    now = datetime.now(timezone.utc)
+    for order in orders:
+        order.courier_id = courier.id
+        order.status = OrderStatus.assigned
+        order.assigned_at = now
+    db.commit()
+
+    # Mijozga xabar; kuryerga bildirishnoma kuryer boti ulangach (3-bosqich)
+    background_tasks.add_task(_notify_customer_status, db, orders, OrderStatus.assigned)
+
+    return {"message": f"Dostavchik biriktirildi: {courier.name}", "count": len(orders)}
 
 
 @router.delete("/group/{group_id}")

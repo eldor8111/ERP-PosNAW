@@ -21,10 +21,35 @@ export default function Orders({ embedded = false }) {
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('pending');
   const [detailGroup, setDetailGroup] = useState(null);
+  const [couriers, setCouriers] = useState([]);
+  const [assignGroup, setAssignGroup] = useState(null); // kuryer biriktirish modali
+  const [assignCourierId, setAssignCourierId] = useState('');
+  const [assigning, setAssigning] = useState(false);
 
   useEffect(() => {
     loadOrders();
   }, [filter]);
+
+  useEffect(() => {
+    api.get('/couriers').then(r => setCouriers(r.data || [])).catch(() => {});
+  }, []);
+
+  const assignCourier = async () => {
+    if (!assignGroup || !assignCourierId) { toast.error('Dostavchikni tanlang'); return; }
+    setAssigning(true);
+    try {
+      const { data } = await api.put(`/orders/group/${assignGroup.group_id}/assign`, { courier_id: Number(assignCourierId) });
+      toast.success(data?.message || 'Dostavchik biriktirildi');
+      setAssignGroup(null);
+      setAssignCourierId('');
+      setDetailGroup(null);
+      loadOrders();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Biriktirishda xatolik');
+    } finally {
+      setAssigning(false);
+    }
+  };
 
   const loadOrders = async () => {
     setLoading(true);
@@ -183,6 +208,7 @@ export default function Orders({ embedded = false }) {
                           <div className="text-xs text-slate-500">{group.customer_phone}</div>
                           <div className="text-[11px] mt-0.5 font-medium text-slate-400">
                             {group.delivery_type === 'delivery' ? '🚚 Yetkazib berish' : '🏬 Olib ketish'}
+                            {group.courier_name && <span className="ml-1.5 text-purple-500">· 🛵 {group.courier_name}</span>}
                           </div>
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-800">
@@ -206,6 +232,14 @@ export default function Orders({ embedded = false }) {
                         </td>
                         <td className="px-6 py-4" onClick={e => e.stopPropagation()}>
                           <div className="flex flex-wrap gap-1.5">
+                            {group.delivery_type === 'delivery' && ['confirmed', 'preparing', 'assigned'].includes(group.status) && (
+                              <button
+                                onClick={() => { setAssignGroup(group); setAssignCourierId(String(group.courier_id || '')); }}
+                                className="px-3 py-1 rounded text-sm bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors"
+                              >
+                                🛵 {group.courier_name ? 'Kuryer ↺' : 'Kuryer'}
+                              </button>
+                            )}
                             {(NEXT_STEPS[group.status] || []).map(step => (
                               <button
                                 key={step.to}
@@ -313,6 +347,21 @@ export default function Orders({ embedded = false }) {
                       <span className="text-sm text-slate-700">+{fmt(detailGroup.delivery_fee)} so'm</span>
                     </div>
                   )}
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-slate-500">Dostavchik</span>
+                    {detailGroup.courier_name ? (
+                      <span className="text-sm font-medium text-purple-600">🛵 {detailGroup.courier_name}
+                        {detailGroup.courier_phone && <a href={`tel:${detailGroup.courier_phone}`} className="ml-1.5 text-blue-500 hover:underline">{detailGroup.courier_phone}</a>}
+                      </span>
+                    ) : (
+                      ['confirmed', 'preparing', 'assigned'].includes(detailGroup.status) ? (
+                        <button
+                          onClick={() => { setAssignGroup(detailGroup); setAssignCourierId(''); }}
+                          className="text-sm text-purple-600 font-semibold hover:underline"
+                        >+ Biriktirish</button>
+                      ) : <span className="text-sm text-slate-400">—</span>
+                    )}
+                  </div>
                 </>
               )}
               <div className="flex items-center justify-between mb-3">
@@ -342,6 +391,50 @@ export default function Orders({ embedded = false }) {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Kuryer biriktirish modali */}
+      {assignGroup && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => !assigning && setAssignGroup(null)} />
+          <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-slate-800">🛵 Dostavchik biriktirish</h3>
+              <button onClick={() => !assigning && setAssignGroup(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100">
+                <X className="w-4 h-4 text-slate-500" />
+              </button>
+            </div>
+            <p className="text-xs text-slate-500">
+              {assignGroup.customer_name} — {fmt(assignGroup.total_amount)} so'm
+              {assignGroup.delivery_address && <span className="block mt-0.5">📍 {assignGroup.delivery_address}</span>}
+            </p>
+            {couriers.length === 0 ? (
+              <p className="text-sm text-slate-400 text-center py-4">
+                Faol dostavchik yo'q — avval "Dostavchiklar" tabidan qo'shing
+              </p>
+            ) : (
+              <select
+                value={assignCourierId}
+                onChange={e => setAssignCourierId(e.target.value)}
+                className="w-full h-11 px-3 border border-slate-200 rounded-xl text-sm bg-white focus:border-blue-500 outline-none"
+              >
+                <option value="">Dostavchikni tanlang...</option>
+                {couriers.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.phone}){c.active_orders ? ` — ${c.active_orders} faol` : ''}
+                  </option>
+                ))}
+              </select>
+            )}
+            <button
+              onClick={assignCourier}
+              disabled={assigning || !assignCourierId}
+              className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white rounded-xl font-semibold text-sm transition-colors"
+            >
+              {assigning ? 'Biriktirilmoqda...' : 'Biriktirish'}
+            </button>
           </div>
         </div>
       )}

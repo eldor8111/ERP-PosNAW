@@ -6,9 +6,10 @@ import api from '../../api/axios';
 import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
 import { useLang } from '../../context/LangContext';
 import toast from 'react-hot-toast';
-import { ChevronDown, CreditCard, Users, ListOrdered, ChevronsUpDown, CheckIcon, AlertTriangle, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, EllipsisVertical, History, Star, Banknote, Layers, CircleCheck, Plus, Minus, Package } from 'lucide-react';
+import { ChevronDown, CreditCard, Users, ListOrdered, ChevronsUpDown, CheckIcon, AlertTriangle, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, EllipsisVertical, History, Star, Banknote, Layers, CircleCheck, Plus, Minus, Package, Truck } from 'lucide-react';
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
 import Orders from './Orders';
+import Couriers from './Couriers';
 import CustomerBarcodePrintModal from '../../components/CustomerBarcodeTemplates';
 
 const getEmptyForm = () => ({ name: '', phone: '', debt_limit: '', loyalty_points: 0, card_number: '', cashback_percent: 0, price_type: 'retail', debts: [{ amount: '', currency: 'UZS' }] });
@@ -2254,6 +2255,7 @@ export default function Customers() {
     { id: 'mijozlar', label: t('customer.customers'), icon: <Users className='size-4 text-blue-600' /> },
     { id: 'tolov', label: "To'lov qabul qilish", icon: <CreditCard className='size-4 text-blue-600' /> },
     { id: 'buyurtmalar', label: "Buyurtmalar", icon: <Package className='size-4 text-blue-600' /> },
+    { id: 'dostavchiklar', label: "Dostavchiklar", icon: <Truck className='size-4 text-blue-600' /> },
   ];
   const [customers, setCustomers] = useState([]);
   const [currencies, setCurrencies] = useState([]);
@@ -2305,6 +2307,7 @@ export default function Customers() {
       {tab === 'tolov' && <TolovTab customers={customers} totalAllDebt={totalAllDebt} stats={stats} reloadStats={loadStats} />}
       {tab === 'mijozlar' && <SotuvMijozlar stats={stats} reloadStats={loadStats} />}
       {tab === 'buyurtmalar' && <Orders embedded />}
+      {tab === 'dostavchiklar' && <Couriers />}
     </div>
   );
 }

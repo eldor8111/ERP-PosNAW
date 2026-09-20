@@ -17,7 +17,7 @@ from app.routers import (
     reports, sales_report, finance_report, sales, users,
     suppliers, purchase_orders, transfers, inventory_counts,
     finance, customers, shifts, dashboard_mobile, currencies, api_keys,
-    warehouses, branches, super_admin, companies, dashboard, promotions, roles, orders, shop
+    warehouses, branches, super_admin, companies, dashboard, promotions, roles, orders, shop, couriers
 )
 from app.admin_tg_bot.bot_routers import admin_router
 from app.routers import bin_locations, uploads, agents, telegram, lead  # type: ignore
@@ -348,6 +348,7 @@ app.include_router(ai_products.router, prefix=API_PREFIX)
 app.include_router(ai_reports.router, prefix=API_PREFIX)
 app.include_router(promotions.router, prefix=API_PREFIX)
 app.include_router(orders.router, prefix=API_PREFIX)
+app.include_router(couriers.router, prefix=API_PREFIX)
 app.include_router(shop.router, prefix=API_PREFIX)
 
 # Serve uploaded static files
