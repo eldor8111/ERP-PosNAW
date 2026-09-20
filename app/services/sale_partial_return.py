@@ -97,8 +97,15 @@ def process_partial_return(
             amount_to_return_money += excess_as_cash
             money_payment_type = PaymentType.cash
 
+    from app.models.shift import Shift as _Shift
+    _open_shift = db.query(_Shift).filter(
+        _Shift.cashier_id == current_user.id,
+        _Shift.status == "open",
+    ).first()
+
     return_sale = Sale(
         number=generate_return_number(db),
+        shift_id=_open_shift.id if _open_shift else None,
         cashier_id=current_user.id,
         company_id=current_user.company_id,
         warehouse_id=original_sale.warehouse_id,

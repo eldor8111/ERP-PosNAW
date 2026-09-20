@@ -370,6 +370,18 @@ def create_sale(
     # Oflayn POS: agar sotuv vaqti yuborilgan bo'lsa — o'sha vaqtni saqla
     if getattr(data, 'created_at', None):
         sale_create_kwargs['created_at'] = data.created_at
+
+    # Sotuvni kassirning OCHIQ smenasiga aniq bog'laymiz (vaqt-oyna taxmini
+    # o'rniga) — oflayn sotuv kech sinxronlansa ham, pul haqiqatda hozirgi
+    # ochiq smena g'aladonida bo'ladi.
+    from app.models.shift import Shift as _Shift
+    _open_shift = db.query(_Shift).filter(
+        _Shift.cashier_id == current_user.id,
+        _Shift.status == "open",
+    ).first()
+    if _open_shift:
+        sale_create_kwargs['shift_id'] = _open_shift.id
+
     sale = Sale(**sale_create_kwargs)
     db.add(sale)
     db.flush()
@@ -892,6 +904,13 @@ def create_pending_sale(
         loyalty_points_used=0,
         debt_due_date=None,
     )
+    from app.models.shift import Shift as _Shift
+    _open_shift = db.query(_Shift).filter(
+        _Shift.cashier_id == current_user.id,
+        _Shift.status == "open",
+    ).first()
+    if _open_shift:
+        sale.shift_id = _open_shift.id
     db.add(sale)
     db.flush()
 

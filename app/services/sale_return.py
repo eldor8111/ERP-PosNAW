@@ -134,8 +134,15 @@ def create_return_sale(
         if data.payment_type == PaymentType.debt:
             data = data.model_copy(update={"paid_amount": Decimal("0"), "paid_cash": Decimal("0"), "paid_card": Decimal("0")})
 
+    from app.models.shift import Shift as _Shift
+    _open_shift = db.query(_Shift).filter(
+        _Shift.cashier_id == current_user.id,
+        _Shift.status == "open",
+    ).first()
+
     sale = Sale(
         number=generate_return_number(db),
+        shift_id=_open_shift.id if _open_shift else None,
         cashier_id=current_user.id,
         company_id=current_user.company_id,
         warehouse_id=data.warehouse_id,

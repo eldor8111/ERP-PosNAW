@@ -14,9 +14,22 @@ from app.core.dependencies import get_current_user  # type: ignore
 from app.models.user import User  # type: ignore
 from app.models.currency import Currency
 from app.models.sale import Sale, SalePayment
-from sqlalchemy import func
+from sqlalchemy import func, or_, and_
 
 router = APIRouter(prefix="/shifts", tags=["shifts"])
+
+
+def _shift_sale_filter(shift: "Shift"):
+    """Sotuvni smenaga bog'lash sharti: yangi sotuvlar aniq shift_id orqali,
+    eski (shift_id NULL) sotuvlar uchun avvalgi vaqt-oyna usuli zaxira."""
+    return or_(
+        Sale.shift_id == shift.id,
+        and_(
+            Sale.shift_id.is_(None),
+            Sale.cashier_id == shift.cashier_id,
+            Sale.created_at >= shift.opened_at,
+        ),
+    )
 
 
 class ShiftOpen(BaseModel):
@@ -82,8 +95,7 @@ def get_current_shift(db: Session = Depends(get_db), user: User = Depends(get_cu
         func.coalesce(Currency.code, 'UZS').label("currency"),
         func.sum(SalePayment.amount).label("total")
     ).join(Sale, SalePayment.sale_id == Sale.id).outerjoin(Currency, Currency.id == Sale.currency_id).filter(
-        Sale.cashier_id == user.id,
-        Sale.created_at >= shift.opened_at,
+        _shift_sale_filter(shift),
         Sale.status != "cancelled"
     ).group_by(SalePayment.payment_type, Currency.code).all()
 
@@ -183,8 +195,7 @@ def _apply_shift_adjustments(db: Session, shift: Shift, balances: dict) -> None:
         func.coalesce(func.sum(Sale.paid_cash), 0).label("cash_total"),
         func.coalesce(func.sum(Sale.paid_card), 0).label("card_total"),
     ).outerjoin(Currency, Currency.id == Sale.currency_id).filter(
-        Sale.cashier_id == shift.cashier_id,
-        Sale.created_at >= shift.opened_at,
+        _shift_sale_filter(shift),
         Sale.status == "refunded",
         Sale.number.like("R%"),
     ).group_by(Sale.payment_type, Currency.code).all()
@@ -224,8 +235,7 @@ def _calc_shift_payment_balances(db: Session, shift: Shift):
         func.coalesce(Currency.code, 'UZS').label("currency"),
         func.sum(SalePayment.amount).label("total")
     ).join(Sale, SalePayment.sale_id == Sale.id).outerjoin(Currency, Currency.id == Sale.currency_id).filter(
-        Sale.cashier_id == shift.cashier_id,
-        Sale.created_at >= shift.opened_at,
+        _shift_sale_filter(shift),
         Sale.status != "cancelled"
     ).group_by(SalePayment.payment_type, Currency.code).all()
     balances = {}

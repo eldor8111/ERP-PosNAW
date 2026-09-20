@@ -54,6 +54,9 @@ class Sale(Base):
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
     warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
+    # Sotuv qaysi kassir smenasida qilingani — aniq bog'lanish (vaqt-oyna
+    # taxmini o'rniga). Eski sotuvlarda NULL, ular uchun vaqt-oyna zaxira.
+    shift_id = Column(Integer, ForeignKey("shifts.id"), nullable=True, index=True)
     debt_due_date = Column(Date, nullable=True)
     debt_amounts = Column(JSON, nullable=True, server_default='{}')
     before_debt_balances = Column(JSON, nullable=True)
