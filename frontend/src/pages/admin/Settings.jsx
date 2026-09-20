@@ -2197,6 +2197,60 @@ function FiskalTab() {
   );
 }
 
+// ── Umumiy (kompaniya darajasidagi POS) sozlamalar ───────────────────────────
+function GeneralTab({ companyId }) {
+  const [posAllowNegative, setPosAllowNegative] = useState(true);
+  const [savingSetting, setSavingSetting] = useState(false);
+
+  useEffect(() => {
+    api.get('/companies').then(r => {
+      if (r.data?.length > 0) {
+        setPosAllowNegative(r.data[0].pos_allow_negative_stock !== false);
+      }
+    }).catch(e => toast.error(e.response?.data?.detail || e.message));
+  }, []);
+
+  const togglePosNegative = async (checked) => {
+    if (!companyId) return;
+    setPosAllowNegative(checked);
+    setSavingSetting(true);
+    try {
+      await api.put(`/companies/${companyId}`, { pos_allow_negative_stock: checked });
+      toast.success('Sozlama saqlandi');
+    } catch (e) {
+      setPosAllowNegative(!checked);
+      toast.error(e.response?.data?.detail || 'Xatolik yuz berdi');
+    } finally {
+      setSavingSetting(false);
+    }
+  };
+
+  return (
+    <div className="p-6 space-y-4">
+      <div className="max-w-xl bg-white border border-slate-200 rounded-2xl p-5">
+        <h3 className="text-sm font-bold text-slate-800 mb-4">Sotuv (POS) sozlamalari</h3>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-slate-700">Minus qoldiqda sotishga ruxsat</p>
+            <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
+              Yoqilgan bo'lsa, qoldig'i yetarli bo'lmagan mahsulotni ham sotish mumkin (qoldiq minusga tushadi).
+              O'chirilsa, kassada qoldiqdan ortiq sotish bloklanadi.
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={savingSetting}
+            onClick={() => togglePosNegative(!posAllowNegative)}
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${posAllowNegative ? 'bg-blue-600' : 'bg-slate-200'}`}
+          >
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${posAllowNegative ? 'translate-x-6' : 'translate-x-1'}`} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 import { useSearchParams } from 'react-router-dom';
 import { getSettingsMenus } from '../../constants/settingsMenus';
 
@@ -2246,7 +2300,7 @@ export default function Settings() {
             {tab === 'internet_store' && <PlaceholderTab name="Интернет магазин" />}
             {tab === 'integrations' && <PlaceholderTab name="Integratsiyalar" />}
             {tab === 'references' && <PlaceholderTab name="Ma'lumotnoma" />}
-            {tab === 'general' && <PlaceholderTab name="Umumiy" />}
+            {tab === 'general' && <GeneralTab companyId={companyId} />}
             {tab === 'org_structure' && <PlaceholderTab name="Tashkilot tuzilmasi" />}
             {tab === 'auto_reply' && <PlaceholderTab name="Avto javob beruvchilar" />}
             {tab === 'auto_distribute' && <PlaceholderTab name="Avto-tarqatish qoidalari" />}

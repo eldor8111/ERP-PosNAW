@@ -40,6 +40,12 @@ class Company(Base):
     # (do'kon xodimi keyin tasdiqlash/rad etish orqali hal qiladi).
     shop_allow_out_of_stock_orders = Column(Boolean, default=True)
 
+    # ── POS sozlamalari ──
+    # True (standart) — mavjud xatti-harakat: qoldiq yetarli bo'lmasa ham
+    # sotish mumkin (qoldiq minusga tushadi). False — sotuvda minus
+    # qoldiq bloklanadi.
+    pos_allow_negative_stock = Column(Boolean, default=True)
+
     # bot = relationship("CompanyBot", back_populates="company", uselist=False)
     # ── Billing ──────────────────────────────────────────────
     tariff_id = Column(Integer, ForeignKey("tariffs.id"), nullable=True)

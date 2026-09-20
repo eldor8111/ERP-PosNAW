@@ -142,6 +142,11 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
     if not sale:
         raise HTTPException(status_code=404, detail="Sotuv topilmadi")
 
+    # Kompaniya sozlamasi: minus qoldiqda sotish taqiqlanganmi
+    from app.models.company import Company as _Company
+    _neg_company = db.query(_Company).filter(_Company.id == sale.company_id).first()
+    allow_negative_stock = not (_neg_company is not None and _neg_company.pos_allow_negative_stock is False)
+
     if data.items is not None:
         # ── To'liq tahrirlash ─────────────────────────────────────────────────
         old_paid_amount = Decimal(str(sale.paid_amount or 0))
@@ -248,7 +253,7 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                     db=db, product_id=deduct_id, quantity=deduct_qty,
                     user_id=current_user.id, reason=reason,  # type: ignore
                     reference_type="sale", reference_id=sale_id,
-                    warehouse_id=item_wh, allow_negative=True,  # type: ignore
+                    warehouse_id=item_wh, allow_negative=allow_negative_stock,  # type: ignore
                 )
 
         if new_customer_id and final_status != SaleStatus.pending:
@@ -501,7 +506,7 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                     db=db, product_id=deduct_id, quantity=deduct_qty,
                     user_id=current_user.id, reason=reason,  # type: ignore
                     reference_type="sale", reference_id=sale.id,  # type: ignore
-                    warehouse_id=sale.warehouse_id, allow_negative=True,  # type: ignore
+                    warehouse_id=sale.warehouse_id, allow_negative=allow_negative_stock,  # type: ignore
                 )
         elif old_status != SaleStatus.pending and sale.status == SaleStatus.pending:
             from app.models.inventory import StockMovement, StockLevel

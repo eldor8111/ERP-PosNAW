@@ -73,6 +73,7 @@ class CompanyUpdate(BaseModel):
     daily_report_enabled: Optional[bool] = None
     daily_report_recipients: Optional[str] = None
     shop_allow_out_of_stock_orders: Optional[bool] = None
+    pos_allow_negative_stock: Optional[bool] = None
 
 
 class ReceiptTemplatesUpdate(BaseModel):
@@ -97,6 +98,7 @@ class CompanyOut(BaseModel):
     daily_report_enabled: bool = True
     daily_report_recipients: str = "owners_and_admins"
     shop_allow_out_of_stock_orders: bool = True
+    pos_allow_negative_stock: bool = True
 
     class Config:
         from_attributes = True
@@ -126,6 +128,7 @@ def list_companies(
             daily_report_enabled=c.daily_report_enabled if c.daily_report_enabled is not None else True,
             daily_report_recipients=c.daily_report_recipients or "owners_and_admins",
             shop_allow_out_of_stock_orders=c.shop_allow_out_of_stock_orders if c.shop_allow_out_of_stock_orders is not None else True,
+        pos_allow_negative_stock=c.pos_allow_negative_stock if c.pos_allow_negative_stock is not None else True,
         ))  # type: ignore[call-arg]
     return result
 
@@ -180,6 +183,7 @@ def create_company(
         daily_report_enabled=c.daily_report_enabled if c.daily_report_enabled is not None else True,
         daily_report_recipients=c.daily_report_recipients or "owners_and_admins",
         shop_allow_out_of_stock_orders=c.shop_allow_out_of_stock_orders if c.shop_allow_out_of_stock_orders is not None else True,
+        pos_allow_negative_stock=c.pos_allow_negative_stock if c.pos_allow_negative_stock is not None else True,
     )  # type: ignore[call-arg]
 
 
@@ -225,6 +229,7 @@ def update_company(
         daily_report_enabled=c.daily_report_enabled if c.daily_report_enabled is not None else True,
         daily_report_recipients=c.daily_report_recipients or "owners_and_admins",
         shop_allow_out_of_stock_orders=c.shop_allow_out_of_stock_orders if c.shop_allow_out_of_stock_orders is not None else True,
+        pos_allow_negative_stock=c.pos_allow_negative_stock if c.pos_allow_negative_stock is not None else True,
     )  # type: ignore[call-arg]
 
 

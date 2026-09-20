@@ -523,6 +523,10 @@ def create_sale(
     new_sale_items = []
     new_movements = []
 
+    # Kompaniya sozlamasi: minus qoldiqda sotish taqiqlangan bo'lsa bloklaymiz
+    _neg_company = db.query(Company).filter(Company.id == current_user.company_id).first()
+    block_negative_stock = _neg_company is not None and _neg_company.pos_allow_negative_stock is False
+
     for item_d in sale_items_data:
         product = item_d["product"]
         variant_id = item_d["variant_id"]
@@ -557,6 +561,17 @@ def create_sale(
             stocks = [new_sl]
             stocks_by_product_variant[(stock_product.id, stock_variant_id)] = stocks
             selected_stock = new_sl
+
+        if (
+            block_negative_stock
+            and getattr(stock_product, "product_type", "stock") != "service"
+            and selected_stock.quantity < qty_to_deduct
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=f"'{stock_product.name}' mahsuloti qoldig'i yetarli emas. "
+                       f"Mavjud: {selected_stock.quantity}, So'ralgan: {qty_to_deduct}",
+            )
 
         item_warehouse_id = selected_stock.warehouse_id
         qty_before = selected_stock.quantity
