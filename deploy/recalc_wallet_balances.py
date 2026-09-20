@@ -19,6 +19,20 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sqlalchemy import func, or_  # noqa: E402
 
 from app.database import SessionLocal  # noqa: E402
+
+# SQLAlchemy relationshiplar to'liq hal bo'lishi uchun BARCHA model
+# modullarini yuklaymiz — ayrimlari (masalan Order) app.models
+# __init__.py da import qilinmagan, faqat moliya import qilinsa
+# "expression 'Order' failed to locate a name" xatosi chiqadi.
+import pkgutil  # noqa: E402
+import importlib  # noqa: E402
+import app.models as _models_pkg  # noqa: E402
+for _m in pkgutil.iter_modules(_models_pkg.__path__):
+    try:
+        importlib.import_module(f"app.models.{_m.name}")
+    except Exception:
+        pass  # yordamchi/eskirgan modul bo'lsa e'tibor bermaymiz
+
 from app.models.moliya import Wallet, KassaMovement  # noqa: E402
 
 
