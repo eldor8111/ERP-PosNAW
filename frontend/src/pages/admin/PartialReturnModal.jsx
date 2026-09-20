@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Check } from 'lucide-react';
 import api from '../../api/axios';
 import { toast } from 'react-hot-toast';
+import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
 
 function fmt(n) {
   if (!n) return '0';
@@ -13,6 +14,7 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [fetchingItems, setFetchingItems] = useState(false);
   const [paymentType, setPaymentType] = useState('cash');
+  const [printReceipt, setPrintReceipt] = useState(true);
 
   useEffect(() => {
     if (!sale) return;
@@ -81,6 +83,42 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
       };
 
       await api.post(`/sales/${sale.id}/return-items`, payload);
+
+      if (printReceipt) {
+        try {
+          const posSettings = JSON.parse(localStorage.getItem('pos_desktop_settings') || '{}');
+          const settings = getReceiptSettings();
+          const templateType = posSettings.template || (posSettings.paper === '58mm' ? '58' : '80');
+          const tmplCfg = settings['r' + templateType] || settings[templateType] || {};
+          const currCode = sale?.currency_code || sale?.currency || 'UZS';
+          const returnedItems = items.filter(i => i.returnQty > 0).map(i => {
+            const avgPrice = i.subtotal / i.quantity;
+            return {
+              product_name: i.product_name,
+              quantity: i.returnQty,
+              unit_price: avgPrice,
+              discount: 0,
+              subtotal: avgPrice * i.returnQty,
+              currency_code: currCode,
+            };
+          });
+          const totalRefund = returnedItems.reduce((s, i) => s + i.subtotal, 0);
+          const meta = {
+            id: 'Vazvrat-' + Date.now(),
+            number: `Vazvrat (Sotuv #${sale.number})`,
+            cashier_name: 'Kassa',
+            created_at: new Date().toISOString(),
+            total_amount: totalRefund,
+            paid_amount: paymentType === 'debt' ? 0 : totalRefund,
+            discount_amount: 0,
+            payment_types_array: [{ type: paymentType, amount: totalRefund }],
+            items: returnedItems,
+            customer_name: sale?.customer_name || undefined,
+          };
+          printReceiptHtml(buildReceiptHtml(meta, templateType, tmplCfg));
+        } catch { /* chek chop etilmasa ham qaytarish bekor bo'lmasin */ }
+      }
+
       toast.success('Muvaffaqiyatli qaytarildi');
       onSuccess();
     } catch (error) {
@@ -173,7 +211,7 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
           </div>
 
           <div className="flex items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-100">
-            <div className="flex gap-4 items-center">
+            <div className="flex gap-4 items-center flex-wrap">
               <span className="text-sm font-semibold text-slate-700">Qaytarish turi:</span>
               <select
                 value={paymentType}
@@ -183,6 +221,15 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
                 <option value="cash">Naqd pul qaytarish (Kassadan)</option>
                 <option value="debt">Qarzdan chegirish (Mijoz balansi)</option>
               </select>
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={printReceipt}
+                  onChange={(e) => setPrintReceipt(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-400"
+                />
+                Chek chop etish
+              </label>
             </div>
             <div className="text-right">
               <span className="text-sm text-slate-500 uppercase tracking-wider font-semibold block mb-1">Jami qaytarilmoqda</span>
