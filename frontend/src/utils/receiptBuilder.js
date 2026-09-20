@@ -13,9 +13,21 @@ export function printReceiptHtml(html) {
   document.body.appendChild(iframe);
   const doc = iframe.contentWindow.document;
   doc.open(); doc.write(html); doc.close();
-  setTimeout(() => {
-    try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch (e) { console.warn('Print error:', e); }
-  }, 50);
+  // Tashqi resurslar (barcode/QR skriptlari) bo'lsa, ular yuklanib
+  // bo'lgach chop etamiz; resurssiz chek uchun kechikish sezilmaydi.
+  const w = iframe.contentWindow;
+  let printed = false;
+  const doPrint = () => {
+    if (printed) return;
+    printed = true;
+    try { w.focus(); w.print(); } catch (e) { console.warn('Print error:', e); }
+  };
+  if (w.document.readyState === 'complete') {
+    setTimeout(doPrint, 50);
+  } else {
+    w.addEventListener('load', () => setTimeout(doPrint, 50));
+    setTimeout(doPrint, 1500);
+  }
 }
 
 export function getReceiptSettings() {
@@ -86,6 +98,12 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   // sh — cfg[key] qiymatini qaytaradi, aniqlanmagan bo'lsa def qaytaradi
   // isNak bloki ichida ham, tashqarida ham ishlatilishi mumkin
   const sh = (key, def = true) => cfg[key] !== undefined ? cfg[key] : def;
+
+  // Termal chek sozlamalari ba'zi kalitlarni birlik shaklda saqlaydi
+  // (show_debt), nakladnoy esa ko'plikda (show_debts) — ikkalasini ham
+  // qo'llab-quvvatlaymiz, aks holda toggle chekka ta'sir qilmaydi.
+  const sh2 = (key1, key2, def = true) =>
+    cfg[key1] !== undefined ? cfg[key1] : (cfg[key2] !== undefined ? cfg[key2] : def);
 
   const useCurrency = sale.currency_code && sale.currency_code !== 'UZS';
   const rate = Number(sale.exchange_rate) || 1.0;
@@ -421,20 +439,29 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
 
     const printUp = itemUseCur ? (up / itemRate).toFixed(4).replace(/\.?0+$/, '') : up.toLocaleString('uz-UZ');
     const printSub = itemUseCur ? (sub / itemRate).toFixed(4).replace(/\.?0+$/, '') : sub.toLocaleString('uz-UZ');
+    const printDisc = itemUseCur ? (disc / itemRate).toFixed(4).replace(/\.?0+$/, '') : disc.toLocaleString('uz-UZ');
     const displaySym = itemUseCur ? (itemCurr === 'USD' ? '$' : (itemCurr === 'RUB' ? '₽' : itemCurr)) : "so'm";
 
+    const orderNum = sh('show_ordering_number') ? `${idx + 1}. ` : '';
+    const unitStr = sh('show_unit', false) && (i.unit || i.measurement_name) ? ` ${i.unit || i.measurement_name}` : '';
+    const leftSide = sh('show_price_per_unit')
+      ? `${qty}${unitStr} x ${printUp} ${itemUseCur ? displaySym : ''}`
+      : `${qty}${unitStr}`;
+    const rightSide = sh('show_total') ? `${printSub} ${displaySym}` : '';
+
     return `
-      <div>${idx + 1}. ${i.product_name || i.product?.name || `ID=${i.product_id}`}</div>
+      <div>${orderNum}${i.product_name || i.product?.name || `ID=${i.product_id}`}</div>
       <div class="flex">
-        <span>${qty} x ${printUp} ${itemUseCur ? displaySym : ''}</span>
-        <span>${printSub} ${displaySym}</span>
+        <span>${leftSide}</span>
+        <span>${rightSide}</span>
       </div>
+      ${sh('show_discount') && disc > 0 ? `<div class="flex"><span>Chegirma:</span><span>-${printDisc} ${displaySym}</span></div>` : ''}
       <hr class="dash"/>
     `;
   }).join('');
 
-  const debtSectionHtml = (sh('show_before_debts') || sh('show_contractor_debts') || sh('show_debts')) ? `
-  ${sh('show_before_debts') ? `<div class="flex">
+  const debtSectionHtml = (sh2('show_before_debt', 'show_before_debts') || sh('show_contractor_debts') || sh2('show_debt', 'show_debts')) ? `
+  ${sh2('show_before_debt', 'show_before_debts') ? `<div class="flex">
     <span>Oldingi qarz:</span>
     <span style="text-align:right">${oldDebtStr}</span>
   </div>` : ''}
@@ -443,7 +470,7 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
     <span style="text-align:right">${currentDebtStr}</span>
   </div>` : ''}
   <hr/>
-  ${sh('show_debts') ? `<div class="flex">
+  ${sh2('show_debt', 'show_debts') ? `<div class="flex">
     <span>Jami qarz:</span>
     <span style="text-align:right">${finalDebtStr}</span>
   </div>` : ''}` : '';
@@ -458,7 +485,7 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   .flex { display:flex; justify-content:space-between; }
   hr { border:none; border-top:1.5px solid #000; margin:6px 0; }
   hr.dash { border-top:1.5px dashed #000; margin:6px 0; }
-  @media print { body { width:auto; margin:0; padding:2px; } @page { margin:1mm; } }
+  @media print { body { width:auto; margin:0; padding:2px; } @page { size: ${narrow ? '58mm' : '80mm'} auto; margin:1mm; } }
 </style></head><body>
   ${thermalLogoHtml}
   ${cfg.company ? `<div class="center" style="margin-bottom:8px;font-size:16px;">${cfg.company}</div>` : ''}
@@ -466,23 +493,27 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   ${cfg.phone ? `<div class="center" style="margin-bottom:4px;">Tel: ${cfg.phone}</div>` : ''}
   ${cfg.inn ? `<div class="center" style="margin-bottom:6px;">STIR: ${cfg.inn}</div>` : ''}
   
-  <div class="flex">
+  ${sh('show_number') ? `<div class="flex">
     <span>Chek:</span>
     <span>${sale.number || sale.id || '---'}</span>
-  </div>
-  <div class="flex">
+  </div>` : ''}
+  ${sh('show_cashier') ? `<div class="flex">
     <span>Kassir:</span>
     <span>${sale.cashier_name || sale.cashier?.name || 'Kassir'}</span>
-  </div>
-  <div class="flex">
+  </div>` : ''}
+  ${sh('show_date') ? `<div class="flex">
     <span>Sana:</span>
     <span>${sanaStr}</span>
-  </div>
+  </div>` : ''}
+  ${sh('show_status', false) && sale.status ? `<div class="flex">
+    <span>Holat:</span>
+    <span>${sale.status}</span>
+  </div>` : ''}
   <hr class="dash"/>
-  
-  ${clientName ? `<div class="flex"><span>Mijoz:</span><span style="text-transform:uppercase">${clientName}</span></div>` : ''}
-  ${sale.contractor_contacts?.length ? `<div class="flex"><span>Tel:</span><span>${sale.contractor_contacts.map(c => c.value || c).join(', ')}</span></div>` : ''}
-  ${clientName || sale.contractor_contacts?.length ? `<hr class="dash"/>` : ''}
+
+  ${sh('show_account_name') && clientName ? `<div class="flex"><span>Mijoz:</span><span style="text-transform:uppercase">${clientName}</span></div>` : ''}
+  ${sh2('show_contractor_contact', 'show_contractor_contacts') && sale.contractor_contacts?.length ? `<div class="flex"><span>Tel:</span><span>${sale.contractor_contacts.map(c => c.value || c).join(', ')}</span></div>` : ''}
+  ${(sh('show_account_name') && clientName) || (sh2('show_contractor_contact', 'show_contractor_contacts') && sale.contractor_contacts?.length) ? `<hr class="dash"/>` : ''}
 
   ${rows}
 
@@ -491,27 +522,43 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
     <span>${xilMaxsulot} xil mahsulot</span>
   </div>
   <hr/>
-  ${sale.note ? `<div style="text-align:center;margin-top:4px;margin-bottom:4px;font-weight:bold;">Izoh: ${sale.note}</div><hr/>` : ''}
-  
+  ${sh('show_note') && sale.note ? `<div style="text-align:center;margin-top:4px;margin-bottom:4px;font-weight:bold;">Izoh: ${sale.note}</div><hr/>` : ''}
+
   <div class="flex" style="align-items:flex-start;">
     <span>JAMI:</span>
     <span style="text-align:right;">${jamiStr}</span>
   </div>
   <hr class="dash"/>
 
-  ${sale.payment_currencies && sale.payment_currencies.length > 0
+  ${sh2('show_payment_type', 'show_payment_amounts') ? `${sale.payment_currencies && sale.payment_currencies.length > 0
     ? sale.payment_currencies.map(pt => `<div class="flex"><span>To'lov (${pt.type || pt.currency}):</span><span>${fmtCurrencyAmt(pt.amount, pt.currency || 'UZS')}</span></div>`).join('')
     : (sale.payment_types_array && sale.payment_types_array.length > 0
-      ? sale.payment_types_array.map(pt => `<div class="flex"><span>To'lov (${pt.type}):</span><span>${fmtVal(pt.amount)}</span></div>`).join('') 
+      ? sale.payment_types_array.map(pt => `<div class="flex"><span>To'lov (${pt.type}):</span><span>${fmtVal(pt.amount)}</span></div>`).join('')
       : `<div class="flex"><span>To'lov:</span><span>${fmtVal(paidAmount)}</span></div>`)
   }
-  <hr class="dash"/>
+  <hr class="dash"/>` : ''}
 
   ${debtSectionHtml}
-  
+
   ${change > 0 ? `<div class="flex"><span>Qaytim:</span><span>${fmtVal(change)}</span></div><hr class="dash"/>` : ''}
-  
+
+  ${sh('show_barcode', false) ? `<div class="center" style="margin-top:8px"><svg id="__chek_barcode"></svg></div>` : ''}
+  ${sh('show_qr', false) ? `<div class="center" style="margin-top:8px"><div id="__chek_qr" style="display:inline-block"></div></div>` : ''}
+
     <div class="center" style="margin-top:15px;">${cfg.footer || 'Xaridingiz uchun raxmat!'}</div>
+  ${sh('show_barcode', false) ? `<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"><\/script>` : ''}
+  ${sh('show_qr', false) ? `<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"><\/script>` : ''}
+  ${sh('show_barcode', false) || sh('show_qr', false) ? `<script>
+    try { if (window.JsBarcode && document.getElementById('__chek_barcode')) JsBarcode('#__chek_barcode', ${JSON.stringify(String(sale.number || sale.id || ''))}, { format: 'CODE128', width: 1.5, height: 38, displayValue: true, fontSize: 12, margin: 0 }); } catch (e) {}
+    try {
+      if (window.qrcode && document.getElementById('__chek_qr')) {
+        var __q = qrcode(0, 'M');
+        __q.addData(${JSON.stringify(`Chek: ${sale.number || sale.id || ''} | Jami: ${Number(sale.total_amount || 0).toLocaleString('uz-UZ')}`)});
+        __q.make();
+        document.getElementById('__chek_qr').innerHTML = __q.createImgTag(3, 2);
+      }
+    } catch (e) {}
+  <\/script>` : ''}
 </body></html>`;
 }
 
