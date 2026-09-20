@@ -306,10 +306,46 @@ def assign_order_group_courier(
         order.assigned_at = now
     db.commit()
 
-    # Mijozga xabar; kuryerga bildirishnoma kuryer boti ulangach (3-bosqich)
+    # Mijozga xabar (mijoz boti orqali)
     background_tasks.add_task(_notify_customer_status, db, orders, OrderStatus.assigned)
 
+    # Kuryerga xabar (kuryer boti orqali, ulangan bo'lsa)
+    background_tasks.add_task(_notify_courier_assigned, db, orders, courier.id)
+
     return {"message": f"Dostavchik biriktirildi: {courier.name}", "count": len(orders)}
+
+
+def _notify_courier_assigned(db: Session, orders: list, courier_id: int) -> None:
+    """Kuryerga yangi buyurtma haqida kuryer boti orqali xabar."""
+    try:
+        from app.models.company import Company
+        from app.models.courier import Courier
+        from app.services.sale_helpers import send_tg_sync
+
+        courier = db.query(Courier).filter(Courier.id == courier_id).first()
+        if not courier or not courier.tg_chat_id:
+            return
+        company = db.query(Company).filter(Company.id == courier.company_id).first()
+        if not company or not getattr(company, "courier_bot_token", None):
+            return
+
+        first = orders[0]
+        customer = db.query(Customer).filter(Customer.id == first.customer_id).first()
+        total = sum(float(o.total_amount or 0) for o in orders) + float(getattr(first, "delivery_fee", 0) or 0)
+        lines = [
+            "🆕 <b>Yangi buyurtma biriktirildi!</b>\n",
+            f"👤 Mijoz: <b>{customer.name if customer else '—'}</b>",
+        ]
+        phone = getattr(first, "contact_phone", None) or (customer.phone if customer else None)
+        if phone:
+            lines.append(f"📞 Tel: {phone}")
+        if getattr(first, "delivery_address", None):
+            lines.append(f"📍 Manzil: {first.delivery_address}")
+        lines.append(f"💰 Summa: <b>{total:,.0f} so'm</b>")
+        lines.append("\n📦 Buyurtmalarim tugmasi orqali boshqaring.")
+        send_tg_sync(company.courier_bot_token, courier.tg_chat_id, "\n".join(lines))
+    except Exception:
+        pass  # bildirishnoma xatosi biriktirish natijasiga ta'sir qilmasin
 
 
 @router.delete("/group/{group_id}")

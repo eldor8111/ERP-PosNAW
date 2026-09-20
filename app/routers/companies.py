@@ -75,6 +75,7 @@ class CompanyUpdate(BaseModel):
     shop_allow_out_of_stock_orders: Optional[bool] = None
     pos_allow_negative_stock: Optional[bool] = None
     delivery_fee: Optional[float] = None
+    courier_bot_token: Optional[str] = None
 
 
 class ReceiptTemplatesUpdate(BaseModel):
@@ -101,6 +102,7 @@ class CompanyOut(BaseModel):
     shop_allow_out_of_stock_orders: bool = True
     pos_allow_negative_stock: bool = True
     delivery_fee: float = 0
+    courier_bot_username: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -132,6 +134,7 @@ def list_companies(
             shop_allow_out_of_stock_orders=c.shop_allow_out_of_stock_orders if c.shop_allow_out_of_stock_orders is not None else True,
         pos_allow_negative_stock=c.pos_allow_negative_stock if c.pos_allow_negative_stock is not None else True,
         delivery_fee=float(c.delivery_fee or 0) if hasattr(c, 'delivery_fee') else 0,
+        courier_bot_username=getattr(c, 'courier_bot_username', None),
         ))  # type: ignore[call-arg]
     return result
 
@@ -188,6 +191,7 @@ def create_company(
         shop_allow_out_of_stock_orders=c.shop_allow_out_of_stock_orders if c.shop_allow_out_of_stock_orders is not None else True,
         pos_allow_negative_stock=c.pos_allow_negative_stock if c.pos_allow_negative_stock is not None else True,
         delivery_fee=float(c.delivery_fee or 0) if hasattr(c, 'delivery_fee') else 0,
+        courier_bot_username=getattr(c, 'courier_bot_username', None),
     )  # type: ignore[call-arg]
 
 
@@ -217,6 +221,18 @@ def update_company(
                 _telegram_delete_webhook(c.tg_bot_token)
             update_data["tg_bot_username"] = None
 
+    if "courier_bot_token" in update_data:
+        new_ctoken = update_data["courier_bot_token"]
+        if new_ctoken:
+            base_url = settings.SERVER_URL.rstrip("/") if settings.SERVER_URL else str(request.base_url).rstrip("/")
+            webhook_url = f"{base_url}/api/courier-bot/webhook/{new_ctoken}"
+            cbot_username = _telegram_setup_bot(new_ctoken, webhook_url)
+            update_data["courier_bot_username"] = cbot_username
+        else:
+            if getattr(c, "courier_bot_token", None):
+                _telegram_delete_webhook(c.courier_bot_token)
+            update_data["courier_bot_username"] = None
+
     for k, v in update_data.items():
         setattr(c, k, v)
     db.commit()
@@ -235,6 +251,7 @@ def update_company(
         shop_allow_out_of_stock_orders=c.shop_allow_out_of_stock_orders if c.shop_allow_out_of_stock_orders is not None else True,
         pos_allow_negative_stock=c.pos_allow_negative_stock if c.pos_allow_negative_stock is not None else True,
         delivery_fee=float(c.delivery_fee or 0) if hasattr(c, 'delivery_fee') else 0,
+        courier_bot_username=getattr(c, 'courier_bot_username', None),
     )  # type: ignore[call-arg]
 
 

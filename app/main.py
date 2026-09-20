@@ -20,7 +20,7 @@ from app.routers import (
     warehouses, branches, super_admin, companies, dashboard, promotions, roles, orders, shop, couriers
 )
 from app.admin_tg_bot.bot_routers import admin_router
-from app.routers import bin_locations, uploads, agents, telegram, lead  # type: ignore
+from app.routers import bin_locations, uploads, agents, telegram, lead, courier_bot  # type: ignore
 from app.routers import mxik as mxik_router  # type: ignore
 from app.routers import billing  # type: ignore
 from app.routers import payme as payme_router  # type: ignore
@@ -349,6 +349,7 @@ app.include_router(ai_reports.router, prefix=API_PREFIX)
 app.include_router(promotions.router, prefix=API_PREFIX)
 app.include_router(orders.router, prefix=API_PREFIX)
 app.include_router(couriers.router, prefix=API_PREFIX)
+app.include_router(courier_bot.router, prefix=API_PREFIX)
 app.include_router(shop.router, prefix=API_PREFIX)
 
 # Serve uploaded static files

@@ -855,6 +855,7 @@ function PremiumToggle({ checked, onChange, color = 'blue' }) {
 function TelegramBotTab({ companyId }) {
   const [userBot, setUserBot] = useState(null);
   const [adminBot, setAdminBot] = useState(null);
+  const [courierBot, setCourierBot] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [botType, setBotType] = useState('user');
   const [token, setToken] = useState('');
@@ -874,6 +875,7 @@ function TelegramBotTab({ companyId }) {
            setUserBot(null);
         }
         setShopAllowOutOfStock(co.shop_allow_out_of_stock_orders !== false);
+        setCourierBot(co.courier_bot_username ? { bot_username: co.courier_bot_username } : null);
       }
     }).catch(e => toast.error(e.response?.data?.detail || e.message));
 
@@ -900,7 +902,20 @@ function TelegramBotTab({ companyId }) {
     e.preventDefault();
     if (!companyId || !token.trim()) return;
 
-    if (botType === "admin") {
+    if (botType === "courier") {
+      setSaving(true); setErr('');
+      try {
+        const res = await api.put(`/companies/${companyId}`, { courier_bot_token: token });
+        toast.success('Dostavchik boti ulandi!');
+        setCourierBot(res.data?.courier_bot_username ? { bot_username: res.data.courier_bot_username } : null);
+        setToken('');
+        setShowModal(false);
+      } catch (error) {
+        setErr(error.response?.data?.detail || 'Xatolik yuz berdi');
+      } finally {
+        setSaving(false);
+      }
+    } else if (botType === "admin") {
       setSaving(true); setErr('');
       try {
         const res = await api.put(`/companies/${companyId}/admin-bot`, { bot_token: token });
@@ -932,7 +947,11 @@ function TelegramBotTab({ companyId }) {
   const handleDelete = async (type) => {
     if (!confirm("Tasdiqlaysizmi? Bot uzilib, xabarlar to'xtatiladi.")) return;
     try {
-      if (type === 'admin') {
+      if (type === 'courier') {
+         await api.put(`/companies/${companyId}`, { courier_bot_token: null });
+         setCourierBot(null);
+         toast.success("Dostavchik boti uzib qo'yildi.");
+      } else if (type === 'admin') {
          await api.delete(`/companies/${companyId}/admin-bot`);
          setAdminBot(null);
          setShowAdminSettings(false);
@@ -1111,6 +1130,54 @@ function TelegramBotTab({ companyId }) {
             </div>
           )}
         </div>
+
+        {/* ── Dostavchik boti ── */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h4 className="font-bold text-slate-800">Dostavchik boti</h4>
+              <p className="text-xs text-slate-400 mt-0.5">Kuryerlar buyurtmalarni qabul qilishi va boshqarishi uchun</p>
+            </div>
+            {!courierBot?.bot_username ? (
+              <button
+                onClick={() => { setBotType('courier'); setShowModal(true); setErr(''); setToken(''); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-semibold rounded-lg transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                Ulash
+              </button>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-md">
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />Faol
+              </span>
+            )}
+          </div>
+
+          {courierBot?.bot_username ? (
+            <div className="space-y-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-blue-500">
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH} /></svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <a href={'https://t.me/' + courierBot.bot_username} target="_blank" rel="noreferrer" className="text-sm font-bold text-blue-600 hover:underline">@{courierBot.bot_username}</a>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Kuryerlar botga kirib telefon raqamini ulashadi</p>
+                </div>
+              </div>
+              <div className="flex gap-2 pt-3 mt-3 border-t border-slate-50">
+                <button onClick={() => { setBotType('courier'); setShowModal(true); setErr(''); setToken(''); }}
+                  className="flex-1 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg transition-colors">Yangilash</button>
+                <button onClick={() => handleDelete('courier')}
+                  className="flex-1 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-lg transition-colors">O'chirish</button>
+              </div>
+            </div>
+          ) : (
+            <div className="py-6 flex flex-col items-center justify-center border-2 border-dashed border-slate-100 rounded-xl bg-slate-50/50 mt-4">
+              <svg className="w-8 h-8 text-slate-300 mb-2" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH} /></svg>
+              <p className="text-sm font-medium text-slate-500">Bot ulanmagan</p>
+            </div>
+          )}
+        </div>
       </div>
       </>)}
 
@@ -1123,7 +1190,7 @@ function TelegramBotTab({ companyId }) {
                 <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600">
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH} /></svg>
                 </div>
-                <h3 className="font-bold text-slate-800">Bot ulash ({botType === 'admin' ? 'Admin' : 'Mijoz'})</h3>
+                <h3 className="font-bold text-slate-800">Bot ulash ({botType === 'admin' ? 'Admin' : botType === 'courier' ? 'Dostavchik' : 'Mijoz'})</h3>
               </div>
               <button onClick={() => setShowModal(false)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

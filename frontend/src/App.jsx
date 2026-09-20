@@ -53,6 +53,7 @@ const Yangiliklar     = lazy(() => import('./pages/Yangiliklar'))
 const Profile         = lazy(() => import('./pages/admin/Profile'))
 const NotFound        = lazy(() => import('./pages/NotFound'))
 const TelegramShop    = lazy(() => import('./pages/TelegramShop'))
+const CourierApp      = lazy(() => import('./pages/CourierApp'))
 
 // Sahifa almashinayotganda ko'rinadigan loading spinner
 function PageLoader() {
@@ -98,6 +99,7 @@ export default function App() {
           <Route path="/pos-login" element={<PosLogin />} />
           <Route path="/register" element={<RegisterCompany />} />
           <Route path="/shop" element={<Suspense fallback={<PageLoader />}><TelegramShop /></Suspense>} />
+          <Route path="/courier-app" element={<Suspense fallback={<PageLoader />}><CourierApp /></Suspense>} />
 
           <Route path="/admin" element={
             <PrivateRoute roles={ROLE_GROUPS.ALL_STAFF}>

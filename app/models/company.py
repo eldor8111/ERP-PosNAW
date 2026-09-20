@@ -17,6 +17,9 @@ class Company(Base):
     email = Column(String(100), nullable=True)
     tg_bot_token = Column(String(100), nullable=True)
     tg_bot_username = Column(String(100), nullable=True)
+    # Dostavchik (kuryer) boti — mijoz/admin botlaridan alohida
+    courier_bot_token = Column(String(100), nullable=True)
+    courier_bot_username = Column(String(100), nullable=True)
     is_active = Column(Boolean, default=True)
     balance = Column(Numeric(18, 2), default=0, nullable=False)
     agent_id = Column(Integer, ForeignKey("agents.id", ondelete="SET NULL"), nullable=True)
