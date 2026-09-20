@@ -78,9 +78,15 @@ def _build_receipt_payload(sale: Sale, factory_id: str) -> dict:
             )
             continue
 
-        unit_price = int(item.unit_price or 0)
+        # Chet el valyutasida sotilgan tovarlar uchun narx/chegirmani UZS'ga
+        # aylantiramiz - Hippo faqat so'mda qabul qiladi, aylantirilmasa
+        # soliq organiga notogri (juda kam) summa yuborilib qoladi.
+        item_currency = (item.currency_code or "UZS").upper()
+        item_rate = Decimal(str(item.exchange_rate or 1)) if item_currency != "UZS" else Decimal("1")
+
+        unit_price = int((Decimal(str(item.unit_price or 0)) * item_rate).to_integral_value())
         quantity   = int(item.quantity or 1)
-        discount   = int(item.discount or 0)
+        discount   = int((Decimal(str(item.discount or 0)) * item_rate).to_integral_value())
 
         items.append({
             "name":         product.name,
