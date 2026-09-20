@@ -103,6 +103,7 @@ class SaleItemOut(BaseModel):
     product_id: int
     variant_id: Optional[int] = None
     product_name: str
+    sku: Optional[str] = None
     quantity: Decimal
     unit_price: Decimal
     cost_price: Decimal

@@ -45,11 +45,13 @@ def _build_sale_out(sale: Sale) -> SaleOut:
             id=i.id,
             product_id=i.product_id,
             product_name=i.product.name if i.product else f"ID={i.product_id}",
+            sku=i.product.sku if i.product else None,
             quantity=i.quantity,
             unit_price=i.unit_price,
             cost_price=i.cost_price,
             discount=i.discount,
             subtotal=i.subtotal,
+            returned_quantity=getattr(i, 'returned_quantity', None) or Decimal("0"),
             unit=getattr(i, 'unit', None) or (i.product.unit if i.product else 'dona') or 'dona',
             warehouse_id=getattr(i, 'warehouse_id', None),
             warehouse_name=(

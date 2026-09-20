@@ -150,6 +150,7 @@ const navigate = useNavigate();
       return [...prev, {
         product_id: p.id,
         product_name: p.name,
+        sku: p.sku || '',
         unit: p.unit || 'dona',
         unit_price: Number(p.sale_price) || 0,
         discount_type: 'pct',

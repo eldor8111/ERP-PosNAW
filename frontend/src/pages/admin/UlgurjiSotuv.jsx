@@ -931,7 +931,7 @@ export default function UlgurjiSotuv() {
           : i);
       }
       return [...prev, {
-        product_id: p.id, name: p.name, unit: p.unit || 'dona', qty: 1, price,
+        product_id: p.id, name: p.name, sku: p.sku || '', unit: p.unit || 'dona', qty: 1, price,
         currency, rate,
         discount_type: promoDisc > 0 ? 'sum' : 'pct',
         discount_val: promoDisc > 0 ? promoDisc : 0,
