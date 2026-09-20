@@ -75,22 +75,12 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
     setLoading(true);
     try {
       const payload = {
-        customer_id: sale.customer_id || null,
-        warehouse_id: sale.warehouse_id || 1, // Fallback agar yo'q bo'lsa
-        items: items.filter(i => i.returnQty > 0).map(i => {
-          const avgPrice = i.subtotal / i.quantity;
-          return {
-            product_id: i.product_id,
-            variant_id: i.variant_id || null,
-            quantity: i.returnQty,
-            unit_price: avgPrice
-          };
-        }),
+        items: returnItems,
         payment_type: paymentType,
         note: `Qisman qaytarish (Sotuv #${sale.number})`
       };
 
-      await api.post(`/inventory/return-from-customer`, payload);
+      await api.post(`/sales/${sale.id}/return-items`, payload);
       toast.success('Muvaffaqiyatli qaytarildi');
       onSuccess();
     } catch (error) {
