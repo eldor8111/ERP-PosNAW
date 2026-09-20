@@ -14,7 +14,7 @@ from app.models.user import User, UserRole
 from app.schemas.sale import SaleCreate, SaleItemOut, SaleListOut, SaleOut, SaleUpdate, SaleReturnRequest, SaleBulkCreate
 from app.services.sale_service import create_sale, create_return_sale, delete_sale, update_sale, create_pending_sale
 from app.services.sale_partial_return import process_partial_return
-from app.services.hippo_fiscalize import fiscalize_sale, fiscalize_return
+from app.services.hippo_fiscalize import fiscalize_sale
 from app.admin_tg_bot.notifications import trigger_instant_notification
 
 router = APIRouter(prefix="/sales", tags=["Sales (POS)"])
@@ -478,56 +478,3 @@ def remove_sale(
     return {"message": "Sotuv o'chirildi va qoldiqlar qaytarildi"}
 
 
-from pydantic import BaseModel as _BaseModel  # noqa: E402
-from app.models.inventory import StockLevel  # noqa: E402
-
-
-class RefundItemIn(_BaseModel):
-    product_id: int
-    quantity: float
-
-
-class RefundIn(_BaseModel):
-    items: List[RefundItemIn]
-    reason: Optional[str] = "Qaytarish"
-
-
-@router.post("/{sale_id}/refund")
-def refund_sale(
-        sale_id: int,
-        data: RefundIn,
-        request: Request,
-        background_tasks: BackgroundTasks,
-        db: Session = Depends(get_db),
-        current_user: User = Depends(require_roles(*POS_ROLES)),
-):
-    """Sotuvdan mahsulotlarni qaytarish va ombor qoldiqlarini tiklash"""
-    sale = _load_sale(db, sale_id, current_user)
-    if not sale:
-        raise HTTPException(status_code=404, detail="Sotuv topilmadi")
-
-    refunded = []
-    for ri in data.items:
-        stock = db.query(StockLevel).filter(
-            StockLevel.product_id == ri.product_id,
-            StockLevel.warehouse_id == sale.warehouse_id
-        ).first()
-        qty = Decimal(str(ri.quantity))
-        if stock:
-            stock.quantity += qty  # type: ignore
-        else:
-            db.add(StockLevel(product_id=ri.product_id, quantity=qty, warehouse_id=sale.warehouse_id))
-        refunded.append({"product_id": ri.product_id, "qty_returned": ri.quantity})
-
-    if data.items:
-        sale.status = SaleStatus.refunded if hasattr(SaleStatus, 'refunded') else sale.status  # type: ignore
-
-    db.commit()
-
-    # ── Hippo: qaytarish chekini fiskallash (background) ─────────────────────
-    _factory_id = request.headers.get("X-Hippo-Factory-Id", "").strip()
-    if _factory_id:
-        background_tasks.add_task(fiscalize_return, db, sale_id, _factory_id)
-    # ─────────────────────────────────────────────────────────────────────────
-
-    return {"message": f"{len(refunded)} ta mahsulot qaytarildi", "details": refunded}
