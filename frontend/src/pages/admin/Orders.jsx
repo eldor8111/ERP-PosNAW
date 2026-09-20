@@ -3,20 +3,12 @@ import api from '../../api/axios';
 import toast from 'react-hot-toast';
 import { CheckCircle, Clock, Truck, AlertCircle, X, Package, Download } from 'lucide-react';
 import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
+import { useLang } from '../../context/LangContext';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 
-const STATUS_COLORS = {
-  pending: { bg: 'bg-yellow-50', text: 'text-yellow-700', icon: Clock, label: 'Kutilmoqda' },
-  confirmed: { bg: 'bg-blue-50', text: 'text-blue-700', icon: CheckCircle, label: 'Tasdiqlangan' },
-  preparing: { bg: 'bg-indigo-50', text: 'text-indigo-700', icon: Package, label: 'Tayyorlanmoqda' },
-  assigned: { bg: 'bg-purple-50', text: 'text-purple-700', icon: Truck, label: 'Kuryerda' },
-  on_way: { bg: 'bg-orange-50', text: 'text-orange-700', icon: Truck, label: "Yo'lda" },
-  delivered: { bg: 'bg-green-50', text: 'text-green-700', icon: Truck, label: 'Yetkazildi' },
-  cancelled: { bg: 'bg-red-50', text: 'text-red-700', icon: AlertCircle, label: 'Bekor qilindi' },
-};
-
 export default function Orders({ embedded = false }) {
+  const { t } = useLang();
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('pending');
@@ -26,8 +18,19 @@ export default function Orders({ embedded = false }) {
   const [assignCourierId, setAssignCourierId] = useState('');
   const [assigning, setAssigning] = useState(false);
 
+  const STATUS_COLORS = {
+    pending: { bg: 'bg-yellow-50', text: 'text-yellow-700', icon: Clock, label: t('order.status.pending') },
+    confirmed: { bg: 'bg-blue-50', text: 'text-blue-700', icon: CheckCircle, label: t('order.status.confirmed') },
+    preparing: { bg: 'bg-indigo-50', text: 'text-indigo-700', icon: Package, label: t('order.status.preparing') },
+    assigned: { bg: 'bg-purple-50', text: 'text-purple-700', icon: Truck, label: t('order.status.assigned') },
+    on_way: { bg: 'bg-orange-50', text: 'text-orange-700', icon: Truck, label: t('order.status.on_way') },
+    delivered: { bg: 'bg-green-50', text: 'text-green-700', icon: Truck, label: t('order.status.delivered') },
+    cancelled: { bg: 'bg-red-50', text: 'text-red-700', icon: AlertCircle, label: t('order.status.cancelled') },
+  };
+
   useEffect(() => {
     loadOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
 
   useEffect(() => {
@@ -35,17 +38,17 @@ export default function Orders({ embedded = false }) {
   }, []);
 
   const assignCourier = async () => {
-    if (!assignGroup || !assignCourierId) { toast.error('Dostavchikni tanlang'); return; }
+    if (!assignGroup || !assignCourierId) { toast.error(t('order.selectCourierFirst')); return; }
     setAssigning(true);
     try {
       const { data } = await api.put(`/orders/group/${assignGroup.group_id}/assign`, { courier_id: Number(assignCourierId) });
-      toast.success(data?.message || 'Dostavchik biriktirildi');
+      toast.success(data?.message || t('order.assignCourier'));
       setAssignGroup(null);
       setAssignCourierId('');
       setDetailGroup(null);
       loadOrders();
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Biriktirishda xatolik');
+      toast.error(err.response?.data?.detail || t('order.assignError'));
     } finally {
       setAssigning(false);
     }
@@ -59,7 +62,7 @@ export default function Orders({ embedded = false }) {
       });
       setGroups(data);
     } catch (err) {
-      toast.error('Buyurtmalarni yuklashda xatolik');
+      toast.error(t('order.loadError'));
     } finally {
       setLoading(false);
     }
@@ -68,43 +71,43 @@ export default function Orders({ embedded = false }) {
   const updateStatus = async (groupId, newStatus) => {
     try {
       await api.put(`/orders/group/${groupId}/status`, { status: newStatus });
-      toast.success(`Status yangilandi: ${STATUS_COLORS[newStatus]?.label || newStatus}`);
+      toast.success(t('order.statusUpdated', { status: STATUS_COLORS[newStatus]?.label || newStatus }));
       setDetailGroup(null);
       loadOrders();
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Yangilashda xatolik');
+      toast.error(err.response?.data?.detail || t('order.updateError'));
     }
   };
 
   const statusOptions = [
-    { value: 'pending', label: 'Kutilmoqda' },
-    { value: 'confirmed', label: 'Tasdiqlangan' },
-    { value: 'preparing', label: 'Tayyorlanmoqda' },
-    { value: 'on_way', label: "Yo'lda" },
-    { value: 'delivered', label: 'Yetkazildi' },
+    { value: 'pending', label: t('order.status.pending') },
+    { value: 'confirmed', label: t('order.status.confirmed') },
+    { value: 'preparing', label: t('order.status.preparing') },
+    { value: 'on_way', label: t('order.status.on_way') },
+    { value: 'delivered', label: t('order.status.delivered') },
   ];
 
   // Statusdan keyingi mumkin bo'lgan qadam(lar) — tugmalar shu oqimdan chiqadi
   const NEXT_STEPS = {
-    pending: [{ to: 'confirmed', label: 'Tasdiqlash', cls: 'bg-green-100 text-green-700 hover:bg-green-200' }],
+    pending: [{ to: 'confirmed', label: t('order.confirmBtn'), cls: 'bg-green-100 text-green-700 hover:bg-green-200' }],
     confirmed: [
-      { to: 'preparing', label: 'Tayyorlash', cls: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' },
-      { to: 'delivered', label: 'Yetkazildi', cls: 'bg-blue-100 text-blue-700 hover:bg-blue-200' },
+      { to: 'preparing', label: t('order.prepareBtn'), cls: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' },
+      { to: 'delivered', label: t('order.deliveredBtn'), cls: 'bg-blue-100 text-blue-700 hover:bg-blue-200' },
     ],
     preparing: [
-      { to: 'on_way', label: "Yo'lga chiqdi", cls: 'bg-orange-100 text-orange-700 hover:bg-orange-200' },
-      { to: 'delivered', label: 'Yetkazildi', cls: 'bg-blue-100 text-blue-700 hover:bg-blue-200' },
+      { to: 'on_way', label: t('order.onWayBtn'), cls: 'bg-orange-100 text-orange-700 hover:bg-orange-200' },
+      { to: 'delivered', label: t('order.deliveredBtn'), cls: 'bg-blue-100 text-blue-700 hover:bg-blue-200' },
     ],
     assigned: [
-      { to: 'on_way', label: "Yo'lga chiqdi", cls: 'bg-orange-100 text-orange-700 hover:bg-orange-200' },
-      { to: 'delivered', label: 'Yetkazildi', cls: 'bg-blue-100 text-blue-700 hover:bg-blue-200' },
+      { to: 'on_way', label: t('order.onWayBtn'), cls: 'bg-orange-100 text-orange-700 hover:bg-orange-200' },
+      { to: 'delivered', label: t('order.deliveredBtn'), cls: 'bg-blue-100 text-blue-700 hover:bg-blue-200' },
     ],
-    on_way: [{ to: 'delivered', label: 'Yetkazildi', cls: 'bg-blue-100 text-blue-700 hover:bg-blue-200' }],
+    on_way: [{ to: 'delivered', label: t('order.deliveredBtn'), cls: 'bg-blue-100 text-blue-700 hover:bg-blue-200' }],
   };
 
   const exportExcel = async () => {
     if (!groups.length) {
-      toast.error('Eksport qilish uchun buyurtma topilmadi');
+      toast.error(t('order.exportEmptyError'));
       return;
     }
     const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
@@ -112,24 +115,24 @@ export default function Orders({ embedded = false }) {
     groups.forEach(group => {
       group.items.forEach(item => {
         rows.push({
-          'Mijoz': group.customer_name,
-          'Telefon': group.customer_phone,
-          'Mahsulot': item.product_name,
-          'Miqdor': item.quantity,
-          'Narx': Number(item.unit_price),
-          'Jami': Number(item.total_amount),
-          'Status': STATUS_COLORS[group.status]?.label || group.status,
-          "To'lov turi": group.payment_type || '',
-          'Izoh': group.notes || '',
-          'Sana': new Date(group.created_at).toLocaleString('uz-UZ'),
+          [t('order.table.customer')]: group.customer_name,
+          [t('courier.phone')]: group.customer_phone,
+          [t('order.table.products')]: item.product_name,
+          [t('common.quantity')]: item.quantity,
+          [t('common.price')]: Number(item.unit_price),
+          [t('order.table.total')]: Number(item.total_amount),
+          [t('order.table.status')]: STATUS_COLORS[group.status]?.label || group.status,
+          [t('sale.paymentType')]: group.payment_type || '',
+          [t('common.note')]: group.notes || '',
+          [t('order.date')]: new Date(group.created_at).toLocaleString('uz-UZ'),
         });
       });
     });
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Buyurtmalar');
+    XLSX.utils.book_append_sheet(wb, ws, t('order.title'));
     const today = new Date().toISOString().slice(0, 10);
-    saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `buyurtmalar_${today}.xlsx`);
+    saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `orders_${today}.xlsx`);
   };
 
   return (
@@ -138,8 +141,8 @@ export default function Orders({ embedded = false }) {
         {/* Header */}
         {!embedded && (
           <div className="mb-6">
-            <h1 className="text-3xl font-bold text-slate-800">Buyurtmalar</h1>
-            <p className="text-slate-600 mt-1">Mijoz buyurtmalarini boshqarish</p>
+            <h1 className="text-3xl font-bold text-slate-800">{t('order.title')}</h1>
+            <p className="text-slate-600 mt-1">{t('order.subtitle')}</p>
           </div>
         )}
 
@@ -165,7 +168,7 @@ export default function Orders({ embedded = false }) {
             className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-semibold rounded-lg border border-emerald-200 transition-colors"
           >
             <Download className="w-4 h-4" />
-            Excelga eksport
+            {t('order.exportExcel')}
           </button>
         </div>
 
@@ -173,23 +176,23 @@ export default function Orders({ embedded = false }) {
         <div className="bg-white rounded-xl shadow overflow-hidden">
           {loading ? (
             <div className="p-8 text-center text-slate-500">
-              Yuklanimoqda...
+              {t('order.loading')}
             </div>
           ) : groups.length === 0 ? (
             <div className="p-8 text-center text-slate-500">
-              Buyurtmalar topilmadi
+              {t('order.notFound')}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Mijoz</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Mahsulotlar</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Jami narx</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Status</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Vaqt</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Amal</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">{t('order.table.customer')}</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">{t('order.table.products')}</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">{t('order.table.total')}</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">{t('order.table.status')}</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">{t('order.table.time')}</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">{t('order.table.action')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
@@ -207,7 +210,7 @@ export default function Orders({ embedded = false }) {
                           <div className="font-medium text-slate-800">{group.customer_name}</div>
                           <div className="text-xs text-slate-500">{group.customer_phone}</div>
                           <div className="text-[11px] mt-0.5 font-medium text-slate-400">
-                            {group.delivery_type === 'delivery' ? 'Yetkazib berish' : 'Olib ketish'}
+                            {group.delivery_type === 'delivery' ? t('order.delivery') : t('order.pickup')}
                             {group.courier_name && <span className="ml-1.5 text-purple-500">· {group.courier_name}</span>}
                           </div>
                         </td>
@@ -216,7 +219,7 @@ export default function Orders({ embedded = false }) {
                             <span>{group.items[0].product_name} <span className="text-slate-400">× {group.items[0].quantity}</span></span>
                           ) : (
                             <span className="inline-flex items-center gap-1.5 text-blue-600 font-medium">
-                              <Package className="w-3.5 h-3.5" /> {itemsCount} ta mahsulot
+                              <Package className="w-3.5 h-3.5" /> {t('order.itemsCount', { count: itemsCount })}
                             </span>
                           )}
                         </td>
@@ -237,7 +240,7 @@ export default function Orders({ embedded = false }) {
                                 onClick={() => { setAssignGroup(group); setAssignCourierId(String(group.courier_id || '')); }}
                                 className="px-3 py-1 rounded text-sm bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors"
                               >
-                                {group.courier_name ? 'Kuryerni almashtirish' : 'Kuryer biriktirish'}
+                                {group.courier_name ? t('order.reassignCourier') : t('order.assignCourier')}
                               </button>
                             )}
                             {(NEXT_STEPS[group.status] || []).map(step => (
@@ -263,19 +266,19 @@ export default function Orders({ embedded = false }) {
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
           <div className="bg-white p-4 rounded-lg shadow">
-            <div className="text-sm text-slate-600 mb-1">Kutilmoqda</div>
+            <div className="text-sm text-slate-600 mb-1">{t('order.status.pending')}</div>
             <div className="text-2xl font-bold text-yellow-600">
               {groups.filter(g => g.status === 'pending').length}
             </div>
           </div>
           <div className="bg-white p-4 rounded-lg shadow">
-            <div className="text-sm text-slate-600 mb-1">Tasdiqlangan</div>
+            <div className="text-sm text-slate-600 mb-1">{t('order.status.confirmed')}</div>
             <div className="text-2xl font-bold text-blue-600">
               {groups.filter(g => g.status === 'confirmed').length}
             </div>
           </div>
           <div className="bg-white p-4 rounded-lg shadow">
-            <div className="text-sm text-slate-600 mb-1">Yetkazildi</div>
+            <div className="text-sm text-slate-600 mb-1">{t('order.status.delivered')}</div>
             <div className="text-2xl font-bold text-green-600">
               {groups.filter(g => g.status === 'delivered').length}
             </div>
@@ -313,16 +316,16 @@ export default function Orders({ embedded = false }) {
             <div className="px-6 py-4 border-t border-slate-100">
               {/* Yetkazib berish ma'lumotlari */}
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-slate-500">Turi</span>
+                <span className="text-sm text-slate-500">{t('order.deliveryType')}</span>
                 <span className="text-sm font-medium text-slate-700">
-                  {detailGroup.delivery_type === 'delivery' ? 'Yetkazib berish' : 'Olib ketish'}
+                  {detailGroup.delivery_type === 'delivery' ? t('order.delivery') : t('order.pickup')}
                 </span>
               </div>
               {detailGroup.delivery_type === 'delivery' && (
                 <>
                   {detailGroup.delivery_address && (
                     <div className="flex items-start justify-between gap-3 mb-2">
-                      <span className="text-sm text-slate-500 shrink-0">Manzil</span>
+                      <span className="text-sm text-slate-500 shrink-0">{t('order.address')}</span>
                       <span className="text-sm text-slate-700 text-right">
                         {detailGroup.delivery_address}
                         {detailGroup.delivery_lat && detailGroup.delivery_lng && (
@@ -330,25 +333,25 @@ export default function Orders({ embedded = false }) {
                             href={`https://maps.google.com/?q=${detailGroup.delivery_lat},${detailGroup.delivery_lng}`}
                             target="_blank" rel="noreferrer"
                             className="ml-2 text-blue-500 hover:underline whitespace-nowrap"
-                          >Xaritada ochish</a>
+                          >{t('order.openInMap')}</a>
                         )}
                       </span>
                     </div>
                   )}
                   {detailGroup.contact_phone && (
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-slate-500">Aloqa tel</span>
+                      <span className="text-sm text-slate-500">{t('order.contactPhone')}</span>
                       <a href={`tel:${detailGroup.contact_phone}`} className="text-sm text-blue-600 hover:underline">{detailGroup.contact_phone}</a>
                     </div>
                   )}
                   {Number(detailGroup.delivery_fee) > 0 && (
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-slate-500">Yetkazish haqi</span>
+                      <span className="text-sm text-slate-500">{t('order.deliveryFee')}</span>
                       <span className="text-sm text-slate-700">+{fmt(detailGroup.delivery_fee)} so'm</span>
                     </div>
                   )}
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-slate-500">Dostavchik</span>
+                    <span className="text-sm text-slate-500">{t('order.courier')}</span>
                     {detailGroup.courier_name ? (
                       <span className="text-sm font-medium text-purple-600">{detailGroup.courier_name}
                         {detailGroup.courier_phone && <a href={`tel:${detailGroup.courier_phone}`} className="ml-1.5 text-blue-500 hover:underline">{detailGroup.courier_phone}</a>}
@@ -358,20 +361,20 @@ export default function Orders({ embedded = false }) {
                         <button
                           onClick={() => { setAssignGroup(detailGroup); setAssignCourierId(''); }}
                           className="text-sm text-purple-600 font-semibold hover:underline"
-                        >+ Biriktirish</button>
+                        >+ {t('order.assignCourier')}</button>
                       ) : <span className="text-sm text-slate-400">—</span>
                     )}
                   </div>
                 </>
               )}
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-slate-500">Jami</span>
+                <span className="text-sm text-slate-500">{t('order.total')}</span>
                 <span className="text-lg font-bold text-slate-800">
                   {fmt(Number(detailGroup.total_amount) + (detailGroup.delivery_type === 'delivery' ? Number(detailGroup.delivery_fee || 0) : 0))} so'm
                 </span>
               </div>
               <div className="flex items-center justify-between mb-4">
-                <span className="text-sm text-slate-500">Sana</span>
+                <span className="text-sm text-slate-500">{t('order.date')}</span>
                 <span className="text-sm text-slate-700">{new Date(detailGroup.created_at).toLocaleString('uz-UZ')}</span>
               </div>
               <div className="flex gap-2">
@@ -401,7 +404,7 @@ export default function Orders({ embedded = false }) {
           <div className="absolute inset-0 bg-black/40" onClick={() => !assigning && setAssignGroup(null)} />
           <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-xl p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-800">Dostavchik biriktirish</h3>
+              <h3 className="text-base font-bold text-slate-800">{t('order.assignCourierModalTitle')}</h3>
               <button onClick={() => !assigning && setAssignGroup(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100">
                 <X className="w-4 h-4 text-slate-500" />
               </button>
@@ -412,7 +415,7 @@ export default function Orders({ embedded = false }) {
             </p>
             {couriers.length === 0 ? (
               <p className="text-sm text-slate-400 text-center py-4">
-                Faol dostavchik yo'q — avval "Dostavchiklar" tabidan qo'shing
+                {t('order.noActiveCouriers')}
               </p>
             ) : (
               <select
@@ -420,10 +423,10 @@ export default function Orders({ embedded = false }) {
                 onChange={e => setAssignCourierId(e.target.value)}
                 className="w-full h-11 px-3 border border-slate-200 rounded-xl text-sm bg-white focus:border-blue-500 outline-none"
               >
-                <option value="">Dostavchikni tanlang...</option>
+                <option value="">{t('order.selectCourier')}</option>
                 {couriers.map(c => (
                   <option key={c.id} value={c.id}>
-                    {c.name} ({c.phone}){c.active_orders ? ` — ${c.active_orders} faol` : ''}
+                    {c.name} ({c.phone}){c.active_orders ? ` — ${c.active_orders}` : ''}
                   </option>
                 ))}
               </select>
@@ -433,7 +436,7 @@ export default function Orders({ embedded = false }) {
               disabled={assigning || !assignCourierId}
               className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white rounded-xl font-semibold text-sm transition-colors"
             >
-              {assigning ? 'Biriktirilmoqda...' : 'Biriktirish'}
+              {assigning ? t('order.assigning') : t('order.assign')}
             </button>
           </div>
         </div>

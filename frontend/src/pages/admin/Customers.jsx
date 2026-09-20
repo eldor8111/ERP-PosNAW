@@ -2253,9 +2253,9 @@ export default function Customers() {
   const [tab, setTab] = useState('mijozlar');
   const TABS = [
     { id: 'mijozlar', label: t('customer.customers'), icon: <Users className='size-4 text-blue-600' /> },
-    { id: 'tolov', label: "To'lov qabul qilish", icon: <CreditCard className='size-4 text-blue-600' /> },
-    { id: 'buyurtmalar', label: "Buyurtmalar", icon: <Package className='size-4 text-blue-600' /> },
-    { id: 'dostavchiklar', label: "Dostavchiklar", icon: <Truck className='size-4 text-blue-600' /> },
+    { id: 'tolov', label: t('customer.paymentTab'), icon: <CreditCard className='size-4 text-blue-600' /> },
+    { id: 'buyurtmalar', label: t('customer.ordersTab'), icon: <Package className='size-4 text-blue-600' /> },
+    { id: 'dostavchiklar', label: t('customer.couriersTab'), icon: <Truck className='size-4 text-blue-600' /> },
   ];
   const [customers, setCustomers] = useState([]);
   const [currencies, setCurrencies] = useState([]);
