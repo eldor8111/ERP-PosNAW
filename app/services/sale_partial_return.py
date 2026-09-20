@@ -37,7 +37,7 @@ def process_partial_return(
         sale_item = db.query(SaleItem).filter(
             SaleItem.id == ret_item.sale_item_id,
             SaleItem.sale_id == original_sale.id
-        ).first()
+        ).with_for_update().first()
         if not sale_item:
             raise HTTPException(status_code=404, detail=f"Sotuv elementi topilmadi: {ret_item.sale_item_id}")
         
