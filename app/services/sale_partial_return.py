@@ -208,6 +208,26 @@ def process_partial_return(
     if total_qty > 0:
         if total_returned >= total_qty:
             original_sale.status = SaleStatus.refunded  # type: ignore
+
+            # Sotuv to'liq qaytarilganda berilgan/ishlatilgan ball va bonusni
+            # ham qaytarib olamiz — aks holda mijoz tovarni qaytarib, pulini
+            # olib, ball/bonusni ham saqlab qolgan bo'lardi.
+            if customer:
+                earned = int(original_sale.loyalty_points_earned or 0)
+                if earned > 0:
+                    customer.loyalty_points = max(0, (customer.loyalty_points or 0) - earned)
+
+                used = int(original_sale.loyalty_points_used or 0)
+                if used > 0:
+                    customer.loyalty_points = (customer.loyalty_points or 0) + used
+
+                spent_bonus = Decimal(str(original_sale.paid_cashback or 0))
+                if spent_bonus > 0:
+                    customer.bonus_balance = (customer.bonus_balance or Decimal("0")) + spent_bonus
+
+                earned_bonus = Decimal(str(original_sale.cashback_earned or 0))
+                if earned_bonus > 0:
+                    customer.bonus_balance = max(Decimal("0"), (customer.bonus_balance or Decimal("0")) - earned_bonus)
         elif total_returned > 0:
             original_sale.status = SaleStatus.partial_refund  # type: ignore
 

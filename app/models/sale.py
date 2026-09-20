@@ -42,6 +42,7 @@ class Sale(Base):
     paid_cash = Column(Numeric(20, 4), default=0)
     paid_card = Column(Numeric(20, 4), default=0)
     paid_cashback = Column(Numeric(20, 4), default=0)
+    cashback_earned = Column(Numeric(20, 4), default=0)
     payment_type = Column(Enum(PaymentType), nullable=False)
     status = Column(Enum(SaleStatus), default=SaleStatus.completed)
     note = Column(Text, nullable=True)

@@ -233,6 +233,7 @@ def create_sale(
         raise HTTPException(status_code=400, detail="Qarzga sotish uchun mijozni tanlash majburiy")
 
     loyalty_earned = 0
+    cashback_earned_amount = Decimal("0")
     prev_debt_balance = 0.0
     prev_debt_balances = None
     if data.customer_id:
@@ -266,6 +267,7 @@ def create_sale(
         if getattr(customer, "cashback_percent", 0) > 0:
             cashback_amount = (total_amount * customer.cashback_percent) / Decimal("100")
             customer.bonus_balance = (customer.bonus_balance or Decimal("0")) + cashback_amount
+            cashback_earned_amount = cashback_amount
         customer.total_spent = (customer.total_spent or Decimal("0")) + total_amount
 
         loyalty_earned = int(total_amount * Decimal("0.01"))
@@ -353,6 +355,7 @@ def create_sale(
         paid_cash=data.paid_cash,
         paid_card=data.paid_card,
         paid_cashback=paid_cashback_amount,
+        cashback_earned=cashback_earned_amount,
         payment_type=data.payment_type,
         status=SaleStatus.completed,
         note=data.note,
