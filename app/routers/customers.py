@@ -189,6 +189,44 @@ def _calc_debt_in_uzs(balances: dict, db: Session, currency_map: Optional[dict] 
     return total
 
 
+def _allocate_debt_payment_fifo(db: Session, customer_id: int, company_id: int, amount_uzs: Decimal) -> None:
+    """To'lovni mijozning eng eski qarzga sotilgan Sale yozuvlariga (FIFO) taqsimlaydi.
+
+    Bu Customer.debt_balance/debt_balances (agregat) dan mustaqil ravishda
+    har bir Sale.paid_amount ni yangilaydi - aks holda to'lov qilingandan
+    keyin ham individual sotuvlar "to'lanmagan" bo'lib ko'rinaveradi.
+    """
+    from app.models.sale import Sale, SaleStatus
+
+    if amount_uzs <= Decimal("0.01"):
+        return
+
+    outstanding_sales = db.query(Sale).filter(
+        Sale.customer_id == customer_id,
+        Sale.company_id == company_id,
+        Sale.total_amount > Sale.paid_amount,
+        Sale.status != SaleStatus.cancelled,
+    ).order_by(Sale.created_at.asc()).with_for_update().all()
+
+    remaining = amount_uzs
+    for sale in outstanding_sales:
+        if remaining <= Decimal("0.01"):
+            break
+        sale_rate = Decimal(str(sale.exchange_rate or 1))
+        outstanding_in_sale_cur = Decimal(str(sale.total_amount)) - Decimal(str(sale.paid_amount or 0))
+        if outstanding_in_sale_cur <= 0:
+            continue
+        outstanding_uzs = outstanding_in_sale_cur * sale_rate
+
+        if remaining >= outstanding_uzs:
+            sale.paid_amount = Decimal(str(sale.total_amount))
+            remaining -= outstanding_uzs
+        else:
+            applied_in_sale_cur = remaining / sale_rate
+            sale.paid_amount = Decimal(str(sale.paid_amount or 0)) + applied_in_sale_cur
+            remaining = Decimal("0")
+
+
 def _normalize_customer_balances(balances: Optional[dict], debt_balance: Decimal, debt_currency: str) -> dict:
     """Mijozning valyuta bo'yicha qarzlarini yagona formatga keltiradi."""
     result = {str(k).strip().upper(): float(v) for k, v in dict(balances or {}).items()}
@@ -942,6 +980,9 @@ def pay_debt(customer_id: int, data: DebtUpdate, db: Session = Depends(get_db),
             
         payment_in_uzs = payment_amount * payment_rate
         remaining_uzs = payment_in_uzs
+
+        # Individual Sale yozuvlariga eng eskisidan boshlab (FIFO) taqsimlash
+        _allocate_debt_payment_fifo(db, customer_id, current_user.company_id, payment_in_uzs)
 
         # 1) Avval to'lov valyutasidagi qarzdan ayiramiz
         if payment_currency in cust.debt_balances and float(cust.debt_balances[payment_currency]) > 0:
