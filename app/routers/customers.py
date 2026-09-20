@@ -1016,7 +1016,7 @@ def pay_debt(customer_id: int, data: DebtUpdate, db: Session = Depends(get_db),
         cust.debt_balance = max(Decimal("0"), (cust.debt_balance or Decimal("0")) - payment_in_uzs)
 
         if wallet:
-            wallet.balance = float(wallet.balance or 0) + float(p.amount)
+            wallet.balance = Decimal(str(wallet.balance or 0)) + Decimal(str(p.amount))
             
             tx_desc = data.reason or f"Mijoz to'lovi: {cust.name}"
             if payment_currency != "UZS":

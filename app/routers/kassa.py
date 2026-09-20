@@ -1,5 +1,6 @@
 from datetime import datetime, timezone, date
 from typing import Optional, List
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -264,7 +265,7 @@ def create_expense(data: ExpenseCreate, db: Session = Depends(get_db), current_u
         payment_type=data.payment_type, reference_type="expense",
         reference_id=exp.id, description=data.description or (cat.name if cat else "Xarajat"))
     db.add(tx)
-    w.balance = float(w.balance or 0) - data.amount
+    w.balance = Decimal(str(w.balance or 0)) - Decimal(str(data.amount))
     db.commit()
     return {"ok": True, "expense_id": exp.id}
 
@@ -280,7 +281,7 @@ def update_expense(expense_id: int, data: ExpenseUpdate, db: Session = Depends(g
         raise HTTPException(404, "Kassa topilmadi")
 
     # Revert old amount from wallet balance
-    w.balance = float(w.balance or 0) + float(exp.amount)
+    w.balance = Decimal(str(w.balance or 0)) + Decimal(str(exp.amount))
 
     # Update Expense fields
     if data.category_id is not None:
@@ -302,7 +303,7 @@ def update_expense(expense_id: int, data: ExpenseUpdate, db: Session = Depends(g
     desc = exp.description or cat_name
 
     # Apply new amount to wallet balance
-    w.balance = float(w.balance or 0) - float(exp.amount)
+    w.balance = Decimal(str(w.balance or 0)) - Decimal(str(exp.amount))
 
     # Update related KassaMovement
     mv = db.query(KassaMovement).filter(KassaMovement.reference_type == "expense", KassaMovement.reference_id == exp.id).first()
@@ -337,7 +338,7 @@ def delete_expense(expense_id: int, db: Session = Depends(get_db), current_user=
     w = db.query(Wallet).filter(Wallet.id == exp.wallet_id).first()
     if w:
         # Revert expense amount to wallet balance
-        w.balance = float(w.balance or 0) + float(exp.amount)
+        w.balance = Decimal(str(w.balance or 0)) + Decimal(str(exp.amount))
 
     # Delete related KassaMovement
     mv = db.query(KassaMovement).filter(KassaMovement.reference_type == "expense", KassaMovement.reference_id == exp.id).first()
@@ -390,7 +391,7 @@ def transfer_out(
     db.add(mv_out)
     
     if data.currency == "UZS":
-        sender.balance = float(sender.balance or 0) - data.amount
+        sender.balance = Decimal(str(sender.balance or 0)) - Decimal(str(data.amount))
         
     # 2. Qabul qiluvchiga pul qo'shiladi (KassaMovement)
     receiver_session = db.query(KassaSession).filter(KassaSession.wallet_id == receiver.id, KassaSession.status == "open").first()
@@ -410,7 +411,7 @@ def transfer_out(
     db.add(mv_in)
     
     if data.currency == "UZS":
-        receiver.balance = float(receiver.balance or 0) + data.amount
+        receiver.balance = Decimal(str(receiver.balance or 0)) + Decimal(str(data.amount))
 
     # 3. CashTransfer tarixi yozuvi
     ct = CashTransfer(
@@ -476,7 +477,7 @@ def transfer_in(
     db.add(mv)
     
     if ct.currency == "UZS":
-        receiver.balance = float(receiver.balance or 0) + float(ct.amount)
+        receiver.balance = Decimal(str(receiver.balance or 0)) + Decimal(str(ct.amount))
         
     db.commit()
     return {"ok": True}
@@ -516,7 +517,7 @@ def transfer_reject(
     db.add(mv)
     
     if ct.currency == "UZS":
-        sender.balance = float(sender.balance or 0) + float(ct.amount)
+        sender.balance = Decimal(str(sender.balance or 0)) + Decimal(str(ct.amount))
         
     db.commit()
     return {"ok": True}
@@ -667,7 +668,7 @@ def open_kassa(wallet_id: int, data: OpenKassaIn, db: Session = Depends(get_db),
         # Yopilishdagi inkasso (close_kassa) bu pulni balansdan ayiradi —
         # simmetriya uchun ochilishda qo'shamiz (faqat UZS, close bilan bir xil).
         if (data.currency or "UZS").upper() == "UZS":
-            w.balance = float(w.balance or 0) + float(data.opening_balance)
+            w.balance = Decimal(str(w.balance or 0)) + Decimal(str(data.opening_balance))
 
     db.commit()
     return {"ok": True, "session_id": session.id, "opened_at": now}
@@ -708,7 +709,7 @@ def close_kassa(wallet_id: int, data: CloseKassaIn, db: Session = Depends(get_db
         for curr in all_currencies:
             c_val = calc_map.get(curr, 0.0)
             a_val = float(act_map.get(curr, 0.0))
-            diff = c_val - a_val   # diff > 0 -> kam topildi -> out harakati
+            diff = (Decimal(str(c_val)) - Decimal(str(a_val))).quantize(Decimal("0.01"))   # diff > 0 -> kam topildi -> out harakati
 
             # 1. Kassir sanab bergan pulni "inkasso" sifatida kassa balansidan chiqarish
             if a_val > 0:
@@ -726,10 +727,10 @@ def close_kassa(wallet_id: int, data: CloseKassaIn, db: Session = Depends(get_db
                 )
                 db.add(mv_inkasso)
                 if curr == "UZS":
-                    w.balance = float(w.balance or 0) - a_val
+                    w.balance = Decimal(str(w.balance or 0)) - Decimal(str(a_val))
 
             # 2. Farqni (kamomad yoki ortiqcha) adjustment sifatida yozish
-            if abs(diff) >= 0.01:
+            if abs(diff) >= Decimal("0.01"):
                 ptype_diffs[curr] = diff
                 direction = "out" if diff > 0 else "in"
                 
@@ -748,7 +749,7 @@ def close_kassa(wallet_id: int, data: CloseKassaIn, db: Session = Depends(get_db
                 db.add(mv_adj)
                 
                 if curr == "UZS":
-                    w.balance = float(w.balance or 0) + (-diff) # Agar kamomad bo'lsa (diff>0) ayiramiz, aks holda qo'shamiz
+                    w.balance = Decimal(str(w.balance or 0)) + (-diff) # Agar kamomad bo'lsa (diff>0) ayiramiz, aks holda qo'shamiz
         
         if ptype_diffs:
             diff_summary[ptype] = ptype_diffs
@@ -808,7 +809,7 @@ def invest(wallet_id: int, data: InvestIn, db: Session = Depends(get_db), curren
         created_by=current_user.id,
     )
     db.add(mv)
-    w.balance = float(w.balance or 0) + data.amount
+    w.balance = Decimal(str(w.balance or 0)) + Decimal(str(data.amount))
     db.commit()
     return {"ok": True}
 
@@ -829,7 +830,7 @@ def withdraw(wallet_id: int, data: WithdrawIn, db: Session = Depends(get_db), cu
         if item["currency"] == data.currency:
             currency_balance = item["value"]
             break
-    if currency_balance < data.amount:
+    if Decimal(str(currency_balance)).quantize(Decimal("0.01")) < Decimal(str(data.amount)).quantize(Decimal("0.01")):
         raise HTTPException(400, f"{data.payment_type} ({data.currency}) bo'yicha balans yetarli emas")
 
     session = db.query(KassaSession).filter(KassaSession.wallet_id == wallet_id, KassaSession.status == "open").first()
@@ -847,7 +848,7 @@ def withdraw(wallet_id: int, data: WithdrawIn, db: Session = Depends(get_db), cu
         created_by=current_user.id,
     )
     db.add(mv)
-    w.balance = float(w.balance or 0) - data.amount
+    w.balance = Decimal(str(w.balance or 0)) - Decimal(str(data.amount))
     db.commit()
     return {"ok": True}
 
