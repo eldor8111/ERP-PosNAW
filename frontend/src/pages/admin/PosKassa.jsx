@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import usePosSync from '../../hooks/usePosSync';
 import { toast } from '../../utils/toast';
 import api from '../../api/axios';
-import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
+import { getReceiptSettings, saveReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
 import { useActiveShift } from '../../hooks/useActiveShift';
 import ShiftOpenModal from '../../components/ShiftOpenModal';
 import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
@@ -176,6 +176,22 @@ const navigate = useNavigate();
       const s = JSON.parse(localStorage.getItem('pos_desktop_settings') || '{}');
       if (s.defaultCustomer) setCustId(s.defaultCustomer);
     }).finally(() => setRefreshing(false));
+
+    // Chek shabloni sozlamalarini kompaniya (backend) dan sinxronlash - aks
+    // holda bu terminal hech qachon Sozlamalar sahifasini ochmagan bo'lsa,
+    // eski/bo'sh shablon bilan chop etaveradi.
+    api.get('/companies/me/receipt_templates').then(r => {
+      const d = r.data?.receipt_templates || {};
+      if (d.r58 || d.r80 || d.nak) {
+        const existing = getReceiptSettings();
+        saveReceiptSettings({
+          ...existing,
+          ...(d.r58 ? { r58: d.r58 } : {}),
+          ...(d.r80 ? { r80: d.r80 } : {}),
+          ...(d.nak ? { nak: d.nak } : {}),
+        });
+      }
+    }).catch(() => { /* ignore - lokal keshdan foydalanaveradi */ });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
