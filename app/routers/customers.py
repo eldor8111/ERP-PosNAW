@@ -918,7 +918,7 @@ def pay_debt(customer_id: int, data: DebtUpdate, db: Session = Depends(get_db),
 
     q = db.query(Customer).filter(Customer.id == customer_id)
     q = q.filter(Customer.company_id == current_user.company_id)
-    cust = q.first()
+    cust = q.with_for_update().first()
     if not cust:
         raise HTTPException(status_code=404, detail="Customer not found")
     currency = data.currency or "UZS"
