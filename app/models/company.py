@@ -40,6 +40,10 @@ class Company(Base):
     # (do'kon xodimi keyin tasdiqlash/rad etish orqali hal qiladi).
     shop_allow_out_of_stock_orders = Column(Boolean, default=True)
 
+    # Yetkazib berish haqi (Mini App buyurtmalarida 'delivery' tanlansa
+    # buyurtma summasiga qo'shiladi). 0 = bepul yetkazish.
+    delivery_fee = Column(Numeric(14, 2), default=0)
+
     # ── POS sozlamalari ──
     # True (standart) — mavjud xatti-harakat: qoldiq yetarli bo'lmasa ham
     # sotish mumkin (qoldiq minusga tushadi). False — sotuvda minus

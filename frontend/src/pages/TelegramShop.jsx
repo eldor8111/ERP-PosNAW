@@ -11,6 +11,9 @@ const fmtDate = (d) => d ? new Date(d).toLocaleString('uz-UZ', { day: '2-digit',
 const ORDER_STATUS = {
   pending: { label: 'Kutilmoqda', icon: Clock, bg: 'bg-yellow-50', text: 'text-yellow-700' },
   confirmed: { label: 'Tasdiqlangan', icon: CheckCircle2, bg: 'bg-blue-50', text: 'text-blue-700' },
+  preparing: { label: 'Tayyorlanmoqda', icon: Package, bg: 'bg-indigo-50', text: 'text-indigo-700' },
+  assigned: { label: 'Kuryerda', icon: Truck, bg: 'bg-purple-50', text: 'text-purple-700' },
+  on_way: { label: "Yo'lda", icon: Truck, bg: 'bg-orange-50', text: 'text-orange-700' },
   delivered: { label: 'Yetkazildi', icon: Truck, bg: 'bg-green-50', text: 'text-green-700' },
   cancelled: { label: 'Bekor qilindi', icon: AlertCircle, bg: 'bg-red-50', text: 'text-red-700' },
 }
@@ -154,6 +157,13 @@ export default function TelegramShop() {
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [orderError, setOrderError] = useState(null)
+  // Yetkazib berish
+  const [deliveryType, setDeliveryType] = useState('pickup')
+  const [deliveryAddress, setDeliveryAddress] = useState('')
+  const [contactPhone, setContactPhone] = useState('')
+  const [geoLoc, setGeoLoc] = useState(null) // {lat, lng}
+  const [geoBusy, setGeoBusy] = useState(false)
+  const [deliveryFee, setDeliveryFee] = useState(0)
 
   const api = useMemo(() => shopApi(initData, urlUser, urlToken), [initData, urlUser, urlToken])
 
@@ -183,6 +193,7 @@ export default function TelegramShop() {
         setError('Mahsulotlarni yuklab bo\'lmadi. Qayta urinib ko\'ring.')
       } else {
         setShopName(info?.name || 'Do\'kon')
+        setDeliveryFee(Number(info?.delivery_fee || 0))
         setProducts(prods)
         setCategories(cats || [])
       }
@@ -321,14 +332,37 @@ export default function TelegramShop() {
     }).catch(() => {})
   }, [meData])
 
+  const requestGeo = () => {
+    if (!navigator.geolocation || geoBusy) return
+    setGeoBusy(true)
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        setGeoLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+        setGeoBusy(false)
+        safeTg(tg => tg?.HapticFeedback?.impactOccurred?.('light'))
+      },
+      () => setGeoBusy(false),
+      { enableHighAccuracy: true, timeout: 8000 },
+    )
+  }
+
   const submitOrder = async () => {
     if (!cartItems.length || submitting) return
+    if (deliveryType === 'delivery' && !deliveryAddress.trim()) {
+      setOrderError('Yetkazib berish uchun manzilni kiriting')
+      return
+    }
     setSubmitting(true)
     setOrderError(null)
     try {
       await api.post(`/shop/${companyId}/order`, {
         items: cartItems.map(i => ({ product_id: i.id, quantity: i.qty })),
         payment_type: 'cash',
+        delivery_type: deliveryType,
+        delivery_address: deliveryType === 'delivery' ? deliveryAddress.trim() : null,
+        contact_phone: contactPhone.trim() || null,
+        delivery_lat: deliveryType === 'delivery' ? (geoLoc?.lat ?? null) : null,
+        delivery_lng: deliveryType === 'delivery' ? (geoLoc?.lng ?? null) : null,
       })
       safeTg(tg => tg?.HapticFeedback?.notificationOccurred?.('success'))
       setSuccess(true)
@@ -635,14 +669,64 @@ export default function TelegramShop() {
                 </div>
 
                 <div className="px-5 py-4 border-t border-slate-100 bg-white">
+                  {/* Yetkazish / olib ketish tanlovi */}
+                  <div className="flex gap-2 mb-3">
+                    <button
+                      onClick={() => setDeliveryType('pickup')}
+                      className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-colors ${deliveryType === 'pickup' ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-slate-600 border-slate-200'}`}
+                    >
+                      🏬 Olib ketish
+                    </button>
+                    <button
+                      onClick={() => setDeliveryType('delivery')}
+                      className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-colors ${deliveryType === 'delivery' ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-slate-600 border-slate-200'}`}
+                    >
+                      🚚 Yetkazib berish
+                    </button>
+                  </div>
+
+                  {deliveryType === 'delivery' && (
+                    <div className="mb-3 space-y-2">
+                      <textarea
+                        value={deliveryAddress}
+                        onChange={e => setDeliveryAddress(e.target.value)}
+                        placeholder="Yetkazish manzili (ko'cha, uy, mo'ljal)..."
+                        rows={2}
+                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-blue-400 resize-none"
+                      />
+                      <div className="flex gap-2">
+                        <input
+                          value={contactPhone}
+                          onChange={e => setContactPhone(e.target.value)}
+                          placeholder="Telefon raqam"
+                          inputMode="tel"
+                          className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-blue-400"
+                        />
+                        <button
+                          onClick={requestGeo}
+                          disabled={geoBusy}
+                          className={`px-3 py-2 rounded-xl text-xs font-semibold border whitespace-nowrap ${geoLoc ? 'bg-green-50 text-green-600 border-green-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}
+                        >
+                          {geoBusy ? '...' : geoLoc ? '📍 Biriktirildi ✓' : '📍 Joylashuv'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {orderError && (
                     <div className="mb-3 px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">
                       {orderError}
                     </div>
                   )}
+                  {deliveryType === 'delivery' && deliveryFee > 0 && (
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-slate-400">Yetkazib berish</span>
+                      <span className="text-xs font-semibold text-slate-600">+{fmt(deliveryFee)} so'm</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-sm text-slate-500">Jami</span>
-                    <span className="text-lg font-bold text-slate-800">{fmt(cartTotal)} so'm</span>
+                    <span className="text-lg font-bold text-slate-800">{fmt(cartTotal + (deliveryType === 'delivery' ? deliveryFee : 0))} so'm</span>
                   </div>
                   <button
                     onClick={submitOrder}

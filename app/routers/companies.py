@@ -74,6 +74,7 @@ class CompanyUpdate(BaseModel):
     daily_report_recipients: Optional[str] = None
     shop_allow_out_of_stock_orders: Optional[bool] = None
     pos_allow_negative_stock: Optional[bool] = None
+    delivery_fee: Optional[float] = None
 
 
 class ReceiptTemplatesUpdate(BaseModel):
@@ -99,6 +100,7 @@ class CompanyOut(BaseModel):
     daily_report_recipients: str = "owners_and_admins"
     shop_allow_out_of_stock_orders: bool = True
     pos_allow_negative_stock: bool = True
+    delivery_fee: float = 0
 
     class Config:
         from_attributes = True
@@ -129,6 +131,7 @@ def list_companies(
             daily_report_recipients=c.daily_report_recipients or "owners_and_admins",
             shop_allow_out_of_stock_orders=c.shop_allow_out_of_stock_orders if c.shop_allow_out_of_stock_orders is not None else True,
         pos_allow_negative_stock=c.pos_allow_negative_stock if c.pos_allow_negative_stock is not None else True,
+        delivery_fee=float(c.delivery_fee or 0) if hasattr(c, 'delivery_fee') else 0,
         ))  # type: ignore[call-arg]
     return result
 
@@ -184,6 +187,7 @@ def create_company(
         daily_report_recipients=c.daily_report_recipients or "owners_and_admins",
         shop_allow_out_of_stock_orders=c.shop_allow_out_of_stock_orders if c.shop_allow_out_of_stock_orders is not None else True,
         pos_allow_negative_stock=c.pos_allow_negative_stock if c.pos_allow_negative_stock is not None else True,
+        delivery_fee=float(c.delivery_fee or 0) if hasattr(c, 'delivery_fee') else 0,
     )  # type: ignore[call-arg]
 
 
@@ -230,6 +234,7 @@ def update_company(
         daily_report_recipients=c.daily_report_recipients or "owners_and_admins",
         shop_allow_out_of_stock_orders=c.shop_allow_out_of_stock_orders if c.shop_allow_out_of_stock_orders is not None else True,
         pos_allow_negative_stock=c.pos_allow_negative_stock if c.pos_allow_negative_stock is not None else True,
+        delivery_fee=float(c.delivery_fee or 0) if hasattr(c, 'delivery_fee') else 0,
     )  # type: ignore[call-arg]
 
 

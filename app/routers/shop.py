@@ -155,6 +155,12 @@ class OrderIn(BaseModel):
     items: List[CartItemIn]
     payment_type: Optional[str] = "cash"
     notes: Optional[str] = None
+    # Yetkazib berish: 'pickup' (olib ketish) yoki 'delivery' (yetkazish)
+    delivery_type: Optional[str] = "pickup"
+    delivery_address: Optional[str] = None
+    contact_phone: Optional[str] = None
+    delivery_lat: Optional[float] = None
+    delivery_lng: Optional[float] = None
 
 
 @router.get("/{company_id}/info")
@@ -163,7 +169,11 @@ def shop_info(company_id: int, db: Session = Depends(get_db)):
     company = db.query(Company).filter(Company.id == company_id).first()
     if not company:
         raise HTTPException(status_code=404, detail="Do'kon topilmadi")
-    return {"id": company.id, "name": company.name}
+    return {
+        "id": company.id,
+        "name": company.name,
+        "delivery_fee": float(getattr(company, "delivery_fee", 0) or 0),
+    }
 
 
 @router.get("/{company_id}/products", response_model=List[ProductOut])
@@ -260,6 +270,7 @@ def shop_my_orders(
     for order in orders:
         result.append({
             "id": order.id,
+            "order_group_id": order.order_group_id,
             "product_name": product_names.get(order.product_id, "—"),
             "quantity": order.quantity,
             "unit_price": float(order.unit_price),
@@ -267,6 +278,10 @@ def shop_my_orders(
             "status": order.status.value if hasattr(order.status, "value") else str(order.status),
             "created_at": order.created_at.isoformat() if order.created_at else None,
             "confirmed_at": order.confirmed_at.isoformat() if order.confirmed_at else None,
+            "delivery_type": getattr(order, "delivery_type", None) or "pickup",
+            "delivery_address": getattr(order, "delivery_address", None),
+            "delivery_fee": float(getattr(order, "delivery_fee", 0) or 0),
+            "delivered_at": order.delivered_at.isoformat() if getattr(order, "delivered_at", None) else None,
         })
 
     return result
@@ -388,6 +403,16 @@ def shop_create_order(
     # guruhlash uchun — CRM'da alohida qatorlarga bo'linib ketmasin.
     order_group_id = str(uuid.uuid4())
 
+    # ── Yetkazib berish ma'lumotlari ─────────────────────────────────────
+    delivery_type = (data.delivery_type or "pickup").strip().lower()
+    if delivery_type not in ("pickup", "delivery"):
+        delivery_type = "pickup"
+    delivery_address = (data.delivery_address or "").strip() or None
+    contact_phone = (data.contact_phone or "").strip() or (customer.phone or None)
+    if delivery_type == "delivery" and not delivery_address:
+        raise HTTPException(status_code=400, detail="Yetkazib berish uchun manzil kiritilishi shart")
+    delivery_fee = Decimal(str(getattr(company, "delivery_fee", 0) or 0)) if delivery_type == "delivery" else Decimal("0")
+
     # CRM > Sozlamalar > Telegram bot orqali boshqariladi: agar False bo'lsa,
     # qoldig'i yetarli bo'lmagan mahsulotlarga buyurtma berish rad etiladi.
     allow_out_of_stock = company.shop_allow_out_of_stock_orders is not False
@@ -431,6 +456,12 @@ def shop_create_order(
             status=OrderStatus.pending,
             payment_type=data.payment_type,
             notes=data.notes,
+            delivery_type=delivery_type,
+            delivery_address=delivery_address,
+            delivery_lat=data.delivery_lat,
+            delivery_lng=data.delivery_lng,
+            contact_phone=contact_phone,
+            delivery_fee=delivery_fee,
         )
         db.add(order)
         created_orders.append(order)

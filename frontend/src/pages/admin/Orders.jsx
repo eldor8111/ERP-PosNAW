@@ -9,6 +9,9 @@ const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const STATUS_COLORS = {
   pending: { bg: 'bg-yellow-50', text: 'text-yellow-700', icon: Clock, label: 'Kutilmoqda' },
   confirmed: { bg: 'bg-blue-50', text: 'text-blue-700', icon: CheckCircle, label: 'Tasdiqlangan' },
+  preparing: { bg: 'bg-indigo-50', text: 'text-indigo-700', icon: Package, label: 'Tayyorlanmoqda' },
+  assigned: { bg: 'bg-purple-50', text: 'text-purple-700', icon: Truck, label: 'Kuryerda' },
+  on_way: { bg: 'bg-orange-50', text: 'text-orange-700', icon: Truck, label: "Yo'lda" },
   delivered: { bg: 'bg-green-50', text: 'text-green-700', icon: Truck, label: 'Yetkazildi' },
   cancelled: { bg: 'bg-red-50', text: 'text-red-700', icon: AlertCircle, label: 'Bekor qilindi' },
 };
@@ -40,7 +43,7 @@ export default function Orders({ embedded = false }) {
   const updateStatus = async (groupId, newStatus) => {
     try {
       await api.put(`/orders/group/${groupId}/status`, { status: newStatus });
-      toast.success(newStatus === 'confirmed' ? 'Buyurtma tasdiqlandi' : 'Yetkazildi deb belgilandi');
+      toast.success(`Status yangilandi: ${STATUS_COLORS[newStatus]?.label || newStatus}`);
       setDetailGroup(null);
       loadOrders();
     } catch (err) {
@@ -51,8 +54,28 @@ export default function Orders({ embedded = false }) {
   const statusOptions = [
     { value: 'pending', label: '⏳ Kutilmoqda' },
     { value: 'confirmed', label: '✅ Tasdiqlangan' },
+    { value: 'preparing', label: '📦 Tayyorlanmoqda' },
+    { value: 'on_way', label: "🛵 Yo'lda" },
     { value: 'delivered', label: '🚚 Yetkazildi' },
   ];
+
+  // Statusdan keyingi mumkin bo'lgan qadam(lar) — tugmalar shu oqimdan chiqadi
+  const NEXT_STEPS = {
+    pending: [{ to: 'confirmed', label: 'Tasdiqlash', cls: 'bg-green-100 text-green-700 hover:bg-green-200' }],
+    confirmed: [
+      { to: 'preparing', label: 'Tayyorlash', cls: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' },
+      { to: 'delivered', label: 'Yetkazildi', cls: 'bg-blue-100 text-blue-700 hover:bg-blue-200' },
+    ],
+    preparing: [
+      { to: 'on_way', label: "Yo'lga chiqdi", cls: 'bg-orange-100 text-orange-700 hover:bg-orange-200' },
+      { to: 'delivered', label: 'Yetkazildi', cls: 'bg-blue-100 text-blue-700 hover:bg-blue-200' },
+    ],
+    assigned: [
+      { to: 'on_way', label: "Yo'lga chiqdi", cls: 'bg-orange-100 text-orange-700 hover:bg-orange-200' },
+      { to: 'delivered', label: 'Yetkazildi', cls: 'bg-blue-100 text-blue-700 hover:bg-blue-200' },
+    ],
+    on_way: [{ to: 'delivered', label: 'Yetkazildi', cls: 'bg-blue-100 text-blue-700 hover:bg-blue-200' }],
+  };
 
   const exportExcel = async () => {
     if (!groups.length) {
@@ -158,6 +181,9 @@ export default function Orders({ embedded = false }) {
                         <td className="px-6 py-4 text-sm">
                           <div className="font-medium text-slate-800">{group.customer_name}</div>
                           <div className="text-xs text-slate-500">{group.customer_phone}</div>
+                          <div className="text-[11px] mt-0.5 font-medium text-slate-400">
+                            {group.delivery_type === 'delivery' ? '🚚 Yetkazib berish' : '🏬 Olib ketish'}
+                          </div>
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-800">
                           {itemsCount === 1 ? (
@@ -179,22 +205,17 @@ export default function Orders({ embedded = false }) {
                           {new Date(group.created_at).toLocaleDateString('uz-UZ')}
                         </td>
                         <td className="px-6 py-4" onClick={e => e.stopPropagation()}>
-                          {group.status === 'pending' && (
-                            <button
-                              onClick={() => updateStatus(group.group_id, 'confirmed')}
-                              className="px-3 py-1 bg-green-100 text-green-700 rounded text-sm hover:bg-green-200 transition-colors"
-                            >
-                              Tasdiqlash
-                            </button>
-                          )}
-                          {group.status === 'confirmed' && (
-                            <button
-                              onClick={() => updateStatus(group.group_id, 'delivered')}
-                              className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm hover:bg-blue-200 transition-colors"
-                            >
-                              Yetkazildi
-                            </button>
-                          )}
+                          <div className="flex flex-wrap gap-1.5">
+                            {(NEXT_STEPS[group.status] || []).map(step => (
+                              <button
+                                key={step.to}
+                                onClick={() => updateStatus(group.group_id, step.to)}
+                                className={`px-3 py-1 rounded text-sm transition-colors ${step.cls}`}
+                              >
+                                {step.label}
+                              </button>
+                            ))}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -256,31 +277,64 @@ export default function Orders({ embedded = false }) {
             </div>
 
             <div className="px-6 py-4 border-t border-slate-100">
+              {/* Yetkazib berish ma'lumotlari */}
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-slate-500">Turi</span>
+                <span className="text-sm font-medium text-slate-700">
+                  {detailGroup.delivery_type === 'delivery' ? '🚚 Yetkazib berish' : '🏬 Olib ketish'}
+                </span>
+              </div>
+              {detailGroup.delivery_type === 'delivery' && (
+                <>
+                  {detailGroup.delivery_address && (
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <span className="text-sm text-slate-500 shrink-0">Manzil</span>
+                      <span className="text-sm text-slate-700 text-right">
+                        {detailGroup.delivery_address}
+                        {detailGroup.delivery_lat && detailGroup.delivery_lng && (
+                          <a
+                            href={`https://maps.google.com/?q=${detailGroup.delivery_lat},${detailGroup.delivery_lng}`}
+                            target="_blank" rel="noreferrer"
+                            className="ml-2 text-blue-500 hover:underline whitespace-nowrap"
+                          >📍 Xaritada</a>
+                        )}
+                      </span>
+                    </div>
+                  )}
+                  {detailGroup.contact_phone && (
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-slate-500">Aloqa tel</span>
+                      <a href={`tel:${detailGroup.contact_phone}`} className="text-sm text-blue-600 hover:underline">{detailGroup.contact_phone}</a>
+                    </div>
+                  )}
+                  {Number(detailGroup.delivery_fee) > 0 && (
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-slate-500">Yetkazish haqi</span>
+                      <span className="text-sm text-slate-700">+{fmt(detailGroup.delivery_fee)} so'm</span>
+                    </div>
+                  )}
+                </>
+              )}
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm text-slate-500">Jami</span>
-                <span className="text-lg font-bold text-slate-800">{fmt(detailGroup.total_amount)} so'm</span>
+                <span className="text-lg font-bold text-slate-800">
+                  {fmt(Number(detailGroup.total_amount) + (detailGroup.delivery_type === 'delivery' ? Number(detailGroup.delivery_fee || 0) : 0))} so'm
+                </span>
               </div>
               <div className="flex items-center justify-between mb-4">
                 <span className="text-sm text-slate-500">Sana</span>
                 <span className="text-sm text-slate-700">{new Date(detailGroup.created_at).toLocaleString('uz-UZ')}</span>
               </div>
               <div className="flex gap-2">
-                {detailGroup.status === 'pending' && (
+                {(NEXT_STEPS[detailGroup.status] || []).map(step => (
                   <button
-                    onClick={() => updateStatus(detailGroup.group_id, 'confirmed')}
-                    className="flex-1 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-xl font-semibold text-sm transition-colors"
+                    key={step.to}
+                    onClick={() => updateStatus(detailGroup.group_id, step.to)}
+                    className={`flex-1 py-2.5 rounded-xl font-semibold text-sm transition-colors ${step.cls}`}
                   >
-                    Tasdiqlash
+                    {step.label}
                   </button>
-                )}
-                {detailGroup.status === 'confirmed' && (
-                  <button
-                    onClick={() => updateStatus(detailGroup.group_id, 'delivered')}
-                    className="flex-1 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-semibold text-sm transition-colors"
-                  >
-                    Yetkazildi deb belgilash
-                  </button>
-                )}
+                ))}
                 {(detailGroup.status === 'delivered' || detailGroup.status === 'cancelled') && (
                   <span className={`flex-1 py-2.5 text-center rounded-xl font-semibold text-sm ${STATUS_COLORS[detailGroup.status]?.bg} ${STATUS_COLORS[detailGroup.status]?.text}`}>
                     {STATUS_COLORS[detailGroup.status]?.label}

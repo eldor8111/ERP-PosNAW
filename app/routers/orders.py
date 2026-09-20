@@ -2,7 +2,7 @@ from typing import Optional, List
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException  # type: ignore
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
 from pydantic import BaseModel  # type: ignore
 
@@ -143,6 +143,17 @@ def list_orders(
                 "confirmed_at": order.confirmed_at.isoformat() if order.confirmed_at else None,
                 "total_amount": 0.0,
                 "items": [],
+                # Yetkazib berish (guruh darajasida — barcha qatorlarda bir xil)
+                "delivery_type": getattr(order, "delivery_type", None) or "pickup",
+                "delivery_address": getattr(order, "delivery_address", None),
+                "delivery_lat": float(order.delivery_lat) if getattr(order, "delivery_lat", None) else None,
+                "delivery_lng": float(order.delivery_lng) if getattr(order, "delivery_lng", None) else None,
+                "contact_phone": getattr(order, "contact_phone", None),
+                "delivery_fee": float(getattr(order, "delivery_fee", 0) or 0),
+                "courier_id": getattr(order, "courier_id", None),
+                "assigned_at": order.assigned_at.isoformat() if getattr(order, "assigned_at", None) else None,
+                "on_way_at": order.on_way_at.isoformat() if getattr(order, "on_way_at", None) else None,
+                "delivered_at": order.delivered_at.isoformat() if getattr(order, "delivered_at", None) else None,
             }
 
         groups[key]["items"].append({
@@ -163,9 +174,44 @@ class StatusIn(BaseModel):
     status: Optional[OrderStatus] = None
 
 
+# Mijozga yuboriladigan status xabarlari (mijoz boti orqali)
+_STATUS_CUSTOMER_MSGS = {
+    OrderStatus.confirmed: "✅ Buyurtmangiz tasdiqlandi!",
+    OrderStatus.preparing: "📦 Buyurtmangiz tayyorlanmoqda...",
+    OrderStatus.assigned: "🛵 Buyurtmangiz kuryerga topshirildi.",
+    OrderStatus.on_way: "🚚 Buyurtmangiz yo'lda! Tez orada yetkaziladi.",
+    OrderStatus.delivered: "🎉 Buyurtmangiz yetkazildi. Xaridingiz uchun rahmat!",
+    OrderStatus.cancelled: "❌ Buyurtmangiz bekor qilindi.",
+}
+
+
+def _notify_customer_status(db: Session, orders: list, new_status: "OrderStatus") -> None:
+    """Status o'zgarganda mijozga mijoz boti orqali xabar (background)."""
+    try:
+        from app.models.company import Company
+        from app.services.sale_helpers import send_tg_sync
+
+        msg = _STATUS_CUSTOMER_MSGS.get(new_status)
+        if not msg or not orders:
+            return
+        customer = db.query(Customer).filter(Customer.id == orders[0].customer_id).first()
+        if not customer or not customer.tg_chat_id:
+            return
+        company = db.query(Company).filter(Company.id == customer.company_id).first()
+        if not company or not company.tg_bot_token:
+            return
+
+        total = sum(float(o.total_amount or 0) for o in orders) + float(getattr(orders[0], "delivery_fee", 0) or 0)
+        text = f"{msg}\n\n🧾 Buyurtma summasi: {total:,.0f} so'm"
+        send_tg_sync(company.tg_bot_token, customer.tg_chat_id, text)
+    except Exception:
+        pass  # bildirishnoma xatosi status yangilashni to'xtatmasin
+
+
 @router.put("/group/{group_id}/status")
 def update_order_group_status(
     group_id: str,
+    background_tasks: BackgroundTasks,
     data: Optional[StatusIn] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -187,11 +233,20 @@ def update_order_group_status(
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
 
     new_status = data.status if (data and data.status) else OrderStatus.confirmed
+    now = datetime.now(timezone.utc)
     for order in orders:
         order.status = new_status
         if new_status == OrderStatus.confirmed:
-            order.confirmed_at = datetime.now(timezone.utc)
+            order.confirmed_at = now
+        elif new_status == OrderStatus.assigned:
+            order.assigned_at = now
+        elif new_status == OrderStatus.on_way:
+            order.on_way_at = now
+        elif new_status == OrderStatus.delivered:
+            order.delivered_at = now
     db.commit()
+
+    background_tasks.add_task(_notify_customer_status, db, orders, new_status)
 
     return {"message": "Buyurtma yangilandi", "count": len(orders)}
 

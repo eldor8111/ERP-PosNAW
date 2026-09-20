@@ -8,10 +8,13 @@ from app.database import Base
 
 
 class OrderStatus(str, Enum):
-    pending = "pending"
-    confirmed = "confirmed"
-    delivered = "delivered"
-    cancelled = "cancelled"
+    pending = "pending"          # Yangi — mijoz yubordi
+    confirmed = "confirmed"      # Do'kon tasdiqladi
+    preparing = "preparing"      # Tayyorlanmoqda (yig'ilmoqda)
+    assigned = "assigned"        # Kuryerga biriktirildi
+    on_way = "on_way"            # Yo'lda
+    delivered = "delivered"      # Yetkazildi / olib ketildi
+    cancelled = "cancelled"      # Bekor qilindi
 
 
 class Order(Base):
@@ -36,6 +39,24 @@ class Order(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     confirmed_at = Column(DateTime, nullable=True)
 
+    # ── Yetkazib berish ──────────────────────────────────────────────────
+    # delivery_type: 'pickup' (olib ketish) yoki 'delivery' (yetkazish).
+    # Guruhdagi barcha qatorlarda bir xil qiymat saqlanadi (denormalizatsiya,
+    # order_group_id bo'yicha guruhlash bilan mos). delivery_fee ham har
+    # qatorga bir xil yoziladi — jamlashda guruh uchun BIR marta olinadi.
+    delivery_type = Column(String(20), nullable=True, default="pickup")
+    delivery_address = Column(String(500), nullable=True)
+    delivery_lat = Column(Numeric(10, 7), nullable=True)
+    delivery_lng = Column(Numeric(10, 7), nullable=True)
+    contact_phone = Column(String(32), nullable=True)
+    delivery_fee = Column(Numeric(14, 2), nullable=True, default=0)
+    courier_id = Column(Integer, ForeignKey("couriers.id"), nullable=True, index=True)
+    assigned_at = Column(DateTime, nullable=True)
+    on_way_at = Column(DateTime, nullable=True)
+    delivered_at = Column(DateTime, nullable=True)
+    cancel_reason = Column(String(300), nullable=True)
+
     customer = relationship("Customer", back_populates="orders")
     branch = relationship("Branch", back_populates="orders")
     product = relationship("Product")
+    courier = relationship("Courier")

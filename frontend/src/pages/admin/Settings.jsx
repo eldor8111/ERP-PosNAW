@@ -2201,14 +2201,30 @@ function FiskalTab() {
 function GeneralTab({ companyId }) {
   const [posAllowNegative, setPosAllowNegative] = useState(true);
   const [savingSetting, setSavingSetting] = useState(false);
+  const [deliveryFee, setDeliveryFee] = useState('');
+  const [savingFee, setSavingFee] = useState(false);
 
   useEffect(() => {
     api.get('/companies').then(r => {
       if (r.data?.length > 0) {
         setPosAllowNegative(r.data[0].pos_allow_negative_stock !== false);
+        setDeliveryFee(String(r.data[0].delivery_fee ?? 0));
       }
     }).catch(e => toast.error(e.response?.data?.detail || e.message));
   }, []);
+
+  const saveDeliveryFee = async () => {
+    if (!companyId) return;
+    setSavingFee(true);
+    try {
+      await api.put(`/companies/${companyId}`, { delivery_fee: Number(deliveryFee) || 0 });
+      toast.success('Yetkazish haqi saqlandi');
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Xatolik yuz berdi');
+    } finally {
+      setSavingFee(false);
+    }
+  };
 
   const togglePosNegative = async (checked) => {
     if (!companyId) return;
@@ -2244,6 +2260,32 @@ function GeneralTab({ companyId }) {
             className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${posAllowNegative ? 'bg-blue-600' : 'bg-slate-200'}`}
           >
             <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${posAllowNegative ? 'translate-x-6' : 'translate-x-1'}`} />
+          </button>
+        </div>
+      </div>
+
+      <div className="max-w-xl bg-white border border-slate-200 rounded-2xl p-5">
+        <h3 className="text-sm font-bold text-slate-800 mb-4">Yetkazib berish sozlamalari</h3>
+        <div className="flex items-end gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-slate-700 mb-1.5">Yetkazish haqi (so'm)</p>
+            <p className="text-[11px] text-slate-400 mb-2 leading-snug">
+              Mini App'da mijoz "Yetkazib berish"ni tanlasa, buyurtma summasiga qo'shiladi. 0 = bepul.
+            </p>
+            <input
+              type="number" min="0"
+              value={deliveryFee}
+              onChange={e => setDeliveryFee(e.target.value)}
+              className="w-full h-10 px-3 border border-slate-200 rounded-xl text-sm focus:border-blue-500 outline-none"
+              placeholder="0"
+            />
+          </div>
+          <button
+            onClick={saveDeliveryFee}
+            disabled={savingFee}
+            className="h-10 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold rounded-xl transition-colors"
+          >
+            {savingFee ? 'Saqlanmoqda...' : 'Saqlash'}
           </button>
         </div>
       </div>

@@ -15,6 +15,7 @@ from .batch import Batch  # type: ignore
 from .moliya import ExpenseCategory, Expense, Transaction, KassaSession, KassaMovement, PAYMENT_TYPES  # type: ignore
 from .customer import Customer  # type: ignore
 from .shift import Shift  # type: ignore
+from .courier import Courier  # type: ignore
 from .branch import Branch  # type: ignore
 from .currency import Currency, CurrencyRate  # type: ignore
 from .api_key import ApiKey  # type: ignore
