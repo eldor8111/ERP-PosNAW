@@ -4,7 +4,7 @@ from typing import Optional
 import threading
 
 from fastapi import HTTPException
-from sqlalchemy import or_
+
 from sqlalchemy.orm import Session
 
 from app.core.audit import log_action
@@ -377,17 +377,27 @@ def create_sale(
         sale_create_kwargs['idempotency_key'] = idempotency_key
 
     # Sotuvni kassir smenasiga aniq bog'laymiz. Oflayn sotuv (created_at
-    # yuborilgan) uchun avval O'SHA VAQTDA ochiq bo'lgan smenani qidiramiz —
-    # pul jismonan o'sha smena g'aladonida bo'lgan va uning yopilish sanog'iga
-    # kirgan. Topilmasa (yoki oddiy onlayn sotuv) — hozirgi ochiq smena.
+    # yuborilgan) uchun avval o'sha vaqtni qamrab olgan smenani qidiramiz.
+    # XAVFSIZLIK: faqat hali OCHIQ smenaga bog'laymiz — yopiq smenaning
+    # inkassosi allaqachon hisoblangan, unga retro-bog'lash soxta created_at
+    # bilan bugungi kutilgan g'aladon summasidan pulni "yashirish" yo'lini
+    # ochardi. Kelajakdagi created_at ham e'tiborga olinmaydi.
     from app.models.shift import Shift as _Shift
     _shift = None
-    if getattr(data, 'created_at', None):
-        _shift = db.query(_Shift).filter(
-            _Shift.cashier_id == current_user.id,
-            _Shift.opened_at <= data.created_at,
-            or_(_Shift.closed_at.is_(None), _Shift.closed_at >= data.created_at),
-        ).order_by(_Shift.opened_at.desc()).first()
+    _cat = getattr(data, 'created_at', None)
+    if _cat is not None:
+        # tz-aware bo'lsa UTC ga keltirib naive qilamiz — Shift.opened_at
+        # naive-UTC saqlanadi, aralash solishtirish 5 soatlik siljish beradi.
+        if getattr(_cat, 'tzinfo', None) is not None:
+            from datetime import timezone as _tz
+            _cat = _cat.astimezone(_tz.utc).replace(tzinfo=None)
+        from datetime import datetime as _dt
+        if _cat <= _dt.utcnow():
+            _shift = db.query(_Shift).filter(
+                _Shift.cashier_id == current_user.id,
+                _Shift.status == "open",
+                _Shift.opened_at <= _cat,
+            ).order_by(_Shift.opened_at.desc()).first()
     if _shift is None:
         _shift = db.query(_Shift).filter(
             _Shift.cashier_id == current_user.id,

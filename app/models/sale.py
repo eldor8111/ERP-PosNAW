@@ -61,7 +61,9 @@ class Sale(Base):
     # Takroriy sotuvdan himoya: POS har sotuvni Idempotency-Key: <uuid>
     # headeri bilan yuboradi (oflayn navbatdan qayta yuborilganda ham
     # xuddi shu kalit) — takror kelsa mavjud sotuv qaytariladi.
-    idempotency_key = Column(String(64), nullable=True, unique=True, index=True)
+    # Unikallik kompaniya doirasida (kompozit indeks quyida) — global emas,
+    # aks holda boshqa kompaniya kaliti bilan to'qnashuv 500 berardi.
+    idempotency_key = Column(String(64), nullable=True)
 
     # Fiskal chek ma'lumotlari (Hippo Communicator natijasi) — POS
     # fiskalizatsiyadan keyin PATCH /sales/{id}/fiscal orqali yuboradi.
@@ -84,6 +86,7 @@ class Sale(Base):
     __table_args__ = (
         Index('ix_sale_company_created', 'company_id', 'created_at'),
         Index('ix_sale_company_status', 'company_id', 'status'),
+        Index('ux_sales_company_idem_key', 'company_id', 'idempotency_key', unique=True),
     )
 
 

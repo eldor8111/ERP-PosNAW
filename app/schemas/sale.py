@@ -2,7 +2,7 @@ from datetime import datetime, date
 from decimal import Decimal
 from typing import List, Optional
 
-from pydantic import BaseModel, field_validator  # type: ignore
+from pydantic import BaseModel, Field, field_validator  # type: ignore
 
 from app.models.sale import PaymentType, SaleStatus  # type: ignore
 
@@ -163,10 +163,10 @@ class SaleOut(BaseModel):
 
 class SaleFiscalUpdate(BaseModel):
     """PATCH /sales/{id}/fiscal — faqat fiskal maydonlarni yangilaydi."""
-    fiscal_sign: Optional[str] = None
-    fiscal_qr_url: Optional[str] = None
-    fiscal_receipt_seq: Optional[int] = None
-    fiscal_transaction_id: Optional[str] = None
+    fiscal_sign: Optional[str] = Field(None, max_length=64)
+    fiscal_qr_url: Optional[str] = Field(None, max_length=2000)
+    fiscal_receipt_seq: Optional[int] = Field(None, ge=0, le=2147483647)
+    fiscal_transaction_id: Optional[str] = Field(None, max_length=64)
     fiscal_at: Optional[datetime] = None
 
 
@@ -232,4 +232,10 @@ class SaleReturnRequest(BaseModel):
 
 class SaleBulkCreate(BaseModel):
     sales: List[SaleCreate]
+
+
+class SalePage(BaseModel):
+    """GET /sales/?with_total=true javob shakli."""
+    items: List["SaleListOut"]
+    total: int
 

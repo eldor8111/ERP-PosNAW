@@ -407,16 +407,25 @@ def create_customer(data: CustomerIn, db: Session = Depends(get_db), current_use
 
     # Telefon takrorlanishini bloklash — POS oflayn yaratilgan mijozni
     # sinxronlashda 4xx olsa, kassirga "yuborilmadi" deb korsatadi.
+    # Taqqoslash normallashtirilgan (faqat raqamlar) — '+998 90 123-45-67'
+    # va '998901234567' bir xil raqam deb topiladi.
     if data.phone and str(data.phone).strip():
-        _dup = db.query(Customer).filter(
-            Customer.company_id == current_user.company_id,
-            Customer.phone == str(data.phone).strip(),
-        ).first()
-        if _dup:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Bu telefon raqami allaqachon mavjud: {_dup.name} (ID: {_dup.id})",
-            )
+        import re as _re
+        from sqlalchemy import func as _f
+        _norm = _re.sub(r"\D", "", str(data.phone))
+        if _norm:
+            _db_norm = _f.replace(_f.replace(_f.replace(_f.replace(_f.replace(
+                Customer.phone, "+", ""), " ", ""), "-", ""), "(", ""), ")", "")
+            _dup = db.query(Customer).filter(
+                Customer.company_id == current_user.company_id,
+                Customer.phone.isnot(None),
+                _db_norm == _norm,
+            ).first()
+            if _dup:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Bu telefon raqami allaqachon mavjud: {_dup.name} (ID: {_dup.id})",
+                )
 
     customer_data = data.model_dump()
     customer_data["company_id"] = current_user.company_id

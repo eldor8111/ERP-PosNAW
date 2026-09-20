@@ -80,7 +80,8 @@ export default function usePosSync({ onSyncSuccess } = {}) {
     const failedSales = [];
     for (const sale of pendingSales) {
       try {
-        await api.post('/sales/', sale.payload);
+        // Idempotency-Key: qayta yuborishda server dublikat sotuv yaratmaydi
+        await api.post('/sales/', sale.payload, sale.idemKey ? { headers: { 'Idempotency-Key': sale.idemKey } } : undefined);
       } catch (e) {
         const status = e.response?.status;
         if (status >= 400 && status < 500) {
@@ -147,11 +148,17 @@ export default function usePosSync({ onSyncSuccess } = {}) {
 
   // ─── Sotuv saqlash (offline yoki online) ──────────────────────────────
   const submitSaleOrQueue = useCallback(async (payload, isReturn = false) => {
+    // Har bir sotuv uchun bitta doimiy kalit — timeout/qayta yuborishda
+    // server dublikat sotuv yaratmaydi (Idempotency-Key).
+    const idemKey = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
     if (!navigator.onLine) {
       // Offline: locally ga saqlash
       const key = isReturn ? PENDING_RETURNS_KEY : PENDING_SALES_KEY;
       const pending = getPending(key);
-      pending.push({ payload, savedAt: Date.now() });
+      pending.push({ payload, idemKey, savedAt: Date.now() });
       setPending(key, pending);
       refreshPendingCount();
       return { offline: true };
@@ -159,7 +166,7 @@ export default function usePosSync({ onSyncSuccess } = {}) {
 
     // Online: to'g'ridan serverga yuborish
     const endpoint = isReturn ? '/sales/return' : '/sales/';
-    const res = await api.post(endpoint, payload);
+    const res = await api.post(endpoint, payload, isReturn ? undefined : { headers: { 'Idempotency-Key': idemKey } });
     return { offline: false, data: res.data };
   }, [refreshPendingCount]);
 

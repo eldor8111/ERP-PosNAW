@@ -1,8 +1,9 @@
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, BackgroundTasks
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload, aliased
 
@@ -11,7 +12,7 @@ from app.database import get_db
 from app.models.customer import Customer
 from app.models.sale import Sale, SaleItem, SaleStatus
 from app.models.user import User, UserRole
-from app.schemas.sale import SaleCreate, SaleItemOut, SaleListOut, SaleOut, SaleUpdate, SaleReturnRequest, SaleBulkCreate, SaleFiscalUpdate
+from app.schemas.sale import SaleCreate, SaleItemOut, SaleListOut, SaleOut, SaleUpdate, SaleReturnRequest, SaleBulkCreate, SaleFiscalUpdate, SalePage
 from app.services.sale_service import create_sale, create_return_sale, delete_sale, update_sale, create_pending_sale
 from app.services.sale_partial_return import process_partial_return
 from app.services.hippo_fiscalize import fiscalize_sale
@@ -107,6 +108,30 @@ def _build_sale_out(sale: Sale) -> SaleOut:
     )
 
 
+def _build_sale_list_out(sale: Sale) -> SaleListOut:
+    """Sale ORM obyektidan SaleListOut qurish (idempotent takror javob uchun)."""
+    return SaleListOut(
+        id=sale.id,  # type: ignore
+        number=sale.number,  # type: ignore
+        cashier_name=sale.cashier.name if sale.cashier else f"ID={sale.cashier_id}",
+        total_amount=sale.total_amount,  # type: ignore
+        discount_amount=sale.discount_amount,  # type: ignore
+        paid_amount=sale.paid_amount,  # type: ignore
+        paid_cash=sale.paid_cash,  # type: ignore
+        paid_card=sale.paid_card,  # type: ignore
+        paid_cashback=getattr(sale, 'paid_cashback', 0) or 0,
+        payment_type=sale.payment_type,
+        status=sale.status,
+        customer_id=sale.customer_id,  # type: ignore
+        customer_name=sale.customer.name if getattr(sale, 'customer', None) else None,
+        items_count=len(sale.items),  # type: ignore
+        created_at=sale.created_at,  # type: ignore
+        currency_code=sale.currency.code if getattr(sale, 'currency', None) else "UZS",
+        debt_amounts=getattr(sale, 'debt_amounts', None),
+        before_debt_balances=getattr(sale, 'before_debt_balances', None),
+    )
+
+
 @router.get("/debug-log")
 def get_debug_log():
     import os
@@ -136,35 +161,30 @@ def make_sale(
     # bilan sotuv allaqachon yaratilgan bo'lsa — yangisini yaratmasdan
     # mavjudini qaytaramiz.
     idem_key = (request.headers.get("Idempotency-Key") or "").strip() or None
+    if idem_key and len(idem_key) > 64:
+        raise HTTPException(status_code=400, detail="Idempotency-Key 64 belgidan oshmasligi kerak")
     if idem_key:
         existing = db.query(Sale).filter(
             Sale.idempotency_key == idem_key,
             Sale.company_id == current_user.company_id,
         ).first()
         if existing:
-            ex_cust = existing.customer.name if getattr(existing, 'customer', None) else None
-            return SaleListOut(
-                id=existing.id,  # type: ignore
-                number=existing.number,  # type: ignore
-                cashier_name=existing.cashier.name if existing.cashier else f"ID={existing.cashier_id}",
-                total_amount=existing.total_amount,  # type: ignore
-                discount_amount=existing.discount_amount,  # type: ignore
-                paid_amount=existing.paid_amount,  # type: ignore
-                paid_cash=existing.paid_cash,  # type: ignore
-                paid_card=existing.paid_card,  # type: ignore
-                paid_cashback=getattr(existing, 'paid_cashback', 0) or 0,
-                payment_type=existing.payment_type,
-                status=existing.status,
-                customer_id=existing.customer_id,  # type: ignore
-                customer_name=ex_cust,
-                items_count=len(existing.items),
-                created_at=existing.created_at,  # type: ignore
-                currency_code=existing.currency.code if getattr(existing, 'currency', None) else "UZS",
-                debt_amounts=getattr(existing, 'debt_amounts', None),
-                before_debt_balances=getattr(existing, 'before_debt_balances', None),
-            )
+            return _build_sale_list_out(existing)
 
-    sale = create_sale(db=db, data=data, current_user=current_user, ip=ip, background_tasks=background_tasks, idempotency_key=idem_key)
+    try:
+        sale = create_sale(db=db, data=data, current_user=current_user, ip=ip, background_tasks=background_tasks, idempotency_key=idem_key)
+    except IntegrityError:
+        # Poyga holati: xuddi shu Idempotency-Key bilan parallel so'rov
+        # allaqachon sotuv yaratib ulgurgan — mavjudini qaytaramiz.
+        db.rollback()
+        if idem_key:
+            dup = db.query(Sale).filter(
+                Sale.idempotency_key == idem_key,
+                Sale.company_id == current_user.company_id,
+            ).first()
+            if dup:
+                return _build_sale_list_out(dup)
+        raise
     cust_name = sale.customer.name if getattr(sale, 'customer', None) else (db.query(Customer.name).filter(Customer.id == sale.customer_id).scalar() if sale.customer_id else None)
 
     # ── Hippo fiskalizatsiya (background) ────────────────────────────────────
@@ -349,7 +369,7 @@ def make_return_sale(
     )
 
 
-@router.get("/")
+@router.get("/", response_model=Union[List[SaleListOut], SalePage])
 def list_sales(
         response: Response,
         cashier_id: Optional[int] = Query(None),
@@ -485,11 +505,36 @@ def update_sale_fiscal(
     if not sale:
         raise HTTPException(status_code=404, detail="Sotuv topilmadi")
 
-    update_data = data.model_dump(exclude_unset=True)
+    # None qiymatlar mavjud fiskal yozuvni O'CHIRib yubormasin
+    update_data = data.model_dump(exclude_unset=True, exclude_none=True)
+
+    # Mavjud fiskal belgini BOSHQA qiymat bilan almashtirish faqat
+    # admin/direktorga — oddiy kassir fiskal yozuvni qayta yoza olmaydi
+    # (xuddi shu qiymat bilan takror PATCH esa idempotent, ruxsat etiladi).
+    new_sign = update_data.get("fiscal_sign")
+    if (
+        sale.fiscal_sign
+        and new_sign
+        and str(new_sign) != str(sale.fiscal_sign)
+        and current_user.role not in (UserRole.admin, UserRole.director, UserRole.super_admin)
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Sotuvda fiskal belgi allaqachon mavjud — uni faqat admin/direktor almashtira oladi",
+        )
+
     ALLOWED = {"fiscal_sign", "fiscal_qr_url", "fiscal_receipt_seq", "fiscal_transaction_id", "fiscal_at"}
+    old_values = {k: getattr(sale, k, None) for k in ALLOWED}
     for k, v in update_data.items():
         if k in ALLOWED:
             setattr(sale, k, v)
+
+    from app.core.audit import log_action
+    log_action(
+        db, "SALE_FISCAL_UPDATE", "sale", sale.id, current_user.id,
+        {"old": {k: str(v) for k, v in old_values.items() if v is not None},
+         "new": {k: str(v) for k, v in update_data.items()}},
+    )
     db.commit()
     db.refresh(sale)
     return _build_sale_out(sale)
