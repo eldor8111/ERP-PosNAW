@@ -3674,4 +3674,8 @@ export default {
   'user.cashiers': 'Cashiers',
   'user.managers': 'Managers',
   'user.admins': 'Admins',
+  "nav.saleScreen": "Sale",
+  "nav.chiqimTolov": "Outgoing payments",
+  "nav.kirimTolov": "Incoming payments",
+  "nav.kassa": "Cash register",
 };

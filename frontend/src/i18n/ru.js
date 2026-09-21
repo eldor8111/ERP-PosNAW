@@ -3758,4 +3758,8 @@ export default {
   'user.cashiers': 'Кассиры',
   'user.managers': 'Менеджеры',
   'user.admins': 'Администраторы',
+  "nav.saleScreen": "Продажа",
+  "nav.chiqimTolov": "Расходные платежи",
+  "nav.kirimTolov": "Приходные платежи",
+  "nav.kassa": "Касса",
 };

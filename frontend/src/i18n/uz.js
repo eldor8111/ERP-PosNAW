@@ -3754,4 +3754,8 @@ export default {
   'user.cashiers': 'Kassirlar',
   'user.managers': 'Menejerlar',
   'user.admins': 'Adminlar',
+  "nav.saleScreen": "Sotuv",
+  "nav.chiqimTolov": "Chiqim to'lovlar",
+  "nav.kirimTolov": "Kirim to'lovlar",
+  "nav.kassa": "Kassa",
 };
