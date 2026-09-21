@@ -10,9 +10,10 @@ import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 
 /* ── Customer combobox ── */
-function CustSearch({ customers, value, onChange, placeholder = "Mijoz izlash..." }) {
+function CustSearch({ customers, value, onChange, placeholder }) {
   const { t } = useLang();
-const [q, setQ] = useState('');
+  const effectivePlaceholder = placeholder || t('posReturn.searchCustomerPlaceholder');
+  const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const selected = customers.find(c => String(c.id) === String(value));
@@ -36,21 +37,21 @@ const [q, setQ] = useState('');
           value={open ? q : (selected ? selected.name : '')} 
           onChange={e => { setQ(e.target.value); setOpen(true); if (!e.target.value) onChange(''); }} 
           onFocus={() => setOpen(true)} 
-          placeholder={placeholder} 
-          className="w-full px-3 py-3 text-sm font-semibold text-slate-700 outline-none bg-transparent placeholder:text-slate-400" 
+          placeholder={effectivePlaceholder}
+          className="w-full px-3 py-3 text-sm font-semibold text-slate-700 outline-none bg-transparent placeholder:text-slate-400"
         />
         {selected && <button onClick={() => select(null)} className="text-slate-400 hover:text-red-500 font-bold p-1">×</button>}
       </div>
       {open && (
         <div className="absolute top-full mt-2 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 overflow-hidden max-h-64 overflow-y-auto">
-          {filtered.length === 0 ? <div className="px-4 py-3 text-sm text-slate-500 text-center font-medium">Topilmadi</div> : filtered.map(c => (
+          {filtered.length === 0 ? <div className="px-4 py-3 text-sm text-slate-500 text-center font-medium">{t('pos.customerNotFound')}</div> : filtered.map(c => (
             <button key={c.id} onMouseDown={() => select(c)} className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-slate-50 last:border-0 flex items-center justify-between transition-colors">
               <div><div className="text-sm font-bold text-slate-800">{c.name}</div>{c.phone && <div className="text-xs text-slate-500 font-medium">{c.phone}</div>}</div>
               {hasAnyDebt(c) && (
                 <div className="flex flex-col items-end gap-1">
                   {getDebtEntries(c).map(({ currency, amount }) => (
                     <span key={currency} className="text-xs text-red-600 font-bold bg-red-50 px-2.5 py-1 rounded-lg">
-                      Qarz: {fmt(amount)} {currency}
+                      {t('posReturn.debtLabel', { amount: fmt(amount), currency })}
                     </span>
                   ))}
                 </div>
@@ -65,7 +66,7 @@ const [q, setQ] = useState('');
 
 export default function PosReturn() {
   const { t } = useLang();
-const navigate = useNavigate();
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -102,9 +103,9 @@ const navigate = useNavigate();
   // Load data
   useEffect(() => {
     api.get('/categories/', { params: { limit: 200 } })
-      .then(r => setCategories(Array.isArray(r.data) ? r.data : (r.data.items || []))).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+      .then(r => setCategories(Array.isArray(r.data) ? r.data : (r.data.items || []))).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
     api.get('/products/', { params: { limit: 12000, status: 'active' } })
-      .then(r => setProducts(Array.isArray(r.data) ? r.data : (r.data.items || []))).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+      .then(r => setProducts(Array.isArray(r.data) ? r.data : (r.data.items || []))).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
     api.get('/customers/', { params: { limit: 200 } })
       .then(r => {
         const custs = Array.isArray(r.data) ? r.data : (r.data.items || []);
@@ -113,7 +114,7 @@ const navigate = useNavigate();
           const s = JSON.parse(localStorage.getItem('pos_return_settings') || '{}');
           if (s.defaultCustomer) setCustId(s.defaultCustomer);
         } catch { /* ignore */ }
-      }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+      }).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
     api.get('/warehouses')
       .then(r => {
         const whs = Array.isArray(r.data) ? r.data : (r.data.items || []);
@@ -126,7 +127,7 @@ const navigate = useNavigate();
             setWarehouseId(String(whs[0].id));
           }
         } catch { /* ignore */ }
-      }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Omborlarni yuklashda xatolik") });
+      }).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('posReturn.loadWarehousesError')) });
   }, []);
 
   const filteredProducts = products.filter(p => {
@@ -151,7 +152,7 @@ const navigate = useNavigate();
         product_id: p.id,
         product_name: p.name,
         sku: p.sku || '',
-        unit: p.unit || 'dona',
+        unit: p.unit || t('common.piece'),
         unit_price: Number(p.sale_price) || 0,
         discount_type: 'pct',
         discount_val: 0,
@@ -201,7 +202,7 @@ const navigate = useNavigate();
                 const ex = prev.find(x => x.product_id === found.id);
                 if (ex) return prev.map(x => x.product_id === found.id ? { ...x, qty_ordered: x.qty_ordered + 1 } : x);
                 return [...prev, {
-                  product_id: found.id, product_name: found.name, unit: found.unit || 'dona',
+                  product_id: found.id, product_name: found.name, unit: found.unit || t('common.piece'),
                   unit_price: Number(found.sale_price) || 0, discount_type: 'pct', discount_val: 0,
                   net_cost: Number(found.sale_price) || 0, qty_ordered: 1, max_stock: found.stock_quantity
                 }];
@@ -225,11 +226,11 @@ const navigate = useNavigate();
                  });
                  setSearch('');
               } else {
-                 setErr(`Tarozi mahsuloti topilmadi (Kodi: ${itemCode})`);
+                 setErr(t('posReturn.scaleProductNotFound', { code: itemCode }));
                  setTimeout(() => setErr(''), 3000);
               }
            } else {
-              setErr(`Shtrix kod topilmadi: ${scannedCode}`);
+              setErr(t('posReturn.barcodeNotFound', { code: scannedCode }));
               setTimeout(() => setErr(''), 3000);
            }
          }
@@ -284,8 +285,8 @@ const navigate = useNavigate();
   const [showCheckout, setShowCheckout] = useState(false);
 
   const submitSale = async () => {
-    if (!cart.length) { setErr("Vazvrat savati bo'sh!"); setTimeout(()=>setErr(''),3000); return; }
-    if (!warehouseId) { setErr("Omborni tanlang!"); setTimeout(()=>setErr(''),3000); return; }
+    if (!cart.length) { setErr(t('posReturn.cartEmptyError')); setTimeout(()=>setErr(''),3000); return; }
+    if (!warehouseId) { setErr(t('posReturn.selectWarehouseError')); setTimeout(()=>setErr(''),3000); return; }
 
     setIsPaying(true);
     setErr('');
@@ -303,7 +304,7 @@ const navigate = useNavigate();
         paidAmt = a1 + a2;
         pCash = (mixedType1 === 'cash' ? a1 : 0) + (mixedType2 === 'cash' ? a2 : 0);
         pCard = (mixedType1 !== 'cash' ? a1 : 0) + (mixedType2 !== 'cash' ? a2 : 0);
-        noteTxt = `Aralash to'lov turlari: To'lov 1 - ${mixedType1.toUpperCase()}, To'lov 2 - ${mixedType2.toUpperCase()}`;
+        noteTxt = t('posReturn.mixedPaymentNote', { type1: mixedType1.toUpperCase(), type2: mixedType2.toUpperCase() });
       } else {
         pCash = payType === 'cash' ? paidAmt : 0;
         pCard = (payType !== 'cash' && payType !== 'debt') ? paidAmt : 0;
@@ -352,10 +353,10 @@ const navigate = useNavigate();
       if (posSettings.defaultCustomer) setCustId(posSettings.defaultCustomer);
       else setCustId('');
       setShowCheckout(false);
-      setErr('MUVAFFAQIYATLI SOTILDI!');
+      setErr(t('posReturn.successSold'));
       setTimeout(()=>setErr(''), 3000);
     } catch (e) {
-      setErr(e.response?.data?.detail || "Xatolik ro'y berdi");
+      setErr(e.response?.data?.detail || t('posReturn.genericError'));
       setTimeout(()=>setErr(''),4000);
     } finally {
       setIsPaying(false);
@@ -373,29 +374,29 @@ const navigate = useNavigate();
         </div>
 
         {/* Home / Back to Dashboard */}
-        <button onClick={() => navigate('/admin/sotuv-mijozlar')} className="w-12 h-12 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition-all group" title="Orqaga">
+        <button onClick={() => navigate('/admin/sotuv-mijozlar')} className="w-12 h-12 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition-all group" title={t('posReturn.back')}>
           <svg className="w-6 h-6 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
         </button>
 
         {/* Current: POS */}
-        <button className="w-12 h-12 rounded-xl flex items-center justify-center bg-blue-600 text-white shadow-lg shadow-blue-500/20 transition-all" title="Kassa">
+        <button className="w-12 h-12 rounded-xl flex items-center justify-center bg-blue-600 text-white shadow-lg shadow-blue-500/20 transition-all" title={t('posReturn.cashier')}>
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
         </button>
 
-        <button className="w-12 h-12 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition-all" title="Mijozlar">
+        <button className="w-12 h-12 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition-all" title={t('posReturn.customersNav')}>
            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
         </button>
 
         {/* POS Sotuv (Sale) shortcut */}
-        <button onClick={() => navigate('/admin/pos-desktop')} className="w-12 h-12 rounded-xl flex items-center justify-center text-blue-400 hover:bg-blue-600 hover:text-white transition-all" title="POS Sotuv">
+        <button onClick={() => navigate('/admin/pos-desktop')} className="w-12 h-12 rounded-xl flex items-center justify-center text-blue-400 hover:bg-blue-600 hover:text-white transition-all" title={t('posReturn.posSaleNav')}>
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
         </button>
 
         <div className="mt-auto pb-4 space-y-4">
-          <button onClick={() => setShowSettings(true)} className="w-12 h-12 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition-all" title="Sozlamalar">
+          <button onClick={() => setShowSettings(true)} className="w-12 h-12 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition-all" title={t('posReturn.settingsNav')}>
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
           </button>
-          <button className="w-12 h-12 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition-all" title="Full Ekranga O'tish" onClick={()=>{if(!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen();}}>
+          <button className="w-12 h-12 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition-all" title={t('posReturn.fullscreenNav')} onClick={()=>{if(!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen();}}>
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
           </button>
         </div>
@@ -407,10 +408,10 @@ const navigate = useNavigate();
         {/* Top: Customer & Order ID */}
         <div className="p-5 border-b border-slate-100 flex flex-col relative z-50">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-black text-slate-800">Buyurtma</h2>
+            <h2 className="text-xl font-black text-slate-800">{t('posReturn.orderTitle')}</h2>
             <div className="text-sm font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">#{(Math.floor(Math.random()*90000)+10000).toString()}</div>
           </div>
-          <CustSearch customers={customers} value={custId} onChange={setCustId} placeholder="Mijozni tanlang (Majburiy)..." />
+          <CustSearch customers={customers} value={custId} onChange={setCustId} placeholder={t('posReturn.selectCustomerRequired')} />
           <select
             value={warehouseId}
             onChange={e => {
@@ -424,7 +425,7 @@ const navigate = useNavigate();
               warehouseId ? 'border-slate-200 text-slate-700 bg-white' : 'border-red-300 text-red-500 bg-red-50'
             }`}
           >
-            <option value="">Omborni tanlang (Majburiy)...</option>
+            <option value="">{t('posReturn.selectWarehouseRequired')}</option>
             {warehouses.map(w => (
               <option key={w.id} value={w.id}>{w.name}</option>
             ))}
@@ -436,7 +437,7 @@ const navigate = useNavigate();
           {cart.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3">
               <svg className="w-16 h-16 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-              <p className="font-semibold text-sm">Savatga mahsulot qo'shing</p>
+              <p className="font-semibold text-sm">{t('posReturn.emptyCartHint')}</p>
             </div>
           ) : (
             cart.map((item, idx) => (
@@ -463,7 +464,7 @@ const navigate = useNavigate();
                   </div>
                 </div>
 
-                <button onClick={()=>removeCartItem(idx)} className="absolute right-2 top-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white pb-0.5 text-lg leading-none shrink-0" title="O'chirish">×</button>
+                <button onClick={()=>removeCartItem(idx)} className="absolute right-2 top-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white pb-0.5 text-lg leading-none shrink-0" title={t('posReturn.delete')}>×</button>
               </div>
             ))
           )}
@@ -480,13 +481,13 @@ const navigate = useNavigate();
         <div className="bg-white border-t border-slate-200 px-5 pt-4 pb-6 mt-auto rounded-t-3xl shadow-[0_-10px_20px_rgba(0,0,0,0.03)] flex flex-col gap-4 relative z-20">
           
           <div className="flex items-center justify-between mb-2">
-            <span className="text-slate-500 font-bold uppercase tracking-widest text-xs">Umumiy summa</span>
+            <span className="text-slate-500 font-bold uppercase tracking-widest text-xs">{t('posReturn.totalAmount')}</span>
             <span className="text-3xl font-black text-slate-800">{fmt(Math.round(totalNet))} <span className="text-lg text-slate-500">UZS</span></span>
           </div>
 
           <div className="h-16 w-full mt-2">
-            <button onClick={() => { if(!cart.length) {setErr("Vazvrat savati bo'sh!"); setTimeout(()=>setErr(''),2000); return;} setShowCheckout(true); if(!paidInput) setPaidInput(String(Math.round(totalNet))); }} className="w-full h-full bg-blue-600 border-2 border-blue-600 text-white rounded-2xl text-xl uppercase tracking-widest font-black hover:bg-blue-700 active:scale-95 transition-all shadow-lg flex items-center justify-center gap-3">
-               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg> VAZVRAT QILISH
+            <button onClick={() => { if(!cart.length) {setErr(t('posReturn.cartEmptyError')); setTimeout(()=>setErr(''),2000); return;} setShowCheckout(true); if(!paidInput) setPaidInput(String(Math.round(totalNet))); }} className="w-full h-full bg-blue-600 border-2 border-blue-600 text-white rounded-2xl text-xl uppercase tracking-widest font-black hover:bg-blue-700 active:scale-95 transition-all shadow-lg flex items-center justify-center gap-3">
+               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg> {t('posReturn.doReturn')}
             </button>
           </div>
         </div>
@@ -503,15 +504,15 @@ const navigate = useNavigate();
             <input 
               value={search} 
               onChange={e => setSearch(e.target.value)} 
-              placeholder="Mahsulot nomi yoki shtrix kodi bo'yicha qidirish..." 
-              className="flex-1 bg-transparent border-none outline-none text-slate-700 font-semibold placeholder:text-slate-400 text-lg" 
+              placeholder={t('posReturn.searchProductPlaceholder')}
+              className="flex-1 bg-transparent border-none outline-none text-slate-700 font-semibold placeholder:text-slate-400 text-lg"
             />
             {search && <button onClick={()=>setSearch('')} className="text-slate-400 hover:text-red-500 p-1 font-bold text-xl leading-none">×</button>}
           </div>
 
           <div className="text-right">
              <div className="text-sm font-bold text-slate-500 flex items-center gap-2 justify-end">
-               <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Kassa faol
+               <span className="w-2 h-2 rounded-full bg-emerald-500"></span> {t('posReturn.cashierActive')}
              </div>
              <div className="text-slate-400 text-xs font-semibold mt-1 pr-1">{new Date().toLocaleString('uz-UZ', {weekday:'long', hour:'2-digit', minute:'2-digit'})}</div>
           </div>
@@ -523,7 +524,7 @@ const navigate = useNavigate();
             onClick={() => setActiveCat(null)} 
             className={`px-4 py-2.5 rounded-2xl text-sm font-bold whitespace-nowrap transition-all shadow-sm shrink-0 snap-start border-2 ${!activeCat ? 'bg-blue-600 border-blue-600 text-white shadow-blue-200' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-blue-300'}`}
           >
-            Barchasi
+            {t('posReturn.allCategories')}
           </button>
           {categories.map(c => (
             <button 
@@ -556,7 +557,7 @@ const navigate = useNavigate();
                   <div className="flex items-end justify-between w-full">
                     <div className="font-black text-blue-600 text-[17px]">{fmt(p.sale_price)} <span className="text-[11px] font-bold text-slate-400">UZS</span></div>
                     <div className="text-[11px] font-extrabold text-slate-400 bg-slate-100 px-2 py-1 rounded-md border border-slate-200">
-                      {p.stock_quantity > 0 ? `${fmt(p.stock_quantity)} ${p.unit||'dona'}` : '0 ta'}
+                      {p.stock_quantity > 0 ? `${fmt(p.stock_quantity)} ${p.unit||t('common.piece')}` : t('pos.zeroStock')}
                     </div>
                   </div>
                 </div>
@@ -566,7 +567,7 @@ const navigate = useNavigate();
             {filteredProducts.length === 0 && (
               <div className="col-span-full py-16 flex flex-col items-center justify-center text-slate-400">
                 <svg className="w-16 h-16 mb-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <p className="text-lg font-bold">Mahsulot topilmadi</p>
+                <p className="text-lg font-bold">{t('posReturn.productNotFound')}</p>
               </div>
             )}
           </div>
@@ -580,7 +581,7 @@ const navigate = useNavigate();
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
             
             <div className="bg-slate-50 border-b border-slate-100 px-6 py-4 flex items-center justify-between z-10">
-              <h2 className="text-xl font-black text-slate-800">Vazvratni tasdiqlash</h2>
+              <h2 className="text-xl font-black text-slate-800">{t('posReturn.confirmReturnTitle')}</h2>
               <button onClick={() => setShowCheckout(false)} className="text-slate-400 hover:text-slate-600 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
@@ -590,7 +591,7 @@ const navigate = useNavigate();
               {/* Left Column: Numpad */}
               <div className="w-full md:w-[45%] p-6 bg-slate-100 border-r border-slate-200 flex flex-col gap-4">
                 <div className="flex flex-col gap-1 items-center justify-center py-4 bg-white rounded-xl shadow-sm border border-slate-200">
-                  <span className="text-slate-400 uppercase tracking-widest text-xs font-bold">Kiritildi</span>
+                  <span className="text-slate-400 uppercase tracking-widest text-xs font-bold">{t('posReturn.enteredLabel')}</span>
                   <span className="text-3xl font-black text-blue-700">
                      {payType === 'mixed' 
                         ? fmt((Number(mixedAmt1)||0) + (Number(mixedAmt2)||0))
@@ -625,25 +626,25 @@ const navigate = useNavigate();
               {/* Right Column: Settings */}
               <div className="flex-1 p-6 flex flex-col gap-5 overflow-y-auto">
                 <div className="flex flex-col gap-2">
-                  <label className="text-sm font-bold text-slate-500 uppercase tracking-widest">Mijoz (Ixtiyoriy)</label>
+                  <label className="text-sm font-bold text-slate-500 uppercase tracking-widest">{t('posReturn.optionalCustomer')}</label>
                   <div className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-bold overflow-hidden truncate">
-                    {customers.find(c=>String(c.id)===String(custId))?.name || <span className="text-slate-400 font-medium">Umumiy mijoz (Mijoz tanlanmagan)</span>}
+                    {customers.find(c=>String(c.id)===String(custId))?.name || <span className="text-slate-400 font-medium">{t('posReturn.generalCustomerNotSelected')}</span>}
                   </div>
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <label className="text-sm font-bold text-slate-500 uppercase tracking-widest">To'lov turi</label>
+                  <label className="text-sm font-bold text-slate-500 uppercase tracking-widest">{t('posReturn.paymentTypeLabel')}</label>
                   <div className="flex flex-wrap gap-2">
                   {[
-                    {v:'cash', l:'Naqd', c:'bg-emerald-50 text-emerald-700 border-emerald-300'},
-                    {v:'uzcard', l:'Uzc', c:'bg-blue-50 text-blue-700 border-blue-300'},
-                    {v:'humo', l:'Humo', c:'bg-blue-50 text-blue-700 border-blue-300'},
-                    {v:'click', l:'Click', c:'bg-sky-50 text-sky-700 border-sky-300'},
-                    {v:'payme', l:'Payme', c:'bg-blue-50 text-blue-700 border-blue-300'},
-                    {v:'mixed', l:'Aralash', c:'bg-orange-50 text-orange-700 border-orange-300'},
-                  ].map(t => (
-                    <button key={t.v} onClick={()=>setPayType(t.v)} className={`px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all border-2 shrink-0 active:scale-95 flex-1 ${payType===t.v ? t.c + ' ring-2 ring-offset-1 ring-'+(t.c.includes('slate')?'slate':t.c.split('-')[1])+'-500' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-                      {t.l}
+                    {v:'cash', l:t('finance.cash'), c:'bg-emerald-50 text-emerald-700 border-emerald-300'},
+                    {v:'uzcard', l:t('posReturn.payUzc'), c:'bg-blue-50 text-blue-700 border-blue-300'},
+                    {v:'humo', l:t('posReturn.payHumo'), c:'bg-blue-50 text-blue-700 border-blue-300'},
+                    {v:'click', l:t('posReturn.payClick'), c:'bg-sky-50 text-sky-700 border-sky-300'},
+                    {v:'payme', l:t('posReturn.payPayme'), c:'bg-blue-50 text-blue-700 border-blue-300'},
+                    {v:'mixed', l:t('pay.mixed'), c:'bg-orange-50 text-orange-700 border-orange-300'},
+                  ].map(pt => (
+                    <button key={pt.v} onClick={()=>setPayType(pt.v)} className={`px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all border-2 shrink-0 active:scale-95 flex-1 ${payType===pt.v ? pt.c + ' ring-2 ring-offset-1 ring-'+(pt.c.includes('slate')?'slate':pt.c.split('-')[1])+'-500' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                      {pt.l}
                     </button>
                   ))}
                   </div>
@@ -653,32 +654,32 @@ const navigate = useNavigate();
                   <div className="flex flex-col gap-3 p-4 bg-orange-50/50 rounded-xl border-2 border-orange-200 relative z-30 shadow-inner mt-2">
                     <div className="flex gap-3 items-center">
                       <select value={mixedType1} onChange={e=>setMixedType1(e.target.value)} className="w-[120px] bg-white border border-slate-200 rounded-lg py-2.5 px-2 font-bold text-sm text-slate-700 outline-none focus:border-orange-500 transition-all">
-                         <option value="cash">Naqd</option>
-                         <option value="card">Karta (Krt)</option>
-                         <option value="uzcard">Uzcard</option>
-                         <option value="humo">Humo</option>
-                         <option value="click">Click</option>
-                         <option value="payme">Payme</option>
-                         <option value="uzum">Uzum</option>
+                         <option value="cash">{t('finance.cash')}</option>
+                         <option value="card">{t('posReturn.mixedCard')}</option>
+                         <option value="uzcard">{t('posReturn.mixedUzcard')}</option>
+                         <option value="humo">{t('posReturn.payHumo')}</option>
+                         <option value="click">{t('posReturn.payClick')}</option>
+                         <option value="payme">{t('posReturn.payPayme')}</option>
+                         <option value="uzum">{t('posReturn.mixedUzum')}</option>
                       </select>
                       <input type="text" readOnly onClick={()=>setFocusedMixed(1)} value={mixedAmt1 ? fmt(Number(mixedAmt1)) : ''} placeholder="0" className={`flex-1 px-3 py-2.5 rounded-lg border-2 text-right text-xl font-black outline-none transition-all cursor-pointer ${focusedMixed===1?'border-orange-500 bg-white ring-4 ring-orange-500/20 text-orange-600 shadow-md':'border-transparent bg-slate-100 text-slate-500 hover:bg-white'}`} />
                     </div>
                     <div className="flex gap-3 items-center mt-2">
                       <select value={mixedType2} onChange={e=>setMixedType2(e.target.value)} className="w-[120px] bg-white border border-slate-200 rounded-lg py-2.5 px-2 font-bold text-sm text-slate-700 outline-none focus:border-orange-500 transition-all">
-                         <option value="card">Karta (Krt)</option>
-                         <option value="cash">Naqd</option>
-                         <option value="uzcard">Uzcard</option>
-                         <option value="humo">Humo</option>
-                         <option value="click">Click</option>
-                         <option value="payme">Payme</option>
-                         <option value="uzum">Uzum</option>
+                         <option value="card">{t('posReturn.mixedCard')}</option>
+                         <option value="cash">{t('finance.cash')}</option>
+                         <option value="uzcard">{t('posReturn.mixedUzcard')}</option>
+                         <option value="humo">{t('posReturn.payHumo')}</option>
+                         <option value="click">{t('posReturn.payClick')}</option>
+                         <option value="payme">{t('posReturn.payPayme')}</option>
+                         <option value="uzum">{t('posReturn.mixedUzum')}</option>
                       </select>
                       <input type="text" readOnly onClick={()=>setFocusedMixed(2)} value={mixedAmt2 ? fmt(Number(mixedAmt2)) : ''} placeholder="0" className={`flex-1 px-3 py-2.5 rounded-lg border-2 text-right text-xl font-black outline-none transition-all cursor-pointer ${focusedMixed===2?'border-orange-500 bg-white ring-4 ring-orange-500/20 text-orange-600 shadow-md':'border-transparent bg-slate-100 text-slate-500 hover:bg-white'}`} />
                     </div>
                   </div>
                 ) : (
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col gap-1 items-center justify-center">
-                    <span className="text-slate-500 font-bold text-xs uppercase tracking-widest">Jami Kiritilishi Kerak</span>
+                    <span className="text-slate-500 font-bold text-xs uppercase tracking-widest">{t('posReturn.totalRequired')}</span>
                     <span className="text-3xl font-black text-slate-800">{fmt(Math.round(totalNet))} UZS</span>
                   </div>
                 )}
@@ -686,7 +687,7 @@ const navigate = useNavigate();
                 <div className="flex gap-3 mt-auto pt-4">
                   <button onClick={() => setShowCheckout(false)} className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-black rounded-xl transition-colors active:scale-95 uppercase tracking-widest text-sm border-2 border-transparent">{t('common.cancel')}</button>
                   <button onClick={submitSale} disabled={isPaying || (payType !== 'mixed' && Number(paidInput) < totalNet && !custId) || (payType === 'mixed' && (Number(mixedAmt1)+Number(mixedAmt2)) < totalNet && !custId)} className="flex-2 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2 border-2 border-blue-600 uppercase tracking-widest text-sm disabled:bg-blue-300 disabled:border-blue-300 disabled:shadow-none">
-                    {isPaying ? <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>} QAYTARISH VA CHOP ETISH
+                    {isPaying ? <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>} {t('posReturn.returnAndPrint')}
                   </button>
                 </div>
 
@@ -702,7 +703,7 @@ const navigate = useNavigate();
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col p-6 animate-in zoom-in-95 duration-200">
             
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
-              <h2 className="text-xl font-bold text-slate-800">Общие настройки</h2>
+              <h2 className="text-xl font-bold text-slate-800">{t('posReturn.settingsModalTitle')}</h2>
               <button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-slate-600">
                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
@@ -711,36 +712,36 @@ const navigate = useNavigate();
             <div className="grid grid-cols-2 gap-6 mb-6">
               {/* Left Column */}
               <div className="border border-slate-200 rounded-xl p-6 bg-slate-50/50">
-                <h3 className="font-semibold text-slate-600 mb-5">Настройки печати</h3>
-                
+                <h3 className="font-semibold text-slate-600 mb-5">{t('posReturn.printSettingsTitle')}</h3>
+
                 <div className="grid grid-cols-2 gap-5 mb-6">
                   <div>
-                    <label className="block text-sm font-medium text-slate-500 mb-2">Принтер</label>
+                    <label className="block text-sm font-medium text-slate-500 mb-2">{t('posReturn.printerLabel')}</label>
                     <select value={posSettings.printer} onChange={e=>savePosSettings({printer:e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50">
                       <option value="XP-80C">XP-80C</option>
                       <option value="XP-58">XP-58</option>
-                      <option value="System Default">Системный по умолчанию</option>
+                      <option value="System Default">{t('posReturn.systemDefault')}</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-500 mb-2">Размер чека</label>
+                    <label className="block text-sm font-medium text-slate-500 mb-2">{t('posReturn.receiptSizeLabel')}</label>
                     <select value={posSettings.paper} onChange={e=>savePosSettings({paper:e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50">
                       <option value="80mm">80mm</option>
                       <option value="58mm">58mm</option>
                     </select>
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-slate-500 mb-2">Chek Shabloni (Шаблон чека - Bozor)</label>
+                    <label className="block text-sm font-medium text-slate-500 mb-2">{t('posReturn.receiptTemplateLabel')}</label>
                     <select value={posSettings.template || '80'} onChange={e=>savePosSettings({template:e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50">
-                      <option value="80">Chek 80mm Template</option>
-                      <option value="58">Chek 58mm Template</option>
-                      <option value="nak">A4 Nakladnoy Template</option>
+                      <option value="80">{t('posReturn.template80')}</option>
+                      <option value="58">{t('posReturn.template58')}</option>
+                      <option value="nak">{t('posReturn.templateNak')}</option>
                     </select>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-slate-600">Автоматическая распечатать</span>
+                  <span className="text-sm font-medium text-slate-600">{t('posReturn.autoPrintLabel')}</span>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input type="checkbox" className="sr-only peer" checked={posSettings.autoPrint} onChange={e=>savePosSettings({autoPrint:e.target.checked})} />
                     <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -750,11 +751,11 @@ const navigate = useNavigate();
 
               {/* Right Column */}
               <div className="border border-slate-200 rounded-xl p-6 bg-slate-50/50">
-                <h3 className="font-semibold text-slate-600 mb-5">Функциональные настройки</h3>
-                
+                <h3 className="font-semibold text-slate-600 mb-5">{t('posReturn.functionalSettingsTitle')}</h3>
+
                 <div className="flex flex-col gap-6">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-slate-600">Смена</span>
+                    <span className="text-sm font-medium text-slate-600">{t('posReturn.shiftLabel')}</span>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input type="checkbox" className="sr-only peer" checked={posSettings.shift} onChange={e=>savePosSettings({shift:e.target.checked})} />
                       <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -762,7 +763,7 @@ const navigate = useNavigate();
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-slate-600">Включить создание неизвестного товара</span>
+                    <span className="text-sm font-medium text-slate-600">{t('posReturn.enableUnknownProduct')}</span>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input type="checkbox" className="sr-only peer" checked={posSettings.unknownProduct} onChange={e=>savePosSettings({unknownProduct:e.target.checked})} />
                       <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -772,14 +773,14 @@ const navigate = useNavigate();
                   <div className="flex items-center">
                     <label className="relative inline-flex items-center cursor-pointer gap-3">
                       <input type="checkbox" checked={posSettings.fiscal} onChange={e=>savePosSettings({fiscal:e.target.checked})} className="w-5 h-5 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer" />
-                      <span className="text-sm font-medium text-slate-600">Фискализация</span>
+                      <span className="text-sm font-medium text-slate-600">{t('posReturn.fiscalization')}</span>
                     </label>
                   </div>
-                  
+
                   <div className="mt-4 border-t border-slate-100 pt-5">
-                    <label className="block text-sm font-medium text-slate-500 mb-2">Doimiy mijoz (По умолчанию)</label>
+                    <label className="block text-sm font-medium text-slate-500 mb-2">{t('posReturn.defaultCustomerLabel')}</label>
                     <select value={posSettings.defaultCustomer || ''} onChange={e=>{savePosSettings({defaultCustomer:e.target.value}); setCustId(e.target.value);}} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white">
-                      <option value="">-- Tanlanmagan --</option>
+                      <option value="">{t('posReturn.notSelected')}</option>
                       {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </div>
@@ -791,14 +792,14 @@ const navigate = useNavigate();
             <div className="border border-blue-200 rounded-xl p-5 bg-blue-50/50 mb-4 flex items-start gap-3">
               <svg className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               <div>
-                <p className="text-sm font-semibold text-blue-700">Chek shabloni Nastroykada sozlanadi</p>
-                <p className="text-xs text-blue-500 mt-0.5">Logotip, do'kon nomi, manzil, telefon va boshqalar → <b>Nastroyka → Chek shabloni</b> bo'limidan o'zgartiring.</p>
+                <p className="text-sm font-semibold text-blue-700">{t('posReturn.receiptTemplateHintTitle')}</p>
+                <p className="text-xs text-blue-500 mt-0.5">{t('posReturn.receiptTemplateHintPrefix')} <b>{t('posReturn.receiptTemplateHintBold')}</b> {t('posReturn.receiptTemplateHintSuffix')}</p>
               </div>
             </div>
 
             <div className="flex justify-end pt-2">
                <button onClick={() => setShowSettings(false)} className="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm transition-colors text-sm">
-                 Сохранить
+                 {t('posReturn.save')}
                </button>
             </div>
           </div>

@@ -69,18 +69,18 @@ export default function MobileDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Mobil Ko'rinish</h1>
+          <h1 className="text-2xl font-bold text-slate-800">{t('mobileDashboard.title')}</h1>
           <p className="text-slate-500 text-sm mt-0.5">
             {lastUpdated
-              ? `Yangilangan: ${lastUpdated.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}`
-              : 'Bugungi holat'}
+              ? t('mobileDashboard.updatedAt', { time: lastUpdated.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' }) })
+              : t('mobileDashboard.todayStatus')}
           </p>
         </div>
         <button
           onClick={load}
           disabled={loading}
           className="p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
-          title="Yangilash"
+          title={t('common.refresh')}
         >
           <svg
             className={`w-5 h-5 text-slate-600 ${loading ? 'animate-spin' : ''}`}
@@ -100,7 +100,7 @@ export default function MobileDashboard() {
           </svg>
         </div>
         <div>
-          <div className="text-xs font-semibold opacity-80">Bugungi sana</div>
+          <div className="text-xs font-semibold opacity-80">{t('mobileDashboard.todayDate')}</div>
           <div className="font-bold">
             {new Date().toLocaleDateString('uz-UZ', { weekday: 'long', day: 'numeric', month: 'long' })}
           </div>
@@ -111,8 +111,8 @@ export default function MobileDashboard() {
       {summary && (
         <div className="grid grid-cols-1 gap-4">
           <KpiCard
-            label="Bugungi sotuv"
-            value={`${fmt(summary.today_sales)} so'm`}
+            label={t('mobileDashboard.todaySales')}
+            value={`${fmt(summary.today_sales)} ${t('common.sum')}`}
             color="indigo"
             icon={
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -121,10 +121,10 @@ export default function MobileDashboard() {
             }
           />
           <KpiCard
-            label="Kassadagi naqd pul"
-            value={`${fmt(summary.cash_in_register)} so'm`}
+            label={t('mobileDashboard.cashInRegister')}
+            value={`${fmt(summary.cash_in_register)} ${t('common.sum')}`}
             color="emerald"
-            sub="To'liq to'langan miqdor"
+            sub={t('mobileDashboard.fullyPaidAmount')}
             icon={
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -132,10 +132,10 @@ export default function MobileDashboard() {
             }
           />
           <KpiCard
-            label="Qarzga berilgan"
-            value={`${fmt(summary.debt_sales)} so'm`}
+            label={t('mobileDashboard.givenOnDebt')}
+            value={`${fmt(summary.debt_sales)} ${t('common.sum')}`}
             color="red"
-            sub="Bugun to'lanmagan sotuvlar"
+            sub={t('mobileDashboard.unpaidSalesToday')}
             icon={
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -149,9 +149,9 @@ export default function MobileDashboard() {
       {summary && summary.today_sales > 0 && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-semibold text-slate-700">Naqd / Qarz nisbati</span>
+            <span className="text-sm font-semibold text-slate-700">{t('mobileDashboard.cashDebtRatio')}</span>
             <span className="text-xs text-slate-500">
-              {Math.round((summary.cash_in_register / summary.today_sales) * 100)}% naqd
+              {Math.round((summary.cash_in_register / summary.today_sales) * 100)}% {t('mobileDashboard.cash')}
             </span>
           </div>
           <div className="h-3 bg-slate-100 rounded-full overflow-hidden flex">
@@ -165,8 +165,8 @@ export default function MobileDashboard() {
             />
           </div>
           <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
-            <span className="flex items-center gap-1"><span className="w-2 h-2 bg-emerald-500 rounded-full inline-block" /> Naqd</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 bg-red-400 rounded-full inline-block" /> Qarz</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 bg-emerald-500 rounded-full inline-block" /> {t('mobileDashboard.cash')}</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 bg-red-400 rounded-full inline-block" /> {t('common.debt')}</span>
           </div>
         </div>
       )}
@@ -174,7 +174,7 @@ export default function MobileDashboard() {
       {/* Top products */}
       {topProducts.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-          <h3 className="text-sm font-bold text-slate-800 mb-4">Eng ko'p sotilgan mahsulotlar</h3>
+          <h3 className="text-sm font-bold text-slate-800 mb-4">{t('mobileDashboard.topSellingProducts')}</h3>
           <div className="space-y-3">
             {topProducts.map((p, i) => (
               <div key={p.id} className="flex items-center gap-3">
@@ -189,7 +189,7 @@ export default function MobileDashboard() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm font-medium text-slate-700 truncate">{p.name}</span>
-                    <span className="text-xs font-bold text-slate-500 ml-2 shrink-0">{fmt(p.sold_quantity)} dona</span>
+                    <span className="text-xs font-bold text-slate-500 ml-2 shrink-0">{fmt(p.sold_quantity)} {t('common.piece')}</span>
                   </div>
                   <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                     <div
@@ -206,13 +206,13 @@ export default function MobileDashboard() {
 
       {/* Quick links */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-        <h3 className="text-sm font-bold text-slate-800 mb-4">Tezkor havolalar</h3>
+        <h3 className="text-sm font-bold text-slate-800 mb-4">{t('mobileDashboard.quickLinks')}</h3>
         <div className="grid grid-cols-2 gap-3">
           {[
-            { label: 'Dashboard', path: '/admin/dashboard', color: 'indigo' },
-            { label: 'Hisobotlar', path: '/admin/reports', color: 'violet' },
-            { label: 'Moliya', path: '/admin/finance', color: 'emerald' },
-            { label: 'Mijozlar', path: '/admin/customers', color: 'amber' },
+            { label: t('dashboard.title'), path: '/admin/dashboard', color: 'indigo' },
+            { label: t('mobileDashboard.reports'), path: '/admin/reports', color: 'violet' },
+            { label: t('finance.title'), path: '/admin/finance', color: 'emerald' },
+            { label: t('mobileDashboard.customers'), path: '/admin/customers', color: 'amber' },
           ].map(({ label, path, color }) => (
             <a
               key={path}

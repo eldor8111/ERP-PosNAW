@@ -33,7 +33,7 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <span className="text-xs text-blue-600 font-medium">
-              Tariflar O'zbekiston Respublikasi <span className="font-bold">BHM</span> asosida tuzilgan
+              {t('tariff.bhmNotice')}
             </span>
           </div>
         )}
@@ -49,7 +49,7 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
             <span className="text-xs font-bold text-slate-500">{t('tariffs.currentStatus')}: </span>
             {billing.subscription_active ? (
               <span className="text-xs text-emerald-700">
-                <span className="font-bold">{billing.tariff_name || 'Noma\'lum tarif'}</span>
+                <span className="font-bold">{billing.tariff_name || t('tariff.unknownTariff')}</span>
                 {billing.is_trial && <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[10px] font-bold">{t('tariffs.trial')}</span>}
                 <span className="ml-1.5 text-slate-400">— {billing.days_left} {t('tariffs.daysLeft')}</span>
               </span>
@@ -97,7 +97,7 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
                 <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                {t('tariffs.duration')} <span className="font-bold">{tariff.duration_days} kun</span>
+                {t('tariffs.duration')} <span className="font-bold">{tariff.duration_days} {t('tariff.days')}</span>
               </div>
               <div className="flex items-center gap-1.5 text-[12px] text-slate-600">
                 <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -117,8 +117,8 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
             {tariff.bhm_percent != null && tariff.price_per_month > 0 && (
               <div className="mt-2.5 pt-2.5 border-t border-dashed border-slate-200/80">
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 border border-blue-100 rounded-lg text-[10px] text-blue-600 font-semibold">
-                  BHMning <span className="font-black">{tariff.bhm_percent}%</span>
-                  <span className="text-blue-400">({(tariff.bhm_percent / 100).toFixed(2)} qism)</span>
+                  {t('tariff.bhmOf')} <span className="font-black">{tariff.bhm_percent}%</span>
+                  <span className="text-blue-400">({(tariff.bhm_percent / 100).toFixed(2)} {t('tariff.share')})</span>
                 </span>
               </div>
             )}
@@ -131,9 +131,9 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
                   disabled={trialLoading}
                   className="flex items-center justify-center gap-2 py-2.5 bg-[#19b467] cursor-pointer hover:bg-[#16a35d] text-white font-bold rounded-lg text-xs transition-all shadow-md disabled:opacity-60"
                 >
-                  {trialLoading ? "Kuting..." : (
+                  {trialLoading ? t('tariff.waiting') : (
                     <>
-                      <CreditCard size={20} /> <span>Payme orqali to'lash</span>
+                      <CreditCard size={20} /> <span>{t('tariff.payViaPayme')}</span>
                     </>
                   )}
                 </button>
@@ -141,7 +141,7 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
 
               <div className="flex items-center justify-center gap-2">
                 <div className="w-full h-px bg-slate-200"></div>
-                <span className='text-xs text-slate-500'>Yoki</span>
+                <span className='text-xs text-slate-500'>{t('tariff.or')}</span>
                 <div className="w-full h-px bg-slate-200"></div>
               </div>
 
@@ -150,7 +150,7 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
                 {isCurrent(tariff) ? (
                   // Faol tarif — faqat "Aktiv" badge ko'rsatamiz
                   <div className="w-full py-2.5 text-center font-bold rounded-lg text-xs bg-emerald-100 text-emerald-700 border border-emerald-300">
-                    ✓ Aktiv
+                    ✓ {t('tariff.active')}
                   </div>
                 ) : (
                   // Obuna yo'q yoki boshqa tarif — sotib olish tugmasi
@@ -159,7 +159,7 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
                     disabled={trialLoading || (hasActiveSub && !isCurrent(tariff))}
                     className={`w-full py-2.5 text-white font-bold rounded-lg text-xs cursor-pointer shadow-md transition-all ${btnColor(tariff.price_per_month)} disabled:opacity-60`}
                   >
-                    {trialLoading ? "Kuting..." : t('tariffs.buy')}
+                    {trialLoading ? t('tariff.waiting') : t('tariffs.buy')}
                   </button>
                 )}
               </div>
@@ -171,7 +171,7 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
 
       {/* ── Aloqa ── */}
       <div className="bg-slate-50 rounded-xl mt-5 py-4 border border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-        <p className="text-xs text-slate-500 font-medium">Savol yoki muammo bo'lsa biz bilan bog'laning:</p>
+        <p className="text-xs text-slate-500 font-medium">{t('tariff.contactUs')}</p>
         <div className="flex items-center gap-2">
           <a href={`https://t.me/JavokhirUbaydullayev`} target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-2 px-4 py-2 bg-[#2AABEE] hover:bg-[#1d9bd6] text-white rounded-md font-bold text-xs transition-all shadow-sm">
@@ -188,9 +188,10 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
 }
 
 function SubscriptionHistoryTab({ logs }) {
+  const { t } = useLang();
   return (
     <div className="mt-10 mb-8">
-      <h2 className="text-2xl font-bold text-gray-900 mb-6 tracking-tight">Obunalar tarixi</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mb-6 tracking-tight">{t('tariff.subscriptionHistory')}</h2>
 
       <div className="overflow-hidden bg-white rounded-2xl border border-gray-200 shadow-sm">
         <div className="overflow-x-auto">
@@ -198,10 +199,10 @@ function SubscriptionHistoryTab({ logs }) {
             <thead className="bg-gray-50/80 border-b border-gray-200">
               <tr>
                 <th scope="col" className="pl-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
-                <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Boshlangan sana</th>
-                <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Tugash sana</th>
-                <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Miqdor</th>
-                <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Tarif</th>
+                <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('tariff.startDate')}</th>
+                <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('tariff.endDate')}</th>
+                <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('tariff.amount')}</th>
+                <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('nav.tariffs')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -254,7 +255,7 @@ function SubscriptionHistoryTab({ logs }) {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                         </svg>
                       </div>
-                      <p className="text-gray-500 font-medium text-sm">Hozircha obunalar tarixi yo'q</p>
+                      <p className="text-gray-500 font-medium text-sm">{t('tariff.noSubscriptionHistory')}</p>
                     </div>
                   </td>
                 </tr>
@@ -268,9 +269,10 @@ function SubscriptionHistoryTab({ logs }) {
 }
 
 function BillingHistoryTab({ logs }) {
+  const { t } = useLang();
   return (
     <div className="mt-10 mb-8">
-      <h2 className="text-2xl font-bold text-gray-900 mb-6 tracking-tight">Balans tarixi</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mb-6 tracking-tight">{t('tariff.balanceHistory')}</h2>
 
       <div className="overflow-hidden bg-white rounded-2xl border border-gray-200 shadow-sm">
         <div className="overflow-x-auto">
@@ -278,10 +280,10 @@ function BillingHistoryTab({ logs }) {
             <thead className="bg-gray-50/80 border-b border-gray-200">
               <tr>
                 <th scope="col" className="pl-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
-                <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Sana</th>
-                <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Miqdor</th>
-                <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Kim orqali</th>
-                <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Izoh</th>
+                <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('tariff.date')}</th>
+                <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('tariff.amount')}</th>
+                <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('tariff.via')}</th>
+                <th scope="col" className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('tariff.note')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -330,7 +332,7 @@ function BillingHistoryTab({ logs }) {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                         </svg>
                       </div>
-                      <p className="text-gray-500 font-medium text-sm">Hozircha balans tarixi yo'q</p>
+                      <p className="text-gray-500 font-medium text-sm">{t('tariff.noBalanceHistory')}</p>
                     </div>
                   </td>
                 </tr>
@@ -426,12 +428,12 @@ export default function Tariflar() {
           try {
             const b = await api.get('/billing/my-company');
             setBilling(b.data);
-            setToast({ msg: "Balans yangilandi!", ok: true });
+            setToast({ msg: t('tariff.balanceUpdated'), ok: true });
           } catch { /* ignore */ }
         }
       }, 1000);
     } catch (e) {
-      setToast({ msg: e.response?.data?.detail || "Xatolik yuz berdi", ok: false });
+      setToast({ msg: e.response?.data?.detail || t('auth.errGeneral'), ok: false });
     } finally {
       setTrialLoading(false);
       setTimeout(() => setToast(null), 4000);
@@ -458,21 +460,21 @@ export default function Tariflar() {
 
       // 2. Perform balance checks
       if (latestBilling.subscription_active && !latestBilling.is_trial && latestBilling.tariff_id !== tariff.id) {
-        setToast({ msg: "Sizda allaqachon faol tarif mavjud. Amaldagi tarif tugamaguncha boshqa tarifni sotib ololmaysiz.", ok: false });
+        setToast({ msg: t('tariff.alreadyActiveTariff'), ok: false });
         return;
       }
       if (balance <= 0) {
-        setToast({ msg: "Balansda pul yo'q", ok: false });
+        setToast({ msg: t('tariff.noBalance'), ok: false });
         return;
       }
       if (balance < price) {
-        setToast({ msg: "Balansda pul yetarli emas", ok: false });
+        setToast({ msg: t('tariff.insufficientBalance'), ok: false });
         return;
       }
 
       // 3. Prompt for confirmation
       const confirmed = window.confirm(
-        `"${tariff.name}" tarifini 1 oyga faollashtirishni tasdiqlaysizmi?\nSumma: ${fmtMoney(price)} so'm`
+        t('tariff.confirmActivate', { name: tariff.name, amount: fmtMoney(price) })
       );
       if (!confirmed) return;
 
@@ -481,13 +483,13 @@ export default function Tariflar() {
         tariff_id: tariff.id,
         months: 1
       });
-      setToast({ msg: res.data.message || "Obuna muvaffaqiyatli faollashtirildi!", ok: true });
+      setToast({ msg: res.data.message || t('tariff.subscriptionActivated'), ok: true });
 
       // Refresh billing info
       const updatedBilling = await api.get('/billing/my-company');
       setBilling(updatedBilling.data);
     } catch (e) {
-      setToast({ msg: e.response?.data?.detail || "Xatolik yuz berdi", ok: false });
+      setToast({ msg: e.response?.data?.detail || t('auth.errGeneral'), ok: false });
     } finally {
       setTrialLoading(false);
       setTimeout(() => setToast(null), 4000);
@@ -550,13 +552,13 @@ export default function Tariflar() {
     <div className="max-w-5xl mx-auto px-4 py-6">
       <div className="flex text-[14px] whitespace-nowrap shadow w-max rounded-lg">
         <button onClick={() => setTabs('tariflar')} className={`px-4 py-1.5 w-35 cursor-pointer font-medium rounded-l-lg ${tabs === 'tariflar' ? 'bg-white text-slate-900' : 'bg-slate-100 text-gray-700'}`}>
-          Tariflar
+          {t('nav.tariffs')}
         </button>
         <button onClick={() => setTabs('subscription')} className={`px-4 py-1.5 cursor-pointer font-medium w-35 ${tabs === 'subscription' ? 'bg-white text-slate-900' : 'bg-slate-100 text-gray-700'}`}>
-          Abonentlik tarixi
+          {t('tariff.subscriptionHistory')}
         </button>
         <button onClick={() => setTabs('billing')} className={`px-4 py-1.5 rounded-r-lg cursor-pointer font-medium w-35 ${tabs === 'billing' ? 'bg-white text-slate-900' : 'bg-slate-100 text-gray-700'}`}>
-          Balans tarixi
+          {t('tariff.balanceHistory')}
         </button>
       </div>
 

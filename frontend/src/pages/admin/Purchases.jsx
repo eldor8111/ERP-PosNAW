@@ -11,16 +11,16 @@ const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const fmtDay = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
 const fmtDt = (d) => d ? new Date(d).toLocaleString('uz-UZ') : '—';
 const saleMeta = {
-  completed: { l: 'Tugallandi', c: 'bg-emerald-100 text-emerald-700' },
-  refunded: { l: 'Qaytarildi', c: 'bg-red-100 text-red-600' },
-  partial_refund: { l: 'Qisman qaytarish', c: 'bg-amber-100 text-amber-700' },
-  cancelled: { l: 'Bekor', c: 'bg-red-100 text-red-500' },
+  completed: { lKey: 'sale.statusCompleted', c: 'bg-emerald-100 text-emerald-700' },
+  refunded: { lKey: 'sale.statusRefunded', c: 'bg-red-100 text-red-600' },
+  partial_refund: { lKey: 'sale.statusPartialRefund', c: 'bg-amber-100 text-amber-700' },
+  cancelled: { lKey: 'sale.statusCancelled', c: 'bg-red-100 text-red-500' },
 };
 const payMeta = {
-  cash: { l: 'Naqd', c: 'bg-emerald-100 text-emerald-700' },
-  card: { l: 'Karta', c: 'bg-blue-100 text-blue-700' },
-  mixed: { l: 'Aralash', c: 'bg-violet-100 text-violet-700' },
-  debt: { l: 'Qarz', c: 'bg-amber-100 text-amber-700' },
+  cash: { lKey: 'pay.cash', c: 'bg-emerald-100 text-emerald-700' },
+  card: { lKey: 'pay.card', c: 'bg-blue-100 text-blue-700' },
+  mixed: { lKey: 'pay.mixed', c: 'bg-violet-100 text-violet-700' },
+  debt: { lKey: 'pay.debt', c: 'bg-amber-100 text-amber-700' },
 };
 
 const ic = 'border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white transition-colors hover:border-slate-300';
@@ -91,17 +91,17 @@ function Pager({ skip, limit, count, onChange }) {
   return (
     <div className="flex items-center justify-between px-5 py-3.5 border-t border-slate-100 bg-slate-50/60 text-sm">
       <span className="text-slate-400 text-xs font-medium">
-        {count === 0 ? "Natija yo'q" : `${skip + 1}–${skip + count} ta ko'rsatildi`}
+        {count === 0 ? t('purchase.noResults') : `${skip + 1}–${skip + count} ${t('purchase.shownCount')}`}
       </span>
       <div className="flex gap-1.5">
         <button disabled={skip === 0} onClick={() => onChange(Math.max(0, skip - limit))}
           className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white disabled:opacity-40 hover:border-blue-300 hover:text-blue-600 transition-all text-xs font-semibold shadow-sm">
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-          Oldingi
+          {t('common.prev')}
         </button>
         <button disabled={count < limit} onClick={() => onChange(skip + limit)}
           className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white disabled:opacity-40 hover:border-blue-300 hover:text-blue-600 transition-all text-xs font-semibold shadow-sm">
-          Keyingi
+          {t('common.next')}
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
         </button>
       </div>
@@ -118,7 +118,7 @@ function Tbl({ cols, rows, onRow, loading, skip = 0, limit, onChange }) {
         <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
         </svg>
-        Yuklanmoqda...
+        {t('common.loading')}
       </div>
     </div>
   );
@@ -163,8 +163,9 @@ function Tbl({ cols, rows, onRow, loading, skip = 0, limit, onChange }) {
 }
 
 /* ─── Product search dropdown ─── */
-function ProdSearch({ products, onSelect, inputRef, placeholder = 'Mahsulot qidiring...' }) {
+function ProdSearch({ products, onSelect, inputRef, placeholder }) {
   const { t } = useLang();
+  placeholder = placeholder || t('purchase.searchProductPlaceholder');
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const [navIdx, setNavIdx] = useState(-1);
@@ -260,9 +261,9 @@ function ProdSearch({ products, onSelect, inputRef, placeholder = 'Mahsulot qidi
                 <div className="text-xs text-slate-400">{p.sku}{p.barcode ? ` · ${p.barcode}` : ''}</div>
               </div>
               <div className="text-right shrink-0 text-xs">
-                <div className="font-semibold text-blue-600">{fmt(p.sale_price)} so'm</div>
-                {p.wholesale_price > 0 && <div className="text-amber-600">Ulg: {fmt(p.wholesale_price)}</div>}
-                <div className="text-slate-400">Qoldiq: {fmt(p.stock_quantity)}</div>
+                <div className="font-semibold text-blue-600">{fmt(p.sale_price)} {t('purchase.somUnit')}</div>
+                {p.wholesale_price > 0 && <div className="text-amber-600">{t('purchase.wholesaleShort')}: {fmt(p.wholesale_price)}</div>}
+                <div className="text-slate-400">{t('purchase.stockLabel')} {fmt(p.stock_quantity)}</div>
               </div>
             </button>
           ))}
@@ -273,8 +274,9 @@ function ProdSearch({ products, onSelect, inputRef, placeholder = 'Mahsulot qidi
 }
 
 /* ─── Supplier search combobox ─── */
-function SupSearch({ suppliers, value, onChange, placeholder = "Ta'minotchi tanlang..." }) {
+function SupSearch({ suppliers, value, onChange, placeholder }) {
   const { t } = useLang();
+  placeholder = placeholder || t('purchase.selectSupplierPlaceholder');
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -315,7 +317,7 @@ function SupSearch({ suppliers, value, onChange, placeholder = "Ta'minotchi tanl
       {open && (
         <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-60 overflow-hidden max-h-64 overflow-y-auto">
           {filtered.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-slate-400">Topilmadi</div>
+            <div className="px-4 py-3 text-sm text-slate-400">{t('purchase.notFound')}</div>
           ) : filtered.map(s => (
             <button key={s.id} onMouseDown={() => pick(s)}
               className="w-full text-left px-4 py-2.5 hover:bg-blue-50 border-b border-slate-50 last:border-0">
@@ -330,8 +332,9 @@ function SupSearch({ suppliers, value, onChange, placeholder = "Ta'minotchi tanl
 }
 
 /* ─── Customer search combobox ─── */
-function CustSearch({ customers, value, onChange, placeholder = 'Ism yoki telefon...' }) {
+function CustSearch({ customers, value, onChange, placeholder }) {
   const { t } = useLang();
+  placeholder = placeholder || t('purchase.nameOrPhonePlaceholder');
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -369,7 +372,7 @@ function CustSearch({ customers, value, onChange, placeholder = 'Ism yoki telefo
       {open && (
         <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 overflow-hidden max-h-64 overflow-y-auto">
           {filtered.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-slate-400">Topilmadi</div>
+            <div className="px-4 py-3 text-sm text-slate-400">{t('purchase.notFound')}</div>
           ) : filtered.map(c => (
             <button key={c.id} onMouseDown={() => select(c)}
               className="w-full text-left px-4 py-2.5 hover:bg-blue-50 border-b border-slate-50 last:border-0 flex items-center justify-between">
@@ -380,7 +383,7 @@ function CustSearch({ customers, value, onChange, placeholder = 'Ism yoki telefo
               {Number(c.debt_balance) !== 0 && (
                 <div className="flex flex-col items-end gap-1">
                   <div className={`text-xs font-black py-0.5 px-2 rounded-md ${Number(c.debt_balance) > 0 ? 'text-red-600 bg-red-50 border border-red-100' : 'text-emerald-600 bg-emerald-50 border border-emerald-100'}`}>
-                    Qarz: {fmt(c.debt_balance)} s
+                    {t('common.debt')}: {fmt(c.debt_balance)} s
                   </div>
                   {c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).some(curr => curr !== 'UZS' && Number(c.debt_balances[curr]) !== 0) && (
                     <div className="flex flex-wrap gap-1 justify-end max-w-[120px]">
@@ -408,17 +411,17 @@ function PayModal({ total, onPay, onClose }) {
   const [paid, setPaid] = useState(String(total));
   const change = Number(paid) - total;
   const PAY_OPTS = [
-    { v: 'cash', l: 'Naqd pul', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
-    { v: 'card', l: 'Karta', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg> },
-    { v: 'debt', l: 'Qarzga', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
-    { v: 'mixed', l: 'Aralash', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg> },
+    { v: 'cash', l: t('pay.cash'), icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
+    { v: 'card', l: t('pay.card'), icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg> },
+    { v: 'debt', l: t('pay.debt'), icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+    { v: 'mixed', l: t('pay.mixed'), icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg> },
   ];
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
         {/* Modal header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-slate-800">{t('admin.dict.payment') || 'To\'lov'}</h3>
+          <h3 className="text-lg font-bold text-slate-800">{t('admin.dict.payment')}</h3>
           <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
@@ -426,8 +429,8 @@ function PayModal({ total, onPay, onClose }) {
         <div className="p-6 space-y-4">
           {/* Total display */}
           <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-center">
-            <div className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-1">To'lov summasi</div>
-            <div className="text-3xl font-black text-blue-700">{fmt(total)} <span className="text-lg font-normal text-blue-400">so'm</span></div>
+            <div className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-1">{t('purchase.paymentAmount')}</div>
+            <div className="text-3xl font-black text-blue-700">{fmt(total)} <span className="text-lg font-normal text-blue-400">{t('purchase.somUnit')}</span></div>
           </div>
           {/* Payment type */}
           <div className="grid grid-cols-2 gap-2">
@@ -444,13 +447,13 @@ function PayModal({ total, onPay, onClose }) {
           {/* Amount input */}
           {type !== 'debt' && (
             <div>
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">Qabul qilindi (so'm)</label>
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">{t('purchase.amountReceived')}</label>
               <input type="number" value={paid} onChange={e => setPaid(e.target.value)} autoFocus
                 className="w-full border-2 border-slate-200 focus:border-blue-500 rounded-xl px-4 py-3 text-2xl font-bold text-center text-slate-800 focus:outline-none transition-colors" />
               {change > 0 && Number(paid) > 0 && (
                 <div className="mt-2 flex items-center justify-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl py-2.5">
                   <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                  <span className="text-sm text-emerald-700 font-bold">Qaytim: {fmt(change)} so'm</span>
+                  <span className="text-sm text-emerald-700 font-bold">{t('purchase.summaryChange')} {fmt(change)} {t('purchase.somUnit')}</span>
                 </div>
               )}
             </div>
@@ -460,7 +463,7 @@ function PayModal({ total, onPay, onClose }) {
             <Btn v="ghost" onClick={onClose}>{t('common.cancel')}</Btn>
             <button onClick={() => onPay(type, type === 'debt' ? 0 : Number(paid))}
               className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-blue-200 active:scale-95">
-              Tasdiqlash
+              {t('common.confirm')}
             </button>
           </div>
         </div>
@@ -518,7 +521,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
   const subtotal = cart.reduce((s, c) => s + c.qty * c.price - Number(c.discount || 0), 0);
 
   const doSave = (payType, paidAmount) => {
-    if (!cart.length) { setErr("Kamida bitta mahsulot qo'shing"); return; }
+    if (!cart.length) { setErr(t('purchase.addAtLeastOneProduct')); return; }
     if (saving) return;
     setSaving(true); setErr('');
     setShowPay(false);
@@ -547,14 +550,14 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
           </svg>
-          Orqaga
+          {t('common.back')}
         </button>
         <div className="w-px h-6 bg-slate-200 shrink-0" />
-        <h2 className="text-base font-bold text-slate-800 shrink-0">Yangi sotuv</h2>
+        <h2 className="text-base font-bold text-slate-800 shrink-0">{t('sale.newSale')}</h2>
         <div className="flex-1 flex items-center gap-2.5">
           {/* Customer */}
           <div className="min-w-[240px]">
-            <CustSearch customers={customers} value={custId} onChange={setCust} placeholder="Mijoz: ism yoki telefon..." />
+            <CustSearch customers={customers} value={custId} onChange={setCust} placeholder={t('purchase.customerPlaceholder')} />
           </div>
           {/* Wholesale */}
           <button onClick={() => setWhole(w => !w)}
@@ -565,10 +568,10 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
             </svg>
-            Ulgurji
+            {t('purchase.wholesale')}
           </button>
           {/* Note */}
-          <input value={note} onChange={e => setNote(e.target.value)} placeholder="Izoh (ixtiyoriy)..."
+          <input value={note} onChange={e => setNote(e.target.value)} placeholder={t('ops.noteOpt')}
             className="flex-1 max-w-sm border border-slate-200 rounded-xl px-3.5 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-slate-400" />
         </div>
         <div className="text-xs text-slate-400 shrink-0 font-medium">{new Date().toLocaleString('uz-UZ')}</div>
@@ -586,15 +589,15 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
               </svg>
               <input value={prodQ} onChange={e => setProdQ(e.target.value)}
-                placeholder="Mahsulot nomi, barkod yoki SKU..."
+                placeholder={t('purchase.productSearchFullPlaceholder')}
                 className="w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white" />
             </div>
             <div className="flex items-center justify-between mt-2 px-1">
-              <span className="text-xs text-slate-400 font-medium">{filteredProducts.length} ta mahsulot</span>
+              <span className="text-xs text-slate-400 font-medium">{filteredProducts.length} {t('purchase.productCount')}</span>
               {wholesale && (
                 <span className="inline-flex items-center gap-1 text-xs text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded-full">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
-                  Ulgurji narxlar
+                  {t('purchase.wholesalePrices')}
                 </span>
               )}
             </div>
@@ -606,7 +609,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                 <svg className="w-10 h-10 mx-auto mb-2 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                 </svg>
-                <p className="text-sm">Mahsulot topilmadi</p>
+                <p className="text-sm">{t('purchase.productNotFound')}</p>
               </div>
             ) : filteredProducts.slice(0, 100).map(p => {
               const inCart = cart.find(c => c.product.id === p.id);
@@ -628,7 +631,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-xs text-slate-400">{p.sku}</span>
                       {stockLow && (
-                        <span className="text-xs text-red-500 font-medium">az: {fmt(p.stock_quantity)}</span>
+                        <span className="text-xs text-red-500 font-medium">{t('purchase.lowStockAbbr')} {fmt(p.stock_quantity)}</span>
                       )}
                     </div>
                   </div>
@@ -637,7 +640,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                     {wholesale && p.wholesale_price && Number(p.wholesale_price) !== Number(p.sale_price) && (
                       <div className="text-xs text-slate-400 line-through">{fmt(p.sale_price)}</div>
                     )}
-                    <div className="text-xs text-slate-400 mt-0.5">{fmt(p.stock_quantity)} dona</div>
+                    <div className="text-xs text-slate-400 mt-0.5">{fmt(p.stock_quantity)} {t('common.piece')}</div>
                   </div>
                 </button>
               );
@@ -654,13 +657,13 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
               <span className="text-sm font-bold text-slate-700">
-                Savat {cart.length > 0 && <span className="text-blue-600 ml-1">({cart.length} tur)</span>}
+                {t('sale.cart')} {cart.length > 0 && <span className="text-blue-600 ml-1">({cart.length} {t('purchase.itemsUnit')})</span>}
               </span>
             </div>
             {cart.length > 0 && (
               <button onClick={() => setCart([])} className="inline-flex items-center gap-1 text-xs text-red-400 hover:text-red-600 hover:bg-red-50 px-2 py-1 rounded-lg transition-all">
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                Tozalash
+                {t('sale.clearCart')}
               </button>
             )}
           </div>
@@ -673,18 +676,18 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1}
                     d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
-                <p className="text-base">Chap tarafdan mahsulot tanlang</p>
+                <p className="text-base">{t('purchase.selectProductFromLeft')}</p>
               </div>
             ) : (
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
                   <tr>
                     <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 w-8">№</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">{t('admin.dict.th_prod') || 'MAHSULOT'}</th>
-                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-28">{t('admin.dict.th_qty') || 'MIQDOR'}</th>
-                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-32">NARXI</th>
-                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-28">CHEGIRMA</th>
-                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500 w-32">SUMMA</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">{t('admin.dict.th_prod')}</th>
+                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-28">{t('admin.dict.th_qty')}</th>
+                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-32">{t('purchase.priceUpper')}</th>
+                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-28">{t('purchase.discountUpper')}</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500 w-32">{t('purchase.sumUpper')}</th>
                     <th className="w-8"></th>
                   </tr>
                 </thead>
@@ -694,7 +697,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                       <td className="px-4 py-3 text-slate-400 text-xs">{i + 1}</td>
                       <td className="px-4 py-3">
                         <div className="font-medium text-slate-800">{c.product.name}</div>
-                        <div className="text-xs text-slate-400">{c.product.sku} · {c.product.unit || 'dona'}</div>
+                        <div className="text-xs text-slate-400">{c.product.sku} · {c.product.unit || t('common.piece')}</div>
                       </td>
                       <td className="px-3 py-3 text-center">
                         <div className="flex items-center justify-center gap-1">
@@ -732,10 +735,10 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
           {/* Cart totals */}
           {cart.length > 0 && (
             <div className="border-t border-slate-200 px-4 py-3 bg-slate-50 flex items-center justify-between shrink-0">
-              <span className="text-sm text-slate-500">{cart.length} xil, {cart.reduce((s, c) => s + c.qty, 0)} ta mahsulot</span>
+              <span className="text-sm text-slate-500">{cart.length} {t('purchase.typesUnit')}, {cart.reduce((s, c) => s + c.qty, 0)} {t('purchase.productCount')}</span>
               <div className="text-right">
-                <span className="text-xs text-slate-400 mr-2">{t('admin.dict.total_colon') || 'Jami:'}</span>
-                <span className="text-xl font-bold text-blue-600">{fmt(subtotal)} so'm</span>
+                <span className="text-xs text-slate-400 mr-2">{t('admin.dict.total_colon')}</span>
+                <span className="text-xl font-bold text-blue-600">{fmt(subtotal)} {t('purchase.somUnit')}</span>
               </div>
             </div>
           )}
@@ -751,17 +754,17 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
         <div className="flex items-center gap-3">
           {cart.length > 0 && (
             <div className="text-sm text-slate-500 mr-2">
-              Jami: <span className="font-bold text-slate-800 text-base">{fmt(subtotal)} so'm</span>
+              {t('admin.dict.total_colon')} <span className="font-bold text-slate-800 text-base">{fmt(subtotal)} {t('purchase.somUnit')}</span>
             </div>
           )}
           <Btn v="amber" disabled={saving || !cart.length} onClick={() => doSave('debt', 0)}>
             <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-            Qarzga saqlash
+            {t('purchase.saveToDebt')}
           </Btn>
           <button disabled={saving || !cart.length} onClick={() => { setErr(''); setShowPay(true); }}
             className="inline-flex items-center gap-2.5 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-blue-200 active:scale-95">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
-            To'lovga o'tish
+            {t('sale.checkout')}
             {cart.length > 0 && <span className="bg-white/20 px-2 py-0.5 rounded-lg text-xs font-bold">{fmt(subtotal)}</span>}
           </button>
         </div>
@@ -782,7 +785,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
             </div>
             <div className="grid grid-cols-3 gap-3 mb-4">
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">{t('admin.dict.qty') || 'Miqdor'}</label>
+                <label className="text-xs font-medium text-slate-500 mb-1 block">{t('admin.dict.qty')}</label>
                 <input type="number" min="0.001" step="any" value={qaItem.qty}
                   autoFocus
                   onChange={e => setQaItem(v => ({ ...v, qty: e.target.value }))}
@@ -790,14 +793,14 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-center font-bold" />
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Narxi (so'm)</label>
+                <label className="text-xs font-medium text-slate-500 mb-1 block">{t('purchase.priceSomLabel')}</label>
                 <input type="number" min="0" value={qaItem.price}
                   onChange={e => setQaItem(v => ({ ...v, price: e.target.value }))}
                   onKeyDown={e => e.key === 'Enter' && addToCart(qaItem.product, qaItem.qty, qaItem.price, qaItem.discount)}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-center font-bold" />
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Chegirma (so'm)</label>
+                <label className="text-xs font-medium text-slate-500 mb-1 block">{t('purchase.discountSomLabel')}</label>
                 <input type="number" min="0" value={qaItem.discount}
                   onChange={e => setQaItem(v => ({ ...v, discount: e.target.value }))}
                   onKeyDown={e => e.key === 'Enter' && addToCart(qaItem.product, qaItem.qty, qaItem.price, qaItem.discount)}
@@ -808,23 +811,23 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
               <div className="flex gap-2 mb-4">
                 <button onClick={() => setQaItem(v => ({ ...v, price: Number(v.product.sale_price) }))}
                   className={`flex-1 py-1.5 text-xs rounded-lg border transition-all ${Number(qaItem.price) === Number(qaItem.product.sale_price) ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-600 hover:border-blue-300'}`}>
-                  Chakana: {fmt(qaItem.product.sale_price)}
+                  {t('purchase.retailLabel')} {fmt(qaItem.product.sale_price)}
                 </button>
                 <button onClick={() => setQaItem(v => ({ ...v, price: Number(v.product.wholesale_price) }))}
                   className={`flex-1 py-1.5 text-xs rounded-lg border transition-all ${Number(qaItem.price) === Number(qaItem.product.wholesale_price) ? 'bg-amber-500 text-white border-amber-500' : 'border-slate-200 text-slate-600 hover:border-amber-300'}`}>
-                  Ulgurji: {fmt(qaItem.product.wholesale_price)}
+                  {t('purchase.wholesale')}: {fmt(qaItem.product.wholesale_price)}
                 </button>
               </div>
             )}
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs text-slate-400">{t('admin.dict.total_colon') || 'Jami:'}</span>
-              <span className="text-lg font-bold text-blue-600">{fmt(Number(qaItem.qty) * Number(qaItem.price) - Number(qaItem.discount))} so'm</span>
+              <span className="text-xs text-slate-400">{t('admin.dict.total_colon')}</span>
+              <span className="text-lg font-bold text-blue-600">{fmt(Number(qaItem.qty) * Number(qaItem.price) - Number(qaItem.discount))} {t('purchase.somUnit')}</span>
             </div>
             <div className="flex gap-2">
               <Btn v="ghost" onClick={() => setQaItem(null)} sm>{t('common.cancel')}</Btn>
               <button onClick={() => addToCart(qaItem.product, qaItem.qty, qaItem.price, qaItem.discount)}
                 className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-colors">
-                + Savatga qo'shish
+                + {t('sale.addToCart')}
               </button>
             </div>
           </div>
@@ -841,18 +844,18 @@ function SaleDetailView({ saleId, onBack }) {
   const { t } = useLang();
   const [sale, setSale] = useState(null);
   useEffect(() => {
-    api.get(`/sales/${saleId}`).then(r => setSale(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get(`/sales/${saleId}`).then(r => setSale(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
   }, [saleId]);
-  if (!sale) return <div className="py-20 text-center text-slate-400">Yuklanmoqda...</div>;
+  if (!sale) return <div className="py-20 text-center text-slate-400">{t('common.loading')}</div>;
   const debt = Number(sale.total_amount) - Number(sale.paid_amount);
   return (
     <div className="fixed inset-0 z-40 bg-white flex flex-col">
-      <CreateHeader title={`Sotuv · ${sale.number}`} onBack={onBack}
+      <CreateHeader title={`${t('sale.title')} · ${sale.number}`} onBack={onBack}
         right={<Badge meta={saleMeta} val={sale.status} />}
       />
       <div className="p-6 overflow-y-auto flex-1">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-          {[['Kassir', sale.cashier_name], ['Sana', fmtDt(sale.created_at)], ['To\'lov', <Badge meta={payMeta} val={sale.payment_type} />], ['Holat', <Badge meta={saleMeta} val={sale.status} />]].map(([k, v]) => (
+          {[[t('sale.cashier'), sale.cashier_name], [t('common.date'), fmtDt(sale.created_at)], [t('sale.paymentType'), <Badge meta={payMeta} val={sale.payment_type} />], [t('common.status'), <Badge meta={saleMeta} val={sale.status} />]].map(([k, v]) => (
             <div key={k} className="bg-slate-50 rounded-xl p-3">
               <div className="text-xs text-slate-500 mb-1">{k}</div>
               <div className="font-semibold">{v}</div>
@@ -863,11 +866,11 @@ function SaleDetailView({ saleId, onBack }) {
           <thead className="bg-slate-50">
             <tr>
               <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">№</th>
-              <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.product') || 'Mahsulot'}</th>
-              <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">Soni</th>
-              <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">Narxi</th>
-              <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">Chegirma</th>
-              <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.total') || 'Jami'}</th>
+              <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.product')}</th>
+              <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.qty')}</th>
+              <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.price')}</th>
+              <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('common.discount')}</th>
+              <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.total')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -885,11 +888,11 @@ function SaleDetailView({ saleId, onBack }) {
         </table>
         <div className="flex justify-end">
           <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 min-w-64 space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-slate-500">Umumiy summa:</span><span className="font-medium">{fmt(sale.total_amount)}</span></div>
-            {Number(sale.discount_amount) > 0 && <div className="flex justify-between"><span className="text-slate-500">Chegirma:</span><span className="text-red-500 font-medium">−{fmt(sale.discount_amount)}</span></div>}
-            <div className="flex justify-between"><span className="text-slate-500">To'lov miqdori:</span><span className="font-medium">{fmt(sale.paid_amount)}</span></div>
-            {debt > 0 && <div className="flex justify-between border-t pt-2"><span className="text-slate-500">Qarzga:</span><span className="text-red-500 font-bold">{fmt(debt)}</span></div>}
-            <div className="flex justify-between border-t pt-2"><span className="font-bold text-slate-700">Chegirma bilan summa:</span><span className="font-bold text-xl text-blue-600">{fmt(sale.total_amount)}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">{t('purchase.summaryTotal')}</span><span className="font-medium">{fmt(sale.total_amount)}</span></div>
+            {Number(sale.discount_amount) > 0 && <div className="flex justify-between"><span className="text-slate-500">{t('common.discount')}:</span><span className="text-red-500 font-medium">−{fmt(sale.discount_amount)}</span></div>}
+            <div className="flex justify-between"><span className="text-slate-500">{t('purchase.paidAmountLabel')}</span><span className="font-medium">{fmt(sale.paid_amount)}</span></div>
+            {debt > 0 && <div className="flex justify-between border-t pt-2"><span className="text-slate-500">{t('purchase.summaryDebt')}</span><span className="text-red-500 font-bold">{fmt(debt)}</span></div>}
+            <div className="flex justify-between border-t pt-2"><span className="font-bold text-slate-700">{t('purchase.totalWithDiscountLabel')}</span><span className="font-bold text-xl text-blue-600">{fmt(sale.total_amount)}</span></div>
           </div>
         </div>
       </div>
@@ -913,9 +916,9 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
 
   useEffect(() => {
     api.get('/products/', { params: { limit: 1000, status: 'active' } })
-      .then(r => setProds(Array.isArray(r.data) ? r.data : (r.data.items || []))).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
-    api.get('/inventory/warehouses').then(r => setWhs(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
-    api.get('/suppliers', { params: { limit: 100 } }).then(r => setSups(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+      .then(r => setProds(Array.isArray(r.data) ? r.data : (r.data.items || []))).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
+    api.get('/inventory/warehouses').then(r => setWhs(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
+    api.get('/suppliers', { params: { limit: 100 } }).then(r => setSups(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
     api.get('/finance/wallets').then(r => { setWallets(r.data); if (r.data.length > 0) setPayForm(p => ({ ...p, wallet_id: r.data[0].id })); }).catch(console.error);
     api.get('/currencies/active').then(r => {
       const list = Array.isArray(r.data) ? r.data : [];
@@ -945,7 +948,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
       setPoItems(editPo.items.map(item => ({
         product_id: item.product_id,
         product_name: item.product_name,
-        unit: 'dona',
+        unit: t('common.piece'),
         unit_cost: Number(item.unit_cost),
         discount_type: 'pct',
         discount_val: 0,
@@ -1013,7 +1016,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
   const addItem = () => {
     if (!sel || !qty) return;
     const base = {
-      product_id: sel.id, product_name: sel.name, unit: sel.unit || 'dona',
+      product_id: sel.id, product_name: sel.name, unit: sel.unit || t('common.piece'),
       category_is_perishable: sel.category_is_perishable || false,
       expiry_date: expiryDate || '',
       unit_cost: Number(cost) || 0, discount_type: discType, discount_val: Number(discVal) || 0,
@@ -1064,7 +1067,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
 
   const handleOpenPay = () => {
     if (!poForm.supplier_id || !poForm.warehouse_id || !poItems.length) {
-      setErr("Barcha majburiy maydonlarni (Ta'minotchi, Ombor, Mahsulotlar) to'ldiring!");
+      setErr(t('purchase.fillRequiredFieldsDetailed'));
       return;
     }
     setErr('');
@@ -1127,11 +1130,11 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
   };
 
   const savePo = (status = 'draft', paymentInfo = null) => {
-    if (!poForm.supplier_id || !poForm.warehouse_id || !poItems.length) { setErr("Barcha majburiy maydonlarni to'ldiring"); return; }
+    if (!poForm.supplier_id || !poForm.warehouse_id || !poItems.length) { setErr(t('purchase.fillRequiredFields')); return; }
     // Perishable mahsulotlarda muddatni tekshirish
     const missingExpiry = poItems.filter(i => i.category_is_perishable && !i.expiry_date);
     if (missingExpiry.length > 0) {
-      setErr(`"${missingExpiry.map(i => i.product_name).join(', ')}" uchun yaroqlilik muddatini kiriting!`);
+      setErr(`"${missingExpiry.map(i => i.product_name).join(', ')}" ${t('purchase.enterExpiryFor')}`);
       return;
     }
     if (saving) return;
@@ -1179,7 +1182,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
 
   return (
     <div className="fixed inset-0 z-40 bg-slate-50 flex flex-col">
-      <CreateHeader title={editPo ? `Kirim tahrirlash · ${editPo.number}` : t('purchase.newKirimTitle')} onBack={onBack} />
+      <CreateHeader title={editPo ? `${t('purchase.editKirimTitle')} · ${editPo.number}` : t('purchase.newKirimTitle')} onBack={onBack} />
 
       {/* ── Header fields ── */}
       <div className="flex items-center gap-3 px-6 py-3 border-b border-slate-100 bg-white shrink-0 flex-wrap shadow-sm">
@@ -1207,13 +1210,13 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
           <div className="flex items-center gap-2 flex-wrap">
             {currencies.filter(c => c.code !== 'UZS').map(c => (
               <span key={c.code} className="text-xs text-slate-500 font-semibold bg-slate-100 px-2 py-1 rounded-lg">
-                1 {c.code} = {fmt(c.rate)} so'm
+                1 {c.code} = {fmt(c.rate)} {t('purchase.somUnit')}
               </span>
             ))}
           </div>
         )}
 
-        <input placeholder={t('admin.dict.comment') || 'Izoh'} value={poForm.note}
+        <input placeholder={t('admin.dict.comment')} value={poForm.note}
           onChange={e => setPoForm(f => ({ ...f, note: e.target.value }))}
           className={`${ic} flex-1 min-w-32`} />
       </div>
@@ -1236,7 +1239,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-slate-800 text-base truncate">{sel.name}</div>
                   <div className="text-sm text-slate-600 mt-1">
-                    {t('purchase.stockLabel')} <strong>{fmt(sel.stock_quantity)}</strong> {sel.unit || 'dona'}
+                    {t('purchase.stockLabel')} <strong>{fmt(sel.stock_quantity)}</strong> {sel.unit || t('common.piece')}
                     <span className="mx-2 text-slate-300">|</span>
                     {t('purchase.retailLabel')} <strong className="text-blue-600">{fmt(sel.sale_price)}</strong>
                   </div>
@@ -1274,7 +1277,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                             className="group flex items-center justify-between gap-2 py-2 px-3 select-none cursor-pointer rounded-lg text-slate-800 data-focus:bg-slate-100 outline-none transition-colors">
                             <span className="font-semibold text-sm group-data-selected:text-blue-600">{c.code}</span>
                             {c.code !== 'UZS' && (
-                              <span className="text-[10px] font-medium text-slate-500">{fmt(c.rate)} so'm</span>
+                              <span className="text-[10px] font-medium text-slate-500">{fmt(c.rate)} {t('purchase.somUnit')}</span>
                             )}
                             <span className="ml-auto text-blue-600 opacity-0 group-data-selected:opacity-100 transition-opacity">
                               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="size-4"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
@@ -1321,7 +1324,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                   <input type="number" min="0" value={discVal} onChange={e => setDiscVal(e.target.value)}
                     className="flex-1 min-w-0 px-3 py-2 text-sm focus:outline-none bg-transparent" />
                   <div className="flex border-l border-slate-200">
-                    {[['pct', '%'], ['amt', 'so\'m']].map(([v, l]) => (
+                    {[['pct', '%'], ['amt', t('purchase.somUnit')]].map(([v, l]) => (
                       <button key={v} type="button" onClick={() => setDiscType(v)}
                         className={`px-2.5 py-2 text-xs font-bold transition-colors ${discType === v ? 'bg-amber-500 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>
                         {l}
@@ -1335,7 +1338,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
               {(Number(discVal) > 0 || currency === 'USD') && (
                 <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 flex justify-between items-center">
                   <span className="text-xs text-emerald-700 font-semibold">{t('purchase.netCost')}</span>
-                  <span className="text-sm font-black text-emerald-700">{fmt(Math.round(selNet))} so'm</span>
+                  <span className="text-sm font-black text-emerald-700">{fmt(Math.round(selNet))} {t('purchase.somUnit')}</span>
                 </div>
               )}
 
@@ -1351,13 +1354,13 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                       }
                     }}
                     className={`flex-1 ${ic} text-center font-bold`} />
-                  <span className="text-sm text-slate-500 font-medium shrink-0">{sel.unit || 'dona'}</span>
+                  <span className="text-sm text-slate-500 font-medium shrink-0">{sel.unit || t('common.piece')}</span>
                 </div>
               </Lbl>
 
               {/* Expiry Date — faqat perishable mahsulotlar uchun */}
               {sel.category_is_perishable && (
-                <Lbl t="⏰ Yaroqlilik muddati (Majburiy)">
+                <Lbl t={`⏰ ${t('purchase.expiryDateRequired')}`}>
                   <div className="relative">
                     <input
                       type="date"
@@ -1374,7 +1377,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
                         </svg>
-                        Muddat kiritish shart!
+                        {t('purchase.expiryDateMandatory')}
                       </div>
                     )}
                   </div>
@@ -1422,13 +1425,13 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
               <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
                 <tr>
                   <th className="text-left px-3 py-3 text-xs font-semibold text-slate-400 w-8">№</th>
-                  <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.product') || 'Mahsulot'}</th>
+                  <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.product')}</th>
                   <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase w-20">{t('purchase.colQty')}</th>
                   <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('purchase.colPrice')}</th>
                   <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase w-28">{t('purchase.discount')}</th>
-                  <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase">Muddat</th>
+                  <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('purchase.expiryDateShort')}</th>
                   <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('purchase.colNetPrice')}</th>
-                  <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.total') || 'Jami'}</th>
+                  <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.total')}</th>
                   <th className="w-8"></th>
                 </tr>
               </thead>
@@ -1477,7 +1480,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                             className="w-14 text-center border border-slate-200 rounded-lg px-1 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
                           <button onClick={() => updFn(i, 'discount_type', it.discount_type === 'pct' ? 'amt' : 'pct')}
                             className={`text-[10px] font-bold px-1.5 py-1 rounded-md min-w-[28px] transition-colors ${it.discount_type === 'pct' ? 'bg-amber-100 text-amber-700' : 'bg-violet-100 text-violet-700'}`}>
-                            {it.discount_type === 'pct' ? '%' : 'so\'m'}
+                            {it.discount_type === 'pct' ? '%' : t('purchase.somUnit')}
                           </button>
                         </div>
                         {Number(it.discount_val) > 0 && <div className="text-[10px] text-amber-600 mt-0.5">–{discPct}%</div>}
@@ -1493,7 +1496,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                                   : 'border-slate-200 hover:border-blue-300'
                               }`} />
                             {!it.expiry_date && (
-                              <span className="text-[9px] text-red-500 font-bold">Muddat kiriting!</span>
+                              <span className="text-[9px] text-red-500 font-bold">{t('purchase.enterExpiry')}</span>
                             )}
                           </div>
                         ) : (
@@ -1504,7 +1507,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                         {it.currency && it.currency !== 'UZS' ? (
                           <div>
                             <div>{fmt(it.unit_cost)} <span className="text-xs">{it.currency}</span></div>
-                            <div className="text-[10px] text-slate-400 font-normal">≈ {fmt(Math.round(it.net_cost))} so'm</div>
+                            <div className="text-[10px] text-slate-400 font-normal">≈ {fmt(Math.round(it.net_cost))} {t('purchase.somUnit')}</div>
                           </div>
                         ) : (
                           fmt(Math.round(it.net_cost))
@@ -1514,7 +1517,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                         {it.currency && it.currency !== 'UZS' ? (
                           <div>
                             <div className="text-blue-600">{fmt(Math.round(it.unit_cost * qty_n * 100) / 100)} <span className="text-xs">{it.currency}</span></div>
-                            <div className="text-[10px] text-slate-400 font-normal">≈ {fmt(Math.round(it.net_cost * qty_n))} so'm</div>
+                            <div className="text-[10px] text-slate-400 font-normal">≈ {fmt(Math.round(it.net_cost * qty_n))} {t('purchase.somUnit')}</div>
                           </div>
                         ) : (
                           fmt(Math.round(it.net_cost * qty_n))
@@ -1554,8 +1557,8 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
           <Btn v="ghost" onClick={onBack}>{t('common.cancel')}</Btn>
           <Btn v="secondary" onClick={() => savePo('draft')} disabled={saving}>{t('purchase.saveDraft')}</Btn>
           <Btn v="secondary" onClick={() => savePo('sent')} disabled={saving}>{t('purchase.saveNoPayment')}</Btn>
-          <Btn v="amber" onClick={() => savePo('received')} disabled={saving}>Qabul qilish (Qarzga)</Btn>
-          <Btn onClick={handleOpenPay} disabled={saving}>{t('admin.dict.payment') || 'To\'lov'}</Btn>
+          <Btn v="amber" onClick={() => savePo('received')} disabled={saving}>{t('purchase.receiveOnDebt')}</Btn>
+          <Btn onClick={handleOpenPay} disabled={saving}>{t('admin.dict.payment')}</Btn>
         </div>
       </div>
 
@@ -1594,9 +1597,9 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
 
                 {/* Kassa */}
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-600">{t('finance.wallet') || 'Kassa/Hisob'}</label>
+                  <label className="text-sm font-semibold text-slate-600">{t('finance.wallet')}</label>
                   <select value={payForm.wallet_id} onChange={e => setPayForm(p => ({ ...p, wallet_id: e.target.value }))} className={`${ic} w-full h-11 bg-white text-base`}>
-                    <option value="">Tanlang...</option>
+                    <option value="">{t('admin.dict.select')}</option>
                     {wallets.map(w => <option key={w.id} value={w.id}>{w.name} ({fmt(w.balance)})</option>)}
                   </select>
                 </div>
@@ -1604,7 +1607,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
 
               {/* To'lov */}
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-600">{t('admin.dict.payment') || 'To\'lov'}</label>
+                <label className="text-sm font-semibold text-slate-600">{t('admin.dict.payment')}</label>
                 <div className="flex gap-2 h-11 items-center">
                   {/* Naqd label separated */}
                   <div className="bg-slate-50 px-5 flex items-center border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 h-full shadow-sm">{t('purchase.cash')}</div>
@@ -1632,21 +1635,21 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                   <span className="text-slate-500">{t('purchase.summaryTotal')}</span>
                   <span className="font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg">
                     {fmt(payTotals.finalTotalInPayCur)} <span className="text-xs uppercase">{payCur}</span>
-                    {payCur !== 'UZS' && <span className="text-xs text-slate-400 font-normal ml-1">({fmt(payTotals.finalTotalUzs)} so'm)</span>}
+                    {payCur !== 'UZS' && <span className="text-xs text-slate-400 font-normal ml-1">({fmt(payTotals.finalTotalUzs)} {t('purchase.somUnit')})</span>}
                   </span>
                 </div>
                 <div className="flex items-center justify-between w-72 text-base sm:text-lg">
                   <span className="text-slate-500">{t('purchase.summaryPaid')}</span>
                   <span className="font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-lg">
                     {fmt(payTotals.paidInPayCur)} <span className="text-xs uppercase">{payCur}</span>
-                    {payCur !== 'UZS' && <span className="text-xs text-slate-400 font-normal ml-1">({fmt(payTotals.paidInUzs)} so'm)</span>}
+                    {payCur !== 'UZS' && <span className="text-xs text-slate-400 font-normal ml-1">({fmt(payTotals.paidInUzs)} {t('purchase.somUnit')})</span>}
                   </span>
                 </div>
                 <div className="flex items-center justify-between w-72 text-base sm:text-lg">
                   <span className="text-slate-500">{t('purchase.summaryDebt')}</span>
                   <span className="font-bold text-red-500 bg-red-50 px-3 py-1 rounded-lg">
                     {fmt(payTotals.debtInPayCur)} <span className="text-xs uppercase">{payCur}</span>
-                    {payCur !== 'UZS' && <span className="text-xs text-slate-400 font-normal ml-1">({fmt(payTotals.debtUzs)} so'm)</span>}
+                    {payCur !== 'UZS' && <span className="text-xs text-slate-400 font-normal ml-1">({fmt(payTotals.debtUzs)} {t('purchase.somUnit')})</span>}
                   </span>
                 </div>
                 {payTotals.changeInPayCur > 0 && (
@@ -1716,7 +1719,7 @@ function KirimlarTab({ products, warehouses, suppliers }) {
   const LIMIT = 20;
 
   useEffect(() => {
-    api.get('/branches').then(r => setBranches(r.data.filter(b => b.is_active))).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/branches').then(r => setBranches(r.data.filter(b => b.is_active))).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
   }, []);
 
   const load = useCallback(async () => {
@@ -1752,63 +1755,63 @@ function KirimlarTab({ products, warehouses, suppliers }) {
     try {
       const r = await api.get(`/purchase-orders/${row.id}`);
       setEditPo(r.data);
-    } catch (e) { toast.error(e.response?.data?.detail || 'Xatolik'); }
+    } catch (e) { toast.error(e.response?.data?.detail || t('common.error')); }
   };
 
   const handleDeletePo = async (row) => {
-    if (!confirm(`"${row.number}" buyurtmani o'chirilsinmi? Mahsulot qoldiqlari va qarzlar qaytariladi.`)) return;
+    if (!confirm(`"${row.number}" ${t('purchase.confirmDeletePo')}`)) return;
     try {
       await api.delete(`/purchase-orders/${row.id}`);
-      toast.success('Buyurtma o\'chirildi');
+      toast.success(t('purchase.poDeleted'));
       load();
-    } catch (e) { toast.error(e.response?.data?.detail || 'Xatolik'); }
+    } catch (e) { toast.error(e.response?.data?.detail || t('common.error')); }
   };
 
   if (editPo) return <KirimCreateView editPo={editPo} onBack={() => setEditPo(null)} onSaved={() => { setEditPo(null); load(); }} />;
   if (mode === 'create') return <KirimCreateView onBack={() => setMode('list')} onSaved={load} />;
 
   const cols = [
-    { k: 'number', l: t('purchase.colNumber') || 'Raqam' },
-    { k: 'supplier_name', l: t('purchase.supplier') || "Ta'minotchi" },
-    { k: 'warehouse_name', l: t('purchase.colWarehouse') || 'Ombor' },
-    { k: 'status', l: t('purchase.filterStatus') || 'Holat', r: v => <Badge meta={poMeta} val={v} /> },
-    { k: 'total_amount', l: t('purchase.colTotal') || "Jami", r: (v, row) => {
+    { k: 'number', l: t('purchase.colNumber') },
+    { k: 'supplier_name', l: t('purchase.supplier') },
+    { k: 'warehouse_name', l: t('purchase.colWarehouse') },
+    { k: 'status', l: t('purchase.filterStatus'), r: v => <Badge meta={poMeta} val={v} /> },
+    { k: 'total_amount', l: t('purchase.colTotal'), r: (v, row) => {
       if (row.currency && row.currency !== 'UZS' && row.original_total_amount != null) {
         return (
           <div>
             <div className="font-bold text-blue-600">{fmt(Number(row.original_total_amount))} <span className="text-xs uppercase font-semibold">{row.currency}</span></div>
-            <div className="text-[10px] text-slate-400">≈ {fmt(Number(v))} so'm</div>
+            <div className="text-[10px] text-slate-400">≈ {fmt(Number(v))} {t('purchase.somUnit')}</div>
           </div>
         );
       }
-      return <span>{fmt(v)} <span className="text-xs text-slate-400">so'm</span></span>;
+      return <span>{fmt(v)} <span className="text-xs text-slate-400">{t('purchase.somUnit')}</span></span>;
     } },
-    { k: 'paid_amount', l: "To'langan", r: (v, row) => {
+    { k: 'paid_amount', l: t('common.paid'), r: (v, row) => {
       // USD yoki boshqa valyutada bo'lsa, original qiymatni ko'rsatish
       if (row.currency && row.currency !== 'UZS' && row.original_paid_amount != null) {
         return (
           <div>
             <div className="font-semibold text-emerald-600">{fmt(Number(row.original_paid_amount))} <span className="text-xs uppercase font-semibold">{row.currency}</span></div>
-            <div className="text-[10px] text-slate-400">≈ {fmt(Number(v))} so'm</div>
+            <div className="text-[10px] text-slate-400">≈ {fmt(Number(v))} {t('purchase.somUnit')}</div>
           </div>
         );
       }
       // Agar currency USD lekin original_paid_amount yo'q bo'lsa — UZS ekvivalentini ko'rsatish
       if (row.currency && row.currency !== 'UZS') {
         const origPaid = Number(v);
-        return <span className="text-emerald-600 font-semibold">{fmt(origPaid)} <span className="text-xs text-slate-400">so'm</span></span>;
+        return <span className="text-emerald-600 font-semibold">{fmt(origPaid)} <span className="text-xs text-slate-400">{t('purchase.somUnit')}</span></span>;
       }
-      return <span className="text-emerald-600 font-semibold">{fmt(v)} <span className="text-xs text-slate-400">so'm</span></span>;
+      return <span className="text-emerald-600 font-semibold">{fmt(v)} <span className="text-xs text-slate-400">{t('purchase.somUnit')}</span></span>;
     } },
-    { k: 'debt', l: "Qarzga", r: (_, row) => { const d = Number(row.total_amount) - Number(row.paid_amount || 0) - Number(row.discount_amount || 0); return d > 0 ? <span className="text-red-500 font-semibold">{fmt(d)} <span className="text-xs">so'm</span></span> : '—'; } },
-    { k: 'created_at', l: t('purchase.colDate') || 'Sana', r: v => fmtDay(v) },
+    { k: 'debt', l: t('common.debt'), r: (_, row) => { const d = Number(row.total_amount) - Number(row.paid_amount || 0) - Number(row.discount_amount || 0); return d > 0 ? <span className="text-red-500 font-semibold">{fmt(d)} <span className="text-xs">{t('purchase.somUnit')}</span></span> : '—'; } },
+    { k: 'created_at', l: t('purchase.colDate'), r: v => fmtDay(v) },
     {
       k: 'id', l: '', r: (v, row) => (
         <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
           {['draft', 'sent'].includes(row.status) && (
             <button onClick={() => handleEdit(row)}
               className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-medium whitespace-nowrap">
-              ✏️ Tahrirlash
+              ✏️ {t('common.edit')}
             </button>
           )}
           {['draft', 'sent', 'partial'].includes(row.status) && (
@@ -1832,7 +1835,7 @@ function KirimlarTab({ products, warehouses, suppliers }) {
         <div className="flex flex-wrap items-end gap-3">
           <Lbl t={t('purchase.filterStatus')}>
             <select value={stFilter} onChange={e => setStFil(e.target.value)} className={ic}>
-              <option value="">{t('admin.dict.all2') || t('purchase.allBranches')}</option>
+              <option value="">{t('admin.dict.all2')}</option>
               {Object.entries(poMeta).map(([v, m]) => <option key={v} value={v}>{m.lKey ? t(m.lKey) : m.l}</option>)}
             </select>
           </Lbl>
@@ -1860,7 +1863,7 @@ function KirimlarTab({ products, warehouses, suppliers }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b">
-              <h3 className="text-lg font-bold">Buyurtma · {detail.number}</h3>
+              <h3 className="text-lg font-bold">{t('purchase.order')} · {detail.number}</h3>
               <button onClick={() => setDetail(null)} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100">✕</button>
             </div>
             <div className="p-6 overflow-y-auto flex-1 space-y-4">
@@ -1871,11 +1874,11 @@ function KirimlarTab({ products, warehouses, suppliers }) {
               </div>
               <table className="w-full text-sm border border-slate-200 rounded-xl overflow-hidden">
                 <thead className="bg-slate-50"><tr>
-                  <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.product') || 'Mahsulot'}</th>
-                  <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">Buyurtma</th>
-                  <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">Qabul</th>
-                  <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.price') || 'Narx'}</th>
-                  <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.total') || 'Jami'}</th>
+                  <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.product')}</th>
+                  <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('purchase.order')}</th>
+                  <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('purchase.received')}</th>
+                  <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.price')}</th>
+                  <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.total')}</th>
                 </tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   {detail.items?.map(item => (
@@ -1883,18 +1886,18 @@ function KirimlarTab({ products, warehouses, suppliers }) {
                       <td className="px-4 py-3 font-medium">{item.product_name}</td>
                       <td className="px-4 py-3 text-center">{item.qty_ordered}</td>
                       <td className="px-4 py-3 text-center text-emerald-600 font-semibold">{item.qty_received}</td>
-                      <td className="px-4 py-3 text-right">{fmt(item.unit_cost)} <span className="text-xs font-semibold">{item.cost_currency || (detail.currency && detail.currency !== 'UZS' ? detail.currency : "so'm")}</span></td>
-                      <td className="px-4 py-3 text-right font-semibold">{fmt(Number(item.qty_ordered) * Number(item.unit_cost))} <span className="text-xs font-semibold">{item.cost_currency || (detail.currency && detail.currency !== 'UZS' ? detail.currency : "so'm")}</span></td>
+                      <td className="px-4 py-3 text-right">{fmt(item.unit_cost)} <span className="text-xs font-semibold">{item.cost_currency || (detail.currency && detail.currency !== 'UZS' ? detail.currency : t('purchase.somUnit'))}</span></td>
+                      <td className="px-4 py-3 text-right font-semibold">{fmt(Number(item.qty_ordered) * Number(item.unit_cost))} <span className="text-xs font-semibold">{item.cost_currency || (detail.currency && detail.currency !== 'UZS' ? detail.currency : t('purchase.somUnit'))}</span></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
             <div className="flex justify-end gap-3 px-6 py-4 border-t">
-              <Btn v="ghost" onClick={() => setDetail(null)}>{t('admin.dict.close') || 'Yopish'}</Btn>
+              <Btn v="ghost" onClick={() => setDetail(null)}>{t('admin.dict.close')}</Btn>
               {/* ✅ O'RTA-2 TUZATILDI: 'ordered' yo'q, to'g'risi 'sent' */}
               {['draft', 'sent', 'partial'].includes(detail.status) && (
-                <Btn v="green" onClick={() => { setRec(detail); setDetail(null); }}>Qabul qilish</Btn>
+                <Btn v="green" onClick={() => { setRec(detail); setDetail(null); }}>{t('purchase.receive')}</Btn>
               )}
             </div>
           </div>
@@ -1904,7 +1907,7 @@ function KirimlarTab({ products, warehouses, suppliers }) {
       {recModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <h3 className="text-lg font-bold mb-4">Qabul qilish · {recModal.number}</h3>
+            <h3 className="text-lg font-bold mb-4">{t('purchase.receive')} · {recModal.number}</h3>
             <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden mb-4">
               {recModal.items?.filter(i => Number(i.qty_ordered) > Number(i.qty_received)).map(item => (
                 <div key={item.id} className="flex justify-between px-4 py-3">
@@ -1915,7 +1918,7 @@ function KirimlarTab({ products, warehouses, suppliers }) {
             </div>
             <div className="flex gap-3">
               <Btn v="ghost" onClick={() => setRec(null)} className="flex-1">{t('common.cancel')}</Btn>
-              <Btn v="green" onClick={receivePo} disabled={recSaving} className="flex-1">{recSaving ? '...' : 'Tasdiqlash'}</Btn>
+              <Btn v="green" onClick={receivePo} disabled={recSaving} className="flex-1">{recSaving ? '...' : t('common.confirm')}</Btn>
             </div>
           </div>
         </div>
@@ -1990,15 +1993,15 @@ function SuppliersTab() {
   const [allowUpdate, setAllowUpdate] = useState(false);
 
   const IMPORT_FIELDS = [
-    { key: '', label: "— Tanlang —" },
-    { key: 'Nomi', label: "Ta'minotchi nomi *" },
-    { key: 'INN', label: "INN" },
-    { key: 'Telefon', label: "Telefon" },
-    { key: 'Email', label: "Email" },
-    { key: 'Manzil', label: "Manzil" },
-    { key: "To'lov muddati (kun)", label: "To'lov muddati (kun)" },
-    { key: 'Qarz', label: "Qarz" },
-    { key: '__SKIP__', label: "— O'tkazib yuborish —" },
+    { key: '', label: t('product.selectOption') },
+    { key: 'Nomi', label: t('purchase.importFieldSupplierName') },
+    { key: 'INN', label: t('purchase.importFieldInn') },
+    { key: 'Telefon', label: t('common.phone') },
+    { key: 'Email', label: t('purchase.importFieldEmail') },
+    { key: 'Manzil', label: t('common.address') },
+    { key: "To'lov muddati (kun)", label: t('purchase.importFieldPaymentTermDays') },
+    { key: 'Qarz', label: t('common.debt') },
+    { key: '__SKIP__', label: t('purchase.importFieldSkip') },
   ];
 
   const resetImport = () => {
@@ -2032,7 +2035,7 @@ function SuppliersTab() {
         setImportRows(rows);
         autoMap(rows);
       } catch {
-        setImportError("Fayl o'qishda xatolik. Iltimos .xlsx formatdagi faylni tanlang.");
+        setImportError(t('purchase.fileReadError'));
       }
     };
     reader.readAsArrayBuffer(file);
@@ -2060,7 +2063,7 @@ function SuppliersTab() {
       'Manzil': 'Toshkent sh.', "To'lov muddati (kun)": 30, 'Qarz': 0
     }]);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Ta'minotchilar");
+    XLSX.utils.book_append_sheet(wb, ws, t('purchase.tabSuppliers'));
     saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), 'taminotchilar_shablon.xlsx');
   };
 
@@ -2086,11 +2089,11 @@ function SuppliersTab() {
       setImportResult({ created: totC, updated: totU, skipped: totS, errors: errs });
       if (totC > 0 || totU > 0) load();
     } catch (err) {
-      setImportError(err.response?.data?.detail || 'Server xatosi');
+      setImportError(err.response?.data?.detail || t('error.serverError'));
     } finally { setImportLoading(false); }
   };
 
-  const load = (q = search) => api.get(`/suppliers${q ? '?search=' + encodeURIComponent(q) : ''}`).then(r => setList(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+  const load = (q = search) => api.get(`/suppliers${q ? '?search=' + encodeURIComponent(q) : ''}`).then(r => setList(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     load();
@@ -2152,27 +2155,27 @@ function SuppliersTab() {
         p.debt_balances = {};
       }
       if (sel) await api.patch(`/suppliers/${sel.id}`, p); else await api.post('/suppliers', p); close(); load();
-    } catch (ex) { setErr(ex.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); };
+    } catch (ex) { setErr(ex.response?.data?.detail || t('common.error')); } finally { setSaving(false); };
   };
   const handlePayDebt = async (e) => {
     e.preventDefault(); setSaving(true); setErr('');
     try {
       const valid = payRows.filter(r => r.payAmount && Number(r.payAmount) > 0 && r.payType);
-      if (valid.length === 0) { setErr("Kamida bitta to'lov turi va miqdorini kiriting"); setSaving(false); return; }
+      if (valid.length === 0) { setErr(t('purchase.enterAtLeastOnePayment')); setSaving(false); return; }
       for (const row of valid) {
         await api.post(`/suppliers/${sel.id}/pay-debt`, {
           amount: Number(row.payAmount),
           currency: row.currencyType || 'UZS',
           payment_type: row.payType,
-          reason: payInfo || "Qarz to'lovi",
+          reason: payInfo || t('purchase.debtPaymentReason'),
           wallet_id: payWallet ? Number(payWallet) : null,
         });
       }
       close(); load();
     }
-    catch (ex) { setErr(ex.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); };
+    catch (ex) { setErr(ex.response?.data?.detail || t('common.error')); } finally { setSaving(false); };
   };
-  const del = async (id) => { if (!confirm("O'chirilsinmi?")) return; await api.delete(`/suppliers/${id}`); load(); };
+  const del = async (id) => { if (!confirm(t('confirm.delete'))) return; await api.delete(`/suppliers/${id}`); load(); };
 
   return (
     <div className="space-y-4">
@@ -2186,22 +2189,22 @@ function SuppliersTab() {
             const ws = XLSX.utils.json_to_sheet(list.map(s => {
               // ✅ Kichik-14 TUZATILDI: har bir valyuta alohida ustun
               const base = {
-                "Ta'minotchi": s.name,
+                [t('purchase.supplier')]: s.name,
                 'INN': s.inn || '—',
-                'Telefon': s.phone || '—',
+                [t('common.phone')]: s.phone || '—',
                 'Email': s.email || '—',
               };
               if (s.debt_balances && typeof s.debt_balances === 'object' && Object.keys(s.debt_balances).length > 0) {
                 Object.entries(s.debt_balances).forEach(([cur, amt]) => {
-                  if (Number(amt) > 0) base[`Qarz (${cur})`] = Number(amt);
+                  if (Number(amt) > 0) base[`${t('common.debt')} (${cur})`] = Number(amt);
                 });
               } else {
-                base['Qarz (UZS)'] = s.debt_balance || 0;
+                base[`${t('common.debt')} (UZS)`] = s.debt_balance || 0;
               }
               return base;
             }));
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Ta'minotchilar");
+            XLSX.utils.book_append_sheet(wb, ws, t('purchase.tabSuppliers'));
             saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `taminotchilar_${new Date().toISOString().slice(0, 10)}.xlsx`);
           }}
           className="px-4 py-2 text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl flex items-center gap-2 transition-colors"
@@ -2276,7 +2279,7 @@ function SuppliersTab() {
                         ))}
                       </div>
                     ) : (
-                      <span className="text-xs font-medium text-emerald-500 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">Qarz yo'q</span>
+                      <span className="text-xs font-medium text-emerald-500 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">{t('purchase.noDebt')}</span>
                     )}
                   </td>
                   <td className="px-5 py-4">
@@ -2295,9 +2298,9 @@ function SuppliersTab() {
                           setPayInfo('');
                           setErr('');
                           setModal('pay');
-                        }} title="Qarz to'lash" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors">
+                        }} title={t('purchase.payDebt')} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
-                          Qarz to'lash
+                          {t('purchase.payDebt')}
                         </button>
                       )}
                       <button onClick={() => openEdit(s)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></button>
@@ -2315,21 +2318,21 @@ function SuppliersTab() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-100 shrink-0">
-              <h3 className="text-lg font-bold text-slate-800">{sel ? "Tahrirlash" : "Yangi ta'minotchi"}</h3>
+              <h3 className="text-lg font-bold text-slate-800">{sel ? t('common.edit') : t('purchase.newSupplier')}</h3>
               <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
             </div>
             <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2"><label className="block text-xs font-semibold text-slate-600 mb-1.5">Nomi *</label><input required className={inp} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Kompaniya nomi" /></div>
+                <div className="col-span-2"><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('common.name')} *</label><input required className={inp} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={t('purchase.companyNamePlaceholder')} /></div>
                 <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">INN</label><input className={inp} value={form.inn} onChange={e => setForm({ ...form, inn: e.target.value })} /></div>
-                <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('admin.dict.phone') || 'Telefon'}</label><input className={inp} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></div>
+                <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('admin.dict.phone')}</label><input className={inp} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></div>
                 <div className="col-span-2"><label className="block text-xs font-semibold text-slate-600 mb-1.5">Email</label><input type="email" className={inp} value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
 
                 {/* ── Multi-currency debt section ── */}
                 <div className="col-span-2">
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-xs font-semibold text-slate-600">
-                      {sel ? 'Qarz (valyuta bo\u02bcyicha)' : 'Boshlang\u02bcich qarz'}
+                      {sel ? t('purchase.debtByCurrency') : t('purchase.initialDebt')}
                     </label>
                     {/* + tugmasi: faqat hali qo'shilmagan valyuta bo'lsa */}
                     {(() => {
@@ -2345,7 +2348,7 @@ function SuppliersTab() {
                           className="inline-flex items-center gap-1 px-3 py-1 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
-                          Valyuta
+                          {t('purchase.currencyLabel')}
                         </button>
                       ) : null;
                     })()}
@@ -2396,8 +2399,8 @@ function SuppliersTab() {
                   </div>
                   <p className="text-xs text-slate-400 mt-1.5">
                     {sel
-                      ? "Qarz valyutalar bo'yicha — o'zgartiring yoki + Valyuta orqali qo'shing"
-                      : "Boshlang'ich qarzni kiriting, kerak bo'lsa + Valyuta orqali boshqa valyuta ham qo'shing"}
+                      ? t('purchase.debtByCurrencyHint')
+                      : t('purchase.initialDebtHint')}
                   </p>
                 </div>
               </div>
@@ -2405,7 +2408,7 @@ function SuppliersTab() {
             </form>
             <div className="p-6 border-t border-slate-100 flex gap-3 shrink-0">
               <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm font-medium rounded-xl hover:bg-slate-50">{t('common.cancel')}</button>
-              <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving ? 'Saqlanmoqda...' : 'Saqlash'}</button>
+              <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving ? t('common.saving') : t('common.save')}</button>
             </div>
           </div>
         </div>
@@ -2415,11 +2418,11 @@ function SuppliersTab() {
       {modal === 'pay' && sel && (() => {
         const debt = Number(sel.debt_balance) || 0;
         const PAY_TYPES = [
-          { key: 'cash', label: 'Naqd' },
-          { key: 'card', label: 'Karta' },
+          { key: 'cash', label: t('pay.cash') },
+          { key: 'card', label: t('pay.card') },
           { key: 'uzcard', label: 'Uzcard' },
           { key: 'humo', label: 'Humo' },
-          { key: 'transfer', label: "Bank o'tkazmasi" },
+          { key: 'transfer', label: t('purchase.bankTransfer') },
           { key: 'click', label: 'Click' },
           { key: 'payme', label: 'Payme' },
         ];
@@ -2452,7 +2455,7 @@ function SuppliersTab() {
               {/* Header */}
               <div className="flex items-center justify-between px-5 md:px-7 py-4 md:py-5 border-b border-slate-100 shrink-0">
                 <div>
-                  <h3 className="text-lg md:text-xl font-bold text-slate-800 tracking-tight">Kassadan to'lov</h3>
+                  <h3 className="text-lg md:text-xl font-bold text-slate-800 tracking-tight">{t('purchase.payTitle')}</h3>
                   <p className="text-xs md:text-sm text-blue-500 font-medium mt-0.5">{new Date().toLocaleString('uz-UZ').replace(',', '')}</p>
                 </div>
                 <button onClick={close} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 transition-colors">
@@ -2471,7 +2474,7 @@ function SuppliersTab() {
                     <div className="font-bold text-slate-800 text-sm md:text-base truncate">{sel.name}</div>
                     {sel.phone && <div className="text-xs text-slate-500 mt-0.5">{sel.phone}</div>}
                     <div className="text-sm font-bold text-red-500 mt-1">
-                      Joriy qarz:
+                      {t('purchase.currentDebt')}
                       {sel.debt_balances && typeof sel.debt_balances === 'object' && Object.keys(sel.debt_balances).filter(k => Number(sel.debt_balances[k]) > 0).length > 0
                         ? Object.entries(sel.debt_balances).filter(([, v]) => Number(v) > 0).map(([cur, amt]) => (
                             <span key={cur} className="ml-2 inline-block">{fmt(amt)} {cur}</span>
@@ -2484,11 +2487,11 @@ function SuppliersTab() {
 
                 {/* Kassa tanlash */}
                 <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-slate-700">Kassa / Hisob</label>
+                  <label className="text-sm font-semibold text-slate-700">{t('purchase.walletAccountLabel')}</label>
                   <select value={payWallet} onChange={e => setPayWallet(e.target.value)}
                     className="w-full h-11 md:h-12 px-4 border border-slate-200 cursor-pointer rounded-xl bg-white text-sm font-medium focus:border-blue-500 outline-none transition-all">
-                    <option value="">Asosiy kassa</option>
-                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name} — {fmt(w.balance)} so'm</option>)}
+                    <option value="">{t('purchase.mainWallet')}</option>
+                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name} — {fmt(w.balance)} {t('purchase.somUnit')}</option>)}
                   </select>
                 </div>
 
@@ -2499,11 +2502,11 @@ function SuppliersTab() {
 
                       {/* To'lov turi (Listbox) */}
                       <div className="flex-1 min-w-[130px] space-y-1.5">
-                        {index === 0 && <label className="text-sm font-semibold text-slate-700">To'lov turi *</label>}
+                        {index === 0 && <label className="text-sm font-semibold text-slate-700">{t('sale.paymentType')} *</label>}
                         <Listbox value={row.payType} onChange={val => updatePayRow(index, 'payType', val)}>
                           <div className="relative">
                             <ListboxButton className="w-full cursor-pointer flex items-center pl-3 pr-8 py-3 justify-between rounded-xl border border-slate-200 text-sm bg-white text-slate-900 outline-none focus:border-blue-500 transition-colors shadow-xs text-left font-medium h-11 md:h-12">
-                              <span className="block truncate">{PAY_TYPES.find(pt => pt.key === row.payType)?.label || 'Tanlang...'}</span>
+                              <span className="block truncate">{PAY_TYPES.find(pt => pt.key === row.payType)?.label || t('purchase.selectEllipsis')}</span>
                               <span className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none text-slate-400">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="size-4"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 15 12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" /></svg>
                               </span>
@@ -2527,7 +2530,7 @@ function SuppliersTab() {
 
                       {/* To'lov miqdori + valyuta */}
                       <div className="flex-1 space-y-1.5">
-                        {index === 0 && <label className="text-sm font-semibold text-slate-700">To'lov miqdori *</label>}
+                        {index === 0 && <label className="text-sm font-semibold text-slate-700">{t('purchase.paymentAmountLabel')} *</label>}
                         <div className="flex h-11 md:h-12">
                           <input
                             type="number"
@@ -2588,7 +2591,7 @@ function SuppliersTab() {
                               updatePayRow(index, 'payAmount', String(d > 0 ? d : (Number(debt) || 0)));
                             }}
                             className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-slate-200 border-l-0 font-bold px-3 h-full rounded-r-xl transition-colors whitespace-nowrap text-xs">
-                            Hammasi
+                            {t('purchase.allAmount')}
                           </button>
                         </div>
                       </div>
@@ -2605,16 +2608,16 @@ function SuppliersTab() {
                   <button type="button" onClick={addPayRow}
                     className="cursor-pointer flex ml-auto items-center gap-1 hover:bg-blue-50 w-max px-2 py-0.5 rounded-xl">
                     <Plus className="size-5 text-blue-600" />
-                    <span className="text-sm font-semibold text-blue-600">to'lov qo'shish</span>
+                    <span className="text-sm font-semibold text-blue-600">{t('purchase.addPaymentRow')}</span>
                   </button>
                 </div>
 
                 {/* Izoh */}
                 <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-slate-700">Izoh</label>
+                  <label className="text-sm font-semibold text-slate-700">{t('common.note')}</label>
                   <textarea rows={2} value={payInfo} onChange={e => setPayInfo(e.target.value)}
                     className="w-full p-3 border border-slate-200 rounded-xl text-sm leading-relaxed focus:ring-2 focus:ring-blue-500 outline-none resize-none transition-all"
-                    placeholder="Ixtiyoriy..." />
+                    placeholder={t('common.optional')} />
                 </div>
 
                 {err && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{err}</div>}
@@ -2622,7 +2625,7 @@ function SuppliersTab() {
                 {/* Per-currency summary */}
                 <div className="flex justify-end">
                   <div className="w-full md:w-auto min-w-64 space-y-2 bg-blue-50/50 rounded-xl p-4 border border-blue-100/50">
-                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Qarz holati</div>
+                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">{t('purchase.debtStatus')}</div>
                     {Object.entries(paidPerCurrency).map(([cur, payAmt]) => {
                       const currDebt = getDebtForCur(cur);
                       const currRemaining = Math.max(0, currDebt - payAmt);
@@ -2630,22 +2633,22 @@ function SuppliersTab() {
                       return (
                         <div key={cur} className="space-y-1 pb-2 border-b border-blue-100/50 last:border-0">
                           <div className="flex justify-between text-xs items-center">
-                            <span className="text-slate-500 font-medium">{cur} qarzi:</span>
+                            <span className="text-slate-500 font-medium">{cur} {t('purchase.debtSuffix')}</span>
                             <span className="font-bold text-slate-700">{fmt(currDebt)} {cur}</span>
                           </div>
                           <div className="flex justify-between text-xs items-center">
-                            <span className="text-slate-500 font-medium">To'lov:</span>
+                            <span className="text-slate-500 font-medium">{t('admin.dict.payment')}:</span>
                             <span className="font-bold text-blue-600">{fmt(payAmt)} {cur}</span>
                           </div>
                           <div className="flex justify-between text-xs items-center">
-                            <span className="text-slate-600 font-semibold">Qoldi:</span>
+                            <span className="text-slate-600 font-semibold">{t('purchase.remaining')}</span>
                             <span className={`font-bold ${currRemaining > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
                               {fmt(currRemaining)} {cur}
                             </span>
                           </div>
                           {currChange > 0 && (
                             <div className="flex justify-between text-xs items-center">
-                              <span className="text-amber-600 font-bold">Qaytim:</span>
+                              <span className="text-amber-600 font-bold">{t('purchase.summaryChange')}</span>
                               <span className="font-bold text-amber-600">{fmt(currChange)} {cur}</span>
                             </div>
                           )}
@@ -2654,7 +2657,7 @@ function SuppliersTab() {
                     })}
                     {Object.keys(paidPerCurrency).length > 0 && (
                       <div className="flex justify-between text-xs items-center pt-1">
-                        <span className="text-slate-400 font-medium">Jami qoldi (UZS):</span>
+                        <span className="text-slate-400 font-medium">{t('purchase.totalRemainingUzs')}</span>
                         <span className={`font-semibold ${remaining > 0 ? 'text-red-400' : 'text-emerald-500'}`}>{fmt(remaining)} UZS</span>
                       </div>
                     )}
@@ -2665,7 +2668,7 @@ function SuppliersTab() {
               {/* Footer */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 md:px-7 py-4 md:py-5 border-t border-slate-100 bg-slate-50 rounded-b-2xl shrink-0">
                 <div className="text-xs md:text-sm text-slate-500 text-center sm:text-left">
-                  <span className="font-semibold text-slate-600">To'lovdan keyin qoladi:</span>
+                  <span className="font-semibold text-slate-600">{t('purchase.remainsAfterPayment')}</span>
                   <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
                     {sel.debt_balances && Object.entries(sel.debt_balances).map(([cur, amt]) => {
                       const willPay = paidPerCurrency[cur] || 0;
@@ -2682,14 +2685,14 @@ function SuppliersTab() {
                   </div>
                 </div>
                 <div className="flex gap-2 md:gap-3 w-full sm:w-auto">
-                  <button onClick={close} className="flex-1 sm:flex-none px-4 md:px-6 py-2 md:py-2.5 rounded-xl border border-slate-300 text-slate-600 text-sm font-bold bg-white hover:bg-slate-50 transition-all">Bekor qilish</button>
+                  <button onClick={close} className="flex-1 sm:flex-none px-4 md:px-6 py-2 md:py-2.5 rounded-xl border border-slate-300 text-slate-600 text-sm font-bold bg-white hover:bg-slate-50 transition-all">{t('admin.dict.cancel')}</button>
                   <button disabled={saving || !payRows.some(r => r.payAmount && Number(r.payAmount) > 0 && r.payType)}
                     onClick={handlePayDebt}
                     className="flex-1 cursor-pointer sm:flex-none px-6 md:px-8 py-2 md:py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all shadow-lg shadow-blue-200 disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2 text-sm">
                     {saving ? (
-                      <span className="flex items-center gap-2"><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>Saqlanmoqda...</span>
+                      <span className="flex items-center gap-2"><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>{t('common.saving')}</span>
                     ) : (
-                      <><svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>Saqlash</>
+                      <><svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>{t('common.save')}</>
                     )}
                   </button>
                 </div>
@@ -2707,15 +2710,15 @@ function SuppliersTab() {
               <button onClick={resetImport} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
-              <h2 className="text-xl font-bold text-slate-800">Ta'minotchilarni Exceldan yuklash</h2>
+              <h2 className="text-xl font-bold text-slate-800">{t('purchase.importSuppliersTitle')}</h2>
             </div>
             <div className="flex items-center gap-3">
               <button onClick={downloadTemplate} className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-lg transition-colors">
-                Shablon
+                {t('purchase.templateLabel')}
               </button>
               <label className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 text-sm font-semibold rounded-lg border border-slate-200 cursor-pointer">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                Fayl tanlash
+                {t('purchase.chooseFile')}
                 <input type="file" accept=".xlsx,.xls" className="hidden" onChange={e => { if (e.target.files[0]) parseExcel(e.target.files[0]); }} />
               </label>
               <button
@@ -2724,7 +2727,7 @@ function SuppliersTab() {
                 className="inline-flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors border border-transparent"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
-                {importLoading ? `Saqlanmoqda... ${importProgress}%` : 'Saqlash'}
+                {importLoading ? `${t('common.saving')} ${importProgress}%` : t('common.save')}
               </button>
             </div>
           </div>
@@ -2735,7 +2738,7 @@ function SuppliersTab() {
                 <svg className="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <p className="text-lg font-medium">Boshlash uchun Excel fayl yuklang</p>
+                <p className="text-lg font-medium">{t('purchase.uploadExcelToStart')}</p>
               </div>
             ) : (
               <div className="flex-1 flex flex-col overflow-hidden">
@@ -2746,12 +2749,12 @@ function SuppliersTab() {
                       <div className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${allowUpdate ? 'bg-blue-600' : 'bg-slate-200'}`}>
                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${allowUpdate ? 'translate-x-6' : 'translate-x-1'}`} />
                       </div>
-                      <span className="text-sm font-semibold text-slate-700 group-hover:text-blue-600 transition-colors">Tahrirlash ruxsat</span>
+                      <span className="text-sm font-semibold text-slate-700 group-hover:text-blue-600 transition-colors">{t('purchase.allowUpdatePermission')}</span>
                     </label>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-3 bg-white border border-slate-200 px-3 py-1.5 rounded-xl">
-                      <span className="text-sm font-medium text-slate-600">O'tkazib yuborish (qator):</span>
+                      <span className="text-sm font-medium text-slate-600">{t('purchase.skipRowsLabel')}</span>
                       <button onClick={() => setSkipRows(Math.max(0, skipRows - 1))} className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors font-bold text-slate-600">−</button>
                       <span className="text-sm font-bold w-6 text-center">{skipRows}</span>
                       <button onClick={() => setSkipRows(skipRows + 1)} className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors font-bold text-slate-600">+</button>
@@ -2762,11 +2765,11 @@ function SuppliersTab() {
                 <div className="flex-1 flex flex-col overflow-hidden">
                   <div className="px-6 py-2.5 flex items-center justify-between border-b border-slate-100 shrink-0">
                     <span className="text-sm text-slate-600 font-medium">
-                      Yuklanayotganlar: <strong>{buildPayload().length} ta</strong>
+                      {t('purchase.loadingCount')} <strong>{buildPayload().length} {t('common.piece')}</strong>
                     </span>
                     {!(Object.values(colMap).includes('Nomi') || (allowUpdate && Object.values(colMap).includes('INN'))) && (
                       <span className="text-sm font-semibold text-red-500">
-                        * {allowUpdate ? 'Nomi yoki INN' : 'Nomi'} ustunini tanlash majburiy
+                        * {allowUpdate ? t('purchase.nameOrInn') : t('purchase.importFieldSupplierName')} {t('purchase.columnRequired')}
                       </span>
                     )}
                   </div>
@@ -2796,7 +2799,7 @@ function SuppliersTab() {
                           const skipped = i < skipRows;
                           return (
                             <tr key={i} className={`hover:bg-slate-50/50 ${skipped ? 'opacity-40 bg-slate-50' : ''}`}>
-                              <td className="px-3 py-2 text-slate-400 font-medium border-r border-slate-100 bg-slate-50">{i + 1} {skipped && <span className="text-[10px] text-amber-500 block leading-none">Skip</span>}</td>
+                              <td className="px-3 py-2 text-slate-400 font-medium border-r border-slate-100 bg-slate-50">{i + 1} {skipped && <span className="text-[10px] text-amber-500 block leading-none">{t('purchase.skipLabel')}</span>}</td>
                               {Object.keys(importRows[0] || {}).map((col, j) => (
                                 <td key={j} className="px-3 py-2 border-r border-slate-100 text-slate-700 truncate max-w-[200px]" title={row[col]}>
                                   {row[col] || <span className="text-slate-300">—</span>}
@@ -2810,7 +2813,7 @@ function SuppliersTab() {
                     {importRows.length > importPage * 50 && (
                       <div className="py-4 text-center">
                         <button onClick={() => setImportPage(p => p + 1)} className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium hover:bg-slate-50">
-                          Yana ko'rsatish
+                          {t('purchase.showMore')}
                         </button>
                       </div>
                     )}
@@ -2825,17 +2828,17 @@ function SuppliersTab() {
                 <div className="flex items-center gap-4 flex-wrap">
                   <div className="px-5 py-3 bg-emerald-50 rounded-xl text-center min-w-[120px]">
                     <div className="text-3xl font-black text-emerald-600">{importResult.created}</div>
-                    <div className="text-sm font-semibold text-emerald-500">Yangi qo'shildi</div>
+                    <div className="text-sm font-semibold text-emerald-500">{t('product.importAdded')}</div>
                   </div>
                   {importResult.updated > 0 && (
                     <div className="px-5 py-3 bg-blue-50 rounded-xl text-center min-w-[120px]">
                       <div className="text-3xl font-black text-blue-600">{importResult.updated}</div>
-                      <div className="text-sm font-semibold text-blue-500">Yangilandi</div>
+                      <div className="text-sm font-semibold text-blue-500">{t('product.importUpdated')}</div>
                     </div>
                   )}
                   <div className={`px-5 py-3 rounded-xl text-center min-w-[120px] ${importResult.skipped > 0 ? 'bg-amber-50' : 'bg-slate-50'}`}>
                     <div className={`text-3xl font-black ${importResult.skipped > 0 ? 'text-amber-600' : 'text-slate-400'}`}>{importResult.skipped}</div>
-                    <div className={`text-sm font-semibold ${importResult.skipped > 0 ? 'text-amber-500' : 'text-slate-400'}`}>O'tkazib yuborildi</div>
+                    <div className={`text-sm font-semibold ${importResult.skipped > 0 ? 'text-amber-500' : 'text-slate-400'}`}>{t('product.importSkipped')}</div>
                   </div>
                   <div className="flex-1 min-w-0">
                     {importResult.errors?.length > 0 && (
@@ -2886,7 +2889,7 @@ function PurchaseOrdersTab() {
                 <td className="px-6 py-4 text-sm font-mono font-semibold text-blue-600">{p.number}</td>
                 <td className="px-6 py-4 text-sm text-slate-700 font-medium">{p.supplier_name}</td>
                 <td className="px-6 py-4 text-sm text-slate-500">{p.warehouse_name}</td>
-                <td className="px-6 py-4 text-sm font-semibold text-slate-800">{Number(p.total_amount).toLocaleString()} <span className="text-slate-400 font-normal">so'm</span></td>
+                <td className="px-6 py-4 text-sm font-semibold text-slate-800">{Number(p.total_amount).toLocaleString()} <span className="text-slate-400 font-normal">{t('purchase.somUnit')}</span></td>
                 <td className="px-6 py-4"><Badge meta={poMeta} val={p.status} /></td>
               </tr>
             ))}
@@ -2909,6 +2912,7 @@ const TABS_IDS = [
 /* Variant tanlash modali                      */
 /* ═══════════════════════════════════════════ */
 function VariantPickerModal({ parent, onClose, onSelect }) {
+  const { t } = useLang();
   const [variants, setVariants] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -2942,7 +2946,7 @@ function VariantPickerModal({ parent, onClose, onSelect }) {
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 flex items-center justify-between">
           <div>
             <h2 className="text-white font-black text-lg">{parent.name}</h2>
-            <p className="text-blue-200 text-xs mt-0.5">Razmer va rangni tanlang</p>
+            <p className="text-blue-200 text-xs mt-0.5">{t('purchase.selectSizeAndColor')}</p>
           </div>
           <button onClick={onClose} className="w-9 h-9 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center transition-colors">
             <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12"/></svg>
@@ -2958,14 +2962,14 @@ function VariantPickerModal({ parent, onClose, onSelect }) {
           ) : variants.length === 0 ? (
             <div className="text-center py-12 text-slate-400">
               <svg className="w-16 h-16 mx-auto mb-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
-              <p className="font-semibold">Variantlar topilmadi</p>
+              <p className="font-semibold">{t('purchase.variantsNotFound')}</p>
             </div>
           ) : colors.length > 0 && sizes.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
                   <tr>
-                    <th className="text-left text-xs font-bold text-slate-500 pb-3 pr-3">Rang \ Razmer</th>
+                    <th className="text-left text-xs font-bold text-slate-500 pb-3 pr-3">{t('purchase.colorSizeHeader')}</th>
                     {sizes.map(s => (
                       <th key={s} className="text-center text-xs font-bold text-blue-700 bg-blue-50 rounded-lg px-3 py-2 min-w-[80px]">{s}</th>
                     ))}
@@ -2983,7 +2987,7 @@ function VariantPickerModal({ parent, onClose, onSelect }) {
                               <button onClick={() => onSelect(v)} className="w-full px-2 py-2 bg-white border-2 border-slate-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl transition-all group">
                                 <div className="text-xs font-black text-blue-700">{fmt(v.sale_price)}</div>
                                 <div className={`text-[10px] font-semibold mt-0.5 ${Number(v.stock_quantity) <= 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                                  {Number(v.stock_quantity) > 0 ? `${fmt(v.stock_quantity)} dona` : 'Tugagan'}
+                                  {Number(v.stock_quantity) > 0 ? `${fmt(v.stock_quantity)} ${t('common.piece')}` : t('purchase.outOfStock')}
                                 </div>
                               </button>
                             ) : (
@@ -3004,7 +3008,7 @@ function VariantPickerModal({ parent, onClose, onSelect }) {
                   <div className="font-bold text-slate-800 text-sm">{v.size || v.color || v.name}</div>
                   <div className="text-blue-700 font-black mt-1">{fmt(v.sale_price)} UZS</div>
                   <div className={`text-xs font-semibold mt-1 ${Number(v.stock_quantity) <= 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                    {Number(v.stock_quantity) > 0 ? `${fmt(v.stock_quantity)} dona` : 'Tugagan'}
+                    {Number(v.stock_quantity) > 0 ? `${fmt(v.stock_quantity)} ${t('common.piece')}` : t('purchase.outOfStock')}
                   </div>
                 </button>
               ))}
@@ -3014,8 +3018,8 @@ function VariantPickerModal({ parent, onClose, onSelect }) {
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-slate-100 flex justify-between items-center bg-slate-50">
-          <span className="text-xs text-slate-500 font-medium">{variants.length} ta variant mavjud</span>
-          <button onClick={onClose} className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-sm transition-colors">Bekor qilish</button>
+          <span className="text-xs text-slate-500 font-medium">{variants.length} {t('purchase.variantsAvailable')}</span>
+          <button onClick={onClose} className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-sm transition-colors">{t('admin.dict.cancel')}</button>
         </div>
       </div>
     </div>
@@ -3030,9 +3034,9 @@ export default function Purchases() {
   const [suppliers, setSuppliers] = useState([]);
 
   useEffect(() => {
-    api.get('/products/', { params: { limit: 300 } }).then(r => setProducts(r.data.items || r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
-    api.get('/inventory/warehouses').then(r => setWarehouses(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
-    api.get('/suppliers', { params: { limit: 100 } }).then(r => setSuppliers(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/products/', { params: { limit: 300 } }).then(r => setProducts(r.data.items || r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
+    api.get('/inventory/warehouses').then(r => setWarehouses(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
+    api.get('/suppliers', { params: { limit: 100 } }).then(r => setSuppliers(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
   }, []);
 
   return (

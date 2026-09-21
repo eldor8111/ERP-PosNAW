@@ -65,8 +65,8 @@ export default function Shifts() {
     try {
       await api.post('/shifts/open', { opening_cash: Number(openingCash) || 0 });
       setModal(null); setOpeningCash(''); load();
-      toast.success('Smena muvaffaqiyatli ochildi!');
-    } catch (err) { setError(err.response?.data?.detail || 'Xatolik yuz berdi'); }
+      toast.success(t('shift.openSuccess'));
+    } catch (err) { setError(err.response?.data?.detail || t('auth.errGeneral')); }
     finally { setSaving(false); }
   };
 
@@ -80,8 +80,8 @@ export default function Shifts() {
 
       await api.post(`/shifts/${activeShift.id}/close`, payload);
       setModal(null); setClosingCash(''); load();
-      toast.success(`Smena muvaffaqiyatli yopildi`);
-    } catch (err) { setError(err.response?.data?.detail || 'Xatolik yuz berdi'); }
+      toast.success(t('shift.closeSuccess'));
+    } catch (err) { setError(err.response?.data?.detail || t('auth.errGeneral')); }
     finally { setSaving(false); }
   };
 
@@ -126,15 +126,15 @@ export default function Shifts() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Faol smenalar</div>
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{t('shift.activeShifts')}</div>
           <div className={`text-2xl font-bold mt-1 ${openShifts > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>{openShifts}</div>
         </div>
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Bugungi smenalar</div>
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{t('shift.todayShifts')}</div>
           <div className="text-2xl font-bold mt-1 text-blue-600">{todayShifts}</div>
         </div>
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Jami smenalar</div>
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{t('shift.totalShifts')}</div>
           <div className="text-2xl font-bold mt-1 text-slate-700">{shifts.length}</div>
         </div>
       </div>
@@ -148,21 +148,21 @@ export default function Shifts() {
             </svg>
           </div>
           <div className="flex-1">
-            <div className="text-sm font-bold text-emerald-800">Faol smena mavjud</div>
+            <div className="text-sm font-bold text-emerald-800">{t('shift.activeShiftExists')}</div>
             <div className="text-xs text-emerald-600 mt-0.5">
-              Boshlangan: {fmtDt(activeShift.opened_at)}
+              {t('shift.started')}: {fmtDt(activeShift.opened_at)}
               <span className="mx-2">·</span>
-              Ochilish kassasi: {fmt(activeShift.opening_cash)} so'm
+              {t('shift.openingCashLabel')}: {fmt(activeShift.opening_cash)} so'm
             </div>
           </div>
-          <div className="text-xs font-semibold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-full">Faol</div>
+          <div className="text-xs font-semibold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-full">{t('shift.active')}</div>
         </div>
       )}
 
       {/* Shifts Table */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-700">Smenalar tarixi</h3>
+          <h3 className="text-sm font-bold text-slate-700">{t('shift.history')}</h3>
           <div className="flex items-center gap-3">
             {branches.length > 0 && (
               <select
@@ -170,7 +170,7 @@ export default function Shifts() {
                 onChange={e => setFilterBranch(e.target.value)}
                 className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
               >
-                <option value="">🏢 Barcha filiallar</option>
+                <option value="">🏢 {t('common.allBranches')}</option>
                 {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             )}
@@ -184,7 +184,7 @@ export default function Shifts() {
         <table className="min-w-full">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
-              {['Kassir', 'Filial', 'Boshlanish', 'Tugash', 'Ochilish', 'Yopilish', 'Holat'].map(h => (
+              {[t('shift.cashier'), t('purchase.filterBranch'), t('shift.startTime'), t('shift.endTime'), t('shift.openingShort'), t('shift.closingShort'), t('shift.status')].map(h => (
                 <th key={h} className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
               ))}
             </tr>
@@ -201,7 +201,7 @@ export default function Shifts() {
                   </div>
                 </td>
                 <td className="px-6 py-4 text-sm text-slate-500">
-                  {s.branch_id ? (branches.find(b => b.id === s.branch_id)?.name || `Filial #${s.branch_id}`) : '—'}
+                  {s.branch_id ? (branches.find(b => b.id === s.branch_id)?.name || `${t('purchase.filterBranch')} #${s.branch_id}`) : '—'}
                 </td>
                 <td className="px-6 py-4 text-sm text-slate-600">{fmtDt(s.opened_at)}</td>
                 <td className="px-6 py-4 text-sm text-slate-600">{fmtDt(s.closed_at)}</td>
@@ -213,13 +213,13 @@ export default function Shifts() {
                   <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
                     s.status === 'open' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
                   }`}>
-                    {s.status === 'open' ? 'Faol' : 'Yopilgan'}
+                    {s.status === 'open' ? t('shift.active') : t('shift.closed')}
                   </span>
                 </td>
               </tr>
             ))}
             {shifts.length === 0 && (
-              <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 text-sm">Smenalar mavjud emas</td></tr>
+              <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 text-sm">{t('shift.noShifts')}</td></tr>
             )}
           </tbody>
         </table>
@@ -230,7 +230,7 @@ export default function Shifts() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setModal(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-800">Smenani ochish</h3>
+              <h3 className="text-lg font-bold text-slate-800">{t('shift.openShiftTitle')}</h3>
               <button onClick={() => setModal(null)} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -239,7 +239,7 @@ export default function Shifts() {
             </div>
             <form onSubmit={handleOpen} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Ochilishdagi kassadagi pul (so'm)</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('shift.openingCashInputLabel')}</label>
                 <input
                   type="number" min="0" autoFocus value={openingCash}
                   onChange={e => setOpeningCash(e.target.value)}
@@ -249,9 +249,9 @@ export default function Shifts() {
               </div>
               {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
               <div className="flex gap-3">
-                <button type="button" onClick={() => setModal(null)} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">Bekor</button>
+                <button type="button" onClick={() => setModal(null)} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
                 <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
-                  {saving ? '...' : '✓ Smenani ochdish'}
+                  {saving ? '...' : `✓ ${t('shift.open')}`}
                 </button>
               </div>
             </form>
@@ -265,8 +265,8 @@ export default function Shifts() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-100">
               <div>
-                <h3 className="text-lg font-bold text-slate-800">Smenani yopish</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Kassani yopish va inkassatsiya</p>
+                <h3 className="text-lg font-bold text-slate-800">{t('shift.closeShiftTitle')}</h3>
+                <p className="text-xs text-slate-400 mt-0.5">{t('shift.closeShiftSubtitle')}</p>
               </div>
               <button onClick={() => setModal(null)} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -278,28 +278,28 @@ export default function Shifts() {
               {/* Smena ma'lumoti */}
               <div className="p-4 bg-slate-50 rounded-xl text-sm space-y-2">
                 <div className="flex justify-between text-slate-600">
-                  <span>Boshlanish vaqti:</span>
+                  <span>{t('shift.startTime')}:</span>
                   <span className="font-medium text-slate-800">{fmtDt(activeShift.opened_at)}</span>
                 </div>
                 <div className="flex justify-between text-slate-600">
-                  <span>Ochilish kassasi:</span>
+                  <span>{t('shift.openingCashLabel')}:</span>
                   <span className="font-medium text-slate-800">{fmt(activeShift.opening_cash)} so'm</span>
                 </div>
                 <div className="flex justify-between text-emerald-600">
-                  <span>Naqd savdo (+):</span>
+                  <span>{t('shift.cashSalesPlus')}:</span>
                   <span className="font-bold">{fmt(activeShift.balances?.cash || 0)} so'm</span>
                 </div>
                 {Object.entries(activeShift.balances || {}).map(([pType, val]) => {
                   if (pType === 'cash') return null;
                   return (
                     <div key={pType} className="flex justify-between text-blue-600">
-                      <span className="capitalize">{pType} savdo (+):</span>
+                      <span className="capitalize">{pType} {t('shift.salesPlus')}:</span>
                       <span className="font-bold">{fmt(val)} so'm</span>
                     </div>
                   );
                 })}
                 <div className="border-t border-slate-200 pt-2 mt-2 flex justify-between font-bold text-slate-800">
-                  <span>Kutilayotgan Naqd Qoldiq:</span>
+                  <span>{t('shift.expectedCashBalance')}:</span>
                   <span>{fmt(activeShift.expected_cash)} so'm</span>
                 </div>
               </div>
@@ -308,18 +308,18 @@ export default function Shifts() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                    Haqiqiy naqd pul <span className="text-red-500">*</span>
+                    {t('shift.actualCash')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number" min="0" required autoFocus value={closingCash}
                     onChange={e => setClosingCash(e.target.value)}
-                    placeholder="Sanab chiqilgan..."
+                    placeholder={t('shift.actualCashPlaceholder')}
                     className="w-full px-3.5 py-2.5 border-2 border-slate-200 focus:border-emerald-500 rounded-xl text-sm font-bold focus:outline-none transition-colors"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                    Terminal / Boshqa elektron to'lovlar
+                    {t('shift.terminalPayments')}
                   </label>
                   <input
                     readOnly
@@ -334,34 +334,34 @@ export default function Shifts() {
                 <div className="space-y-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1">
-                      📦 Naqd pulni topshirish (Kassa)
+                      📦 {t('shift.handOverCash')}
                     </label>
                     <select
                       value={selectedWallet}
                       onChange={e => setSelectedWallet(e.target.value)}
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
                     >
-                      <option value="">— Topshirmaslik —</option>
+                      <option value="">— {t('shift.doNotHandOver')} —</option>
                       {wallets.map(w => (
                         <option key={w.id} value={w.id}>
-                          {w.name} (joriy: {fmt(w.balance)} so'm)
+                          {w.name} ({t('shift.currentBalance')}: {fmt(w.balance)} so'm)
                         </option>
                       ))}
                     </select>
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1">
-                      💳 Terminal pulini topshirish (Bank)
+                      💳 {t('shift.handOverTerminal')}
                     </label>
                     <select
                       value={selectedCardWallet}
                       onChange={e => setSelectedCardWallet(e.target.value)}
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                     >
-                      <option value="">— Topshirmaslik —</option>
+                      <option value="">— {t('shift.doNotHandOver')} —</option>
                       {wallets.map(w => (
                         <option key={w.id} value={w.id}>
-                          {w.name} (joriy: {fmt(w.balance)} so'm)
+                          {w.name} ({t('shift.currentBalance')}: {fmt(w.balance)} so'm)
                         </option>
                       ))}
                     </select>
@@ -372,9 +372,9 @@ export default function Shifts() {
               {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
 
               <div className="flex gap-3 pt-1">
-                <button type="button" onClick={() => setModal(null)} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">Bekor</button>
+                <button type="button" onClick={() => setModal(null)} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
                 <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 disabled:opacity-60 text-white font-bold text-sm rounded-xl transition-colors shadow-sm shadow-red-200">
-                  {saving ? '...' : '✓ Smenani yopish'}
+                  {saving ? '...' : `✓ ${t('shift.close')}`}
                 </button>
               </div>
             </form>

@@ -155,11 +155,11 @@ export default function Finance() {
   const exportExpenses = async () => {
     const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
     const ws = XLSX.utils.json_to_sheet(expenses.map(e => ({
-      'Kategoriya': e.category_name, 'Summa': e.amount,
-      'Izoh': e.description, 'Sana': new Date(e.created_at).toLocaleDateString('uz-UZ'),
+      [t('common.category')]: e.category_name, [t('common.amount')]: e.amount,
+      [t('common.note')]: e.description, [t('common.date')]: new Date(e.created_at).toLocaleDateString('uz-UZ'),
     })));
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Xarajatlar');
+    XLSX.utils.book_append_sheet(wb, ws, t('finance.expenses'));
     saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `xarajatlar_${today()}.xlsx`);
   };
 
@@ -168,15 +168,15 @@ export default function Finance() {
     const code = paymeOrgCode.trim();
     const amt  = parseFloat(paymeAmount);
     setPaymeError('');
-    if (!code) { setPaymeError("Tashkilot kodini kiriting"); return; }
-    if (!amt || amt < 1000) { setPaymeError("Minimal summa 1 000 so'm"); return; }
+    if (!code) { setPaymeError(t('finance.paymeEnterOrgCode')); return; }
+    if (!amt || amt < 1000) { setPaymeError(t('finance.paymeMinAmount')); return; }
     setPaymeLoading(true);
     try {
       const r = await api.get(`/payme/company-lookup?org_code=${encodeURIComponent(code)}`);
       setPaymeCompany(r.data);
       setPaymeStep('confirm');
     } catch (e) {
-      setPaymeError(e?.response?.data?.detail || "Kompaniya topilmadi");
+      setPaymeError(e?.response?.data?.detail || t('finance.paymeCompanyNotFound'));
     } finally { setPaymeLoading(false); }
   };
 
@@ -192,7 +192,7 @@ export default function Finance() {
       window.open(r.data.checkout_url, '_blank', 'noopener,noreferrer');
       setPaymeStep('done');
     } catch (e) {
-      setPaymeError(e?.response?.data?.detail || "Xatolik yuz berdi");
+      setPaymeError(e?.response?.data?.detail || t('common.error'));
     } finally { setPaymeLoading(false); }
   };
 
@@ -208,7 +208,7 @@ export default function Finance() {
   const tabs = [
     { key: 'expenses', label: t('finance.expense') },
     { key: 'transactions', label: t('finance.transaction') },
-    { key: 'payme-payment', label: '💳 Payme To\'lov' },
+    { key: 'payme-payment', label: `💳 ${t('finance.paymePayment')}` },
   ];
 
   return (
@@ -329,7 +329,7 @@ export default function Finance() {
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('admin.dict.category') || 'Kategoriya'}</label>
                   <select required className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     onChange={e => setForm({ ...form, category_id: e.target.value })} value={form.category_id}>
-                    <option value="">Tanlang...</option>
+                    <option value="">{t('admin.dict.select') || 'Tanlang...'}</option>
                     {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
@@ -343,7 +343,7 @@ export default function Finance() {
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('finance.wallet') || 'Hamyon'}</label>
                   <select className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     onChange={e => setForm({ ...form, wallet_id: e.target.value })} value={form.wallet_id}>
-                    <option value="">(Asosiy kassa)</option>
+                    <option value="">{t('finance.mainCashbox')}</option>
                     {wallets.map(w => <option key={w.id} value={w.id}>{w.name} ({fmt(w.balance)})</option>)}
                   </select>
                 </div>
@@ -505,14 +505,14 @@ export default function Finance() {
                     );
                     const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                     const ws = XLSX.utils.json_to_sheet(filtered.map(c => ({
-                      'Mijoz': c.name,
-                      'Telefon': c.phone || '',
-                      "Qarz (so'm)": c.debt_balance,
-                      'Muddat': c.earliest_due_date || '',
-                      'Holat': c.overdue ? 'Muddati o\'tgan' : 'Faol',
+                      [t('admin.dict.customer') || 'Mijoz']: c.name,
+                      [t('settings.phone') || 'Telefon']: c.phone || '',
+                      [`${t('common.debt')||'Qarz'} (${t('common.sum')||"so'm"})`]: c.debt_balance,
+                      [t('sale.dueDate') || 'Muddat']: c.earliest_due_date || '',
+                      [t('common.status') || 'Holat']: c.overdue ? t('finance.overdue') : t('common.active'),
                     })));
                     const wb = XLSX.utils.book_new();
-                    XLSX.utils.book_append_sheet(wb, ws, 'Debitorlar');
+                    XLSX.utils.book_append_sheet(wb, ws, t('finance.customerDebts'));
                     saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `debitorlar_${today()}.xlsx`);
                   }}
                   className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-semibold rounded-xl transition-colors">
@@ -539,17 +539,17 @@ export default function Finance() {
                       <strong className="text-amber-700 ml-2">{fmt(customerDebts.total_debt, t)}</strong>
                     )}
                   </span>
-                  <span className="text-sm text-slate-500">{customerDebts.count} ta mijoz</span>
+                  <span className="text-sm text-slate-500">{customerDebts.count} {t('finance.customersUnit')}</span>
                   {customerDebts.overdue_count > 0 && (
                     <span className="text-sm font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-lg">
-                      ⚠ {customerDebts.overdue_count} ta muddati o'tgan
+                      ⚠ {customerDebts.overdue_count} {t('finance.overdueUnit')}
                     </span>
                   )}
                 </div>
                 <table className="min-w-full">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100">
-                      {[t('nav.clients') || 'Mijoz', t('settings.phone') || 'Telefon', (t('common.debt')||'Qarz') + ' (' + (t('common.sum')||"so'm") + ')', t('common.deadline') || 'Muddat', t('common.status') || 'Holat', t('common.action') || 'Amal'].map(h => (
+                      {[t('admin.dict.customer') || 'Mijoz', t('settings.phone') || 'Telefon', (t('common.debt')||'Qarz') + ' (' + (t('common.sum')||"so'm") + ')', t('sale.dueDate') || 'Muddat', t('common.status') || 'Holat', t('common.action') || 'Amal'].map(h => (
                         <th key={h} className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                       ))}
                     </tr>
@@ -569,9 +569,9 @@ export default function Finance() {
                           <td className="px-6 py-4 text-sm text-slate-500">{c.earliest_due_date || '—'}</td>
                           <td className="px-6 py-4">
                             {c.overdue
-                              ? <span className="text-xs font-semibold text-red-600 bg-red-100 px-2 py-1 rounded-lg">Muddati o'tgan</span>
+                              ? <span className="text-xs font-semibold text-red-600 bg-red-100 px-2 py-1 rounded-lg">{t('finance.overdue')}</span>
                               : c.earliest_due_date
-                                ? <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-1 rounded-lg">Kutilmoqda</span>
+                                ? <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-1 rounded-lg">{t('admin.dict.pending')}</span>
                                 : <span className="text-xs text-slate-400">—</span>
                             }
                           </td>
@@ -582,14 +582,14 @@ export default function Finance() {
                                 setPayCurrency(c.debt_balances && Object.keys(c.debt_balances)[0] ? Object.keys(c.debt_balances)[0] : 'UZS');
                               }}
                               className="px-3 py-1.5 text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition-colors">
-                              To'lash
+                              {t('customer.payDebt')}
                             </button>
                           </td>
                         </tr>
                     ))}
                     {customerDebts.items.filter(c => !debtSearch || matchesSearch(c.name, debtSearch) || (c.phone||'').includes(debtSearch)).length === 0 && (
                       <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-400">
-                        {debtSearch ? (t('common.noResult') || 'Natija topilmadi') : (t('finance.noDebtors') || "Debitorlar yo'q!")}
+                        {debtSearch ? (t('finance.noSearchResults') || 'Natija topilmadi') : (t('finance.noDebtors') || "Debitorlar yo'q!")}
                       </td></tr>
                     )}
                   </tbody>
@@ -620,12 +620,12 @@ export default function Finance() {
                       <strong className="text-red-600 ml-2">{fmt(supplierDebts.total_debt, t)}</strong>
                     )}
                   </span>
-                  <span className="text-sm text-slate-500">({supplierDebts.count} ta supplier)</span>
+                  <span className="text-sm text-slate-500">({supplierDebts.count} {t('finance.suppliersUnit')})</span>
                 </div>
                 <table className="min-w-full">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100">
-                      {[t('nav.suppliers') || 'Ta\'minotchi', t('settings.phone') || 'Telefon', t('finance.debtBalance') || 'Qarz balansi', t('finance.paymentTerms') || "To'lov muddati", t('common.action') || 'Amal'].map(h => (
+                      {[t('admin.dict.supplier') || 'Ta\'minotchi', t('settings.phone') || 'Telefon', t('finance.debtBalance') || 'Qarz balansi', t('finance.paymentTerms') || "To'lov muddati", t('common.action') || 'Amal'].map(h => (
                         <th key={h} className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                       ))}
                     </tr>
@@ -640,7 +640,7 @@ export default function Finance() {
                             ? Object.entries(s.debt_balances).map(([curr, amt]) => `${Number(amt || 0).toLocaleString('uz-UZ')} ${curr === 'UZS' ? "so'm" : curr}`).join(' + ')
                             : fmt(s.debt_balance, t)}
                         </td>
-                        <td className="px-6 py-4 text-sm text-slate-500">{s.payment_terms} kun</td>
+                        <td className="px-6 py-4 text-sm text-slate-500">{s.payment_terms} {t('finance.daysUnit')}</td>
                         <td className="px-6 py-4">
                           <button
                             onClick={() => {
@@ -648,7 +648,7 @@ export default function Finance() {
                               setPayCurrency(s.debt_balances && Object.keys(s.debt_balances)[0] ? Object.keys(s.debt_balances)[0] : 'UZS');
                             }}
                             className="px-3 py-1.5 text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-colors">
-                            To'lash
+                            {t('customer.payDebt')}
                           </button>
                         </td>
                       </tr>
@@ -742,17 +742,17 @@ export default function Finance() {
                       </svg>
                     </div>
                     <div>
-                      <h3 className="text-base font-bold text-white">Payme orqali to'lov</h3>
-                      <p className="text-xs text-blue-200 mt-0.5">Tashkilot kodini va summani kiriting</p>
+                      <h3 className="text-base font-bold text-white">{t('finance.paymeTitle')}</h3>
+                      <p className="text-xs text-blue-200 mt-0.5">{t('finance.paymeSubtitle')}</p>
                     </div>
                   </div>
                 </div>
                 <div className="p-6 space-y-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tashkilot kodi (org_code)</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('finance.paymeOrgCodeLabel')}</label>
                     <input
                       type="text"
-                      placeholder="Masalan: 12345678"
+                      placeholder={t('finance.paymeOrgCodePlaceholder')}
                       value={paymeOrgCode}
                       onChange={e => { setPaymeOrgCode(e.target.value); setPaymeError(''); }}
                       onKeyDown={e => e.key === 'Enter' && handlePaymeLookup()}
@@ -760,10 +760,10 @@ export default function Finance() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">To'lov summasi (so'm)</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('finance.paymeAmountLabel')}</label>
                     <input
                       type="number"
-                      placeholder="Masalan: 100000"
+                      placeholder={t('finance.paymeAmountPlaceholder')}
                       value={paymeAmount}
                       onChange={e => { setPaymeAmount(e.target.value); setPaymeError(''); }}
                       onKeyDown={e => e.key === 'Enter' && handlePaymeLookup()}
@@ -771,8 +771,8 @@ export default function Finance() {
                     />
                     {paymeAmount && parseFloat(paymeAmount) >= 1000 && (
                       <p className="text-xs text-slate-400 mt-1 pl-1">
-                        = {Number(paymeAmount).toLocaleString('uz-UZ')} so'm
-                        &nbsp;/&nbsp;{(parseFloat(paymeAmount) * 100).toLocaleString()} tiyin
+                        = {Number(paymeAmount).toLocaleString('uz-UZ')} {t('common.sum') || "so'm"}
+                        &nbsp;/&nbsp;{(parseFloat(paymeAmount) * 100).toLocaleString()} {t('finance.tiyin')}
                       </p>
                     )}
                   </div>
@@ -790,9 +790,9 @@ export default function Finance() {
                     className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
                   >
                     {paymeLoading ? (
-                      <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Tekshirilmoqda...</>
+                      <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> {t('finance.checking')}</>
                     ) : (
-                      <>Keyingi <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg></>
+                      <>{t('common.next')} <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg></>
                     )}
                   </button>
                 </div>
@@ -810,24 +810,24 @@ export default function Finance() {
                       </svg>
                     </div>
                     <div>
-                      <h3 className="text-base font-bold text-white">Tashkilot topildi</h3>
-                      <p className="text-xs text-emerald-100 mt-0.5">Ma'lumotlarni tasdiqlang</p>
+                      <h3 className="text-base font-bold text-white">{t('finance.paymeCompanyFound')}</h3>
+                      <p className="text-xs text-emerald-100 mt-0.5">{t('finance.paymeConfirmData')}</p>
                     </div>
                   </div>
                 </div>
                 <div className="p-6 space-y-4">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between py-3 px-4 bg-slate-50 rounded-xl">
-                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tashkilot nomi</span>
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('finance.paymeOrgName')}</span>
                       <span className="text-sm font-bold text-slate-800">{paymeCompany.name}</span>
                     </div>
                     <div className="flex items-center justify-between py-3 px-4 bg-slate-50 rounded-xl">
-                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tashkilot kodi</span>
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('finance.paymeOrgCode')}</span>
                       <span className="text-sm font-bold text-slate-800 font-mono">{paymeCompany.org_code}</span>
                     </div>
                     <div className="flex items-center justify-between py-3 px-4 bg-blue-50 rounded-xl border border-blue-100">
-                      <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider">To'lov summasi</span>
-                      <span className="text-lg font-bold text-blue-700">{Number(paymeAmount).toLocaleString('uz-UZ')} so'm</span>
+                      <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider">{t('finance.paymeAmountLabel')}</span>
+                      <span className="text-lg font-bold text-blue-700">{Number(paymeAmount).toLocaleString('uz-UZ')} {t('common.sum') || "so'm"}</span>
                     </div>
                   </div>
                   {paymeError && (
@@ -844,7 +844,7 @@ export default function Finance() {
                       className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
-                      Orqaga
+                      {t('common.back')}
                     </button>
                     <button
                       onClick={handlePaymeCheckout}
@@ -852,9 +852,9 @@ export default function Finance() {
                       className="flex-[2] py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
                     >
                       {paymeLoading ? (
-                        <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Yuklanmoqda...</>
+                        <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> {t('finance.loadingEllipsis')}</>
                       ) : (
-                        <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg> To'lash (Payme)</>
+                        <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg> {t('finance.payWithPayme')}</>
                       )}
                     </button>
                   </div>
@@ -870,16 +870,15 @@ export default function Finance() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <h3 className="text-base font-bold text-slate-800 mb-2">Payme sahifasi ochildi!</h3>
+                <h3 className="text-base font-bold text-slate-800 mb-2">{t('finance.paymePageOpened')}</h3>
                 <p className="text-sm text-slate-500 mb-6">
-                  <strong>{paymeCompany?.name}</strong> uchun to'lov sahifasi yangi tabda ochildi.
-                  To'lov tugagandan so'ng balans avtomatik yangilanadi.
+                  <strong>{paymeCompany?.name}</strong> {t('finance.paymePageOpenedDesc')}
                 </p>
                 <button
                   onClick={resetPayme}
                   className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors"
                 >
-                  Yangi to'lov
+                  {t('finance.newPayment')}
                 </button>
               </div>
             )}

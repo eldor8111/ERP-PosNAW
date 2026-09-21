@@ -51,7 +51,7 @@ function MijozlarTab() {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
 
-  const load = (q = search) => api.get(`/customers${q ? '?search=' + encodeURIComponent(q) : ''}`).then(r => setList(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+  const load = (q = search) => api.get(`/customers${q ? '?search=' + encodeURIComponent(q) : ''}`).then(r => setList(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -66,19 +66,19 @@ function MijozlarTab() {
       if (modal === 'add') await api.post('/customers', p);
       else await api.put(`/customers/${sel.id}`, p);
       close(); load();
-    } catch (e) { setErr(e.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
+    } catch (e) { setErr(e.response?.data?.detail || t('common.error')); } finally { setSaving(false); }
   };
 
   const handlePay = async (e) => {
     e.preventDefault(); setSaving(true); setErr('');
-    try { await api.post(`/customers/${sel.id}/pay-debt`, { amount: Number(payAmt), reason: "To'lov" }); close(); load(); }
-    catch (e) { setErr(e.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
+    try { await api.post(`/customers/${sel.id}/pay-debt`, { amount: Number(payAmt), reason: t('customer.payment') }); close(); load(); }
+    catch (e) { setErr(e.response?.data?.detail || t('common.error')); } finally { setSaving(false); }
   };
 
   const handlePoints = async (e) => {
     e.preventDefault(); setSaving(true); setErr('');
     try { await api.post(`/customers/${sel.id}/adjust-points`, { delta: Number(ptsDelta), reason: 'Manual' }); close(); load(); }
-    catch (e) { setErr(e.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
+    catch (e) { setErr(e.response?.data?.detail || t('common.error')); } finally { setSaving(false); }
   };
 
   const del = async (id) => { if (!confirm(t('confirm.delete'))) return; await api.delete(`/customers/${id}`); load(); };
@@ -108,11 +108,11 @@ function MijozlarTab() {
       <div className="flex gap-3">
         <div className="relative flex-1">
           <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-          <input className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Qidirish..." value={search} onChange={e => setSearch(e.target.value)} />
+          <input className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder={t('common.search')} value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <button onClick={() => { setForm(emptyCustomer); setErr(''); setModal('add-c'); }} className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors flex items-center gap-2">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
-          Yangi Mijoz
+          {t('customer.newCustomer')}
         </button>
       </div>
 
@@ -137,8 +137,8 @@ function MijozlarTab() {
                 </td>
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-1">
-                    {Number(c.debt_balance) > 0 && <button onClick={() => { setSel(c); setPayAmt(''); setModal('pay'); }} title="Qarz to'lash" className="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg></button>}
-                    <button onClick={() => { setSel(c); setPtsDelta(''); setModal('points'); }} title="Ballar" className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg">⭐</button>
+                    {Number(c.debt_balance) > 0 && <button onClick={() => { setSel(c); setPayAmt(''); setModal('pay'); }} title={t('customer.payDebt')} className="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg></button>}
+                    <button onClick={() => { setSel(c); setPtsDelta(''); setModal('points'); }} title={t('kontragent.points')} className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg">⭐</button>
                     <button onClick={() => { setForm({ name: c.name, phone: c.phone||'', debt_limit: c.debt_limit||0, loyalty_points: c.loyalty_points||0 }); setSel(c); setModal('add-c'); }} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
                     <button onClick={() => del(c.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
                   </div>
@@ -162,7 +162,7 @@ function MijozlarTab() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('common.name')} *</label>
-                  <input required className={inputCls} value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Javohir Toshmatov"/>
+                  <input required className={inputCls} value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder={t('kontragent.namePlaceholder')}/>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('admin.dict.phone') || 'Telefon'}</label>
@@ -194,11 +194,11 @@ function MijozlarTab() {
             <form onSubmit={handlePay} className="p-6 space-y-4">
               <div className="p-3 bg-slate-50 rounded-xl text-sm">
                 <div className="font-semibold text-slate-800">{sel.name}</div>
-                <div className="text-red-500 font-bold mt-0.5">Qarz: {fmt(sel.debt_balance)} so'm</div>
+                <div className="text-red-500 font-bold mt-0.5">{t('kontragent.debtLabel')}: {fmt(sel.debt_balance)} {t('common.sum')}</div>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('customer.paymentAmount')} *</label>
-                <input type="number" min="1" max={sel.debt_balance} required autoFocus className={inputCls} value={payAmt} onChange={e => setPayAmt(e.target.value)} placeholder="Miqdor..."/>
+                <input type="number" min="1" max={sel.debt_balance} required autoFocus className={inputCls} value={payAmt} onChange={e => setPayAmt(e.target.value)} placeholder={t('common.quantity')}/>
               </div>
               {err && <div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}
               <div className="flex gap-3">
@@ -221,11 +221,11 @@ function MijozlarTab() {
             <form onSubmit={handlePoints} className="p-6 space-y-4">
               <div className="p-3 bg-amber-50 rounded-xl text-sm">
                 <div className="font-semibold">{sel.name}</div>
-                <div className="text-amber-600 font-bold">⭐ {sel.loyalty_points} ball</div>
+                <div className="text-amber-600 font-bold">⭐ {sel.loyalty_points} {t('kontragent.pointsUnit')}</div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">O'zgarish (+ yoki -)</label>
-                <input type="number" required autoFocus className={inputCls} value={ptsDelta} onChange={e => setPtsDelta(e.target.value)} placeholder="Masalan: 500 yoki -200"/>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('customer.pointsDelta')}</label>
+                <input type="number" required autoFocus className={inputCls} value={ptsDelta} onChange={e => setPtsDelta(e.target.value)} placeholder={t('kontragent.pointsPlaceholder')}/>
               </div>
               {err && <div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}
               <div className="flex gap-3">
@@ -258,7 +258,7 @@ function SuppliersTab() {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
 
-  const load = (q = search) => api.get(`/suppliers${q ? '?search=' + encodeURIComponent(q) : ''}`).then(r => setList(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+  const load = (q = search) => api.get(`/suppliers${q ? '?search=' + encodeURIComponent(q) : ''}`).then(r => setList(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -282,15 +282,15 @@ function SuppliersTab() {
       if (sel) await api.patch(`/suppliers/${sel.id}`, payload);
       else await api.post('/suppliers', payload);
       close(); load();
-    } catch (ex) { setErr(ex.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
+    } catch (ex) { setErr(ex.response?.data?.detail || t('common.error')); } finally { setSaving(false); }
   };
 
   const handlePayDebt = async (e) => {
     e.preventDefault(); setSaving(true); setErr('');
     try {
-      await api.post(`/suppliers/${sel.id}/pay-debt`, { amount: Number(payAmt), reason: "Qarz to'lovi" });
+      await api.post(`/suppliers/${sel.id}/pay-debt`, { amount: Number(payAmt), reason: t('kontragent.debtPaymentReason') });
       close(); load();
-    } catch (ex) { setErr(ex.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
+    } catch (ex) { setErr(ex.response?.data?.detail || t('common.error')); } finally { setSaving(false); }
   };
 
   const handleDelete = async (id) => {
@@ -307,15 +307,15 @@ function SuppliersTab() {
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-center gap-4">
           <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center shrink-0 text-violet-600 font-bold text-lg">T</div>
-          <div><div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Jami Ta'minotchi</div><div className="text-xl font-bold text-violet-600 mt-0.5">{list.length}</div></div>
+          <div><div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{t('kontragent.totalSuppliers')}</div><div className="text-xl font-bold text-violet-600 mt-0.5">{list.length}</div></div>
         </div>
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-center gap-4">
           <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0 text-red-500 font-bold">₴</div>
-          <div><div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Jami Qarzdorlik</div><div className="text-xl font-bold text-red-500 mt-0.5">{fmt(totalDebt)} so'm</div></div>
+          <div><div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{t('customer.totalDebt')}</div><div className="text-xl font-bold text-red-500 mt-0.5">{fmt(totalDebt)} {t('common.sum')}</div></div>
         </div>
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-center gap-4">
           <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 text-amber-600 font-bold text-lg">★</div>
-          <div><div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">O'rt. Reyting</div>
+          <div><div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{t('kontragent.avgRating')}</div>
             <div className="text-xl font-bold text-amber-600 mt-0.5">
               {list.filter(s => s.rating).length > 0
                 ? (list.filter(s => s.rating).reduce((a, s) => a + Number(s.rating), 0) / list.filter(s => s.rating).length).toFixed(1)
@@ -329,11 +329,11 @@ function SuppliersTab() {
       <div className="flex gap-3">
         <div className="relative flex-1">
           <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-          <input className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Qidirish..." value={search} onChange={e => setSearch(e.target.value)}/>
+          <input className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder={t('common.search')} value={search} onChange={e => setSearch(e.target.value)}/>
         </div>
         <button onClick={openAdd} className="px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold rounded-xl transition-colors flex items-center gap-2">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
-          Yangi Ta'minotchi
+          {t('purchase.newSupplier')}
         </button>
       </div>
 
@@ -341,7 +341,7 @@ function SuppliersTab() {
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
         <table className="min-w-full">
           <thead><tr className="bg-slate-50 border-b border-slate-100">
-            {['Ta\'minotchi','INN','Telefon','Qarz','To\'lov muddati','Reyting',''].map(h => <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>)}
+            {[t('purchase.supplier'), t('kontragent.inn'), t('common.phone'), t('kontragent.debtLabel'), t('kontragent.paymentTerms'), t('purchase.colRating'), ''].map(h => <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>)}
           </tr></thead>
           <tbody className="divide-y divide-slate-50">
             {list.map(s => (
@@ -358,9 +358,9 @@ function SuppliersTab() {
                 <td className="px-5 py-4 text-sm font-mono text-slate-600">{s.inn || '—'}</td>
                 <td className="px-5 py-4 text-sm text-slate-500">{s.phone || '—'}</td>
                 <td className="px-5 py-4 text-sm font-semibold">
-                  <span className={Number(s.debt_balance) > 0 ? 'text-red-500' : 'text-slate-400'}>{fmt(s.debt_balance)} so'm</span>
+                  <span className={Number(s.debt_balance) > 0 ? 'text-red-500' : 'text-slate-400'}>{fmt(s.debt_balance)} {t('common.sum')}</span>
                 </td>
-                <td className="px-5 py-4 text-sm text-slate-500">{s.payment_terms} kun</td>
+                <td className="px-5 py-4 text-sm text-slate-500">{s.payment_terms} {t('kontragent.days')}</td>
                 <td className="px-5 py-4">
                   <StarRating value={s.rating} readOnly/>
                 </td>
@@ -368,7 +368,7 @@ function SuppliersTab() {
                   <div className="flex items-center gap-1">
                     {Number(s.debt_balance) > 0 && (
                       <button onClick={() => { setSel(s); setPayAmt(''); setErr(''); setModal('pay'); }}
-                        title="Qarz to'lash" className="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded-lg">
+                        title={t('customer.payDebt')} className="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded-lg">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
                       </button>
                     )}
@@ -394,14 +394,14 @@ function SuppliersTab() {
             <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-6 space-y-5">
               {/* Asosiy ma'lumot */}
               <div>
-                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Asosiy ma'lumot</h4>
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">{t('kontragent.basicInfo')}</h4>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2">
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nomi *</label>
-                    <input required className={inputCls} value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Kompaniya nomi"/>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('kontragent.companyName')} *</label>
+                    <input required className={inputCls} value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder={t('kontragent.companyNamePlaceholder')}/>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">INN</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('kontragent.inn')}</label>
                     <input className={inputCls} value={form.inn} onChange={e => setForm({...form, inn: e.target.value})} placeholder="123456789"/>
                   </div>
                   <div>
@@ -409,14 +409,14 @@ function SuppliersTab() {
                     <input className={inputCls} value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} placeholder="+998 90 123 45 67"/>
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Email</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('kontragent.email')}</label>
                     <input type="email" className={inputCls} value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="info@company.uz"/>
                   </div>
                   {!sel && (
                     <div className="col-span-2">
-                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Boshlang'ich qarz (so'm)</label>
-                      <input type="number" min="0" className={inputCls} value={form.debt_balance} onChange={e => setForm({...form, debt_balance: e.target.value})} placeholder="Masalan: 500000"/>
-                      <p className="text-xs text-slate-400 mt-1">Ta'minotchi avval ham qarzda bo'lsa kiriting</p>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('kontragent.initialDebt')} ({t('common.sum')})</label>
+                      <input type="number" min="0" className={inputCls} value={form.debt_balance} onChange={e => setForm({...form, debt_balance: e.target.value})} placeholder={t('kontragent.amountExamplePlaceholder')}/>
+                      <p className="text-xs text-slate-400 mt-1">{t('kontragent.initialDebtHint')}</p>
                     </div>
                   )}
                 </div>
@@ -437,22 +437,22 @@ function SuppliersTab() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-800">Qarz to'lash</h3>
+              <h3 className="text-lg font-bold text-slate-800">{t('customer.payDebt')}</h3>
               <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
             </div>
             <form onSubmit={handlePayDebt} className="p-6 space-y-4">
               <div className="p-3 bg-red-50 rounded-xl text-sm">
                 <div className="font-semibold text-slate-800">{sel.name}</div>
-                <div className="text-red-500 font-bold mt-0.5">Joriy qarz: {fmt(sel.debt_balance)} so'm</div>
+                <div className="text-red-500 font-bold mt-0.5">{t('kontragent.currentDebt')}: {fmt(sel.debt_balance)} {t('common.sum')}</div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">To'lov miqdori *</label>
-                <input type="number" min="1" required autoFocus className={inputCls} value={payAmt} onChange={e => setPayAmt(e.target.value)} placeholder="Miqdor..."/>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('customer.paymentAmount')} *</label>
+                <input type="number" min="1" required autoFocus className={inputCls} value={payAmt} onChange={e => setPayAmt(e.target.value)} placeholder={t('common.quantity')}/>
               </div>
               {err && <div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}
               <div className="flex gap-3">
                 <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm rounded-xl hover:bg-slate-50">{t('common.cancel')}</button>
-                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving ? '...' : 'Tasdiqlash'}</button>
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">{saving ? '...' : t('common.confirm')}</button>
               </div>
             </form>
           </div>
@@ -464,14 +464,14 @@ function SuppliersTab() {
 /* ══════════════════════════════════════════════════
    MAIN PAGE
 ══════════════════════════════════════════════════ */
-const TABS = [
-  { id: 'mijozlar', label: 'Mijozlar', icon: '👥', color: 'indigo' },
-  { id: 'suppliers', label: "Yetkazib beruvchilar", icon: '🏭', color: 'violet' },
-];
-
 export default function Kontragentlar() {
   const { t } = useLang();
   const [tab, setTab] = useState('mijozlar');
+
+  const TABS = [
+    { id: 'mijozlar', label: t('customer.customers'), icon: '👥', color: 'indigo' },
+    { id: 'suppliers', label: t('kontragent.suppliersTab'), icon: '🏭', color: 'violet' },
+  ];
 
   return (
     <div className="space-y-6">

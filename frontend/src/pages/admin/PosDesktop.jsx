@@ -9,8 +9,9 @@ import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
 /* ── Customer combobox ── */
-function CustSearch({ customers, value, onChange, placeholder = "Mijoz izlash..." }) {
+function CustSearch({ customers, value, onChange, placeholder }) {
   const { t } = useLang();
+  const effectivePlaceholder = placeholder || t('posDesktop.custSearchPlaceholder');
 const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -35,14 +36,14 @@ const [q, setQ] = useState('');
           value={open ? q : (selected ? selected.name : '')} 
           onChange={e => { setQ(e.target.value); setOpen(true); if (!e.target.value) onChange(''); }} 
           onFocus={() => setOpen(true)} 
-          placeholder={placeholder} 
-          className="w-full px-3 py-3 text-sm font-semibold text-slate-700 outline-none bg-transparent placeholder:text-slate-400" 
+          placeholder={effectivePlaceholder}
+          className="w-full px-3 py-3 text-sm font-semibold text-slate-700 outline-none bg-transparent placeholder:text-slate-400"
         />
         {selected && <button onClick={() => select(null)} className="text-slate-400 hover:text-red-500 font-bold p-1">×</button>}
       </div>
       {open && (
         <div className="absolute top-full mt-2 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 overflow-hidden max-h-64 overflow-y-auto">
-          {filtered.length === 0 ? <div className="px-4 py-3 text-sm text-slate-500 text-center font-medium">Topilmadi</div> : filtered.map(c => (
+          {filtered.length === 0 ? <div className="px-4 py-3 text-sm text-slate-500 text-center font-medium">{t('pos.customerNotFound')}</div> : filtered.map(c => (
             <button key={c.id} onMouseDown={() => select(c)} className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-slate-50 last:border-0 flex items-center justify-between transition-colors">
               <div>
                 <div className="text-sm font-bold text-slate-800">{c.name}</div>
@@ -52,7 +53,7 @@ const [q, setQ] = useState('');
                 <div className="flex flex-col items-end gap-1">
                   {getDebtEntries(c).map(({ currency, amount }) => (
                     <span key={currency} className="text-xs text-red-600 font-bold bg-red-50 px-2.5 py-1 rounded-lg">
-                      Qarz: {fmt(amount)} {currency}
+                      {t('common.debt')}: {fmt(amount)} {currency}
                     </span>
                   ))}
                 </div>
@@ -81,7 +82,7 @@ const navigate = useNavigate();
 
   const { isOnline, syncing, pendingCount, submitSaleOrQueue, fetchProducts, fetchCustomers, fetchCategories } = usePosSync({
     onSyncSuccess: (count) => {
-      setErr(`✅ ${count} ta offline sotuv serverga yuborildi!`);
+      setErr(`✅ ${count} ${t('posDesktop.offlineSalesSynced')}`);
       setTimeout(() => setErr(''), 4000);
     },
   });
@@ -231,11 +232,11 @@ const navigate = useNavigate();
                  });
                  setSearch('');
               } else {
-                 setErr(`Tarozi mahsuloti topilmadi (Kodi: ${itemCode})`);
+                 setErr(`${t('posDesktop.scaleProductNotFound')} (${t('posDesktop.codeLabel')}: ${itemCode})`);
                  setTimeout(() => setErr(''), 3000);
               }
            } else {
-              setErr(`Shtrix kod topilmadi: ${scannedCode}`);
+              setErr(`${t('posDesktop.barcodeNotFoundShort')}: ${scannedCode}`);
               setTimeout(() => setErr(''), 3000);
            }
          }
@@ -291,7 +292,7 @@ const navigate = useNavigate();
   const [showCheckout, setShowCheckout] = useState(false);
 
   const submitSale = async () => {
-    if (!cart.length) { setErr("Savat bo'sh!"); setTimeout(()=>setErr(''),3000); return; }
+    if (!cart.length) { setErr(t('posDesktop.cartEmptyExclaim')); setTimeout(()=>setErr(''),3000); return; }
     
     setIsPaying(true);
     setErr('');
@@ -309,7 +310,7 @@ const navigate = useNavigate();
         paidAmt = a1 + a2;
         pCash = (mixedType1 === 'cash' ? a1 : 0) + (mixedType2 === 'cash' ? a2 : 0);
         pCard = (mixedType1 !== 'cash' ? a1 : 0) + (mixedType2 !== 'cash' ? a2 : 0);
-        noteTxt = `Aralash to'lov turlari: To'lov 1 - ${mixedType1.toUpperCase()}, To'lov 2 - ${mixedType2.toUpperCase()}`;
+        noteTxt = `${t('posDesktop.mixedPaymentTypesNote')}: ${t('posDesktop.payment1')} - ${mixedType1.toUpperCase()}, ${t('posDesktop.payment2')} - ${mixedType2.toUpperCase()}`;
       } else {
         pCash = payType === 'cash' ? paidAmt : 0;
         pCard = (payType !== 'cash' && payType !== 'debt') ? paidAmt : 0;
@@ -343,7 +344,7 @@ const navigate = useNavigate();
         const selectedCust = customers.find(c => String(c.id) === String(custId));
         const meta = {
           id: orderNum.current, number: orderNum.current,
-          cashier_name: 'Kassir',
+          cashier_name: t('shift.cashier'),
           created_at: new Date().toISOString(),
           total_amount: totalNet,
           paid_amount: paidAmt,
@@ -374,14 +375,14 @@ const navigate = useNavigate();
       setShowCheckout(false);
       // Offline bo'lsa maxsus xabar
       if (result?.offline) {
-        setErr('📶 Internet yo\'q — sotuv offline saqlandi. Internet kelganda avtomatik yuboriladi.');
+        setErr(`📶 ${t('posDesktop.offlineSaleSaved')}`);
         setTimeout(() => setErr(''), 5000);
       } else {
-        setErr('MUVAFFAQIYATLI SOTILDI!');
+        setErr(t('posDesktop.soldSuccessfully'));
         setTimeout(() => setErr(''), 3000);
       }
     } catch (e) {
-      setErr(e.response?.data?.detail || "Xatolik ro'y berdi");
+      setErr(e.response?.data?.detail || t('posDesktop.errorOccurredShort'));
       setTimeout(()=>setErr(''),4000);
     } finally {
       setIsPaying(false);
@@ -399,12 +400,12 @@ const navigate = useNavigate();
         </div>
 
         {/* Home / Back to Dashboard */}
-        <button onClick={() => navigate('/admin/sotuv-mijozlar')} className="w-12 h-12 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition-all group" title="Orqaga">
+        <button onClick={() => navigate('/admin/sotuv-mijozlar')} className="w-12 h-12 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition-all group" title={t('common.back')}>
           <svg className="w-6 h-6 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
         </button>
 
         {/* Current: POS */}
-        <button className="w-12 h-12 rounded-xl flex items-center justify-center bg-blue-600 text-white shadow-lg shadow-blue-500/20 transition-all" title="Kassa">
+        <button className="w-12 h-12 rounded-xl flex items-center justify-center bg-blue-600 text-white shadow-lg shadow-blue-500/20 transition-all" title={t('pos.title')}>
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
         </button>
 
@@ -413,32 +414,32 @@ const navigate = useNavigate();
           className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all relative ${
             showCustPanel ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
           }`}
-          title="Mijoz ma'lumotlari"
+          title={t('posDesktop.customerInfo')}
         >
            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
            {custId && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-slate-900"></span>}
         </button>
 
         {/* POS Vazvrat (Return) shortcut */}
-        <button onClick={() => navigate('/admin/pos-return')} className="w-12 h-12 rounded-xl flex items-center justify-center text-blue-400 hover:bg-blue-600 hover:text-white transition-all" title="POS Vazvrat">
+        <button onClick={() => navigate('/admin/pos-return')} className="w-12 h-12 rounded-xl flex items-center justify-center text-blue-400 hover:bg-blue-600 hover:text-white transition-all" title={t('posDesktop.posReturn')}>
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
         </button>
 
         {/* Pending count badge - offline */}
         {pendingCount > 0 && (
-          <div className="w-12 flex flex-col items-center gap-1" title={`${pendingCount} ta kutilayotgan sotuv`}>
+          <div className="w-12 flex flex-col items-center gap-1" title={`${pendingCount} ${t('posDesktop.pendingSalesCount')}`}>
             <div className="w-8 h-8 bg-amber-500 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-lg">
               {pendingCount}
             </div>
-            <span className="text-amber-400 text-[9px] font-bold text-center leading-tight">kutilmoqda</span>
+            <span className="text-amber-400 text-[9px] font-bold text-center leading-tight">{t('posDesktop.pending')}</span>
           </div>
         )}
 
         <div className="mt-auto pb-4 space-y-4">
-          <button onClick={() => setShowSettings(true)} className="w-12 h-12 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition-all" title="Sozlamalar">
+          <button onClick={() => setShowSettings(true)} className="w-12 h-12 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition-all" title={t('posDesktop.settings')}>
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
           </button>
-          <button className="w-12 h-12 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition-all" title="Full Ekranga O'tish" onClick={()=>{if(!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen();}}>
+          <button className="w-12 h-12 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition-all" title={t('posDesktop.toggleFullscreen')} onClick={()=>{if(!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen();}}>
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
           </button>
         </div>
@@ -448,8 +449,8 @@ const navigate = useNavigate();
       {!isOnline && (
         <div className="fixed top-0 left-0 right-0 z-[100] bg-amber-500 text-white text-center py-2 px-4 font-bold text-sm flex items-center justify-center gap-2 shadow-lg">
           <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-          ⚠️ Internet yo'q! Sotuvlar offline saqlanadi va internet kelganda avtomatik yuboriladi.
-          {syncing && <span className="ml-2 animate-pulse">⏳ Sinxron...</span>}
+          ⚠️ {t('posDesktop.noInternetBanner')}
+          {syncing && <span className="ml-2 animate-pulse">⏳ {t('posDesktop.syncing')}</span>}
         </div>
       )}
 
@@ -480,11 +481,11 @@ const navigate = useNavigate();
                 <div className={`rounded-2xl p-4 flex items-center justify-between ${
                   hasAnyDebt(cust) ? 'bg-red-900/40 border border-red-700' : 'bg-emerald-900/30 border border-emerald-700'
                 }`}>
-                  <span className="text-slate-300 font-semibold text-sm">Joriy qarz</span>
+                  <span className="text-slate-300 font-semibold text-sm">{t('posDesktop.currentDebt')}</span>
                   <div className="flex flex-col items-end gap-1">
                     {hasAnyDebt(cust) ? getDebtEntries(cust).map(({ currency, amount }) => (
                       <span key={currency} className="font-black text-lg text-red-400">{fmt(amount)} {currency}</span>
-                    )) : <span className="font-black text-lg text-emerald-400">✅ Qarzsiz</span>}
+                    )) : <span className="font-black text-lg text-emerald-400">✅ {t('posDesktop.noDebt')}</span>}
                   </div>
                 </div>
                 {/* Extra info */}
@@ -497,8 +498,8 @@ const navigate = useNavigate();
             ) : (
               <div className="flex flex-col items-center justify-center flex-1 text-center gap-3 py-10">
                 <svg className="w-12 h-12 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                <p className="text-slate-500 font-semibold text-sm">Mijoz tanlanmagan</p>
-                <p className="text-slate-600 text-xs">Buyurtma bo'limidan mijozni tanlang</p>
+                <p className="text-slate-500 font-semibold text-sm">{t('posDesktop.customerNotSelected')}</p>
+                <p className="text-slate-600 text-xs">{t('posDesktop.selectCustomerFromOrder')}</p>
               </div>
             )}
           </div>
@@ -511,10 +512,10 @@ const navigate = useNavigate();
         {/* Top: Customer & Order ID */}
         <div className="p-5 border-b border-slate-100 flex flex-col relative z-50">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-black text-slate-800">Buyurtma</h2>
+            <h2 className="text-xl font-black text-slate-800">{t('posDesktop.order')}</h2>
             <div className="text-sm font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">#{orderNum.current}</div>
           </div>
-          <CustSearch customers={customers} value={custId} onChange={setCustId} placeholder="Mijozni tanlang (Majburiy)..." />
+          <CustSearch customers={customers} value={custId} onChange={setCustId} placeholder={t('posDesktop.selectCustomerRequired')} />
         </div>
 
         {/* Middle: Cart Items */}
@@ -522,7 +523,7 @@ const navigate = useNavigate();
           {cart.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3">
               <svg className="w-16 h-16 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-              <p className="font-semibold text-sm">Savatga mahsulot qo'shing</p>
+              <p className="font-semibold text-sm">{t('posDesktop.addProductToCart')}</p>
             </div>
           ) : (
             cart.map((item, idx) => (
@@ -549,7 +550,7 @@ const navigate = useNavigate();
                   </div>
                 </div>
 
-                <button onClick={()=>removeCartItem(idx)} className="absolute right-2 top-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white pb-0.5 text-lg leading-none shrink-0" title="O'chirish">×</button>
+                <button onClick={()=>removeCartItem(idx)} className="absolute right-2 top-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white pb-0.5 text-lg leading-none shrink-0" title={t('warehouse.deleteLabel')}>×</button>
               </div>
             ))
           )}
@@ -566,13 +567,13 @@ const navigate = useNavigate();
         <div className="bg-white border-t border-slate-200 px-5 pt-4 pb-6 mt-auto rounded-t-3xl shadow-[0_-10px_20px_rgba(0,0,0,0.03)] flex flex-col gap-4 relative z-20">
           
           <div className="flex items-center justify-between mb-2">
-            <span className="text-slate-500 font-bold uppercase tracking-widest text-xs">Umumiy summa</span>
+            <span className="text-slate-500 font-bold uppercase tracking-widest text-xs">{t('posDesktop.totalAmount')}</span>
             <span className="text-3xl font-black text-slate-800">{fmt(Math.round(totalNet))} <span className="text-lg text-slate-500">UZS</span></span>
           </div>
 
           <div className="h-16 w-full mt-2">
-            <button onClick={() => { if(!cart.length) {setErr("Savat bo'sh!"); setTimeout(()=>setErr(''),2000); return;} setShowCheckout(true); if(!paidInput && payType !== 'debt') setPaidInput(String(Math.round(totalNet))); }} className="w-full h-full bg-blue-600 border-2 border-blue-600 text-white rounded-2xl text-xl uppercase tracking-widest font-black hover:bg-blue-700 active:scale-95 transition-all shadow-lg flex items-center justify-center gap-3">
-               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg> To'lash
+            <button onClick={() => { if(!cart.length) {setErr(t('posDesktop.cartEmptyExclaim')); setTimeout(()=>setErr(''),2000); return;} setShowCheckout(true); if(!paidInput && payType !== 'debt') setPaidInput(String(Math.round(totalNet))); }} className="w-full h-full bg-blue-600 border-2 border-blue-600 text-white rounded-2xl text-xl uppercase tracking-widest font-black hover:bg-blue-700 active:scale-95 transition-all shadow-lg flex items-center justify-center gap-3">
+               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg> {t('posDesktop.pay')}
             </button>
           </div>
         </div>
@@ -589,7 +590,7 @@ const navigate = useNavigate();
             <input 
               value={search} 
               onChange={e => setSearch(e.target.value)} 
-              placeholder="Mahsulot nomi yoki shtrix kodi bo'yicha qidirish..." 
+              placeholder={t('posDesktop.searchProductPlaceholder')}
               className="flex-1 bg-transparent border-none outline-none text-slate-700 font-semibold placeholder:text-slate-400 text-lg" 
             />
             {search && <button onClick={()=>setSearch('')} className="text-slate-400 hover:text-red-500 p-1 font-bold text-xl leading-none">×</button>}
@@ -598,14 +599,14 @@ const navigate = useNavigate();
           <div className="flex items-center gap-3">
             <div className="text-right hidden sm:block">
               <div className="text-sm font-bold text-slate-500 flex items-center gap-2 justify-end">
-                <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Kassa faol
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span> {t('posDesktop.cashierActive')}
               </div>
               <div className="text-slate-400 text-xs font-semibold mt-1 pr-1">{new Date().toLocaleString('uz-UZ', {weekday:'long', hour:'2-digit', minute:'2-digit'})}</div>
             </div>
             {/* Expand / Collapse toggle */}
             <button
               onClick={() => setExpanded(v => !v)}
-              title={expanded ? "Menyu ko'rsatish" : "Kengaytirish"}
+              title={expanded ? t('posDesktop.showMenu') : t('posDesktop.expand')}
               className="w-10 h-10 rounded-xl flex items-center justify-center bg-white border-2 border-slate-200 text-slate-500 hover:border-blue-400 hover:text-blue-600 hover:shadow-md transition-all active:scale-95 shrink-0"
             >
               {expanded ? (
@@ -627,7 +628,7 @@ const navigate = useNavigate();
             onClick={() => setActiveCat(null)} 
             className={`px-4 py-2.5 rounded-2xl text-sm font-bold whitespace-nowrap transition-all shadow-sm shrink-0 snap-start border-2 ${!activeCat ? 'bg-blue-600 border-blue-600 text-white shadow-blue-200' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-blue-300'}`}
           >
-            Barchasi
+            {t('posDesktop.allCategories')}
           </button>
           {categories.map(c => (
             <button 
@@ -660,7 +661,7 @@ const navigate = useNavigate();
                   <div className="flex items-end justify-between w-full">
                     <div className="font-black text-blue-600 text-[17px]">{fmt(p.sale_price)} <span className="text-[11px] font-bold text-slate-400">UZS</span></div>
                     <div className="text-[11px] font-extrabold text-slate-400 bg-slate-100 px-2 py-1 rounded-md border border-slate-200">
-                      {p.stock_quantity > 0 ? `${fmt(p.stock_quantity)} ${p.unit||'dona'}` : '0 ta'}
+                      {p.stock_quantity > 0 ? `${fmt(p.stock_quantity)} ${p.unit||'dona'}` : t('pos.zeroStock')}
                     </div>
                   </div>
                 </div>
@@ -670,7 +671,7 @@ const navigate = useNavigate();
             {filteredProducts.length === 0 && (
               <div className="col-span-full py-16 flex flex-col items-center justify-center text-slate-400">
                 <svg className="w-16 h-16 mb-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <p className="text-lg font-bold">Mahsulot topilmadi</p>
+                <p className="text-lg font-bold">{t('posDesktop.productNotFound')}</p>
               </div>
             )}
           </div>
@@ -684,7 +685,7 @@ const navigate = useNavigate();
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
             
             <div className="bg-slate-50 border-b border-slate-100 px-6 py-4 flex items-center justify-between z-10">
-              <h2 className="text-xl font-black text-slate-800">To'lovni tasdiqlash</h2>
+              <h2 className="text-xl font-black text-slate-800">{t('posDesktop.confirmPayment')}</h2>
               <button onClick={() => setShowCheckout(false)} className="text-slate-400 hover:text-slate-600 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
@@ -694,7 +695,7 @@ const navigate = useNavigate();
               {/* Left Column: Numpad */}
               <div className="w-full md:w-[45%] p-6 bg-slate-100 border-r border-slate-200 flex flex-col gap-4">
                 <div className="flex flex-col gap-1 items-center justify-center py-4 bg-white rounded-xl shadow-sm border border-slate-200">
-                  <span className="text-slate-400 uppercase tracking-widest text-xs font-bold">Kiritildi</span>
+                  <span className="text-slate-400 uppercase tracking-widest text-xs font-bold">{t('pos.entered')}</span>
                   <span className="text-3xl font-black text-blue-700">
                      {payType === 'mixed' 
                         ? fmt((Number(mixedAmt1)||0) + (Number(mixedAmt2)||0))
@@ -729,23 +730,23 @@ const navigate = useNavigate();
               {/* Right Column: Settings */}
               <div className="flex-1 p-6 flex flex-col gap-5 overflow-y-auto">
                 <div className="flex flex-col gap-2">
-                  <label className="text-sm font-bold text-slate-500 uppercase tracking-widest">Mijoz (Ixtiyoriy)</label>
+                  <label className="text-sm font-bold text-slate-500 uppercase tracking-widest">{t('posDesktop.customerOptional')}</label>
                   <div className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-bold overflow-hidden truncate">
-                    {customers.find(c=>String(c.id)===String(custId))?.name || <span className="text-slate-400 font-medium">Umumiy mijoz (Mijoz tanlanmagan)</span>}
+                    {customers.find(c=>String(c.id)===String(custId))?.name || <span className="text-slate-400 font-medium">{t('posDesktop.generalCustomer')}</span>}
                   </div>
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <label className="text-sm font-bold text-slate-500 uppercase tracking-widest">To'lov turi</label>
+                  <label className="text-sm font-bold text-slate-500 uppercase tracking-widest">{t('posDesktop.paymentType')}</label>
                   <div className="flex flex-wrap gap-2">
                   {[
-                    {v:'cash', l:'Naqd', c:'bg-emerald-50 text-emerald-700 border-emerald-300'},
+                    {v:'cash', l:t('pos.cash'), c:'bg-emerald-50 text-emerald-700 border-emerald-300'},
                     {v:'uzcard', l:'Uzc', c:'bg-blue-50 text-blue-700 border-blue-300'},
                     {v:'humo', l:'Humo', c:'bg-blue-50 text-blue-700 border-blue-300'},
                     {v:'click', l:'Click', c:'bg-sky-50 text-sky-700 border-sky-300'},
                     {v:'payme', l:'Payme', c:'bg-blue-50 text-blue-700 border-blue-300'},
-                    {v:'mixed', l:'Aralash', c:'bg-orange-50 text-orange-700 border-orange-300'},
-                    {v:'debt', l:'Qarz', c:'bg-red-50 text-red-700 border-red-300'},
+                    {v:'mixed', l:t('posDesktop.mixed'), c:'bg-orange-50 text-orange-700 border-orange-300'},
+                    {v:'debt', l:t('common.debt'), c:'bg-red-50 text-red-700 border-red-300'},
                   ].map(t => (
                     <button key={t.v} onClick={()=>setPayType(t.v)} className={`px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all border-2 shrink-0 active:scale-95 flex-1 ${payType===t.v ? t.c + ' ring-2 ring-offset-1 ring-'+(t.c.includes('slate')?'slate':t.c.split('-')[1])+'-500' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
                       {t.l}
@@ -758,8 +759,8 @@ const navigate = useNavigate();
                   <div className="flex flex-col gap-3 p-4 bg-orange-50/50 rounded-xl border-2 border-orange-200 relative z-30 shadow-inner mt-2">
                     <div className="flex gap-3 items-center">
                       <select value={mixedType1} onChange={e=>setMixedType1(e.target.value)} className="w-[120px] bg-white border border-slate-200 rounded-lg py-2.5 px-2 font-bold text-sm text-slate-700 outline-none focus:border-orange-500 transition-all">
-                         <option value="cash">Naqd</option>
-                         <option value="card">Karta (Krt)</option>
+                         <option value="cash">{t('pos.cash')}</option>
+                         <option value="card">{t('posDesktop.cardShort')}</option>
                          <option value="uzcard">Uzcard</option>
                          <option value="humo">Humo</option>
                          <option value="click">Click</option>
@@ -770,8 +771,8 @@ const navigate = useNavigate();
                     </div>
                     <div className="flex gap-3 items-center mt-2">
                       <select value={mixedType2} onChange={e=>setMixedType2(e.target.value)} className="w-[120px] bg-white border border-slate-200 rounded-lg py-2.5 px-2 font-bold text-sm text-slate-700 outline-none focus:border-orange-500 transition-all">
-                         <option value="card">Karta (Krt)</option>
-                         <option value="cash">Naqd</option>
+                         <option value="card">{t('posDesktop.cardShort')}</option>
+                         <option value="cash">{t('pos.cash')}</option>
                          <option value="uzcard">Uzcard</option>
                          <option value="humo">Humo</option>
                          <option value="click">Click</option>
@@ -783,21 +784,21 @@ const navigate = useNavigate();
                   </div>
                 ) : (
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col gap-1 items-center justify-center">
-                    <span className="text-slate-500 font-bold text-xs uppercase tracking-widest">Jami Kiritilishi Kerak</span>
+                    <span className="text-slate-500 font-bold text-xs uppercase tracking-widest">{t('posDesktop.totalRequired')}</span>
                     <span className="text-3xl font-black text-slate-800">{fmt(Math.round(totalNet))} UZS</span>
                   </div>
                 )}
 
                 {payType === 'debt' && (
                   <div className={`rounded-xl px-4 py-3 text-sm font-bold flex items-center gap-2 ${custId ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-amber-50 border border-amber-300 text-amber-700'}`}>
-                    {custId ? '🔴 Qarzga sotuv — mijoz hisobiga yoziladi' : '⚠️ Qarzga sotish uchun mijoz tanlash shart!'}
+                    {custId ? `🔴 ${t('posDesktop.debtSaleNote')}` : `⚠️ ${t('posDesktop.debtSaleRequiresCustomer')}`}
                   </div>
                 )}
 
                 <div className="flex gap-3 mt-auto pt-4">
                   <button onClick={() => setShowCheckout(false)} className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-black rounded-xl transition-colors active:scale-95 uppercase tracking-widest text-sm border-2 border-transparent">{t('common.cancel')}</button>
                   <button onClick={submitSale} disabled={isPaying || (payType === 'debt' && !custId) || (payType !== 'mixed' && payType !== 'debt' && Number(paidInput) < totalNet && !custId) || (payType === 'mixed' && (Number(mixedAmt1)+Number(mixedAmt2)) < totalNet && !custId)} className="flex-2 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2 border-2 border-blue-600 uppercase tracking-widest text-sm disabled:bg-blue-300 disabled:border-blue-300 disabled:shadow-none">
-                    {isPaying ? <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>} SAQLASH VA CHOP ETISH
+                    {isPaying ? <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>} {t('posDesktop.saveAndPrint')}
                   </button>
                 </div>
 
@@ -813,7 +814,7 @@ const navigate = useNavigate();
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col p-6 animate-in zoom-in-95 duration-200">
             
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
-              <h2 className="text-xl font-bold text-slate-800">Sotuv sozlamalari</h2>
+              <h2 className="text-xl font-bold text-slate-800">{t('posDesktop.saleSettings')}</h2>
               <button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-slate-600">
                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
@@ -822,7 +823,7 @@ const navigate = useNavigate();
             <div className="grid grid-cols-2 gap-6 mb-6">
               {/* Left Column */}
               <div className="border border-slate-200 rounded-xl p-6 bg-slate-50/50">
-                <h3 className="font-semibold text-slate-600 mb-5">Chek sozlamalari</h3>
+                <h3 className="font-semibold text-slate-600 mb-5">{t('posDesktop.receiptSettings')}</h3>
 
                 <div className="grid grid-cols-2 gap-5 mb-6">
                   <div>
@@ -830,11 +831,11 @@ const navigate = useNavigate();
                     <select value={posSettings.printer} onChange={e=>savePosSettings({printer:e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50">
                       <option value="XP-80C">XP-80C</option>
                       <option value="XP-58">XP-58</option>
-                      <option value="System Default">Standart tizim</option>
+                      <option value="System Default">{t('posDesktop.systemDefault')}</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-500 mb-2">Chek o'lchami</label>
+                    <label className="block text-sm font-medium text-slate-500 mb-2">{t('posDesktop.receiptSize')}</label>
                     <select value={posSettings.paper} onChange={e=>savePosSettings({paper:e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50">
                       <option value="80mm">80mm</option>
                       <option value="58mm">58mm</option>
@@ -843,7 +844,7 @@ const navigate = useNavigate();
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-slate-600">Avtomatik chek chop etish</span>
+                  <span className="text-sm font-medium text-slate-600">{t('posDesktop.autoPrintReceipt')}</span>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input type="checkbox" className="sr-only peer" checked={posSettings.autoPrint} onChange={e=>savePosSettings({autoPrint:e.target.checked})} />
                     <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -853,11 +854,11 @@ const navigate = useNavigate();
 
               {/* Right Column */}
               <div className="border border-slate-200 rounded-xl p-6 bg-slate-50/50">
-                <h3 className="font-semibold text-slate-600 mb-5">Funksional sozlamalar</h3>
-                
+                <h3 className="font-semibold text-slate-600 mb-5">{t('posDesktop.functionalSettings')}</h3>
+
                 <div className="flex flex-col gap-6">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-slate-600">Smena rejimi</span>
+                    <span className="text-sm font-medium text-slate-600">{t('posDesktop.shiftMode')}</span>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input type="checkbox" className="sr-only peer" checked={posSettings.shift} onChange={e=>savePosSettings({shift:e.target.checked})} />
                       <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -865,7 +866,7 @@ const navigate = useNavigate();
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-slate-600">Noma'lum mahsulot yaratish</span>
+                    <span className="text-sm font-medium text-slate-600">{t('posDesktop.createUnknownProduct')}</span>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input type="checkbox" className="sr-only peer" checked={posSettings.unknownProduct} onChange={e=>savePosSettings({unknownProduct:e.target.checked})} />
                       <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -875,14 +876,14 @@ const navigate = useNavigate();
                   <div className="flex items-center">
                     <label className="relative inline-flex items-center cursor-pointer gap-3">
                       <input type="checkbox" checked={posSettings.fiscal} onChange={e=>savePosSettings({fiscal:e.target.checked})} className="w-5 h-5 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer" />
-                      <span className="text-sm font-medium text-slate-600">Fiskalizatsiya</span>
+                      <span className="text-sm font-medium text-slate-600">{t('posDesktop.fiscalization')}</span>
                     </label>
                   </div>
-                  
+
                   <div className="mt-4 border-t border-slate-100 pt-5">
-                    <label className="block text-sm font-medium text-slate-500 mb-2">Doimiy mijoz (standart)</label>
+                    <label className="block text-sm font-medium text-slate-500 mb-2">{t('posDesktop.defaultCustomer')}</label>
                     <select value={posSettings.defaultCustomer || ''} onChange={e=>{savePosSettings({defaultCustomer:e.target.value}); setCustId(e.target.value);}} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white">
-                      <option value="">-- Tanlanmagan --</option>
+                      <option value="">-- {t('posDesktop.notSelected')} --</option>
                       {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </div>
@@ -894,14 +895,14 @@ const navigate = useNavigate();
             <div className="border border-blue-200 rounded-xl p-5 bg-blue-50/50 mb-4 flex items-start gap-3">
               <svg className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               <div>
-                <p className="text-sm font-semibold text-blue-700">Chek shabloni Nastroykada sozlanadi</p>
-                <p className="text-xs text-blue-500 mt-0.5">Logotip, do'kon nomi, manzil, telefon va boshqalar → <b>Nastroyka → Chek shabloni</b> bo'limidan o'zgartiring.</p>
+                <p className="text-sm font-semibold text-blue-700">{t('posDesktop.receiptTemplateInSettings')}</p>
+                <p className="text-xs text-blue-500 mt-0.5">{t('posDesktop.receiptTemplateHint')}</p>
               </div>
             </div>
 
             <div className="flex justify-end pt-2">
                <button onClick={() => setShowSettings(false)} className="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm transition-colors text-sm">
-                 Saqlash
+                 {t('common.save')}
                </button>
             </div>
           </div>
@@ -913,7 +914,7 @@ const navigate = useNavigate();
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
           <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
             <div className="flex items-center justify-between p-6 border-b border-slate-100">
-              <h2 className="text-xl font-black text-slate-800">{variantParent.name} - Variantlar</h2>
+              <h2 className="text-xl font-black text-slate-800">{variantParent.name} - {t('posDesktop.variants')}</h2>
               <button onClick={() => setVariantParent(null)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors">
                 <X className="w-6 h-6" />
               </button>
@@ -934,7 +935,7 @@ const navigate = useNavigate();
                 );
               })}
               {products.filter(p => p.parent_code === variantParent.id).length === 0 && (
-                <div className="col-span-full py-8 text-center text-slate-400">Ushbu mahsulotning variantlari topilmadi</div>
+                <div className="col-span-full py-8 text-center text-slate-400">{t('posDesktop.noVariantsFound')}</div>
               )}
             </div>
           </div>

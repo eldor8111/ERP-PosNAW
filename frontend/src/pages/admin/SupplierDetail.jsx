@@ -8,10 +8,10 @@ const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ')
 const fmtDate = (d) => d ? new Date(d).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
 
 const TABS = [
-  { id: 'umumiy', label: 'Umumiy' },
-  { id: 'xaridlar', label: 'Xaridlar' },
-  { id: 'tolovlar', label: "To'lovlar" },
-  { id: 'operatsiyalar', label: 'Operatsiyalar' },
+  { id: 'umumiy', key: 'supplier.tabGeneral' },
+  { id: 'xaridlar', key: 'supplier.tabPurchases' },
+  { id: 'tolovlar', key: 'supplier.tabPayments' },
+  { id: 'operatsiyalar', key: 'supplier.tabOperations' },
 ]
 
 function StatCard({ icon, label, value, sub, color = 'indigo' }) {
@@ -71,7 +71,7 @@ export default function SupplierDetail() {
   }, [tab, loadHistory])
 
   const handleDeletePay = async (id) => {
-    if (!window.confirm("Rostdan ham o'chirasizmi?")) return
+    if (!window.confirm(t('supplier.confirmDeletePayment'))) return
     try {
       await api.delete(`/finance/transactions/${id}`)
       // ✅ KRITIK-5 TUZATILDI: Tranzaksiya o'chirilgandan keyin stats va history qayta yuklanadi
@@ -98,7 +98,7 @@ export default function SupplierDetail() {
             <button onClick={() => navigate('/admin/purchases')}
               className="p-2 sm:px-3 sm:py-2 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-all flex items-center gap-2">
               <ChevronLeft className="w-5 h-5" />
-              <span className="hidden sm:inline font-medium">Orqaga</span>
+              <span className="hidden sm:inline font-medium">{t('common.back')}</span>
             </button>
             <div className="w-px h-6 bg-slate-200 hidden sm:block" />
             <div>
@@ -106,7 +106,7 @@ export default function SupplierDetail() {
                 {stats.name}
               </h1>
               <div className="text-[11px] sm:text-xs text-slate-500 font-medium">
-                {stats.phone || 'Telefon yo\'q'}
+                {stats.phone || t('supplier.noPhone')}
               </div>
             </div>
           </div>
@@ -115,10 +115,10 @@ export default function SupplierDetail() {
         {/* TABS */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex gap-2 sm:gap-6 overflow-x-auto hide-scrollbar">
-            {TABS.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)}
-                className={`py-3 px-2 text-sm font-semibold whitespace-nowrap border-b-2 transition-all ${tab === t.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}>
-                {t.label}
+            {TABS.map(tb => (
+              <button key={tb.id} onClick={() => setTab(tb.id)}
+                className={`py-3 px-2 text-sm font-semibold whitespace-nowrap border-b-2 transition-all ${tab === tb.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}>
+                {t(tb.key)}
               </button>
             ))}
           </div>
@@ -138,7 +138,7 @@ export default function SupplierDetail() {
                       key={cur}
                       color={Number(amt) > 0 ? 'red' : 'emerald'}
                       icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-                      label={`Joriy Qarz (${cur})`}
+                      label={`${t('supplier.currentDebt')} (${cur})`}
                       value={`${fmt(amt)} ${cur}`}
                       sub={cur !== 'UZS' ? `≈ ${fmt(Math.round(Number(amt) * (stats.rates?.[cur] || 1)))} UZS` : null}
                     />
@@ -147,23 +147,23 @@ export default function SupplierDetail() {
                 <StatCard
                   color={stats.debt_balance > 0 ? 'red' : 'emerald'}
                   icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-                  label="Joriy Qarz"
+                  label={t('supplier.currentDebt')}
                   value={fmt(stats.debt_balance)}
                 />
               )}
               <StatCard color="indigo"
                 icon={<ListOrdered className="w-6 h-6" />}
-                label="Jami Xaridlar soni"
+                label={t('supplier.totalPurchasesCount')}
                 value={fmt(stats.total_purchases_count)}
               />
               <StatCard color="violet"
                 icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>}
-                label="Jami Xarid summasi"
+                label={t('supplier.totalPurchasesAmount')}
                 value={fmt(stats.total_purchases_amount)}
               />
               <StatCard color="amber"
                 icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg>}
-                label="Jami To'langan"
+                label={t('supplier.totalPaidAmount')}
                 value={fmt(stats.total_paid_amount)}
               />
             </div>
@@ -176,21 +176,21 @@ export default function SupplierDetail() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="px-4 py-3 text-left font-semibold text-slate-500 text-xs">Sana</th>
-                    <th className="px-4 py-3 text-left font-semibold text-slate-500 text-xs">Amaliyot turi</th>
-                    <th className="px-4 py-3 text-left font-semibold text-slate-500 text-xs">Tafsilot</th>
-                    <th className="px-4 py-3 text-left font-semibold text-slate-500 text-xs">Xodim</th>
-                    <th className="px-4 py-3 text-right font-semibold text-slate-500 text-xs">Kirim / Chiqim</th>
-                    <th className="px-4 py-3 text-right font-semibold text-slate-500 text-xs">Amallar</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-500 text-xs">{t('common.date')}</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-500 text-xs">{t('supplier.operationType')}</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-500 text-xs">{t('supplier.detail')}</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-500 text-xs">{t('supplier.employee')}</th>
+                    <th className="px-4 py-3 text-right font-semibold text-slate-500 text-xs">{t('supplier.inOut')}</th>
+                    <th className="px-4 py-3 text-right font-semibold text-slate-500 text-xs">{t('common.actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {loadingTab ? <tr><td colSpan={6} className="text-center py-10">Yuklanmoqda...</td></tr> : history.map(h => (
+                  {loadingTab ? <tr><td colSpan={6} className="text-center py-10">{t('common.loading')}</td></tr> : history.map(h => (
                     <tr key={`${h.op_type}-${h.id || h.date}`} className="hover:bg-slate-50">
                       <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">{fmtDate(h.date)}</td>
                       <td className="px-4 py-3">
-                        {h.op_type === 'purchase' ? <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs">Xarid</span> : 
-                         h.op_type === 'payment' ? <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs">To'lov</span> : 
+                        {h.op_type === 'purchase' ? <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs">{t('supplier.purchase')}</span> :
+                         h.op_type === 'payment' ? <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs">{t('supplier.payment')}</span> :
                          <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded text-xs">{h.op_type}</span>}
                       </td>
                       <td className="px-4 py-3 text-slate-600 text-xs">{h.description}</td>
@@ -204,14 +204,14 @@ export default function SupplierDetail() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         {h.op_type === 'payment' && (
-                          <button onClick={() => handleDeletePay(h.id)} className="text-red-400 hover:text-red-600 bg-red-50 p-1.5 rounded-lg transition-colors" title="O'chirish">
+                          <button onClick={() => handleDeletePay(h.id)} className="text-red-400 hover:text-red-600 bg-red-50 p-1.5 rounded-lg transition-colors" title={t('common.delete')}>
                             <Trash2 className="w-4 h-4" />
                           </button>
                         )}
                       </td>
                     </tr>
                   ))}
-                  {!loadingTab && history.length === 0 && <tr><td colSpan={6} className="text-center py-10 text-slate-400">Hech qanday ma'lumot yo'q</td></tr>}
+                  {!loadingTab && history.length === 0 && <tr><td colSpan={6} className="text-center py-10 text-slate-400">{t('common.noData')}</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -224,25 +224,25 @@ export default function SupplierDetail() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="px-4 py-3 text-left font-semibold text-slate-500 text-xs">Sana</th>
-                    <th className="px-4 py-3 text-left font-semibold text-slate-500 text-xs">Summa</th>
-                    <th className="px-4 py-3 text-left font-semibold text-slate-500 text-xs">Izoh</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-500 text-xs">{t('common.date')}</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-500 text-xs">{t('common.amount')}</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-500 text-xs">{t('common.note')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {loadingTab ? <tr><td colSpan={3} className="text-center py-10">Yuklanmoqda...</td></tr> : history.filter(i => i.op_type === (tab === 'xaridlar' ? 'purchase' : 'payment')).map(h => (
+                  {loadingTab ? <tr><td colSpan={3} className="text-center py-10">{t('common.loading')}</td></tr> : history.filter(i => i.op_type === (tab === 'xaridlar' ? 'purchase' : 'payment')).map(h => (
                     <tr key={`${h.op_type}-${h.id}`} className="hover:bg-slate-50">
                       <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">{fmtDate(h.date)}</td>
                       <td className="px-4 py-3 font-semibold text-slate-800">
                         <div>{fmt(h.amount)} <span className="text-xs font-bold text-slate-500">{h.currency}</span></div>
                         {h.currency !== 'UZS' && h.amount_uzs && (
-                          <div className="text-[11px] text-slate-400 font-normal">≈ {fmt(h.amount_uzs)} so'm</div>
+                          <div className="text-[11px] text-slate-400 font-normal">≈ {fmt(h.amount_uzs)} {t('common.sum')}</div>
                         )}
                       </td>
                       <td className="px-4 py-3 text-slate-600 text-xs">{h.description}</td>
                     </tr>
                   ))}
-                  {!loadingTab && history.filter(i => i.op_type === (tab === 'xaridlar' ? 'purchase' : 'payment')).length === 0 && <tr><td colSpan={3} className="text-center py-10 text-slate-400">Hech qanday ma'lumot yo'q</td></tr>}
+                  {!loadingTab && history.filter(i => i.op_type === (tab === 'xaridlar' ? 'purchase' : 'payment')).length === 0 && <tr><td colSpan={3} className="text-center py-10 text-slate-400">{t('common.noData')}</td></tr>}
                 </tbody>
               </table>
             </div>

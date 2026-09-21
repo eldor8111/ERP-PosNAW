@@ -14,6 +14,7 @@ const fmtDay = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
 const today = () => (new Date(Date.now() - new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 10);
 
 const OptionsTable = ({ row, onEdit, onReturn, onDelete }) => {
+  const { t } = useLang();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, right: 0 });
   const ref = useRef(null);
@@ -71,13 +72,13 @@ const OptionsTable = ({ row, onEdit, onReturn, onDelete }) => {
           className="w-40 bg-white border border-slate-200 rounded-xl shadow-xl p-1.5 animate-in fade-in slide-in-from-top-1 duration-100"
         >
           <button onClick={e => { e.stopPropagation(); setOpen(false); onEdit?.(row); }} className="flex cursor-pointer w-full items-center px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md transition-colors font-medium">
-            Tahrirlash
+            {t('common.edit')}
           </button>
           <button onClick={e => { e.stopPropagation(); setOpen(false); onReturn?.(row); }} className="flex cursor-pointer w-full items-center px-3 py-2 text-sm text-amber-600 hover:bg-amber-50 rounded-md transition-colors font-medium">
-            Qaytarish
+            {t('pos.return')}
           </button>
           <button onClick={e => { e.stopPropagation(); setOpen(false); onDelete?.(row); }} className="flex cursor-pointer w-full items-center px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors font-medium">
-            O'chirish
+            {t('common.delete')}
           </button>
         </div>
       )}
@@ -87,42 +88,42 @@ const OptionsTable = ({ row, onEdit, onReturn, onDelete }) => {
 
 /* ─── Status meta ─── */
 const poMeta = {
-  draft: { l: 'Qoralama', c: 'bg-slate-100 text-slate-600' },
-  ordered: { l: 'Yuborilgan', c: 'bg-blue-100 text-blue-700' },
-  partial: { l: 'Qisman', c: 'bg-amber-100 text-amber-700' },
-  received: { l: 'Qabul', c: 'bg-emerald-100 text-emerald-700' },
-  cancelled: { l: 'Bekor', c: 'bg-red-100 text-red-500' },
+  draft: { l: 'ops.status.draft', c: 'bg-slate-100 text-slate-600' },
+  ordered: { l: 'ops.status.ordered', c: 'bg-blue-100 text-blue-700' },
+  partial: { l: 'ops.status.partial', c: 'bg-amber-100 text-amber-700' },
+  received: { l: 'purchase.received', c: 'bg-emerald-100 text-emerald-700' },
+  cancelled: { l: 'common.cancel', c: 'bg-red-100 text-red-500' },
 };
 const trMeta = {
-  pending: { l: 'Kutilmoqda', c: 'bg-amber-100 text-amber-700' },
-  confirmed: { l: 'Tasdiqlandi', c: 'bg-emerald-100 text-emerald-700' },
-  cancelled: { l: 'Bekor', c: 'bg-red-100 text-red-500' },
+  pending: { l: 'purchase.pending', c: 'bg-amber-100 text-amber-700' },
+  confirmed: { l: 'ops.status.confirmed', c: 'bg-emerald-100 text-emerald-700' },
+  cancelled: { l: 'common.cancel', c: 'bg-red-100 text-red-500' },
 };
 
 const payMeta = {
-  cash: { l: 'Naqd', c: 'bg-emerald-100 text-emerald-700' },
-  card: { l: 'Karta', c: 'bg-blue-100 text-blue-700' },
-  uzcard: { l: 'Uzcard', c: 'bg-blue-100 text-blue-700' },
-  humo: { l: 'Humo', c: 'bg-violet-100 text-violet-700' },
-  bank: { l: "Bank o'tkazmasi", c: 'bg-blue-100 text-blue-700' },
-  click: { l: 'Click', c: 'bg-blue-100 text-blue-700' },
-  payme: { l: 'Payme', c: 'bg-sky-100 text-sky-700' },
-  visa: { l: 'Visa', c: 'bg-blue-100 text-blue-700' },
-  uzum: { l: 'Uzum', c: 'bg-orange-100 text-orange-700' },
-  debt: { l: 'Qarz', c: 'bg-amber-100 text-amber-700' },
-  mixed: { l: 'Aralash', c: 'bg-blue-100 text-blue-700' },
+  cash: { l: 'finance.cash', c: 'bg-emerald-100 text-emerald-700' },
+  card: { l: 'sale.payByCard', c: 'bg-blue-100 text-blue-700' },
+  uzcard: { l: 'pay.uzcard', c: 'bg-blue-100 text-blue-700' },
+  humo: { l: 'pay.humo', c: 'bg-violet-100 text-violet-700' },
+  bank: { l: 'pay.bank', c: 'bg-blue-100 text-blue-700' },
+  click: { l: 'pay.click', c: 'bg-blue-100 text-blue-700' },
+  payme: { l: 'pay.payme', c: 'bg-sky-100 text-sky-700' },
+  visa: { l: 'pay.visa', c: 'bg-blue-100 text-blue-700' },
+  uzum: { l: 'pay.uzum', c: 'bg-orange-100 text-orange-700' },
+  debt: { l: 'common.debt', c: 'bg-amber-100 text-amber-700' },
+  mixed: { l: 'pay.mixed', c: 'bg-blue-100 text-blue-700' },
 };
 const saleMeta = {
-  completed: { l: 'Yakunlandi', c: 'bg-emerald-100 text-emerald-700' },
-  cancelled: { l: 'Bekor', c: 'bg-red-100 text-red-500' },
-  pending: { l: 'Kutilmoqda', c: 'bg-amber-100 text-amber-700' },
+  completed: { l: 'admin.dict.completed', c: 'bg-emerald-100 text-emerald-700' },
+  cancelled: { l: 'common.cancel', c: 'bg-red-100 text-red-500' },
+  pending: { l: 'purchase.pending', c: 'bg-amber-100 text-amber-700' },
 };
 
 /* ─── UI atoms ─── */
 function Badge({ meta, val }) {
   const { t } = useLang();
   const m = meta[val] || { l: val, c: 'bg-slate-100 text-slate-600' };
-  return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${m.c}`}>{m.l}</span>;
+  return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${m.c}`}>{t(m.l) || m.l}</span>;
 }
 const ic = 'border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white transition-colors hover:border-slate-300';
 function Btn({ v = 'primary', sm, children, ...p }) {
@@ -149,7 +150,7 @@ function CreateHeader({ title, onBack, right }) {
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
         </svg>
-        Orqaga
+        {t('common.back')}
       </button>
       <div className="w-px h-6 bg-slate-200 shrink-0" />
       <h2 className="text-base font-bold text-slate-800 flex-1">{title}</h2>
@@ -164,17 +165,17 @@ function Pager({ skip, limit, count, onChange }) {
   return (
     <div className="flex items-center justify-between px-5 py-3.5 border-t border-slate-100 bg-slate-50/60 text-sm">
       <span className="text-slate-400 text-xs font-medium">
-        {count === 0 ? "Natija yo'q" : `${skip + 1}–${skip + count} ta ko'rsatildi`}
+        {count === 0 ? t('ops.noResults') : `${skip + 1}–${skip + count} ${t('ops.shownCount')}`}
       </span>
       <div className="flex gap-1.5">
         <button disabled={skip === 0} onClick={() => onChange(Math.max(0, skip - limit))}
           className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white disabled:opacity-40 hover:border-blue-300 hover:text-blue-600 transition-all text-xs font-semibold shadow-sm">
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-          Oldingi
+          {t('common.prev')}
         </button>
         <button disabled={count < limit} onClick={() => onChange(skip + limit)}
           className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white disabled:opacity-40 hover:border-blue-300 hover:text-blue-600 transition-all text-xs font-semibold shadow-sm">
-          Keyingi
+          {t('common.next')}
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
         </button>
       </div>
@@ -191,7 +192,7 @@ function Tbl({ cols, rows, onRow, loading, skip = 0, limit, onChange }) {
         <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
         </svg>
-        Yuklanmoqda...
+        {t('common.loading')}
       </div>
     </div>
   );
@@ -236,8 +237,9 @@ function Tbl({ cols, rows, onRow, loading, skip = 0, limit, onChange }) {
 }
 
 /* ─── Product search dropdown ─── */
-function ProdSearch({ products, onSelect, placeholder = 'Mahsulot qidiring...' }) {
+function ProdSearch({ products, onSelect, placeholder }) {
   const { t } = useLang();
+  const ph = placeholder || t('ops.searchProductDots');
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -264,7 +266,7 @@ function ProdSearch({ products, onSelect, placeholder = 'Mahsulot qidiring...' }
         </svg>
         <input value={q} onChange={e => { setQ(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
-          placeholder={placeholder}
+          placeholder={ph}
           className={`w-full pl-9 ${ic}`} />
         {q && (
           <button onMouseDown={() => { setQ(''); setOpen(true); }}
@@ -274,9 +276,9 @@ function ProdSearch({ products, onSelect, placeholder = 'Mahsulot qidiring...' }
       {open && (
         <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-60 overflow-hidden max-h-72 overflow-y-auto">
           {products.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-slate-400 text-center">Mahsulotlar yuklanmoqda...</div>
+            <div className="px-4 py-3 text-sm text-slate-400 text-center">{t('pos.productsLoading')}</div>
           ) : filtered.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-slate-400 text-center">«{q}» bo'yicha topilmadi</div>
+            <div className="px-4 py-3 text-sm text-slate-400 text-center">«{q}» {t('ops.notFoundBy')}</div>
           ) : (
             <>
               {filtered.map(p => (
@@ -287,15 +289,15 @@ function ProdSearch({ products, onSelect, placeholder = 'Mahsulot qidiring...' }
                     <div className="text-xs text-slate-400">{p.sku}{p.barcode ? ` · ${p.barcode}` : ''}</div>
                   </div>
                   <div className="text-right shrink-0 text-xs">
-                    <div className="font-semibold text-blue-600">{fmt(p.sale_price)} so'm</div>
-                    {p.wholesale_price > 0 && <div className="text-amber-600">Ulg: {fmt(p.wholesale_price)}</div>}
-                    <div className="text-slate-400">Qoldiq: {fmt(p.stock_quantity)}</div>
+                    <div className="font-semibold text-blue-600">{fmt(p.sale_price)} {t('common.sum')}</div>
+                    {p.wholesale_price > 0 && <div className="text-amber-600">{t('ops.wholesaleShort')}: {fmt(p.wholesale_price)}</div>}
+                    <div className="text-slate-400">{t('pos.stockLabel')} {fmt(p.stock_quantity)}</div>
                   </div>
                 </button>
               ))}
               {products.length > 20 && !q.trim() && (
                 <div className="px-4 py-2 text-xs text-slate-400 text-center bg-slate-50 border-t border-slate-100">
-                  Jami {products.length} ta — qidiruv orqali toping
+                  {t('common.total')} {products.length} {t('common.piece')} — {t('ops.findViaSearch')}
                 </div>
               )}
             </>
@@ -308,8 +310,9 @@ function ProdSearch({ products, onSelect, placeholder = 'Mahsulot qidiring...' }
 
 
 /* ─── Supplier search combobox ─── */
-function SupSearch({ suppliers, value, onChange, placeholder = "Ta'minotchi tanlang..." }) {
+function SupSearch({ suppliers, value, onChange, placeholder }) {
   const { t } = useLang();
+  const ph = placeholder || t('ops.selectSupplierDots');
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -337,7 +340,7 @@ function SupSearch({ suppliers, value, onChange, placeholder = "Ta'minotchi tanl
           value={open ? q : (selected ? selected.name : '')}
           onChange={e => { setQ(e.target.value); setOpen(true); if (!e.target.value) onChange(''); }}
           onFocus={() => setOpen(true)}
-          placeholder={placeholder}
+          placeholder={ph}
           className="flex-1 px-3 py-2 text-sm outline-none bg-transparent min-w-0"
         />
         {selected && (
@@ -347,7 +350,7 @@ function SupSearch({ suppliers, value, onChange, placeholder = "Ta'minotchi tanl
       {open && (
         <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-60 overflow-hidden max-h-64 overflow-y-auto">
           {filtered.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-slate-400">Topilmadi</div>
+            <div className="px-4 py-3 text-sm text-slate-400">{t('ops.notFound')}</div>
           ) : filtered.map(s => (
             <button key={s.id} onMouseDown={() => pick(s)}
               className="w-full text-left px-4 py-2.5 hover:bg-blue-50 border-b border-slate-50 last:border-0">
@@ -362,8 +365,9 @@ function SupSearch({ suppliers, value, onChange, placeholder = "Ta'minotchi tanl
 }
 
 /* ─── Customer search combobox ─── */
-function CustSearch({ customers, value, onChange, placeholder = 'Ism yoki telefon...' }) {
+function CustSearch({ customers, value, onChange, placeholder }) {
   const { t } = useLang();
+  const ph = placeholder || t('ops.nameOrPhone');
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -391,7 +395,7 @@ function CustSearch({ customers, value, onChange, placeholder = 'Ism yoki telefo
           value={open ? q : (selected ? selected.name : '')}
           onChange={e => { setQ(e.target.value); setOpen(true); if (!e.target.value) onChange(''); }}
           onFocus={() => setOpen(true)}
-          placeholder={placeholder}
+          placeholder={ph}
           className="flex-1 px-3 py-1.5 text-sm outline-none bg-transparent min-w-0"
         />
         {selected && (
@@ -401,7 +405,7 @@ function CustSearch({ customers, value, onChange, placeholder = 'Ism yoki telefo
       {open && (
         <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 overflow-hidden max-h-64 overflow-y-auto">
           {filtered.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-slate-400">Topilmadi</div>
+            <div className="px-4 py-3 text-sm text-slate-400">{t('ops.notFound')}</div>
           ) : filtered.map(c => (
             <button key={c.id} onMouseDown={() => select(c)}
               className="w-full text-left px-4 py-2.5 hover:bg-blue-50 border-b border-slate-50 last:border-0 flex items-center justify-between">
@@ -411,7 +415,7 @@ function CustSearch({ customers, value, onChange, placeholder = 'Ism yoki telefo
               </div>
               {hasAnyDebt(c) && (
                 <span className="text-xs text-red-500 font-medium ml-2">
-                  Qarz: {getDebtEntries(c).map(({ currency, amount }) => `${fmt(amount)} ${currency}`).join(' + ')}
+                  {t('common.debt')}: {getDebtEntries(c).map(({ currency, amount }) => `${fmt(amount)} ${currency}`).join(' + ')}
                 </span>
               )}
             </button>
@@ -429,16 +433,16 @@ function PayModal({ total, onPay, onClose }) {
   const [paid, setPaid] = useState(String(total));
   const change = Number(paid) - total;
   const PAY_OPTS = [
-    { v: 'cash', l: 'Naqd' },
-    { v: 'uzcard', l: 'Uzcard' },
-    { v: 'humo', l: 'Humo' },
-    { v: 'bank', l: "Bank o'tkazmasi" },
-    { v: 'click', l: 'Click' },
-    { v: 'payme', l: 'Payme' },
-    { v: 'visa', l: 'Visa' },
-    { v: 'uzum', l: 'Uzum' },
-    { v: 'mixed', l: 'Aralash' },
-    { v: 'debt', l: 'Qarzga' },
+    { v: 'cash', l: t('finance.cash') },
+    { v: 'uzcard', l: t('pay.uzcard') },
+    { v: 'humo', l: t('pay.humo') },
+    { v: 'bank', l: t('pay.bank') },
+    { v: 'click', l: t('pay.click') },
+    { v: 'payme', l: t('pay.payme') },
+    { v: 'visa', l: t('pay.visa') },
+    { v: 'uzum', l: t('pay.uzum') },
+    { v: 'mixed', l: t('pay.mixed') },
+    { v: 'debt', l: t('pay.debt') },
   ];
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -453,8 +457,8 @@ function PayModal({ total, onPay, onClose }) {
         <div className="p-6 space-y-4">
           {/* Total display */}
           <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-center">
-            <div className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-1">To'lov summasi</div>
-            <div className="text-3xl font-black text-blue-700">{fmt(total)} <span className="text-lg font-normal text-blue-400">so'm</span></div>
+            <div className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-1">{t('ops.paymentAmount')}</div>
+            <div className="text-3xl font-black text-blue-700">{fmt(total)} <span className="text-lg font-normal text-blue-400">{t('common.sum')}</span></div>
           </div>
           {/* Payment type */}
           <div className="grid grid-cols-5 gap-1.5">
@@ -471,13 +475,13 @@ function PayModal({ total, onPay, onClose }) {
           {/* Amount input */}
           {type !== 'debt' && (
             <div>
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">Qabul qilindi (so'm)</label>
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">{t('ops.receivedSum')}</label>
               <input type="number" value={paid} onChange={e => setPaid(e.target.value)} autoFocus
                 className="w-full border-2 border-slate-200 focus:border-blue-500 rounded-xl px-4 py-3 text-2xl font-bold text-center text-slate-800 focus:outline-none transition-colors" />
               {change > 0 && Number(paid) > 0 && (
                 <div className="mt-2 flex items-center justify-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl py-2.5">
                   <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                  <span className="text-sm text-emerald-700 font-bold">Qaytim: {fmt(change)} so'm</span>
+                  <span className="text-sm text-emerald-700 font-bold">{t('pos.change')}: {fmt(change)} {t('common.sum')}</span>
                 </div>
               )}
             </div>
@@ -487,7 +491,7 @@ function PayModal({ total, onPay, onClose }) {
             <Btn v="ghost" onClick={onClose}>{t('common.cancel')}</Btn>
             <button onClick={() => onPay(type, type === 'debt' ? 0 : Number(paid))}
               className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-blue-200 active:scale-95">
-              Tasdiqlash
+              {t('common.confirm')}
             </button>
           </div>
         </div>
@@ -497,34 +501,34 @@ function PayModal({ total, onPay, onClose }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-800">Kassadan to'lov</h3>
+              <h3 className="text-lg font-bold text-slate-800">{t('ops.payFromCashbox')}</h3>
               <button onClick={() => setShowPay(false)} className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             <div className="p-6 space-y-4">
               <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-center">
-                <div className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-1">Qaytarilayotgan summa</div>
-                <div className="text-3xl font-black text-blue-700">{fmt(items.reduce((s, i) => s + (i.qty * i.cost), 0))} <span className="text-lg font-normal text-blue-400">so'm</span></div>
+                <div className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-1">{t('ops.returningAmount')}</div>
+                <div className="text-3xl font-black text-blue-700">{fmt(items.reduce((s, i) => s + (i.qty * i.cost), 0))} <span className="text-lg font-normal text-blue-400">{t('common.sum')}</span></div>
               </div>
-              
+
               <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">To'lov turi</label>
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">{t('sale.paymentType')}</label>
                 <select value={form.payment_type} onChange={e => setForm({ ...form, payment_type: e.target.value })} className="w-full border-2 border-slate-200 focus:border-blue-500 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:outline-none transition-colors">
-                  <option value="cash">Naqd</option>
-                  <option value="card">Plastik karta</option>
-                  <option value="mixed">Aralash</option>
+                  <option value="cash">{t('finance.cash')}</option>
+                  <option value="card">{t('ops.plasticCard')}</option>
+                  <option value="mixed">{t('pay.mixed')}</option>
                 </select>
               </div>
 
               {form.payment_type === 'mixed' && (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 block">Naqd</label>
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 block">{t('finance.cash')}</label>
                     <input type="number" min="0" value={form.paid_cash} onChange={e => setForm({ ...form, paid_cash: e.target.value })} className="w-full border-2 border-slate-200 focus:border-blue-500 rounded-xl px-3 py-2 text-lg font-bold text-slate-800 focus:outline-none" />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 block">Karta</label>
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 block">{t('sale.payByCard')}</label>
                     <input type="number" min="0" value={form.paid_card} onChange={e => setForm({ ...form, paid_card: e.target.value })} className="w-full border-2 border-slate-200 focus:border-blue-500 rounded-xl px-3 py-2 text-lg font-bold text-slate-800 focus:outline-none" />
                   </div>
                 </div>
@@ -532,18 +536,18 @@ function PayModal({ total, onPay, onClose }) {
 
               {form.payment_type !== 'debt' && (
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">Kassa / Hisob</label>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">{t('ops.cashboxAccount')}</label>
                   <select value={form.wallet_id} onChange={e => setForm({ ...form, wallet_id: e.target.value })} className="w-full border-2 border-slate-200 focus:border-blue-500 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:outline-none transition-colors">
-                    <option value="">Tanlang...</option>
+                    <option value="">{t('admin.dict.select')}...</option>
                     {wallets.map(w => <option key={w.id} value={w.id}>{w.name} ({fmt(w.balance)})</option>)}
                   </select>
                 </div>
               )}
 
               <div className="flex gap-3 pt-2">
-                <Btn v="ghost" onClick={() => setShowPay(false)}>Bekor qilish</Btn>
+                <Btn v="ghost" onClick={() => setShowPay(false)}>{t('admin.dict.cancel')}</Btn>
                 <button onClick={() => save(form.payment_type)} disabled={saving} className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-blue-200 active:scale-95">
-                  {saving ? 'Tasdiqlanmoqda...' : 'Tasdiqlash'}
+                  {saving ? t('ops.confirming') : t('common.confirm')}
                 </button>
               </div>
             </div>
@@ -604,7 +608,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
   const subtotal = cart.reduce((s, c) => s + c.qty * c.price - Number(c.discount || 0), 0);
 
   const doSave = (payType, paidAmount) => {
-    if (!cart.length) { setErr("Kamida bitta mahsulot qo'shing"); return; }
+    if (!cart.length) { setErr(t('ops.addAtLeastOneProduct')); return; }
     if (saving) return;
     setSaving(true); setErr('');
     setShowPay(false);
@@ -628,14 +632,14 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
           </svg>
-          Orqaga
+          {t('common.back')}
         </button>
         <div className="w-px h-6 bg-slate-200 shrink-0" />
-        <h2 className="text-base font-bold text-slate-800 shrink-0">Yangi sotuv</h2>
+        <h2 className="text-base font-bold text-slate-800 shrink-0">{t('ops.newSale')}</h2>
         <div className="flex-1 flex items-center gap-2.5">
           {/* Customer */}
           <div className="min-w-[240px]">
-            <CustSearch customers={customers} value={custId} onChange={setCust} placeholder="Mijoz: ism yoki telefon..." />
+            <CustSearch customers={customers} value={custId} onChange={setCust} placeholder={t('ops.customerNameOrPhone')} />
           </div>
           {/* Wholesale */}
           <button onClick={() => setWhole(w => !w)}
@@ -646,10 +650,10 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
             </svg>
-            Ulgurji
+            {t('ops.wholesale')}
           </button>
           {/* Note */}
-          <input value={note} onChange={e => setNote(e.target.value)} placeholder="Izoh (ixtiyoriy)..."
+          <input value={note} onChange={e => setNote(e.target.value)} placeholder={t('ops.noteOpt')}
             className="flex-1 max-w-sm border border-slate-200 rounded-xl px-3.5 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-slate-400" />
         </div>
         <div className="text-xs text-slate-400 shrink-0 font-medium">{new Date().toLocaleString('uz-UZ')}</div>
@@ -667,15 +671,15 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
               </svg>
               <input value={prodQ} onChange={e => setProdQ(e.target.value)}
-                placeholder="Mahsulot nomi, barkod yoki SKU..."
+                placeholder={t('ops.productSearchPlaceholder')}
                 className="w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white" />
             </div>
             <div className="flex items-center justify-between mt-2 px-1">
-              <span className="text-xs text-slate-400 font-medium">{filteredProducts.length} ta mahsulot</span>
+              <span className="text-xs text-slate-400 font-medium">{filteredProducts.length} {t('ops.productsCount')}</span>
               {wholesale && (
                 <span className="inline-flex items-center gap-1 text-xs text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded-full">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
-                  Ulgurji narxlar
+                  {t('ops.wholesalePrices')}
                 </span>
               )}
             </div>
@@ -687,7 +691,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                 <svg className="w-10 h-10 mx-auto mb-2 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                 </svg>
-                <p className="text-sm">Mahsulot topilmadi</p>
+                <p className="text-sm">{t('ops.productNotFound')}</p>
               </div>
             ) : filteredProducts.slice(0, 100).map(p => {
               const inCart = cart.find(c => c.product.id === p.id);
@@ -709,7 +713,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-xs text-slate-400">{p.sku}</span>
                       {stockLow && (
-                        <span className="text-xs text-red-500 font-medium">az: {fmt(p.stock_quantity)}</span>
+                        <span className="text-xs text-red-500 font-medium">{t('ops.lowStockShort')}: {fmt(p.stock_quantity)}</span>
                       )}
                     </div>
                   </div>
@@ -718,7 +722,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                     {wholesale && p.wholesale_price && Number(p.wholesale_price) !== Number(p.sale_price) && (
                       <div className="text-xs text-slate-400 line-through">{fmt(p.sale_price)}</div>
                     )}
-                    <div className="text-xs text-slate-400 mt-0.5">{fmt(p.stock_quantity)} dona</div>
+                    <div className="text-xs text-slate-400 mt-0.5">{fmt(p.stock_quantity)} {t('common.piece')}</div>
                   </div>
                 </button>
               );
@@ -735,13 +739,13 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
               <span className="text-sm font-bold text-slate-700">
-                Savat {cart.length > 0 && <span className="text-blue-600 ml-1">({cart.length} tur)</span>}
+                {t('ops.cart')} {cart.length > 0 && <span className="text-blue-600 ml-1">({cart.length} {t('ops.typesCount')})</span>}
               </span>
             </div>
             {cart.length > 0 && (
               <button onClick={() => setCart([])} className="inline-flex items-center gap-1 text-xs text-red-400 hover:text-red-600 hover:bg-red-50 px-2 py-1 rounded-lg transition-all">
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                Tozalash
+                {t('admin.dict.clear')}
               </button>
             )}
           </div>
@@ -754,7 +758,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1}
                     d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
-                <p className="text-base">Chap tarafdan mahsulot tanlang</p>
+                <p className="text-base">{t('ops.selectProductFromLeft')}</p>
               </div>
             ) : (
               <table className="w-full text-sm">
@@ -763,9 +767,9 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                     <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 w-8">№</th>
                     <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">{t('admin.dict.th_prod') || 'MAHSULOT'}</th>
                     <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-28">{t('admin.dict.th_qty') || 'MIQDOR'}</th>
-                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-32">NARXI</th>
-                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-28">CHEGIRMA</th>
-                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500 w-32">SUMMA</th>
+                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-32">{t('ops.priceUpper')}</th>
+                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-28">{t('ops.discountUpper')}</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500 w-32">{t('ops.amountUpper')}</th>
                     <th className="w-8"></th>
                   </tr>
                 </thead>
@@ -775,7 +779,7 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                       <td className="px-4 py-3 text-slate-400 text-xs">{i + 1}</td>
                       <td className="px-4 py-3">
                         <div className="font-medium text-slate-800">{c.product.name}</div>
-                        <div className="text-xs text-slate-400">{c.product.sku} · {c.product.unit || 'dona'}</div>
+                        <div className="text-xs text-slate-400">{c.product.sku} · {c.product.unit || t('common.piece')}</div>
                       </td>
                       <td className="px-3 py-3 text-center">
                         <div className="flex items-center justify-center gap-1">
@@ -813,10 +817,10 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
           {/* Cart totals */}
           {cart.length > 0 && (
             <div className="border-t border-slate-200 px-4 py-3 bg-slate-50 flex items-center justify-between shrink-0">
-              <span className="text-sm text-slate-500">{cart.length} xil, {cart.reduce((s, c) => s + c.qty, 0)} ta mahsulot</span>
+              <span className="text-sm text-slate-500">{cart.length} {t('ops.kindsCount')}, {cart.reduce((s, c) => s + c.qty, 0)} {t('ops.productsCount')}</span>
               <div className="text-right">
                 <span className="text-xs text-slate-400 mr-2">{t('admin.dict.total_colon') || 'Jami:'}</span>
-                <span className="text-xl font-bold text-blue-600">{fmt(subtotal)} so'm</span>
+                <span className="text-xl font-bold text-blue-600">{fmt(subtotal)} {t('common.sum')}</span>
               </div>
             </div>
           )}
@@ -832,17 +836,17 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
         <div className="flex items-center gap-3">
           {cart.length > 0 && (
             <div className="text-sm text-slate-500 mr-2">
-              Jami: <span className="font-bold text-slate-800 text-base">{fmt(subtotal)} so'm</span>
+              {t('common.total')}: <span className="font-bold text-slate-800 text-base">{fmt(subtotal)} {t('common.sum')}</span>
             </div>
           )}
           <Btn v="amber" disabled={saving || !cart.length} onClick={() => doSave('debt', 0)}>
             <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-            Qarzga saqlash
+            {t('ops.saveOnDebt')}
           </Btn>
           <button disabled={saving || !cart.length} onClick={() => { setErr(''); setShowPay(true); }}
             className="inline-flex items-center gap-2.5 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-blue-200 active:scale-95">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
-            To'lovga o'tish
+            {t('ops.goToPayment')}
             {cart.length > 0 && <span className="bg-white/20 px-2 py-0.5 rounded-lg text-xs font-bold">{fmt(subtotal)}</span>}
           </button>
         </div>
@@ -871,14 +875,14 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-center font-bold" />
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Narxi (so'm)</label>
+                <label className="text-xs font-medium text-slate-500 mb-1 block">{t('ops.priceSum')}</label>
                 <input type="number" min="0" value={qaItem.price}
                   onChange={e => setQaItem(v => ({ ...v, price: e.target.value }))}
                   onKeyDown={e => e.key === 'Enter' && addToCart(qaItem.product, qaItem.qty, qaItem.price, qaItem.discount)}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-center font-bold" />
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Chegirma (so'm)</label>
+                <label className="text-xs font-medium text-slate-500 mb-1 block">{t('ops.discountSum')}</label>
                 <input type="number" min="0" value={qaItem.discount}
                   onChange={e => setQaItem(v => ({ ...v, discount: e.target.value }))}
                   onKeyDown={e => e.key === 'Enter' && addToCart(qaItem.product, qaItem.qty, qaItem.price, qaItem.discount)}
@@ -889,23 +893,23 @@ function SaleCreateView({ products, customers, onBack, onSaved }) {
               <div className="flex gap-2 mb-4">
                 <button onClick={() => setQaItem(v => ({ ...v, price: Number(v.product.sale_price) }))}
                   className={`flex-1 py-1.5 text-xs rounded-lg border transition-all ${Number(qaItem.price) === Number(qaItem.product.sale_price) ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-600 hover:border-blue-300'}`}>
-                  Chakana: {fmt(qaItem.product.sale_price)}
+                  {t('purchase.retail')}: {fmt(qaItem.product.sale_price)}
                 </button>
                 <button onClick={() => setQaItem(v => ({ ...v, price: Number(v.product.wholesale_price) }))}
                   className={`flex-1 py-1.5 text-xs rounded-lg border transition-all ${Number(qaItem.price) === Number(qaItem.product.wholesale_price) ? 'bg-amber-500 text-white border-amber-500' : 'border-slate-200 text-slate-600 hover:border-amber-300'}`}>
-                  Ulgurji: {fmt(qaItem.product.wholesale_price)}
+                  {t('purchase.wholesale')}: {fmt(qaItem.product.wholesale_price)}
                 </button>
               </div>
             )}
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs text-slate-400">{t('admin.dict.total_colon') || 'Jami:'}</span>
-              <span className="text-lg font-bold text-blue-600">{fmt(Number(qaItem.qty) * Number(qaItem.price) - Number(qaItem.discount))} so'm</span>
+              <span className="text-lg font-bold text-blue-600">{fmt(Number(qaItem.qty) * Number(qaItem.price) - Number(qaItem.discount))} {t('common.sum')}</span>
             </div>
             <div className="flex gap-2">
               <Btn v="ghost" onClick={() => setQaItem(null)} sm>{t('common.cancel')}</Btn>
               <button onClick={() => addToCart(qaItem.product, qaItem.qty, qaItem.price, qaItem.discount)}
                 className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-colors">
-                + Savatga qo'shish
+                + {t('ops.addToCart')}
               </button>
             </div>
           </div>
@@ -922,18 +926,18 @@ function SaleDetailView({ saleId, onBack }) {
   const { t } = useLang();
   const [sale, setSale] = useState(null);
   useEffect(() => {
-    api.get(`/sales/${saleId}`).then(r => setSale(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get(`/sales/${saleId}`).then(r => setSale(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('ops.errorOccurred')) });
   }, [saleId]);
-  if (!sale) return <div className="py-20 text-center text-slate-400">Yuklanmoqda...</div>;
+  if (!sale) return <div className="py-20 text-center text-slate-400">{t('common.loading')}</div>;
   const debt = Number(sale.total_amount) - Number(sale.paid_amount);
   return (
     <div className="fixed inset-0 z-40 bg-white flex flex-col">
-      <CreateHeader title={`Sotuv · ${sale.number}`} onBack={onBack}
+      <CreateHeader title={`${t('admin.dict.sale')} · ${sale.number}`} onBack={onBack}
         right={<Badge meta={saleMeta} val={sale.status} />}
       />
       <div className="p-6 overflow-y-auto flex-1">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-          {[['Kassir', sale.cashier_name], ['Sana', fmtDt(sale.created_at)], ['To\'lov', <Badge meta={payMeta} val={sale.payment_type} />], ['Holat', <Badge meta={saleMeta} val={sale.status} />]].map(([k, v]) => (
+          {[[t('admin.dict.cashier'), sale.cashier_name], [t('common.date'), fmtDt(sale.created_at)], [t('admin.dict.payment'), <Badge meta={payMeta} val={sale.payment_type} />], [t('common.status'), <Badge meta={saleMeta} val={sale.status} />]].map(([k, v]) => (
             <div key={k} className="bg-slate-50 rounded-xl p-3">
               <div className="text-xs text-slate-500 mb-1">{k}</div>
               <div className="font-semibold">{v}</div>
@@ -945,10 +949,10 @@ function SaleDetailView({ saleId, onBack }) {
             <tr>
               <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">№</th>
               <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.product') || 'Mahsulot'}</th>
-              <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">Ombor</th>
-              <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">Soni</th>
-              <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">Narxi</th>
-              <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">Chegirma</th>
+              <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.warehouse')}</th>
+              <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('purchase.colQty')}</th>
+              <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('purchase.colPrice')}</th>
+              <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('common.discount')}</th>
               <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.total') || 'Jami'}</th>
             </tr>
           </thead>
@@ -958,7 +962,7 @@ function SaleDetailView({ saleId, onBack }) {
                 <td className="px-4 py-3 text-slate-400 text-xs">{i + 1}</td>
                 <td className="px-4 py-3">
                   <div className="font-medium text-slate-800">{item.product_name}</div>
-                  <div className="text-xs text-slate-400 mt-0.5">{item.unit || 'dona'}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">{item.unit || t('common.piece')}</div>
                 </td>
                 <td className="px-4 py-3">
                   {item.warehouse_name ? (
@@ -975,7 +979,7 @@ function SaleDetailView({ saleId, onBack }) {
                 </td>
                 <td className="px-4 py-3 text-center font-medium">
                   {Number(item.quantity) % 1 === 0 ? Number(item.quantity).toFixed(0) : Number(item.quantity)}
-                  <span className="text-xs text-slate-400 ml-1">{item.unit || 'dona'}</span>
+                  <span className="text-xs text-slate-400 ml-1">{item.unit || t('common.piece')}</span>
                 </td>
                 <td className="px-4 py-3 text-right">{fmt(item.unit_price)}</td>
                 <td className="px-4 py-3 text-right text-red-500">{Number(item.discount) > 0 ? `−${fmt(item.discount)}` : '—'}</td>
@@ -986,11 +990,11 @@ function SaleDetailView({ saleId, onBack }) {
         </table>
         <div className="flex justify-end">
           <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 min-w-64 space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-slate-500">Umumiy summa:</span><span className="font-medium">{fmt(sale.total_amount)}</span></div>
-            {Number(sale.discount_amount) > 0 && <div className="flex justify-between"><span className="text-slate-500">Chegirma:</span><span className="text-red-500 font-medium">−{fmt(sale.discount_amount)}</span></div>}
-            <div className="flex justify-between"><span className="text-slate-500">To'lov miqdori:</span><span className="font-medium">{fmt(sale.paid_amount)}</span></div>
-            {debt > 0 && <div className="flex justify-between border-t pt-2"><span className="text-slate-500">Qarzga:</span><span className="text-red-500 font-bold">{fmt(debt)}</span></div>}
-            <div className="flex justify-between border-t pt-2"><span className="font-bold text-slate-700">Chegirma bilan summa:</span><span className="font-bold text-xl text-blue-600">{fmt(sale.total_amount)}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">{t('ops.grandTotal')}:</span><span className="font-medium">{fmt(sale.total_amount)}</span></div>
+            {Number(sale.discount_amount) > 0 && <div className="flex justify-between"><span className="text-slate-500">{t('common.discount')}:</span><span className="text-red-500 font-medium">−{fmt(sale.discount_amount)}</span></div>}
+            <div className="flex justify-between"><span className="text-slate-500">{t('ops.paidAmount')}:</span><span className="font-medium">{fmt(sale.paid_amount)}</span></div>
+            {debt > 0 && <div className="flex justify-between border-t pt-2"><span className="text-slate-500">{t('ops.onDebt')}:</span><span className="text-red-500 font-bold">{fmt(debt)}</span></div>}
+            <div className="flex justify-between border-t pt-2"><span className="font-bold text-slate-700">{t('ops.amountWithDiscount')}:</span><span className="font-bold text-xl text-blue-600">{fmt(sale.total_amount)}</span></div>
           </div>
         </div>
       </div>
@@ -1031,17 +1035,17 @@ function SalesTab({ products, customers }) {
   const totals = { sum: sales.reduce((s, r) => s + Number(r.total_amount), 0), paid: sales.reduce((s, r) => s + Number(r.paid_amount || 0), 0) };
 
   const cols = [
-    { k: 'number', l: 'Raqam' },
-    { k: 'cashier_name', l: 'Xodim' },
-    { k: 'items_count', l: 'Mahsulotlar', r: v => `${v} ta` },
-    { k: 'total_amount', l: 'Umumiy summa', r: v => fmt(v) },
-    { k: 'discount_amount', l: 'Chegirma', r: v => Number(v) > 0 ? `−${fmt(v)}` : '—' },
-    { k: 'total_amount', l: 'Chegirma bilan summa', r: v => <strong className="text-blue-600">{fmt(v)}</strong> },
-    { k: 'paid_amount', l: "To'lov miqdori", r: v => fmt(v) },
-    { k: 'paid_amount', l: 'Qarzga', r: (v, row) => { const d = Number(row.total_amount) - Number(v); return d > 0 ? <span className="text-red-500 font-semibold">{fmt(d)}</span> : '—'; } },
-    { k: 'payment_type', l: "To'lov turi", r: v => <Badge meta={payMeta} val={v} /> },
-    { k: 'status', l: 'Sotuv jarayoni', r: v => <Badge meta={saleMeta} val={v} /> },
-    { k: 'created_at', l: 'Sana', r: v => fmtDay(v) },
+    { k: 'number', l: t('common.number') },
+    { k: 'cashier_name', l: t('admin.dict.employee') },
+    { k: 'items_count', l: t('ops.productsUpper'), r: v => `${v} ${t('common.piece')}` },
+    { k: 'total_amount', l: t('ops.grandTotal'), r: v => fmt(v) },
+    { k: 'discount_amount', l: t('common.discount'), r: v => Number(v) > 0 ? `−${fmt(v)}` : '—' },
+    { k: 'total_amount', l: t('ops.amountWithDiscount'), r: v => <strong className="text-blue-600">{fmt(v)}</strong> },
+    { k: 'paid_amount', l: t('ops.paidAmount'), r: v => fmt(v) },
+    { k: 'paid_amount', l: t('ops.onDebt'), r: (v, row) => { const d = Number(row.total_amount) - Number(v); return d > 0 ? <span className="text-red-500 font-semibold">{fmt(d)}</span> : '—'; } },
+    { k: 'payment_type', l: t('sale.paymentType'), r: v => <Badge meta={payMeta} val={v} /> },
+    { k: 'status', l: t('ops.saleProcess'), r: v => <Badge meta={saleMeta} val={v} /> },
+    { k: 'created_at', l: t('common.date'), r: v => fmtDay(v) },
   ];
 
   return (
@@ -1057,10 +1061,10 @@ function SalesTab({ products, customers }) {
           <span className="text-red-500 font-semibold">{fmt(totals.sum - totals.paid)}</span>
         </div>
         <div className="flex items-center gap-2">
-          <Btn v="ghost" sm onClick={() => { /* excel */ }}>Excel Ga Ko'chirish</Btn>
+          <Btn v="ghost" sm onClick={() => { /* excel */ }}>{t('ops.exportToExcel')}</Btn>
           <Btn sm onClick={() => setMode('create')}>
             <svg className="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            Yangi Sotuv
+            {t('ops.newSale')}
           </Btn>
         </div>
       </div>
@@ -1070,14 +1074,14 @@ function SalesTab({ products, customers }) {
         <div className="grid grid-cols-3 gap-3">
           <input type="text" placeholder={t('admin.dict.status2') || 'Status'} value={f.statusQ || ''} onChange={e => {
             const q = e.target.value;
-            const match = Object.entries(saleMeta).find(([, m]) => m.l.toLowerCase().startsWith(q.toLowerCase()));
+            const match = Object.entries(saleMeta).find(([, m]) => t(m.l).toLowerCase().startsWith(q.toLowerCase()));
             setF({ ...f, statusQ: q, status: match ? match[0] : '' });
           }} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white" />
           <input type="date" value={f.dateFrom} onChange={e => setF({ ...f, dateFrom: e.target.value })} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-slate-400 bg-white" />
           <input type="date" value={f.dateTo} onChange={e => setF({ ...f, dateTo: e.target.value })} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-slate-400 bg-white" />
         </div>
         <div className="grid grid-cols-[1fr_auto_1fr_1fr] gap-3 items-center">
-          <input type="text" placeholder="Contragent" className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white" />
+          <input type="text" placeholder={t('admin.dict.contragent')} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white" />
           <span className="text-slate-300 text-lg">+</span>
           <input type="text" placeholder={t('admin.dict.employee') || 'Xodim'} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white" />
           <input type="text" placeholder={t('admin.dict.user') || 'Foydalanuvchi'} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white" />
@@ -1146,7 +1150,7 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
   const addItem = () => {
     if (!sel || !qty) return;
     const base = {
-      product_id: sel.id, product_name: sel.name, unit: sel.unit || 'dona',
+      product_id: sel.id, product_name: sel.name, unit: sel.unit || t('common.piece'),
       unit_cost: Number(cost) || 0, discount_type: discType, discount_val: Number(discVal) || 0,
       currency, net_cost: selNet,
     };
@@ -1170,7 +1174,7 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
   const hasCurrency = activeItems.some(i => i.currency === 'USD');
 
   const savePo = () => {
-    if (!poForm.supplier_id || !poForm.warehouse_id || !poItems.length) { setErr("Barcha majburiy maydonlarni to'ldiring"); return; }
+    if (!poForm.supplier_id || !poForm.warehouse_id || !poItems.length) { setErr(t('ops.fillAllRequiredFields')); return; }
     if (saving) return;
     setSaving(true); setErr('');
     onBack();
@@ -1186,7 +1190,7 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
 
   const saveManual = () => {
     const items = manItems.filter(i => i.quantity > 0);
-    if (!items.length) { setErr("Mahsulot qo'shing"); return; }
+    if (!items.length) { setErr(t('ops.addProduct')); return; }
     if (saving) return;
     setSaving(true); setErr('');
     onBack();
@@ -1209,10 +1213,10 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
 
   return (
     <div className="fixed inset-0 z-40 bg-slate-50 flex flex-col">
-      <CreateHeader title={sub === 'po' ? 'Yangi buyurtma (PO)' : "Qo'lda kirim"} onBack={onBack}
+      <CreateHeader title={sub === 'po' ? t('ops.newPoOrder') : t('ops.manualReceipt')} onBack={onBack}
         right={
           <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
-            {[['po', 'Buyurtma (PO)'], ['manual', "Qo'lda kirim"]].map(([v, l]) => (
+            {[['po', t('ops.poOrder')], ['manual', t('ops.manualReceipt')]].map(([v, l]) => (
               <button key={v} onClick={() => { setSub(v); setErr(''); setDiscVal('0'); }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${sub === v ? 'bg-white shadow text-blue-700' : 'text-slate-600'}`}>{l}</button>
             ))}
@@ -1228,7 +1232,7 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
             suppliers={suppliers}
             value={sub === 'po' ? poForm.supplier_id : manSupId}
             onChange={v => sub === 'po' ? setPoForm(f => ({ ...f, supplier_id: v })) : setManSupId(v)}
-            placeholder="Ta'minotchi tanlang... *"
+            placeholder={t('purchase.selectSupplier')}
           />
         </div>
         {/* Warehouse */}
@@ -1236,7 +1240,7 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
           value={sub === 'po' ? poForm.warehouse_id : manWarehouseId}
           onChange={e => sub === 'po' ? setPoForm(f => ({ ...f, warehouse_id: e.target.value })) : setManWh(e.target.value)}
           className={`${ic} min-w-40`}>
-          <option value="">Ombor *</option>
+          <option value="">{t('purchase.selectWarehouse')}</option>
           {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
         </select>
         {sub === 'po' && (
@@ -1247,8 +1251,8 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-500 font-semibold">1 USD =</span>
             <input type="number" value={usdRate} onChange={e => setUsdRate(e.target.value)}
-              className={`${ic} w-28`} placeholder="Kurs" />
-            <span className="text-xs text-slate-500">so'm</span>
+              className={`${ic} w-28`} placeholder={t('purchase.exchangeRate')} />
+            <span className="text-xs text-slate-500">{t('common.sum')}</span>
           </div>
         )}
         <input placeholder={t('admin.dict.comment') || 'Izoh'} value={sub === 'po' ? poForm.note : manNote}
@@ -1260,7 +1264,7 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
       <div className="flex flex-1 overflow-hidden">
         {/* Left panel */}
         <div className="w-80 border-r border-slate-100 p-5 flex flex-col gap-4 overflow-y-auto shrink-0 bg-white shadow-sm">
-          <Lbl t="Mahsulot qidirish">
+          <Lbl t={t('purchase.searchProduct')}>
             <ProdSearch products={products} onSelect={selectProduct} />
           </Lbl>
 
@@ -1274,15 +1278,15 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-slate-800 text-sm truncate">{sel.name}</div>
                   <div className="text-xs text-slate-500 mt-0.5">
-                    Qoldiq: <strong>{fmt(sel.stock_quantity)}</strong> {sel.unit || 'dona'}
-                    &nbsp;·&nbsp; Chakana: <strong className="text-blue-600">{fmt(sel.sale_price)}</strong>
+                    {t('pos.stockLabel')} <strong>{fmt(sel.stock_quantity)}</strong> {sel.unit || t('common.piece')}
+                    &nbsp;·&nbsp; {t('purchase.retail')}: <strong className="text-blue-600">{fmt(sel.sale_price)}</strong>
                   </div>
                 </div>
               </div>
 
               {/* Cost price + currency */}
               <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Tan narxi</label>
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">{t('purchase.costPrice')}</label>
                 <div className="flex rounded-xl border border-slate-200 bg-white focus-within:ring-2 focus-within:ring-blue-500 overflow-hidden">
                   <input type="number" min="0" value={cost} onChange={e => setCost(e.target.value)}
                     className="flex-1 min-w-0 px-3 py-2 text-sm focus:outline-none bg-transparent" />
@@ -1299,12 +1303,12 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
 
               {/* Discount */}
               <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Chegirma</label>
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">{t('purchase.discount')}</label>
                 <div className="flex rounded-xl border border-slate-200 bg-white focus-within:ring-2 focus-within:ring-blue-500 overflow-hidden">
                   <input type="number" min="0" value={discVal} onChange={e => setDiscVal(e.target.value)}
                     className="flex-1 min-w-0 px-3 py-2 text-sm focus:outline-none bg-transparent" />
                   <div className="flex border-l border-slate-200">
-                    {[['pct', '%'], ['amt', 'so\'m']].map(([v, l]) => (
+                    {[['pct', '%'], ['amt', t('common.sum')]].map(([v, l]) => (
                       <button key={v} type="button" onClick={() => setDiscType(v)}
                         className={`px-2.5 py-2 text-xs font-bold transition-colors ${discType === v ? 'bg-amber-500 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>
                         {l}
@@ -1317,23 +1321,23 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
               {/* Net cost preview */}
               {(Number(discVal) > 0 || currency === 'USD') && (
                 <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 flex justify-between items-center">
-                  <span className="text-xs text-emerald-700 font-semibold">Sof tan narxi:</span>
-                  <span className="text-sm font-black text-emerald-700">{fmt(Math.round(selNet))} so'm</span>
+                  <span className="text-xs text-emerald-700 font-semibold">{t('purchase.netCost')}</span>
+                  <span className="text-sm font-black text-emerald-700">{fmt(Math.round(selNet))} {t('common.sum')}</span>
                 </div>
               )}
 
               {/* Quantity */}
-              <Lbl t="Miqdor">
+              <Lbl t={t('common.quantity')}>
                 <div className="flex gap-2 items-center">
                   <input type="number" min="1" step="any" value={qty} onChange={e => setQty(e.target.value)}
                     className={`flex-1 ${ic} text-center font-bold`} />
-                  <span className="text-sm text-slate-500 font-medium shrink-0">{sel.unit || 'dona'}</span>
+                  <span className="text-sm text-slate-500 font-medium shrink-0">{sel.unit || t('common.piece')}</span>
                 </div>
               </Lbl>
 
               {/* Total preview */}
               <div className="text-xs text-slate-500 text-right">
-                Jami: <strong className="text-blue-700">{fmt(Math.round(selNet * Number(qty)))} so'm</strong>
+                {t('common.total')}: <strong className="text-blue-700">{fmt(Math.round(selNet * Number(qty)))} {t('common.sum')}</strong>
               </div>
             </div>
           ) : (
@@ -1341,36 +1345,36 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
               <svg className="w-12 h-12 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
               </svg>
-              <p className="text-sm text-center">Mahsulot qidiring va tanlang</p>
+              <p className="text-sm text-center">{t('purchase.searchAndSelect')}</p>
             </div>
           )}
 
           <button onClick={addItem} disabled={!sel || !qty}
             className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl font-bold text-sm transition-all shadow-sm shadow-blue-200 active:scale-95">
             <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            Ro'yxatga qo'shish
+            {t('purchase.addToList')}
           </button>
 
           {activeItems.length > 0 && (
             <div className="bg-blue-600 rounded-2xl p-4 text-white">
-              <div className="text-xs font-semibold opacity-70 uppercase tracking-wide">Jami summa</div>
-              <div className="text-2xl font-black mt-1">{fmt(Math.round(totalNet))} <span className="text-sm font-normal opacity-70">so'm</span></div>
-              <div className="text-xs opacity-60 mt-1">{activeItems.length} ta mahsulot</div>
+              <div className="text-xs font-semibold opacity-70 uppercase tracking-wide">{t('purchase.totalSum')}</div>
+              <div className="text-2xl font-black mt-1">{fmt(Math.round(totalNet))} <span className="text-sm font-normal opacity-70">{t('common.sum')}</span></div>
+              <div className="text-xs opacity-60 mt-1">{activeItems.length} {t('purchase.productCount')}</div>
             </div>
           )}
 
           {sub === 'po' && activeItems.length > 0 && (
             <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm mt-2">
-              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">To'lov (Ixtiyoriy)</div>
+              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{t('admin.dict.payment')} ({t('common.optional')})</div>
               <div>
                 <input type="number" min="0" value={poForm.paid_amount} onChange={e => setPoForm(f => ({ ...f, paid_amount: e.target.value }))}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="To'langan summa..." />
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder={t('ops.paidAmountDots')} />
               </div>
               {Number(poForm.paid_amount) > 0 && (
                 <div>
                   <select value={poForm.wallet_id} onChange={e => setPoForm(f => ({ ...f, wallet_id: e.target.value }))}
                     className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                    <option value="">Kassani tanlang...</option>
+                    <option value="">{t('ops.selectCashboxDots')}</option>
                     {wallets.map(w => <option key={w.id} value={w.id}>{w.name} ({fmt(w.balance)})</option>)}
                   </select>
                 </div>
@@ -1384,7 +1388,7 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
           {activeItems.length === 0 ? (
             <div className="flex items-center justify-center h-full text-slate-300 flex-col gap-2">
               <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-              <p>Mahsulot qo'shing</p>
+              <p>{t('ops.addProduct')}</p>
             </div>
           ) : (
             <table className="w-full text-sm">
@@ -1392,14 +1396,14 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
                 <tr>
                   <th className="text-left px-3 py-3 text-xs font-semibold text-slate-400 w-8">№</th>
                   <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.product') || 'Mahsulot'}</th>
-                  <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase w-20">Soni</th>
-                  <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase">Narxi</th>
-                  <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase w-28">Chegirma</th>
-                  <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase">Sof narx</th>
+                  <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase w-20">{t('purchase.colQty')}</th>
+                  <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('purchase.colPrice')}</th>
+                  <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase w-28">{t('common.discount')}</th>
+                  <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('purchase.colNetPrice')}</th>
                   <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.total') || 'Jami'}</th>
-                  {sub === 'manual' && <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase">Partiya</th>}
-                  {sub === 'manual' && <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase">Lot</th>}
-                  {sub === 'manual' && <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase">Muddati</th>}
+                  {sub === 'manual' && <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('ops.batch')}</th>}
+                  {sub === 'manual' && <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('ops.lot')}</th>}
+                  {sub === 'manual' && <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('ops.expiryDate')}</th>}
                   {sub === 'manual' && <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.comment') || 'Izoh'}</th>}
                   <th className="w-8"></th>
                 </tr>
@@ -1452,14 +1456,14 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
                       </td>
                       {sub === 'manual' && (
                         <td className="px-2 py-2">
-                          <input placeholder="Partiya №" value={it.batch_num}
+                          <input placeholder={`${t('ops.batch')} №`} value={it.batch_num}
                             onChange={e => updManItem(i, 'batch_num', e.target.value)}
                             className={`w-22 ${ic} text-xs`} />
                         </td>
                       )}
                       {sub === 'manual' && (
                         <td className="px-2 py-2">
-                          <input placeholder="Lot №" value={it.lot_num}
+                          <input placeholder={`${t('ops.lot')} №`} value={it.lot_num}
                             onChange={e => updManItem(i, 'lot_num', e.target.value)}
                             className={`w-18 ${ic} text-xs`} />
                         </td>
@@ -1495,23 +1499,23 @@ function KirimCreateView({ products, warehouses, suppliers, onBack, onSaved }) {
       <div className="flex items-center gap-4 px-6 py-3.5 border-t border-slate-200 bg-white shrink-0">
         {/* Auto-update toggles */}
         <div className="flex items-center gap-3">
-          <span className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Narx yangilash:</span>
+          <span className="text-xs text-slate-400 font-semibold uppercase tracking-wide">{t('purchase.updatePricesLabel')}</span>
           <button onClick={() => setAutoRet(v => !v)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${autoRetail ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'}`}>
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 012-2z" /></svg>
-            Chakana narx
+            {t('purchase.retail')}
           </button>
           <button onClick={() => setAutoWho(v => !v)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${autoWholesale ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-600 border-slate-200 hover:border-amber-300'}`}>
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 012-2z" /></svg>
-            Ulgurji narx
+            {t('purchase.wholesale')}
           </button>
         </div>
         <div className="flex gap-3 ml-auto items-center">
           {err && <span className="text-red-500 text-sm">{err}</span>}
           <Btn v="ghost" onClick={onBack}>{t('common.cancel')}</Btn>
           <Btn onClick={sub === 'po' ? savePo : saveManual} disabled={saving}>
-            {saving ? 'Saqlanmoqda...' : (sub === 'po' ? 'Buyurtma yaratish' : 'Qabul qilish')}
+            {saving ? t('common.saving') : (sub === 'po' ? t('ops.createOrder') : t('ops.receiveAction'))}
           </Btn>
         </div>
       </div>
@@ -1570,19 +1574,19 @@ function KirimlarTab({ products, warehouses, suppliers, users }) {
   if (mode === 'create') return <KirimCreateView products={products} warehouses={warehouses} suppliers={suppliers} onBack={() => setMode('list')} onSaved={load} />;
 
   const cols = [
-    { k: 'number', l: 'Raqam' },
-    { k: 'supplier_name', l: "Ta'minotchi" },
-    { k: 'warehouse_name', l: 'Ombor' },
-    { k: 'status', l: 'Holat', r: v => <Badge meta={poMeta} val={v} /> },
-    { k: 'total_amount', l: "Jami (so'm)", r: v => fmt(v) },
-    { k: 'paid_amount', l: "To'langan", r: v => <span className="text-emerald-600 font-semibold">{fmt(v)}</span> },
-    { k: 'debt', l: "Qarzga", r: (_, row) => { const d = Number(row.total_amount) - Number(row.paid_amount || 0) - Number(row.discount_amount || 0); return d > 0 ? <span className="text-red-500 font-semibold">{fmt(d)}</span> : '—'; } },
-    { k: 'created_at', l: 'Sana', r: v => fmtDay(v) },
+    { k: 'number', l: t('common.number') },
+    { k: 'supplier_name', l: t('purchase.supplier') },
+    { k: 'warehouse_name', l: t('admin.dict.warehouse') },
+    { k: 'status', l: t('common.status'), r: v => <Badge meta={poMeta} val={v} /> },
+    { k: 'total_amount', l: `${t('common.total')} (${t('common.sum')})`, r: v => fmt(v) },
+    { k: 'paid_amount', l: t('common.paid'), r: v => <span className="text-emerald-600 font-semibold">{fmt(v)}</span> },
+    { k: 'debt', l: t('ops.onDebt'), r: (_, row) => { const d = Number(row.total_amount) - Number(row.paid_amount || 0) - Number(row.discount_amount || 0); return d > 0 ? <span className="text-red-500 font-semibold">{fmt(d)}</span> : '—'; } },
+    { k: 'created_at', l: t('common.date'), r: v => fmtDay(v) },
     {
       k: 'id', l: '', r: (_, row) => ['draft', 'ordered', 'partial'].includes(row.status) ? (
         <button onClick={e => { e.stopPropagation(); openDetail(row); }}
           className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 font-medium whitespace-nowrap">
-          Qabul qilish
+          {t('ops.receiveAction')}
         </button>
       ) : null
     },
@@ -1595,7 +1599,7 @@ function KirimlarTab({ products, warehouses, suppliers, users }) {
         <div className="flex items-center gap-2">
           <Btn onClick={() => setMode('create')} sm>
             <svg className="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            Yangi kirim
+            {t('ops.newReceipt')}
           </Btn>
         </div>
       </div>
@@ -1605,7 +1609,7 @@ function KirimlarTab({ products, warehouses, suppliers, users }) {
         <div className="grid grid-cols-3 gap-3">
           <input type="text" placeholder={t('admin.dict.status2') || 'Status'} value={f.statusQ || ''} onChange={e => {
             const q = e.target.value;
-            const match = Object.entries(poMeta).find(([, m]) => m.l.toLowerCase().startsWith(q.toLowerCase()));
+            const match = Object.entries(poMeta).find(([, m]) => t(m.l).toLowerCase().startsWith(q.toLowerCase()));
             setF({ ...f, statusQ: q, status: match ? match[0] : '' });
           }} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white" />
           <input type="date" value={f.dateFrom} onChange={e => setF({ ...f, dateFrom: e.target.value })} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-slate-400 bg-white" />
@@ -1614,7 +1618,7 @@ function KirimlarTab({ products, warehouses, suppliers, users }) {
         <div className="grid grid-cols-[1fr_auto_1fr_1fr] gap-3 items-center">
           {/* Supplier */}
           <div className="relative">
-            <input type="text" value={f.supplierQ || ''} placeholder="Contragent"
+            <input type="text" value={f.supplierQ || ''} placeholder={t('admin.dict.contragent')}
               onChange={e => setF({ ...f, supplierQ: e.target.value, supplier_id: '' })}
               onFocus={() => setF(p => ({ ...p, _supOpen: true }))}
               onBlur={() => setTimeout(() => setF(p => ({ ...p, _supOpen: false })), 200)}
@@ -1631,7 +1635,7 @@ function KirimlarTab({ products, warehouses, suppliers, users }) {
           <span className="text-slate-300 text-lg">+</span>
           {/* Warehouse */}
           <div className="relative">
-            <input type="text" value={f.warehouseQ || ''} placeholder="Xodim (Ombor)"
+            <input type="text" value={f.warehouseQ || ''} placeholder={`${t('admin.dict.employee')} (${t('admin.dict.warehouse')})`}
               onChange={e => setF({ ...f, warehouseQ: e.target.value, warehouse_id: '' })}
               onFocus={() => setF(p => ({ ...p, _whOpen: true }))}
               onBlur={() => setTimeout(() => setF(p => ({ ...p, _whOpen: false })), 200)}
@@ -1671,21 +1675,21 @@ function KirimlarTab({ products, warehouses, suppliers, users }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b">
-              <h3 className="text-lg font-bold">Buyurtma · {detail.number}</h3>
+              <h3 className="text-lg font-bold">{t('purchase.order')} · {detail.number}</h3>
               <button onClick={() => setDetail(null)} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100">✕</button>
             </div>
             <div className="p-6 overflow-y-auto flex-1 space-y-4">
               <div className="grid grid-cols-4 gap-3 text-sm">
-                {[["Ta'minotchi", detail.supplier_name], ["Ombor", detail.warehouse_name], ["Holat", <Badge meta={poMeta} val={detail.status} />], ["Sana", fmtDay(detail.created_at)]].map(([k, v]) => (
+                {[[t('purchase.supplier'), detail.supplier_name], [t('admin.dict.warehouse'), detail.warehouse_name], [t('common.status'), <Badge meta={poMeta} val={detail.status} />], [t('common.date'), fmtDay(detail.created_at)]].map(([k, v]) => (
                   <div key={k} className="bg-slate-50 rounded-xl p-3"><div className="text-xs text-slate-500 mb-1">{k}</div><div className="font-semibold">{v}</div></div>
                 ))}
               </div>
               <div className="grid grid-cols-4 gap-3 text-sm">
                 {[
-                  ["Jami summa", fmt(detail.total_amount)],
-                  ["Chegirma", fmt(detail.discount_amount)],
-                  ["To'langan summa", <span className="text-emerald-600">{fmt(detail.paid_amount)}</span>],
-                  ["Qarz (Qoldiq)", <span className="text-red-500">{fmt(Number(detail.total_amount) - Number(detail.paid_amount || 0) - Number(detail.discount_amount || 0))}</span>]
+                  [t('purchase.totalAmount'), fmt(detail.total_amount)],
+                  [t('common.discount'), fmt(detail.discount_amount)],
+                  [t('ops.paidSum'), <span className="text-emerald-600">{fmt(detail.paid_amount)}</span>],
+                  [t('ops.debtRemaining'), <span className="text-red-500">{fmt(Number(detail.total_amount) - Number(detail.paid_amount || 0) - Number(detail.discount_amount || 0))}</span>]
                 ].map(([k, v]) => (
                   <div key={k} className="bg-slate-50 rounded-xl p-3"><div className="text-xs text-slate-500 mb-1">{k}</div><div className="font-bold">{v}</div></div>
                 ))}
@@ -1693,8 +1697,8 @@ function KirimlarTab({ products, warehouses, suppliers, users }) {
               <table className="w-full text-sm border border-slate-200 rounded-xl overflow-hidden">
                 <thead className="bg-slate-50"><tr>
                   <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.product') || 'Mahsulot'}</th>
-                  <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">Buyurtma</th>
-                  <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">Qabul</th>
+                  <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('purchase.order')}</th>
+                  <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('purchase.received')}</th>
                   <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.price') || 'Narx'}</th>
                   <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.total') || 'Jami'}</th>
                 </tr></thead>
@@ -1714,7 +1718,7 @@ function KirimlarTab({ products, warehouses, suppliers, users }) {
             <div className="flex justify-end gap-3 px-6 py-4 border-t">
               <Btn v="ghost" onClick={() => setDetail(null)}>{t('admin.dict.close') || 'Yopish'}</Btn>
               {['draft', 'ordered', 'partial'].includes(detail.status) && (
-                <Btn v="green" onClick={() => { setRec(detail); setDetail(null); }}>Qabul qilish</Btn>
+                <Btn v="green" onClick={() => { setRec(detail); setDetail(null); }}>{t('ops.receiveAction')}</Btn>
               )}
             </div>
           </div>
@@ -1724,7 +1728,7 @@ function KirimlarTab({ products, warehouses, suppliers, users }) {
       {recModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <h3 className="text-lg font-bold mb-4">Qabul qilish · {recModal.number}</h3>
+            <h3 className="text-lg font-bold mb-4">{t('ops.receiveAction')} · {recModal.number}</h3>
             <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden mb-4">
               {recModal.items?.filter(i => Number(i.qty_ordered) > Number(i.qty_received)).map(item => (
                 <div key={item.id} className="flex justify-between px-4 py-3">
@@ -1735,7 +1739,7 @@ function KirimlarTab({ products, warehouses, suppliers, users }) {
             </div>
             <div className="flex gap-3">
               <Btn v="ghost" onClick={() => setRec(null)} className="flex-1">{t('common.cancel')}</Btn>
-              <Btn v="green" onClick={receivePo} disabled={recSaving} className="flex-1">{recSaving ? '...' : 'Tasdiqlash'}</Btn>
+              <Btn v="green" onClick={receivePo} disabled={recSaving} className="flex-1">{recSaving ? '...' : t('common.confirm')}</Btn>
             </div>
           </div>
         </div>
@@ -1781,26 +1785,26 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, cu
 
   const addItem = () => {
     if (!sel || !qty) return;
-    if (!cost) { setErr("Qaytarish narxini kiriting"); return; }
+    if (!cost) { setErr(t('ops.enterReturnPrice')); return; }
 
     setItems(prev => {
       const ex = prev.find(i => i.product_id === sel.id && i.cost === Number(cost));
       if (ex) return prev.map(i => i.product_id === sel.id && i.cost === Number(cost) ? { ...i, qty: Number(i.qty) + Number(qty) } : i);
-      return [...prev, { product_id: sel.id, product_name: sel.name, unit: sel.unit || 'dona', qty: Number(qty), cost: Number(cost), current: Number(sel.stock_quantity || 0) }];
+      return [...prev, { product_id: sel.id, product_name: sel.name, unit: sel.unit || t('common.piece'), qty: Number(qty), cost: Number(cost), current: Number(sel.stock_quantity || 0) }];
     });
     setSel(null); setQty('1'); setCost(''); setErr('');
   };
 
   const save = async (overridePayType) => {
     const pType = typeof overridePayType === 'string' ? overridePayType : form.payment_type;
-    if (!items.length) { setErr("Mahsulot qo'shing"); return; }
+    if (!items.length) { setErr(t('ops.addProduct')); return; }
     if (isCustomer) {
-      if (!form.customer_id) { setErr("Mijozni tanlang"); return; }
-      if (!form.warehouse_id) { setErr("Omborni tanlang"); return; }
-      if (pType !== 'debt' && !form.wallet_id) { setErr("Kassani tanlang"); return; }
+      if (!form.customer_id) { setErr(t('ops.selectCustomer')); return; }
+      if (!form.warehouse_id) { setErr(t('ops.selectWarehouse')); return; }
+      if (pType !== 'debt' && !form.wallet_id) { setErr(t('ops.selectCashbox')); return; }
     } else {
-      if (!form.supplier_id) { setErr("Ta'minotchini tanlang"); return; }
-      if (Number(form.received_amount) > 0 && !form.wallet_id) { setErr("Kassani tanlang"); return; }
+      if (!form.supplier_id) { setErr(t('ops.selectSupplier')); return; }
+      if (Number(form.received_amount) > 0 && !form.wallet_id) { setErr(t('ops.selectCashbox')); return; }
     }
 
     setSaving(true); setErr(''); setMsg('');
@@ -1822,7 +1826,7 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, cu
           paidCard = Number(form.paid_card) || 0;
           paidAmount = paidCash + paidCard;
           if (paidAmount > totalAmount) {
-            setErr("Qaytarilgan summa umumiy summadan ko'p bo'lishi mumkin emas");
+            setErr(t('ops.returnedAmountExceedsTotal'));
             setSaving(false);
             return;
           }
@@ -1844,7 +1848,7 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, cu
         };
 
         const res = await api.post('/inventory/return-from-customer', payload);
-        setMsg(res.data?.message || `Muvaffaqiyatli qaytarildi`);
+        setMsg(res.data?.message || t('ops.returnedSuccessfully'));
       } else {
         const payload = {
           supplier_id: Number(form.supplier_id),
@@ -1855,12 +1859,12 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, cu
           note: note
         };
         const res = await api.post('/inventory/return-to-supplier', payload);
-        setMsg(res.data?.message || `Muvaffaqiyatli qaytarildi`);
+        setMsg(res.data?.message || t('ops.returnedSuccessfully'));
       }
 
       setItems([]); setNote(''); setForm({ supplier_id: '', customer_id: '', warehouse_id: '', received_amount: '', wallet_id: '', payment_type: 'debt', paid_cash: '', paid_card: '' });
       setShowPay(false);
-    } catch (e) { setErr(e.response?.data?.detail || 'Xatolik yuz berdi'); } finally { setSaving(false); }
+    } catch (e) { setErr(e.response?.data?.detail || t('ops.errorOccurred')); } finally { setSaving(false); }
   };
 
   return (
@@ -1874,32 +1878,32 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, cu
         <div className="w-[450px] border-r border-slate-100 p-5 flex flex-col gap-4 overflow-y-auto shrink-0 bg-white shadow-sm">
           {isCustomer ? (
             <>
-              <Lbl t="Mijoz *">
+              <Lbl t={`${t('admin.dict.customer')} *`}>
                 <CustSearch
                   customers={customers || []}
                   value={form.customer_id}
                   onChange={val => setForm(f => ({ ...f, customer_id: val }))}
-                  placeholder="Mijozni tanlang..."
+                  placeholder={t('ops.selectCustomerDots')}
                 />
               </Lbl>
-              <Lbl t="Ombor *">
+              <Lbl t={`${t('admin.dict.warehouse')} *`}>
                 <select value={form.warehouse_id} onChange={e => setForm({ ...form, warehouse_id: e.target.value })} className={ic}>
-                  <option value="">Tanlang...</option>
+                  <option value="">{t('admin.dict.select')}...</option>
                   {warehouses?.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                 </select>
               </Lbl>
             </>
           ) : (
             <>
-              <Lbl t="Ta'minotchi *">
+              <Lbl t={`${t('purchase.supplier')} *`}>
                 <select value={form.supplier_id} onChange={e => setForm({ ...form, supplier_id: e.target.value })} className={ic}>
-                  <option value="">Tanlang...</option>
+                  <option value="">{t('admin.dict.select')}...</option>
                   {suppliers?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </Lbl>
-              <Lbl t="Ombor (Ixtiyoriy)">
+              <Lbl t={`${t('admin.dict.warehouse')} (${t('common.optional')})`}>
                 <select value={form.warehouse_id} onChange={e => setForm({ ...form, warehouse_id: e.target.value })} className={ic}>
-                  <option value="">Barchasi (Global qoldiq)</option>
+                  <option value="">{t('ops.allGlobalStock')}</option>
                   {warehouses?.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                 </select>
               </Lbl>
@@ -1917,7 +1921,7 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, cu
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-slate-800 text-sm">{sel.name}</div>
-                  <div className="text-xs text-slate-500 mt-0.5">{t('pos.stockLabel') || 'Joriy qoldiq:'} <strong>{fmt(sel.stock_quantity)}</strong> {sel.unit || 'dona'}</div>
+                  <div className="text-xs text-slate-500 mt-0.5">{t('pos.stockLabel') || 'Joriy qoldiq:'} <strong>{fmt(sel.stock_quantity)}</strong> {sel.unit || t('common.piece')}</div>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -1926,8 +1930,8 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, cu
                     <input type="number" min="0.001" step="any" value={qty} onChange={e => setQty(e.target.value)} className={`flex-1 ${ic} text-center font-bold`} />
                   </div>
                 </Lbl>
-                <Lbl t="Qaytarish narxi">
-                  <input type="number" min="0" step="any" value={cost} onChange={e => setCost(e.target.value)} className={`w-full ${ic}`} placeholder="Narxi..." />
+                <Lbl t={t('ops.returnPrice')}>
+                  <input type="number" min="0" step="any" value={cost} onChange={e => setCost(e.target.value)} className={`w-full ${ic}`} placeholder={`${t('admin.dict.price')}...`} />
                 </Lbl>
               </div>
             </div>
@@ -1962,8 +1966,8 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, cu
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500">№</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t('common.name') || 'Nomi'}</th>
                   <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t('common.quantity') || 'Soni'}</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Narx</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Jami</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.price')}</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t('common.total')}</th>
                   <th className="w-10"></th>
                 </tr>
               </thead>
@@ -1999,51 +2003,51 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, cu
         <div className="flex items-center gap-3">
           {items.length > 0 && (
             <div className="text-sm text-slate-500 mr-2">
-              Jami: <span className="font-bold text-slate-800 text-base">{fmt(items.reduce((s, i) => s + (i.qty * i.cost), 0))} so'm</span>
+              {t('common.total')}: <span className="font-bold text-slate-800 text-base">{fmt(items.reduce((s, i) => s + (i.qty * i.cost), 0))} {t('common.sum')}</span>
             </div>
           )}
           <Btn v="amber" disabled={saving || !items.length} onClick={() => save('debt')}>
             <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-            Qarzga yopish
+            {t('ops.closeOnDebt')}
           </Btn>
           <button disabled={saving || !items.length} onClick={() => { setErr(''); setShowPay(true); }}
             className="inline-flex items-center gap-2.5 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-blue-200 active:scale-95">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
-            To'lovga o'tish
+            {t('ops.goToPayment')}
           </button>
         </div>
       {showPay && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowPay(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-800">Kassadan to'lov</h3>
+              <h3 className="text-lg font-bold text-slate-800">{t('ops.payFromCashbox')}</h3>
               <button onClick={() => setShowPay(false)} className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             <div className="p-6 space-y-4">
               <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-center">
-                <div className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-1">Qaytarilayotgan summa</div>
-                <div className="text-3xl font-black text-blue-700">{fmt(items.reduce((s, i) => s + (i.qty * i.cost), 0))} <span className="text-lg font-normal text-blue-400">so'm</span></div>
+                <div className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-1">{t('ops.returningAmount')}</div>
+                <div className="text-3xl font-black text-blue-700">{fmt(items.reduce((s, i) => s + (i.qty * i.cost), 0))} <span className="text-lg font-normal text-blue-400">{t('common.sum')}</span></div>
               </div>
-              
+
               <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">To'lov turi</label>
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">{t('sale.paymentType')}</label>
                 <select value={form.payment_type} onChange={e => setForm({ ...form, payment_type: e.target.value })} className="w-full border-2 border-slate-200 focus:border-blue-500 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:outline-none transition-colors">
-                  <option value="cash">Naqd</option>
-                  <option value="card">Plastik karta</option>
-                  <option value="mixed">Aralash</option>
+                  <option value="cash">{t('finance.cash')}</option>
+                  <option value="card">{t('ops.plasticCard')}</option>
+                  <option value="mixed">{t('pay.mixed')}</option>
                 </select>
               </div>
 
               {form.payment_type === 'mixed' && (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 block">Naqd</label>
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 block">{t('finance.cash')}</label>
                     <input type="number" min="0" step="any" value={form.paid_cash} onChange={e => setForm({ ...form, paid_cash: e.target.value })} className="w-full border-2 border-slate-200 focus:border-blue-500 rounded-xl px-3 py-2 text-lg font-bold text-slate-800 focus:outline-none" />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 block">Karta</label>
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 block">{t('sale.payByCard')}</label>
                     <input type="number" min="0" step="any" value={form.paid_card} onChange={e => setForm({ ...form, paid_card: e.target.value })} className="w-full border-2 border-slate-200 focus:border-blue-500 rounded-xl px-3 py-2 text-lg font-bold text-slate-800 focus:outline-none" />
                   </div>
                 </div>
@@ -2051,18 +2055,18 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, cu
 
               {form.payment_type !== 'debt' && (
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">Kassa / Hisob</label>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">{t('ops.cashboxAccount')}</label>
                   <select value={form.wallet_id} onChange={e => setForm({ ...form, wallet_id: e.target.value })} className="w-full border-2 border-slate-200 focus:border-blue-500 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:outline-none transition-colors">
-                    <option value="">Tanlang...</option>
+                    <option value="">{t('admin.dict.select')}...</option>
                     {wallets.map(w => <option key={w.id} value={w.id}>{w.name} ({fmt(w.balance)})</option>)}
                   </select>
                 </div>
               )}
 
               <div className="flex gap-3 pt-2">
-                <Btn v="ghost" onClick={() => setShowPay(false)}>Bekor qilish</Btn>
+                <Btn v="ghost" onClick={() => setShowPay(false)}>{t('admin.dict.cancel')}</Btn>
                 <button onClick={() => save(form.payment_type)} disabled={saving} className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-blue-200 active:scale-95">
-                  {saving ? 'Tasdiqlanmoqda...' : 'Tasdiqlash'}
+                  {saving ? t('ops.confirming') : t('common.confirm')}
                 </button>
               </div>
             </div>
@@ -2093,15 +2097,15 @@ function QaytarishlarTab({ products, suppliers, warehouses, customers }) {
       setMode("create");
     } catch (err) {
       console.error("Failed to fetch return details:", err);
-      toast.error("Qaytaruv ma'lumotlarini olishda xatolik");
+      toast.error(t('ops.errorFetchingReturnData'));
     }
   };
 
   const handleDeleteReturn = async (returnId) => {
-    if (!window.confirm("Bu qaytaruv operatsiyasini bekor qilishni tasdiqlaysizmi? Stock qoldiqlari qaytariladi.")) return;
+    if (!window.confirm(t('ops.confirmCancelReturn'))) return;
     try {
       await api.delete(`/inventory/movements/${returnId}`);
-      toast.success("Qaytaruv bekor qilindi va stok qoldiqlari tiklandi");
+      toast.success(t('ops.returnCancelledStockRestored'));
       // Ro'yxatni yangilash
       setLoading(true);
       const params = { reference_type: sub === "supplier" ? "return_to_supplier" : "return_from_customer" };
@@ -2109,7 +2113,7 @@ function QaytarishlarTab({ products, suppliers, warehouses, customers }) {
       setReturns(res.data);
     } catch (err) {
       console.error("Failed to reverse return:", err);
-      toast.error(err.response?.data?.detail || "Qaytaruvni bekor qilishda xatolik yuz berdi");
+      toast.error(err.response?.data?.detail || t('ops.errorCancellingReturn'));
     } finally {
       setLoading(false);
     }
@@ -2156,17 +2160,17 @@ function QaytarishlarTab({ products, suppliers, warehouses, customers }) {
             <svg className="w-12 h-12 mx-auto mb-3 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
             </svg>
-            <p className="text-slate-400 text-sm">Qaytarilgan mahsulotlar topilmadi</p>
+            <p className="text-slate-400 text-sm">{t('ops.noReturnedProductsFound')}</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Sana</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Mahsulot</th>
-                <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Soni</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Izoh</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Amallar</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('common.date')}</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.product')}</th>
+                <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('purchase.colQty')}</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('common.note')}</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -2180,11 +2184,11 @@ function QaytarishlarTab({ products, suppliers, warehouses, customers }) {
                     <div className="flex gap-2">
                       <button onClick={() => handleEditReturn(r.id)} className="flex items-center gap-1 px-3 py-1 text-xs rounded-sm font-semibold border transition-all cursor-pointer border-blue-300 text-blue-600">
                         <Pen size={16} />
-                        Tahrirlash
+                        {t('common.edit')}
                       </button>
                       <button onClick={() => handleDeleteReturn(r.id)} className="flex items-center gap-1 px-3 py-1 text-xs rounded-sm font-semibold border transition-all cursor-pointer border-red-300 text-red-600">
                         <Undo2 size={16} />
-                        O'chirish
+                        {t('common.delete')}
                       </button>
                     </div>
                   </td>
@@ -2216,7 +2220,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
   const [items, setItems] = useState(editData ? editData.items.map(i => ({
     product_id: i.product_id,
     product_name: i.product_name,
-    unit: i.unit || 'dona',
+    unit: i.unit || t('common.piece'),
     quantity: Number(i.quantity),
     stock: Number(i.stock_quantity || 0),
     target_product_id: i.target_product_id || null,
@@ -2241,7 +2245,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
           const data = r.data;
           setLocalProducts(Array.isArray(data) ? data : (data.items || []));
         })
-        .catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+        .catch((err) => { toast.error(err.response?.data?.detail || err.message || t('ops.errorOccurred')) });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
@@ -2275,7 +2279,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
       return [...prev, {
         product_id: sel.id,
         product_name: sel.name,
-        unit: sel.unit || 'dona',
+        unit: sel.unit || t('common.piece'),
         quantity: Number(qty),
         stock: Number(sel.stock_quantity || 0),
         // Maqsad mahsulot mapping (ixtiyoriy)
@@ -2302,18 +2306,18 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
 
       if (editData) {
         await api.put(`/transfers/${editData.id}`, payload);
-        toast.success("Transfer muvaffaqiyatli tahrirlandi");
+        toast.success(t('ops.transferEditedSuccessfully'));
       } else {
         await api.post('/transfers', payload);
-        toast.success("Transfer muvaffaqiyatli yaratildi");
+        toast.success(t('ops.transferCreatedSuccessfully'));
       }
 
       onSaved(); onBack();
-    } catch (e) { setErr(e.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
+    } catch (e) { setErr(e.response?.data?.detail || t('common.error')); } finally { setSaving(false); }
   };
 
   /* ── Step indicator ── */
-  const STEPS = ['Omborlar', 'Mahsulotlar', 'Tasdiqlash'];
+  const STEPS = [t('ops.warehousesPlural'), t('ops.productsUpper'), t('common.confirm')];
 
   return (
     <div className="fixed inset-0 z-40 bg-slate-100 flex flex-col">
@@ -2322,10 +2326,10 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
       <div className="flex items-center gap-4 px-6 py-3.5 bg-white border-b border-slate-100 shadow-sm shrink-0">
         <button onClick={onBack} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-blue-600 px-3 py-2 rounded-xl hover:bg-blue-50 transition-all text-sm font-semibold">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
-          Orqaga
+          {t('common.back')}
         </button>
         <div className="w-px h-6 bg-slate-200 shrink-0" />
-        <h2 className="text-base font-bold text-slate-800">{editData ? `Transferni tahrirlash · ${editData.number}` : "Yangi Transfer"}</h2>
+        <h2 className="text-base font-bold text-slate-800">{editData ? `${t('ops.editTransfer')} · ${editData.number}` : t('ops.newTransfer')}</h2>
 
         {/* Step indicator */}
         <div className="flex items-center gap-0 ml-6">
@@ -2366,14 +2370,14 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                 </svg>
               </div>
-              <h3 className="text-xl font-bold text-slate-800">Omborlarni tanlang</h3>
-              <p className="text-sm text-slate-500 mt-1">Mahsulot <strong>qayerdan</strong> va <strong>qayerga</strong> ko'chiriladi?</p>
+              <h3 className="text-xl font-bold text-slate-800">{t('ops.selectWarehouses')}</h3>
+              <p className="text-sm text-slate-500 mt-1">{t('ops.transferDirectionQuestion')}</p>
             </div>
 
             <div className="flex items-center gap-4">
               {/* FROM */}
               <div className="flex-1">
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Manba ombor (Kimdan)</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">{t('ops.sourceWarehouse')}</label>
                 <div className="space-y-2">
                   {warehouses.map(w => (
                     <button key={w.id} onClick={() => setForm(f => ({ ...f, from_warehouse_id: String(w.id) }))}
@@ -2412,7 +2416,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
 
               {/* TO */}
               <div className="flex-1">
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Maqsad ombor (Kimga)</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">{t('ops.targetWarehouse')}</label>
                 <div className="space-y-2">
                   {warehouses.map(w => (
                     <button key={w.id} onClick={() => setForm(f => ({ ...f, to_warehouse_id: String(w.id) }))}
@@ -2440,8 +2444,8 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
 
             {/* Note */}
             <div className="mt-6">
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Izoh (ixtiyoriy)</label>
-              <input placeholder="Transfer sababi yoki qo'shimcha ma'lumot..." value={form.note}
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">{t('ops.noteOpt')}</label>
+              <input placeholder={t('ops.transferReasonPlaceholder')} value={form.note}
                 onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
                 className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
@@ -2452,7 +2456,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                 disabled={!form.from_warehouse_id || !form.to_warehouse_id || form.from_warehouse_id === form.to_warehouse_id}
                 onClick={() => setStep(2)}
                 className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-blue-200">
-                Davom etish
+                {t('ops.continue')}
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </button>
             </div>
@@ -2472,7 +2476,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
               <div className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-lg truncate max-w-[90px]">{toWh?.name}</div>
             </div>
 
-            <Lbl t="Mahsulot qidirish">
+            <Lbl t={t('purchase.searchProduct')}>
               <ProdSearch products={products} onSelect={p => { setSel(p); setQty('1'); setTimeout(() => qtyRef.current?.focus(), 50); }} />
             </Lbl>
 
@@ -2485,9 +2489,9 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-slate-800 text-sm truncate">{sel.name}</div>
                     <div className="text-xs mt-0.5">
-                      <span className="text-slate-500">Mavjud:</span>
+                      <span className="text-slate-500">{t('ops.available')}:</span>
                       <span className={`font-bold ml-1 ${Number(sel.stock_quantity) < 5 ? 'text-red-500' : 'text-emerald-600'}`}>
-                        {fmt(sel.stock_quantity)} {sel.unit || 'dona'}
+                        {fmt(sel.stock_quantity)} {sel.unit || t('common.piece')}
                       </span>
                     </div>
                   </div>
@@ -2496,11 +2500,11 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                 {Number(sel.stock_quantity) <= 0 && (
                   <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2 flex items-center gap-1.5">
                     <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
-                    Stokda mahsulot yo'q
+                    {t('ops.noStockInWarehouse')}
                   </div>
                 )}
 
-                <Lbl t="Ko'chirish miqdori">
+                <Lbl t={t('ops.transferQty')}>
                   <div className="flex gap-2 items-center">
                     <button onClick={() => setQty(q => String(Math.max(1, Number(q) - 1)))}
                       className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-100 font-bold shrink-0">−</button>
@@ -2510,13 +2514,13 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                       className={`flex-1 ${ic} text-center font-bold`} />
                     <button onClick={() => setQty(q => String(Number(q) + 1))}
                       className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-100 font-bold shrink-0">+</button>
-                    <span className="text-sm text-slate-500 shrink-0">{sel.unit || 'dona'}</span>
+                    <span className="text-sm text-slate-500 shrink-0">{sel.unit || t('common.piece')}</span>
                   </div>
                 </Lbl>
 
                 {Number(qty) > Number(sel.stock_quantity) && Number(sel.stock_quantity) > 0 && (
                   <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-                    ⚠️ Miqdor mavjud stokdan ({fmt(sel.stock_quantity)}) ko'p
+                    ⚠️ {t('ops.qtyExceedsStock')} ({fmt(sel.stock_quantity)})
                   </div>
                 )}
 
@@ -2526,7 +2530,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                     <svg className="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                     </svg>
-                    Maqsad omborda boshqa mahsulotga (ixtiyoriy)
+                    {t('ops.mapToOtherProduct')}
                   </div>
                   <div className="relative" ref={targetRef}>
                     <div className={`flex items-center border rounded-xl bg-white overflow-hidden focus-within:ring-2 focus-within:ring-blue-400 transition-colors ${selTargetProd ? 'border-blue-300' : 'border-slate-200'}`}>
@@ -2538,7 +2542,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                         onChange={e => { setTargetQ(e.target.value); setTargetOpen(true); if (!e.target.value) setSelTargetProd(null); }}
                         onFocus={() => setTargetOpen(true)}
                         onBlur={() => setTimeout(() => setTargetOpen(false), 150)}
-                        placeholder="Bo'sh = xuddi shu mahsulot..."
+                        placeholder={t('ops.emptyMeansSameProduct')}
                         className="flex-1 px-2 py-2 text-xs outline-none bg-transparent min-w-0"
                       />
                       {selTargetProd && (
@@ -2561,7 +2565,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                           ))}
                         {!targetQ.trim() && (
                           <div className="px-3 py-2 text-[10px] text-slate-400 bg-slate-50 border-t border-slate-100 text-center">
-                            Qidiruv yozing yoki bo'sh qoldiring
+                            {t('ops.typeSearchOrLeaveEmpty')}
                           </div>
                         )}
                       </div>
@@ -2584,20 +2588,20 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                 <svg className="w-12 h-12 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                 </svg>
-                <p className="text-sm text-center">Mahsulot qidiring va tanlang</p>
+                <p className="text-sm text-center">{t('purchase.searchAndSelect')}</p>
               </div>
             )}
 
             <button onClick={addItem} disabled={!sel || !qty || Number(sel?.stock_quantity) <= 0}
               className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl font-bold text-sm transition-all shadow-sm shadow-blue-200 active:scale-95">
               <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-              Ro'yxatga qo'shish
+              {t('purchase.addToList')}
             </button>
 
             {items.length > 0 && (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center">
-                <div className="text-xs text-slate-400 font-medium">{items.length} xil mahsulot</div>
-                <div className="text-lg font-bold text-blue-600 mt-1">{items.reduce((s, i) => s + Number(i.quantity), 0)} dona</div>
+                <div className="text-xs text-slate-400 font-medium">{items.length} {t('ops.kindsProduct')}</div>
+                <div className="text-lg font-bold text-blue-600 mt-1">{items.reduce((s, i) => s + Number(i.quantity), 0)} {t('common.piece')}</div>
               </div>
             )}
           </div>
@@ -2605,11 +2609,11 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
           {/* RIGHT — Items list */}
           <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
             <div className="flex items-center justify-between px-6 py-3.5 bg-white border-b border-slate-100 shrink-0">
-              <span className="text-sm font-bold text-slate-700">Ko'chirish ro'yxati</span>
+              <span className="text-sm font-bold text-slate-700">{t('ops.transferList')}</span>
               {items.length > 0 && (
                 <button onClick={() => setItems([])} className="text-xs text-red-400 hover:text-red-600 flex items-center gap-1 px-2 py-1 hover:bg-red-50 rounded-lg transition-colors">
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                  Tozalash
+                  {t('admin.dict.clear')}
                 </button>
               )}
             </div>
@@ -2617,7 +2621,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
               {items.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-slate-300 gap-3">
                   <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
-                  <p className="text-sm">Chap paneldan mahsulot qo'shing</p>
+                  <p className="text-sm">{t('ops.addProductFromLeftPanel')}</p>
                 </div>
               ) : (
                 <table className="w-full text-sm">
@@ -2625,9 +2629,9 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                     <tr>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">№</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.product') || 'Mahsulot'}</th>
-                      <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Joriy qoldiq</th>
-                      <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Ko'chirish miqdori</th>
-                      <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">O'lchov</th>
+                      <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t('ops.currentStock')}</th>
+                      <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t('ops.transferQty')}</th>
+                      <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t('ops.unit')}</th>
                       <th className="w-10" />
                     </tr>
                   </thead>
@@ -2643,7 +2647,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                               </svg>
                               <span className="font-bold text-blue-700 text-sm">{it.target_product_name}</span>
-                              <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-semibold">mapping</span>
+                              <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-semibold">{t('ops.mapping')}</span>
                             </div>
                           ) : (
                             <div className="font-semibold text-slate-800">{it.product_name}</div>
@@ -2664,7 +2668,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                               className="w-6 h-6 rounded border border-slate-200 text-slate-500 hover:bg-slate-100 flex items-center justify-center leading-none">+</button>
                           </div>
                           {it.quantity > it.stock && (
-                            <div className="text-[10px] text-amber-500 mt-1">⚠️ Stokdan ko'p</div>
+                            <div className="text-[10px] text-amber-500 mt-1">⚠️ {t('ops.moreThanStock')}</div>
                           )}
                         </td>
                         <td className="px-4 py-3.5 text-center text-xs text-slate-400">{it.unit}</td>
@@ -2683,11 +2687,11 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
             <div className="flex items-center justify-between px-6 py-3.5 bg-white border-t border-slate-200 shrink-0">
               <button onClick={() => setStep(1)} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-blue-600 px-4 py-2 rounded-xl hover:bg-blue-50 text-sm font-semibold transition-all">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-                Orqaga
+                {t('common.back')}
               </button>
               <button disabled={items.length === 0} onClick={() => setStep(3)}
                 className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-blue-200">
-                Tasdiqlashga o'tish
+                {t('ops.goToConfirm')}
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </button>
             </div>
@@ -2704,19 +2708,19 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
                 <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
-                <span className="text-sm font-bold text-slate-700">Ko'chirish marshuruti</span>
+                <span className="text-sm font-bold text-slate-700">{t('ops.transferRoute')}</span>
               </div>
               <div className="p-5 flex items-center gap-4">
                 <div className="flex-1 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-center">
-                  <div className="text-xs text-blue-500 font-bold uppercase tracking-wide mb-1">Kimdan</div>
+                  <div className="text-xs text-blue-500 font-bold uppercase tracking-wide mb-1">{t('ops.fromWhom')}</div>
                   <div className="font-bold text-blue-800 text-base">{fromWh?.name}</div>
                 </div>
                 <div className="flex flex-col items-center gap-1 shrink-0">
                   <svg className="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
-                  <span className="text-[10px] text-slate-400 font-bold">TRANZIT</span>
+                  <span className="text-[10px] text-slate-400 font-bold">{t('ops.transit')}</span>
                 </div>
                 <div className="flex-1 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-center">
-                  <div className="text-xs text-emerald-600 font-bold uppercase tracking-wide mb-1">Kimga</div>
+                  <div className="text-xs text-emerald-600 font-bold uppercase tracking-wide mb-1">{t('ops.toWhom')}</div>
                   <div className="font-bold text-emerald-800 text-base">{toWh?.name}</div>
                 </div>
               </div>
@@ -2735,9 +2739,9 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                 <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
               </div>
               <div>
-                <div className="text-sm font-bold text-amber-800 mb-0.5">Tranzit holati haqida</div>
+                <div className="text-sm font-bold text-amber-800 mb-0.5">{t('ops.transitStatusAbout')}</div>
                 <p className="text-xs text-amber-700 leading-relaxed">
-                  Transfer yaratilgandan so'ng <strong>«Kutilmoqda»</strong> holatida bo'ladi. Maqsad ombor xodimi <strong>«Tasdiqlash»</strong> tugmasini bosganda mahsulot qoldiqlar yangilanadi va transfer <strong>«Tasdiqlandi»</strong> holatiga o'tadi.
+                  {t('ops.transitStatusExplanation')}
                 </p>
               </div>
             </div>
@@ -2745,8 +2749,8 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
             {/* Items summary */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                <span className="text-sm font-bold text-slate-700">Ko'chiriladigan mahsulotlar</span>
-                <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">{items.length} xil · {items.reduce((s, i) => s + i.quantity, 0)} dona</span>
+                <span className="text-sm font-bold text-slate-700">{t('ops.productsToTransfer')}</span>
+                <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">{items.length} {t('ops.kindsShort')} · {items.reduce((s, i) => s + i.quantity, 0)} {t('common.piece')}</span>
               </div>
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 border-b border-slate-100">
@@ -2754,7 +2758,7 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
                     <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">№</th>
                     <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.product') || 'Mahsulot'}</th>
                     <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.qty') || 'Miqdor'}</th>
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">O'lchov</th>
+                    <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t('ops.unit')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -2794,19 +2798,19 @@ function TransferCreateView({ products: propProducts, warehouses, onBack, onSave
             <div className="flex items-center justify-between">
               <button onClick={() => setStep(2)} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-blue-600 px-4 py-2.5 rounded-xl hover:bg-blue-50 text-sm font-semibold transition-all">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-                Orqaga
+                {t('common.back')}
               </button>
               <button onClick={save} disabled={saving}
                 className="inline-flex items-center gap-2.5 px-8 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-emerald-200 active:scale-95">
                 {saving ? (
                   <>
                     <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                    Saqlanmoqda...
+                    {t('common.saving')}
                   </>
                 ) : (
                   <>
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    Transferni yaratish
+                    {t('ops.createTransfer')}
                   </>
                 )}
               </button>
@@ -2857,14 +2861,14 @@ function TransferlarTab({ products, warehouses, users = [] }) {
   const confirm = async (id) => {
     try {
       await api.post(`/transfers/${id}/confirm`);
-      toast.success("Transfer tasdiqlandi");
+      toast.success(t('ops.transferConfirmed'));
       load();
     } catch { /* ignore */ }
   };
   const cancel = async (id) => {
     try {
       await api.post(`/transfers/${id}/cancel`);
-      toast.success("Transfer bekor qilindi");
+      toast.success(t('ops.transferCancelled'));
       load();
     } catch { /* ignore */ }
   };
@@ -2875,29 +2879,29 @@ function TransferlarTab({ products, warehouses, users = [] }) {
       setEditData(r.data);
       setMode('edit');
     } catch (e) {
-      toast.error("Ma'lumotlarni yuklashda xatolik");
+      toast.error(t('ops.errorLoadingData'));
     }
   };
 
   const handleReturn = async (row) => {
-    if (!window.confirm("Haqiqatan ham ushbu transferni ortga qaytarmoqchimisiz? (Mahsulotlar manba omborga qaytadi)")) return;
+    if (!window.confirm(t('ops.confirmReturnTransfer'))) return;
     try {
       await api.post(`/transfers/${row.id}/cancel`);
-      toast.success("Mahsulot muvaffaqiyatli ortga qaytarildi");
+      toast.success(t('ops.productReturnedSuccessfully'));
       load();
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Xatolik yuz berdi");
+      toast.error(e.response?.data?.detail || t('ops.errorOccurred'));
     }
   };
 
   const handleDelete = async (row) => {
-    if (!window.confirm("Ushbu transferni butunlay o'chirib yubormoqchimisiz? (Barcha harakatlar bekor bo'ladi)")) return;
+    if (!window.confirm(t('ops.confirmDeleteTransfer'))) return;
     try {
       await api.delete(`/transfers/${row.id}`);
-      toast.success("Transfer o'chirildi");
+      toast.success(t('ops.transferDeleted'));
       load();
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Xatolik yuz berdi");
+      toast.error(e.response?.data?.detail || t('ops.errorOccurred'));
     }
   };
 
@@ -2907,11 +2911,11 @@ function TransferlarTab({ products, warehouses, users = [] }) {
 
 
   const cols = [
-    { k: 'number', l: 'Raqam' },
-    { k: 'from_warehouse_name', l: 'Kimdan' },
-    { k: 'to_warehouse_name', l: 'Kimga' },
-    { k: 'status', l: 'Holat', r: v => <Badge meta={trMeta} val={v} /> },
-    { k: 'created_at', l: 'Sana', r: v => fmtDay(v) },
+    { k: 'number', l: t('common.number') },
+    { k: 'from_warehouse_name', l: t('ops.fromWhom') },
+    { k: 'to_warehouse_name', l: t('ops.toWhom') },
+    { k: 'status', l: t('common.status'), r: v => <Badge meta={trMeta} val={v} /> },
+    { k: 'created_at', l: t('common.date'), r: v => fmtDay(v) },
     { k: '', l: '', r: (v, row) => <OptionsTable row={row} onEdit={handleEdit} onReturn={handleReturn} onDelete={handleDelete} /> },
     {
       k: 'id', l: '', r: (v, row) => row.status === 'pending' ? (
@@ -2930,7 +2934,7 @@ function TransferlarTab({ products, warehouses, users = [] }) {
         <div className="flex items-center gap-2">
           <Btn onClick={() => setMode('create')} sm>
             <svg className="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            Yangi transfer
+            {t('ops.newTransfer')}
           </Btn>
         </div>
       </div>
@@ -2940,7 +2944,7 @@ function TransferlarTab({ products, warehouses, users = [] }) {
         <div className="grid grid-cols-3 gap-3">
           <input type="text" placeholder={t('admin.dict.status2') || 'Status'} value={f.statusQ || ''} onChange={e => {
             const q = e.target.value;
-            const match = Object.entries(trMeta).find(([, m]) => m.l.toLowerCase().startsWith(q.toLowerCase()));
+            const match = Object.entries(trMeta).find(([, m]) => t(m.l).toLowerCase().startsWith(q.toLowerCase()));
             setF({ ...f, statusQ: q, status: match ? match[0] : '' });
           }} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 bg-white" />
           <input type="date" value={f.dateFrom} onChange={e => setF({ ...f, dateFrom: e.target.value })} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-slate-400 bg-white" />
@@ -2949,7 +2953,7 @@ function TransferlarTab({ products, warehouses, users = [] }) {
         <div className="grid grid-cols-[1fr_auto_1fr_1fr] gap-3 items-center">
           {/* Kimdan (From warehouse) */}
           <div className="relative">
-            <input type="text" value={f.fromWhQ || ''} placeholder="Kimdan (Ombor)"
+            <input type="text" value={f.fromWhQ || ''} placeholder={`${t('ops.fromWhom')} (${t('admin.dict.warehouse')})`}
               onChange={e => setF({ ...f, fromWhQ: e.target.value, fromWh_id: '' })}
               onFocus={() => setF(p => ({ ...p, _fromOpen: true }))}
               onBlur={() => setTimeout(() => setF(p => ({ ...p, _fromOpen: false })), 200)}
@@ -2966,7 +2970,7 @@ function TransferlarTab({ products, warehouses, users = [] }) {
           <span className="text-slate-300 text-lg">→</span>
           {/* Kimga (To warehouse) */}
           <div className="relative">
-            <input type="text" value={f.toWhQ || ''} placeholder="Kimga (Ombor)"
+            <input type="text" value={f.toWhQ || ''} placeholder={`${t('ops.toWhom')} (${t('admin.dict.warehouse')})`}
               onChange={e => setF({ ...f, toWhQ: e.target.value, toWh_id: '' })}
               onFocus={() => setF(p => ({ ...p, _toOpen: true }))}
               onBlur={() => setTimeout(() => setF(p => ({ ...p, _toOpen: false })), 200)}
@@ -3005,12 +3009,12 @@ function TransferlarTab({ products, warehouses, users = [] }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b">
-              <h3 className="text-lg font-bold">Transfer · {detail.number}</h3>
+              <h3 className="text-lg font-bold">{t('ops.transfer')} · {detail.number}</h3>
               <button onClick={() => setDetail(null)} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100">✕</button>
             </div>
             <div className="p-6 overflow-y-auto flex-1 space-y-4">
               <div className="grid grid-cols-2 gap-3">
-                {[["Kimdan", detail.from_warehouse_name], ["Kimga", detail.to_warehouse_name], ["Holat", <Badge meta={trMeta} val={detail.status} />], ["Sana", fmtDt(detail.created_at)]].map(([k, v]) => (
+                {[[t('ops.fromWhom'), detail.from_warehouse_name], [t('ops.toWhom'), detail.to_warehouse_name], [t('common.status'), <Badge meta={trMeta} val={detail.status} />], [t('common.date'), fmtDt(detail.created_at)]].map(([k, v]) => (
                   <div key={k} className="bg-slate-50 rounded-xl p-3 text-sm"><div className="text-xs text-slate-500 mb-1">{k}</div><div className="font-semibold">{v}</div></div>
                 ))}
               </div>
@@ -3045,11 +3049,11 @@ function ReviziyalarTab() {
    CHIQIMLAR
 ══════════════════════════════════════════════════════════ */
 const CHIQIM_TYPES = [
-  { v: 'brak', l: 'Brak — Nuqsonli mahsulot' },
-  { v: 'yoqotish', l: "Yo'qotish / Kamomad" },
-  { v: 'namunaviy', l: "Namuna / Ko'rsatish" },
-  { v: 'qaytarma', l: 'Ichki qaytarma' },
-  { v: 'boshqa', l: 'Boshqa sabab' },
+  { v: 'brak', l: 'ops.chiqimType.brak' },
+  { v: 'yoqotish', l: 'ops.chiqimType.yoqotish' },
+  { v: 'namunaviy', l: 'ops.chiqimType.namunaviy' },
+  { v: 'qaytarma', l: 'ops.chiqimType.qaytarma' },
+  { v: 'boshqa', l: 'ops.chiqimType.boshqa' },
 ];
 
 
@@ -3098,7 +3102,7 @@ function ChiqimCreateView({ products, warehouses = [], onBack, onSaved, editItem
         warehouse_id: warehouseId ? Number(warehouseId) : undefined
       });
       onSaved(); onBack();
-    } catch (e) { setErr(e.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
+    } catch (e) { setErr(e.response?.data?.detail || t('common.error')); } finally { setSaving(false); }
   };
 
   return (
@@ -3106,17 +3110,17 @@ function ChiqimCreateView({ products, warehouses = [], onBack, onSaved, editItem
       <div className="flex items-center gap-4 px-6 py-3.5 bg-white border-b border-slate-100 shadow-sm shrink-0">
         <button onClick={onBack} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-blue-600 px-3 py-2 rounded-xl hover:bg-blue-50 transition-all text-sm font-semibold">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
-          Orqaga
+          {t('common.back')}
         </button>
         <div className="w-px h-6 bg-slate-200 shrink-0" />
-        <h2 className="text-base font-bold text-slate-800">{editId ? `Chiqimni tahrirlash (#${editId})` : 'Yangi chiqim'}</h2>
+        <h2 className="text-base font-bold text-slate-800">{editId ? `${t('ops.editChiqim')} (#${editId})` : t('ops.newChiqim')}</h2>
         <div className="ml-auto text-xs text-slate-400 font-medium">{new Date().toLocaleString('uz-UZ')}</div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
         {/* LEFT */}
         <div className="w-[500px] border-r border-slate-200 bg-white flex flex-col gap-4 p-5 overflow-y-auto shrink-0 shadow-sm">
-          <Lbl t="Mahsulot qidirish">
+          <Lbl t={t('purchase.searchProduct')}>
             <ProdSearch products={products} onSelect={p => { setSel(p); setQty('1'); setTimeout(() => qtyRef.current?.focus(), 50); }} />
           </Lbl>
 
@@ -3129,19 +3133,19 @@ function ChiqimCreateView({ products, warehouses = [], onBack, onSaved, editItem
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-slate-800 text-sm truncate">{sel.name}</div>
                   <div className="text-xs mt-0.5">
-                    <span className="text-slate-500">Ombordagi qoldiq:</span>
-                    <span className="font-bold ml-1 text-emerald-600">{fmt(sel.stock_quantity)} {sel.unit || 'dona'}</span>
+                    <span className="text-slate-500">{t('ops.stockInWarehouse')}:</span>
+                    <span className="font-bold ml-1 text-emerald-600">{fmt(sel.stock_quantity)} {sel.unit || t('common.piece')}</span>
                   </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <Lbl t="Chiqim turi *">
+                <Lbl t={`${t('ops.chiqimTypeLabel')} *`}>
                   <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} className={ic}>
-                    {CHIQIM_TYPES.map(t => <option key={t.v} value={t.v}>{t.l}</option>)}
+                    {CHIQIM_TYPES.map(ct => <option key={ct.v} value={ct.v}>{t(ct.l)}</option>)}
                   </select>
                 </Lbl>
-                <Lbl t="Miqdor *">
+                <Lbl t={`${t('common.quantity')} *`}>
                   <div className="flex gap-2 items-center">
                     <button onClick={() => setQty(q => String(Math.max(1, Number(q) - 1)))} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-100 font-bold shrink-0">−</button>
                     <input ref={qtyRef} type="number" min="0.001" step="any" value={qty} onChange={e => setQty(e.target.value)} onKeyDown={e => e.key === 'Enter' && addItem()} className={`flex-1 ${ic} text-center font-bold`} />
@@ -3151,37 +3155,37 @@ function ChiqimCreateView({ products, warehouses = [], onBack, onSaved, editItem
               </div>
 
               <div className="grid grid-cols-1 gap-3">
-                <Lbl t="Qaysi ombordan? (ixtiyoriy)">
+                <Lbl t={`${t('ops.whichWarehouse')} (${t('common.optional')})`}>
                   <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)} className={ic}>
-                    <option value="">Barcha omborlardan (avtomatik yechish)</option>
+                    <option value="">{t('ops.allWarehousesAuto')}</option>
                     {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                   </select>
                 </Lbl>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <Lbl t="Hujjat raqami">
+                <Lbl t={t('ops.docNumber')}>
                   <input value={form.doc_num} onChange={e => setForm(f => ({ ...f, doc_num: e.target.value }))} onKeyDown={e => e.key === 'Enter' && addItem()} className={ic} placeholder="ACT-001" />
                 </Lbl>
-                <Lbl t="Izoh">
-                  <input value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} onKeyDown={e => e.key === 'Enter' && addItem()} className={ic} placeholder="Sabab..." />
+                <Lbl t={t('common.note')}>
+                  <input value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} onKeyDown={e => e.key === 'Enter' && addItem()} className={ic} placeholder={`${t('ops.reason')}...`} />
                 </Lbl>
               </div>
 
               {form.type === 'brak' && (
                 <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-700">
-                  ⚠️ Brak mahsulotlar qaytarib bo'lmaydi.
+                  ⚠️ {t('ops.brakCannotBeReturned')}
                 </div>
               )}
 
               <button onClick={addItem} disabled={!qty || Number(qty) <= 0} className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-2xl font-bold text-sm transition-all shadow-sm active:scale-95">
-                Ro'yxatga qo'shish
+                {t('purchase.addToList')}
               </button>
             </div>
           ) : (
             <div className="flex-1 flex items-center justify-center text-slate-300 flex-col gap-2 py-10">
               <svg className="w-12 h-12 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
-              <p className="text-sm text-center">Mahsulot qidiring va tanlang</p>
+              <p className="text-sm text-center">{t('purchase.searchAndSelect')}</p>
             </div>
           )}
         </div>
@@ -3189,14 +3193,14 @@ function ChiqimCreateView({ products, warehouses = [], onBack, onSaved, editItem
         {/* RIGHT */}
         <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
           <div className="flex items-center justify-between px-6 py-3.5 bg-white border-b border-slate-100 shrink-0">
-            <span className="text-sm font-bold text-slate-700">Chiqim qilinadigan mahsulotlar</span>
+            <span className="text-sm font-bold text-slate-700">{t('ops.productsToChiqim')}</span>
             {items.length > 0 && <button onClick={() => setItems([])} className="text-xs text-red-500 font-semibold hover:underline">{t('admin.dict.clear') || 'Tozalash'}</button>}
           </div>
           <div className="flex-1 overflow-y-auto">
             {items.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-slate-300 gap-3">
                 <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
-                <p className="text-sm">Chap paneldan mahsulot qo'shing</p>
+                <p className="text-sm">{t('ops.addProductFromLeftPanel')}</p>
               </div>
             ) : (
               <table className="w-full text-sm">
@@ -3204,7 +3208,7 @@ function ChiqimCreateView({ products, warehouses = [], onBack, onSaved, editItem
                   <tr>
                     <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">№</th>
                     <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">{t('admin.dict.product') || 'Mahsulot'}</th>
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Turi / Sabab</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">{t('ops.typeOrReason')}</th>
                     <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500">{t('admin.dict.qty') || 'Miqdor'}</th>
                     <th className="w-10" />
                   </tr>
@@ -3233,7 +3237,7 @@ function ChiqimCreateView({ products, warehouses = [], onBack, onSaved, editItem
             <div className="flex items-center gap-3">
               <button onClick={onBack} className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50">{t('common.cancel')}</button>
               <button onClick={save} disabled={saving || !items.length} className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all disabled:opacity-50 shadow-sm flex items-center gap-2">
-                {saving ? 'Tasdiqlanmoqda...' : 'Tasdiqlash'}
+                {saving ? t('ops.confirming') : t('common.confirm')}
               </button>
             </div>
           </div>
@@ -3259,7 +3263,7 @@ function ChiqimlarTab({ products, users = [], warehouses = [] }) {
 
     api.get('/inventory/chiqims', { params })
       .then(r => setMov(r.data))
-      .catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") })
+      .catch((err) => { toast.error(err.response?.data?.detail || err.message || t('ops.errorOccurred')) })
       .finally(() => setML(false));
   }, [f]);
   useEffect(() => { if (mode === 'list') loadMov(); }, [mode, loadMov]);
@@ -3282,13 +3286,13 @@ function ChiqimlarTab({ products, users = [], warehouses = [] }) {
   };
 
   const deleteChiqim = async (id) => {
-    if (!window.confirm("Chiqimni bekor qilishga ishonchingiz komilmi? (Mahsulotlar omborga qaytadi)")) return;
+    if (!window.confirm(t('ops.confirmCancelChiqim'))) return;
     try {
       await api.delete(`/inventory/chiqims/${id}`);
       loadMov();
       if (detailId === id) setDetailId(null);
     } catch (e) {
-      alert("Xatolik: " + (e.response?.data?.detail || e.message));
+      alert(`${t('common.error')}: ` + (e.response?.data?.detail || e.message));
     }
   };
 
@@ -3309,7 +3313,7 @@ function ChiqimlarTab({ products, users = [], warehouses = [] }) {
         <div className="flex items-center gap-2">
           <Btn onClick={() => setMode('create')} sm>
             <svg className="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            Yangi chiqim
+            {t('ops.newChiqim')}
           </Btn>
         </div>
       </div>
@@ -3322,7 +3326,7 @@ function ChiqimlarTab({ products, users = [], warehouses = [] }) {
           <input type="date" value={f.dateTo} onChange={e => setF({ ...f, dateTo: e.target.value })} className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-slate-400 bg-white" />
         </div>
         <div className="grid grid-cols-[1fr_auto_1fr_1fr] gap-3 items-center">
-          <input type="text" placeholder="Contragent" disabled className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-400 bg-slate-50 cursor-not-allowed" />
+          <input type="text" placeholder={t('admin.dict.contragent')} disabled className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-400 bg-slate-50 cursor-not-allowed" />
           <span className="text-slate-300 text-lg">+</span>
           <input type="text" placeholder={t('admin.dict.employee') || 'Xodim'} disabled className="w-full border border-slate-200 rounded px-4 py-2.5 text-sm text-slate-400 bg-slate-50 cursor-not-allowed" />
           <div className="relative">
@@ -3347,60 +3351,61 @@ function ChiqimlarTab({ products, users = [], warehouses = [] }) {
         {movLoad ? (
           <div className="py-16 text-center"><div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto" /></div>
         ) : movements.length === 0 ? (
-          <div className="text-center py-20 text-slate-400 text-sm">Chiqimlar yo'q</div>
+          <div className="text-center py-20 text-slate-400 text-sm">{t('ops.noChiqims')}</div>
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase">Hujjat raqami</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase">{t('ops.docNumber')}</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.date') || 'Sana'}</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase">Sabab</th>
-                <th className="px-6 py-4 text-center text-xs font-semibold text-slate-500 uppercase">Tarkibi</th>
-                <th className="px-6 py-4 text-right text-xs font-semibold text-slate-500 uppercase">Amallar</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase">{t('ops.reason')}</th>
+                <th className="px-6 py-4 text-center text-xs font-semibold text-slate-500 uppercase">{t('ops.composition')}</th>
+                <th className="px-6 py-4 text-right text-xs font-semibold text-slate-500 uppercase">{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {movements.map(m => {
                 const types = m.type_hints.filter(Boolean);
-                const firstType = CHIQIM_TYPES.find(t => types.includes(t.v) || types.includes(t.l)) || { l: types[0] || 'Aralash' };
+                const firstType = CHIQIM_TYPES.find(ct => types.includes(ct.v) || types.includes(ct.l));
+                const firstTypeLabel = firstType ? t(firstType.l) : (types[0] || t('pay.mixed'));
 
                 return (
                   <tr key={m.reference_id} className="hover:bg-slate-50 relative group">
-                    <td className="px-6 py-4 font-semibold text-slate-800">CHIQIM #{m.reference_id}</td>
+                    <td className="px-6 py-4 font-semibold text-slate-800">{t('ops.chiqim').toUpperCase()} #{m.reference_id}</td>
                     <td className="px-6 py-4 text-slate-500">{fmtDt(m.created_at)}</td>
                     <td className="px-6 py-4">
-                      {firstType && <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 mb-1">{firstType.l.split('—')[0].trim()}</span>}
-                      {m.doc_nums.length > 0 && <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-600 mb-1 ml-1">Hujjat: {m.doc_nums[0]}</span>}
+                      {firstTypeLabel && <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 mb-1">{firstTypeLabel.split('—')[0].trim()}</span>}
+                      {m.doc_nums.length > 0 && <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-600 mb-1 ml-1">{t('ops.docNumber')}: {m.doc_nums[0]}</span>}
                       <div className="text-xs text-slate-500 line-clamp-1">{m.reasons.join(', ') || '—'}</div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col items-center justify-center">
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 font-bold text-xs border border-blue-100/50">
                           <svg className="w-3.5 h-3.5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-                          {m.item_count} xil
+                          {m.item_count} {t('ops.kindsShort')}
                         </span>
-                        <div className="text-[11px] text-slate-400 font-medium mt-1">Jami: <span className="text-slate-600 font-bold">{fmt(m.total_qty)} ta</span></div>
+                        <div className="text-[11px] text-slate-400 font-medium mt-1">{t('common.total')}: <span className="text-slate-600 font-bold">{fmt(m.total_qty)} {t('common.piece')}</span></div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
                         <button onClick={() => openDetail(m.reference_id)} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors border border-blue-100/50">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                          Ko'rish
+                          {t('common.view')}
                         </button>
                         <button onClick={async () => {
                           try {
                             const r = await api.get(`/inventory/chiqims/${m.reference_id}`);
                             setEditingData({ id: m.reference_id, items: r.data });
                             setMode('create');
-                          } catch (e) { toast.error(e.response?.data?.detail || 'Xatolik'); }
+                          } catch (e) { toast.error(e.response?.data?.detail || t('common.error')); }
                         }} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg transition-colors border border-amber-100/50">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                          Tahrirlash
+                          {t('common.edit')}
                         </button>
                         <button onClick={() => deleteChiqim(m.reference_id)} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-red-50 text-red-500 hover:bg-red-100 rounded-lg transition-colors border border-red-100/50">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                          O'chirish
+                          {t('common.delete')}
                         </button>
                       </div>
                     </td>
@@ -3416,7 +3421,7 @@ function ChiqimlarTab({ products, users = [], warehouses = [] }) {
         <div className="fixed inset-0 z-[60] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl flex flex-col max-h-screen overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <h3 className="font-bold text-lg text-slate-800">Chiqim #{detailId} tasfoti</h3>
+              <h3 className="font-bold text-lg text-slate-800">{t('ops.chiqimDetails')} #{detailId}</h3>
               <button onClick={() => setDetailId(null)} className="text-slate-400 hover:text-slate-600"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
             </div>
             <div className="p-6 overflow-y-auto">
@@ -3427,19 +3432,20 @@ function ChiqimlarTab({ products, users = [], warehouses = [] }) {
                   <thead className="bg-slate-50">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">{t('admin.dict.product') || 'Mahsulot'}</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">Sabab</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">{t('ops.reason')}</th>
                       <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500">{t('admin.dict.qty') || 'Miqdor'}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {detailItems.map(item => {
-                      const t = CHIQIM_TYPES.find(x => item.type === x.v || item.type === x.l) || { l: item.type };
+                      const ct = CHIQIM_TYPES.find(x => item.type === x.v || item.type === x.l);
+                      const ctLabel = ct ? t(ct.l) : item.type;
                       return (
                         <tr key={item.id}>
                           <td className="px-4 py-3 font-semibold text-slate-800">{item.product_name}</td>
                           <td className="px-4 py-3 text-slate-500 text-xs">
-                            <div className="font-medium text-slate-700">{t.l.split('—')[0]}</div>
-                            {item.doc_num && <div>Hujjat: {item.doc_num}</div>}
+                            <div className="font-medium text-slate-700">{ctLabel.split('—')[0]}</div>
+                            {item.doc_num && <div>{t('ops.docNumber')}: {item.doc_num}</div>}
                             {item.reason && <div>{item.reason}</div>}
                           </td>
                           <td className="px-4 py-3 text-right font-bold text-red-500">−{fmt(item.quantity)} {item.product_unit}</td>
@@ -3504,10 +3510,10 @@ function QoldiqTab() {
   const deadCount = allStocks.filter(s => Number(s.quantity) > 0 && new Date(s.updated_at) < sixMonthsAgo).length;
 
   const statCards = [
-    { l: 'Jami mahsulot', v: allStocks.length, cl: 'text-slate-700', bg: 'bg-slate-100', ic: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
-    { l: "Qoldiq yo'q", v: zeroCount, cl: 'text-red-600', bg: 'bg-red-100', ic: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z' },
-    { l: 'Kam qoldiq', v: lowCount, cl: 'text-amber-600', bg: 'bg-amber-100', ic: 'M13 17h8m0 0V9m0 8l-8-8-4 4-6-6' },
-    { l: "O'lik qoldiq (6 oy)", v: deadCount, cl: 'text-slate-500', bg: 'bg-slate-200', ic: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { l: t('ops.totalProducts'), v: allStocks.length, cl: 'text-slate-700', bg: 'bg-slate-100', ic: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
+    { l: t('ops.noStock'), v: zeroCount, cl: 'text-red-600', bg: 'bg-red-100', ic: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z' },
+    { l: t('ops.lowStock'), v: lowCount, cl: 'text-amber-600', bg: 'bg-amber-100', ic: 'M13 17h8m0 0V9m0 8l-8-8-4 4-6-6' },
+    { l: `${t('ops.deadStock')} (6 ${t('ops.months')})`, v: deadCount, cl: 'text-slate-500', bg: 'bg-slate-200', ic: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
   ];
 
   return (
@@ -3533,7 +3539,7 @@ function QoldiqTab() {
       <div className="bg-white border border-slate-100 rounded-2xl shadow-sm p-4">
         <div className="flex gap-3 items-center flex-wrap">
           <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
-            {[['low', 'Kam qoldiq'], ['zero', "Qoldiq yo'q"], ['dead', "O'lik qoldiq"], ['all', 'Barchasi']].map(([v, l]) => (
+            {[['low', t('ops.lowStock')], ['zero', t('ops.noStock')], ['dead', t('ops.deadStock')], ['all', t('common.all')]].map(([v, l]) => (
               <button key={v} onClick={() => { setSubtab(v); setPage(1); }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${subtab === v ? 'bg-white shadow text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}>
                 {l}
@@ -3548,11 +3554,11 @@ function QoldiqTab() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
             </svg>
             <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-              placeholder="Mahsulot nomi yoki SKU..." className={`${ic} w-full pl-9`} />
+              placeholder={t('ops.productNameOrSku')} className={`${ic} w-full pl-9`} />
           </div>
           <Btn v="ghost" onClick={load}>
             <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-            Yangilash
+            {t('common.refresh')}
           </Btn>
         </div>
       </div>
@@ -3566,7 +3572,7 @@ function QoldiqTab() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
-                  {['#', 'Mahsulot', 'Joriy qoldiq', 'Min. qoldiq', 'O\'lchov', 'Ombor', "So'nggi yangilanish", 'Holat'].map(h => (
+                  {['#', t('admin.dict.product'), t('ops.currentStock'), t('ops.minStock'), t('ops.unit'), t('admin.dict.warehouse'), t('ops.lastUpdate'), t('common.status')].map(h => (
                     <th key={h} className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -3574,9 +3580,9 @@ function QoldiqTab() {
               <tbody className="divide-y divide-slate-50">
                 {filtered.length === 0 ? (
                   <tr><td colSpan={8} className="py-16 text-center text-slate-400 text-sm">
-                    {subtab === 'low' ? "Kam qoldiqli mahsulotlar yo'q" :
-                      subtab === 'zero' ? "Qoldiqi yo'q mahsulotlar yo'q" :
-                        subtab === 'dead' ? "6 oydan ortiq harakatsiz mahsulotlar yo'q" : "Ma'lumot topilmadi"}
+                    {subtab === 'low' ? t('ops.noLowStockProducts') :
+                      subtab === 'zero' ? t('ops.noZeroStockProducts') :
+                        subtab === 'dead' ? t('ops.noDeadStockProducts') : t('common.noData')}
                   </td></tr>
                 ) : filtered.slice((page - 1) * rowsPerPage, page * rowsPerPage).map((s, idx) => {
                   const i = (page - 1) * rowsPerPage + idx;
@@ -3584,10 +3590,10 @@ function QoldiqTab() {
                   const min = Number(s.min_stock ?? 0);
                   const daysSince = Math.floor((Date.now() - new Date(s.updated_at)) / 86400000);
                   let statusEl;
-                  if (qty <= 0) statusEl = <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-600">Qoldiq yo'q</span>;
-                  else if (qty <= min) statusEl = <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">Kam qoldiq ⚠</span>;
-                  else if (daysSince > 180) statusEl = <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-200 text-slate-600">O'lik qoldiq</span>;
-                  else statusEl = <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">Yaxshi</span>;
+                  if (qty <= 0) statusEl = <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-600">{t('ops.noStock')}</span>;
+                  else if (qty <= min) statusEl = <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">{t('ops.lowStock')} ⚠</span>;
+                  else if (daysSince > 180) statusEl = <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-200 text-slate-600">{t('ops.deadStock')}</span>;
+                  else statusEl = <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">{t('ops.good')}</span>;
                   return (
                     <tr key={s.id || i} className="hover:bg-slate-50 transition-colors">
                       <td className="px-5 py-3.5 text-slate-300 text-xs font-medium">{i + 1}</td>
@@ -3599,11 +3605,11 @@ function QoldiqTab() {
                         <span className={`font-bold text-lg ${qty <= 0 ? 'text-red-500' : qty <= min ? 'text-amber-600' : 'text-slate-800'}`}>{fmt(qty)}</span>
                       </td>
                       <td className="px-5 py-3.5 text-slate-500 font-medium">{fmt(min)}</td>
-                      <td className="px-5 py-3.5 text-slate-400 text-xs">{s.product_unit || 'dona'}</td>
+                      <td className="px-5 py-3.5 text-slate-400 text-xs">{s.product_unit || t('common.piece')}</td>
                       <td className="px-5 py-3.5 text-slate-600">{s.warehouse_name || '—'}</td>
                       <td className="px-5 py-3.5 text-slate-500">
                         {fmtDay(s.updated_at)}
-                        {daysSince > 30 && <div className="text-xs text-slate-400">{daysSince} kun oldin</div>}
+                        {daysSince > 30 && <div className="text-xs text-slate-400">{daysSince} {t('ops.daysAgo')}</div>}
                       </td>
                       <td className="px-5 py-3.5">{statusEl}</td>
                     </tr>
@@ -3613,8 +3619,8 @@ function QoldiqTab() {
             </table>
             <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 text-xs text-slate-400 flex items-center justify-between">
               <div>
-                <span>Jami <strong className="text-slate-600">{filtered.length}</strong> ta mahsulot </span>
-                {subtab === 'dead' && <span className="text-slate-500 ml-2">(6 oydan ortiq harakatsiz)</span>}
+                <span>{t('common.total')} <strong className="text-slate-600">{filtered.length}</strong> {t('common.piece')} {t('admin.dict.product').toLowerCase()} </span>
+                {subtab === 'dead' && <span className="text-slate-500 ml-2">({t('ops.moreThan6MonthsInactive')})</span>}
               </div>
               {Math.ceil(filtered.length / rowsPerPage) > 1 && (
                 <div className="flex gap-2">
@@ -3623,14 +3629,14 @@ function QoldiqTab() {
                     onClick={() => setPage(page - 1)}
                     className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold bg-white text-slate-600 disabled:opacity-40 hover:border-blue-300 transition-all"
                   >
-                    Oldingi
+                    {t('common.prev')}
                   </button>
                   <button
                     disabled={page === Math.ceil(filtered.length / rowsPerPage)}
                     onClick={() => setPage(page + 1)}
                     className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold bg-white text-slate-600 disabled:opacity-40 hover:border-blue-300 transition-all"
                   >
-                    Keyingi
+                    {t('common.next')}
                   </button>
                 </div>
               )}
@@ -3680,12 +3686,12 @@ export default function Operations() {
     api.get('/products/', { params: { limit: 15000 } }).then(r => {
       const data = r.data;
       setProducts(Array.isArray(data) ? data : (data.items || []));
-    }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
-    api.get('/inventory/warehouses').then(r => setWarehouses(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
-    api.get('/suppliers', { params: { limit: 200 } }).then(r => setSuppliers(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
-    api.get('/customers', { params: { limit: 500 } }).then(r => setCustomers(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
-    api.get('/users/').then(r => setUsers(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
-    api.get('/branches').then(r => setBranches(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    }).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('ops.errorOccurred')) });
+    api.get('/inventory/warehouses').then(r => setWarehouses(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('ops.errorOccurred')) });
+    api.get('/suppliers', { params: { limit: 200 } }).then(r => setSuppliers(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('ops.errorOccurred')) });
+    api.get('/customers', { params: { limit: 500 } }).then(r => setCustomers(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('ops.errorOccurred')) });
+    api.get('/users/').then(r => setUsers(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('ops.errorOccurred')) });
+    api.get('/branches').then(r => setBranches(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('ops.errorOccurred')) });
   }, []);
 
 

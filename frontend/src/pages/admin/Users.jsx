@@ -50,6 +50,7 @@ function Field({ label, children }) {
 }
 
 function RoleSelect({ form, setField, dynamicRoles }) {
+  const { t } = useLang();
   const val = form.role_id ? `dyn_${form.role_id}` : form.role;
 
   const handleChange = (e) => {
@@ -65,10 +66,10 @@ function RoleSelect({ form, setField, dynamicRoles }) {
   };
 
   return (
-    <Field label="Rol">
+    <Field label={t('user.role')}>
       <select value={val || ''} onChange={handleChange} className={inp} required>
-        <option value="" disabled>-- Rol tanlang --</option>
-        <option value="admin">Admin (Barcha huquqlar)</option>
+        <option value="" disabled>{t('user.selectRolePlaceholder')}</option>
+        <option value="admin">{t('user.adminAllRights')}</option>
         {dynamicRoles && dynamicRoles.map(r => (
           <option key={`dyn_${r.id}`} value={`dyn_${r.id}`}>{r.name}</option>
         ))}
@@ -78,10 +79,11 @@ function RoleSelect({ form, setField, dynamicRoles }) {
 }
 
 function BranchSelect({ value, onChange, branches }) {
+  const { t } = useLang();
   return (
-    <Field label="Filial">
+    <Field label={t('branch.title')}>
       <select value={value} onChange={e => onChange(e.target.value)} className={inp}>
-        <option value="">— Filialsiz —</option>
+        <option value="">{t('user.noBranch')}</option>
         {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
       </select>
     </Field>
@@ -109,8 +111,8 @@ export default function Users() {
   const ROLE_LABELS = getRoleLabels(t);
 
   const load = useCallback(() => {
-    api.get('/users/').then(r => setUsers(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
-  }, []);
+    api.get('/users/').then(r => setUsers(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
+  }, [t]);
 
   useEffect(() => {
     const handleClick = () => setActiveMenu(null);
@@ -120,7 +122,7 @@ export default function Users() {
 
   useEffect(() => {
     load();
-    api.get('/branches').then(r => setBranches(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/branches').then(r => setBranches(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
     api.get('/kassa').then(r => setWallets(r.data)).catch(() => { });
     api.get('/roles/').then(r => setDynamicRoles(r.data)).catch(() => { });
   }, [load]);
@@ -165,9 +167,9 @@ export default function Users() {
         await api.delete(`/users/${selected.id}/wallets/${walletId}`);
         setUserWallets(prev => prev.filter(w => w.wallet_id !== walletId));
       }
-      toast.success(checked ? 'Kassa biriktirildi' : 'Kassa olib tashlandi');
+      toast.success(checked ? t('user.walletAssigned') : t('user.walletRemoved'));
     } catch (err) {
-      toast.error(err?.response?.data?.detail || 'Xatolik yuz berdi');
+      toast.error(err?.response?.data?.detail || t('auth.errGeneral'));
     }
   };
 
@@ -175,9 +177,9 @@ export default function Users() {
     try {
       await api.post(`/users/${selected.id}/wallets/${walletId}/set-default`);
       setUserWallets(prev => prev.map(w => ({ ...w, is_default: w.wallet_id === walletId })));
-      toast.success('Default kassa o\'rnatildi');
+      toast.success(t('user.defaultWalletSet'));
     } catch (err) {
-      toast.error(err?.response?.data?.detail || 'Xatolik yuz berdi');
+      toast.error(err?.response?.data?.detail || t('auth.errGeneral'));
     }
   };
 
@@ -205,7 +207,7 @@ export default function Users() {
       };
       await api.post('/users/', payload);
       close(); load();
-      toast.success('Foydalanuvchi muvaffaqiyatli qo\'shildi');
+      toast.success(t('user.createdSuccess'));
     } catch (err) {
       setError(err.response?.data?.detail || t('common.error'));
     } finally { setSaving(false); }
@@ -239,7 +241,7 @@ export default function Users() {
   };
 
   const handleDeactivate = async (u) => {
-    if (!confirm(t('confirm.delete') || `"${u.name}" ni nofaol qilishni tasdiqlaysizmi?`)) return;
+    if (!confirm(t('confirm.delete') || t('user.deactivateConfirm'))) return;
     try {
       await api.delete(`/users/${u.id}`);
       load();
@@ -251,8 +253,8 @@ export default function Users() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Xodimlar</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Xodimlar va ularning rollari boshqaruvi</p>
+          <h1 className="text-2xl font-bold text-slate-800">{t('user.staffTitle')}</h1>
+          <p className="text-slate-500 text-sm mt-0.5">{t('user.staffSubtitle')}</p>
         </div>
         <button
           onClick={openCreate}
@@ -261,7 +263,7 @@ export default function Users() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
           </svg>
-          Yangi xodim
+          {t('user.newStaff')}
         </button>
       </div>
 
@@ -278,7 +280,7 @@ export default function Users() {
         <table className="min-w-full">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
-              {[t('common.name') || 'Xodim', t('common.phone'), 'Email', t('branch.title') || 'Filial', t('user.role'), t('common.status'), ''].map(h => (
+              {[t('common.name') || 'Xodim', t('common.phone'), t('user.email'), t('branch.title') || 'Filial', t('user.role'), t('common.status'), ''].map(h => (
                 <th key={h} className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
               ))}
             </tr>
@@ -301,7 +303,7 @@ export default function Users() {
                 </td>
                 <td className="px-6 py-4">
                   <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${u.role_id ? 'bg-blue-50 text-blue-700' : (ROLE_COLORS[u.role] || 'bg-slate-100 text-slate-600')}`}>
-                    {u.role_id ? (dynamicRoles.find(r => r.id === u.role_id)?.name || 'Maxsus rol') : (ROLE_LABELS[u.role] || u.role)}
+                    {u.role_id ? (dynamicRoles.find(r => r.id === u.role_id)?.name || t('user.customRole')) : (ROLE_LABELS[u.role] || u.role)}
                   </span>
                 </td>
                 <td className="px-6 py-4">
@@ -326,26 +328,26 @@ export default function Users() {
                           <svg className="w-5 h-5 text-slate-400 group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
-                          Tahrirlash
+                          {t('common.edit')}
                         </button>
                         <button onClick={() => { setActiveMenu(null); openKassa(u); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-emerald-600 transition-colors">
                           <svg className="w-5 h-5 text-slate-400 group-hover:text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
                           </svg>
-                          Kassa biriktirish
+                          {t('user.assignWallet')}
                         </button>
                         <button onClick={() => { setActiveMenu(null); openPwd(u); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-amber-600 transition-colors">
                           <svg className="w-5 h-5 text-slate-400 group-hover:text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                           </svg>
-                          Parol o'zgartirish
+                          {t('user.changePassword')}
                         </button>
                         <div className="h-px bg-slate-100 my-1 mx-2"></div>
                         <button onClick={() => { setActiveMenu(null); handleDeactivate(u); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors">
                           <svg className="w-5 h-5 text-red-400 group-hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
-                          O'chirish
+                          {t('common.delete')}
                         </button>
                       </div>
                     )}
@@ -394,7 +396,7 @@ export default function Users() {
                   />
                 </Field>
 
-                <Field label="Email">
+                <Field label={t('user.email')}>
                   <input
                     type="email" value={form.email}
                     onChange={e => setField('email', e.target.value)}
@@ -406,7 +408,7 @@ export default function Users() {
                   <input
                     type="password" required minLength={6} value={form.password}
                     onChange={e => setField('password', e.target.value)}
-                    placeholder="Kamida 6 ta belgi" className={inp}
+                    placeholder={t('user.minCharsHint')} className={inp}
                   />
                 </Field>
 
@@ -452,7 +454,7 @@ export default function Users() {
                 <Field label={`${t('common.phone')} *`}>
                   <input type="text" required value={form.phone} onChange={e => setField('phone', e.target.value)} className={inp} />
                 </Field>
-                <Field label="Email">
+                <Field label={t('user.email')}>
                   <input type="email" value={form.email} onChange={e => setField('email', e.target.value)} className={inp} />
                 </Field>
                 <RoleSelect form={form} setField={setField} dynamicRoles={dynamicRoles} />
@@ -493,7 +495,7 @@ export default function Users() {
                 <input
                   type="password" required minLength={6} value={newPwd} autoFocus
                   onChange={e => setNewPwd(e.target.value)}
-                  placeholder="Kamida 6 ta belgi" className={inp} />
+                  placeholder={t('user.minCharsHint')} className={inp} />
               </Field>
               {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
               <div className="flex gap-3">
@@ -513,7 +515,7 @@ export default function Users() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-100">
               <div>
-                <h3 className="text-lg font-bold text-slate-800">Kassa biriktirish</h3>
+                <h3 className="text-lg font-bold text-slate-800">{t('user.assignWallet')}</h3>
                 <p className="text-xs text-slate-500 mt-0.5">{selected.name}</p>
               </div>
               <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
@@ -523,7 +525,7 @@ export default function Users() {
               </button>
             </div>
             <div className="p-6 space-y-3 max-h-80 overflow-y-auto">
-              {wallets.length === 0 && <p className="text-slate-400 text-sm text-center py-4">Kassalar topilmadi. Avval kassa yarating.</p>}
+              {wallets.length === 0 && <p className="text-slate-400 text-sm text-center py-4">{t('user.noWalletsHint')}</p>}
               {wallets.map(w => {
                 const assigned = userWallets.find(uw => uw.wallet_id === w.id);
                 const isDefault = assigned?.is_default;
@@ -537,14 +539,14 @@ export default function Users() {
                     />
                     <div className="flex-1">
                       <div className="text-sm font-semibold text-slate-800">{w.name}</div>
-                      <div className="text-xs text-slate-400">{w.type} • {((w.balances?.total) || 0).toLocaleString()} so'm</div>
+                      <div className="text-xs text-slate-400">{w.type} • {((w.balances?.total) || 0).toLocaleString()} {t('common.sum')}</div>
                     </div>
                     {assigned && (
                       <button
                         onClick={() => setDefaultWallet(w.id)}
                         className={`text-xs px-2 py-1 rounded-lg font-medium transition-colors ${isDefault ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600 hover:bg-emerald-100'}`}
                       >
-                        {isDefault ? '✓ Default' : 'Default'}
+                        {isDefault ? `✓ ${t('user.defaultBadge')}` : t('user.defaultBadge')}
                       </button>
                     )}
                   </div>
@@ -552,7 +554,7 @@ export default function Users() {
               })}
             </div>
             <div className="px-6 pb-6">
-              <button onClick={close} className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm rounded-xl transition-colors">Yopish</button>
+              <button onClick={close} className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm rounded-xl transition-colors">{t('common.close')}</button>
             </div>
           </div>
         </div>

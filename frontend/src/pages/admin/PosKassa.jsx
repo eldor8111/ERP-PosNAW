@@ -17,8 +17,9 @@ const cleanNum = (str) => Number(String(str).replace(/\D/g, ''));
 const parseAmt = (str) => parseInt(String(str || '').replace(/\D/g, ''), 10) || 0;
 
 /* ── Customer combobox ── */
-function CustSearch({ customers, value, onChange, placeholder = "Mijoz izlash..." }) {
+function CustSearch({ customers, value, onChange, placeholder }) {
   const { t } = useLang();
+  const ph = placeholder || t('pos.customerSearch');
 const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -63,7 +64,7 @@ const [q, setQ] = useState('');
           value={open ? q : (selected ? selected.name : '')}
           onChange={handleInputChange}
           onFocus={() => setOpen(true)}
-          placeholder={placeholder}
+          placeholder={ph}
           className="w-full px-3 py-3 text-base font-bold text-slate-700 outline-none bg-transparent placeholder:text-slate-400"
         />
         {selected && <button onClick={() => select(null)} className="text-slate-400 hover:text-red-500 font-bold p-1">×</button>}
@@ -143,7 +144,7 @@ const navigate = useNavigate();
   // Sync hooks
   const { isOnline, submitSaleOrQueue, fetchProducts, fetchCustomers, fetchCategories } = usePosSync({
     onSyncSuccess: (count) => {
-      toast.success(`✅ ${count} ta offline sotuv serverga yuborildi!`);
+      toast.success(`✅ ${t('pos.offlineSalesSynced', { count })}`);
     },
   });
 
@@ -265,7 +266,7 @@ const navigate = useNavigate();
                addMarkingCode(pendingIdx, code);
                return;
              }
-             toast.error("Markirovka kodi skanerlandi, lekin savatda mos mahsulot topilmadi. Avval mahsulotni skanerlang.");
+             toast.error(t('pos.markingScannedNoProduct'));
              return;
            }
 
@@ -283,8 +284,8 @@ const navigate = useNavigate();
 
   // Yangi mahsulotni bazaga saqlash va savatga qo'shish
   const saveNewProduct = async () => {
-    if (!newProd.name.trim()) return toast.error("Mahsulot nomini kiriting!");
-    if (!newProd.sale_price || Number(newProd.sale_price) <= 0) return toast.error("Sotuv narxini kiriting!");
+    if (!newProd.name.trim()) return toast.error(t('pos.enterProductName'));
+    if (!newProd.sale_price || Number(newProd.sale_price) <= 0) return toast.error(t('pos.enterSalePrice'));
     setSavingProd(true);
     try {
       const payload = {
@@ -303,7 +304,7 @@ const navigate = useNavigate();
       setProducts(prev => [...prev, created]);
       // Savatga qo'sh
       addToCart({ ...created, sale_price: created.sale_price, stock_quantity: created.stock_quantity });
-      toast.success(`"${created.name}" qo'shildi va savatga tushirildi!`);
+      toast.success(t('pos.productAddedToCart', { name: created.name }));
       setShowNewProduct(false);
     } catch {
       // axios interceptor toast chiqaradi
@@ -369,11 +370,11 @@ const navigate = useNavigate();
       const item = { ...next[idx] };
       const codes = [...(item.marking_codes || [])];
       if (codes.includes(trimmed)) {
-        toast.error('Bu markirovka kodi allaqachon skanerlangan');
+        toast.error(t('pos.markingCodeAlreadyScanned'));
         return prev;
       }
       if (codes.length >= item.qty_ordered) {
-        toast.error(`Miqdor (${item.qty_ordered}) ga yetarli kod skanerlangan`);
+        toast.error(t('pos.markingCodeEnoughForQty', { qty: item.qty_ordered }));
         return prev;
       }
       codes.push(trimmed);
@@ -503,21 +504,25 @@ const navigate = useNavigate();
   const remaining = isEnough ? 0 : (totalNet - finalPaid);
 
   const checkout = async (isDebtConfirm = false) => {
-    if (!cart.length) return toast.warn("Savat bo'sh!");
+    if (!cart.length) return toast.warn(t('pos.emptyCart'));
     if (!hasShift) { setShowShiftModal(true); return; }
 
     // Markirovka talab qilinadigan mahsulotlar uchun skanerlangan kodlar
     // miqdorga to'liq mos kelishi shart — aks holda fiskal chekda aks etmaydi.
     const incompleteMarking = cart.find(c => c.requires_marking && (c.marking_codes || []).length < c.qty_ordered);
     if (incompleteMarking) {
-      toast.error(`'${incompleteMarking.product_name}' uchun markirovka kodini to'liq skanerlang (${(incompleteMarking.marking_codes || []).length}/${incompleteMarking.qty_ordered})`);
+      toast.error(t('pos.markingScanIncomplete', {
+        name: incompleteMarking.product_name,
+        scanned: (incompleteMarking.marking_codes || []).length,
+        qty: incompleteMarking.qty_ordered,
+      }));
       setMarkingModal({ idx: cart.indexOf(incompleteMarking) });
       return;
     }
 
     // Pul yetarli emas va mijoz tanlanmagan → xato
     if (!isEnough && !custId) {
-      toast.error("Mijoz tanlanmagan! Qarzga sotish uchun avval mijoz tanlang.");
+      toast.error(t('pos.customerRequiredForDebt'));
       return;
     }
 
@@ -557,7 +562,7 @@ const navigate = useNavigate();
         paid_cash: pCash > totalNet && mainType === 'cash' ? totalNet : pCash,
         paid_card: pCard,
         discount_amount: totalDiscount,
-        note: isDebtConfirm && debtNote ? debtNote : `Chakana sotuv #${orderId}`,
+        note: isDebtConfirm && debtNote ? debtNote : t('pos.retailSaleNote', { orderId }),
         customer_id: Number(custId) || null,
         debt_due_date: isDebtConfirm && debtDueDate ? debtDueDate : null,
       };
@@ -612,9 +617,9 @@ const navigate = useNavigate();
       setOrderId(Math.floor(Math.random() * 900000) + 100000);
 
       if (result?.offline) {
-        toast.warning("Internet yo'q — sotuv offline saqlandi.");
+        toast.warning(t('pos.offlineSaleSaved'));
       } else {
-        toast.success('Muvaffaqiyatli sotildi!');
+        toast.success(t('pos.saleSuccessful'));
       }
 
       // Fiskalizatsiya yoqilgan bo'lsa — tasdiqlash modalini ko'rsatamiz
@@ -625,13 +630,13 @@ const navigate = useNavigate();
       }
 
     } catch (e) {
-      const detail = e.response?.data?.detail || "Xatolik yuz berdi";
+      const detail = e.response?.data?.detail || t('auth.errGeneral');
       toast.error(detail);
       if (receiptPrintedThisAttempt) {
         window.alert(
-          "DIQQAT! Chek allaqachon chop etildi, lekin sotuv AMALGA OSHMADI:\n\n" +
+          t('pos.receiptPrintedButSaleFailed') + '\n\n' +
           detail +
-          "\n\nUshbu chekni mijozga BERMANG va uni bekor qiling!"
+          '\n\n' + t('pos.doNotGiveReceiptToCustomer')
         );
       }
     } finally {
@@ -660,8 +665,8 @@ const navigate = useNavigate();
                 </svg>
               </div>
               <div>
-                <div className="text-white font-bold text-sm">Sotuv saqlandi ✓</div>
-                <div className="text-slate-400 text-xs">Fiskal chek haqida qaror qiling</div>
+                <div className="text-white font-bold text-sm">{t('pos.saleSavedCheckmark')}</div>
+                <div className="text-slate-400 text-xs">{t('pos.decideFiscalReceipt')}</div>
               </div>
             </div>
 
@@ -669,10 +674,10 @@ const navigate = useNavigate();
             <div className="px-5 py-5 text-center">
               <div className="text-2xl mb-1">🧾</div>
               <div className="font-bold text-slate-800 text-base mb-1">
-                Fiskal chek chiqarilsinmi?
+                {t('pos.issueFiscalReceiptQuestion')}
               </div>
               <div className="text-slate-500 text-xs">
-                Soliq bo'yicha rasmiy chek Hippo orqali yoziladi va printer ga yuboriladi
+                {t('pos.fiscalReceiptHippoInfo')}
               </div>
             </div>
 
@@ -684,7 +689,7 @@ const navigate = useNavigate();
                 onClick={() => setFiskalPending(null)}
                 className="flex-1 py-3 rounded-xl border-2 border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-colors disabled:opacity-40"
               >
-                Yo'q, o'tkazib yubor
+                {t('pos.skipFiscalReceipt')}
               </button>
 
               {/* Ha */}
@@ -700,9 +705,9 @@ const navigate = useNavigate();
                       payments:      paymentsSnap,
                       discountAmount: discount,
                     });
-                    toast.success('✅ Fiskal chek yuborildi!');
+                    toast.success('✅ ' + t('pos.fiscalReceiptSent'));
                   } catch (err) {
-                    toast.error('⚠️ Fiskal xato: ' + (err?.message || 'Noma\'lum'));
+                    toast.error('⚠️ ' + t('pos.fiscalError', { message: err?.message || t('pos.unknown') }));
                   } finally {
                     setIsFiskalizing(false);
                     setFiskalPending(null);
@@ -711,8 +716,8 @@ const navigate = useNavigate();
                 className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {isFiskalizing
-                  ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg> Yuborilmoqda...</>
-                  : <>✓ Ha, fiskal qil</>
+                  ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg> {t('pos.sending')}</>
+                  : <>✓ {t('pos.yesMakeFiscal')}</>
                 }
               </button>
             </div>
@@ -732,7 +737,7 @@ const navigate = useNavigate();
             <div className="font-black text-lg tracking-wider">{t('pos.retailCashier')}</div>
           </div>
           <div className="flex gap-2">
-            {!isOnline && <span className="bg-red-500 font-bold px-2.5 py-1 rounded text-xs animate-pulse">OFFLINE</span>}
+            {!isOnline && <span className="bg-red-500 font-bold px-2.5 py-1 rounded text-xs animate-pulse">{t('pos.offlineBadge')}</span>}
             <button onClick={() => setShowSettings(true)} className="w-8 h-8 bg-white/10 hover:bg-white/20 rounded-lg flex items-center justify-center">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
             </button>
@@ -790,7 +795,7 @@ const navigate = useNavigate();
                             ? 'bg-emerald-100 text-emerald-700'
                             : 'bg-red-100 text-red-600 animate-pulse'
                         }`}
-                        title="Markirovka kodini skanerlash"
+                        title={t('pos.scanMarkingCode')}
                       >
                         📷 {(item.marking_codes || []).length}/{item.qty_ordered}
                       </button>
@@ -894,7 +899,7 @@ const navigate = useNavigate();
                   <div className="absolute -top-10 -right-10 w-24 h-24 bg-blue-50 rounded-full group-hover:scale-[2] transition-transform duration-500 ease-out z-0"></div>
                   {p.product_type === 'parent' && (
                     <span className="absolute top-2 right-2 bg-blue-100 text-blue-700 text-[9px] font-black px-1.5 py-0.5 rounded-md z-10 uppercase tracking-wide">
-                      Razmer
+                      {t('pos.sizeBadge')}
                     </span>
                   )}
                   <h3 className="font-extrabold text-slate-800 text-base leading-tight mb-auto z-10 line-clamp-3">{p.name}</h3>
@@ -955,8 +960,8 @@ const navigate = useNavigate();
                          <select value={p.type} onChange={e => {
                             const next = [...payments]; next[idx].type = e.target.value; setPayments(next);
                          }} className="bg-transparent font-black text-slate-600 outline-none uppercase cursor-pointer">
-                            <option value="cash">NAQD</option>
-                            <option value="card">KARTA</option>
+                            <option value="cash">{t('pos.paymentCash')}</option>
+                            <option value="card">{t('pos.paymentCard')}</option>
                             <option value="uzcard">UZCARD</option>
                             <option value="humo">HUMO</option>
                             <option value="payme">PAYME</option>
@@ -1057,7 +1062,7 @@ const navigate = useNavigate();
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="bg-red-500 px-5 py-3.5 flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-black text-white">Markirovka kodini skanerlash</h2>
+                <h2 className="text-lg font-black text-white">{t('pos.scanMarkingCode')}</h2>
                 <p className="text-red-100 text-xs font-medium">{cart[markingModal.idx].product_name}</p>
               </div>
               <button onClick={() => setMarkingModal(null)} className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-lg flex items-center justify-center text-white">
@@ -1066,13 +1071,13 @@ const navigate = useNavigate();
             </div>
             <div className="p-5 flex flex-col gap-3">
               <p className="text-sm text-slate-500">
-                Har bir dona uchun Data Matrix kodini skanerlang yoki qo'lda kiritib Enter bosing.
-                Kerak: <span className="font-bold text-slate-700">{cart[markingModal.idx].qty_ordered}</span> ta.
+                {t('pos.markingScanInstruction')}
+                {' '}{t('pos.markingRequiredCount')} <span className="font-bold text-slate-700">{cart[markingModal.idx].qty_ordered}</span> {t('pos.pieceUnit')}.
               </p>
               <input
                 autoFocus
                 type="text"
-                placeholder="Kodni skanerlang..."
+                placeholder={t('pos.scanCodePlaceholder')}
                 className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
@@ -1084,7 +1089,7 @@ const navigate = useNavigate();
               />
               <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
                 {(cart[markingModal.idx].marking_codes || []).length === 0 && (
-                  <div className="text-xs text-slate-400 text-center py-3">Hali kod skanerlanmagan</div>
+                  <div className="text-xs text-slate-400 text-center py-3">{t('pos.noCodeScannedYet')}</div>
                 )}
                 {(cart[markingModal.idx].marking_codes || []).map((code, ci) => (
                   <div key={ci} className="flex items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5">
@@ -1100,7 +1105,7 @@ const navigate = useNavigate();
                 disabled={(cart[markingModal.idx].marking_codes || []).length < cart[markingModal.idx].qty_ordered}
                 className="w-full py-2.5 rounded-xl font-bold text-white bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 disabled:cursor-not-allowed"
               >
-                {(cart[markingModal.idx].marking_codes || []).length}/{cart[markingModal.idx].qty_ordered} skanerlandi — Yopish
+                {(cart[markingModal.idx].marking_codes || []).length}/{cart[markingModal.idx].qty_ordered} {t('pos.scannedDashClose')}
               </button>
             </div>
           </div>
@@ -1123,12 +1128,12 @@ const navigate = useNavigate();
             <div className="p-6 flex flex-col gap-4 overflow-y-auto">
               {/* Shtrix kod (o'zgartirib bo'ladi) */}
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Shtrix kod / SKU</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">{t('pos.barcodeSkuLabel')}</label>
                 <input
                   value={newProd.barcode}
                   onChange={e => setNewProd(p => ({...p, barcode: e.target.value}))}
                   className="w-full border-2 border-amber-300 bg-amber-50 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/20"
-                  placeholder="Shtrix kod..."
+                  placeholder={t('pos.barcodePlaceholder')}
                 />
               </div>
 
@@ -1141,7 +1146,7 @@ const navigate = useNavigate();
                   onChange={e => setNewProd(p => ({...p, name: e.target.value}))}
                   onKeyDown={e => e.key === 'Enter' && saveNewProduct()}
                   className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20"
-                  placeholder="Mahsulot nomini kiriting..."
+                  placeholder={t('pos.enterProductNamePlaceholder')}
                 />
               </div>
 
@@ -1239,42 +1244,42 @@ const navigate = useNavigate();
       {showSettings && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4">
            <div className="bg-white rounded-3xl p-8 max-w-xl w-full shadow-2xl">
-             <h2 className="text-2xl font-black text-slate-800 mb-6">Kassa Sozlamalari</h2>
+             <h2 className="text-2xl font-black text-slate-800 mb-6">{t('pos.kassaSettingsTitle')}</h2>
              <div className="space-y-4">
                <div>
-                  <label className="block text-sm font-bold text-slate-500 mb-2">Qog'oz o'lchami</label>
+                  <label className="block text-sm font-bold text-slate-500 mb-2">{t('pos.paperSize')}</label>
                   <select value={posSettings.paper} onChange={e=>savePosSettings({paper:e.target.value})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-blue-500">
-                    <option value="80mm">80mm Keng qog'oz</option>
-                    <option value="58mm">58mm Tor qog'oz</option>
+                    <option value="80mm">{t('pos.paper80mm')}</option>
+                    <option value="58mm">{t('pos.paper58mm')}</option>
                   </select>
                </div>
                <div>
-                  <label className="block text-sm font-bold text-slate-500 mb-2">Chek Shabloni (Bozor/Layout)</label>
+                  <label className="block text-sm font-bold text-slate-500 mb-2">{t('pos.receiptTemplateLabel')}</label>
                   <select value={posSettings.template || '80'} onChange={e=>savePosSettings({template:e.target.value})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-blue-500">
-                    <option value="80">Chek 80mm Template</option>
-                    <option value="58">Chek 58mm Template</option>
-                    <option value="nak">A4 Nakladnoy Template</option>
+                    <option value="80">{t('pos.template80mm')}</option>
+                    <option value="58">{t('pos.template58mm')}</option>
+                    <option value="nak">{t('pos.templateA4Nakladnaya')}</option>
                   </select>
                </div>
                <div className="border border-blue-200 rounded-xl p-3 bg-blue-50/50 flex items-start gap-2">
                   <svg className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                  <p className="text-xs font-semibold text-blue-600">Do'kon nomi, logotip va boshqalar → <b>Nastroyka → Chek shabloni</b></p>
+                  <p className="text-xs font-semibold text-blue-600">{t('pos.storeNameLogoHint')} → <b>{t('pos.settingsReceiptTemplatePath')}</b></p>
                </div>
                <div className="flex items-center gap-3 pt-4">
                   <input type="checkbox" id="ap" checked={posSettings.autoPrint} onChange={e=>savePosSettings({autoPrint:e.target.checked})} className="w-6 h-6 rounded" />
-                  <label htmlFor="ap" className="font-bold text-slate-700 cursor-pointer">Avtomatik chek chiqarishni yoqish</label>
+                  <label htmlFor="ap" className="font-bold text-slate-700 cursor-pointer">{t('pos.enableAutoPrint')}</label>
                </div>
                <div className="pt-4 border-t border-slate-100 mt-2">
-                  <label className="block text-sm font-bold text-slate-600 mb-2">Doimiy mijoz (standart)</label>
+                  <label className="block text-sm font-bold text-slate-600 mb-2">{t('pos.defaultCustomerLabel')}</label>
                   <select
                     value={posSettings.defaultCustomer || ''}
                     onChange={e => { savePosSettings({ defaultCustomer: e.target.value }); setCustId(e.target.value); }}
                     className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-blue-500"
                   >
-                    <option value="">-- Tanlanmagan --</option>
+                    <option value="">{t('pos.notSelected')}</option>
                     {customers.map(c => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` (${c.phone})` : ''}</option>)}
                   </select>
-                  <p className="text-xs text-slate-400 mt-1">Kassa ochilganda avtomatik tanlanadi</p>
+                  <p className="text-xs text-slate-400 mt-1">{t('pos.defaultCustomerHint')}</p>
                </div>
              </div>
              <div className="mt-8 flex justify-end gap-3">
@@ -1288,29 +1293,29 @@ const navigate = useNavigate();
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm flex flex-col overflow-hidden">
              <div className="bg-blue-500 px-6 py-4 flex items-center justify-between">
-               <h2 className="text-xl font-black text-white">Qarz Muddatini Belgilang</h2>
+               <h2 className="text-xl font-black text-white">{t('pos.setDebtDueDateTitle')}</h2>
                <button onClick={()=>setShowDebtModal(false)} className="text-white opacity-70 hover:opacity-100 transition-colors">
                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
                </button>
              </div>
              <div className="p-6 space-y-4">
                 <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex justify-between items-center">
-                   <span className="font-bold text-slate-500 uppercase text-xs">Qarz Summasi</span>
+                   <span className="font-bold text-slate-500 uppercase text-xs">{t('pos.debtAmount')}</span>
                    <span className="font-black text-xl text-blue-600">{fmt(remaining)} UZS</span>
                 </div>
                 <div>
-                   <label className="block text-xs font-bold text-slate-500 mb-2 uppercase">Qaytarish Sanasi</label>
+                   <label className="block text-xs font-bold text-slate-500 mb-2 uppercase">{t('pos.dueDate')}</label>
                    <input type="date" value={debtDueDate} onChange={e=>setDebtDueDate(e.target.value)} className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-blue-500" />
                 </div>
                 <div>
-                   <label className="block text-xs font-bold text-slate-500 mb-2 uppercase">Izoh (Ixtiyoriy)</label>
-                   <input type="text" value={debtNote} onChange={e=>setDebtNote(e.target.value)} placeholder="Qarz sababi..." className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-blue-500" />
+                   <label className="block text-xs font-bold text-slate-500 mb-2 uppercase">{t('pos.noteOptional')}</label>
+                   <input type="text" value={debtNote} onChange={e=>setDebtNote(e.target.value)} placeholder={t('pos.debtReasonPlaceholder')} className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-blue-500" />
                 </div>
              </div>
              <div className="p-6 pt-0 flex gap-3">
                 <button onClick={()=>setShowDebtModal(false)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl active:scale-95 transition-all">{t('common.back')}</button>
                 <button onClick={()=>checkout(true)} disabled={isPaying || !debtDueDate} className="flex-1 py-3 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white font-black rounded-xl active:scale-95 transition-all text-sm uppercase tracking-widest">
-                  {isPaying ? 'To\'lanmoqda...' : 'Tasdiqlash'}
+                  {isPaying ? t('pos.paying') : t('common.confirm')}
                 </button>
              </div>
           </div>
@@ -1322,7 +1327,7 @@ const navigate = useNavigate();
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
           <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
             <div className="flex items-center justify-between p-6 border-b border-slate-100">
-              <h2 className="text-xl font-black text-slate-800">{variantParent.name} - Variantlar</h2>
+              <h2 className="text-xl font-black text-slate-800">{variantParent.name} - {t('pos.variants')}</h2>
               <button onClick={() => setVariantParent(null)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors">
                 <X className="w-6 h-6" />
               </button>
@@ -1343,7 +1348,7 @@ const navigate = useNavigate();
                 );
               })}
               {products.filter(p => p.parent_code === variantParent.id).length === 0 && (
-                <div className="col-span-full py-8 text-center text-slate-400">Ushbu mahsulotning variantlari topilmadi</div>
+                <div className="col-span-full py-8 text-center text-slate-400">{t('pos.noVariantsFound')}</div>
               )}
             </div>
           </div>

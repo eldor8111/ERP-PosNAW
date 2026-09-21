@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { Tag, Percent, Hash, Calendar, Trash2, Pencil, Plus, X, Package } from 'lucide-react';
+import { useLang } from '../../context/LangContext';
 
 function formatDate(dt) {
   if (!dt) return '—';
@@ -8,6 +9,7 @@ function formatDate(dt) {
 }
 
 function PromoModal({ promo, onClose, onSaved }) {
+  const { t } = useLang();
   const isEdit = !!promo;
   const [form, setForm] = useState({
     name: promo?.name || '',
@@ -20,7 +22,7 @@ function PromoModal({ promo, onClose, onSaved }) {
   const [err, setErr] = useState('');
 
   const save = async () => {
-    if (!form.name.trim() || !form.discount_value) { setErr('Nom va chegirma kiritilishi shart'); return; }
+    if (!form.name.trim() || !form.discount_value) { setErr(t('promotion.nameAndDiscountRequired')); return; }
     setSaving(true); setErr('');
     try {
       const payload = { ...form, discount_value: parseFloat(form.discount_value) };
@@ -28,7 +30,7 @@ function PromoModal({ promo, onClose, onSaved }) {
       else await api.post('/promotions', payload);
       onSaved();
     } catch(e) {
-      setErr(e?.response?.data?.detail || 'Xatolik yuz berdi');
+      setErr(e?.response?.data?.detail || t('promotion.genericError'));
     } finally { setSaving(false); }
   };
 
@@ -36,34 +38,34 @@ function PromoModal({ promo, onClose, onSaved }) {
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
         <div className="flex items-center justify-between mb-5">
-          <h3 className="text-lg font-bold text-slate-800">{isEdit ? 'Aksiyani tahrirlash' : 'Yangi aksiya'}</h3>
+          <h3 className="text-lg font-bold text-slate-800">{isEdit ? t('promotion.editPromo') : t('promotion.newPromo')}</h3>
           <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100"><X className="w-5 h-5" /></button>
         </div>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Aksiya nomi *</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">{t('promotion.promoName')} *</label>
             <input
               className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              placeholder="Masalan: Yozgi chegirma"
+              placeholder={t('promotion.promoNamePlaceholder')}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Chegirma turi</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">{t('promotion.discountType')}</label>
               <select
                 className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={form.discount_type} onChange={e => setForm(f => ({ ...f, discount_type: e.target.value }))}
               >
-                <option value="percent">Foiz (%)</option>
-                <option value="amount">Summa (so'm)</option>
+                <option value="percent">{t('promotion.percentOption')}</option>
+                <option value="amount">{t('promotion.amountOption')}</option>
               </select>
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">
-                Chegirma miqdori {form.discount_type === 'percent' ? '(%)' : '(so\'m)'} *
+                {t('promotion.discountValue')} {form.discount_type === 'percent' ? '(%)' : `(${t('common.sum')})`} *
               </label>
               <input
                 type="number" min="0"
@@ -76,14 +78,14 @@ function PromoModal({ promo, onClose, onSaved }) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Boshlanish sanasi</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">{t('promotion.startDate')}</label>
               <input type="date"
                 className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))}
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Tugash sanasi</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">{t('promotion.endDate')}</label>
               <input type="date"
                 className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={form.end_date} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))}
@@ -96,10 +98,10 @@ function PromoModal({ promo, onClose, onSaved }) {
 
         <div className="flex gap-3 mt-6">
           <button onClick={onClose} className="flex-1 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200">
-            Bekor qilish
+            {t('common.cancel')}
           </button>
           <button onClick={save} disabled={saving} className="flex-1 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:opacity-50">
-            {saving ? 'Saqlanmoqda...' : 'Saqlash'}
+            {saving ? t('common.saving') : t('common.save')}
           </button>
         </div>
       </div>
@@ -108,6 +110,7 @@ function PromoModal({ promo, onClose, onSaved }) {
 }
 
 export default function Promotions() {
+  const { t } = useLang();
   const [promos, setPromos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null); // null | 'create' | promotion object
@@ -120,9 +123,9 @@ export default function Promotions() {
   useEffect(() => { load(); }, []);
 
   const deletePromo = async (id) => {
-    if (!window.confirm('Aksiyani o\'chirishni tasdiqlaysizmi?')) return;
+    if (!window.confirm(t('promotion.confirmDelete'))) return;
     try { await api.delete(`/promotions/${id}`); load(); }
-    catch(e) { alert(e?.response?.data?.detail || 'O\'chirib bo\'lmadi'); }
+    catch(e) { alert(e?.response?.data?.detail || t('promotion.deleteFailed')); }
   };
 
   const isActive = (p) => {
@@ -136,9 +139,9 @@ export default function Promotions() {
 
   const statusBadge = (p) => {
     const s = isActive(p);
-    if (s === 'active') return <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-full">Faol</span>;
-    if (s === 'upcoming') return <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">Kutilmoqda</span>;
-    return <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-xs font-semibold rounded-full">Tugagan</span>;
+    if (s === 'active') return <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-full">{t('common.active')}</span>;
+    if (s === 'upcoming') return <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">{t('promotion.upcoming')}</span>;
+    return <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-xs font-semibold rounded-full">{t('promotion.expired')}</span>;
   };
 
   return (
@@ -146,24 +149,24 @@ export default function Promotions() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Aksiyalar</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Chegirma va aksiyalarni boshqarish</p>
+          <h1 className="text-2xl font-bold text-slate-800">{t('promotion.title')}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{t('promotion.subtitle')}</p>
         </div>
         <button
           onClick={() => setModal('create')}
           className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
         >
           <Plus className="w-4 h-4" />
-          Yangi aksiya
+          {t('promotion.newPromo')}
         </button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         {[
-          { label: 'Jami aksiyalar', value: promos.length, color: 'blue', icon: Tag },
-          { label: 'Faol aksiyalar', value: promos.filter(p => isActive(p) === 'active').length, color: 'emerald', icon: Percent },
-          { label: 'Kutilmoqda', value: promos.filter(p => isActive(p) === 'upcoming').length, color: 'amber', icon: Calendar },
+          { label: t('promotion.totalPromos'), value: promos.length, color: 'blue', icon: Tag },
+          { label: t('promotion.activePromos'), value: promos.filter(p => isActive(p) === 'active').length, color: 'emerald', icon: Percent },
+          { label: t('promotion.upcoming'), value: promos.filter(p => isActive(p) === 'upcoming').length, color: 'amber', icon: Calendar },
         ].map(({ label, value, color, icon: Icon }) => (
           <div key={label} className={`p-4 bg-${color}-50 rounded-xl border border-${color}-100`}>
             <div className="flex items-center gap-2 mb-2">
@@ -183,10 +186,10 @@ export default function Promotions() {
       ) : promos.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-slate-400">
           <Tag className="w-12 h-12 mb-3 opacity-30" />
-          <p className="font-semibold text-slate-600">Aksiyalar yo'q</p>
-          <p className="text-sm mt-1">Birinchi aksiyani yarating</p>
+          <p className="font-semibold text-slate-600">{t('promotion.noPromos')}</p>
+          <p className="text-sm mt-1">{t('promotion.createFirstPromo')}</p>
           <button onClick={() => setModal('create')} className="mt-4 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700">
-            + Yangi aksiya
+            + {t('promotion.newPromo')}
           </button>
         </div>
       ) : (
@@ -205,8 +208,8 @@ export default function Promotions() {
                     {statusBadge(p)}
                   </div>
                   <div className="text-sm text-slate-500 mt-0.5">
-                    Chegirma: <span className="font-medium text-slate-700">
-                      {p.discount_value}{p.discount_type === 'percent' ? '%' : ' so\'m'}
+                    {t('common.discount')}: <span className="font-medium text-slate-700">
+                      {p.discount_value}{p.discount_type === 'percent' ? '%' : ` ${t('common.sum')}`}
                     </span>
                     {(p.start_date || p.end_date) && (
                       <span className="ml-3">
@@ -217,7 +220,7 @@ export default function Promotions() {
                     {p.products?.length > 0 && (
                       <span className="ml-3">
                         <Package className="w-3.5 h-3.5 inline mr-1 opacity-60" />
-                        {p.products.length} ta mahsulot
+                        {p.products.length} {t('promotion.productsCount')}
                       </span>
                     )}
                   </div>
@@ -227,14 +230,14 @@ export default function Promotions() {
                 <button
                   onClick={() => setModal(p)}
                   className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                  title="Tahrirlash"
+                  title={t('common.edit')}
                 >
                   <Pencil className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => deletePromo(p.id)}
                   className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  title="O'chirish"
+                  title={t('common.delete')}
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>

@@ -46,6 +46,7 @@ const inputCls = 'w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm 
 
 
 function CustSearch({ customers, value, onChange, onAfterSelect }) {
+  const { t } = useLang();
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -56,17 +57,17 @@ function CustSearch({ customers, value, onChange, onAfterSelect }) {
   return (
     <div className="relative" ref={ref}>
       <div className="flex items-center border border-slate-200 rounded-lg bg-white overflow-hidden focus-within:ring-2 focus-within:ring-blue-400">
-        <input value={open ? q : (selected ? selected.name : '')} onChange={e => { setQ(e.target.value); setOpen(true); if (!e.target.value) onChange(''); }} onFocus={() => setOpen(true)} placeholder="Mijoz: ism yoki telefon..." className="flex-1 px-3 py-1.5 text-sm outline-none bg-transparent min-w-0" />
+        <input value={open ? q : (selected ? selected.name : '')} onChange={e => { setQ(e.target.value); setOpen(true); if (!e.target.value) onChange(''); }} onFocus={() => setOpen(true)} placeholder={t('customer.searchNamePhonePlaceholder')} className="flex-1 px-3 py-1.5 text-sm outline-none bg-transparent min-w-0" />
         {selected && <button onClick={() => select(null)} className="px-2 text-slate-400 hover:text-red-400 text-lg leading-none">×</button>}
       </div>
       {open && (
         <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 overflow-hidden max-h-64 overflow-y-auto">
-          {filtered.length === 0 ? <div className="px-4 py-3 text-sm text-slate-400">Topilmadi</div> : filtered.map(c => (
+          {filtered.length === 0 ? <div className="px-4 py-3 text-sm text-slate-400">{t('error.notFound')}</div> : filtered.map(c => (
             <button key={c.id} onMouseDown={() => select(c)} className="w-full text-left px-4 py-2.5 hover:bg-blue-50 border-b border-slate-50 last:border-0 flex items-center justify-between">
               <div><div className="text-sm font-medium text-slate-800">{c.name}</div>{c.phone && <div className="text-xs text-slate-400">{c.phone}</div>}</div>
               {hasAnyDebt(c) && (
                 <span className="text-xs text-red-500 font-medium ml-2">
-                  Qarz: {getDebtEntries(c).map(({ currency, amount }) => `${fmt(amount)} ${currency}`).join(' + ')}
+                  {t('common.debt')}: {getDebtEntries(c).map(({ currency, amount }) => `${fmt(amount)} ${currency}`).join(' + ')}
                 </span>
               )}
             </button>
@@ -151,7 +152,7 @@ function RowMenu({ onEdit, onDelete, onPay, onPoints, onHistory, onPrintBarcode,
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
             </svg>
-            Shtrix-kod chop
+            {t('customer.printBarcode')}
           </button>
           <div className="mx-3 my-1 border-t border-slate-100" />
           <button onClick={() => { onEdit(); setOpen(false); }}
@@ -228,12 +229,12 @@ export function SotuvMijozlar({ stats, reloadStats }) {
   const [sortOrder, setSortOrder] = useState('asc');
 
   const sortOptions = [
-    { label: "Qarzi bo'yicha (kamayish tartibda)", sort_by: "debt_balance", sort_order: "desc" },
-    { label: "Qarzi bo'yicha (o'sish tartibda)", sort_by: "debt_balance", sort_order: "asc" },
-    { label: "Nomi bo'yicha (kamayish tartibda)", sort_by: "name", sort_order: "desc" },
-    { label: "Nomi bo'yicha (o'sish tartibda)", sort_by: "name", sort_order: "asc" },
-    { label: "Yaratilgan vaqti bo'yicha (kamayish tartibda)", sort_by: "id", sort_order: "desc" },
-    { label: "Yaratilgan vaqti bo'yicha (o'sish tartibda)", sort_by: "id", sort_order: "asc" },
+    { label: t('customer.sortDebtDesc'), sort_by: "debt_balance", sort_order: "desc" },
+    { label: t('customer.sortDebtAsc'), sort_by: "debt_balance", sort_order: "asc" },
+    { label: t('customer.sortNameDesc'), sort_by: "name", sort_order: "desc" },
+    { label: t('customer.sortNameAsc'), sort_by: "name", sort_order: "asc" },
+    { label: t('customer.sortCreatedDesc'), sort_by: "id", sort_order: "desc" },
+    { label: t('customer.sortCreatedAsc'), sort_by: "id", sort_order: "asc" },
   ];
 
   const currentSort = sortOptions.find(o => o.sort_by === sortBy && o.sort_order === sortOrder) || sortOptions[3];
@@ -242,10 +243,10 @@ export function SotuvMijozlar({ stats, reloadStats }) {
   const [filterType, setFilterType] = useState('all'); // all, eq, lt, gt
 
   const filterOptions = [
-    { label: "Barchasi", key: "all" },
-    { label: "ga teng bo'lgan qarzlar", key: "eq" },
-    { label: "dan kam bo'lgan qarzlar", key: "lt" },
-    { label: "dan yuqori bo'lgan qarzlar", key: "gt" },
+    { label: t('common.all'), key: "all" },
+    { label: t('customer.filterDebtEq'), key: "eq" },
+    { label: t('customer.filterDebtLt'), key: "lt" },
+    { label: t('customer.filterDebtGt'), key: "gt" },
   ];
 
   const currentFilter = filterOptions.find(o => o.key === filterType) || filterOptions[0];
@@ -268,16 +269,16 @@ export function SotuvMijozlar({ stats, reloadStats }) {
   const IMPORT_LIMIT = 50;
 
   const IMPORT_FIELDS = [
-    { key: '', label: '— Tanlang —' },
-    { key: 'Ism', label: 'Mijoz ismi *' },
-    { key: 'Telefon', label: 'Telefon raqam' },
-    { key: 'Qarz', label: 'Joriy qarz' },
-    { key: 'Kredit limit', label: 'Kredit limiti' },
-    { key: 'Sodiqlik ballari', label: 'Sodiqlik ballari' },
-    { key: 'Karta raqami', label: 'Karta raqami' },
-    { key: 'Cashback', label: 'Keshbek (%)' },
-    { key: 'Bonus', label: 'Bonus balansi' },
-    { key: '__SKIP__', label: '— O\'tkazib yuborish —' },
+    { key: '', label: t('customer.importSelectField') },
+    { key: 'Ism', label: t('customer.importFieldName') },
+    { key: 'Telefon', label: t('common.phone') },
+    { key: 'Qarz', label: t('customer.importFieldCurrentDebt') },
+    { key: 'Kredit limit', label: t('customer.creditLimit') },
+    { key: 'Sodiqlik ballari', label: t('customer.loyaltyPoints') },
+    { key: 'Karta raqami', label: t('customer.cardNumber') },
+    { key: 'Cashback', label: t('customer.importFieldCashback') },
+    { key: 'Bonus', label: t('customer.bonusBalance') },
+    { key: '__SKIP__', label: t('customer.importSkipField') },
   ];
 
   const resetImport = () => {
@@ -318,7 +319,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
         setImportRows(rows);
         autoMap(rows);
       } catch {
-        setImportError('Fayl o\'qishda xatolik. Iltimos .xlsx formatdagi faylni tanlang.');
+        setImportError(t('customer.importFileReadError'));
       }
     };
     reader.readAsArrayBuffer(file);
@@ -379,7 +380,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
       setImportResult({ created: totC, updated: totU, skipped: totS, errors: errs });
       if (totC > 0 || totU > 0) { load(); reloadStats?.(); }
     } catch (err) {
-      setImportError(err.response?.data?.detail || 'Server xatosi');
+      setImportError(err.response?.data?.detail || t('error.serverError'));
     } finally { setImportLoading(false); }
   };
 
@@ -401,7 +402,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
         setCustomers(r.data.items);
         setTotalRecords(r.data.total);
       })
-      .catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+      .catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, limit, sortBy, sortOrder, filterType, filterAmount]);
 
@@ -464,7 +465,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
       const { data } = await api.get(`/customers/${c.id}/history`);
       setHistory(data);
     } catch {
-      setError("Tarixni yuklashda xatolik yuz berdi");
+      setError(t('customer.historyLoadError'));
     } finally {
       setLoadingHistory(false);
     }
@@ -511,7 +512,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
       } else if (typeof detail === 'object' && detail !== null) {
         setError(JSON.stringify(detail));
       } else {
-        setError(detail || 'Xatolik yuzaga keldi');
+        setError(detail || t('customer.saveGenericError'));
       }
     } finally { setSaving(false); }
   };
@@ -525,7 +526,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
       );
 
       if (validPayments.length === 0) {
-        setError("Kamida bitta to'lov turi va miqdorini kiriting");
+        setError(t('customer.paymentRequiredError'));
         setSaving(false);
         return;
       }
@@ -535,7 +536,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
           amount: Number(item.payAmount),
           currency: item.currencyType || "UZS",
           payment_type: item.payType,
-          reason: payInfo || "Mijoz qarz to'lovi",
+          reason: payInfo || t('customer.customerDebtPaymentReason'),
           wallet_id: payWallet ? Number(payWallet) : null,
         });
       }
@@ -548,7 +549,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
       } else if (typeof detail === 'object' && detail !== null) {
         setError(JSON.stringify(detail));
       } else {
-        setError(detail || 'Xatolik yuzaga keldi');
+        setError(detail || t('customer.saveGenericError'));
       }
     } finally { setSaving(false); }
   };
@@ -563,7 +564,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
       });
       closeModal(); load(); reloadStats?.();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Xatolik yuz berdi');
+      setError(err.response?.data?.detail || t('auth.errGeneral'));
     } finally { setSaving(false); }
   };
 
@@ -633,16 +634,16 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                   debtInUzs = Number(c.debt_balance || 0);
                 }
                 return {
-                  'Ism': c.name,
-                  'Telefon': c.phone || '—',
-                  'Qarz (so\'m)': Number(debtInUzs),
-                  'Kredit limiti': Number(c.debt_limit || 0),
-                  'Bonus ball': c.loyalty_points || 0,
-                  'Keshbek %': c.cashback_percent || 0,
+                  [t('customer.fullName')]: c.name,
+                  [t('common.phone')]: c.phone || '—',
+                  [t('customer.exportDebtSumColumn')]: Number(debtInUzs),
+                  [t('customer.creditLimit')]: Number(c.debt_limit || 0),
+                  [t('customer.exportBonusPointColumn')]: c.loyalty_points || 0,
+                  [t('customer.exportCashbackPercentColumn')]: c.cashback_percent || 0,
                 };
               }));
               const wb = XLSX.utils.book_new();
-              XLSX.utils.book_append_sheet(wb, ws, 'Mijozlar');
+              XLSX.utils.book_append_sheet(wb, ws, t('customer.customers'));
               saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `mijozlar_${new Date().toISOString().slice(0, 10)}.xlsx`);
             }}
             className="inline-flex items-center leading-none gap-1 xl:gap-2 px-2.5 xl:px-4 py-1.5 xl:py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs xl:text-sm font-semibold rounded-md xl:rounded-xl transition-colors border border-emerald-200"
@@ -705,7 +706,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
             {stats?.total_debts && Object.keys(stats.total_debts).length > 0 ? (
               Object.entries(stats.total_debts).map(([curr, amt]) => (
                 <div key={curr} className="text-[16px] leading-none lg:text-xl font-bold text-red-500 mt-0.5">
-                  {fmt(amt)} {curr === 'UZS' ? "so'm" : curr}
+                  {fmt(amt)} {curr === 'UZS' ? t('common.sum') : curr}
                 </div>
               ))
             ) : (
@@ -781,7 +782,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                 placeholder="0"
                 className="w-16 sm:w-20 bg-transparent outline-none font-medium text-sm xl:text-base text-slate-800 placeholder:text-slate-300"
               />
-              <span className="text-slate-400 text-[10px] xl:text-xs font-semibold uppercase shrink-0">so'm</span>
+              <span className="text-slate-400 text-[10px] xl:text-xs font-semibold uppercase shrink-0">{t('common.sum')}</span>
 
               <div className="h-4 w-[1px] bg-slate-200 mx-2 shrink-0" />
 
@@ -818,7 +819,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
           <table className="w-full">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
-                {['T/r', t('common.name'), t('common.phone'), t('customer.debtBalance'), t('customer.creditLimit'), `${t('customer.bonusBalance')} / ${t('customer.cashback')}`, t('common.actions')].map(h => (
+                {[t('common.rowNumber'), t('common.name'), t('common.phone'), t('customer.debtBalance'), t('customer.creditLimit'), `${t('customer.bonusBalance')} / ${t('customer.cashback')}`, t('common.actions')].map(h => (
                   <th key={h} className="px-6 py-3.5 text-left text-[10px] md:text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -843,7 +844,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                       {(() => {
                         const entries = getDebtEntries(c);
                         if (entries.length === 0) {
-                          return <span className="text-sm font-bold text-emerald-700">0 so'm</span>;
+                          return <span className="text-sm font-bold text-emerald-700">0 {t('common.sum')}</span>;
                         }
                         return (
                           <div className="flex flex-col gap-1">
@@ -856,18 +857,18 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                         );
                       })()}
                     </td>
-                    <td className="px-6 py-4 text-xs md:text-sm text-slate-500">{fmt(c.debt_limit)} so'm</td>
+                    <td className="px-6 py-4 text-xs md:text-sm text-slate-500">{fmt(c.debt_limit)} {t('common.sum')}</td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1">
                         <span className="inline-flex items-center whitespace-nowrap gap-1 px-2.5 py-1 bg-amber-50 text-amber-600 text-xs md:text-sm font-semibold rounded-lg w-fit">
                           <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                           </svg>
-                          {fmt(c.bonus_balance || 0)} so'm
+                          {fmt(c.bonus_balance || 0)} {t('common.sum')}
                         </span>
                         {(c.cashback_percent > 0) && (
                           <span className={`text-[10px] whitespace-nowrap md:text-xs font-semibold px-2 py-0.5 rounded-full w-fit bg-blue-100 text-blue-700`}>
-                            {Number(c.cashback_percent)}% keshbek
+                            {Number(c.cashback_percent)}% {t('customer.cashback')}
                           </span>
                         )}
                         {(c.loyalty_points > 0) && (
@@ -907,7 +908,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
         </div>
         {customers.length > 0 && (
           <div className="px-6 py-3 border-t border-slate-100 flex items-center justify-between text-xs md:text-sm text-slate-500 bg-slate-50">
-            <span>Jami <strong className="text-slate-700">{totalRecords}</strong> ta mijoz</span>
+            <span>{t('common.total')} <strong className="text-slate-700">{totalRecords}</strong> {t('customer.customers').toLowerCase()}</span>
 
             <div className="flex items-center flex-nowrap gap-0 sm:gap-1">
               <button disabled={page === 1} onClick={() => setPage(1)}
@@ -930,11 +931,11 @@ export function SotuvMijozlar({ stats, reloadStats }) {
             </div>
 
             <div className='flex gap-1 md:gap-3 text-right md:text-left items-center flex-col md:flex-row'>
-              <span className='hidden md:block'>Umumiy qarz: 
+              <span className='hidden md:block'>{t('customer.totalDebt')}:
                 <strong className="text-red-500 ml-1">
-                  {stats?.total_debts && Object.keys(stats.total_debts).length > 0 
-                    ? Object.entries(stats.total_debts).map(([c, a]) => `${fmt(a)} ${c === 'UZS' ? "so'm" : c}`).join(', ') 
-                    : `${fmt(totalDebt)} so'm`}
+                  {stats?.total_debts && Object.keys(stats.total_debts).length > 0
+                    ? Object.entries(stats.total_debts).map(([c, a]) => `${fmt(a)} ${c === 'UZS' ? t('common.sum') : c}`).join(', ')
+                    : `${fmt(totalDebt)} ${t('common.sum')}`}
                 </strong>
               </span>
 
@@ -993,7 +994,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
             <form onSubmit={handleSave} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Ism va familiya <span className="text-red-500">*</span></label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('customer.fullName')} <span className="text-red-500">*</span></label>
                   <input
                     required
                     value={form.name}
@@ -1003,7 +1004,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                   />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Telefon raqam</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('common.phone')}</label>
                   <div className="bg-white text-sm px-3.5 flex border border-slate-200 gap-2 items-center rounded-xl">
                     <span>+998</span>
                     <input
@@ -1017,13 +1018,13 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                 </div>
                 <div className="col-span-2">
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-semibold text-slate-600">Boshlang'ich qarz / Joriy qarz</label>
+                    <label className="block text-xs font-semibold text-slate-600">{t('customer.initialCurrentDebt')}</label>
                     <button
                       type="button"
                       onClick={() => setForm({ ...form, debts: [...form.debts, { amount: '', currency: 'UZS' }] })}
                       className="text-xs text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1 bg-blue-50 px-2 py-1 rounded-lg"
                     >
-                      <Plus className="size-3" /> Qo'shish
+                      <Plus className="size-3" /> {t('common.add')}
                     </button>
                   </div>
                   <div className="space-y-2">
@@ -1056,7 +1057,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                               const newDebts = form.debts.map((d, i) => i === idx ? { ...d, amount: e.target.value } : d);
                               setForm({ ...form, debts: newDebts });
                             }}
-                            placeholder="Qarz miqdori"
+                            placeholder={t('customer.debtAmountPlaceholder')}
                             className="h-[42px] flex-1 w-full px-3 rounded-r-xl text-sm outline-none bg-transparent"
                           />
                         </div>
@@ -1077,7 +1078,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Kredit limiti (so'm)</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('customer.creditLimit')} ({t('common.sum')})</label>
                   <input
                     type="number" min="0"
                     value={form.debt_limit}
@@ -1087,7 +1088,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Boshlang'ich bonus ballari</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('customer.initialBonusPoints')}</label>
                   <input
                     type="number" min="0"
                     value={form.loyalty_points}
@@ -1098,29 +1099,29 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-semibold text-slate-600">Karta raqami</label>
+                    <label className="block text-xs font-semibold text-slate-600">{t('customer.cardNumber')}</label>
                     <button
                       type="button"
                       onClick={() => setForm({ ...form, card_number: generateCard() })}
                       className="text-xs text-blue-600 hover:text-blue-700 font-medium"
                     >
-                      Generatsiya qilish
+                      {t('customer.generateCard')}
                     </button>
                   </div>
                   <input
                     value={form.card_number}
                     onChange={e => setForm({ ...form, card_number: e.target.value })}
-                    placeholder="Masalan: 8888 1234 5678 9012"
+                    placeholder={t('customer.cardNumberPlaceholder')}
                     className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Keshbek foizi (%)</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('customer.cashbackPercentLabel')}</label>
                   <input
                     type="number" min="0" max="100" step="0.1"
                     value={form.cashback_percent}
                     onChange={e => setForm({ ...form, cashback_percent: e.target.value })}
-                    placeholder="Misol: 3.5"
+                    placeholder={t('customer.cashbackPlaceholderExample')}
                     className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -1128,12 +1129,12 @@ export function SotuvMijozlar({ stats, reloadStats }) {
 
               {/* Narx turi */}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-2">Narx turi (Sotuv narxi)</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">{t('customer.priceTypeLabel')}</label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {[
-                    { val: 'sale', label: 'Chakana', desc: 'Oddiy sotuv narxi', color: 'blue', icon: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z' },
-                    { val: 'wholesale', label: 'Ulgurji', desc: 'Ulgurji narx', color: 'emerald', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' },
-                    { val: 'cost', label: 'Tannarx', desc: 'Sotib olish narxi', color: 'amber', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+                    { val: 'sale', label: t('customer.priceTypeRetail'), desc: t('customer.priceTypeRetailDesc'), color: 'blue', icon: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z' },
+                    { val: 'wholesale', label: t('customer.priceTypeWholesale'), desc: t('customer.priceTypeWholesaleDesc'), color: 'emerald', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' },
+                    { val: 'cost', label: t('customer.priceTypeCost'), desc: t('customer.priceTypeCostDesc'), color: 'amber', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
                   ].map(({ val, label, desc, color, icon }) => {
                     const isActive = form.price_type === val;
                     return (
@@ -1185,11 +1186,11 @@ export function SotuvMijozlar({ stats, reloadStats }) {
         }, 0);
         const remaining = Math.max(0, debt - paid);
         const PAY_TYPES = [
-          { key: 'cash', label: 'Naqd' },
-          { key: 'card', label: 'Karta' },
+          { key: 'cash', label: t('finance.cash') },
+          { key: 'card', label: t('customer.payTypeCard') },
           { key: 'uzcard', label: 'Uzcard' },
           { key: 'humo', label: 'Humo' },
-          { key: 'transfer', label: "Bank o'tkazmasi" },
+          { key: 'transfer', label: t('customer.payTypeTransfer') },
           { key: 'click', label: 'Click' },
           { key: 'payme', label: 'Payme' },
         ]
@@ -1200,7 +1201,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
               {/* Header */}
               <div className="flex items-center justify-between px-4 md:px-7 py-3 md:py-5 border-b border-slate-100 shrink-0">
                 <div>
-                  <h3 className="text-lg md:text-xl font-bold text-slate-800 tracking-tight">Kassadan to'lov</h3>
+                  <h3 className="text-lg md:text-xl font-bold text-slate-800 tracking-tight">{t('customer.payFromCashierTitle')}</h3>
                   <p className="text-xs md:text-sm text-blue-500 font-medium mt-0.5">{new Date().toLocaleString('uz-UZ').replace(',', '')}</p>
                 </div>
                 <button onClick={closeModal} className="w-8 h-8 md:w-9 md:h-9 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 transition-colors">
@@ -1217,7 +1218,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                     <div className="font-bold text-slate-800 text-sm md:text-base truncate">{selected.name}</div>
                     {selected.phone && <div className="text-xs md:text-sm text-slate-500 mt-0.5 truncate">{selected.phone}</div>}
                     <div className="text-sm md:text-base font-bold text-red-500 mt-1">
-                      Joriy qarz: {fmt(debt)} so'm
+                      {t('customer.importFieldCurrentDebt')}: {fmt(debt)} {t('common.sum')}
                       {selected.debt_balances && Object.keys(selected.debt_balances).length > 0 && (
                         <div className="flex flex-wrap gap-x-2 mt-0.5">
                           {Object.entries(selected.debt_balances).map(([curr, amt]) => (
@@ -1233,11 +1234,11 @@ export function SotuvMijozlar({ stats, reloadStats }) {
 
                 {/* Kassa tanlash */}
                 <div className="space-y-1.5 md:space-y-2">
-                  <label className="text-xs md:text-sm font-semibold text-slate-700">Kassa / Hisob</label>
+                  <label className="text-xs md:text-sm font-semibold text-slate-700">{t('customer.cashierAccountLabel')}</label>
                   <select value={payWallet} onChange={e => setPayWallet(e.target.value)}
                     className="w-full h-11 md:h-12 px-3 md:px-4 border border-slate-200 rounded-xl bg-white text-xs md:text-sm font-medium focus:border-blue-500 outline-none transition-all">
-                    <option value="">Asosiy kassa</option>
-                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name} — {fmt(w.balance)} so'm</option>)}
+                    <option value="">{t('customer.mainCashier')}</option>
+                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name} — {fmt(w.balance)} {t('common.sum')}</option>)}
                   </select>
                 </div>
 
@@ -1248,7 +1249,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
 
                       {/* TO'LOV TURI (SELECT) */}
                       <div className="w-full sm:w-auto min-w-[160px] flex-1 sm:flex-none space-y-1.5 md:space-y-2">
-                        <label className="text-xs md:text-sm font-semibold text-slate-700">To'lov turi *</label>
+                        <label className="text-xs md:text-sm font-semibold text-slate-700">{t('sale.paymentType')} *</label>
                         <Listbox
                           value={item.payType}
                           onChange={(val) => handleInputChange(index, 'payType', val)}
@@ -1256,7 +1257,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                           <div className="relative">
                             <ListboxButton className="w-full cursor-pointer flex items-center pl-4 pr-8 py-3 justify-between rounded-lg border border-slate-200 text-[14px] xl:text-[16px] bg-white text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors shadow-xs text-left font-medium h-11 md:h-12">
                               <span className="block truncate">
-                                {PAY_TYPES.find(pt => pt.key === item.payType)?.label || "Tanlang..."}
+                                {PAY_TYPES.find(pt => pt.key === item.payType)?.label || t('common.selectDots')}
                               </span>
                               <span className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none text-slate-400">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="size-4 xl:size-5">
@@ -1289,7 +1290,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
 
                       {/* TO'LOV MIQDORI (INPUT) */}
                       <div className="space-y-1.5 flex-1 md:space-y-2">
-                        <label className="text-xs md:text-sm font-semibold text-slate-700">To'lov miqdori *</label>
+                        <label className="text-xs md:text-sm font-semibold text-slate-700">{t('customer.paymentAmount')} *</label>
                         <div className="flex h-11 md:h-12">
                           <input
                             type="number"
@@ -1314,7 +1315,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                             <div className="relative">
                               <ListboxButton className="w-full min-w-[100px] cursor-pointer flex items-center pl-4 pr-8 py-3 justify-between  border-l-0 border border-slate-200 text-[14px] xl:text-[16px] bg-white text-slate-900 outline-none transition-colors shadow-xs text-left font-medium h-11 md:h-12">
                                 <span className="block truncate">
-                                  {currencies.find(c => c.code === item.currencyType)?.code || "Tanlang..."}
+                                  {currencies.find(c => c.code === item.currencyType)?.code || t('common.selectDots')}
                                 </span>
                                 <span className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none text-slate-400">
                                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="size-4 xl:size-5">
@@ -1354,7 +1355,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                             }}
                             className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-slate-200 border-l-0 font-bold px-3 md:px-4 h-full rounded-r-xl transition-colors whitespace-nowrap text-xs md:text-sm"
                           >
-                            Barchasi
+                            {t('admin.dict.all2')}
                           </button>
                         </div>
                       </div>
@@ -1378,16 +1379,16 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                     className='cursor-pointer flex ml-auto items-center gap-1 hover:bg-blue-50 w-max px-2 py-0.5 rounded-xl'
                   >
                     <Plus className='size-5 text-blue-600' />
-                    <span className='text-xs md:text-sm font-semibold text-blue-600'>to'lov qo'shish</span>
+                    <span className='text-xs md:text-sm font-semibold text-blue-600'>{t('customer.addPayment')}</span>
                   </button>
                 </div>
 
                 {/* Izoh */}
                 <div className="space-y-1.5 md:space-y-2">
-                  <label className="text-xs md:text-sm font-semibold text-slate-700">Izoh</label>
+                  <label className="text-xs md:text-sm font-semibold text-slate-700">{t('common.note')}</label>
                   <textarea rows={2} value={payInfo} onChange={e => setPayInfo(e.target.value)}
                     className="w-full p-3 md:p-4 border border-slate-200 rounded-xl text-xs md:text-sm leading-relaxed focus:ring-2 focus:ring-blue-500 outline-none resize-none transition-all"
-                    placeholder="Ixtiyoriy..." />
+                    placeholder={t('customer.optionalPlaceholder')} />
                 </div>
 
                 {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-xs md:text-sm rounded-xl animate-shake">{error}</div>}
@@ -1395,7 +1396,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                 {/* Summary */}
                 <div className="flex justify-end">
                   <div className="w-full md:w-auto min-w-64 space-y-2 bg-blue-50/50 rounded-xl p-4 border border-blue-100/50 backdrop-blur-sm">
-                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Qarz holati</div>
+                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">{t('customer.debtStatus')}</div>
                     {/* Per-currency debt and payment breakdown */}
                     {Object.entries(paidPerCurrency).map(([curr, payAmt]) => {
                       const currDebt = curr === 'UZS'
@@ -1406,22 +1407,22 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                       return (
                         <div key={curr} className="space-y-1 pb-2 border-b border-blue-100/50 last:border-0">
                           <div className="flex justify-between text-xs items-center">
-                            <span className="text-slate-500 font-medium">{curr} qarzi:</span>
+                            <span className="text-slate-500 font-medium">{curr} {t('customer.debtSuffix')}:</span>
                             <span className="font-bold text-slate-700">{fmt(currDebt)} {curr}</span>
                           </div>
                           <div className="flex justify-between text-xs items-center">
-                            <span className="text-slate-500 font-medium">To'lov:</span>
+                            <span className="text-slate-500 font-medium">{t('customer.payment')}:</span>
                             <span className="font-bold text-blue-600">{fmt(payAmt)} {curr}</span>
                           </div>
                           <div className="flex justify-between text-xs items-center">
-                            <span className="text-slate-600 font-semibold">Qoldi:</span>
+                            <span className="text-slate-600 font-semibold">{t('customer.remaining')}:</span>
                             <span className={`font-bold ${currRemaining > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
                               {fmt(currRemaining)} {curr}
                             </span>
                           </div>
                           {currChange > 0 && (
                             <div className="flex justify-between text-xs items-center">
-                              <span className="text-amber-600 font-bold">Qaytim:</span>
+                              <span className="text-amber-600 font-bold">{t('customer.change')}:</span>
                               <span className="font-bold text-amber-600">{fmt(currChange)} {curr}</span>
                             </div>
                           )}
@@ -1431,7 +1432,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                     {/* Aggregate UZS remaining for reference */}
                     {Object.keys(paidPerCurrency).length > 0 && (
                       <div className="flex justify-between text-xs items-center pt-1">
-                        <span className="text-slate-400 font-medium">Jami qoldi (UZS):</span>
+                        <span className="text-slate-400 font-medium">{t('customer.totalRemainingUZS')}:</span>
                         <span className={`font-semibold ${remaining > 0 ? 'text-red-400' : 'text-emerald-500'}`}>{fmt(remaining)} UZS</span>
                       </div>
                     )}
@@ -1442,7 +1443,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
               {/* Footer */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 md:px-7 py-4 md:py-5 border-t border-slate-100 bg-slate-50 shrink-0">
                 <div className="text-xs md:text-sm text-slate-500 font-medium text-center sm:text-left">
-                  <span className="font-semibold text-slate-600">To'lovdan keyin qoladi:</span>
+                  <span className="font-semibold text-slate-600">{t('customer.remainingAfterPayment')}:</span>
                   <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
                     {selected.debt_balances && Object.entries(selected.debt_balances).map(([curr, amt]) => {
                       const willPay = paidPerCurrency[curr] || 0;
@@ -1460,7 +1461,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                 </div>
                 <div className="flex gap-2 md:gap-3 w-full sm:w-auto">
                   <button onClick={closeModal} className="flex-1 sm:flex-none px-4 md:px-6 py-2 md:py-2.5 rounded-xl border border-slate-300 text-slate-600 text-sm font-bold bg-white hover:bg-slate-50 transition-all">
-                    Bekor qilish
+                    {t('common.cancel')}
                   </button>
                   <button disabled={
                     saving ||
@@ -1470,7 +1471,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                     {saving ? (
                       <span className="flex items-center gap-2"><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>...</span>
                     ) : (
-                      <><svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>Saqlash</>
+                      <><svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>{t('common.save')}</>
                     )}
                   </button>
                 </div>
@@ -1499,7 +1500,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                   <div className="font-bold text-slate-800">{selected.name}</div>
                   <div className="text-sm text-slate-500">{selected.phone || '—'}</div>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-sm font-bold text-amber-600">Ballar: {selected.loyalty_points || 0}</span>
+                    <span className="text-sm font-bold text-amber-600">{t('customer.loyaltyPoints')}: {selected.loyalty_points || 0}</span>
                     <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${TIERS[tierOf(selected.loyalty_points || 0)].cls}`}>
                       {TIERS[tierOf(selected.loyalty_points || 0)].label}
                     </span>
@@ -1509,18 +1510,18 @@ export function SotuvMijozlar({ stats, reloadStats }) {
               <form onSubmit={handleAdjustPoints} className="space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                    O'zgarish miqdori <span className="text-slate-400 font-normal">(musbat = qo'shish, manfiy = ayirish)</span>
+                    {t('customer.pointsDelta')} <span className="text-slate-400 font-normal">{t('customer.pointsDeltaHint')}</span>
                   </label>
                   <input
                     type="number" required autoFocus
                     value={pointsDelta}
                     onChange={e => setPointsDelta(e.target.value)}
-                    placeholder="Masalan: 500 yoki -200"
+                    placeholder={t('customer.pointsDeltaPlaceholderExample')}
                     className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
                   {pointsDelta && (
                     <p className="text-xs text-slate-500 mt-1.5">
-                      Natija: <strong className="text-slate-700">{Math.max(0, (selected.loyalty_points || 0) + Number(pointsDelta))} ball</strong>
+                      {t('customer.resultLabel')}: <strong className="text-slate-700">{Math.max(0, (selected.loyalty_points || 0) + Number(pointsDelta))} {t('customer.pointUnit')}</strong>
                       {' → '}
                       <span className={`font-semibold ${TIERS[tierOf(Math.max(0, (selected.loyalty_points || 0) + Number(pointsDelta)))].cls.replace('bg-', 'text-').split(' ')[0]}`}>
                         {TIERS[tierOf(Math.max(0, (selected.loyalty_points || 0) + Number(pointsDelta)))].label}
@@ -1561,12 +1562,12 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                 <Avatar name={selected.name} size="lg" />
                 <div>
                   <div className="font-bold text-slate-800">{selected.name}</div>
-                  <div className="text-sm text-slate-500">{selected.phone || 'Telefon raqam yo\'q'}</div>
+                  <div className="text-sm text-slate-500">{selected.phone || t('customer.noPhoneNumber')}</div>
                 </div>
                 <div className="ml-auto text-right">
-                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Joriy qarz</div>
+                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{t('customer.importFieldCurrentDebt')}</div>
                   <div className={`text-lg font-bold ${Number(selected.debt_balance) > 0 ? 'text-red-500' : 'text-slate-700'}`}>
-                    {fmt(selected.debt_balance)} so'm
+                    {fmt(selected.debt_balance)} {t('common.sum')}
                   </div>
                 </div>
               </div>
@@ -1582,7 +1583,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                   <svg className="w-12 h-12 mx-auto mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                  Tarix ma'lumotlari topilmadi
+                  {t('customer.noHistory')}
                 </div>
               ) : (
                 <div className="space-y-4 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-slate-200">
@@ -1605,7 +1606,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                         <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border border-slate-100 bg-white shadow-sm">
                           <div className="flex items-center justify-between mb-1">
                             <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-md ${isSale ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                              {isSale ? 'Xarid' : "To'lov"}
+                              {isSale ? t('customer.purchase') : t('customer.payment')}
                             </span>
                             <span className="text-xs text-slate-400 font-medium">
                               {dateObj.toLocaleDateString('uz-UZ')} {dateObj.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
@@ -1615,24 +1616,24 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                             {isSale ? (
                               <div className="space-y-1 text-sm">
                                 <div className="flex justify-between">
-                                  <span className="text-slate-500">Jami qiy.:</span>
-                                  <span className="font-semibold">{fmt(item.amount)} so'm</span>
+                                  <span className="text-slate-500">{t('customer.totalAmountShort')}:</span>
+                                  <span className="font-semibold">{fmt(item.amount)} {t('common.sum')}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                  <span className="text-slate-500">To'landi:</span>
-                                  <span className="font-medium text-emerald-600">{fmt(item.paid)} so'm</span>
+                                  <span className="text-slate-500">{t('common.paid')}:</span>
+                                  <span className="font-medium text-emerald-600">{fmt(item.paid)} {t('common.sum')}</span>
                                 </div>
                                 {item.debt > 0 && (
                                   <div className="flex justify-between border-t border-slate-100 pt-1 mt-1">
-                                    <span className="text-slate-500">Qarzga:</span>
-                                    <span className="font-bold text-red-500">{fmt(item.debt)} so'm</span>
+                                    <span className="text-slate-500">{t('customer.toDebt')}:</span>
+                                    <span className="font-bold text-red-500">{fmt(item.debt)} {t('common.sum')}</span>
                                   </div>
                                 )}
                               </div>
                             ) : (
                               <div className="flex justify-between items-center text-sm">
-                                <span className="text-slate-500">To'langan miqdor:</span>
-                                <span className="font-bold text-emerald-600 text-base">+{fmt(item.amount)} so'm</span>
+                                <span className="text-slate-500">{t('customer.paidAmount')}:</span>
+                                <span className="font-bold text-emerald-600 text-base">+{fmt(item.amount)} {t('common.sum')}</span>
                               </div>
                             )}
                           </div>
@@ -1661,15 +1662,15 @@ export function SotuvMijozlar({ stats, reloadStats }) {
               <button onClick={resetImport} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
-              <h2 className="text-xl font-bold text-slate-800">Mijozlarni Exceldan yuklash</h2>
+              <h2 className="text-xl font-bold text-slate-800">{t('customer.importCustomersFromExcelTitle')}</h2>
             </div>
             <div className="flex items-center gap-3">
               <button onClick={downloadTemplate} className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-lg transition-colors">
-                Shablon
+                {t('customer.importTemplate')}
               </button>
               <label className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 text-sm font-semibold rounded-lg border border-slate-200 cursor-pointer">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                Fayl tanlash
+                {t('customer.chooseFile')}
                 <input type="file" accept=".xlsx,.xls" className="hidden" onChange={e => { if (e.target.files[0]) parseExcel(e.target.files[0]); }} />
               </label>
               <button
@@ -1678,7 +1679,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                 className="inline-flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors border border-transparent"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
-                {importLoading ? `Saqlanmoqda... ${importProgress}%` : 'Saqlash'}
+                {importLoading ? `${t('common.saving')} ${importProgress}%` : t('common.save')}
               </button>
             </div>
           </div>
@@ -1689,7 +1690,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                 <svg className="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <p className="text-lg font-medium">Boshlash uchun Excel fayl yuklang</p>
+                <p className="text-lg font-medium">{t('customer.uploadExcelToStart')}</p>
               </div>
             ) : (
               <div className="flex-1 flex flex-col overflow-hidden animate-fadeIn">
@@ -1700,12 +1701,12 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                       <div className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${allowUpdate ? 'bg-blue-600' : 'bg-slate-200'}`}>
                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${allowUpdate ? 'translate-x-6' : 'translate-x-1'}`} />
                       </div>
-                      <span className="text-sm font-semibold text-slate-700 group-hover:text-blue-600 transition-colors">Mijozlarni yangilash (agar mavjud bo'lsa)</span>
+                      <span className="text-sm font-semibold text-slate-700 group-hover:text-blue-600 transition-colors">{t('customer.updateCustomersIfExists')}</span>
                     </label>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-3 bg-white border border-slate-200 px-3 py-1.5 rounded-xl">
-                      <span className="text-sm font-medium text-slate-600">O'tkazib yuborish (qator):</span>
+                      <span className="text-sm font-medium text-slate-600">{t('customer.skipRowsLabel')}:</span>
                       <button onClick={() => setSkipRows(Math.max(0, skipRows - 1))} className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors font-bold text-slate-600">−</button>
                       <span className="text-sm font-bold w-6 text-center">{skipRows}</span>
                       <button onClick={() => setSkipRows(skipRows + 1)} className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors font-bold text-slate-600">+</button>
@@ -1716,11 +1717,11 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                 <div className="flex-1 flex flex-col overflow-hidden">
                   <div className="px-6 py-2.5 flex items-center justify-between border-b border-slate-100 shrink-0 bg-white">
                     <span className="text-sm text-slate-600 font-medium">
-                      Yuklanayotgan mijozlar soni: <strong>{buildPayload().length} ta</strong>
+                      {t('customer.importCountLabel')}: <strong>{buildPayload().length} {t('common.item')}</strong>
                     </span>
                     {!(Object.values(colMap).includes('Ism') || (allowUpdate && (Object.values(colMap).includes('Telefon') || Object.values(colMap).includes('Karta raqami')))) && (
                       <span className="text-sm font-semibold text-red-500 animate-pulse">
-                        * {allowUpdate ? 'Ism, Telefon yoki Karta raqami' : 'Ism'} ustunini tanlash majburiy
+                        * {allowUpdate ? t('customer.importRequiredColumnsUpdate') : t('customer.fullName')} {t('customer.importColumnRequiredSuffix')}
                       </span>
                     )}
                   </div>
@@ -1798,7 +1799,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                                 <tr key={absIdx} className={`hover:bg-slate-50/50 transition-colors ${skipped ? 'opacity-40 bg-slate-50' : ''}`}>
                                   <td className="px-3 py-2 text-slate-400 font-bold border-r border-slate-100 bg-slate-50/80 text-center select-none w-12">
                                     {absIdx + 1}
-                                    {skipped && <span className="text-[10px] text-amber-500 block leading-none font-semibold">Skip</span>}
+                                    {skipped && <span className="text-[10px] text-amber-500 block leading-none font-semibold">{t('customer.importSkipBadge')}</span>}
                                   </td>
                                   {Object.keys(importRows[0]).map(col => (
                                     <td key={col} className={`p-0 border-x border-slate-100 min-w-[150px] ${skipped ? 'bg-slate-100/50' : ''}`}>
@@ -1826,14 +1827,14 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                   {importRows.length > 0 && (
                     <div className="px-6 py-3 border-t border-slate-100 flex items-center justify-between bg-white shrink-0 shadow-inner">
                       <span className="text-sm text-slate-500">
-                        {importRows.length} ta ma'lumotdan {Math.min((importPage - 1) * IMPORT_LIMIT + 1, importRows.length)} dan {Math.min(importPage * IMPORT_LIMIT, importRows.length)} gacha ko'rsatildi
+                        {t('customer.importPaginationInfo', { total: importRows.length, from: Math.min((importPage - 1) * IMPORT_LIMIT + 1, importRows.length), to: Math.min(importPage * IMPORT_LIMIT, importRows.length) })}
                       </span>
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => setImportPage(p => Math.max(1, p - 1))}
                           disabled={importPage === 1}
                           className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors"
-                        >Oldingi</button>
+                        >{t('common.prev')}</button>
                         {Array.from({ length: Math.ceil(importRows.length / IMPORT_LIMIT) }, (_, i) => i + 1).slice(
                           Math.max(0, importPage - 3), Math.min(Math.ceil(importRows.length / IMPORT_LIMIT), importPage + 2)
                         ).map(p => (
@@ -1847,8 +1848,8 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                           onClick={() => setImportPage(p => Math.min(Math.ceil(importRows.length / IMPORT_LIMIT), p + 1))}
                           disabled={importPage >= Math.ceil(importRows.length / IMPORT_LIMIT)}
                           className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors"
-                        >Keyingi</button>
-                        <span className="text-sm text-slate-400 ml-2">Limit:</span>
+                        >{t('common.next')}</button>
+                        <span className="text-sm text-slate-400 ml-2">{t('common.limit')}:</span>
                         <span className="px-2 py-1 border border-slate-200 rounded-lg text-sm font-bold text-slate-600">{IMPORT_LIMIT}</span>
                       </div>
                     </div>
@@ -1862,7 +1863,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
             {importLoading && (
               <div className="px-6 py-4 border-t border-slate-100 bg-white shrink-0 animate-fadeIn">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-slate-600">Yuklanmoqda...</span>
+                  <span className="text-sm font-medium text-slate-600">{t('common.loading')}</span>
                   <span className="text-sm font-bold text-blue-600">{importProgress}%</span>
                 </div>
                 <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
@@ -1872,7 +1873,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                   />
                 </div>
                 <p className="text-xs text-slate-400 mt-1.5">
-                  {Math.round(buildPayload().length * importProgress / 100).toLocaleString()} / {buildPayload().length.toLocaleString()} ta mijoz
+                  {Math.round(buildPayload().length * importProgress / 100).toLocaleString()} / {buildPayload().length.toLocaleString()} {t('customer.customers').toLowerCase()}
                 </p>
               </div>
             )}
@@ -1883,17 +1884,17 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                 <div className="flex items-center gap-4 flex-wrap">
                   <div className="px-5 py-3 bg-emerald-50 rounded-xl text-center min-w-[120px]">
                     <div className="text-3xl font-black text-emerald-600">{importResult.created}</div>
-                    <div className="text-sm font-semibold text-emerald-500">Yangi qo'shildi</div>
+                    <div className="text-sm font-semibold text-emerald-500">{t('customer.importCreatedLabel')}</div>
                   </div>
                   {importResult.updated > 0 && (
                     <div className="px-5 py-3 bg-blue-50 rounded-xl text-center min-w-[120px]">
                       <div className="text-3xl font-black text-blue-600">{importResult.updated}</div>
-                      <div className="text-sm font-semibold text-blue-500">Yangilandi</div>
+                      <div className="text-sm font-semibold text-blue-500">{t('customer.importUpdatedLabel')}</div>
                     </div>
                   )}
                   <div className={`px-5 py-3 rounded-xl text-center min-w-[120px] ${importResult.skipped > 0 ? 'bg-amber-50' : 'bg-slate-50'}`}>
                     <div className={`text-3xl font-black ${importResult.skipped > 0 ? 'text-amber-600' : 'text-slate-400'}`}>{importResult.skipped}</div>
-                    <div className={`text-sm font-semibold ${importResult.skipped > 0 ? 'text-amber-500' : 'text-slate-400'}`}>O'tkazib yuborildi</div>
+                    <div className={`text-sm font-semibold ${importResult.skipped > 0 ? 'text-amber-500' : 'text-slate-400'}`}>{t('customer.importSkippedLabel')}</div>
                   </div>
                   <div className="flex-1 min-w-0">
                     {importResult.errors?.length > 0 && (
@@ -1925,13 +1926,13 @@ export function SotuvMijozlar({ stats, reloadStats }) {
 }
 
 const PAY_TYPES_LIST = [
-  { v: 'cash', l: 'Naqd' },
-  { v: 'card', l: 'Karta' },
-  { v: 'uzcard', l: 'Uzcard' },
-  { v: 'humo', l: 'Humo' },
-  { v: 'bank', l: "Bank o'tkazmasi" },
-  { v: 'click', l: 'Click' },
-  { v: 'payme', l: 'Payme' },
+  { v: 'cash', lKey: 'finance.cash' },
+  { v: 'card', lKey: 'customer.payTypeCard' },
+  { v: 'uzcard', lKey: null, l: 'Uzcard' },
+  { v: 'humo', lKey: null, l: 'Humo' },
+  { v: 'bank', lKey: 'customer.payTypeTransfer' },
+  { v: 'click', lKey: null, l: 'Click' },
+  { v: 'payme', lKey: null, l: 'Payme' },
 ];
 
 const parseAmt = (s) => {
@@ -1943,6 +1944,7 @@ const parseAmt = (s) => {
 };
 
 function TolovTab({ customers, stats, reloadStats }) {
+  const { t } = useLang();
   const [debtors, setDebtors] = useState([]);
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(false);
@@ -1965,7 +1967,7 @@ function TolovTab({ customers, stats, reloadStats }) {
   const load = () => {
     api.get('/customers', { params: { limit: 500 }, _silent: true })
       .then(r => setDebtors((Array.isArray(r.data) ? r.data : []).filter(c => Number(c.debt_balance) > 0 || (c.debt_balances && typeof c.debt_balances === 'object' && Object.values(c.debt_balances).some(v => Number(v) > 0)))))
-      .catch(e => toast.error(e.response?.data?.detail || e.message || 'Xatolik'));
+      .catch(e => toast.error(e.response?.data?.detail || e.message || t('auth.errGeneral')));
   };
   useEffect(() => { load(); }, []);
 
@@ -1996,20 +1998,20 @@ function TolovTab({ customers, stats, reloadStats }) {
 
   const handlePay = async (e) => {
     e.preventDefault();
-    if (!sel) { setErr("Mijozni tanlang"); return; }
-    
+    if (!sel) { setErr(t('customer.selectCustomerError')); return; }
+
     const validPayments = payments.map(p => ({
        ...p,
        amount: parseAmt(p.amount)
     })).filter(p => p.amount > 0);
 
-    if (validPayments.length === 0) { setErr("Miqdor kiritilmagan"); return; }
+    if (validPayments.length === 0) { setErr(t('customer.amountNotEnteredError')); return; }
 
     setSaving(true); setErr('');
     try {
       await api.post(`/customers/${sel.id}/pay-debt`, {
         wallet_id: form.wallet_id ? Number(form.wallet_id) : undefined,
-        reason: form.description || `Mijoz to'lovi: ${sel.name}`,
+        reason: form.description || `${t('customer.customerPaymentReason')}: ${sel.name}`,
         payments: validPayments.map(p => ({
           payment_type: p.payType,
           amount: p.amount,
@@ -2017,12 +2019,12 @@ function TolovTab({ customers, stats, reloadStats }) {
           rate: p.currency === 'UZS' ? 1 : (currencies.find(c => c.code === p.currency)?.rate || 1)
         }))
       });
-      toast.success("To'lov qabul qilindi!");
+      toast.success(t('customer.paymentAcceptedSuccess'));
       close();
       load();
       reloadStats?.();
     } catch (e) {
-      setErr(e.response?.data?.detail || 'Xatolik');
+      setErr(e.response?.data?.detail || t('auth.errGeneral'));
     } finally {
       setSaving(false);
     }
@@ -2036,7 +2038,7 @@ function TolovTab({ customers, stats, reloadStats }) {
             <Users className="size-5 xl:size-6 text-red-500" />
           </div>
           <div className='flex flex-col gap-1'>
-            <div className="text-[10px] lg:text-xs leading-none font-semibold text-slate-400 uppercase tracking-wider">Qarzdorlar</div>
+            <div className="text-[10px] lg:text-xs leading-none font-semibold text-slate-400 uppercase tracking-wider">{t('customer.totalDebtors')}</div>
             <div className="text-[16px] leading-none lg:text-xl font-bold text-red-500 mt-0.5">{(stats?.total_debtors || 0).toLocaleString()}</div>
           </div>
         </div>
@@ -2045,15 +2047,15 @@ function TolovTab({ customers, stats, reloadStats }) {
             <CreditCard className="size-6 text-red-500" />
           </div>
           <div className='flex flex-col gap-1'>
-            <div className="text-[10px] lg:text-xs leading-none font-semibold text-slate-400 uppercase tracking-wider">Jami qarz</div>
+            <div className="text-[10px] lg:text-xs leading-none font-semibold text-slate-400 uppercase tracking-wider">{t('customer.totalDebt')}</div>
             {stats?.total_debts && Object.keys(stats.total_debts).length > 0 ? (
               Object.entries(stats.total_debts).map(([curr, amt]) => (
                 <div key={curr} className="text-[16px] leading-none lg:text-xl font-bold text-red-500 mt-0.5">
-                  {fmt(amt)} {curr === 'UZS' ? "so'm" : curr}
+                  {fmt(amt)} {curr === 'UZS' ? t('common.sum') : curr}
                 </div>
               ))
             ) : (
-              <div className="text-[16px] leading-none lg:text-xl font-bold text-red-500 mt-0.5">{fmt(totalDebt)} so'm</div>
+              <div className="text-[16px] leading-none lg:text-xl font-bold text-red-500 mt-0.5">{fmt(totalDebt)} {t('common.sum')}</div>
             )}
           </div>
         </div>
@@ -2063,12 +2065,12 @@ function TolovTab({ customers, stats, reloadStats }) {
         <div className="relative flex-1">
           <svg className="absolute shrink-0 left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
           <input className="w-full pl-10 pr-4 py-2 md:py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Mijoz ismi yoki telefon..." value={search} onChange={e => setSearch(e.target.value)} />
+            placeholder={t('customer.searchNamePhonePlaceholder')} value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <button onClick={() => openModal()}
           className="px-3 md:px-4 h-max py-2.5 md:py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs md:text-sm font-semibold rounded-xl flex items-center gap-2 shadow-sm transition-all">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
-          Yangi to'lov
+          {t('customer.newPayment')}
         </button>
       </div>
 
@@ -2076,7 +2078,7 @@ function TolovTab({ customers, stats, reloadStats }) {
         <table className="min-w-full">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
-              {['#', 'Mijoz', 'Telefon', 'Qarz miqdori', 'Qarz limiti', ''].map(h =>
+              {['#', t('common.name'), t('common.phone'), t('customer.debtBalance'), t('customer.creditLimit'), ''].map(h =>
                 <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
               )}
             </tr>
@@ -2098,7 +2100,7 @@ function TolovTab({ customers, stats, reloadStats }) {
                       ? c.debt_balances
                       : { 'UZS': c.debt_balance };
                     const hasDebt = Object.values(balances).some(v => Number(v) > 0);
-                    if (!hasDebt) return <span className="text-xs md:text-sm font-bold text-emerald-600">0 so'm</span>;
+                    if (!hasDebt) return <span className="text-xs md:text-sm font-bold text-emerald-600">0 {t('common.sum')}</span>;
                     return (
                       <div className="flex flex-col gap-1">
                         {Object.entries(balances).map(([curr, amt]) => Number(amt) > 0 && (
@@ -2110,19 +2112,19 @@ function TolovTab({ customers, stats, reloadStats }) {
                     );
                   })()}
                 </td>
-                <td className="px-5 py-4 text-xs md:text-sm text-slate-400">{fmt(c.debt_limit)} so'm</td>
+                <td className="px-5 py-4 text-xs md:text-sm text-slate-400">{fmt(c.debt_limit)} {t('common.sum')}</td>
                 <td className="px-5 py-4">
                   <button onClick={() => openModal(c)}
                     className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 whitespace-nowrap cursor-pointer text-emerald-700 text-[10px] md:text-xs font-semibold rounded-lg border border-emerald-200 flex items-center gap-1.5 transition-all">
                     <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
-                    To'lov qabul qilish
+                    {t('customer.acceptPayment')}
                   </button>
                 </td>
               </tr>
             ))}
             {filtered.length === 0 && (
               <tr><td colSpan={6} className="px-5 py-14 text-center text-slate-400 text-sm">
-                {search ? 'Topilmadi' : "Barcha mijozlar qarzni to'lagan"}
+                {search ? t('error.notFound') : t('customer.allCustomersPaidDebt')}
               </td></tr>
             )}
           </tbody>
@@ -2133,14 +2135,14 @@ function TolovTab({ customers, stats, reloadStats }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={close}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-800">To'lov qabul qilish</h3>
+              <h3 className="text-lg font-bold text-slate-800">{t('customer.acceptPayment')}</h3>
               <button onClick={close} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             <form onSubmit={handlePay} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Mijoz *</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('customer.customerLabel')} *</label>
                 <CustSearch customers={customers} value={sel?.id || ''} onChange={id => {
                   const c = customers.find(x => x.id === id);
                   setSel(c || null);
@@ -2153,7 +2155,7 @@ function TolovTab({ customers, stats, reloadStats }) {
                     {sel.phone && <div className="text-xs text-slate-400 mt-0.5">{sel.phone}</div>}
                   </div>
                   <div className="text-right">
-                    <div className="text-xs text-slate-400">Joriy qarzlar</div>
+                    <div className="text-xs text-slate-400">{t('customer.currentDebtsLabel')}</div>
                     {(() => {
                       const balances = sel.debt_balances && typeof sel.debt_balances === 'object' && Object.keys(sel.debt_balances).length > 0
                         ? sel.debt_balances
@@ -2172,7 +2174,7 @@ function TolovTab({ customers, stats, reloadStats }) {
                 </div>
               )}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Kassa/Hamyon</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('customer.cashierWalletLabel')}</label>
                 <select value={form.wallet_id} onChange={e => setForm(f => ({ ...f, wallet_id: e.target.value }))}
                   className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500">
                   {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
@@ -2180,12 +2182,12 @@ function TolovTab({ customers, stats, reloadStats }) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-2 mt-2 uppercase tracking-wider">To'lovlar</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-2 mt-2 uppercase tracking-wider">{t('customer.paymentsLabel')}</label>
                 <div className="space-y-2">
                   {payments.map((p, i) => (
                     <div key={i} className="flex items-center gap-2">
                       <select value={p.payType} onChange={e => updatePayment(i, 'payType', e.target.value)} className="w-1/3 min-w-24 border border-slate-200 rounded-xl px-2 py-2 text-sm bg-slate-50 outline-none">
-                        {PAY_TYPES_LIST.filter(pt => pt.v !== 'mixed' && pt.v !== 'debt').map(pt => <option key={pt.v} value={pt.v}>{pt.l}</option>)}
+                        {PAY_TYPES_LIST.filter(pt => pt.v !== 'mixed' && pt.v !== 'debt').map(pt => <option key={pt.v} value={pt.v}>{pt.lKey ? t(pt.lKey) : pt.l}</option>)}
                       </select>
                       <select value={p.currency} onChange={e => updatePayment(i, 'currency', e.target.value)} className="w-20 border border-slate-200 rounded-xl px-2 py-2 text-sm bg-slate-50 outline-none">
                         <option value="UZS">UZS</option>
@@ -2198,7 +2200,7 @@ function TolovTab({ customers, stats, reloadStats }) {
                     </div>
                   ))}
                   <button type="button" onClick={addPayment} className="w-full mt-2 py-2 border-2 border-dashed border-blue-200 text-blue-600 hover:bg-blue-50 font-bold text-sm rounded-xl transition-all">
-                    + Yana qo'shish
+                    + {t('customer.addMore')}
                   </button>
                 </div>
               </div>
@@ -2206,7 +2208,7 @@ function TolovTab({ customers, stats, reloadStats }) {
               {sel && payments.some(p => parseAmt(p.amount) > 0) && (
                 <div className="text-xs text-slate-500 mt-2 font-medium bg-slate-50 p-3 rounded-xl border border-slate-200">
                   <div className="mb-1 flex justify-between">
-                    <span>Jami (UZS ekvivalentida):</span>
+                    <span>{t('customer.totalUZSEquivalent')}:</span>
                     <span className="font-bold text-blue-700">
                       {fmt(payments.reduce((acc, p) => {
                         const r = p.currency === 'UZS' ? 1 : (currencies.find(c => c.code === p.currency)?.rate || 1);
@@ -2215,7 +2217,7 @@ function TolovTab({ customers, stats, reloadStats }) {
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span>To'lovdan keyingi qarz:</span>
+                    <span>{t('customer.debtAfterPayment')}:</span>
                     <span className="font-bold text-amber-600">
                       {fmt(Math.max(0, Number(sel.debt_balance) - payments.reduce((acc, p) => {
                         const r = p.currency === 'UZS' ? 1 : (currencies.find(c => c.code === p.currency)?.rate || 1);
@@ -2226,15 +2228,15 @@ function TolovTab({ customers, stats, reloadStats }) {
                 </div>
               )}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Izoh</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('common.note')}</label>
                 <input className={inputCls} value={form.description}
-                  onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Ixtiyoriy..." />
+                  onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder={t('customer.optionalPlaceholder')} />
               </div>
               {err && <div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}
               <div className="flex gap-3 pt-1">
-                <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm font-medium rounded-xl hover:bg-slate-50">Bekor qilish</button>
+                <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 text-sm font-medium rounded-xl hover:bg-slate-50">{t('common.cancel')}</button>
                 <button type="submit" disabled={saving || !sel} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">
-                  {saving ? 'Saqlanmoqda...' : "To'lovni qabul qilish"}
+                  {saving ? t('common.saving') : t('customer.acceptPaymentAction')}
                 </button>
               </div>
             </form>
@@ -2273,7 +2275,7 @@ export default function Customers() {
       .then(r => {
         const data = r.data;
         setCustomers(data);
-      }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+      }).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
 
     api.get('/currencies').then(r => setCurrencies(r.data)).catch(() => { });
   }, [loadStats]);

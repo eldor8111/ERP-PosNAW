@@ -12,12 +12,15 @@ import Promotions from './Promotions';
 import Warehouse from './Warehouse';
 
 // Add placeholder for missing tabs
-const PlaceholderTab = ({ name }) => (
-  <div className="py-12 text-center text-slate-400">
-    <h3 className="text-lg font-bold text-slate-700 mb-2">{name} tez orada ishga tushadi</h3>
-    <p className="text-sm">Bu bo'lim ustida ish olib borilmoqda.</p>
-  </div>
-);
+const PlaceholderTab = ({ name }) => {
+  const { t } = useLang();
+  return (
+    <div className="py-12 text-center text-slate-400">
+      <h3 className="text-lg font-bold text-slate-700 mb-2">{t('settings.placeholder.comingSoon', { name })}</h3>
+      <p className="text-sm">{t('settings.placeholder.inProgress')}</p>
+    </div>
+  );
+};
 
 // ── Default chek shablon konfiguratsiyalari ───────────────────────────────────
 const defaultReceiptCfg = {
@@ -77,7 +80,7 @@ function CurrenciesTab() {
       const init = {};
       r.data.forEach(c => { init[c.id] = String(c.rate); });
       setEditRates(init);
-    }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    }).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('error.serverError')) });
 
   // On mount: load currencies
   useEffect(() => { load(); }, []);
@@ -96,7 +99,7 @@ function CurrenciesTab() {
       setForm({ name: '', code: '', rate: '', is_default: false });
       load();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Xatolik yuz berdi');
+      setError(err.response?.data?.detail || t('error.serverError'));
     } finally { setSaving(false); }
   };
 
@@ -108,7 +111,7 @@ function CurrenciesTab() {
       await api.patch(`/currencies/${c.id}`, { rate: newRate });
       load();
     } catch (err) {
-      alert(err.response?.data?.detail || 'Xatolik yuz berdi');
+      alert(err.response?.data?.detail || t('error.serverError'));
     } finally { setUpdatingId(null); }
   };
 
@@ -119,7 +122,7 @@ function CurrenciesTab() {
       await api.patch(`/currencies/${c.id}`, { is_default: true });
       load();
     } catch (err) {
-      alert(err.response?.data?.detail || 'Xatolik yuz berdi');
+      alert(err.response?.data?.detail || t('error.serverError'));
     } finally { setMakingDefaultId(null); }
   };
 
@@ -158,7 +161,7 @@ function CurrenciesTab() {
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">{t('common.currency')} ({t('common.sum')}ga)</label>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">{t('settings.currencies.rateFieldLabel')}</label>
             <input
               required type="number" min="0.0001" step="any" value={form.rate}
               onChange={e => setForm({ ...form, rate: e.target.value })}
@@ -248,8 +251,8 @@ function CurrenciesTab() {
                   <button
                     type="button"
                     disabled={c.is_default}  // Asosiy valyutani o'chirish mumkin emas
-                    onClick={() => api.patch(`/currencies/${c.id}`, { is_active: !c.is_active }).then(() => load()).catch(e => alert(e.response?.data?.detail || 'Xatolik'))}
-                    title={c.is_default ? "Asosiy valyutani o'chirib bo'lmaydi" : (c.is_active ? "Faolsizlashtirish" : "Faollashtirish")}
+                    onClick={() => api.patch(`/currencies/${c.id}`, { is_active: !c.is_active }).then(() => load()).catch(e => alert(e.response?.data?.detail || t('common.error')))}
+                    title={c.is_default ? t('settings.currencies.cannotDeactivateDefault') : (c.is_active ? t('settings.currencies.deactivate') : t('settings.currencies.activate'))}
                     className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${c.is_active ? 'bg-blue-500' : 'bg-slate-200'
                       } ${c.is_default ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                   >
@@ -279,7 +282,7 @@ function CurrenciesTab() {
                     <button
                       onClick={() => handleDelete(c.id)}
                       className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      title="O'chirish"
+                      title={t('common.delete')}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -308,7 +311,7 @@ function ApiKeysTab() {
   const [newToken, setNewToken] = useState(null);
   const [copied, setCopied] = useState(false);
 
-  const load = () => api.get('/api-keys/').then(r => setKeys(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+  const load = () => api.get('/api-keys/').then(r => setKeys(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('error.serverError')) });
 
   useEffect(() => { load(); }, []);
 
@@ -321,12 +324,12 @@ function ApiKeysTab() {
       setName('');
       load();
     } catch (err) {
-      alert(err.response?.data?.detail || 'Xatolik yuz berdi');
+      alert(err.response?.data?.detail || t('error.serverError'));
     } finally { setSaving(false); }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm("API kalitni o'chirishni tasdiqlaysizmi?")) return;
+    if (!confirm(t('settings.apiKeys.confirmDelete'))) return;
     await api.delete(`/api-keys/${id}`);
     load();
   };
@@ -349,8 +352,8 @@ function ApiKeysTab() {
               </svg>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-amber-800 mb-1">"{newToken.name}" — tokenni nusxalab oling!</p>
-              <p className="text-xs text-amber-700 mb-3">{t('settings.tokenWarning') || "Bu token faqat bir marta ko'rsatiladi."}</p>
+              <p className="text-sm font-bold text-amber-800 mb-1">"{newToken.name}" — {t('settings.apiKeys.copyTokenHint')}</p>
+              <p className="text-xs text-amber-700 mb-3">{t('settings.tokenWarning') || t('settings.apiKeys.tokenShownOnce')}</p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 px-3 py-2 bg-white border border-amber-300 rounded-lg text-xs font-mono text-amber-900 break-all">
                   {newToken.token}
@@ -360,7 +363,7 @@ function ApiKeysTab() {
                   className={`px-3 py-2 text-xs font-semibold rounded-lg transition-colors shrink-0 ${copied ? 'bg-emerald-500 text-white' : 'bg-amber-200 hover:bg-amber-300 text-amber-800'
                     }`}
                 >
-                  {copied ? 'Nusxalandi!' : 'Nusxalash'}
+                  {copied ? t('settings.apiKeys.copied') : t('settings.apiKeys.copy')}
                 </button>
               </div>
             </div>
@@ -375,12 +378,12 @@ function ApiKeysTab() {
 
       {/* Generate form */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-        <h3 className="text-base font-bold text-slate-800 mb-4">Yangi API kaliti yaratish</h3>
+        <h3 className="text-base font-bold text-slate-800 mb-4">{t('settings.apiKeys.generateTitle')}</h3>
         <form onSubmit={handleGenerate} className="flex gap-3">
           <input
             required value={name}
             onChange={e => setName(e.target.value)}
-            placeholder="Masalan: 1C Integration, Mobile App..."
+            placeholder={t('settings.apiKeys.namePlaceholder')}
             className="flex-1 px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button
@@ -390,7 +393,7 @@ function ApiKeysTab() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
             </svg>
-            {saving ? 'Yaratilmoqda...' : 'Yaratish'}
+            {saving ? t('settings.apiKeys.creating') : t('settings.apiKeys.create')}
           </button>
         </form>
       </div>
@@ -400,7 +403,7 @@ function ApiKeysTab() {
         <table className="min-w-full">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
-              {['Nom', 'Hash (sha256)', ''].map(h => (
+              {[t('common.name'), 'Hash (sha256)', ''].map(h => (
                 <th key={h} className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
               ))}
             </tr>
@@ -418,7 +421,7 @@ function ApiKeysTab() {
                   <button
                     onClick={() => handleDelete(k.id)}
                     className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                    title="O'chirish"
+                    title={t('common.delete')}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -428,7 +431,7 @@ function ApiKeysTab() {
               </tr>
             ))}
             {keys.length === 0 && (
-              <tr><td colSpan={3} className="px-6 py-12 text-center text-slate-400 text-sm">API kalitlar yo'q</td></tr>
+              <tr><td colSpan={3} className="px-6 py-12 text-center text-slate-400 text-sm">{t('settings.apiKeys.empty')}</td></tr>
             )}
           </tbody>
         </table>
@@ -436,12 +439,12 @@ function ApiKeysTab() {
 
       {/* Info box */}
       <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5">
-        <h4 className="text-sm font-bold text-slate-700 mb-2">API integratsiya haqida</h4>
+        <h4 className="text-sm font-bold text-slate-700 mb-2">{t('settings.apiKeys.aboutTitle')}</h4>
         <ul className="space-y-1 text-xs text-slate-500">
-          <li>• API kalitni so'rovlarda <code className="bg-slate-200 px-1.5 py-0.5 rounded font-mono">X-API-Key</code> sarlavhasi orqali yuboring</li>
-          <li>• Kalitni xavfsiz saqlang — uni hech kim bilan baham ko'rmang</li>
-          <li>• 1C integratsiyasi uchun <code className="bg-slate-200 px-1.5 py-0.5 rounded font-mono">/api/reports/1c-export</code> endpointidan foydalaning</li>
-          <li>• Kalitni yo'qotsangiz — yangisini yaratib, eskisini o'chiring</li>
+          <li>• {t('settings.apiKeys.hint1a')} <code className="bg-slate-200 px-1.5 py-0.5 rounded font-mono">X-API-Key</code> {t('settings.apiKeys.hint1b')}</li>
+          <li>• {t('settings.apiKeys.hint2')}</li>
+          <li>• {t('settings.apiKeys.hint3a')} <code className="bg-slate-200 px-1.5 py-0.5 rounded font-mono">/api/reports/1c-export</code> {t('settings.apiKeys.hint3b')}</li>
+          <li>• {t('settings.apiKeys.hint4')}</li>
         </ul>
       </div>
     </div>
@@ -460,16 +463,16 @@ function PasswordTab() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErr(''); setMsg('');
-    if (form.new_password.length < 6) { setErr("Parol kamida 6 ta belgi bo'lishi kerak"); return; }
-    if (form.new_password !== form.confirm) { setErr("Yangi parollar mos emas"); return; }
+    if (form.new_password.length < 6) { setErr(t('settings.password.minLength')); return; }
+    if (form.new_password !== form.confirm) { setErr(t('settings.password.mismatch')); return; }
     setSaving(true);
     try {
       const me = await api.get('/auth/me');
       await api.patch(`/users/${me.data.id}/password`, { new_password: form.new_password });
-      setMsg("Parol muvaffaqiyatli o'zgartirildi!");
+      setMsg(t('settings.password.changed'));
       setForm({ new_password: '', confirm: '' });
     } catch (e) {
-      setErr(e.response?.data?.detail || "Xatolik yuz berdi");
+      setErr(e.response?.data?.detail || t('error.serverError'));
     } finally { setSaving(false); }
   };
 
@@ -485,18 +488,18 @@ function PasswordTab() {
             </svg>
           </div>
           <div>
-            <h3 className="font-bold text-slate-800">Parolni o'zgartirish</h3>
-            <p className="text-xs text-slate-400">Yangi parol kamida 6 ta belgi bo'lishi kerak</p>
+            <h3 className="font-bold text-slate-800">{t('settings.password.title')}</h3>
+            <p className="text-xs text-slate-400">{t('settings.password.minLength')}</p>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Yangi parol</label>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">{t('settings.password.newPassword')}</label>
             <div className="relative">
               <input type={show.new ? 'text' : 'password'} required value={form.new_password}
                 onChange={e => setForm(f => ({ ...f, new_password: e.target.value }))}
-                placeholder="Yangi parol kiriting"
+                placeholder={t('settings.password.newPasswordPlaceholder')}
                 className={inputCls} />
               <button type="button" onClick={() => setShow(s => ({ ...s, new: !s.new }))}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -521,11 +524,11 @@ function PasswordTab() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Parolni tasdiqlang</label>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">{t('settings.password.confirmLabel')}</label>
             <div className="relative">
               <input type={show.confirm ? 'text' : 'password'} required value={form.confirm}
                 onChange={e => setForm(f => ({ ...f, confirm: e.target.value }))}
-                placeholder="Parolni qayta kiriting"
+                placeholder={t('settings.password.confirmPlaceholder')}
                 className={`${inputCls} ${form.confirm && form.confirm !== form.new_password ? 'border-red-400 focus:ring-red-400' : form.confirm && form.confirm === form.new_password ? 'border-emerald-400 focus:ring-emerald-400' : ''}`} />
               <button type="button" onClick={() => setShow(s => ({ ...s, confirm: !s.confirm }))}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -538,7 +541,7 @@ function PasswordTab() {
               </button>
             </div>
             {form.confirm && form.confirm !== form.new_password && (
-              <p className="text-xs text-red-500 mt-1">Parollar mos emas</p>
+              <p className="text-xs text-red-500 mt-1">{t('settings.password.mismatch')}</p>
             )}
           </div>
 
@@ -550,18 +553,18 @@ function PasswordTab() {
 
           <button type="submit" disabled={saving}
             className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
-            {saving ? 'Saqlanmoqda...' : "Parolni o'zgartirish"}
+            {saving ? t('common.saving') : t('settings.password.title')}
           </button>
         </form>
       </div>
 
       <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
-        <h4 className="text-sm font-bold text-amber-800 mb-2">Xavfsizlik bo'yicha maslahatlar</h4>
+        <h4 className="text-sm font-bold text-amber-800 mb-2">{t('settings.password.securityTipsTitle')}</h4>
         <ul className="space-y-1 text-xs text-amber-700">
-          <li>• Kamida 8 ta belgi, katta va kichik harflar ishlating</li>
-          <li>• Raqam va maxsus belgilar (`@`, `#`, `!`) qo'shing</li>
-          <li>• Parolni boshqalar bilan ulashmang</li>
-          <li>• Har 3 oyda bir parolni yangilang</li>
+          <li>• {t('settings.password.tip1')}</li>
+          <li>• {t('settings.password.tip2')}</li>
+          <li>• {t('settings.password.tip3')}</li>
+          <li>• {t('settings.password.tip4')}</li>
         </ul>
       </div>
     </div>
@@ -587,6 +590,7 @@ function ToggleSwitch({ checked, onChange, disabled = false }) {
 }
 
 function AdminBotSettingsModal({ companyId, onClose }) {
+  const { t } = useLang();
   const [settings, setSettings] = useState({
     notify_instant_sales: true,
     notify_instant_finance: true,
@@ -623,9 +627,9 @@ function AdminBotSettingsModal({ companyId, onClose }) {
       await api.put(`/companies/${companyId}/admin-bot/settings`, settings);
       setSaved(true);
       setTimeout(() => { setSaved(false); }, 2500);
-      toast.success('Sozlamalar saqlandi!');
+      toast.success(t('settings.adminBot.saved'));
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Xatolik yuz berdi');
+      toast.error(e.response?.data?.detail || t('error.serverError'));
     } finally {
       setSaving(false);
     }
@@ -650,8 +654,8 @@ function AdminBotSettingsModal({ companyId, onClose }) {
               </svg>
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-800">Admin Bot Sozlamalari</h2>
-              <p className="text-sm text-slate-500">Bildirishnoma va hisobotlarni boshqarish</p>
+              <h2 className="text-lg font-bold text-slate-800">{t('settings.adminBot.title')}</h2>
+              <p className="text-sm text-slate-500">{t('settings.adminBot.subtitle')}</p>
             </div>
           </div>
           <button
@@ -681,8 +685,8 @@ function AdminBotSettingsModal({ companyId, onClose }) {
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-slate-800">Tezkor Xabarlar</p>
-                      <p className="text-xs text-slate-500">Amaliyot vaqtida darhol xabar</p>
+                      <p className="text-sm font-bold text-slate-800">{t('settings.adminBot.instantMessagesTitle')}</p>
+                      <p className="text-xs text-slate-500">{t('settings.adminBot.instantMessagesDesc')}</p>
                     </div>
                   </div>
                 </div>
@@ -694,8 +698,8 @@ function AdminBotSettingsModal({ companyId, onClose }) {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-slate-700">Yangi sotuv</p>
-                        <p className="text-xs text-slate-400">Mijoz xarid qilganda</p>
+                        <p className="text-sm font-semibold text-slate-700">{t('settings.adminBot.newSale')}</p>
+                        <p className="text-xs text-slate-400">{t('settings.adminBot.newSaleDesc')}</p>
                       </div>
                     </div>
                     <PremiumToggle checked={settings.notify_instant_sales} onChange={v => upd('notify_instant_sales', v)} color="blue" />
@@ -707,8 +711,8 @@ function AdminBotSettingsModal({ companyId, onClose }) {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-slate-700">Moliyaviy</p>
-                        <p className="text-xs text-slate-400">Xarajat va qarz to'lovlari</p>
+                        <p className="text-sm font-semibold text-slate-700">{t('settings.adminBot.financial')}</p>
+                        <p className="text-xs text-slate-400">{t('settings.adminBot.financialDesc')}</p>
                       </div>
                     </div>
                     <PremiumToggle checked={settings.notify_instant_finance} onChange={v => upd('notify_instant_finance', v)} color="blue" />
@@ -725,8 +729,8 @@ function AdminBotSettingsModal({ companyId, onClose }) {
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-slate-800">Kunlik Hisobot</p>
-                        <p className="text-xs text-slate-500">Kun yakunida umumiy xulosa</p>
+                        <p className="text-sm font-bold text-slate-800">{t('settings.adminBot.dailyReport')}</p>
+                        <p className="text-xs text-slate-500">{t('settings.adminBot.dailyReportDesc')}</p>
                       </div>
                     </div>
                     <PremiumToggle checked={settings.notify_scheduled} onChange={v => upd('notify_scheduled', v)} color="blue" />
@@ -740,7 +744,7 @@ function AdminBotSettingsModal({ companyId, onClose }) {
                         className="px-3 py-2 rounded-md border border-slate-200 text-sm font-mono font-bold w-32 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white"
                       />
                       <p className="text-xs text-slate-500 leading-tight">
-                        Har kuni ko'rsatilgan vaqtda to'liq hisobot botga keladi
+                        {t('settings.adminBot.scheduledTimeHint')}
                       </p>
                     </div>
                   </div>
@@ -754,15 +758,15 @@ function AdminBotSettingsModal({ companyId, onClose }) {
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-slate-800">Yaroqlilik Muddati</p>
-                        <p className="text-xs text-slate-500">Tugayotgan tovarlar haqida</p>
+                        <p className="text-sm font-bold text-slate-800">{t('settings.adminBot.expiryTitle')}</p>
+                        <p className="text-xs text-slate-500">{t('settings.adminBot.expiryDesc')}</p>
                       </div>
                     </div>
                     <PremiumToggle checked={settings.notify_expired_products} onChange={v => upd('notify_expired_products', v)} color="blue" />
                   </div>
                   
                   <div className={`transition-opacity ${settings.notify_expired_products ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
-                    <p className="text-xs font-semibold text-slate-600 mb-2">Qancha oldin ogohlantirilsin?</p>
+                    <p className="text-xs font-semibold text-slate-600 mb-2">{t('settings.adminBot.warnDaysBeforeLabel')}</p>
                     <div className="flex flex-wrap gap-2">
                       {[3, 5, 7, 14, 30].map(d => {
                         const isSel = settings.expired_days_before === d;
@@ -774,7 +778,7 @@ function AdminBotSettingsModal({ companyId, onClose }) {
                               isSel ? 'bg-blue-50 border-blue-600 text-blue-700 shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                             }`}
                           >
-                            {d} kun
+                            {d} {t('settings.adminBot.daysUnit')}
                           </button>
                         );
                       })}
@@ -786,7 +790,7 @@ function AdminBotSettingsModal({ companyId, onClose }) {
                           onChange={e => upd('expired_days_before', parseInt(e.target.value) || 7)}
                           className="w-16 px-2 py-1.5 rounded-md text-xs font-semibold text-center focus:outline-none border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white"
                         />
-                        <span className="text-xs text-slate-400">kun</span>
+                        <span className="text-xs text-slate-400">{t('settings.adminBot.daysUnit')}</span>
                       </div>
                     </div>
                   </div>
@@ -802,7 +806,7 @@ function AdminBotSettingsModal({ companyId, onClose }) {
           {saved ? (
             <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-              Saqlandi!
+              {t('settings.saved')}
             </span>
           ) : <span />}
           <div className="flex items-center gap-3">
@@ -810,7 +814,7 @@ function AdminBotSettingsModal({ companyId, onClose }) {
               onClick={onClose}
               className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
             >
-              Bekor qilish
+              {t('common.cancel')}
             </button>
             <button
               onClick={handleSave}
@@ -820,9 +824,9 @@ function AdminBotSettingsModal({ companyId, onClose }) {
               {saving ? (
                 <>
                   <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                  Saqlanmoqda
+                  {t('common.saving')}
                 </>
-              ) : 'Saqlash'}
+              ) : t('common.save')}
             </button>
           </div>
         </div>
@@ -853,6 +857,7 @@ function PremiumToggle({ checked, onChange, color = 'blue' }) {
 }
 
 function TelegramBotTab({ companyId }) {
+  const { t } = useLang();
   const [userBot, setUserBot] = useState(null);
   const [adminBot, setAdminBot] = useState(null);
   const [courierBot, setCourierBot] = useState(null);
@@ -906,12 +911,12 @@ function TelegramBotTab({ companyId }) {
       setSaving(true); setErr('');
       try {
         const res = await api.put(`/companies/${companyId}`, { courier_bot_token: token });
-        toast.success('Dostavchik boti ulandi!');
+        toast.success(t('settings.telegramBot.courierConnected'));
         setCourierBot(res.data?.courier_bot_username ? { bot_username: res.data.courier_bot_username } : null);
         setToken('');
         setShowModal(false);
       } catch (error) {
-        setErr(error.response?.data?.detail || 'Xatolik yuz berdi');
+        setErr(error.response?.data?.detail || t('auth.errGeneral'));
       } finally {
         setSaving(false);
       }
@@ -919,12 +924,12 @@ function TelegramBotTab({ companyId }) {
       setSaving(true); setErr('');
       try {
         const res = await api.put(`/companies/${companyId}/admin-bot`, { bot_token: token });
-        toast.success('Admin bot ulandi!');
+        toast.success(t('settings.telegramBot.adminConnected'));
         setAdminBot(res.data);
         setToken('');
         setShowModal(false);
       } catch (error) {
-        setErr(error.response?.data?.detail || 'Xatolik yuz berdi');
+        setErr(error.response?.data?.detail || t('auth.errGeneral'));
       } finally {
         setSaving(false);
       }
@@ -932,12 +937,12 @@ function TelegramBotTab({ companyId }) {
       setSaving(true); setErr('');
       try {
         const res = await api.put(`/companies/${companyId}`, { tg_bot_token: token });
-        toast.success('Mijoz boti ulandi!');
+        toast.success(t('settings.telegramBot.userConnected'));
         setUserBot({ bot_token: res.data?.tg_bot_token, bot_username: res.data?.tg_bot_username });
         setToken('');
         setShowModal(false);
       } catch (error) {
-        setErr(error.response?.data?.detail || 'Xatolik yuz berdi');
+        setErr(error.response?.data?.detail || t('auth.errGeneral'));
       } finally {
         setSaving(false);
       }
@@ -945,24 +950,24 @@ function TelegramBotTab({ companyId }) {
   };
 
   const handleDelete = async (type) => {
-    if (!confirm("Tasdiqlaysizmi? Bot uzilib, xabarlar to'xtatiladi.")) return;
+    if (!confirm(t('settings.telegramBot.confirmDisconnect'))) return;
     try {
       if (type === 'courier') {
          await api.put(`/companies/${companyId}`, { courier_bot_token: null });
          setCourierBot(null);
-         toast.success("Dostavchik boti uzib qo'yildi.");
+         toast.success(t('settings.telegramBot.courierDisconnected'));
       } else if (type === 'admin') {
          await api.delete(`/companies/${companyId}/admin-bot`);
          setAdminBot(null);
          setShowAdminSettings(false);
-         toast.success("Admin bot uzib qo'yildi.");
+         toast.success(t('settings.telegramBot.adminDisconnected'));
       } else {
          await api.put(`/companies/${companyId}`, { tg_bot_token: null });
          setUserBot(null);
-         toast.success("Mijoz bot uzib qo'yildi.");
+         toast.success(t('settings.telegramBot.userDisconnected'));
       }
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Xatolik');
+      toast.error(e.response?.data?.detail || t('common.error'));
     }
   };
 
@@ -972,10 +977,10 @@ function TelegramBotTab({ companyId }) {
     setSavingShopSetting(true);
     try {
       await api.put(`/companies/${companyId}`, { shop_allow_out_of_stock_orders: checked });
-      toast.success('Sozlama saqlandi');
+      toast.success(t('settings.saved'));
     } catch (e) {
       setShopAllowOutOfStock(!checked);
-      toast.error(e.response?.data?.detail || 'Xatolik yuz berdi');
+      toast.error(e.response?.data?.detail || t('auth.errGeneral'));
     } finally {
       setSavingShopSetting(false);
     }
@@ -987,14 +992,14 @@ function TelegramBotTab({ companyId }) {
         <div className="flex items-center justify-center py-16">
           <div className="flex flex-col items-center gap-3">
             <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"/>
-            <p className="text-sm text-slate-400">Yuklanmoqda...</p>
+            <p className="text-sm text-slate-400">{t('common.loading')}</p>
           </div>
         </div>
       )}
       {companyId && (
       <><div>
-        <h3 className="text-base font-bold text-slate-800">Telegram Botlar</h3>
-        <p className="text-xs text-slate-400 mt-0.5">Mijozlar va rahbarlar uchun botlarni alohida boshqarish</p>
+        <h3 className="text-base font-bold text-slate-800">{t('settings.telegramBot.title')}</h3>
+        <p className="text-xs text-slate-400 mt-0.5">{t('settings.telegramBot.subtitle')}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
@@ -1003,8 +1008,8 @@ function TelegramBotTab({ companyId }) {
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <h4 className="font-bold text-slate-800">Mijoz boti</h4>
-              <p className="text-xs text-slate-400 mt-0.5">Chegirma, aksiya va xarid xabarlarini yuborish uchun</p>
+              <h4 className="font-bold text-slate-800">{t('settings.telegramBot.userBotTitle')}</h4>
+              <p className="text-xs text-slate-400 mt-0.5">{t('settings.telegramBot.userBotDesc')}</p>
             </div>
             {!userBot?.bot_username ? (
               <button
@@ -1012,11 +1017,11 @@ function TelegramBotTab({ companyId }) {
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-semibold rounded-lg transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                Ulash
+                {t('settings.telegramBot.connect')}
               </button>
             ) : (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-md">
-                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />Faol
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />{t('common.active')}
               </span>
             )}
           </div>
@@ -1032,18 +1037,18 @@ function TelegramBotTab({ companyId }) {
               </div>
               <div className="flex gap-2 pt-2 border-t border-slate-50">
                 <button onClick={() => { setBotType('user'); setShowModal(true); setErr(''); setToken(''); }}
-                  className="flex-1 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg transition-colors">Yangilash</button>
+                  className="flex-1 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg transition-colors">{t('settings.telegramBot.update')}</button>
                 <button onClick={() => handleDelete('user')}
-                  className="flex-1 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-lg transition-colors">O'chirish</button>
+                  className="flex-1 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-lg transition-colors">{t('common.delete')}</button>
               </div>
 
               {/* ── Do'kon (Mini App) sozlamalari ── */}
               <div className="pt-3 border-t border-slate-50">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold text-slate-700">Qoldiqsiz mahsulotlarga buyurtma</p>
+                    <p className="text-xs font-semibold text-slate-700">{t('settings.telegramBot.outOfStockOrderTitle')}</p>
                     <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
-                      Yoqilgan bo'lsa, mijoz Dokon (Mini App) orqali qoldig'i tugagan mahsulotga ham buyurtma bera oladi — do'kon xodimi keyin tasdiqlaydi yoki rad etadi.
+                      {t('settings.telegramBot.outOfStockOrderDesc')}
                     </p>
                   </div>
                   <button
@@ -1060,7 +1065,7 @@ function TelegramBotTab({ companyId }) {
           ) : (
             <div className="py-6 flex flex-col items-center justify-center border-2 border-dashed border-slate-100 rounded-xl bg-slate-50/50 mt-4">
               <svg className="w-8 h-8 text-slate-300 mb-2" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH} /></svg>
-              <p className="text-sm font-medium text-slate-500">Bot ulanmagan</p>
+              <p className="text-sm font-medium text-slate-500">{t('settings.telegramBot.notConnected')}</p>
             </div>
           )}
         </div>
@@ -1069,8 +1074,8 @@ function TelegramBotTab({ companyId }) {
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <h4 className="font-bold text-slate-800">Admin boti</h4>
-              <p className="text-xs text-slate-400 mt-0.5">Rahbarlar uchun hisobot va ogohlantirishlar</p>
+              <h4 className="font-bold text-slate-800">{t('settings.telegramBot.adminBotTitle')}</h4>
+              <p className="text-xs text-slate-400 mt-0.5">{t('settings.telegramBot.adminBotDesc')}</p>
             </div>
             {!adminBot?.bot_username ? (
               <button
@@ -1078,11 +1083,11 @@ function TelegramBotTab({ companyId }) {
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-semibold rounded-lg transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                Ulash
+                {t('settings.telegramBot.connect')}
               </button>
             ) : (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-md">
-                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />Faol
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />{t('common.active')}
               </span>
             )}
           </div>
@@ -1108,12 +1113,12 @@ function TelegramBotTab({ companyId }) {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  Sozlamalar
+                  {t('settings.telegramBot.settingsButton')}
                 </button>
                 <button onClick={() => { setBotType('admin'); setShowModal(true); setErr(''); setToken(''); }}
-                  className="flex-1 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg transition-colors">Yangilash</button>
+                  className="flex-1 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg transition-colors">{t('settings.telegramBot.update')}</button>
                 <button onClick={() => handleDelete('admin')}
-                  className="flex-1 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-lg transition-colors">O'chirish</button>
+                  className="flex-1 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-lg transition-colors">{t('common.delete')}</button>
               </div>
 
               {showAdminSettings && (
@@ -1126,7 +1131,7 @@ function TelegramBotTab({ companyId }) {
           ) : (
             <div className="py-6 flex flex-col items-center justify-center border-2 border-dashed border-slate-100 rounded-xl bg-slate-50/50 mt-4">
               <svg className="w-8 h-8 text-slate-300 mb-2" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH} /></svg>
-              <p className="text-sm font-medium text-slate-500">Bot ulanmagan</p>
+              <p className="text-sm font-medium text-slate-500">{t('settings.telegramBot.notConnected')}</p>
             </div>
           )}
         </div>
@@ -1135,8 +1140,8 @@ function TelegramBotTab({ companyId }) {
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <h4 className="font-bold text-slate-800">Dostavchik boti</h4>
-              <p className="text-xs text-slate-400 mt-0.5">Kuryerlar buyurtmalarni qabul qilishi va boshqarishi uchun</p>
+              <h4 className="font-bold text-slate-800">{t('settings.telegramBot.courierBotTitle')}</h4>
+              <p className="text-xs text-slate-400 mt-0.5">{t('settings.telegramBot.courierBotDesc')}</p>
             </div>
             {!courierBot?.bot_username ? (
               <button
@@ -1144,11 +1149,11 @@ function TelegramBotTab({ companyId }) {
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-semibold rounded-lg transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                Ulash
+                {t('settings.telegramBot.connect')}
               </button>
             ) : (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-md">
-                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />Faol
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />{t('common.active')}
               </span>
             )}
           </div>
@@ -1161,20 +1166,20 @@ function TelegramBotTab({ companyId }) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <a href={'https://t.me/' + courierBot.bot_username} target="_blank" rel="noreferrer" className="text-sm font-bold text-blue-600 hover:underline">@{courierBot.bot_username}</a>
-                  <p className="text-[11px] text-slate-400 mt-0.5">Kuryerlar botga kirib telefon raqamini ulashadi</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">{t('settings.telegramBot.courierBotHint')}</p>
                 </div>
               </div>
               <div className="flex gap-2 pt-3 mt-3 border-t border-slate-50">
                 <button onClick={() => { setBotType('courier'); setShowModal(true); setErr(''); setToken(''); }}
-                  className="flex-1 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg transition-colors">Yangilash</button>
+                  className="flex-1 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg transition-colors">{t('settings.telegramBot.update')}</button>
                 <button onClick={() => handleDelete('courier')}
-                  className="flex-1 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-lg transition-colors">O'chirish</button>
+                  className="flex-1 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-lg transition-colors">{t('common.delete')}</button>
               </div>
             </div>
           ) : (
             <div className="py-6 flex flex-col items-center justify-center border-2 border-dashed border-slate-100 rounded-xl bg-slate-50/50 mt-4">
               <svg className="w-8 h-8 text-slate-300 mb-2" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH} /></svg>
-              <p className="text-sm font-medium text-slate-500">Bot ulanmagan</p>
+              <p className="text-sm font-medium text-slate-500">{t('settings.telegramBot.notConnected')}</p>
             </div>
           )}
         </div>
@@ -1190,7 +1195,7 @@ function TelegramBotTab({ companyId }) {
                 <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600">
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d={TG_PATH} /></svg>
                 </div>
-                <h3 className="font-bold text-slate-800">Bot ulash ({botType === 'admin' ? 'Admin' : botType === 'courier' ? 'Dostavchik' : 'Mijoz'})</h3>
+                <h3 className="font-bold text-slate-800">{t('settings.telegramBot.connectModalTitle')} ({botType === 'admin' ? t('settings.telegramBot.typeAdmin') : botType === 'courier' ? t('settings.telegramBot.typeCourier') : t('settings.telegramBot.typeUser')})</h3>
               </div>
               <button onClick={() => setShowModal(false)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1200,14 +1205,14 @@ function TelegramBotTab({ companyId }) {
             </div>
             <form onSubmit={handleSave} className="space-y-4">
               <div>
-                <label className="block text-[13px] font-bold text-slate-700 mb-1.5">Bot Token</label>
+                <label className="block text-[13px] font-bold text-slate-700 mb-1.5">{t('settings.telegramBot.tokenLabel')}</label>
                 <input
                   type="text" required value={token}
                   onChange={e => setToken(e.target.value)}
                   placeholder="1234567890:AAH_abcxyz..."
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono transition-all"
                 />
-                <p className="text-xs text-slate-400 mt-1.5">@BotFather orqali olingan API tokenni kiriting</p>
+                <p className="text-xs text-slate-400 mt-1.5">{t('settings.telegramBot.tokenHint')}</p>
               </div>
               {err && (
                 <div className="p-3 bg-red-50 rounded-xl flex gap-2 text-red-600 text-sm">
@@ -1221,7 +1226,7 @@ function TelegramBotTab({ companyId }) {
                 type="submit" disabled={saving || !token.trim()}
                 className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-sm rounded-xl transition-colors"
               >
-                {saving ? 'Saqlanmoqda...' : 'Saqlash'}
+                {saving ? t('common.saving') : t('common.save')}
               </button>
             </form>
           </div>
@@ -1246,26 +1251,26 @@ function ReceiptPreview({ cfg, mm }) {
       {cfg.logo && <div className="text-center mb-1"><img src={cfg.logo} alt="logo" style={{ height: `${Math.round((cfg.logo_size || 40) * 0.6)}px`, maxWidth: '100%', objectFit: 'contain', margin: '0 auto' }} /></div>}
       {cfg.company ? <div className="text-center mb-1.5" style={{ fontSize: '13px' }}>{cfg.company}</div> : null}
       {cfg.address && <div className="text-center mb-1.5">{cfg.address}</div>}
-      {cfg.phone && <div className="text-center mb-1.5">Tel: {cfg.phone}</div>}
-      {cfg.inn && <div className="text-center mb-1.5">STIR: {cfg.inn}</div>}
+      {cfg.phone && <div className="text-center mb-1.5">{t('settings.receiptPreview.tel')}: {cfg.phone}</div>}
+      {cfg.inn && <div className="text-center mb-1.5">{t('settings.receiptPreview.stir')}: {cfg.inn}</div>}
       {cfg.header && <div className="text-center mb-1.5">{cfg.header}</div>}
 
       <div className="flex justify-between">
-        <span>Chek:</span>
+        <span>{t('settings.receiptPreview.receiptNo')}:</span>
         <span>#00001</span>
       </div>
       <div className="flex justify-between">
-        <span>Kassir:</span>
+        <span>{t('settings.receiptPreview.cashier')}:</span>
         <span>{cfg.show_cashier ? 'Sardor' : 'Sardor'}</span>
       </div>
       <div className="flex justify-between">
-        <span>Sana:</span>
+        <span>{t('settings.receiptPreview.date')}:</span>
         <span>15.06.2026 09:56</span>
       </div>
 
       <div style={lineDashed}></div>
       <div className="flex justify-between">
-        <span>Mijoz:</span>
+        <span>{t('settings.receiptPreview.customer')}:</span>
         <span>AKMAL AKA</span>
       </div>
       <div style={lineDashed}></div>
@@ -1286,40 +1291,40 @@ function ReceiptPreview({ cfg, mm }) {
       <div style={lineDashed}></div>
 
       <div className="flex justify-between">
-        <span>Jami:</span>
-        <span>2 xil mahsulot</span>
+        <span>{t('settings.receiptPreview.itemsCount')}:</span>
+        <span>{t('settings.receiptPreview.itemsCountSample')}</span>
       </div>
       <div style={lineSolid}></div>
 
       <div className="flex justify-between">
-        <span>JAMI:</span>
+        <span>{t('settings.receiptPreview.totalCaps')}:</span>
         <span>80,000 so'm</span>
       </div>
       <div style={lineDashed}></div>
 
       <div className="flex justify-between">
-        <span>To'lov:</span>
+        <span>{t('settings.receiptPreview.payment')}:</span>
         <span>100,000 so'm</span>
       </div>
       <div style={lineDashed}></div>
 
       <div className="flex justify-between">
-        <span>Oldingi qarz:</span>
+        <span>{t('settings.receiptPreview.prevDebt')}:</span>
         <span>0 so'm</span>
       </div>
       <div className="flex justify-between">
-        <span>Qarzga:</span>
+        <span>{t('settings.receiptPreview.toDebt')}:</span>
         <span>0 so'm</span>
       </div>
       <div style={lineSolid}></div>
 
       <div className="flex justify-between">
-        <span>Jami qarz:</span>
+        <span>{t('settings.receiptPreview.totalDebt')}:</span>
         <span>0 so'm</span>
       </div>
       <br />
       <div className="flex justify-between">
-        <span>Qaytim:</span>
+        <span>{t('settings.receiptPreview.change')}:</span>
         <span>20,000 so'm</span>
       </div>
 
@@ -1334,29 +1339,30 @@ function ReceiptPreview({ cfg, mm }) {
         </>
       )}
 
-      <div className="text-center mt-3">{cfg.footer || 'Xaridingiz uchun raxmat!'}</div>
+      <div className="text-center mt-3">{cfg.footer || t('settings.receiptPreview.thanks')}</div>
     </div>
   );
 }
 
 // ── Nakladnoy preview ─────────────────────────────────────────────────────────
 function NakladnoyPreview({ cfg }) {
+  const { t } = useLang();
   const sh = (key, def = true) => cfg[key] !== undefined ? cfg[key] : def;
   const logoPos = cfg.logo_position || 'center';
 
   const cols = [
     { key: 'show_ordering_number', label: '№' },
-    { label: 'Mahsulot nomi', always: true },
-    { key: 'show_measurement', label: "O'lchov" },
-    { key: 'show_warehouse', label: 'Ombor' },
-    { key: 'show_sku', label: 'SKU' },
-    { key: 'show_price', label: 'Narxi' },
-    { key: 'show_discount', label: 'Chegirma' },
-    { key: 'show_price_with_discount', label: "Cheg.narx" },
-    { key: 'show_net_price', label: 'Sof narx' },
-    { key: 'show_currency', label: 'Val.' },
-    { label: 'Soni', always: true },
-    { label: 'Jami', always: true },
+    { label: t('settings.nakladnoyPreview.colProductName'), always: true, always_key: 'always_name' },
+    { key: 'show_measurement', label: t('settings.nakladnoyPreview.colUnit') },
+    { key: 'show_warehouse', label: t('settings.nakladnoyPreview.colWarehouse') },
+    { key: 'show_sku', label: t('settings.nakladnoyPreview.colSku') },
+    { key: 'show_price', label: t('settings.nakladnoyPreview.colPrice') },
+    { key: 'show_discount', label: t('common.discount') },
+    { key: 'show_price_with_discount', label: t('settings.nakladnoyPreview.colDiscountedPrice') },
+    { key: 'show_net_price', label: t('settings.receipt.fieldNetPrice') },
+    { key: 'show_currency', label: t('settings.nakladnoyPreview.colCurrencyShort') },
+    { label: t('common.quantity'), always: true, always_key: 'always_qty' },
+    { label: t('common.total'), always: true, always_key: 'always_total' },
   ].filter(col => col.always || sh(col.key, col.key === 'show_ordering_number' || col.key === 'show_price'));
 
   const sampleItems = [
@@ -1374,23 +1380,23 @@ function NakladnoyPreview({ cfg }) {
         </div>
       )}
       <div className="text-center border-b border-slate-300 pb-1.5 mb-1.5">
-        <div className="font-bold text-[9px]">{cfg.company || 'KORXONA NOMI'}</div>
-        {cfg.inn && <div>STIR: {cfg.inn}</div>}
+        <div className="font-bold text-[9px]">{cfg.company || t('settings.nakladnoyPreview.companyNamePlaceholder')}</div>
+        {cfg.inn && <div>{t('settings.receiptPreview.stir')}: {cfg.inn}</div>}
         {cfg.address && <div>{cfg.address}</div>}
-        {cfg.phone && <div>Tel: {cfg.phone}</div>}
-        {cfg.bank && <div>Bank: {cfg.bank}{cfg.mfo ? ` | MFO: ${cfg.mfo}` : ''}</div>}
+        {cfg.phone && <div>{t('settings.receiptPreview.tel')}: {cfg.phone}</div>}
+        {cfg.bank && <div>{t('settings.nakladnoy.bankNameLabel')}: {cfg.bank}{cfg.mfo ? ` | ${t('settings.nakladnoy.mfoLabel')}: ${cfg.mfo}` : ''}</div>}
       </div>
 
       <div className="text-center font-bold text-[8px] mb-1">
-        NAKLADNOY № {sh('show_number') ? '___' : ''} {sh('show_date') ? '/ 17.03.2025' : ''}
+        {t('settings.nakladnoyPreview.title')} № {sh('show_number') ? '___' : ''} {sh('show_date') ? '/ 17.03.2025' : ''}
       </div>
 
       {/* Info satrlari */}
       <div className="text-[7px] mb-1 space-y-0.5">
-        {sh('show_contractor_name') && <div><b>Mijoz:</b> Abdullayev Jasur</div>}
-        {sh('show_account_name') && <div><b>Filial:</b> Asosiy filial</div>}
-        {sh('show_employee') && <div><b>Xodim:</b> Sardor</div>}
-        {sh('show_status') && <div><b>Holat:</b> Tasdiqlangan</div>}
+        {sh('show_contractor_name') && <div><b>{t('settings.receiptPreview.customer')}:</b> Abdullayev Jasur</div>}
+        {sh('show_account_name') && <div><b>{t('settings.nakladnoy.branchLabel')}:</b> Asosiy filial</div>}
+        {sh('show_employee') && <div><b>{t('settings.nakladnoyPreview.employee')}:</b> Sardor</div>}
+        {sh('show_status') && <div><b>{t('common.status')}:</b> {t('settings.nakladnoyPreview.statusApproved')}</div>}
       </div>
 
       <table className="w-full border-collapse mb-1.5" style={{ borderSpacing: 0 }}>
@@ -1401,16 +1407,15 @@ function NakladnoyPreview({ cfg }) {
           {sampleItems.map((item, ri) => (
             <tr key={ri}>
               {cols.map((col, ci) => {
-                const ck = colKeys[['show_ordering_number', 'always_name', 'show_measurement', 'show_warehouse', 'show_sku', 'show_price', 'show_discount', 'show_price_with_discount', 'show_net_price', 'show_currency', 'always_qty', 'always_total'].indexOf(col.key || (col.always && (ci === 0 ? 'show_ordering_number' : ci === cols.length - 1 ? 'always_total' : 'always_name')))];
                 const allCols = ['show_ordering_number', 'always_name', 'show_measurement', 'show_warehouse', 'show_sku', 'show_price', 'show_discount', 'show_price_with_discount', 'show_net_price', 'show_currency', 'always_qty', 'always_total'];
-                const origIdx = allCols.indexOf(col.key || (col.label === 'Mahsulot nomi' ? 'always_name' : col.label === 'Soni' ? 'always_qty' : 'always_total'));
+                const origIdx = allCols.indexOf(col.key || col.always_key);
                 const vkey = sampleVals[allCols[origIdx]];
                 return <td key={ci} className="border border-slate-300 px-0.5 py-0.5 text-center">{item[vkey]}</td>;
               })}
             </tr>
           ))}
           <tr>
-            <td colSpan={cols.length - 1} className="border border-slate-300 px-0.5 py-0.5 text-right font-bold">JAMI:</td>
+            <td colSpan={cols.length - 1} className="border border-slate-300 px-0.5 py-0.5 text-right font-bold">{t('settings.receiptPreview.totalCaps')}:</td>
             <td className="border border-slate-300 px-0.5 py-0.5 text-center font-bold">80,000</td>
           </tr>
         </tbody>
@@ -1419,22 +1424,22 @@ function NakladnoyPreview({ cfg }) {
       {/* Jami bo'lim */}
       {sh('show_totals') && (
         <div className="text-[7px] space-y-0.5 border-t border-slate-200 pt-1 mb-1">
-          <div className="flex justify-between"><span>JAMI:</span><span className="font-bold">80,000 so'm</span></div>
-          {sh('show_payment_amounts') && <div className="flex justify-between"><span>To'langan:</span><span>100,000 so'm</span></div>}
-          {sh('show_contractor_debts') && <div className="flex justify-between text-red-600"><span>Qarz:</span><span>0 so'm</span></div>}
-          {sh('show_exact_discounts') && <div className="flex justify-between"><span>Chegirma:</span><span>-5,000 so'm</span></div>}
-          {sh('show_total_quantity') && <div className="flex justify-between"><span>Jami miqdor:</span><span>3</span></div>}
+          <div className="flex justify-between"><span>{t('settings.receiptPreview.totalCaps')}:</span><span className="font-bold">80,000 so'm</span></div>
+          {sh('show_payment_amounts') && <div className="flex justify-between"><span>{t('settings.nakladnoyPreview.paid')}:</span><span>100,000 so'm</span></div>}
+          {sh('show_contractor_debts') && <div className="flex justify-between text-red-600"><span>{t('common.debt')}:</span><span>0 so'm</span></div>}
+          {sh('show_exact_discounts') && <div className="flex justify-between"><span>{t('common.discount')}:</span><span>-5,000 so'm</span></div>}
+          {sh('show_total_quantity') && <div className="flex justify-between"><span>{t('settings.receipt.fieldTotalQty')}:</span><span>3</span></div>}
         </div>
       )}
 
       {/* Izoh */}
-      {sh('show_note') && <div className="text-[7px] text-slate-500 italic mb-1">Izoh: Toshkentga yetkazish</div>}
+      {sh('show_note') && <div className="text-[7px] text-slate-500 italic mb-1">{t('settings.receipt.fieldNote')}: {t('settings.nakladnoyPreview.noteSample')}</div>}
 
       {/* Imzolar */}
       <div className="flex justify-between mt-2 pt-1.5 border-t border-slate-300 text-[7px] flex-wrap gap-1">
-        {sh('show_director') && <div>Direktor: {cfg.director || '__________'}</div>}
-        {sh('show_accountant') && <div>Buxgalter: {cfg.accountant || '__________'}</div>}
-        {sh('show_storekeeper') && <div>Omborchi: {cfg.storekeeper || '__________'}</div>}
+        {sh('show_director') && <div>{t('settings.nakladnoy.directorLabel')}: {cfg.director || '__________'}</div>}
+        {sh('show_accountant') && <div>{t('settings.nakladnoy.chiefAccountantLabel')}: {cfg.accountant || '__________'}</div>}
+        {sh('show_storekeeper') && <div>{t('settings.nakladnoy.storekeeperLabel')}: {cfg.storekeeper || '__________'}</div>}
       </div>
       {cfg.footer_note && <div className="mt-1 italic text-slate-500 text-center text-[7px]">{cfg.footer_note}</div>}
     </div>
@@ -1444,10 +1449,10 @@ function NakladnoyPreview({ cfg }) {
 // ── Receipt field style (module-level so components don't recreate it) ─────────
 const RIC = 'w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white';
 
-const SUB_TABS = [
-  { id: '58', label: 'Chek 58mm', icon: '🧾' },
-  { id: '80', label: 'Chek 80mm', icon: '🧾' },
-  { id: 'nak', label: 'Nakladnoy (A4)', icon: '📄' },
+const SUB_TABS = (t) => [
+  { id: '58', label: t('settings.receipt.tab58'), icon: '🧾' },
+  { id: '80', label: t('settings.receipt.tab80'), icon: '🧾' },
+  { id: 'nak', label: t('settings.receipt.tabNak'), icon: '📄' },
 ];
 
 // ── These must be module-level functions — NOT defined inside ReceiptTab ───────
@@ -1456,7 +1461,7 @@ function LogoUpload({ logo, size, onUpload, onRemove, onSizeChange, positionPick
   const handleFile = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 500 * 1024) { alert("Logo hajmi 500KB dan oshmasin"); return; }
+    if (file.size > 500 * 1024) { alert(t('settings.receipt.logoTooLarge')); return; }
     const reader = new FileReader();
     reader.onload = () => onUpload(reader.result);
     reader.readAsDataURL(file);
@@ -1464,7 +1469,7 @@ function LogoUpload({ logo, size, onUpload, onRemove, onSizeChange, positionPick
 
   return (
     <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
-      <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Logo (chekda chiqariladi)</p>
+      <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">{t('settings.receipt.logoSectionTitle')}</p>
       <div className="flex items-start gap-4">
         {/* Thumbnail — shows at selected size */}
         <div className="w-20 h-16 border-2 border-dashed border-slate-300 rounded-xl flex items-center justify-center bg-white shrink-0 overflow-hidden">
@@ -1478,18 +1483,18 @@ function LogoUpload({ logo, size, onUpload, onRemove, onSizeChange, positionPick
             <input type="file" accept="image/*" className="hidden" onChange={handleFile} />
             <span className="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-semibold rounded-lg transition-colors">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-              Rasm yuklash
+              {t('settings.receipt.uploadImage')}
             </span>
           </label>
           {logo && (
             <button onClick={onRemove} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 border border-red-200 rounded-lg transition-colors">
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              Logoni olib tashlash
+              {t('settings.receipt.removeLogo')}
             </button>
           )}
           {/* Size slider */}
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-slate-500 whitespace-nowrap">Hajmi:</span>
+            <span className="text-[11px] text-slate-500 whitespace-nowrap">{t('settings.receipt.sizeLabel')}:</span>
             <input type="range" min={16} max={100} step={4}
               value={size || 40}
               onChange={e => onSizeChange(Number(e.target.value))}
@@ -1499,9 +1504,9 @@ function LogoUpload({ logo, size, onUpload, onRemove, onSizeChange, positionPick
           </div>
           {positionPicker && (
             <div>
-              <p className="text-[11px] text-slate-500 mb-1">Logo holati:</p>
+              <p className="text-[11px] text-slate-500 mb-1">{t('settings.receipt.logoPositionLabel')}:</p>
               <div className="flex gap-1">
-                {[['left', '◀ Chap'], ['center', '▪ Markaz'], ['right', "O'ng ▶"]].map(([v, l]) => (
+                {[['left', `◀ ${t('settings.receipt.posLeft')}`], ['center', `▪ ${t('settings.receipt.posCenter')}`], ['right', `${t('settings.receipt.posRight')} ▶`]].map(([v, l]) => (
                   <button key={v} onClick={() => onPositionChange(v)}
                     className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-all ${position === v ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-600 hover:border-blue-300'
                       }`}>{l}
@@ -1510,7 +1515,7 @@ function LogoUpload({ logo, size, onUpload, onRemove, onSizeChange, positionPick
               </div>
             </div>
           )}
-          <p className="text-[10px] text-slate-400">JPG, PNG, SVG — max 500KB</p>
+          <p className="text-[10px] text-slate-400">{t('settings.receipt.logoFormatsHint')}</p>
         </div>
       </div>
     </div>
@@ -1532,8 +1537,8 @@ function ReceiptFields({ cfg, upd }) {
       />
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">Korxona nomi *</label>
-          <input value={cfg.company} onChange={e => upd('company', e.target.value)} placeholder="Masalan: Farrukh Do'koni" className={RIC} />
+          <label className="block text-xs font-semibold text-slate-500 mb-1">{t('settings.receipt.companyNameLabel')} *</label>
+          <input value={cfg.company} onChange={e => upd('company', e.target.value)} placeholder={t('settings.receipt.companyNamePlaceholder')} className={RIC} />
         </div>
         <div>
           <label className="block text-xs font-semibold text-slate-500 mb-1">{t('admin.dict.phone') || 'Telefon'}</label>
@@ -1541,74 +1546,74 @@ function ReceiptFields({ cfg, upd }) {
         </div>
         <div>
           <label className="block text-xs font-semibold text-slate-500 mb-1">{t('admin.dict.address') || 'Manzil'}</label>
-          <input value={cfg.address} onChange={e => upd('address', e.target.value)} placeholder="Shahar, ko'cha, uy" className={RIC} />
+          <input value={cfg.address} onChange={e => upd('address', e.target.value)} placeholder={t('settings.receipt.addressPlaceholder')} className={RIC} />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">STIR / INN</label>
+          <label className="block text-xs font-semibold text-slate-500 mb-1">{t('settings.receipt.innLabel')}</label>
           <input value={cfg.inn} onChange={e => upd('inn', e.target.value)} placeholder="123456789" className={RIC} />
         </div>
       </div>
       <div>
-        <label className="block text-xs font-semibold text-slate-500 mb-1">Bosh satr (sarlavha)</label>
-        <input value={cfg.header} onChange={e => upd('header', e.target.value)} placeholder="Masalan: Toshkent shahri, Chilonzor t." className={RIC} />
+        <label className="block text-xs font-semibold text-slate-500 mb-1">{t('settings.receipt.headerLineLabel')}</label>
+        <input value={cfg.header} onChange={e => upd('header', e.target.value)} placeholder={t('settings.receipt.headerPlaceholder')} className={RIC} />
       </div>
       <div>
-        <label className="block text-xs font-semibold text-slate-500 mb-1">Oxirgi satr (tagso'z)</label>
-        <input value={cfg.footer} onChange={e => upd('footer', e.target.value)} placeholder="Xaridingiz uchun rahmat!" className={RIC} />
+        <label className="block text-xs font-semibold text-slate-500 mb-1">{t('settings.receipt.footerLineLabel')}</label>
+        <input value={cfg.footer} onChange={e => upd('footer', e.target.value)} placeholder={t('settings.receiptPreview.thanks')} className={RIC} />
       </div>
       <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-4">
-        <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Chekda ko'rsatiladigan maydonlar</p>
+        <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">{t('settings.receipt.fieldsSectionTitle')}</p>
 
         {[
           {
-            label: 'Sarlavha bo\'limi',
+            label: t('settings.receipt.groupHeader'),
             fields: [
-              ['show_number', 'Chek raqami'],
-              ['show_date', 'Sana va vaqt'],
-              ['show_status', 'Holat'],
-              ['show_account_name', 'Filial nomi'],
-              ['show_employee', 'Xodim / Kassir ismi'],
+              ['show_number', t('settings.receipt.fieldNumber')],
+              ['show_date', t('settings.receipt.fieldDate')],
+              ['show_status', t('settings.receipt.fieldStatus')],
+              ['show_account_name', t('settings.receipt.fieldBranch')],
+              ['show_employee', t('settings.receipt.fieldEmployee')],
             ],
           },
           {
-            label: 'Mahsulot qatori',
+            label: t('settings.receipt.groupItem'),
             fields: [
-              ['show_ordering_number', '№ tartib raqami'],
-              ['show_unit', "O'lchov birligi"],
-              ['show_warehouse', 'Ombor nomi'],
-              ['show_package', 'Paket ma\'lumoti'],
-              ['show_price_per_unit', 'Birlik narxi'],
-              ['show_discount', 'Chegirma'],
-              ['show_price_with_discount', 'Chegirmali narx'],
-              ['show_currency', 'Valyuta nomi'],
+              ['show_ordering_number', t('settings.receipt.fieldOrderNumber')],
+              ['show_unit', t('settings.receipt.fieldUnit')],
+              ['show_warehouse', t('settings.receipt.fieldWarehouse')],
+              ['show_package', t('settings.receipt.fieldPackage')],
+              ['show_price_per_unit', t('settings.receipt.fieldUnitPrice')],
+              ['show_discount', t('common.discount')],
+              ['show_price_with_discount', t('settings.receipt.fieldDiscountedPrice')],
+              ['show_currency', t('settings.receipt.fieldCurrencyName')],
             ],
           },
           {
-            label: 'Jami bo\'lim',
+            label: t('settings.receipt.groupTotal'),
             fields: [
-              ['show_total', 'Jami summa'],
-              ['show_net_price', 'Sof narx'],
-              ['show_total_quantity', 'Jami miqdor'],
-              ['show_total_national', "Milliy valyutada jami"],
-              ['show_payment_type', "To'lov turi va summasi"],
+              ['show_total', t('settings.receipt.fieldTotalSum')],
+              ['show_net_price', t('settings.receipt.fieldNetPrice')],
+              ['show_total_quantity', t('settings.receipt.fieldTotalQty')],
+              ['show_total_national', t('settings.receipt.fieldTotalNational')],
+              ['show_payment_type', t('settings.receipt.fieldPaymentType')],
             ],
           },
           {
-            label: 'Qarz bo\'limi',
+            label: t('settings.receipt.groupDebt'),
             fields: [
-              ['show_debt', 'Joriy qarzdorlik'],
-              ['show_before_debt', 'Oldingi qarz'],
-              ['show_last_payment', "Oxirgi to'lov"],
+              ['show_debt', t('settings.receipt.fieldCurrentDebt')],
+              ['show_before_debt', t('settings.receipt.fieldPrevDebt')],
+              ['show_last_payment', t('settings.receipt.fieldLastPayment')],
             ],
           },
           {
-            label: 'Qo\'shimcha',
+            label: t('settings.receipt.groupExtra'),
             fields: [
-              ['show_note', 'Izoh'],
-              ['show_contractor_contact', 'Mijoz kontakti'],
-              ['show_cashier', 'Kassir imzosi satri'],
-              ['show_barcode', 'Barkod'],
-              ['show_qr', 'QR kod'],
+              ['show_note', t('settings.receipt.fieldNote')],
+              ['show_contractor_contact', t('settings.receipt.fieldCustomerContact')],
+              ['show_cashier', t('settings.receipt.fieldCashierSignature')],
+              ['show_barcode', t('settings.receipt.fieldBarcode')],
+              ['show_qr', t('settings.receipt.fieldQr')],
             ],
           },
         ].map(group => (
@@ -1629,10 +1634,10 @@ function ReceiptFields({ cfg, upd }) {
         ))}
 
         <div className="flex items-center gap-2 pt-2 border-t border-slate-200">
-          <span className="text-xs font-semibold text-slate-500">Nusxalar soni:</span>
+          <span className="text-xs font-semibold text-slate-500">{t('settings.receipt.copiesLabel')}:</span>
           <select value={cfg.copies} onChange={e => upd('copies', e.target.value)}
             className="px-2 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-            {['1', '2', '3'].map(n => <option key={n} value={n}>{n} ta</option>)}
+            {['1', '2', '3'].map(n => <option key={n} value={n}>{n} {t('settings.receipt.copiesUnit')}</option>)}
           </select>
         </div>
       </div>
@@ -1673,114 +1678,114 @@ function NakladnoyFields({ cfg, upd }) {
 
       {/* Korxona ma'lumotlari */}
       <div className="grid grid-cols-2 gap-3">
-        <div><label className="block text-xs font-semibold text-slate-500 mb-1">Korxona nomi *</label>
-          <input value={cfg.company} onChange={e => upd('company', e.target.value)} placeholder="MCHJ / YaTT nomi" className={RIC} /></div>
-        <div><label className="block text-xs font-semibold text-slate-500 mb-1">STIR / INN</label>
+        <div><label className="block text-xs font-semibold text-slate-500 mb-1">{t('settings.receipt.companyNameLabel')} *</label>
+          <input value={cfg.company} onChange={e => upd('company', e.target.value)} placeholder={t('settings.nakladnoyPreview.companyNamePlaceholder')} className={RIC} /></div>
+        <div><label className="block text-xs font-semibold text-slate-500 mb-1">{t('settings.receipt.innLabel')}</label>
           <input value={cfg.inn} onChange={e => upd('inn', e.target.value)} placeholder="123456789" className={RIC} /></div>
-        <div><label className="block text-xs font-semibold text-slate-500 mb-1">Manzil</label>
+        <div><label className="block text-xs font-semibold text-slate-500 mb-1">{t('common.address')}</label>
           <input value={cfg.address} onChange={e => upd('address', e.target.value)} className={RIC} /></div>
-        <div><label className="block text-xs font-semibold text-slate-500 mb-1">Telefon</label>
+        <div><label className="block text-xs font-semibold text-slate-500 mb-1">{t('common.phone')}</label>
           <input value={cfg.phone} onChange={e => upd('phone', e.target.value)} className={RIC} /></div>
       </div>
 
       {/* Bank */}
       <div className="border-t border-slate-100 pt-4">
-        <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Bank rekvizitlari</p>
+        <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">{t('settings.nakladnoy.bankDetailsTitle')}</p>
         <div className="grid grid-cols-3 gap-3">
-          <div><label className="block text-xs font-semibold text-slate-500 mb-1">Bank nomi</label>
+          <div><label className="block text-xs font-semibold text-slate-500 mb-1">{t('settings.nakladnoy.bankNameLabel')}</label>
             <input value={cfg.bank} onChange={e => upd('bank', e.target.value)} placeholder="NBU, Kapitalbank..." className={RIC} /></div>
-          <div><label className="block text-xs font-semibold text-slate-500 mb-1">Hisob raqam</label>
+          <div><label className="block text-xs font-semibold text-slate-500 mb-1">{t('settings.nakladnoy.accountNumberLabel')}</label>
             <input value={cfg.account} onChange={e => upd('account', e.target.value)} placeholder="2020..." className={RIC} /></div>
-          <div><label className="block text-xs font-semibold text-slate-500 mb-1">MFO</label>
+          <div><label className="block text-xs font-semibold text-slate-500 mb-1">{t('settings.nakladnoy.mfoLabel')}</label>
             <input value={cfg.mfo} onChange={e => upd('mfo', e.target.value)} placeholder="01001" className={RIC} /></div>
         </div>
       </div>
 
       {/* Imzo */}
       <div className="border-t border-slate-100 pt-4">
-        <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Imzo egalari</p>
+        <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">{t('settings.nakladnoy.signatoriesTitle')}</p>
         <div className="grid grid-cols-3 gap-3">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <label className="block text-xs font-semibold text-slate-500">Direktor</label>
+              <label className="block text-xs font-semibold text-slate-500">{t('settings.nakladnoy.directorLabel')}</label>
               <div onClick={() => upd('show_director', !cfg.show_director)}
                 className={`relative w-7 h-4 rounded-full transition-colors cursor-pointer shrink-0 ${cfg.show_director ? 'bg-blue-500' : 'bg-slate-300'}`}>
                 <span className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${cfg.show_director ? 'translate-x-3' : ''}`} />
               </div>
             </div>
-            <input value={cfg.director} onChange={e => upd('director', e.target.value)} placeholder="F.I.Sh." className={RIC} />
+            <input value={cfg.director} onChange={e => upd('director', e.target.value)} placeholder={t('settings.nakladnoy.fullNamePlaceholder')} className={RIC} />
           </div>
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <label className="block text-xs font-semibold text-slate-500">Bosh buxgalter</label>
+              <label className="block text-xs font-semibold text-slate-500">{t('settings.nakladnoy.chiefAccountantLabel')}</label>
               <div onClick={() => upd('show_accountant', !cfg.show_accountant)}
                 className={`relative w-7 h-4 rounded-full transition-colors cursor-pointer shrink-0 ${cfg.show_accountant ? 'bg-blue-500' : 'bg-slate-300'}`}>
                 <span className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${cfg.show_accountant ? 'translate-x-3' : ''}`} />
               </div>
             </div>
-            <input value={cfg.accountant} onChange={e => upd('accountant', e.target.value)} placeholder="F.I.Sh." className={RIC} />
+            <input value={cfg.accountant} onChange={e => upd('accountant', e.target.value)} placeholder={t('settings.nakladnoy.fullNamePlaceholder')} className={RIC} />
           </div>
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <label className="block text-xs font-semibold text-slate-500">Omborchi</label>
+              <label className="block text-xs font-semibold text-slate-500">{t('settings.nakladnoy.storekeeperLabel')}</label>
               <div onClick={() => upd('show_storekeeper', !cfg.show_storekeeper)}
                 className={`relative w-7 h-4 rounded-full transition-colors cursor-pointer shrink-0 ${cfg.show_storekeeper ? 'bg-blue-500' : 'bg-slate-300'}`}>
                 <span className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${cfg.show_storekeeper ? 'translate-x-3' : ''}`} />
               </div>
             </div>
-            <input value={cfg.storekeeper} onChange={e => upd('storekeeper', e.target.value)} placeholder="F.I.Sh." className={RIC} />
+            <input value={cfg.storekeeper} onChange={e => upd('storekeeper', e.target.value)} placeholder={t('settings.nakladnoy.fullNamePlaceholder')} className={RIC} />
           </div>
         </div>
       </div>
 
-      <div><label className="block text-xs font-semibold text-slate-500 mb-1">Izoh (ixtiyoriy)</label>
-        <input value={cfg.footer_note} onChange={e => upd('footer_note', e.target.value)} placeholder="Qo'shimcha eslatma..." className={RIC} /></div>
+      <div><label className="block text-xs font-semibold text-slate-500 mb-1">{t('settings.nakladnoy.noteLabel')}</label>
+        <input value={cfg.footer_note} onChange={e => upd('footer_note', e.target.value)} placeholder={t('settings.nakladnoy.notePlaceholder')} className={RIC} /></div>
 
       {/* Togglelar */}
       <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-4">
-        <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">A4 da ko'rsatiladigan maydonlar</p>
-        <ToggleGroup title="Sarlavha bo'limi" cfg={cfg} upd={upd} fields={[
-          ['show_contractor_name', 'Mijoz ismi'],
-          ['show_account_name', 'Filial nomi'],
-          ['show_account_username', 'Foydalanuvchi'],
-          ['show_employee', 'Xodim ismi'],
-          ['show_status', 'Holat'],
-          ['show_number', 'Hujjat raqami'],
-          ['show_date', 'Sana'],
+        <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">{t('settings.nakladnoy.fieldsSectionTitle')}</p>
+        <ToggleGroup title={t('settings.receipt.groupHeader')} cfg={cfg} upd={upd} fields={[
+          ['show_contractor_name', t('settings.nakladnoy.fieldCustomerName')],
+          ['show_account_name', t('settings.receipt.fieldBranch')],
+          ['show_account_username', t('settings.nakladnoy.fieldUsername')],
+          ['show_employee', t('settings.nakladnoy.fieldEmployeeName')],
+          ['show_status', t('settings.receipt.fieldStatus')],
+          ['show_number', t('settings.nakladnoy.fieldDocNumber')],
+          ['show_date', t('common.date')],
         ]} />
-        <ToggleGroup title="Jadval ustunlari" cfg={cfg} upd={upd} fields={[
-          ['show_ordering_number', '№ tartib raqami'],
-          ['show_measurement', "O'lchov birligi"],
-          ['show_package', 'Paket nomi'],
-          ['show_quantity_in_package', 'Paketdagi miqdor'],
-          ['show_price', 'Narx'],
-          ['show_discount', 'Chegirma'],
-          ['show_price_with_discount', 'Chegirmali narx'],
-          ['show_currency', 'Valyuta'],
-          ['show_net_price', 'Sof narx'],
-          ['show_warehouse', 'Ombor nomi'],
-          ['show_sku', 'SKU (Artikul)'],
-          ['show_image', 'Mahsulot rasmi'],
-          ['show_category', 'Kategoriya'],
+        <ToggleGroup title={t('settings.nakladnoy.groupColumns')} cfg={cfg} upd={upd} fields={[
+          ['show_ordering_number', t('settings.receipt.fieldOrderNumber')],
+          ['show_measurement', t('settings.receipt.fieldUnit')],
+          ['show_package', t('settings.nakladnoy.fieldPackageName')],
+          ['show_quantity_in_package', t('settings.nakladnoy.fieldPackageQty')],
+          ['show_price', t('common.price')],
+          ['show_discount', t('common.discount')],
+          ['show_price_with_discount', t('settings.receipt.fieldDiscountedPrice')],
+          ['show_currency', t('common.currency')],
+          ['show_net_price', t('settings.receipt.fieldNetPrice')],
+          ['show_warehouse', t('settings.receipt.fieldWarehouse')],
+          ['show_sku', t('settings.nakladnoy.fieldSku')],
+          ['show_image', t('settings.nakladnoy.fieldProductImage')],
+          ['show_category', t('common.category')],
         ]} />
-        <ToggleGroup title="Jami bo'lim" cfg={cfg} upd={upd} fields={[
-          ['show_totals', 'Jami summa'],
-          ['show_total_national', "Milliy valyutada jami"],
-          ['show_total_quantity', 'Jami miqdor'],
-          ['show_total_quantity_package', 'Jami paket miqdori'],
-          ['show_payment_amounts', "To'lov summasi"],
-          ['show_exact_discounts', 'Chegirma summasi'],
-          ['show_percent_discount', '% chegirma'],
+        <ToggleGroup title={t('settings.receipt.groupTotal')} cfg={cfg} upd={upd} fields={[
+          ['show_totals', t('settings.receipt.fieldTotalSum')],
+          ['show_total_national', t('settings.receipt.fieldTotalNational')],
+          ['show_total_quantity', t('settings.receipt.fieldTotalQty')],
+          ['show_total_quantity_package', t('settings.nakladnoy.fieldTotalPackageQty')],
+          ['show_payment_amounts', t('settings.nakladnoy.fieldPaymentAmount')],
+          ['show_exact_discounts', t('settings.nakladnoy.fieldDiscountAmount')],
+          ['show_percent_discount', t('settings.nakladnoy.fieldPercentDiscount')],
         ]} />
-        <ToggleGroup title="Qarz bo'limi" cfg={cfg} upd={upd} fields={[
-          ['show_contractor_debts', 'Joriy qarzdorlik'],
-          ['show_before_debts', 'Oldingi qarz'],
-          ['show_last_payment', "Oxirgi to'lov"],
-          ['show_debts', 'Umumiy qarzlar'],
+        <ToggleGroup title={t('settings.receipt.groupDebt')} cfg={cfg} upd={upd} fields={[
+          ['show_contractor_debts', t('settings.receipt.fieldCurrentDebt')],
+          ['show_before_debts', t('settings.receipt.fieldPrevDebt')],
+          ['show_last_payment', t('settings.receipt.fieldLastPayment')],
+          ['show_debts', t('settings.nakladnoy.fieldTotalDebts')],
         ]} />
-        <ToggleGroup title="Qo'shimcha" cfg={cfg} upd={upd} fields={[
-          ['show_contractor_contacts', 'Mijoz kontaktlari'],
-          ['show_note', 'Izoh'],
+        <ToggleGroup title={t('settings.receipt.groupExtra')} cfg={cfg} upd={upd} fields={[
+          ['show_contractor_contacts', t('settings.nakladnoy.fieldCustomerContacts')],
+          ['show_note', t('settings.receipt.fieldNote')],
         ]} />
       </div>
     </div>
@@ -1849,22 +1854,22 @@ function ReceiptTab() {
       saveReceiptSettings({ r58: synced58, r80: synced80, nak: syncedNak });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
-    }).catch(e => alert(e.response?.data?.detail || "Saqlashda xatolik yuz berdi"));
+    }).catch(e => alert(e.response?.data?.detail || t('settings.receipt.saveError')));
   };
 
   const currentCfg = sub === '58' ? cfg58 : sub === '80' ? cfg80 : cfgNak;
   const updFn = sub === '58' ? upd58 : sub === '80' ? upd80 : updNak;
 
-  if (loading) return <div className="text-sm text-slate-500 animate-pulse py-10 px-4">Shablonlar serverdan yuklanmoqda...</div>;
+  if (loading) return <div className="text-sm text-slate-500 animate-pulse py-10 px-4">{t('settings.receipt.templatesLoading')}</div>;
 
   return (
     <div className="space-y-4">
       {/* Sub-tab bar */}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
-        {SUB_TABS.map(t => (
-          <button key={t.id} onClick={() => setSub(t.id)}
-            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-all ${sub === t.id ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-            <span>{t.icon}</span>{t.label}
+        {SUB_TABS(t).map(st => (
+          <button key={st.id} onClick={() => setSub(st.id)}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-all ${sub === st.id ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+            <span>{st.icon}</span>{st.label}
           </button>
         ))}
       </div>
@@ -1883,7 +1888,7 @@ function ReceiptTab() {
         <div className="w-72 shrink-0">
           <div className="bg-slate-800 rounded-2xl p-5">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide text-center mb-4">
-              {sub === '58' ? '58mm chek ko\'rinishi' : sub === '80' ? '80mm chek ko\'rinishi' : 'Nakladnoy ko\'rinishi'}
+              {sub === '58' ? t('settings.receipt.preview58') : sub === '80' ? t('settings.receipt.preview80') : t('settings.receipt.previewNak')}
             </p>
             {sub === 'nak'
               ? <NakladnoyPreview cfg={cfgNak} />
@@ -1898,13 +1903,13 @@ function ReceiptTab() {
         {saved && (
           <span className="flex items-center gap-1.5 text-sm text-emerald-600 font-semibold">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-            Saqlandi!
+            {t('settings.saved')}
           </span>
         )}
         <button onClick={handleSave}
           className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl transition-colors flex items-center gap-2">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
-          Sozlamalarni saqlash
+          {t('settings.receipt.saveSettings')}
         </button>
       </div>
     </div>
@@ -1921,7 +1926,7 @@ function BranchesTab() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const load = () => api.get('/branches').then(r => setBranches(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+  const load = () => api.get('/branches').then(r => setBranches(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
   useEffect(() => { load(); }, []);
 
   const handleAdd = async (e) => {
@@ -1931,7 +1936,7 @@ function BranchesTab() {
       await api.post('/branches', form);
       setForm({ name: '', address: '', phone: '' });
       load();
-    } catch (err) { setError(err.response?.data?.detail || 'Xatolik'); }
+    } catch (err) { setError(err.response?.data?.detail || t('common.error')); }
     finally { setSaving(false); }
   };
 
@@ -1940,13 +1945,13 @@ function BranchesTab() {
       await api.patch(`/branches/${id}`, editForm);
       setEditId(null);
       load();
-    } catch (err) { alert(err.response?.data?.detail || 'Xatolik'); }
+    } catch (err) { alert(err.response?.data?.detail || t('common.error')); }
   };
 
   const handleDeactivate = async (id) => {
     if (!confirm(t('settings.deactivateBranch'))) return;
     try { await api.patch(`/branches/${id}`, { is_active: false }); load(); }
-    catch (err) { alert(err.response?.data?.detail || 'Xatolik'); }
+    catch (err) { alert(err.response?.data?.detail || t('common.error')); }
   };
 
   const inputCls = 'w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
@@ -1960,12 +1965,12 @@ function BranchesTab() {
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1">{t('settings.branchName')} *</label>
             <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-              placeholder="Masalan: Asosiy filial" className={inputCls} />
+              placeholder={t('settings.branches.namePlaceholder')} className={inputCls} />
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1">{t('admin.dict.address') || 'Manzil'}</label>
             <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })}
-              placeholder="Shahar, ko'cha" className={inputCls} />
+              placeholder={t('settings.branches.addressPlaceholder')} className={inputCls} />
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1">{t('admin.dict.phone') || 'Telefon'}</label>
@@ -1975,7 +1980,7 @@ function BranchesTab() {
           <div className="md:col-span-3 flex justify-end">
             <button type="submit" disabled={saving}
               className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors">
-              {saving ? 'Saqlanmoqda...' : "➕ Filial qo'shish"}
+              {saving ? t('common.saving') : `➕ ${t('settings.addBranch')}`}
             </button>
           </div>
         </form>
@@ -2024,7 +2029,7 @@ function BranchesTab() {
                   <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${b.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
                     }`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${b.is_active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                    {b.is_active ? 'Faol' : 'Faolsiz'}
+                    {b.is_active ? t('common.active') : t('common.inactive')}
                   </span>
                 </td>
                 <td className="px-4 py-3.5">
@@ -2034,19 +2039,19 @@ function BranchesTab() {
                         <button onClick={() => handleSaveEdit(b.id)}
                           className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg">{t('admin.dict.save') || 'Saqlash'}</button>
                         <button onClick={() => setEditId(null)}
-                          className="px-3 py-1.5 border border-slate-200 text-slate-500 text-xs rounded-lg">Bekor</button>
+                          className="px-3 py-1.5 border border-slate-200 text-slate-500 text-xs rounded-lg">{t('common.cancel')}</button>
                       </>
                     ) : (
                       <>
                         <button onClick={() => { setEditId(b.id); setEditForm({}); }}
-                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Tahrirlash">
+                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title={t('common.edit')}>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
                         </button>
                         {b.is_active && (
                           <button onClick={() => handleDeactivate(b.id)}
-                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Faolsizlashtirish">
+                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title={t('settings.branches.deactivateTitle')}>
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                             </svg>
@@ -2069,6 +2074,7 @@ function BranchesTab() {
 }
 
 function FiskalTab() {
+  const { t } = useLang();
   const [status, setStatus]           = useState('checking'); // 'checking'|'online'|'offline'
   const [modules, setModules]         = useState([]);
   const [selectedId, setSelectedId]   = useState(() => {
@@ -2112,8 +2118,8 @@ function FiskalTab() {
   const toggleFiskal = (val) => {
     setFiskalSend(val);
     localStorage.setItem('fiskalSend', JSON.stringify(val));
-    if (val) toast.success('Fiskalizatsiya yoqildi ✓');
-    else toast("Fiskalizatsiya o'chirildi");
+    if (val) toast.success(t('settings.fiscal.enabled'));
+    else toast(t('settings.fiscal.disabled'));
   };
 
   const statusColor = {
@@ -2123,9 +2129,9 @@ function FiskalTab() {
   }[status];
 
   const statusLabel = {
-    checking: 'Tekshirilmoqda...',
-    online:   'Online — Hippo ishlayapti',
-    offline:  'Offline — Hippo topilmadi',
+    checking: t('settings.fiscal.statusChecking'),
+    online:   t('settings.fiscal.statusOnline'),
+    offline:  t('settings.fiscal.statusOffline'),
   }[status];
 
   return (
@@ -2136,7 +2142,7 @@ function FiskalTab() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-base font-bold text-slate-800">Hippo Communicator</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Fiskal qurilma integratsiyasi</p>
+            <p className="text-xs text-slate-400 mt-0.5">{t('settings.fiscal.integrationDesc')}</p>
           </div>
           <button
             onClick={refresh}
@@ -2146,7 +2152,7 @@ function FiskalTab() {
             <svg className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            Yangilash
+            {t('common.refresh')}
           </button>
         </div>
 
@@ -2168,7 +2174,7 @@ function FiskalTab() {
 
         {status === 'offline' && (
           <p className="text-xs text-red-500 mt-2 px-1">
-            Hippo Communicator ishlamayapti. Kassir kompyuterida servis ishga tushganligini tekshiring.
+            {t('settings.fiscal.offlineHint')}
           </p>
         )}
       </div>
@@ -2176,14 +2182,14 @@ function FiskalTab() {
       {/* ── Fiskal modullar ── */}
       {status === 'online' && (
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-700 mb-3">Ulangan fiskal qurilmalar</h3>
+          <h3 className="text-sm font-bold text-slate-700 mb-3">{t('settings.fiscal.connectedDevices')}</h3>
 
           {modules.length === 0 ? (
             <div className="text-center py-6 text-slate-400">
               <svg className="w-10 h-10 mx-auto mb-2 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
               </svg>
-              <p className="text-sm font-medium">Fiskal qurilma topilmadi</p>
+              <p className="text-sm font-medium">{t('settings.fiscal.noDevicesFound')}</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -2210,7 +2216,7 @@ function FiskalTab() {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                         </svg>
-                        Tanlangan
+                        {t('settings.fiscal.selected')}
                       </span>
                     )}
                   </button>
@@ -2226,9 +2232,9 @@ function FiskalTab() {
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold text-slate-800">Savdolarda fiskalizatsiya</h3>
+              <h3 className="text-sm font-bold text-slate-800">{t('settings.fiscal.salesFiscalization')}</h3>
               <p className="text-xs text-slate-400 mt-0.5">
-                Yoqilsa — har bir sotuv Hippo orqali fiskal qurilmaga yuboriladi
+                {t('settings.fiscal.salesFiscalizationDesc')}
               </p>
             </div>
             {/* Toggle switch */}
@@ -2250,9 +2256,9 @@ function FiskalTab() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
               </svg>
               <div>
-                <p className="text-xs font-bold text-emerald-700">Fiskalizatsiya faol</p>
+                <p className="text-xs font-bold text-emerald-700">{t('settings.fiscal.fiscalizationActive')}</p>
                 <p className="text-xs text-emerald-600 mt-0.5">
-                  Qurilma: <span className="font-black tracking-widest">{selectedId}</span>
+                  {t('settings.fiscal.device')}: <span className="font-black tracking-widest">{selectedId}</span>
                 </p>
               </div>
             </div>
@@ -2266,6 +2272,7 @@ function FiskalTab() {
 
 // ── Umumiy (kompaniya darajasidagi POS) sozlamalar ───────────────────────────
 function GeneralTab({ companyId }) {
+  const { t } = useLang();
   const [posAllowNegative, setPosAllowNegative] = useState(true);
   const [savingSetting, setSavingSetting] = useState(false);
   const [deliveryFee, setDeliveryFee] = useState('');
@@ -2289,10 +2296,10 @@ function GeneralTab({ companyId }) {
     setSavingAutoSale(true);
     try {
       await api.put(`/companies/${companyId}`, { orders_auto_create_sale: checked });
-      toast.success('Sozlama saqlandi');
+      toast.success(t('settings.general.settingSaved'));
     } catch (e) {
       setAutoSale(!checked);
-      toast.error(e.response?.data?.detail || 'Xatolik yuz berdi');
+      toast.error(e.response?.data?.detail || t('auth.errGeneral'));
     } finally {
       setSavingAutoSale(false);
     }
@@ -2303,9 +2310,9 @@ function GeneralTab({ companyId }) {
     setSavingFee(true);
     try {
       await api.put(`/companies/${companyId}`, { delivery_fee: Number(deliveryFee) || 0 });
-      toast.success('Yetkazish haqi saqlandi');
+      toast.success(t('settings.general.deliveryFeeSaved'));
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Xatolik yuz berdi');
+      toast.error(e.response?.data?.detail || t('auth.errGeneral'));
     } finally {
       setSavingFee(false);
     }
@@ -2317,10 +2324,10 @@ function GeneralTab({ companyId }) {
     setSavingSetting(true);
     try {
       await api.put(`/companies/${companyId}`, { pos_allow_negative_stock: checked });
-      toast.success('Sozlama saqlandi');
+      toast.success(t('settings.general.settingSaved'));
     } catch (e) {
       setPosAllowNegative(!checked);
-      toast.error(e.response?.data?.detail || 'Xatolik yuz berdi');
+      toast.error(e.response?.data?.detail || t('auth.errGeneral'));
     } finally {
       setSavingSetting(false);
     }
@@ -2329,13 +2336,12 @@ function GeneralTab({ companyId }) {
   return (
     <div className="p-6 space-y-4">
       <div className="max-w-xl bg-white border border-slate-200 rounded-2xl p-5">
-        <h3 className="text-sm font-bold text-slate-800 mb-4">Sotuv (POS) sozlamalari</h3>
+        <h3 className="text-sm font-bold text-slate-800 mb-4">{t('settings.general.posSettings')}</h3>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-slate-700">Minus qoldiqda sotishga ruxsat</p>
+            <p className="text-xs font-semibold text-slate-700">{t('settings.general.allowNegativeStock')}</p>
             <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
-              Yoqilgan bo'lsa, qoldig'i yetarli bo'lmagan mahsulotni ham sotish mumkin (qoldiq minusga tushadi).
-              O'chirilsa, kassada qoldiqdan ortiq sotish bloklanadi.
+              {t('settings.general.allowNegativeStockDesc')}
             </p>
           </div>
           <button
@@ -2350,13 +2356,12 @@ function GeneralTab({ companyId }) {
       </div>
 
       <div className="max-w-xl bg-white border border-slate-200 rounded-2xl p-5">
-        <h3 className="text-sm font-bold text-slate-800 mb-4">Yetkazib berish sozlamalari</h3>
+        <h3 className="text-sm font-bold text-slate-800 mb-4">{t('settings.general.deliverySettings')}</h3>
         <div className="flex items-start justify-between gap-3 mb-5 pb-5 border-b border-slate-100">
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-slate-700">Yetkazilganda avtomatik sotuv yaratish</p>
+            <p className="text-xs font-semibold text-slate-700">{t('settings.general.autoCreateSale')}</p>
             <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
-              Buyurtma "Yetkazildi" bo'lganda avtomatik Sale yaratiladi: ombor kamayadi,
-              pul kassaga (yoki qarzga) yoziladi. O'chirilsa — POS orqali qo'lda kiritiladi.
+              {t('settings.general.autoCreateSaleDesc')}
             </p>
           </div>
           <button
@@ -2370,9 +2375,9 @@ function GeneralTab({ companyId }) {
         </div>
         <div className="flex items-end gap-3">
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-slate-700 mb-1.5">Yetkazish haqi (so'm)</p>
+            <p className="text-xs font-semibold text-slate-700 mb-1.5">{t('order.deliveryFee')} (so'm)</p>
             <p className="text-[11px] text-slate-400 mb-2 leading-snug">
-              Mini App'da mijoz "Yetkazib berish"ni tanlasa, buyurtma summasiga qo'shiladi. 0 = bepul.
+              {t('settings.general.deliveryFeeDesc')}
             </p>
             <input
               type="number" min="0"
@@ -2387,7 +2392,7 @@ function GeneralTab({ companyId }) {
             disabled={savingFee}
             className="h-10 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold rounded-xl transition-colors"
           >
-            {savingFee ? 'Saqlanmoqda...' : 'Saqlash'}
+            {savingFee ? t('common.saving') : t('common.save')}
           </button>
         </div>
       </div>
@@ -2423,7 +2428,7 @@ export default function Settings() {
       <div className="flex-1 h-full overflow-y-auto p-4 md:p-6 lg:p-8 relative">
         <div className="max-w-6xl mx-auto">
           <div className="mb-6 flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-slate-800">{MENUS.find(m => m.id === tab)?.label || 'Sozlamalar'}</h1>
+            <h1 className="text-2xl font-bold text-slate-800">{MENUS.find(m => m.id === tab)?.label || t('settings.title')}</h1>
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 min-h-[500px]">
@@ -2440,17 +2445,17 @@ export default function Settings() {
             {tab === 'fiskal' && <FiskalTab />}
             
             {/* Placeholders for unfinished tabs */}
-            {tab === 'tariffs' && <PlaceholderTab name="Tashkilot" />}
-            {tab === 'internet_store' && <PlaceholderTab name="Интернет магазин" />}
-            {tab === 'integrations' && <PlaceholderTab name="Integratsiyalar" />}
-            {tab === 'references' && <PlaceholderTab name="Ma'lumotnoma" />}
+            {tab === 'tariffs' && <PlaceholderTab name={t('settings.tab.organization')} />}
+            {tab === 'internet_store' && <PlaceholderTab name={t('settings.tab.onlineStore')} />}
+            {tab === 'integrations' && <PlaceholderTab name={t('settings.tab.integrations')} />}
+            {tab === 'references' && <PlaceholderTab name={t('settings.tab.references')} />}
             {tab === 'general' && <GeneralTab companyId={companyId} />}
-            {tab === 'org_structure' && <PlaceholderTab name="Tashkilot tuzilmasi" />}
-            {tab === 'auto_reply' && <PlaceholderTab name="Avto javob beruvchilar" />}
-            {tab === 'auto_distribute' && <PlaceholderTab name="Avto-tarqatish qoidalari" />}
-            {tab === 'forms' && <PlaceholderTab name="Formalar" />}
-            {tab === 'shifts' && <PlaceholderTab name="Smena" />}
-            {tab === 'warehouses' && <PlaceholderTab name="Ombor bo'limlari" />}
+            {tab === 'org_structure' && <PlaceholderTab name={t('settings.tab.orgStructure')} />}
+            {tab === 'auto_reply' && <PlaceholderTab name={t('settings.tab.autoReply')} />}
+            {tab === 'auto_distribute' && <PlaceholderTab name={t('settings.tab.autoDistribute')} />}
+            {tab === 'forms' && <PlaceholderTab name={t('settings.tab.forms')} />}
+            {tab === 'shifts' && <PlaceholderTab name={t('settings.tab.shifts')} />}
+            {tab === 'warehouses' && <PlaceholderTab name={t('settings.tab.warehouseSections')} />}
           </div>
         </div>
       </div>

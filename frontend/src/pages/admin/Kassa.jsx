@@ -2,19 +2,20 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
 import { Banknote, CreditCard, Gem, HandCoins, Landmark, PiggyBank } from 'lucide-react';
+import { useLang } from '../../context/LangContext';
 
 const fmt = v => Number(v || 0).toLocaleString('uz-UZ');
 const fmtDate = d => d ? new Date(d).toLocaleString('uz-UZ') : '—';
 
 const PT_CONFIG = {
-  cash: { label: 'Naqd', icon: <Banknote className='w-5 h-5 text-emerald-500' />, bg: 'bg-emerald-500/15', border: 'border-emerald-500/30', text: 'text-emerald-400', dot: 'bg-emerald-400' },
-  card: { label: 'Karta', icon: <CreditCard className='w-5 h-5 text-blue-500' />, bg: 'bg-blue-500/15', border: 'border-blue-500/30', text: 'text-blue-400', dot: 'bg-blue-400' },
-  uzcard: { label: 'UzCard', icon: <CreditCard className='w-5 h-5 text-amber-500' />, bg: 'bg-amber-500/15', border: 'border-amber-500/30', text: 'text-amber-400', dot: 'bg-amber-400' },
-  humo: { label: 'Humo', icon: <CreditCard className='w-5 h-5 text-blue-500' />, bg: 'bg-blue-500/15', border: 'border-blue-500/30', text: 'text-blue-400', dot: 'bg-blue-400' },
-  click: { label: 'Click', icon: <CreditCard className='w-5 h-5 text-yellow-500' />, bg: 'bg-yellow-500/15', border: 'border-yellow-500/30', text: 'text-yellow-400', dot: 'bg-yellow-400' },
-  payme: { label: 'Payme', icon: <CreditCard className='w-5 h-5 text-red-500' />, bg: 'bg-red-500/15', border: 'border-red-500/30', text: 'text-red-400', dot: 'bg-red-400' },
-  uzum: { label: 'Uzum', icon: <CreditCard className='w-5 h-5 text-orange-500' />, bg: 'bg-orange-500/15', border: 'border-orange-500/30', text: 'text-orange-400', dot: 'bg-orange-400' },
-  keshbek: { label: 'Keshbek', icon: <HandCoins className='w-5 h-5 text-blue-500' />, bg: 'bg-blue-500/15', border: 'border-blue-500/30', text: 'text-blue-400', dot: 'bg-blue-400' },
+  cash: { labelKey: 'finance.cash', icon: <Banknote className='w-5 h-5 text-emerald-500' />, bg: 'bg-emerald-500/15', border: 'border-emerald-500/30', text: 'text-emerald-400', dot: 'bg-emerald-400' },
+  card: { labelKey: 'kassa.ptCard', icon: <CreditCard className='w-5 h-5 text-blue-500' />, bg: 'bg-blue-500/15', border: 'border-blue-500/30', text: 'text-blue-400', dot: 'bg-blue-400' },
+  uzcard: { labelKey: 'kassa.ptUzcard', icon: <CreditCard className='w-5 h-5 text-amber-500' />, bg: 'bg-amber-500/15', border: 'border-amber-500/30', text: 'text-amber-400', dot: 'bg-amber-400' },
+  humo: { labelKey: 'kassa.ptHumo', icon: <CreditCard className='w-5 h-5 text-blue-500' />, bg: 'bg-blue-500/15', border: 'border-blue-500/30', text: 'text-blue-400', dot: 'bg-blue-400' },
+  click: { labelKey: 'kassa.ptClick', icon: <CreditCard className='w-5 h-5 text-yellow-500' />, bg: 'bg-yellow-500/15', border: 'border-yellow-500/30', text: 'text-yellow-400', dot: 'bg-yellow-400' },
+  payme: { labelKey: 'kassa.ptPayme', icon: <CreditCard className='w-5 h-5 text-red-500' />, bg: 'bg-red-500/15', border: 'border-red-500/30', text: 'text-red-400', dot: 'bg-red-400' },
+  uzum: { labelKey: 'kassa.ptUzum', icon: <CreditCard className='w-5 h-5 text-orange-500' />, bg: 'bg-orange-500/15', border: 'border-orange-500/30', text: 'text-orange-400', dot: 'bg-orange-400' },
+  keshbek: { labelKey: 'kassa.ptKeshbek', icon: <HandCoins className='w-5 h-5 text-blue-500' />, bg: 'bg-blue-500/15', border: 'border-blue-500/30', text: 'text-blue-400', dot: 'bg-blue-400' },
 };
 const getBalanceValue = (val) => {
   if (!val) return 0;
@@ -24,21 +25,20 @@ const getBalanceValue = (val) => {
   return Number(val || 0);
 };
 
-const PT_LABELS = Object.fromEntries(Object.entries(PT_CONFIG).map(([k, v]) => [k, v.label]));
 const PT_KEYS = Object.keys(PT_CONFIG);
 
 const DIR_COLORS = { in: 'text-emerald-400', out: 'text-red-400' };
-const REF_LABELS = {
-  sale: 'Sotuv', supplier_payment: "Ta'minotchi to'lovi",
-  expense: 'Xarajat', invest: 'Investitsiya',
-  withdraw: 'Chiqarish', opening: 'Ochilish balansi',
-  customer_payment: "Mijoz to'lovi",
-  closing_inkasso: 'Kassa Yopilishi (Inkassatsiya)',
-  closing_adjustment: 'Kassa Yopilishi (Qoldiq farqi)',
-  transfer_in: 'Kassadan Qabul',
-  transfer_out: "Kassaga O'tkazma",
-  transfer_out_pending: "O'tkazma (Kutilmoqda)",
-  transfer_rejected: "O'tkazma (Bekor qilingan)"
+const REF_LABEL_KEYS = {
+  sale: 'kassa.refSale', supplier_payment: 'kassa.refSupplierPayment',
+  expense: 'kassa.refExpense', invest: 'kassa.refInvest',
+  withdraw: 'kassa.refWithdraw', opening: 'kassa.refOpening',
+  customer_payment: 'kassa.refCustomerPayment',
+  closing_inkasso: 'kassa.refClosingInkasso',
+  closing_adjustment: 'kassa.refClosingAdjustment',
+  transfer_in: 'kassa.refTransferIn',
+  transfer_out: 'kassa.refTransferOut',
+  transfer_out_pending: 'kassa.refTransferOutPending',
+  transfer_rejected: 'kassa.refTransferRejected'
 };
 
 const inp = 'w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white';
@@ -60,6 +60,7 @@ function Modal({ title, onClose, children, wide }) {
 }
 
 function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
+  const { t } = useLang();
   const [modal, setModal] = useState(null);
   const [history, setHistory] = useState(null);
   const [categories, setCategories] = useState([]);
@@ -118,7 +119,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
     try {
       if (action === 'open') {
         await api.post(`/kassa/${kassa.id}/open`, { opening_balance: Number(form.opening_balance) || 0, note: form.note });
-        toast.success('Kassa ochildi');
+        toast.success(t('kassa.opened'));
       } else if (action === 'close') {
         // Blind Close: kassir kiritgan summani yuborish, hisoblanganni ko'rsatmasdan
         const actual_amounts = {};
@@ -137,23 +138,23 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
         setCloseResult(diff);
         // Farq bo'lsa natijani ko'rsat, yo'q bo'lsa modalni yopamiz
         if (Object.keys(diff).length === 0) {
-          toast.success('Kassa yopildi. Farq yo\'q ✅');
+          toast.success(t('kassa.closedNoDifference'));
           setModal(null);
         } else {
-          toast.success('Kassa yopildi. Farqni tekshiring 👇');
+          toast.success(t('kassa.closedCheckDifference'));
           // modal ochiq qoladi, faqat natija ko'rsatiladi
         }
       } else if (action === 'invest') {
         await api.post(`/kassa/${kassa.id}/invest`, { amount: Number(form.amount), payment_type: form.payment_type, description: form.description });
-        toast.success("Investitsiya qo'shildi");
+        toast.success(t('kassa.investAdded'));
       } else if (action === 'withdraw') {
         await api.post(`/kassa/${kassa.id}/withdraw`, { amount: Number(form.amount), payment_type: form.payment_type, description: form.description });
-        toast.success('Chiqarildi');
+        toast.success(t('kassa.withdrawn'));
       } else if (action === 'expense') {
         await api.post('/kassa/do-expense', { wallet_id: kassa.id, category_id: Number(form.category_id), amount: Number(form.amount), payment_type: form.payment_type, description: form.description });
-        toast.success('Xarajat qilindi');
+        toast.success(t('kassa.expenseDone'));
       } else if (action === 'transfer') {
-        if (!form.receiver_wallet_id) { toast.error("Qabul qiluvchi kassani kiriting"); return; }
+        if (!form.receiver_wallet_id) { toast.error(t('kassa.enterReceiverKassa')); return; }
         
         const promises = [];
         PT_KEYS.forEach(ptype => {
@@ -174,28 +175,28 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
         });
 
         if (promises.length === 0) {
-          toast.error("Kamida bitta to'lov turi bo'yicha summa kiriting");
+          toast.error(t('kassa.enterAtLeastOneAmount'));
           return;
         }
 
         await Promise.all(promises);
-        toast.success(`O'tkazma muvaffaqiyatli amalga oshirildi ✅`);
+        toast.success(t('kassa.transferSuccess'));
       }
       if (action !== 'close') setModal(null);
       onRefresh();
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Xatolik');
+      toast.error(e.response?.data?.detail || t('common.error'));
     } finally { setSaving(false); }
   };
 
   const handleDeleteExpense = async (expenseId) => {
-    if (!window.confirm("Rostdan ham ushbu xarajatni o'chirmoqchimisiz?")) return;
+    if (!window.confirm(t('kassa.confirmDeleteExpense'))) return;
     try {
       await api.delete(`/kassa/expense/${expenseId}`);
-      toast.success("Xarajat o'chirildi");
+      toast.success(t('kassa.expenseDeleted'));
       loadHistory();
       onRefresh();
-    } catch (e) { toast.error(e.response?.data?.detail || "Xatolik"); }
+    } catch (e) { toast.error(e.response?.data?.detail || t('common.error')); }
   };
 
   const handleSaveEditExpense = async (e) => {
@@ -207,11 +208,11 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
         description: editExpense.description,
         category_id: Number(editExpense.category_id) || undefined
       });
-      toast.success("Xarajat yangilandi");
+      toast.success(t('kassa.expenseUpdated'));
       setEditExpense(null);
       loadHistory();
       onRefresh();
-    } catch (ex) { toast.error(ex.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
+    } catch (ex) { toast.error(ex.response?.data?.detail || t('common.error')); } finally { setSaving(false); }
   };
 
   // Local style tokens — plain Tailwind palette only
@@ -240,17 +241,17 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
 
             <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
               <span className={`w-1.5 h-1.5 rounded-full ${isOpen ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
-              <span className='leading-none'>{isOpen ? 'ochiq' : 'yopiq'}</span>
+              <span className='leading-none'>{isOpen ? t('kassa.statusOpen') : t('kassa.statusClosed')}</span>
             </span>
           </div>
 
           <div className="text-right">
             {totalArr.length === 0 ? (
-              <div className="text-2xl font-bold text-slate-900 tabular-nums leading-none">0 so'm</div>
+              <div className="text-2xl font-bold text-slate-900 tabular-nums leading-none">0 {t('common.sum')}</div>
             ) : (
               totalArr.map(item => (
                 <div key={item.currency} className="text-xl font-bold text-slate-900 tabular-nums leading-tight">
-                  {Number(item.value).toLocaleString('uz-UZ')} <span className="text-base font-semibold text-slate-500">{item.currency === 'UZS' ? "so'm" : item.currency}</span>
+                  {Number(item.value).toLocaleString('uz-UZ')} <span className="text-base font-semibold text-slate-500">{item.currency === 'UZS' ? t('common.sum') : item.currency}</span>
                 </div>
               ))
             )}
@@ -265,7 +266,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
           const val = balances[k] || 0;
           return (
             <div key={k}>
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-green-700 mb-1">{cfg.label}</div>
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-green-700 mb-1">{t(cfg.labelKey)}</div>
               <div className={`text-[15px] font-semibold tabular-nums ${val < 0 ? 'text-blue-600' : 'text-slate-900'}`}>
                 {val && Array.isArray(val) ? (
                   val.map((item) => (
@@ -287,53 +288,53 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
         {!isOpen ? (
           <button onClick={() => openModal('open')} className={primaryBtn}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3l14 9-14 9V3z" /></svg>
-            Ochish
+            {t('kassa.open')}
           </button>
         ) : (
           <button onClick={() => openModal('close')} className={primaryBtn}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-            Yopish
+            {t('common.close')}
           </button>
         )}
         <button onClick={() => openModal('invest')} className={ghostBtn}>
           <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
-          Kirim
+          {t('kassa.income')}
         </button>
         <button onClick={() => openModal('withdraw')} className={ghostBtn}>
           <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
-          Chiqim
+          {t('kassa.outcome')}
         </button>
         <button onClick={() => openModal('expense')} className={ghostBtn}>
           <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-          Xarajat
+          {t('kassa.expense')}
         </button>
         {isOpen && allKassalar.filter(k => k.id !== kassa.id).length > 0 && (
           <button onClick={() => openModal('transfer')} className={`${ghostBtn} border-violet-300 text-violet-700 hover:bg-violet-50 hover:border-violet-400`}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
-            Transfer
+            {t('kassa.transfer')}
           </button>
         )}
         <button onClick={() => openModal('history')} className={`${ghostBtn} ml-auto`}>
           <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-          Tarix
+          {t('kassa.history')}
         </button>
       </div>
 
       {/* Open modal */}
       {modal === 'open' && (
-        <Modal title="Kassani ochish" onClose={() => setModal(null)}>
+        <Modal title={t('kassa.openKassaTitle')} onClose={() => setModal(null)}>
           <div className="space-y-4">
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1.5">Boshlang'ich naqd balans</label>
+              <label className="text-xs font-medium text-slate-600 block mb-1.5">{t('kassa.initialCashBalance')}</label>
               <input type="number" className={field} value={form.opening_balance} onChange={e => setForm({ ...form, opening_balance: e.target.value })} placeholder="0" />
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1.5">Izoh</label>
-              <input className={field} value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder="Ixtiyoriy..." />
+              <label className="text-xs font-medium text-slate-600 block mb-1.5">{t('common.note')}</label>
+              <input className={field} value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder={t('common.optional')} />
             </div>
             <div className="flex gap-3 pt-2">
-              <button onClick={() => setModal(null)} className={cancelBtn}>Bekor</button>
-              <button onClick={() => save('open')} disabled={saving} className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-medium disabled:opacity-50 transition-colors">{saving ? '...' : 'Ochish'}</button>
+              <button onClick={() => setModal(null)} className={cancelBtn}>{t('common.cancel')}</button>
+              <button onClick={() => save('open')} disabled={saving} className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-medium disabled:opacity-50 transition-colors">{saving ? '...' : t('kassa.open')}</button>
             </div>
           </div>
         </Modal>
@@ -342,22 +343,22 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
       {/* Close modal — BLIND CLOSE (kassir hisoblanganni ko'rmaydi) */}
       {modal === 'close' && (() => {
         return (
-          <Modal title="Kassani yopish (Ko'r-ko'rona)" onClose={() => { setModal(null); setCloseResult(null); }} wide>
+          <Modal title={t('kassa.closeKassaBlindTitle')} onClose={() => { setModal(null); setCloseResult(null); }} wide>
             <div className="space-y-5">
               {/* Farq natijasi (faqat yopishdan keyin chiqadi) */}
               {closeResult && (
                 <div className="rounded-xl border p-4 bg-amber-50 border-amber-200">
-                  <p className="text-sm font-bold text-amber-800 mb-3">⚖️ Z-Report: Kassa yopildi. Farq:</p>
+                  <p className="text-sm font-bold text-amber-800 mb-3">⚖️ {t('kassa.zReportClosedDifference')}</p>
                   {Object.entries(closeResult).length === 0 ? (
-                    <p className="text-emerald-700 font-semibold">✅ Farq yo'q — hammasi to'g'ri!</p>
+                    <p className="text-emerald-700 font-semibold">✅ {t('kassa.noDifferenceAllCorrect')}</p>
                   ) : (
                     <div className="space-y-1">
                       {Object.entries(closeResult).map(([ptype, currs]) =>
                         Object.entries(currs).map(([curr, diff]) => (
                           <div key={`${ptype}-${curr}`} className="flex justify-between text-sm">
-                            <span className="text-amber-700 font-medium">{PT_CONFIG[ptype]?.label || ptype} ({curr})</span>
+                            <span className="text-amber-700 font-medium">{PT_CONFIG[ptype] ? t(PT_CONFIG[ptype].labelKey) : ptype} ({curr})</span>
                             <span className={`font-bold ${diff > 0 ? 'text-blue-600' : 'text-emerald-600'}`}>
-                              {diff > 0 ? `−${fmt(diff)} (Kamomad)` : `+${fmt(Math.abs(diff))} (Ortiqcha)`}
+                              {diff > 0 ? `−${fmt(diff)} (${t('kassa.shortage')})` : `+${fmt(Math.abs(diff))} (${t('kassa.surplus')})`}
                             </span>
                           </div>
                         ))
@@ -366,7 +367,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                   )}
                   <button onClick={() => { setModal(null); setCloseResult(null); onRefresh(); }}
                     className="mt-3 w-full py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold rounded-lg transition-colors">
-                    Yopish ✓
+                    {t('common.close')} ✓
                   </button>
                 </div>
               )}
@@ -375,18 +376,17 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                 <>
                   {/* Ogohlantirish */}
                   <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700">
-                    ℹ️ <strong>Ko'r-ko'rona tekshiruv:</strong> Kassadagi hisoblangan summani <strong>ko'rsatmasdan</strong> faqat
-                    siz sanagan summani kiriting. Tizim o'zi farqni hisoblab, Z-reportga yozadi.
+                    ℹ️ <strong>{t('kassa.blindCheckLabel')}</strong> {t('kassa.blindCheckDesc')}
                   </div>
 
-                  <p className="text-sm text-slate-600 font-medium">Har bir to'lov turi uchun siz <strong>sanab</strong> chiqgan summani kiriting:</p>
+                  <p className="text-sm text-slate-600 font-medium">{t('kassa.enterCountedAmountHint')}</p>
                   <div className="overflow-x-auto rounded-xl border border-slate-200">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200">
-                          <th className="text-left px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">To'lov turi</th>
-                          <th className="text-center px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Valyuta</th>
-                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Siz sanagan summa</th>
+                          <th className="text-left px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t('kassa.paymentType')}</th>
+                          <th className="text-center px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t('common.currency')}</th>
+                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t('kassa.yourCountedAmount')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -436,13 +436,13 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                     </table>
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-slate-600 block mb-1.5">Izoh</label>
-                    <textarea rows={2} className={field} value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder="Ixtiyoriy..." />
+                    <label className="text-xs font-medium text-slate-600 block mb-1.5">{t('common.note')}</label>
+                    <textarea rows={2} className={field} value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder={t('common.optional')} />
                   </div>
                   <div className="flex gap-3 pt-2">
-                    <button onClick={() => setModal(null)} className={cancelBtn}>Bekor</button>
+                    <button onClick={() => setModal(null)} className={cancelBtn}>{t('common.cancel')}</button>
                     <button onClick={() => save('close')} disabled={saving} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold disabled:opacity-50 transition-colors">
-                      {saving ? 'Yopilmoqda...' : '🔒 Kassani Yopish'}
+                      {saving ? t('kassa.closing') : `🔒 ${t('kassa.closeKassa')}`}
                     </button>
                   </div>
                 </>
@@ -481,21 +481,21 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
         };
 
         return (
-          <Modal title="💸 Kassadan kassaga o'tkazma" onClose={() => setModal(null)} wide>
+          <Modal title={`💸 ${t('kassa.transferTitle')}`} onClose={() => setModal(null)} wide>
             <div className="flex flex-col gap-5">
 
               {/* Top bar */}
               <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
                 <div className="flex-1 min-w-0">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-2">Qabul qiluvchi Kassa</label>
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-2">{t('kassa.receiverKassa')}</label>
                   <select
                     className="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-xl text-[15px] font-semibold text-slate-800 focus:outline-none focus:border-violet-500 transition-colors"
                     value={form.receiver_wallet_id}
                     onChange={e => setForm({ ...form, receiver_wallet_id: e.target.value })}
                   >
-                    <option value="">— Kassani tanlang —</option>
+                    <option value="">{t('kassa.selectKassa')}</option>
                     {allKassalar.filter(k => k.id !== kassa.id).map(k => (
-                      <option key={k.id} value={k.id}>{k.name} {!k.is_open ? '(yopiq)' : ''}</option>
+                      <option key={k.id} value={k.id}>{k.name} {!k.is_open ? `(${t('kassa.statusClosed')})` : ''}</option>
                     ))}
                   </select>
                 </div>
@@ -506,11 +506,11 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                     className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold transition-all shadow-sm shadow-violet-200 active:scale-95"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                    Barchasini kiritish
+                    {t('kassa.fillAll')}
                   </button>
                   {grandTotal > 0 && (
                     <span className="text-[13px] font-bold text-violet-700 bg-violet-50 border border-violet-200 px-3 py-1 rounded-lg">
-                      Jami: {fmt(grandTotal)} UZS
+                      {t('common.total')}: {fmt(grandTotal)} UZS
                     </span>
                   )}
                 </div>
@@ -535,8 +535,8 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                         <div className="flex items-center gap-3">
                           <div className={`p-2 rounded-xl ${cfg.bg} ${cfg.border} border`}>{cfg.icon}</div>
                           <div>
-                            <p className="text-[15px] font-bold text-slate-800">{cfg.label}</p>
-                            {!hasBalance && <p className="text-[11px] text-slate-400 font-medium">Kassada qoldiq yo'q</p>}
+                            <p className="text-[15px] font-bold text-slate-800">{t(cfg.labelKey)}</p>
+                            {!hasBalance && <p className="text-[11px] text-slate-400 font-medium">{t('kassa.noBalanceInKassa')}</p>}
                           </div>
                         </div>
                         {total > 0 && (
@@ -552,7 +552,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                             <div className="flex flex-col min-w-0 flex-1">
                               <div className="flex items-center gap-2">
                                 <span className="text-[12px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">{curr}</span>
-                                <span className="text-[11px] text-slate-400 font-medium truncate">Kassada: {fmt(maxBal)}</span>
+                                <span className="text-[11px] text-slate-400 font-medium truncate">{t('kassa.inKassa')}: {fmt(maxBal)}</span>
                               </div>
                             </div>
                             <div className="relative">
@@ -587,17 +587,17 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
               {/* Note + actions */}
               <div className="flex flex-col sm:flex-row gap-4 items-end pt-1 border-t border-slate-100">
                 <div className="flex-1">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-2">Izoh</label>
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-2">{t('common.note')}</label>
                   <input
                     className="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-xl text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:border-violet-500 transition-colors"
                     value={form.note}
                     onChange={e => setForm({ ...form, note: e.target.value })}
-                    placeholder="Ixtiyoriy izoh..."
+                    placeholder={t('kassa.optionalNote')}
                   />
                 </div>
                 <div className="flex gap-3 shrink-0">
                   <button onClick={() => setModal(null)} className="px-6 py-3 border-2 border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 transition-colors">
-                    Bekor
+                    {t('common.cancel')}
                   </button>
                   <button
                     onClick={() => save('transfer')}
@@ -605,9 +605,9 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                     className="px-8 py-3 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 text-white rounded-xl text-sm font-bold disabled:opacity-50 transition-all shadow-md shadow-violet-200 active:scale-95 flex items-center gap-2"
                   >
                     {saving ? (
-                      <><span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span> Yuborilmoqda...</>
+                      <><span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span> {t('kassa.sending')}</>
                     ) : (
-                      <><span>📤</span> Yuborish</>
+                      <><span>📤</span> {t('kassa.send')}</>
                     )}
                   </button>
                 </div>
@@ -620,25 +620,25 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
 
       {/* Invest / Withdraw modal */}
       {(modal === 'invest' || modal === 'withdraw') && (
-        <Modal title={modal === 'invest' ? 'Investitsiya' : 'Chiqarish'} onClose={() => setModal(null)}>
+        <Modal title={modal === 'invest' ? t('kassa.invest') : t('kassa.withdraw')} onClose={() => setModal(null)}>
           <div className="space-y-4">
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1.5">To'lov turi</label>
+              <label className="text-xs font-medium text-slate-600 block mb-1.5">{t('kassa.paymentType')}</label>
               <select className={field} value={form.payment_type} onChange={e => setForm({ ...form, payment_type: e.target.value })}>
-                {PT_KEYS.map(k => <option key={k} value={k}>{PT_LABELS[k]}</option>)}
+                {PT_KEYS.map(k => <option key={k} value={k}>{t(PT_CONFIG[k].labelKey)}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1.5">Summa *</label>
+              <label className="text-xs font-medium text-slate-600 block mb-1.5">{t('common.amount')} *</label>
               <input type="number" min="1" className={field} value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} placeholder="0" />
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1.5">Izoh</label>
-              <input className={field} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Ixtiyoriy..." />
+              <label className="text-xs font-medium text-slate-600 block mb-1.5">{t('common.note')}</label>
+              <input className={field} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder={t('common.optional')} />
             </div>
             <div className="flex gap-3 pt-2">
-              <button onClick={() => setModal(null)} className={cancelBtn}>Bekor</button>
-              <button onClick={() => save(modal)} disabled={saving || !form.amount} className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-medium disabled:opacity-50 transition-colors">{saving ? '...' : 'Tasdiqlash'}</button>
+              <button onClick={() => setModal(null)} className={cancelBtn}>{t('common.cancel')}</button>
+              <button onClick={() => save(modal)} disabled={saving || !form.amount} className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-medium disabled:opacity-50 transition-colors">{saving ? '...' : t('common.confirm')}</button>
             </div>
           </div>
         </Modal>
@@ -646,37 +646,37 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
 
       {/* Expense modal */}
       {modal === 'expense' && (
-        <Modal title="Xarajat qilish" onClose={() => setModal(null)}>
+        <Modal title={t('kassa.makeExpense')} onClose={() => setModal(null)}>
           <div className="space-y-4">
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1.5">Xarajat turi *</label>
+              <label className="text-xs font-medium text-slate-600 block mb-1.5">{t('kassa.expenseType')} *</label>
               <select className={field} value={form.category_id} onChange={e => setForm({ ...form, category_id: e.target.value })}>
-                <option value="">— Tanlang —</option>
+                <option value="">{t('kassa.selectPlaceholder')}</option>
                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1.5">To'lov turi</label>
+              <label className="text-xs font-medium text-slate-600 block mb-1.5">{t('kassa.paymentType')}</label>
               <div className="flex flex-wrap gap-2">
                 {PT_KEYS.map(k => (
                   <button key={k} type="button" onClick={() => setForm({ ...form, payment_type: k })}
                     className={`px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${form.payment_type === k ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'}`}>
-                    {PT_LABELS[k]}
+                    {t(PT_CONFIG[k].labelKey)}
                   </button>
                 ))}
               </div>
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1.5">Summa *</label>
+              <label className="text-xs font-medium text-slate-600 block mb-1.5">{t('common.amount')} *</label>
               <input type="number" min="1" className={field} value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} placeholder="0" />
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1.5">Izoh</label>
-              <input className={field} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Ixtiyoriy..." />
+              <label className="text-xs font-medium text-slate-600 block mb-1.5">{t('common.note')}</label>
+              <input className={field} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder={t('common.optional')} />
             </div>
             <div className="flex gap-3 pt-2">
-              <button onClick={() => setModal(null)} className={cancelBtn}>Bekor</button>
-              <button onClick={() => save('expense')} disabled={saving || !form.amount || !form.category_id} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-50 transition-colors">{saving ? '...' : 'Tasdiqlash'}</button>
+              <button onClick={() => setModal(null)} className={cancelBtn}>{t('common.cancel')}</button>
+              <button onClick={() => save('expense')} disabled={saving || !form.amount || !form.category_id} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-50 transition-colors">{saving ? '...' : t('common.confirm')}</button>
             </div>
           </div>
         </Modal>
@@ -684,18 +684,18 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
 
       {/* History modal */}
       {modal === 'history' && filteredHistory && (
-        <Modal title="Kassa tarixi" onClose={() => setModal(null)} wide>
+        <Modal title={t('kassa.kassaHistory')} onClose={() => setModal(null)} wide>
           <div className="space-y-6">
-            
+
             {/* Header / Summary / Filters */}
             <div className="flex flex-col md:flex-row gap-5 items-start md:items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-200">
-              
+
               <div className="flex gap-4 items-center flex-1">
                 <div className="relative">
                   <select className="pl-4 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 appearance-none focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 shadow-sm transition-all" value={directionFilter} onChange={(e) => setDirectionFilter(e.target.value)}>
-                    <option value="all">🔄 Barcha</option>
-                    <option value="in">↓ Kirimlar</option>
-                    <option value="out">↑ Chiqimlar</option>
+                    <option value="all">🔄 {t('common.all')}</option>
+                    <option value="in">↓ {t('kassa.incomes')}</option>
+                    <option value="out">↑ {t('kassa.outcomes')}</option>
                   </select>
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
@@ -706,24 +706,24 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                   <input type="date" className="pl-4 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
                 </div>
                 {dateFilter && (
-                  <button onClick={() => setDateFilter('')} className="text-xs font-bold text-blue-500 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors">Tozalash</button>
+                  <button onClick={() => setDateFilter('')} className="text-xs font-bold text-blue-500 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors">{t('kassa.clear')}</button>
                 )}
               </div>
 
               {/* Balans tahlili (Summary) */}
               <div className="flex gap-4 md:gap-8 bg-white px-5 py-3 rounded-xl shadow-sm border border-slate-100 items-center justify-end w-full md:w-auto">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Jami Kirim</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t('kassa.totalIncome')}</p>
                   <p className="text-sm font-bold text-emerald-600 mt-0.5 tabular-nums">+{fmt(history.summary.total_in)}</p>
                 </div>
                 <div className="w-px h-8 bg-slate-200"></div>
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Jami Chiqim</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t('kassa.totalOutcome')}</p>
                   <p className="text-sm font-bold text-blue-600 mt-0.5 tabular-nums">−{fmt(history.summary.total_out)}</p>
                 </div>
                 <div className="w-px h-8 bg-slate-200"></div>
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Balans</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t('common.balance')}</p>
                   <p className="text-sm font-extrabold text-slate-800 mt-0.5 tabular-nums">{fmt(history.summary.balance)}</p>
                 </div>
               </div>
@@ -735,10 +735,10 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500">
-                    <th className="px-5 py-4 font-bold text-[13px] uppercase tracking-wider">Tranzaksiya</th>
-                    <th className="px-5 py-4 font-bold text-[13px] uppercase tracking-wider text-right">Summa</th>
-                    <th className="px-5 py-4 font-bold text-[13px] uppercase tracking-wider">Tafsilotlar</th>
-                    <th className="px-5 py-4 font-bold text-[13px] uppercase tracking-wider text-right">Amallar</th>
+                    <th className="px-5 py-4 font-bold text-[13px] uppercase tracking-wider">{t('kassa.transaction')}</th>
+                    <th className="px-5 py-4 font-bold text-[13px] uppercase tracking-wider text-right">{t('common.amount')}</th>
+                    <th className="px-5 py-4 font-bold text-[13px] uppercase tracking-wider">{t('kassa.detailsCol')}</th>
+                    <th className="px-5 py-4 font-bold text-[13px] uppercase tracking-wider text-right">{t('common.actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -760,11 +760,11 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                             </div>
                             <div>
                               <p className={`font-bold text-[16px] leading-tight ${isIn ? 'text-emerald-700' : 'text-blue-700'}`}>
-                                {isIn ? 'Kirim' : 'Chiqim'}
+                                {isIn ? t('kassa.income') : t('kassa.outcome')}
                               </p>
                               <p className="text-[13px] text-slate-500 font-semibold mt-1.5 uppercase tracking-widest flex items-center gap-1.5">
                                 {PT_CONFIG[m.payment_type]?.icon}
-                                <span>{PT_CONFIG[m.payment_type]?.label || m.payment_type}</span>
+                                <span>{PT_CONFIG[m.payment_type] ? t(PT_CONFIG[m.payment_type].labelKey) : m.payment_type}</span>
                               </p>
                             </div>
                           </div>
@@ -785,7 +785,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                           <div className="flex flex-col gap-2">
                             <div className="flex flex-wrap items-center gap-2.5">
                               <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-md bg-blue-50 border border-blue-100 text-[13px] font-bold text-blue-700 uppercase tracking-wide">
-                                {REF_LABELS[m.reference_type] || m.reference_type}
+                                {REF_LABEL_KEYS[m.reference_type] ? t(REF_LABEL_KEYS[m.reference_type]) : m.reference_type}
                               </span>
                               <span className="text-[13px] font-semibold text-slate-400 flex items-center gap-1.5">
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -812,10 +812,10 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                                   category_id: '' // Odatda backend qaytarmaydi KassaMovement orqali, modalda kategoriyani qayta kiritishi mumkin yoki ixtiyoriy.
                                 });
                                 if (categories.length === 0) loadCategories();
-                              }} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title="Tahrirlash">
+                              }} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title={t('common.edit')}>
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                               </button>
-                              <button onClick={() => handleDeleteExpense(m.reference_id)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title="O'chirish">
+                              <button onClick={() => handleDeleteExpense(m.reference_id)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title={t('common.delete')}>
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                               </button>
                             </div>
@@ -832,8 +832,8 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                         <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-slate-50 border border-slate-100 text-slate-300 mb-4 shadow-sm">
                           <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
                         </div>
-                        <h4 className="text-[15px] font-bold text-slate-700">Ma'lumot topilmadi</h4>
-                        <p className="text-sm font-medium text-slate-400 mt-1">Ushbu filtr bo'yicha hech qanday tranzaksiya mavjud emas.</p>
+                        <h4 className="text-[15px] font-bold text-slate-700">{t('common.noData')}</h4>
+                        <p className="text-sm font-medium text-slate-400 mt-1">{t('kassa.noTransactionsForFilter')}</p>
                       </td>
                     </tr>
                   )}
@@ -847,26 +847,26 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
 
       {/* Edit Expense modal */}
       {editExpense && (
-        <Modal title="Xarajatni tahrirlash" onClose={() => setEditExpense(null)}>
+        <Modal title={t('kassa.editExpense')} onClose={() => setEditExpense(null)}>
           <form onSubmit={handleSaveEditExpense} className="space-y-4">
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1.5">Summa *</label>
+              <label className="text-xs font-medium text-slate-600 block mb-1.5">{t('common.amount')} *</label>
               <input required type="number" min="1" className={field} value={editExpense.amount} onChange={e => setEditExpense({ ...editExpense, amount: e.target.value })} />
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1.5">Kategoriya</label>
+              <label className="text-xs font-medium text-slate-600 block mb-1.5">{t('common.category')}</label>
               <select className={field} value={editExpense.category_id} onChange={e => setEditExpense({ ...editExpense, category_id: e.target.value })}>
-                <option value="">O'zgartirmaslik (Avvalgi)</option>
+                <option value="">{t('kassa.keepUnchanged')}</option>
                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1.5">Izoh</label>
+              <label className="text-xs font-medium text-slate-600 block mb-1.5">{t('common.note')}</label>
               <input className={field} value={editExpense.description} onChange={e => setEditExpense({ ...editExpense, description: e.target.value })} />
             </div>
             <div className="flex gap-3 pt-2">
-              <button type="button" onClick={() => setEditExpense(null)} className={cancelBtn}>Bekor qilish</button>
-              <button type="submit" disabled={saving || !editExpense.amount} className={primaryBtn}>{saving ? 'Saqlanmoqda...' : 'Saqlash'}</button>
+              <button type="button" onClick={() => setEditExpense(null)} className={cancelBtn}>{t('common.cancel')}</button>
+              <button type="submit" disabled={saving || !editExpense.amount} className={primaryBtn}>{saving ? t('common.saving') : t('common.save')}</button>
             </div>
           </form>
         </Modal>
@@ -877,6 +877,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
 
 /* ── ExpenseCategories Tab ── */
 function ExpenseCategoriesTab() {
+  const { t } = useLang();
   const [list, setList] = useState([]);
   const [form, setForm] = useState({ name: '', description: '' });
   const [saving, setSaving] = useState(false);
@@ -889,43 +890,43 @@ function ExpenseCategoriesTab() {
     e.preventDefault(); setSaving(true);
     try {
       await api.post('/finance/expense-categories', form);
-      setForm({ name: '', description: '' }); 
+      setForm({ name: '', description: '' });
       setShowAddCat(false);
-      load(); 
-      toast.success("Qo'shildi");
-    } catch (ex) { toast.error(ex.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
+      load();
+      toast.success(t('kassa.categoryAdded'));
+    } catch (ex) { toast.error(ex.response?.data?.detail || t('common.error')); } finally { setSaving(false); }
   };
 
   return (
     <div>
       <div className="flex items-center justify-between px-6 py-4 border-b border-slate-50">
-        <span className="text-sm font-semibold text-slate-700">Xarajat kategoriyalari</span>
+        <span className="text-sm font-semibold text-slate-700">{t('finance.expenseCategories')}</span>
         <button onClick={() => setShowAddCat(!showAddCat)}
           className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
           </svg>
-          Kategoriya +
+          {t('common.category')} +
         </button>
       </div>
       {showAddCat && (
         <form onSubmit={save} className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex flex-wrap gap-3 items-end">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">Nomi</label>
-            <input required placeholder="Kategoriya nomi"
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('common.name')}</label>
+            <input required placeholder={t('finance.categoryName')}
               className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
               onChange={e => setForm({ ...form, name: e.target.value })} value={form.name} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">Tavsif</label>
-            <input placeholder="Qisqacha tavsif (ixtiyoriy)"
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('common.description')}</label>
+            <input placeholder={t('kassa.shortDescriptionOptional')}
               className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
               onChange={e => setForm({ ...form, description: e.target.value })} value={form.description} />
           </div>
           <button type="submit" disabled={saving}
-            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors">{saving ? 'Saqlanmoqda...' : 'Saqlash'}</button>
+            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors">{saving ? t('common.saving') : t('common.save')}</button>
           <button type="button" onClick={() => setShowAddCat(false)}
-            className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium rounded-xl transition-colors">Bekor qilish</button>
+            className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium rounded-xl transition-colors">{t('common.cancel')}</button>
         </form>
       )}
       <div className="p-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -939,7 +940,7 @@ function ExpenseCategoriesTab() {
           </div>
         ))}
         {list.length === 0 && (
-          <div className="col-span-4 text-center py-10 text-sm text-slate-400">Kategoriyalar topilmadi</div>
+          <div className="col-span-4 text-center py-10 text-sm text-slate-400">{t('finance.noCategories')}</div>
         )}
       </div>
     </div>
@@ -948,11 +949,12 @@ function ExpenseCategoriesTab() {
 
 /* ── Main Page ── */
 const TABS = [
-  { id: 'kassalar', label: 'Kassalar' },
-  { id: 'categories', label: 'Xarajat turlari' },
+  { id: 'kassalar', labelKey: 'kassa.tabKassalar' },
+  { id: 'categories', labelKey: 'finance.expenseCategories' },
 ];
 
 export default function Kassa() {
+  const { t } = useLang();
   const [tab, setTab] = useState('kassalar');
   const [kassalar, setKassalar] = useState([]);
   const [showNew, setShowNew] = useState(false);
@@ -969,8 +971,8 @@ export default function Kassa() {
     e.preventDefault(); setSaving(true);
     try {
       await api.post('/kassa', { name: newForm.name, type: newForm.type, opening_balance: Number(newForm.opening_balance) || 0 });
-      setShowNew(false); setNewForm({ name: '', type: 'cash', opening_balance: '' }); load(); toast.success('Kassa yaratildi');
-    } catch (ex) { toast.error(ex.response?.data?.detail || 'Xatolik'); } finally { setSaving(false); }
+      setShowNew(false); setNewForm({ name: '', type: 'cash', opening_balance: '' }); load(); toast.success(t('kassa.kassaCreated'));
+    } catch (ex) { toast.error(ex.response?.data?.detail || t('common.error')); } finally { setSaving(false); }
   };
 
   // Merge all wallets' totalArr into a single per-currency sum
@@ -982,8 +984,8 @@ export default function Kassa() {
     return acc;
   }, {});
   const totalBalanceLabel = Object.entries(totalBalance).length === 0
-    ? "0 so'm"
-    : Object.entries(totalBalance).map(([c, v]) => `${Number(v).toLocaleString('uz-UZ')} ${c === 'UZS' ? "so'm" : c}`).join(' + ');
+    ? `0 ${t('common.sum')}`
+    : Object.entries(totalBalance).map(([c, v]) => `${Number(v).toLocaleString('uz-UZ')} ${c === 'UZS' ? t('common.sum') : c}`).join(' + ');
   const totalOpen = kassalar.filter(k => k.is_open).length;
 
   return (
@@ -992,14 +994,14 @@ export default function Kassa() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-            Kassa boshqaruvi
+            {t('kassa.kassaManagement')}
           </h1>
-          <p className="text-slate-400 text-sm">Barcha kassalar va to'lov turlari</p>
+          <p className="text-slate-400 text-sm">{t('kassa.allKassalarAndPaymentTypes')}</p>
         </div>
         {tab === 'kassalar' && (
           <button onClick={() => setShowNew(true)} className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm font-bold rounded-lg shadow-md hover:shadow-blue-200 transition-all">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            Yangi Kassa
+            {t('kassa.newKassa')}
           </button>
         )}
       </div>
@@ -1008,9 +1010,9 @@ export default function Kassa() {
       {tab === 'kassalar' && kassalar.length > 0 && (
         <div className="grid grid-cols-3 gap-4">
           {[
-            { label: 'Jami balans', value: totalBalanceLabel, icon: <Banknote className='w-5 h-5 text-blue-600' />, bg: 'bg-blue-50', border: 'border-blue-100', text: 'text-blue-600' },
-            { label: 'Ochiq kassalar', value: totalOpen + ' ta', icon: <Gem className='w-5 h-5 text-emerald-600' />, bg: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-600' },
-            { label: 'Jami kassalar', value: kassalar.length + ' ta', icon: <Landmark className='w-5 h-5 text-slate-600' />, bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700' },
+            { label: t('kassa.totalBalance'), value: totalBalanceLabel, icon: <Banknote className='w-5 h-5 text-blue-600' />, bg: 'bg-blue-50', border: 'border-blue-100', text: 'text-blue-600' },
+            { label: t('kassa.openKassalar'), value: totalOpen + ' ' + t('common.piece'), icon: <Gem className='w-5 h-5 text-emerald-600' />, bg: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-600' },
+            { label: t('kassa.totalKassalar'), value: kassalar.length + ' ' + t('common.piece'), icon: <Landmark className='w-5 h-5 text-slate-600' />, bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700' },
           ].map(c => (
             <div key={c.label} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-center gap-4 hover:shadow-md transition-shadow">
               <div className={`w-11 h-11 rounded-xl ${c.bg} border ${c.border} flex items-center justify-center text-xl`}>{c.icon}</div>
@@ -1025,10 +1027,10 @@ export default function Kassa() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={`px-5 py-2 text-sm cursor-pointer font-bold rounded-lg transition-all ${tab === t.id ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-            {t.label}
+        {TABS.map(tabItem => (
+          <button key={tabItem.id} onClick={() => setTab(tabItem.id)}
+            className={`px-5 py-2 text-sm cursor-pointer font-bold rounded-lg transition-all ${tab === tabItem.id ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+            {t(tabItem.labelKey)}
           </button>
         ))}
       </div>
@@ -1039,8 +1041,8 @@ export default function Kassa() {
           {kassalar.length === 0 && (
             <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-16 text-center">
               <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">💰</div>
-              <p className="font-bold text-slate-600">Hali kassa yaratilmagan</p>
-              <p className="text-sm text-slate-400 mt-1">Yangi Kassa tugmasini bosib boshlang</p>
+              <p className="font-bold text-slate-600">{t('kassa.noKassaYet')}</p>
+              <p className="text-sm text-slate-400 mt-1">{t('kassa.clickNewKassaHint')}</p>
             </div>
           )}
         </div>
@@ -1050,21 +1052,21 @@ export default function Kassa() {
 
       {/* New kassa modal */}
       {showNew && (
-        <Modal title="Yangi Kassa yaratish" onClose={() => setShowNew(false)}>
+        <Modal title={t('kassa.createNewKassa')} onClose={() => setShowNew(false)}>
           <form onSubmit={createKassa} className="space-y-4">
-            <div><label className="text-xs font-semibold text-slate-600 block mb-1">Kassa nomi *</label>
-              <input required className={inp} value={newForm.name} onChange={e => setNewForm({ ...newForm, name: e.target.value })} placeholder="Masalan: Asosiy Kassa" /></div>
-            <div><label className="text-xs font-semibold text-slate-600 block mb-1">Turi</label>
+            <div><label className="text-xs font-semibold text-slate-600 block mb-1">{t('kassa.kassaName')} *</label>
+              <input required className={inp} value={newForm.name} onChange={e => setNewForm({ ...newForm, name: e.target.value })} placeholder={t('kassa.kassaNamePlaceholder')} /></div>
+            <div><label className="text-xs font-semibold text-slate-600 block mb-1">{t('common.type')}</label>
               <select className={inp} value={newForm.type} onChange={e => setNewForm({ ...newForm, type: e.target.value })}>
-                <option value="cash">Naqd kassa</option>
-                <option value="card">Terminal</option>
-                <option value="bank">Bank hisob</option>
+                <option value="cash">{t('kassa.cashKassa')}</option>
+                <option value="card">{t('kassa.terminal')}</option>
+                <option value="bank">{t('kassa.bankAccount')}</option>
               </select></div>
-            <div><label className="text-xs font-semibold text-slate-600 block mb-1">Boshlang'ich balans (so'm)</label>
+            <div><label className="text-xs font-semibold text-slate-600 block mb-1">{t('kassa.initialBalanceSum')}</label>
               <input type="number" min="0" className={inp} value={newForm.opening_balance} onChange={e => setNewForm({ ...newForm, opening_balance: e.target.value })} placeholder="0" /></div>
             <div className="flex gap-3 pt-2">
-              <button type="button" onClick={() => setShowNew(false)} className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm">Bekor</button>
-              <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold disabled:opacity-50">{saving ? '...' : 'Yaratish'}</button>
+              <button type="button" onClick={() => setShowNew(false)} className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm">{t('common.cancel')}</button>
+              <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold disabled:opacity-50">{saving ? '...' : t('common.create')}</button>
             </div>
           </form>
         </Modal>

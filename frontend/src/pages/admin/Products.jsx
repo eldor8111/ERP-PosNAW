@@ -25,16 +25,17 @@ import {
 import SizeMatrixModal from './products/SizeMatrixModal';
 
 /* MXIK sinxronizatsiya holati — rang va izoh */
-const MXIK_STATUS_META = {
-  unknown:  { color: 'bg-slate-300',  label: "Noma'lum — hali tekshirilmagan" },
-  active:   { color: 'bg-emerald-500', label: 'Faol — MXIK kod tasdiqlangan' },
-  disabled: { color: 'bg-red-500',    label: "O'chirilgan — shtrix kod tasnifda topilmadi" },
-  error:    { color: 'bg-amber-500',  label: 'Tasnif vaqtinchalik ishlamayapti' },
-};
+const getMxikStatusMeta = (t) => ({
+  unknown:  { color: 'bg-slate-300',  label: t('product.mxikStatusUnknown') },
+  active:   { color: 'bg-emerald-500', label: t('product.mxikStatusActive') },
+  disabled: { color: 'bg-red-500',    label: t('product.mxikStatusDisabled') },
+  error:    { color: 'bg-amber-500',  label: t('product.mxikStatusError') },
+});
 
 /* ═══════════════════════════════════════════════════ */
 export default function Products() {
   const { t } = useLang();
+  const MXIK_STATUS_META = getMxikStatusMeta(t);
   const [printProduct, setPrintProduct] = useState(null);
   const [activeTab, setActiveTab] = useState('products');
 
@@ -123,7 +124,7 @@ export default function Products() {
   const [seeding, setSeeding] = useState(false);
   const seedClothingCategories = async () => {
     try {
-      if (!window.confirm("Kiyim-kechak standart kategoriyalarini qo'shishni tasdiqlaysizmi?")) return;
+      if (!window.confirm(t('product.confirmSeedClothing'))) return;
       setSeeding(true);
       const { data } = await api.post('/categories/seed-clothing');
       toast.success(data.message);
@@ -279,7 +280,7 @@ export default function Products() {
       setBarcodeInput(full.parent_code || '');
       setModal('edit');
     } catch (err) {
-      toast.error(err.response?.data?.detail || err.message || 'Mahsulot ma\'lumotlarini yuklashda xatolik');
+      toast.error(err.response?.data?.detail || err.message || t('product.loadProductError'));
     }
   };
   const closeModal = () => { setModal(null); setSelected(null); setError(''); };
@@ -295,7 +296,7 @@ export default function Products() {
       });
       setForm(prev => ({ ...prev, images: [...prev.images, r.data.url] }));
     } catch (e) {
-      alert(e.response?.data?.detail || 'Rasm yuklashda xatolik');
+      alert(e.response?.data?.detail || t('product.imageUploadError'));
     } finally {
       setImgUploading(false);
     }
@@ -327,26 +328,26 @@ export default function Products() {
     const detail = err.response?.data?.detail;
     const data = err.response?.data;
     const status = err.response?.status;
-    if (!err.response) return `Server bilan bog'lanishda xatolik: ${err.message}`;
-    if (!detail && data) return `Xatolik (${status}): ${typeof data === 'string' ? data : JSON.stringify(data)}`;
-    if (!detail) return `Server xatolik (${status})`;
+    if (!err.response) return t('product.connectionError', { message: err.message });
+    if (!detail && data) return t('product.errorWithStatus', { status, data: typeof data === 'string' ? data : JSON.stringify(data) });
+    if (!detail) return t('product.serverErrorStatus', { status });
     if (Array.isArray(detail)) return detail.map(d => d.msg || JSON.stringify(d)).join(' | ');
     return String(detail);
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!form.name?.trim()) { setError("Mahsulot nomini kiriting"); return; }
-    if (!form.barcode?.trim()) { setError("Barkodni kiriting"); return; }
+    if (!form.name?.trim()) { setError(t('product.enterNameError')); return; }
+    if (!form.barcode?.trim()) { setError(t('product.enterBarcodeError')); return; }
     if (form.sale_price === '' || form.sale_price === null || form.sale_price === undefined) {
-      setError("Chakana (sotuv) narxini kiriting"); return;
+      setError(t('product.enterSalePriceError')); return;
     }
     const hasConversion = Boolean(form.conversion_source_id && Number(form.conversion_source_id) > 0);
     const effectiveType = hasConversion ? 'sell' : form.product_type;
 
     if (effectiveType === 'sell') {
-      if (!hasConversion) { setError("Tarkibiy mahsulot uchun asosiy mahsulotni tanlang (masalan: Butun qo'y)"); return; }
-      if (!form.conversion_ratio || Number(form.conversion_ratio) <= 0) { setError("Virtual mahsulot uchun nisbatni to'g'ri kiriting"); return; }
+      if (!hasConversion) { setError(t('product.selectSourceProductError')); return; }
+      if (!form.conversion_ratio || Number(form.conversion_ratio) <= 0) { setError(t('product.enterValidRatioError')); return; }
     }
 
     setSaving(true); setError('');
@@ -407,7 +408,7 @@ export default function Products() {
         await api.put(`/products/${selected.id}`, payload);
       }
       if (effectiveType === 'sell') {
-        toast.success(`Tarkibiy mahsulot saqlandi — sotilganda "${form.conversion_source_name}" qoldig'idan yechiladi`);
+        toast.success(t('product.componentSavedMsg', { name: form.conversion_source_name }));
       }
       closeModal();
       loadProducts();
@@ -425,7 +426,7 @@ export default function Products() {
 
   const handleSelectAll = async (e) => {
     if (e.target.checked) {
-      if (!confirm(`Barcha sahifalardagi (jami ${totalRecords} ta) mahsulotlarni tanlamoqchimisiz?`)) return;
+      if (!confirm(t('product.selectAllPagesConfirm', { count: totalRecords }))) return;
       try {
         const params = new URLSearchParams();
         if (search) params.append('search', search);
@@ -435,7 +436,7 @@ export default function Products() {
         const r = await api.get('/products/ids?' + params.toString());
         setSelectedIds(r.data);
       } catch {
-        alert("Server bilan ishlashda xatolik yuz berdi");
+        alert(t('product.serverWorkError'));
       }
     } else {
       setSelectedIds([]);
@@ -482,7 +483,7 @@ export default function Products() {
       const errDetail = err.response?.data?.detail;
       const msg = typeof errDetail === 'string' ? errDetail :
         (Array.isArray(errDetail) ? errDetail.map(e => e.msg).join(', ') : err.message);
-      alert(`O'chirib bo'lmadi: ${msg || "Xatolik"}`);
+      alert(t('product.deleteFailedMsg', { message: msg || t('common.error') }));
     }
   };
 
@@ -511,7 +512,7 @@ export default function Products() {
       closeCatModal();
       loadCategories();
     } catch (err) {
-      setCatError(err.response?.data?.detail || 'Xatolik yuz berdi');
+      setCatError(err.response?.data?.detail || t('common.error'));
     } finally { setCatSaving(false); }
   };
 
@@ -545,7 +546,7 @@ export default function Products() {
       closeBlModal();
       loadBinLocations();
     } catch (err) {
-      setBlError(err.response?.data?.detail || 'Xatolik yuz berdi');
+      setBlError(err.response?.data?.detail || t('common.error'));
     } finally { setBlSaving(false); }
   };
 
@@ -592,21 +593,21 @@ export default function Products() {
 
   /* ────────────────────── Excel Import (Advanced) ─────────────────────── */
   const IMPORT_FIELDS = [
-    { key: '', label: '— Tanlang —' },
-    { key: 'Nomi', label: 'Mahsulot nomi *' },
-    { key: 'Barkod', label: 'Barkod (Shtrix kod)' },
-    { key: 'SKU', label: 'Artikul (SKU)' },
-    { key: 'Kod', label: 'Maxsus kod' },
-    { key: "O'lchov", label: "O'lchov birligi" },
-    { key: 'Tan narxi', label: 'Tan narxi' },
-    { key: 'Chakana narxi', label: 'Chakana narxi' },
-    { key: 'Ulgurji narxi', label: 'Ulgurji narxi' },
-    { key: 'Qoldiq', label: 'Qoldiq' },
-    { key: 'Min. qoldiq', label: 'Min. qoldiq' },
-    { key: 'Holat', label: 'Holat' },
-    { key: 'Brand', label: 'Brand' },
-    { key: 'Kategoriya', label: 'Kategoriya nomi' },
-    { key: '__SKIP__', label: '— O\'tkazib yuborish —' },
+    { key: '', label: t('product.selectOption') },
+    { key: 'Nomi', label: t('product.importFieldName') },
+    { key: 'Barkod', label: t('product.importFieldBarcode') },
+    { key: 'SKU', label: t('product.importFieldSku') },
+    { key: 'Kod', label: t('product.importFieldCode') },
+    { key: "O'lchov", label: t('product.importFieldUnit') },
+    { key: 'Tan narxi', label: t('product.importFieldCostPrice') },
+    { key: 'Chakana narxi', label: t('product.importFieldRetailPrice') },
+    { key: 'Ulgurji narxi', label: t('product.importFieldWholesalePrice') },
+    { key: 'Qoldiq', label: t('product.importFieldStock') },
+    { key: 'Min. qoldiq', label: t('product.importFieldMinStock') },
+    { key: 'Holat', label: t('product.importFieldStatus') },
+    { key: 'Brand', label: t('product.importFieldBrand') },
+    { key: 'Kategoriya', label: t('product.importFieldCategoryName') },
+    { key: '__SKIP__', label: t('product.importFieldSkip') },
   ];
 
   const [importOpen, setImportOpen] = useState(false);
@@ -716,7 +717,7 @@ export default function Products() {
         setImportRows(rows);
         autoMap(rows);
       } catch {
-        setImportError('Fayl o\'qishda xatolik. Iltimos .xlsx formatdagi faylni tanlang.');
+        setImportError(t('product.excelReadError'));
       }
     };
     reader.readAsArrayBuffer(file);
@@ -762,7 +763,7 @@ export default function Products() {
         loadCategories();
       }
     } catch (err) {
-      setImportError(err.response?.data?.detail || 'Server xatosi');
+      setImportError(err.response?.data?.detail || t('product.serverError'));
     } finally { setImportLoading(false); }
   };
 
@@ -910,9 +911,9 @@ export default function Products() {
 
   const handleBulkAddSave = async () => {
     const validRows = bulkRows.filter(r => r.name.trim() && String(r.sale_price).trim());
-    if (!validRows.length) { setBulkError("Kamida bitta mahsulot nomi va chakana narxi kiritilishi kerak"); return; }
+    if (!validRows.length) { setBulkError(t('product.bulkAddMinRequired')); return; }
     const hasStock = validRows.some(r => Number(r.initial_stock) > 0);
-    if (hasStock && !bulkWarehouseId) { setBulkError("Qoldiq kiritilgan mahsulotlar uchun omborni tanlash majburiy!"); return; }
+    if (hasStock && !bulkWarehouseId) { setBulkError(t('product.bulkAddWarehouseRequired')); return; }
     setBulkSaving(true); setBulkError(''); setBulkResult(null);
     let created = 0, errors = [];
     for (const row of validRows) {
@@ -1003,7 +1004,7 @@ export default function Products() {
       window.URL.revokeObjectURL(url);
 
     } catch (error) {
-      toast.error("Eksport qilishda xatolik yuz berdi");
+      toast.error(t('product.exportError'));
     }
   };
 
@@ -1016,7 +1017,7 @@ export default function Products() {
       const filteredData = apiData.filter(prod => prod.unit === "kg" || prod.unit === "g");
       
       if (!filteredData || filteredData.length === 0) {
-        toast.warning("Tarozi uchun (kg/g) mahsulotlar topilmadi");
+        toast.warning(t('product.noScaleProducts'));
         return;
       }
 
@@ -1089,9 +1090,9 @@ export default function Products() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       
-      toast.success(`${filteredData.length} ta mahsulot TMA_import.tms ga eksport qilindi!`);
+      toast.success(t('product.exportSuccessCount', { count: filteredData.length, file: 'TMA_import.tms' }));
     } catch (error) {
-      toast.error("Eksport qilishda xatolik yuz berdi");
+      toast.error(t('product.exportError'));
     }
   };
 
@@ -1100,7 +1101,7 @@ export default function Products() {
       const filteredData = allProducts.filter(prod => prod.unit === "kg" || prod.unit === "g");
 
       if (!filteredData || filteredData.length === 0) {
-        toast.warning("Tarozi uchun (kg/g) mahsulotlar topilmadi");
+        toast.warning(t('product.noScaleProducts'));
         return;
       }
 
@@ -1135,9 +1136,9 @@ export default function Products() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
-      toast.success(`${filteredData.length} ta mahsulot RONGTA.txt ga eksport qilindi!`);
+      toast.success(t('product.exportSuccessCount', { count: filteredData.length, file: 'RONGTA.txt' }));
     } catch (error) {
-      toast.error("Eksport qilishda xatolik yuz berdi");
+      toast.error(t('product.exportError'));
     }
   };
 
@@ -1153,11 +1154,11 @@ export default function Products() {
     try {
       const { data } = await api.post('/products/mxik-sync-bulk');
       toast.success(
-        `MXIK sinxronizatsiya tugadi: ${data.active} faol, ${data.disabled} topilmadi, ${data.error} xatolik (jami ${data.total})`
+        t('product.mxikSyncDoneMsg', { active: data.active, disabled: data.disabled, error: data.error, total: data.total })
       );
       loadProducts();
     } catch (error) {
-      toast.error(error?.response?.data?.detail || "MXIK sinxronizatsiyasida xatolik yuz berdi");
+      toast.error(error?.response?.data?.detail || t('product.mxikSyncError'));
     } finally {
       setMxikSyncing(false);
     }
@@ -1185,25 +1186,25 @@ export default function Products() {
       {scaleModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setScaleModalOpen(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-slate-800 font-bold text-lg mb-1">Tarozi fayli</h3>
-            <p className="text-slate-500 text-sm mb-4">Qaysi tarozi uchun fayl yuklab olishni tanlang:</p>
+            <h3 className="text-slate-800 font-bold text-lg mb-1">{t('product.scaleFileTitle')}</h3>
+            <p className="text-slate-500 text-sm mb-4">{t('product.scaleFileSubtitle')}</p>
             <div className="space-y-2">
               <button onClick={() => runScaleExport('shtrix-m')}
                 className="w-full cursor-pointer flex items-center gap-2 px-4 py-2.5 bg-mist-50 hover:bg-mist-100 text-mist-700 font-semibold rounded-lg border border-mist-200 transition-colors">
-                <Binary className="w-5 h-5" /> Shtrix-M uchun
+                <Binary className="w-5 h-5" /> {t('product.scaleForShtrixM')}
               </button>
               <button onClick={() => runScaleExport('tma')}
                 className="w-full cursor-pointer flex items-center gap-2 px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded-lg border border-blue-200 transition-colors">
-                <Binary className="w-5 h-5" /> TM-A uchun
+                <Binary className="w-5 h-5" /> {t('product.scaleForTma')}
               </button>
               <button onClick={() => runScaleExport('rongta')}
                 className="w-full cursor-pointer flex items-center gap-2 px-4 py-2.5 bg-orange-50 hover:bg-orange-100 text-orange-700 font-semibold rounded-lg border border-orange-200 transition-colors">
-                <Binary className="w-5 h-5" /> RONGTA uchun
+                <Binary className="w-5 h-5" /> {t('product.scaleForRongta')}
               </button>
             </div>
             <button onClick={() => setScaleModalOpen(false)}
               className="w-full cursor-pointer mt-4 px-4 py-2 text-slate-500 hover:text-slate-700 font-medium text-sm">
-              Bekor qilish
+              {t('common.cancel')}
             </button>
           </div>
         </div>
@@ -1218,10 +1219,9 @@ export default function Products() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </div>
-            <h3 className="text-slate-800 font-bold text-lg text-center mb-1">Mahsulotlarni o'chirish</h3>
+            <h3 className="text-slate-800 font-bold text-lg text-center mb-1">{t('product.deleteProductsTitle')}</h3>
             <p className="text-slate-500 text-sm text-center mb-4">
-              <span className="font-bold text-red-600">{selectedIds.length} ta</span> mahsulot arxivlanadi. Tasdiqlash uchun
-              quyidagi kodni kiriting:
+              <span className="font-bold text-red-600">{selectedIds.length} {t('common.item')}</span> {t('product.archiveConfirmMsg')}
             </p>
             <div className="bg-slate-50 border border-slate-200 rounded-xl py-3 text-center mb-4">
               <span className="text-3xl font-black tracking-[0.3em] text-slate-800">{bulkDeleteModal.code}</span>
@@ -1229,7 +1229,7 @@ export default function Products() {
             <input
               type="text"
               maxLength={4}
-              placeholder="Kodni kiriting"
+              placeholder={t('product.enterCodePlaceholder')}
               value={bulkDeleteModal.entered}
               onChange={e => setBulkDeleteModal(m => ({ ...m, entered: e.target.value }))}
               className="w-full px-4 py-3 border border-slate-200 rounded-xl text-center text-lg font-bold tracking-widest
@@ -1287,7 +1287,7 @@ export default function Products() {
                   <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                   </svg>
-                  Ko'p mahsulot qo'shish
+                  {t('product.bulkAddProduct')}
                 </button>
                 <button
                   onClick={openImport}
@@ -1313,7 +1313,7 @@ export default function Products() {
                       const res = await api.get('/products/paginated?' + params.toString());
                       allProducts = res.data.items || [];
                     } catch (e) {
-                      toast.error('Mahsulotlarni yuklashda xatolik');
+                      toast.error(t('product.loadProductsError'));
                       return;
                     }
 
@@ -1333,26 +1333,26 @@ export default function Products() {
 
                     // Row 1 — group headers
                     // Columns: A=№, B=Nomi, C=Qoldiq, D=Jami, E-G=Chakana, H-J=Ulgurji, K-M=Tan narxi, N=Birlik, O=Kategoriya, P=Barcha barkodlar, Q=Artikul, R=Brand, S=Min.qoldiq, T=Holat, U=ID
-                    cell('A1', '№', hdr1); cell('B1', 'Mahsulot nomi', hdr1);
-                    cell('C1', 'Qoldiq (sklad)', hdr1); cell('D1', 'Jami qoldiq', hdr1);
-                    cell('E1', 'Chakana narxi', hdr1); cell('F1', '', hdr1); cell('G1', '', hdr1);
-                    cell('H1', 'Ulgurji narxi', hdr1); cell('I1', '', hdr1); cell('J1', '', hdr1);
-                    cell('K1', 'Tan narxi', hdr1); cell('L1', '', hdr1); cell('M1', '', hdr1);
-                    cell('N1', 'Birligi', hdr1); cell('O1', 'Kategoriya', hdr1);
-                    cell('P1', 'Barcha barkodlar', hdr1);
-                    cell('Q1', 'Artikul', hdr1); cell('R1', 'Brand', hdr1);
-                    cell('S1', 'Min. qoldiq', hdr1); cell('T1', 'Holat', hdr1); cell('U1', 'ID', hdr1);
+                    cell('A1', '№', hdr1); cell('B1', t('product.xlsProductName'), hdr1);
+                    cell('C1', t('product.xlsWarehouseStock'), hdr1); cell('D1', t('product.xlsTotalStock'), hdr1);
+                    cell('E1', t('product.retailPriceLabel'), hdr1); cell('F1', '', hdr1); cell('G1', '', hdr1);
+                    cell('H1', t('product.wholesalePriceLabel'), hdr1); cell('I1', '', hdr1); cell('J1', '', hdr1);
+                    cell('K1', t('product.costPriceLabel'), hdr1); cell('L1', '', hdr1); cell('M1', '', hdr1);
+                    cell('N1', t('product.unit'), hdr1); cell('O1', t('product.category'), hdr1);
+                    cell('P1', t('product.xlsAllBarcodes'), hdr1);
+                    cell('Q1', t('product.xlsArticle'), hdr1); cell('R1', t('product.brandLabel'), hdr1);
+                    cell('S1', t('product.minStockLabel'), hdr1); cell('T1', t('common.status'), hdr1); cell('U1', 'ID', hdr1);
 
                     // Row 2 — sub-headers
-                    cell('A2', '№', hdr2); cell('B2', 'Nomi', hdr2);
-                    cell('C2', 'Sklad', hdr2); cell('D2', 'Jami', hdr2);
-                    cell('E2', 'Narx', hdr2); cell('F2', 'Valyuta', hdr2); cell('G2', 'Summa', hdr2);
-                    cell('H2', 'Narx', hdr2); cell('I2', 'Valyuta', hdr2); cell('J2', 'Summa', hdr2);
-                    cell('K2', 'Narx', hdr2); cell('L2', 'Valyuta', hdr2); cell('M2', 'Summa', hdr2);
-                    cell('N2', 'Birlik', hdr2); cell('O2', 'Kategoriya', hdr2);
-                    cell('P2', 'Barkodlar', hdr2);
-                    cell('Q2', 'SKU', hdr2); cell('R2', 'Brand', hdr2);
-                    cell('S2', 'Min.', hdr2); cell('T2', 'Holat', hdr2); cell('U2', 'ID', hdr2);
+                    cell('A2', '№', hdr2); cell('B2', t('product.productName'), hdr2);
+                    cell('C2', t('product.xlsWarehouse'), hdr2); cell('D2', t('product.xlsTotal'), hdr2);
+                    cell('E2', t('product.xlsPrice'), hdr2); cell('F2', t('product.xlsCurrency'), hdr2); cell('G2', t('product.xlsAmount'), hdr2);
+                    cell('H2', t('product.xlsPrice'), hdr2); cell('I2', t('product.xlsCurrency'), hdr2); cell('J2', t('product.xlsAmount'), hdr2);
+                    cell('K2', t('product.xlsPrice'), hdr2); cell('L2', t('product.xlsCurrency'), hdr2); cell('M2', t('product.xlsAmount'), hdr2);
+                    cell('N2', t('product.unit'), hdr2); cell('O2', t('product.category'), hdr2);
+                    cell('P2', t('product.xlsBarcodes'), hdr2);
+                    cell('Q2', 'SKU', hdr2); cell('R2', t('product.brandLabel'), hdr2);
+                    cell('S2', t('product.xlsMin'), hdr2); cell('T2', t('common.status'), hdr2); cell('U2', 'ID', hdr2);
 
                     // Merges for row 1 group headers
                     ws['!merges'] = [
@@ -1369,7 +1369,7 @@ export default function Products() {
                       const saleP = Number(p.sale_price || 0);
                       const whoP = Number(p.wholesale_price || 0);
                       const costP = Number(p.cost_price || 0);
-                      const status = p.status === 'active' ? 'Faol' : p.status === 'inactive' ? 'Nofaol' : 'Arxiv';
+                      const status = p.status === 'active' ? t('product.active') : p.status === 'inactive' ? t('product.inactive') : t('product.archived');
                       const rowBg = i % 2 === 0 ? { fill: { fgColor: { rgb: 'FAFBFF' } } } : {};
                       // Combine primary + extra barcodes into one cell
                       const ebRaw = p.extra_barcodes;
@@ -1421,7 +1421,7 @@ export default function Products() {
                   onClick={() => setScaleModalOpen(true)}
                   className="cursor-pointer leading-none inline-flex items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-orange-600 hover:bg-orange-500 text-white text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-lg transition-colors border border-orange-200"
                 >
-                  <Binary className='w-5 h-5' /> Tarozi fayli
+                  <Binary className='w-5 h-5' /> {t('product.scaleFileTitle')}
                 </button>
 
                 <div className="flex items-center gap-1.5 px-2 xl:px-3 py-1 xl:py-2 bg-slate-50 border border-slate-200 rounded-md xl:rounded-lg">
@@ -1438,7 +1438,7 @@ export default function Products() {
                   <svg className={`w-4 h-4 xl:w-5 xl:h-5 ${mxikSyncing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
-                  {mxikSyncing ? 'Sinxronlanmoqda...' : 'MXIK-kodlarni sinxronizatsiya qilish'}
+                  {mxikSyncing ? t('product.syncing') : t('product.syncMxikCodes')}
                 </button>
               </>
             )}
@@ -1481,7 +1481,7 @@ export default function Products() {
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Nomi, SKU yoki barkod..."
+                placeholder={t('product.searchPlaceholder')}
                 className="w-full pr-2 text-[14px] xl:text-[16px] text-slate-900 outline-none focus:border-blue-500 transition-colors"
               />
             </div>
@@ -1611,21 +1611,21 @@ export default function Products() {
                     <span className="flex mr-0.5 sm:mr-2 items-center gap-2 sm:gap-3">
                       <PencilRuler className="size-4 xl:size-5 shrink-0 text-slate-400" />
                       <span className="block truncate">
-                        {filterMeasure === 'dona' ? 'Dona' :
-                          filterMeasure === 'kg' ? 'Kg' :
-                            filterMeasure === 'litr' ? 'Litr' :
-                              filterMeasure === 'metr' ? 'Metr' : 'Barcha birlik'}
+                        {filterMeasure === 'dona' ? t('product.unitDona') :
+                          filterMeasure === 'kg' ? t('product.unitKg') :
+                            filterMeasure === 'litr' ? t('product.unitLitr') :
+                              filterMeasure === 'metr' ? t('product.unitMetr') : t('product.allUnits')}
                       </span>
                     </span>
                     <ChevronsUpDown aria-hidden="true" className="size-4 xl:size-5 text-gray-400" />
                   </ListboxButton>
                   <ListboxOptions transition className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-md outline-0 bg-white text-base border border-slate-200 transition duration-100 ease-in data-[closed]:opacity-0 sm:text-sm shadow-lg">
                     {[
-                      { value: "", label: "Barcha birlik" },
-                      { value: "dona", label: 'Dona' },
-                      { value: "kg", label: 'Kg' },
-                      { value: "litr", label: 'Litr' },
-                      { value: "metr", label: 'Metr' }
+                      { value: "", label: t('product.allUnits') },
+                      { value: "dona", label: t('product.unitDona') },
+                      { value: "kg", label: t('product.unitKg') },
+                      { value: "litr", label: t('product.unitLitr') },
+                      { value: "metr", label: t('product.unitMetr') }
                     ].map((item) => (
                       <ListboxOption key={item.value} value={item.value} className="group relative py-1.5 xl:py-2.5 pr-7 xl:pr-9 pl-2 xl:pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-blue-600 data-[focus]:text-white outline-hidden">
                         <div className="flex items-center gap-2">
@@ -1649,19 +1649,19 @@ export default function Products() {
                     <span className="flex mr-0.5 sm:mr-2 items-center gap-2 sm:gap-3">
                       <Box className="size-4 xl:size-5 shrink-0 text-slate-400" />
                       <span className="block truncate">
-                        {filterStock === 'qolmagan' ? 'Qolmagan' :
-                          filterStock === 'kam-qolgan' ? 'Kam qolgan' :
-                            filterStock === 'minusda' ? '0 dan kam' : 'Omborda'}
+                        {filterStock === 'qolmagan' ? t('product.stockOut') :
+                          filterStock === 'kam-qolgan' ? t('product.stockLow') :
+                            filterStock === 'minusda' ? t('product.stockNegative') : t('product.stockInWarehouse')}
                       </span>
                     </span>
                     <ChevronsUpDown aria-hidden="true" className="size-4 xl:size-5 text-gray-400" />
                   </ListboxButton>
                   <ListboxOptions transition className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-md outline-0 bg-white text-base border border-slate-200 transition duration-100 ease-in data-[closed]:opacity-0 sm:text-sm shadow-lg">
                     {[
-                      { value: "", label: "Omborda" },
-                      { value: "qolmagan", label: 'Qolmagan' },
-                      { value: "kam-qolgan", label: 'Kam qolgan' },
-                      { value: "minusda", label: '0 dan kam' },
+                      { value: "", label: t('product.stockInWarehouse') },
+                      { value: "qolmagan", label: t('product.stockOut') },
+                      { value: "kam-qolgan", label: t('product.stockLow') },
+                      { value: "minusda", label: t('product.stockNegative') },
                     ].map((item) => (
                       <ListboxOption key={item.value} value={item.value} className="group relative py-1.5 xl:py-2.5 pr-7 xl:pr-9 pl-2 xl:pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-blue-600 data-[focus]:text-white outline-hidden">
                         <div className="flex items-center gap-2">
@@ -1700,18 +1700,18 @@ export default function Products() {
                       <BarChart3 className={`size-4 xl:size-5 shrink-0 ${sortBy ? 'text-blue-600' : 'text-slate-400'}`} />
                       <span className="block truncate">
                         {(() => {
-                          if (!sortBy) return 'Saralash';
+                          if (!sortBy) return t('product.sortLabel');
                           const labels = {
-                            'sale_price|asc': 'Chakana ↑',
-                            'sale_price|desc': 'Chakana ↓',
-                            'wholesale_price|asc': 'Ulg\'urchi ↑',
-                            'wholesale_price|desc': 'Ulg\'urchi ↓',
-                            'cost_price|asc': 'Kirim ↑',
-                            'cost_price|desc': 'Kirim ↓',
-                            'profit|asc': 'Foyda ↑',
-                            'profit|desc': 'Foyda ↓',
+                            'sale_price|asc': `${t('product.retailShortLabel')} ↑`,
+                            'sale_price|desc': `${t('product.retailShortLabel')} ↓`,
+                            'wholesale_price|asc': `${t('product.wholesaleShortLabel')} ↑`,
+                            'wholesale_price|desc': `${t('product.wholesaleShortLabel')} ↓`,
+                            'cost_price|asc': `${t('product.xlsPrice')} ↑`,
+                            'cost_price|desc': `${t('product.xlsPrice')} ↓`,
+                            'profit|asc': `${t('product.profitLabel')} ↑`,
+                            'profit|desc': `${t('product.profitLabel')} ↓`,
                           };
-                          return labels[`${sortBy}|${sortOrder}`] || 'Saralash';
+                          return labels[`${sortBy}|${sortOrder}`] || t('product.sortLabel');
                         })()}
                       </span>
                     </span>
@@ -1719,15 +1719,15 @@ export default function Products() {
                   </ListboxButton>
                   <ListboxOptions transition className="absolute z-30 mt-1 max-h-72 w-full overflow-auto rounded-md outline-0 bg-white text-base border border-slate-200 transition duration-100 ease-in data-[closed]:opacity-0 sm:text-sm shadow-xl">
                     {[
-                      { value: '', label: 'Saralash', icon: <Layers className="size-4" /> },
-                      { value: 'sale_price|asc', label: 'Chakana narxi ↑' },
-                      { value: 'sale_price|desc', label: 'Chakana narxi ↓' },
-                      { value: 'wholesale_price|asc', label: 'Ulg\'urchi narxi ↑' },
-                      { value: 'wholesale_price|desc', label: 'Ulg\'urchi narxi ↓' },
-                      { value: 'cost_price|asc', label: 'Kirim narxi ↑' },
-                      { value: 'cost_price|desc', label: 'Kirim narxi ↓' },
-                      { value: 'profit|asc', label: 'Foyda marjasi ↑' },
-                      { value: 'profit|desc', label: 'Foyda marjasi ↓' },
+                      { value: '', label: t('product.sortLabel'), icon: <Layers className="size-4" /> },
+                      { value: 'sale_price|asc', label: `${t('product.retailPriceLabel')} ↑` },
+                      { value: 'sale_price|desc', label: `${t('product.retailPriceLabel')} ↓` },
+                      { value: 'wholesale_price|asc', label: `${t('product.wholesalePriceLabel')} ↑` },
+                      { value: 'wholesale_price|desc', label: `${t('product.wholesalePriceLabel')} ↓` },
+                      { value: 'cost_price|asc', label: `${t('product.costPriceLabel')} ↑` },
+                      { value: 'cost_price|desc', label: `${t('product.costPriceLabel')} ↓` },
+                      { value: 'profit|asc', label: `${t('product.profitMarginLabel')} ↑` },
+                      { value: 'profit|desc', label: `${t('product.profitMarginLabel')} ↓` },
                     ].map((item) => (
                       <ListboxOption key={item.value} value={item.value} className="group relative py-2 pr-7 xl:pr-9 pl-2 xl:pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-blue-600 data-[focus]:text-white outline-hidden border-b border-slate-50 last:border-0">
                         <div className="flex items-center gap-2">
@@ -1764,7 +1764,7 @@ export default function Products() {
                 onClick={() => setMassActionsOpen(o => !o)}
                 className="w-full sm:w-auto px-5 py-3 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-semibold rounded-lg transition-colors inline-flex items-center justify-between sm:justify-start gap-2 shrink-0 border border-blue-100 cursor-pointer"
               >
-                <span>Ommaviy amallar ({selectedIds.length})</span>
+                <span>{t('product.massActions')} ({selectedIds.length})</span>
                 <svg className={`w-4 h-4 transition-transform ${massActionsOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                 </svg>
@@ -1777,7 +1777,7 @@ export default function Products() {
                       onClick={() => {
                         const selProds = products.filter(p => selectedIds.includes(p.id));
                         if (selProds.some(p => p.product_type === 'sell')) {
-                          toast.error("Tarkibiy (Kalkulyatsiya) mahsulot qoldig'ini ommaviy tahrirlab bo'lmaydi. Ularni tanlovdan olib tashlang!");
+                          toast.error(t('product.bulkEditComponentError'));
                           return;
                         }
                         setMassActionsOpen(false); setBulkStockModal(true);
@@ -1785,7 +1785,7 @@ export default function Products() {
                       className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors flex items-center gap-2.5 cursor-pointer"
                     >
                       <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-                      Qoldiqni tahrirlash
+                      {t('product.editStock')}
                     </button>
                     <div className="border-t border-slate-100 my-1" />
                     <button
@@ -1793,7 +1793,7 @@ export default function Products() {
                       className="w-full text-left px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2.5 cursor-pointer"
                     >
                       <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                      O'chirish
+                      {t('common.delete')}
                     </button>
                   </div>
                 </>
@@ -1834,7 +1834,7 @@ export default function Products() {
                             className="w-3 h-3 xl:w-4 xl:h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
                           />
                         </th>
-                        {['T/r', t('product.thImage'), t('product.thProduct'), t('product.category'), t('product.thUnit'), t('product.thCost'), t('product.thWholesale'), t('product.thRetail'), t('product.stock'), t('common.status'), ''].map(h => (
+                        {[t('product.thRowNum'), t('product.thImage'), t('product.thProduct'), t('product.category'), t('product.thUnit'), t('product.thCost'), t('product.thWholesale'), t('product.thRetail'), t('product.stock'), t('common.status'), ''].map(h => (
                           <th key={h} className="py-3 text-left text-[10px] xl:text-[12px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap overflow-hidden">{h}</th>
                         ))}
                       </tr>
@@ -1877,12 +1877,12 @@ export default function Products() {
                                 <span className="truncate block min-w-50 text-[14px] lg:text-[16px]">{p.name}</span>
                                 {p.product_type === 'sell' && p.conversion && (
                                   <span className="text-xs text-blue-400 font-medium block truncate no-underline">
-                                    (Tarkibiy → {p.conversion.source_product_name})
+                                    ({t('product.componentOf', { name: p.conversion.source_product_name })})
                                   </span>
                                 )}
                                 {p.product_type === 'sell' && !p.conversion && (
                                   <span className="text-xs text-red-500 font-medium block truncate no-underline">
-                                    ⚠ Asosiy mahsulot bog&apos;lanmagan!
+                                    ⚠ {t('product.sourceNotLinked')}
                                   </span>
                                 )}
                               </button>
@@ -1899,13 +1899,13 @@ export default function Products() {
                                       <div key={i} className="text-[10px] font-mono text-slate-500 truncate">+ {b}</div>
                                     ))}
                                     {p.extra_barcodes.length > 2 && (
-                                      <div className="text-[10px] text-blue-400">+{p.extra_barcodes.length - 2} ta</div>
+                                      <div className="text-[10px] text-blue-400">+{p.extra_barcodes.length - 2} {t('common.item')}</div>
                                     )}
                                   </div>
                                 )}
                                 <span className="text-[8px] xl:text-[9px] text-blue-500 truncate">{p.sku}</span>
                                 {p.mxik_code && (
-                                  <span className="text-[8px] xl:text-[9px] font-mono text-violet-600 truncate" title="MXIK kod">
+                                  <span className="text-[8px] xl:text-[9px] font-mono text-violet-600 truncate" title={t('product.mxikCodeTitle')}>
                                     #{p.mxik_code}
                                   </span>
                                 )}
@@ -2027,8 +2027,8 @@ export default function Products() {
 
                     <div className="flex items-center flex-wrap gap-x-3 gap-y-1 sm:ml-0">
                       <span className="hidden sm:inline-flex ml-auto flex-wrap gap-x-2 items-center text-slate-400">
-                        <span>Faol: <strong className="text-emerald-600 ml-1 leading-none whitespace-nowrap">{totalActive}</strong></span>
-                        <span>Qoldiqsiz: <strong className="text-red-500 ml-1 leading-none whitespace-nowrap">{outOfStock}</strong></span>
+                        <span>{t('product.active')}: <strong className="text-emerald-600 ml-1 leading-none whitespace-nowrap">{totalActive}</strong></span>
+                        <span>{t('product.stockOut')}: <strong className="text-red-500 ml-1 leading-none whitespace-nowrap">{outOfStock}</strong></span>
                       </span>
 
                       {/* 5. LIMIT (PAGINATION) LISTBOX */}
@@ -2084,7 +2084,7 @@ export default function Products() {
                   <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shadow-xs border border-blue-100">
                     <Banknote size={22} className='scale-70' />
                   </div>
-                  <span className="text-[10px] md:text-[13px] xl:text-[14px] font-bold text-slate-500 uppercase tracking-tight">Chakana qiymati</span>
+                  <span className="text-[10px] md:text-[13px] xl:text-[14px] font-bold text-slate-500 uppercase tracking-tight">{t('product.retailValueLabel')}</span>
                 </div>
                 <div>
                   {Object.entries(saleValues).length > 0 ? (
@@ -2115,7 +2115,7 @@ export default function Products() {
                   <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 shadow-xs border border-emerald-100">
                     <BarChart3 size={22} className='scale-70' />
                   </div>
-                  <span className="text-[10px] md:text-[13px] xl:text-[14px] font-bold text-slate-500 uppercase tracking-tight">Ulgurji qiymati</span>
+                  <span className="text-[10px] md:text-[13px] xl:text-[14px] font-bold text-slate-500 uppercase tracking-tight">{t('product.wholesaleValueLabel')}</span>
                 </div>
                 <div>
                   {Object.entries(wholesaleValues).length > 0 ? (
@@ -2146,7 +2146,7 @@ export default function Products() {
                   <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 shadow-xs border border-amber-100">
                     <Wallet size={22} className='scale-70' />
                   </div>
-                  <span className="text-[10px] md:text-[13px] xl:text-[14px] font-bold text-slate-500 uppercase tracking-tight">Kirim qiymati</span>
+                  <span className="text-[10px] md:text-[13px] xl:text-[14px] font-bold text-slate-500 uppercase tracking-tight">{t('product.costValueLabel')}</span>
                 </div>
                 <div>
                   {Object.entries(costValues).length > 0 ? (
@@ -2181,17 +2181,17 @@ export default function Products() {
               </div>
               <div>
                 <h3 className="text-[15px] sm:text-base font-bold text-slate-800">{t('product.allCategoriesLabel')}</h3>
-                <p className="text-[11px] sm:text-xs text-slate-400 font-medium">Jami: {categories.length} ta kategoriya</p>
+                <p className="text-[11px] sm:text-xs text-slate-400 font-medium">{t('product.totalCategoriesCount', { count: categories.length })}</p>
               </div>
             </div>
             <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
-              <button 
+              <button
                 onClick={seedClothingCategories}
                 disabled={seeding}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[13px] sm:text-sm font-bold rounded-xl transition-all shadow-sm active:scale-[0.98] disabled:opacity-50"
               >
                 <Layers size={18} />
-                {seeding ? "Yuklanmoqda..." : "Tayyor kategoriyalarni yuklash"}
+                {seeding ? t('product.syncing') : t('product.loadDefaultCategories')}
               </button>
               <button onClick={openAddCat}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-[13px] sm:text-sm font-bold rounded-xl transition-all shadow-sm active:scale-[0.98]">
@@ -2207,7 +2207,7 @@ export default function Products() {
             <table className="w-full min-w-[800px]">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
-                  {['#', t('common.name'), t('product.parentCategory'), t('product.sortOrder'), 'FEFO', t('common.created'), t('product.productsCount') || 'Mahsulotlar', ''].map(h => (
+                  {['#', t('common.name'), t('product.parentCategory'), t('product.sortOrder'), 'FEFO', t('common.created'), t('product.productsCount'), ''].map(h => (
                     <th key={h} className="px-6 py-4 text-left text-[11px] font-bold text-slate-500 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
@@ -2227,24 +2227,24 @@ export default function Products() {
                     </td>
                     <td className="px-6 py-4 text-[13px] text-slate-500">{c.sort_order}</td>
                     <td className="px-6 py-4 text-xs">
-                      {c.is_perishable ? <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded text-[10px] font-bold uppercase tracking-wider">Yoqilgan</span> : <span className="text-slate-300">—</span>}
+                      {c.is_perishable ? <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded text-[10px] font-bold uppercase tracking-wider">{t('product.enabledLabel')}</span> : <span className="text-slate-300">—</span>}
                     </td>
                     <td className="px-6 py-4 text-xs text-slate-400">
                       {new Date(c.created_at).toLocaleDateString('uz-UZ')}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold ${(c.products_count || 0) > 0 ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'}`}>
-                        {c.products_count || 0} ta
+                        {c.products_count || 0} {t('common.item')}
                       </span>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEditCat(c)} className="p-2 cursor-pointer text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title="Tahrirlash">
+                        <button onClick={() => openEditCat(c)} className="p-2 cursor-pointer text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title={t('common.edit')}>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
                         </button>
-                        <button onClick={() => handleDeleteCat(c.id)} className="p-2 cursor-pointer text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="O'chirish">
+                        <button onClick={() => handleDeleteCat(c.id)} className="p-2 cursor-pointer text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title={t('common.delete')}>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
@@ -2279,8 +2279,8 @@ export default function Products() {
                 <Warehouse size={21} />
               </div>
               <div>
-                <h3 className="text-[15px] sm:text-base font-bold text-slate-800">Joylashuvlar</h3>
-                <p className="text-[11px] sm:text-xs text-slate-400 font-medium">Jami: {binLocations.length} ta ombor joylashuvi</p>
+                <h3 className="text-[15px] sm:text-base font-bold text-slate-800">{t('product.locations')}</h3>
+                <p className="text-[11px] sm:text-xs text-slate-400 font-medium">{t('product.totalLocationsCount', { count: binLocations.length })}</p>
               </div>
             </div>
             <button onClick={openAddBl}
@@ -2288,7 +2288,7 @@ export default function Products() {
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
               </svg>
-              Yangi Joylashuv
+              {t('product.newBinLocation')}
             </button>
           </div>
 
@@ -2296,7 +2296,7 @@ export default function Products() {
             <table className="w-full min-w-[600px]">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
-                  {['Kod', 'Nomi / Tavsif', ''].map(h => (
+                  {[t('product.binCode'), t('product.binDescLabel'), ''].map(h => (
                     <th key={h} className="px-6 py-4 text-left text-[11px] font-bold text-slate-500 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
@@ -2307,15 +2307,15 @@ export default function Products() {
                     <td className="px-6 py-4">
                       <span className="inline-flex px-3 py-1 bg-blue-50 text-blue-700 text-[13px] font-mono font-bold rounded-lg border border-blue-100">{b.code}</span>
                     </td>
-                    <td className="px-6 py-4 text-[13px] text-slate-600 font-medium">{b.label || <span className="text-slate-300 italic">Tavsif yo&apos;q</span>}</td>
+                    <td className="px-6 py-4 text-[13px] text-slate-600 font-medium">{b.label || <span className="text-slate-300 italic">{t('product.noDescription')}</span>}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => openEditBl(b)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title="Tahrirlash">
+                        <button onClick={() => openEditBl(b)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title={t('common.edit')}>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
                         </button>
-                        <button onClick={() => handleDeleteBl(b.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="O'chirish">
+                        <button onClick={() => handleDeleteBl(b.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title={t('common.delete')}>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
@@ -2371,7 +2371,7 @@ export default function Products() {
                     type="button"
                     onClick={() => {
                       if (form.product_type === 'stock') return;
-                      const msg = "Diqqat! Oddiy turga o'tkazsangiz tarkibiy bog'lanish o'chadi va sotuvda alohida qoldiqdan yechiladi. Davom etasizmi?";
+                      const msg = t('product.confirmSwitchSimpleType');
                       if (!confirm(msg)) return;
                       setForm(f => ({ ...f, product_type: 'stock', conversion_source_id: '', conversion_source_name: '', conversion_ratio: 1 }));
                     }}
@@ -2381,7 +2381,7 @@ export default function Products() {
                       }`}
                   >
                     <svg className="w-5 h-5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-                    Oddiy (Jismoniy)
+                    {t('product.typeSimple')}
                   </button>
                   <button
                     type="button"
@@ -2392,13 +2392,13 @@ export default function Products() {
                       }`}
                   >
                     <svg className="w-5 h-5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
-                    Tarkibiy (Virtual)
+                    {t('product.typeComponent')}
                   </button>
                   <button
                     type="button"
                     onClick={() => {
                       if (form.product_type === 'variant') return;
-                      const msg = "Variantli turga o'tkazsangiz oldingi bog'lanish o'chishi mumkin. Davom etasizmi?";
+                      const msg = t('product.confirmSwitchVariantType');
                       if (!confirm(msg)) return;
                       setForm(f => ({ ...f, product_type: 'variant', conversion_source_id: '', conversion_source_name: '', conversion_ratio: 1, variants: f.variants || [] }));
                     }}
@@ -2408,7 +2408,7 @@ export default function Products() {
                       }`}
                   >
                     <svg className="w-5 h-5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-                    Variantli Mahsulot
+                    {t('product.typeVariant')}
                   </button>
                 </div>
 
@@ -2416,27 +2416,27 @@ export default function Products() {
                 {form.product_type === 'sell' && (
                   <div className="bg-orange-50/50 p-5 rounded-2xl border border-orange-100 space-y-4 animate-fadeIn">
                     <div>
-                      <h4 className="text-sm font-bold text-orange-900 mb-1">Tarkibiy mahsulot sozlamalari</h4>
+                      <h4 className="text-sm font-bold text-orange-900 mb-1">{t('product.componentSettingsTitle')}</h4>
                       <p className="text-xs text-orange-700/80 leading-relaxed">
-                        Bu mahsulot omborga kirim qilinmaydi. Sotilganda o'rniga asosiy jismoniy mahsulotdan zaxira avtomatik tarzda yechiladi. Masalan: Dumba sotilganda Butun qo'ydan yechiladi.
+                        {t('product.componentSettingsDesc')}
                       </p>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-orange-200/60">
-                      <Field label="Qaysi mahsulotdan yechiladi?" required>
+                      <Field label={t('product.deductFromWhichLabel')} required>
                         <ProdSearch
                           value={{ id: form.conversion_source_id, name: form.conversion_source_name }}
                           onChange={v => setForm(f => ({ ...f, conversion_source_id: v.id, conversion_source_name: v.name }))}
                           excludeId={selected?.id}
                         />
                       </Field>
-                      <Field label="Yechilish nisbati" required hint="1 dona/kg sotilganda qancha yechiladi?">
+                      <Field label={t('product.deductionRatioLabel')} required hint={t('product.deductionRatioHint')}>
                         <input
                           type="text" inputMode="decimal"
                           className={inputCls}
                           value={form.conversion_ratio}
                           onChange={e => setForm(f => ({ ...f, conversion_ratio: e.target.value.replace(/[^0-9.]/g, '') }))}
-                          placeholder="M-n: 1.0"
+                          placeholder={t('product.egRatioPlaceholder')}
                         />
                       </Field>
                     </div>
@@ -2448,9 +2448,9 @@ export default function Products() {
                   <div className="bg-emerald-50/50 p-5 rounded-2xl border border-emerald-100 space-y-4 animate-fadeIn">
                     <div className="flex justify-between items-center flex-wrap gap-2">
                       <div>
-                        <h4 className="text-sm font-bold text-emerald-900 mb-1">Variantlar (O'lcham, Rang)</h4>
+                        <h4 className="text-sm font-bold text-emerald-900 mb-1">{t('product.variantsTitle')}</h4>
                         <p className="text-xs text-emerald-700/80 leading-relaxed">
-                          Har bir razmer yoki rang alohida mahsulot sifatida saqlanadi, lekin bitta nom ostida birlashadi.
+                          {t('product.variantsDesc')}
                         </p>
                       </div>
                       <div className="flex gap-2">
@@ -2459,13 +2459,13 @@ export default function Products() {
                           onClick={() => setSizeMatrix(true)}
                           className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 shadow-sm shadow-blue-200">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
-                          Razmer Matritsasi
+                          {t('product.sizeMatrix')}
                         </button>
                         <button type="button"
                           onClick={() => setForm(f => ({ ...f, variants: [...(f.variants||[]), { size: '', color: '', sku: '', barcode: '', cost_price: '', wholesale_price: '', sale_price: '' }] }))}
                           className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 shadow-sm">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                          Variant qo'shish
+                          {t('product.addVariant')}
                         </button>
                       </div>
                     </div>
@@ -2476,31 +2476,31 @@ export default function Products() {
                           <button type="button" onClick={() => setForm(f => ({ ...f, variants: f.variants.filter((_, i) => i !== idx) }))} className="absolute -top-2 -right-2 bg-red-100 hover:bg-red-200 text-red-600 p-1.5 rounded-full shadow-sm z-10"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg></button>
                           
                           <div className="flex-1 min-w-[100px]">
-                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">O'lcham (Size)</label>
-                            <input className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors" value={v.size || ''} onChange={e => { const nv = [...form.variants]; nv[idx].size = e.target.value; setForm({ ...form, variants: nv }); }} placeholder="M-n: 42, L" />
+                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">{t('product.variantSizeLabel')}</label>
+                            <input className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors" value={v.size || ''} onChange={e => { const nv = [...form.variants]; nv[idx].size = e.target.value; setForm({ ...form, variants: nv }); }} placeholder={t('product.variantSizePlaceholder')} />
                           </div>
                           <div className="flex-1 min-w-[100px]">
-                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Rang</label>
-                            <input className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors" value={v.color || ''} onChange={e => { const nv = [...form.variants]; nv[idx].color = e.target.value; setForm({ ...form, variants: nv }); }} placeholder="M-n: Oq, Qora" />
+                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">{t('product.variantColorLabel')}</label>
+                            <input className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors" value={v.color || ''} onChange={e => { const nv = [...form.variants]; nv[idx].color = e.target.value; setForm({ ...form, variants: nv }); }} placeholder={t('product.variantColorPlaceholder')} />
                           </div>
-                          
+
                           <div className="flex-1 min-w-[100px]">
-                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Tan narxi</label>
-                            <input type="text" inputMode="decimal" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors" value={v.cost_price || ''} onChange={e => { const nv = [...form.variants]; nv[idx].cost_price = e.target.value.replace(/[^0-9.]/g, ''); setForm({ ...form, variants: nv }); }} placeholder="Asosiy olinadi" />
+                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">{t('product.costPriceLabel')}</label>
+                            <input type="text" inputMode="decimal" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors" value={v.cost_price || ''} onChange={e => { const nv = [...form.variants]; nv[idx].cost_price = e.target.value.replace(/[^0-9.]/g, ''); setForm({ ...form, variants: nv }); }} placeholder={t('product.mainPriceTakenPlaceholder')} />
                           </div>
                           <div className="flex-1 min-w-[100px]">
-                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Sotuv narxi</label>
-                            <input type="text" inputMode="decimal" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors" value={v.sale_price || ''} onChange={e => { const nv = [...form.variants]; nv[idx].sale_price = e.target.value.replace(/[^0-9.]/g, ''); setForm({ ...form, variants: nv }); }} placeholder="Asosiy olinadi" />
+                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">{t('product.salePriceLabel')}</label>
+                            <input type="text" inputMode="decimal" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors" value={v.sale_price || ''} onChange={e => { const nv = [...form.variants]; nv[idx].sale_price = e.target.value.replace(/[^0-9.]/g, ''); setForm({ ...form, variants: nv }); }} placeholder={t('product.mainPriceTakenPlaceholder')} />
                           </div>
                           <div className="flex-1 min-w-[100px] hidden sm:block">
-                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Shtrixkod</label>
-                            <input className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors" value={v.barcode || ''} onChange={e => { const nv = [...form.variants]; nv[idx].barcode = e.target.value; setForm({ ...form, variants: nv }); }} placeholder="Avtomatik" />
+                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">{t('product.variantBarcodeLabel')}</label>
+                            <input className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors" value={v.barcode || ''} onChange={e => { const nv = [...form.variants]; nv[idx].barcode = e.target.value; setForm({ ...form, variants: nv }); }} placeholder={t('product.autoPlaceholder')} />
                           </div>
                         </div>
                       ))}
                       {(!form.variants || form.variants.length === 0) && (
                         <div className="text-center py-6 border-2 border-dashed border-emerald-200 rounded-xl text-emerald-600/70 text-sm font-medium">
-                          Hozircha variantlar yo'q. "Variant qo'shish" tugmasini bosing.
+                          {t('product.noVariantsYet')}
                         </div>
                       )}
                     </div>
@@ -2509,12 +2509,12 @@ export default function Products() {
 
                 {selected?.sell_conversions?.length > 0 && form.product_type === 'stock' && (
                   <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 mb-2 animate-fadeIn">
-                    <h4 className="text-sm font-bold text-blue-900 mb-2">Bu mahsulotning tarkibiy qismlari (Kalkulyatsiya):</h4>
+                    <h4 className="text-sm font-bold text-blue-900 mb-2">{t('product.componentPartsTitle')}</h4>
                     <div className="flex flex-col gap-1.5">
                       {selected.sell_conversions.map(c => (
                         <div key={c.id} className="text-sm text-blue-700 flex justify-between items-center bg-white px-3 py-1.5 rounded-lg shadow-sm border border-blue-50">
                           <span className="font-medium">{c.sell_product_name}</span>
-                          <span className="text-xs font-bold px-2 py-0.5 bg-blue-100 rounded-md">Nisbat: {c.ratio}</span>
+                          <span className="text-xs font-bold px-2 py-0.5 bg-blue-100 rounded-md">{t('product.ratioLabel')}: {c.ratio}</span>
                         </div>
                       ))}
                     </div>
@@ -2535,7 +2535,7 @@ export default function Products() {
                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-5 shadow-sm space-y-4">
                   <h4 className="text-sm font-bold text-slate-800 border-b border-slate-200 pb-3 flex items-center gap-2">
                     <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    Narxlar va Foyda
+                    {t('product.pricesAndProfitTitle')}
                   </h4>
                   {/* Prices — each field has its own currency dropdown */}
                   <div className="space-y-4">
@@ -2633,8 +2633,8 @@ export default function Products() {
                         const saleUZS = Number(form.sale_price) * getRate(form.sale_price_cur);
                         return (
                           <div className="shrink-0 text-sm bg-white px-3 py-1.5 rounded-lg border border-blue-100 shadow-sm text-blue-700 font-medium">
-                            Margin: <strong>{(((saleUZS - costUZS) / saleUZS) * 100).toFixed(1)}%</strong>
-                            &nbsp;|&nbsp; Foyda: <strong>{fmt(Math.round(saleUZS - costUZS))} so'm</strong>
+                            {t('product.marginLabel')}: <strong>{(((saleUZS - costUZS) / saleUZS) * 100).toFixed(1)}%</strong>
+                            &nbsp;|&nbsp; {t('product.profitLabel')}: <strong>{fmt(Math.round(saleUZS - costUZS))} {t('common.sum')}</strong>
                           </div>
                         );
                       })()}
@@ -2647,28 +2647,28 @@ export default function Products() {
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                     {(modal === 'add' || modal === 'edit') && (
                       <>
-                        <Field label={modal === 'add' ? (t('product.initialStock') || 'Boshlang\'ich qoldiq') : 'Joriy qoldiq'}>
+                        <Field label={modal === 'add' ? t('product.initialStock') : t('product.currentStockLabel')}>
                           <input type="text" inputMode="decimal" className={`${inputCls} text-base`}
                             value={form.initial_stock}
                             onChange={e => setForm({ ...form, initial_stock: e.target.value.replace(/[^0-9.]/g, '') })}
                             placeholder="0" />
                         </Field>
-                        <Field label="Qaysi omborga?" required={modal === 'add' && Number(form.initial_stock) > 0}>
+                        <Field label={t('product.whichWarehouseLabel')} required={modal === 'add' && Number(form.initial_stock) > 0}>
                           <select
                             className={`${inputCls} ${modal === 'add' && Number(form.initial_stock) > 0 && !form.initial_warehouse_id ? errCls : ''}`}
                             value={form.initial_warehouse_id}
                             onChange={e => setForm({ ...form, initial_warehouse_id: e.target.value })}
                           >
-                            <option value="">Ombor tanlang</option>
+                            <option value="">{t('product.selectWarehouseOption')}</option>
                             {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                           </select>
                           {modal === 'add' && Number(form.initial_stock) > 0 && !form.initial_warehouse_id && (
-                            <p className="text-xs text-red-500 mt-1">⚠ Qoldiq kiritilganda ombor majburiy</p>
+                            <p className="text-xs text-red-500 mt-1">⚠ {t('product.warehouseRequiredHint')}</p>
                           )}
                         </Field>
                       </>
                     )}
-                    <Field label={t('product.minStockLabel') || "Minimal qoldiq"}>
+                    <Field label={t('product.minStockLabel')}>
                       <input type="text" inputMode="decimal" className={`${inputCls} text-base`}
                         value={form.min_stock}
                         onChange={e => setForm({ ...form, min_stock: e.target.value.replace(/[^0-9.]/g, '') })}
@@ -2705,15 +2705,15 @@ export default function Products() {
                         </Field>
                       </div>
                       <div className="w-full">
-                        <Field label="Birlamchi maxsus kod" hint="Maxsus kodingiz">
+                        <Field label={t('product.primaryCustomCodeLabel')} hint={t('product.customCodeHint')}>
                           <input className={inputCls} value={form.product_code}
-                            onChange={e => setForm({ ...form, product_code: e.target.value })} placeholder="Ixtiyoriy" />
+                            onChange={e => setForm({ ...form, product_code: e.target.value })} placeholder={t('product.optionalPlaceholder')} />
                         </Field>
                       </div>
                     </div>
 
                     <div className="sm:col-span-6 w-full">
-                      <Field label="Birlamchi shtrix kod" required>
+                      <Field label={t('product.primaryBarcodeLabel')} required>
                         <div className="flex gap-2">
                           <select
                             className="px-2 py-3 border border-slate-200 rounded-lg text-xs font-semibold bg-wxhite focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700 shrink-0"
@@ -2739,7 +2739,7 @@ export default function Products() {
                                     if (data.parent_code) {
                                       setBarcodeInput(data.parent_code);
                                     }
-                                    toast.success("Ma'lumotlar yuklab olindi", { position: "top-right" })
+                                    toast.success(t('product.dataLoadedMsg'), { position: "top-right" })
                                   }
                                 } catch {
                                   // e'tiborga olinmaydi
@@ -2749,7 +2749,7 @@ export default function Products() {
                             placeholder="12345678"
                           />
                           <button type="button" onClick={() => setForm({ ...form, barcode: genBarcodeByFormat(form.barcode_format) })}
-                            title="Yangi barcode"
+                            title={t('product.newBarcodeTitle')}
                             className="px-4 py-3 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors shrink-0">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -2763,7 +2763,7 @@ export default function Products() {
                   {/* Extra barcodes */}
                   <div className="border border-slate-200 rounded-lg p-4 space-y-2">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-semibold text-slate-600">Qo'shimcha shtrix kodlar</span>
+                      <span className="text-sm font-semibold text-slate-600">{t('product.extraBarcodesLabel')}</span>
                       <button
                         type="button"
                         onClick={() => setForm(f => ({ ...f, extra_barcodes: [...(f.extra_barcodes || []), ''] }))}
@@ -2772,11 +2772,11 @@ export default function Products() {
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                         </svg>
-                        Barcode qo'shish
+                        {t('product.addBarcodeAction')}
                       </button>
                     </div>
                     {(form.extra_barcodes || []).length === 0 ? (
-                      <p className="text-xs text-slate-400 py-1">Hozircha qo'shimcha shtrix kod yo'q</p>
+                      <p className="text-xs text-slate-400 py-1">{t('product.noExtraBarcodesYet')}</p>
                     ) : (
                       (form.extra_barcodes || []).map((bc, idx) => (
                         <div key={idx} className="flex gap-2 items-center">
@@ -2808,7 +2808,7 @@ export default function Products() {
                                 }
                               }
                             }}
-                            placeholder="Shtrix kod skanerlang..."
+                            placeholder={t('product.scanBarcodePlaceholder')}
                           />
                           <button
                             type="button"
@@ -2827,7 +2827,7 @@ export default function Products() {
                   {/* Extra product codes */}
                   <div className="border border-blue-100 rounded-lg p-4 space-y-2 bg-blue-50/30">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-semibold text-slate-600">Qo'shimcha maxsus kodlar</span>
+                      <span className="text-sm font-semibold text-slate-600">{t('product.extraCodesLabel')}</span>
                       <button
                         type="button"
                         onClick={() => setForm(f => ({ ...f, extra_product_codes: [...(f.extra_product_codes || []), ''] }))}
@@ -2836,11 +2836,11 @@ export default function Products() {
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                         </svg>
-                        Kod qo'shish
+                        {t('product.addCodeAction')}
                       </button>
                     </div>
                     {(form.extra_product_codes || []).length === 0 ? (
-                      <p className="text-xs text-slate-400 py-1">Hozircha qo'shimcha kod yo'q</p>
+                      <p className="text-xs text-slate-400 py-1">{t('product.noExtraCodesYet')}</p>
                     ) : (
                       (form.extra_product_codes || []).map((pc, idx) => (
                         <div key={idx} className="flex gap-2 items-center">
@@ -2869,7 +2869,7 @@ export default function Products() {
                                 }
                               }
                             }}
-                            placeholder="Maxsus kod kiriting..."
+                            placeholder={t('product.enterCustomCodePlaceholder')}
                           />
                           <button
                             type="button"
@@ -2888,13 +2888,13 @@ export default function Products() {
 
                 <div className="flex gap-4 w-full">
                   <div className="sm:col-span-6 relative w-full">
-                    <Field label="MXIK kod">
-                      <input type="text" inputMode="numeric" value={mxikCode} onChange={(e) => setMxikCode(e.target.value.replace(/[^0-9]/g, ''))} className={inputCls} placeholder="12345678..." />
+                    <Field label={t('product.mxikCodeLabel')}>
+                      <input type="text" inputMode="numeric" value={mxikCode} onChange={(e) => setMxikCode(e.target.value.replace(/[^0-9]/g, ''))} className={inputCls} placeholder={t('product.mxikCodePlaceholder')} />
                     </Field>
                   </div>
                   <div className="sm:col-span-6 w-full">
-                    <Field label="O'lchov kod">
-                      <input type="text" inputMode="numeric" value={barcode_input} onChange={(e) => setBarcodeInput(e.target.value.replace(/[^0-9]/g, ''))} className={inputCls} placeholder="12345678..." />
+                    <Field label={t('product.parentCodeLabel')}>
+                      <input type="text" inputMode="numeric" value={barcode_input} onChange={(e) => setBarcodeInput(e.target.value.replace(/[^0-9]/g, ''))} className={inputCls} placeholder={t('product.mxikCodePlaceholder')} />
                     </Field>
                   </div>
                 </div>
@@ -2906,8 +2906,8 @@ export default function Products() {
                     onChange={(e) => setForm({ ...form, requires_marking: e.target.checked })}
                     className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
                   />
-                  <span className="text-sm font-medium text-slate-700">Markirovka talab qilinadi</span>
-                  <span className="text-xs text-slate-400">(kassada Data Matrix kod skanerlanadi)</span>
+                  <span className="text-sm font-medium text-slate-700">{t('product.requiresMarkingLabel')}</span>
+                  <span className="text-xs text-slate-400">{t('product.requiresMarkingHint')}</span>
                 </label>
               </div>
 
@@ -3039,8 +3039,8 @@ export default function Products() {
                 checked={catForm.is_perishable || false}
                 onChange={e => setCatForm({ ...catForm, is_perishable: e.target.checked })} />
               <div className="flex flex-col">
-                <span className="text-sm font-semibold text-slate-800">Yaroqlilik muddati talab qilinadi</span>
-                <span className="text-xs text-slate-500">Agar yoqilgan bo'lsa, xarid qilishda FEFO muddati kiritilishi shart.</span>
+                <span className="text-sm font-semibold text-slate-800">{t('product.expiryRequiredLabel')}</span>
+                <span className="text-xs text-slate-500">{t('product.expiryRequiredHint')}</span>
               </div>
             </label>
 
@@ -3105,10 +3105,10 @@ export default function Products() {
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-slate-800 truncate">{histProduct.name}</div>
                 <div className="text-xs text-slate-500 mt-0.5">
-                  Barkod: <span className="font-mono">{histProduct.barcode}</span>
+                  {t('product.barcodeLabel')}: <span className="font-mono">{histProduct.barcode}</span>
                   &nbsp;·&nbsp; SKU: {histProduct.sku}
-                  {histProduct.bin_location && <>&nbsp;·&nbsp; Joylashuv: <span className="font-medium">{histProduct.bin_location}</span></>}
-                  &nbsp;·&nbsp; Qoldiq: <span className="font-bold text-blue-600">{fmt(histProduct.stock_quantity)} {histProduct.unit}</span>
+                  {histProduct.bin_location && <>&nbsp;·&nbsp; {t('product.binLocationLabel')}: <span className="font-medium">{histProduct.bin_location}</span></>}
+                  &nbsp;·&nbsp; {t('product.stock')}: <span className="font-bold text-blue-600">{fmt(histProduct.stock_quantity)} {histProduct.unit}</span>
                 </div>
               </div>
               <div className="text-right shrink-0">
@@ -3137,7 +3137,7 @@ export default function Products() {
                   <table className="min-w-full text-sm">
                     <thead className="bg-slate-50">
                       <tr>
-                        {['Sana va Vaqt', 'Operatsiya', 'Avvalgi qoldiq', 'O\'zgarish', 'Yangi qoldiq', 'Sabab / Ma\'lumot'].map(h => (
+                        {[t('product.thDateTime'), t('product.thOperation'), t('product.thPrevStock'), t('product.thChange'), t('product.thNewStock'), t('product.thReasonInfo')].map(h => (
                           <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
@@ -3150,14 +3150,14 @@ export default function Products() {
 
                         // Human-readable reference label
                         const refLabels = {
-                          sale: 'Sotuv',
-                          sale_refund: 'Sotuv bekor',
-                          purchase: 'Kirim',
-                          manual_receive: 'Qo\'lda qabul',
-                          transfer: 'Ombor ko\'chirish',
-                          inventory_count: 'Inventarizatsiya',
-                          adjustment: 'Tuzatish',
-                          revision: 'Reviziya',
+                          sale: t('product.refSale'),
+                          sale_refund: t('product.refSaleRefund'),
+                          purchase: t('product.refPurchase'),
+                          manual_receive: t('product.refManualReceive'),
+                          transfer: t('product.refTransfer'),
+                          inventory_count: t('product.refInventoryCount'),
+                          adjustment: t('product.refAdjustment'),
+                          revision: t('product.refRevision'),
                         };
                         const refLabel = refLabels[m.reference_type] || m.reference_type || '';
 
@@ -3213,15 +3213,15 @@ export default function Products() {
                 </svg>
               </button>
               <div>
-                <h2 className="text-sm md:text-lg xl:text-2xl font-bold text-slate-800">Ko'p mahsulot qo'shish</h2>
-                <p className="text-xs xl:text-sm hidden lg:block text-slate-400 mt-0.5">Bir vaqtda bir nechta mahsulot qo'shish — har bir qatorda birnechta shtrix kod kiritish mumkin</p>
+                <h2 className="text-sm md:text-lg xl:text-2xl font-bold text-slate-800">{t('product.bulkAddProduct')}</h2>
+                <p className="text-xs xl:text-sm hidden lg:block text-slate-400 mt-0.5">{t('product.bulkAddDesc')}</p>
               </div>
             </div>
             <div className="flex items-center flex-wrap justify-end gap-y-1 gap-x-2 xl:gap-3">
-              <span className="text-[13px] xl:text-base text-slate-500 leading-none font-semibold">{bulkRows.length} ta qator</span>
+              <span className="text-[13px] xl:text-base text-slate-500 leading-none font-semibold">{bulkRows.length} {t('product.rowsCount')}</span>
               {warehouses.length > 0 && (
                 <div className="flex items-center gap-2">
-                  <label className="text-sm hidden md:block font-semibold text-slate-500 whitespace-nowrap">Ombor:</label>
+                  <label className="text-sm hidden md:block font-semibold text-slate-500 whitespace-nowrap">{t('product.warehouseLabel')}:</label>
                   <select
                     value={bulkWarehouseId}
                     onChange={e => setBulkWarehouseId(e.target.value)}
@@ -3230,7 +3230,7 @@ export default function Products() {
                       : 'border-slate-200 text-slate-700'
                       }`}
                   >
-                    <option value="">Ombor tanlang</option>
+                    <option value="">{t('product.selectWarehouseOption')}</option>
                     {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                   </select>
                 </div>
@@ -3241,9 +3241,9 @@ export default function Products() {
                 className="inline-flex items-center gap-2 px-4 xl:px-6 py-1.5 xl:py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-base font-bold rounded-lg xl:rounded-xl transition-colors shadow-md"
               >
                 {bulkSaving ? (
-                  <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Saqlanmoqda...</>
+                  <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />{t('common.saving')}</>
                 ) : (
-                  <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>Saqlash</>
+                  <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>{t('common.save')}</>
                 )}
               </button>
             </div>
@@ -3255,13 +3255,13 @@ export default function Products() {
           )}
           {bulkResult && (
             <div className="mx-6 mt-3 px-4 py-3 bg-emerald-50 border border-emerald-200 text-base rounded-xl shrink-0 flex items-center gap-6">
-              <span className="font-bold text-emerald-700 text-lg">{bulkResult.created} ta mahsulot saqlandi</span>
+              <span className="font-bold text-emerald-700 text-lg">{t('product.bulkAddSavedCount', { count: bulkResult.created })}</span>
               {bulkResult.errors.length > 0 && (
                 <div className="text-red-600">
                   {bulkResult.errors.slice(0, 3).map((e, i) => (
                     <div key={i}><strong>{e.name}</strong>: {e.error}</div>
                   ))}
-                  {bulkResult.errors.length > 3 && <div>+{bulkResult.errors.length - 3} ta xato...</div>}
+                  {bulkResult.errors.length > 3 && <div>+{bulkResult.errors.length - 3} {t('product.moreErrorsSuffix')}</div>}
                 </div>
               )}
             </div>
@@ -3277,19 +3277,19 @@ export default function Products() {
                   <div className="grid gap-3 mb-1 text-xs xl:text-sm font-extrabold text-slate-600 uppercase tracking-wide px-3"
                     style={{ gridTemplateColumns: '38px 200px 110px 180px 180px 205px 250px 80px 155px 105px 105px 160px 160px 160px' }}>
                     <span>#</span>
-                    <span>Mahsulot nomi *</span>
-                    <span className="text-blue-600">Kod</span>
-                    <span>Chakana *</span>
-                    <span>Ulgurji</span>
-                    <span>Tan narxi</span>
-                    <span>Shtrix kodlar</span>
-                    <span>O'lchov</span>
-                    <span>Kategoriya</span>
-                    <span>Qoldiq</span>
-                    <span>Min qoldiq</span>
+                    <span>{t('product.bulkColName')}</span>
+                    <span className="text-blue-600">{t('product.bulkColCode')}</span>
+                    <span>{t('product.bulkColRetail')}</span>
+                    <span>{t('product.wholesalePriceLabel')}</span>
+                    <span>{t('product.costPriceLabel')}</span>
+                    <span>{t('product.bulkColBarcodes')}</span>
+                    <span>{t('product.unit')}</span>
+                    <span>{t('product.category')}</span>
+                    <span>{t('product.currentStock')}</span>
+                    <span>{t('product.bulkColMinStock')}</span>
                     <span>{`Sku (Artikul)`}</span>
-                    <span>MXIK kod</span>
-                    <span>O'lchov kod</span>
+                    <span>{t('product.mxikCodeLabel')}</span>
+                    <span>{t('product.parentCodeLabel')}</span>
                     <span></span>
                   </div>
 
@@ -3305,7 +3305,7 @@ export default function Products() {
                           className="h-8 lg:h-10 xl:h-12 px-3 border border-slate-200 rounded-lg min-w-50 text-base font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
                           value={row.name}
                           onChange={e => updateBulkRow(row._key, 'name', e.target.value)}
-                          placeholder="Mahsulot nomi..."
+                          placeholder={t('product.bulkNamePlaceholder')}
                         />
 
                         {/* Kod (multiple) */}
@@ -3333,7 +3333,7 @@ export default function Products() {
                                     }
                                   }
                                 }}
-                                placeholder={pcIdx === 0 ? 'Kod...' : 'Qo\'shimcha...'}
+                                placeholder={pcIdx === 0 ? t('product.codePlaceholder') : t('product.additionalPlaceholder')}
                               />
                               {pcIdx > 0 && (
                                 <button type="button"
@@ -3358,7 +3358,7 @@ export default function Products() {
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                             </svg>
-                            Kod qo'shish
+                            {t('product.addCodeAction')}
                           </button>
                         </div>
 
@@ -3476,7 +3476,7 @@ export default function Products() {
                                   }
                                 }}
                                 onBlur={() => bcIdx === 0 && bc.trim() && checkBulkBarcode(row._key, bc)}
-                                placeholder={bcIdx === 0 ? "Skaner qiling yoki kiriting..." : "Barcode..."}
+                                placeholder={bcIdx === 0 ? t('product.scanOrEnterPlaceholder') : "Barcode..."}
                               />
                               <button type="button"
                                 onClick={() => {
@@ -3485,7 +3485,7 @@ export default function Products() {
                                   if (bcIdx === 0) updateBulkRow(row._key, 'barcode_status', null);
                                 }}
                                 className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors shrink-0"
-                                title="Yangi barcode">
+                                title={t('product.newBarcodeTitle')}>
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                 </svg>
@@ -3506,7 +3506,7 @@ export default function Products() {
                           {row.barcode_status === 'checking' && (
                             <div className="flex items-center gap-1.5 text-sm text-slate-400">
                               <div className="w-3.5 h-3.5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
-                              Tekshirilmoqda...
+                              {t('product.checkingStatus')}
                             </div>
                           )}
                           {row.barcode_status === 'exists' && row.barcode_product && (
@@ -3514,7 +3514,7 @@ export default function Products() {
                               <svg className="w-4 h-4 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                               </svg>
-                              <span className="text-sm font-semibold text-red-600">Allaqachon mavjud:</span>
+                              <span className="text-sm font-semibold text-red-600">{t('product.alreadyExistsStatus')}:</span>
                               <span className="text-sm text-red-700 font-bold truncate">{row.barcode_product.name}</span>
                             </div>
                           )}
@@ -3523,7 +3523,7 @@ export default function Products() {
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                               </svg>
-                              Yangi mahsulot — qo'shiladi
+                              {t('product.newProductWillBeAdded')}
                             </div>
                           )}
 
@@ -3533,7 +3533,7 @@ export default function Products() {
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                             </svg>
-                            Barcode qo'shish
+                            {t('product.addBarcodeAction')}
                           </button>
                         </div>
 
@@ -3554,7 +3554,7 @@ export default function Products() {
                           value={row.category_id}
                           onChange={e => updateBulkRow(row._key, 'category_id', e.target.value)}
                         >
-                          <option value="">Kategoriya</option>
+                          <option value="">{t('product.category')}</option>
                           {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
 
@@ -3570,7 +3570,7 @@ export default function Products() {
                             placeholder="0"
                           />
                           {Number(row.initial_stock) > 0 && !bulkWarehouseId && (
-                            <p className="text-[10px] text-amber-600 font-semibold leading-tight">⚠ Ombor tanlanmagan</p>
+                            <p className="text-[10px] text-amber-600 font-semibold leading-tight">⚠ {t('product.warehouseNotSelected')}</p>
                           )}
                           {Number(row.initial_stock) > 0 && bulkWarehouseId && (
                             <p className="text-[10px] text-emerald-600 font-semibold leading-tight">✓ {warehouses.find(w => String(w.id) === String(bulkWarehouseId))?.name}</p>
@@ -3586,9 +3586,9 @@ export default function Products() {
                           />
                         </div>
 
-                        <input type="text" inputMode="numeric" value={row.sku} onChange={(e) => updateBulkRow(row._key, 'sku', e.target.value.replace(/[^0-9]/g, ''))} className={inputCls} placeholder="ixtiyoriy" />
+                        <input type="text" inputMode="numeric" value={row.sku} onChange={(e) => updateBulkRow(row._key, 'sku', e.target.value.replace(/[^0-9]/g, ''))} className={inputCls} placeholder={t('product.optionalPlaceholder').toLowerCase()} />
 
-                        <input type="text" inputMode="numeric" value={row.mxik_code} onChange={(e) => updateBulkRow(row._key, 'mxik_code', e.target.value.replace(/[^0-9]/g, ''))} className={inputCls} placeholder="12345678..." />
+                        <input type="text" inputMode="numeric" value={row.mxik_code} onChange={(e) => updateBulkRow(row._key, 'mxik_code', e.target.value.replace(/[^0-9]/g, ''))} className={inputCls} placeholder={t('product.mxikCodePlaceholder')} />
 
                         <input type="text" inputMode="numeric" value={row.barcode_input} onChange={(e) => updateBulkRow(row._key, 'barcode_input', e.target.value.replace(/[^0-9]/g, ''))} className={inputCls} placeholder="..." />
 
@@ -3596,7 +3596,7 @@ export default function Products() {
                         <button type="button"
                           onClick={() => removeBulkRow(row._key)}
                           className="lg:h-10 h-8 xl:h-12 cursor-pointer w-10 flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Qatorni o'chirish">
+                          title={t('product.deleteRowTitle')}>
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
@@ -3616,11 +3616,11 @@ export default function Products() {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
-                    Qo'lda qo'shish
+                    {t('product.addManually')}
                   </button>
                   <span className="text-xs text-slate-400 flex items-center gap-1.5">
                     <svg className="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m0 14v1m8-8h-1M5 12H4m13.657-6.343l-.707.707M7.05 16.95l-.707.707m9.9 0l-.707-.707M7.757 7.757l-.707-.707" /><circle cx="12" cy="12" r="3" /></svg>
-                    Bo'sh joyga bosib skaner qiling — avtomatik qo'shiladi
+                    {t('product.scanEmptySpaceHint')}
                   </span>
                 </div>
               </div>
@@ -3638,16 +3638,16 @@ export default function Products() {
               <button onClick={() => resetImport()} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
-              <h2 className="text-xl font-bold text-slate-800">Mahsulotlarni Exceldan yuklash</h2>
+              <h2 className="text-xl font-bold text-slate-800">{t('product.importFromExcelTitle')}</h2>
               {importFile && <span className="text-sm text-slate-400 font-medium">{importFile.name}</span>}
             </div>
             <div className="flex items-center gap-2 xl:gap-3">
               <button onClick={downloadTemplate} className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 text-sm font-semibold rounded-lg border border-slate-200">
-                Shablon
+                {t('product.templateLabel')}
               </button>
               <label className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 text-sm font-semibold rounded-lg border border-slate-200 cursor-pointer">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                Fayl tanlash
+                {t('product.chooseFileLabel')}
                 <input type="file" accept=".xlsx,.xls" className="hidden" onChange={e => { if (e.target.files[0]) parseExcel(e.target.files[0]); }} />
               </label>
               <button
@@ -3656,7 +3656,7 @@ export default function Products() {
                 className="inline-flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
-                {importLoading ? 'Saqlanmoqda...' : 'Saqlash'}
+                {importLoading ? t('common.saving') : t('common.save')}
               </button>
             </div>
           </div>
@@ -3669,40 +3669,40 @@ export default function Products() {
                 {/* Stats */}
                 <div className="flex items-center gap-2 xl:gap-3 flex-wrap">
                   <div className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm">
-                    <span className="text-slate-500 text-sm">Jami yuklanayotgan qatorlar:</span>
-                    <span className="font-bold text-blue-600 ml-2 text-base">{buildPayload().length} ta</span>
+                    <span className="text-slate-500 text-sm">{t('product.totalUploadingRows')}:</span>
+                    <span className="font-bold text-blue-600 ml-2 text-base">{buildPayload().length} {t('common.item')}</span>
                   </div>
                   {importResult ? (
                     <>
                       <div className="px-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-sm">
-                        <span className="text-slate-500 text-sm">✅ Yangi qo'shildi:</span>
-                        <span className="font-bold text-emerald-600 ml-2 text-base">{importResult.created} ta</span>
+                        <span className="text-slate-500 text-sm">✅ {t('product.newlyAddedLabel')}:</span>
+                        <span className="font-bold text-emerald-600 ml-2 text-base">{importResult.created} {t('common.item')}</span>
                       </div>
                       {importResult.updated > 0 && (
                         <div className="px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-sm">
-                          <span className="text-slate-500 text-sm">🔄 Yangilandi:</span>
-                          <span className="font-bold text-blue-600 ml-2 text-base">{importResult.updated} ta</span>
+                          <span className="text-slate-500 text-sm">🔄 {t('product.updatedLabel')}:</span>
+                          <span className="font-bold text-blue-600 ml-2 text-base">{importResult.updated} {t('common.item')}</span>
                         </div>
                       )}
                       <div className="px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-sm">
-                        <span className="text-slate-500 text-sm">⚠️ O'tkazib yuborildi:</span>
-                        <span className="font-bold text-amber-600 ml-2 text-base">{importResult.skipped} ta</span>
+                        <span className="text-slate-500 text-sm">⚠️ {t('product.skippedLabel')}:</span>
+                        <span className="font-bold text-amber-600 ml-2 text-base">{importResult.skipped} {t('common.item')}</span>
                       </div>
                     </>
                   ) : precheck ? (
                     <>
                       <div className="px-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-sm">
-                        <span className="text-slate-500 text-sm">Yangi qo'shiladiganlar:</span>
-                        <span className="font-bold text-emerald-600 ml-2 text-base">{precheck.new_count} ta</span>
+                        <span className="text-slate-500 text-sm">{t('product.willBeAddedLabel')}:</span>
+                        <span className="font-bold text-emerald-600 ml-2 text-base">{precheck.new_count} {t('common.item')}</span>
                       </div>
                       <div className="px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-sm">
-                        <span className="text-slate-500 text-sm">Bazada bor (Yangilanadi/O'tkaziladi):</span>
-                        <span className="font-bold text-amber-600 ml-2 text-base">{precheck.found_count} ta</span>
+                        <span className="text-slate-500 text-sm">{t('product.existsInDbLabel')}:</span>
+                        <span className="font-bold text-amber-600 ml-2 text-base">{precheck.found_count} {t('common.item')}</span>
                       </div>
                     </>
                   ) : (
                     <div className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-400">
-                      Saqlash tugmachasini bosing — natija shu yerda ko'rinadi
+                      {t('product.pressSaveHint')}
                     </div>
                   )}
                 </div>
@@ -3712,19 +3712,19 @@ export default function Products() {
                   {warehouses.length > 0 && (
                     <div className="flex items-center gap-2">
                       <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-                      <label className="text-sm font-semibold text-slate-500 whitespace-nowrap">Qoldiqlar ombori:</label>
+                      <label className="text-sm font-semibold text-slate-500 whitespace-nowrap">{t('product.stockWarehouseLabel')}:</label>
                       <select
                         value={importWarehouseId}
                         onChange={e => setImportWarehouseId(e.target.value)}
                         className="h-9 px-3 border border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-w-[150px] text-slate-700"
                       >
-                        <option value="">— Birinchi ombor —</option>
+                        <option value="">{t('product.firstWarehouseOption')}</option>
                         {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                       </select>
                     </div>
                   )}
                   <div className="flex items-center gap-2 border border-slate-200 bg-white rounded-xl px-3 py-2">
-                    <span className="text-sm text-slate-500 font-medium">Belgilangan qatorlarni yuklamaslik</span>
+                    <span className="text-sm text-slate-500 font-medium">{t('product.skipMarkedRowsLabel')}</span>
                     <button onClick={() => setSkipRows(s => Math.max(0, s - 1))} className="w-7 h-7 flex items-center justify-center text-xl text-slate-500 hover:text-red-500 transition-colors">−</button>
                     <span className="w-9 text-center text-base font-bold text-slate-700">{skipRows}</span>
                     <button onClick={() => setSkipRows(s => s + 1)} className="w-7 h-7 flex items-center justify-center text-xl text-slate-500 hover:text-blue-500 transition-colors">+</button>
@@ -3739,14 +3739,14 @@ export default function Products() {
                   <div className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${searchBySku ? 'bg-blue-600' : 'bg-slate-300'}`}>
                     <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${searchBySku ? 'translate-x-5' : 'translate-x-1'}`} />
                   </div>
-                  <span className="text-base text-slate-700 font-medium group-hover:text-blue-600 transition-colors">Mahsulotni artikul bo'yicha ham qidirish</span>
+                  <span className="text-base text-slate-700 font-medium group-hover:text-blue-600 transition-colors">{t('product.searchBySkuLabel')}</span>
                 </label>
                 <label className="flex items-center gap-2 xl:gap-3 cursor-pointer group">
                   <input type="checkbox" className="hidden" checked={allowUpdate} onChange={() => setAllowUpdate(!allowUpdate)} />
                   <div className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${allowUpdate ? 'bg-blue-600' : 'bg-slate-300'}`}>
                     <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${allowUpdate ? 'translate-x-5' : 'translate-x-1'}`} />
                   </div>
-                  <span className="text-base text-slate-700 font-medium group-hover:text-blue-600 transition-colors">Mahsulotlarni tahrirlash (Update)</span>
+                  <span className="text-base text-slate-700 font-medium group-hover:text-blue-600 transition-colors">{t('product.allowUpdateLabel')}</span>
                 </label>
               </div>
             </div>
@@ -3762,8 +3762,8 @@ export default function Products() {
                   <svg className="w-16 h-16 text-slate-200 group-hover:text-violet-300 mb-4 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                   </svg>
-                  <p className="text-slate-500 text-base font-medium group-hover:text-violet-600">Excel faylni bu yerga tashlang yoki bosing</p>
-                  <p className="text-slate-300 text-sm mt-1">.xlsx, .xls formati qabul qilinadi</p>
+                  <p className="text-slate-500 text-base font-medium group-hover:text-violet-600">{t('product.dropExcelHint')}</p>
+                  <p className="text-slate-300 text-sm mt-1">{t('product.xlsxFormatHint')}</p>
                   <input type="file" accept=".xlsx,.xls" className="hidden" onChange={e => { if (e.target.files[0]) parseExcel(e.target.files[0]); }} />
                 </label>
               </div>
@@ -3773,11 +3773,11 @@ export default function Products() {
                 {/* Table header info */}
                 <div className="px-6 py-2.5 flex items-center justify-between border-b border-slate-100 shrink-0">
                   <span className="text-sm text-slate-600 font-medium">
-                    Yuklanayotgan mahsulotlar soni: <strong>{buildPayload().length} шт</strong>
+                    {t('product.uploadingProductsCount')}: <strong>{buildPayload().length}</strong>
                   </span>
                   {!(Object.values(colMap).includes('Nomi') || (allowUpdate && (Object.values(colMap).includes('Barkod') || Object.values(colMap).includes('SKU')))) && (
                     <span className="text-sm font-semibold text-red-500">
-                      * {allowUpdate ? 'Mahsulot nomi, Barkod yoki SKU' : 'Mahsulot nomi'} ustunini tanlash majburiy
+                      * {t('product.columnSelectionRequired', { field: allowUpdate ? t('product.nameBarcodeOrSkuRequired') : t('product.nameColumnRequired') })}
                     </span>
                   )}
                 </div>
@@ -3863,7 +3863,7 @@ export default function Products() {
                                     setImportRows(newRows);
                                   }}
                                   className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden group-hover:flex w-7 h-7 bg-red-100 text-red-600 rounded-full items-center justify-center hover:bg-red-500 hover:text-white transition-all cursor-pointer shadow-sm z-10"
-                                  title="O'chirish"
+                                  title={t('common.delete')}
                                 >
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                 </button>
@@ -3897,14 +3897,14 @@ export default function Products() {
                 {/* Pagination */}
                 <div className="px-6 py-3 border-t border-slate-100 flex items-center justify-between bg-white shrink-0">
                   <span className="text-sm text-slate-500">
-                    {importRows.length} ta ma'lumotdan {Math.min((importPage - 1) * IMPORT_LIMIT + 1, importRows.length)} dan {Math.min(importPage * IMPORT_LIMIT, importRows.length)} gacha ko'rsatildi
+                    {t('product.showingRangeOfTotal', { from: Math.min((importPage - 1) * IMPORT_LIMIT + 1, importRows.length), to: Math.min(importPage * IMPORT_LIMIT, importRows.length), total: importRows.length })}
                   </span>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setImportPage(p => Math.max(1, p - 1))}
                       disabled={importPage === 1}
                       className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors"
-                    >{t('admin.dict.prev') || 'Oldingi'}</button>
+                    >{t('admin.dict.prev')}</button>
                     {Array.from({ length: Math.ceil(importRows.length / IMPORT_LIMIT) }, (_, i) => i + 1).slice(
                       Math.max(0, importPage - 3), Math.min(Math.ceil(importRows.length / IMPORT_LIMIT), importPage + 2)
                     ).map(p => (
@@ -3916,8 +3916,8 @@ export default function Products() {
                       onClick={() => setImportPage(p => Math.min(Math.ceil(importRows.length / IMPORT_LIMIT), p + 1))}
                       disabled={importPage >= Math.ceil(importRows.length / IMPORT_LIMIT)}
                       className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors"
-                    >{t('admin.dict.next') || 'Keyingi'}</button>
-                    <span className="text-sm text-slate-400 ml-2">{t('admin.dict.limit') || 'Limit'}</span>
+                    >{t('admin.dict.next')}</button>
+                    <span className="text-sm text-slate-400 ml-2">{t('admin.dict.limit')}</span>
                     <span className="px-2 py-1 border border-slate-200 rounded-lg text-sm font-bold text-slate-600">{IMPORT_LIMIT}</span>
                   </div>
                 </div>
@@ -3928,7 +3928,7 @@ export default function Products() {
             {importLoading && (
               <div className="px-6 py-4 border-t border-slate-100 bg-white shrink-0">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-slate-600">Yuklanmoqda...</span>
+                  <span className="text-sm font-medium text-slate-600">{t('product.uploading')}</span>
                   <span className="text-sm font-bold text-blue-600">{importProgress}%</span>
                 </div>
                 <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
@@ -3938,7 +3938,7 @@ export default function Products() {
                   />
                 </div>
                 <p className="text-xs text-slate-400 mt-1.5">
-                  {Math.round(buildPayload().length * importProgress / 100).toLocaleString()} / {buildPayload().length.toLocaleString()} ta mahsulot
+                  {Math.round(buildPayload().length * importProgress / 100).toLocaleString()} / {buildPayload().length.toLocaleString()} {t('common.item')}
                 </p>
               </div>
             )}
@@ -3949,17 +3949,17 @@ export default function Products() {
                 <div className="flex items-center gap-4 flex-wrap">
                   <div className="px-5 py-3 bg-emerald-50 rounded-xl text-center min-w-[120px]">
                     <div className="text-3xl font-black text-emerald-600">{importResult.created}</div>
-                    <div className="text-sm font-semibold text-emerald-500">Yangi qo'shildi</div>
+                    <div className="text-sm font-semibold text-emerald-500">{t('product.newlyAddedLabel')}</div>
                   </div>
                   {importResult.updated > 0 && (
                     <div className="px-5 py-3 bg-blue-50 rounded-xl text-center min-w-[120px]">
                       <div className="text-3xl font-black text-blue-600">{importResult.updated}</div>
-                      <div className="text-sm font-semibold text-blue-500">Yangilandi</div>
+                      <div className="text-sm font-semibold text-blue-500">{t('product.updatedLabel')}</div>
                     </div>
                   )}
                   <div className={`px-5 py-3 rounded-xl text-center min-w-[120px] ${importResult.skipped > 0 ? 'bg-amber-50' : 'bg-slate-50'}`}>
                     <div className={`text-3xl font-black ${importResult.skipped > 0 ? 'text-amber-600' : 'text-slate-400'}`}>{importResult.skipped}</div>
-                    <div className={`text-sm font-semibold ${importResult.skipped > 0 ? 'text-amber-500' : 'text-slate-400'}`}>O'tkazib yuborildi</div>
+                    <div className={`text-sm font-semibold ${importResult.skipped > 0 ? 'text-amber-500' : 'text-slate-400'}`}>{t('product.skippedLabel')}</div>
                   </div>
                   <div className="flex-1 min-w-0">
                     {importResult.errors?.length > 0 && (
@@ -4005,7 +4005,7 @@ export default function Products() {
             }));
             setForm(f => ({ ...f, variants: newVariants }));
             setSizeMatrix(false);
-            toast.success(`${newVariants.length} ta variant matritsa orqali qo'shildi`);
+            toast.success(t('product.variantsAddedViaMatrix', { count: newVariants.length }));
           }}
         />
       )}

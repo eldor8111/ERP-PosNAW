@@ -13,13 +13,14 @@ const fmtDate = (s) =>
 
 // ─── STATUS BADGE ──────────────────────────────────────────────────────────
 const StatusBadge = ({ status }) => {
+  const { t } = useLang();
   const map = {
-    pending:   { label: "Kutilmoqda", cls: "bg-amber-100 text-amber-700"  },
-    completed: { label: "Bajarildi",  cls: "bg-emerald-100 text-emerald-700" },
-    cancelled: { label: "Bekor",      cls: "bg-red-100 text-red-600"       },
-    in:        { label: "Kirim",      cls: "bg-emerald-100 text-emerald-700" },
-    out:       { label: "Chiqim",     cls: "bg-blue-100 text-blue-700"     },
-    adjust:    { label: "Tuzatish",   cls: "bg-blue-100 text-blue-700"     },
+    pending:   { label: t('ombor.statusPending'),   cls: "bg-amber-100 text-amber-700"  },
+    completed: { label: t('ombor.statusCompleted'), cls: "bg-emerald-100 text-emerald-700" },
+    cancelled: { label: t('ombor.statusCancelled'), cls: "bg-red-100 text-red-600"       },
+    in:        { label: t('ops.incoming'),          cls: "bg-emerald-100 text-emerald-700" },
+    out:       { label: t('ops.outgoing'),           cls: "bg-blue-100 text-blue-700"     },
+    adjust:    { label: t('ombor.statusAdjust'),     cls: "bg-blue-100 text-blue-700"     },
   };
   const m = map[status] || { label: status, cls: "bg-slate-100 text-slate-600" };
   return (
@@ -70,7 +71,7 @@ function QoldiqlarTab() {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Mahsulot nomi, SKU yoki shtrix-kod..."
+            placeholder={t('ombor.searchPlaceholder')}
             className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -111,9 +112,9 @@ function QoldiqlarTab() {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.product') || 'Mahsulot'}</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">SKU</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.balance') || 'Qoldiq'}</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Min</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('ombor.min')}</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.status') || 'Holat'}</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Yangilangan</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('ombor.updated')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -183,11 +184,11 @@ function MovementsTab({ type }) {
               <tr className="bg-slate-50 border-b border-slate-100">
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">#</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.product') || 'Mahsulot'}</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Tur</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('common.type')}</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.qty') || 'Miqdor'}</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Oldin</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Keyin</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Sabab</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('ombor.before')}</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('ombor.after')}</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('ombor.reason')}</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.date') || 'Sana'}</th>
               </tr>
             </thead>
@@ -254,10 +255,10 @@ function KochirTab() {
   });
 
   const submit = async () => {
-    if (!form.from_warehouse_id || !form.to_warehouse_id) { setErr("Omborlarni tanlang"); return; }
-    if (form.from_warehouse_id === form.to_warehouse_id) { setErr("Bir xil ombor tanlanmasin"); return; }
+    if (!form.from_warehouse_id || !form.to_warehouse_id) { setErr(t('ombor.selectWarehouses')); return; }
+    if (form.from_warehouse_id === form.to_warehouse_id) { setErr(t('ombor.sameWarehouseError')); return; }
     const validItems = form.items.filter(i => i.product_id && Number(i.quantity) > 0);
-    if (!validItems.length) { setErr("Kamida 1 ta mahsulot kiriting"); return; }
+    if (!validItems.length) { setErr(t('ombor.atLeastOneProduct')); return; }
     setSaving(true); setErr('');
     try {
       await api.post('/transfers', {
@@ -269,24 +270,24 @@ function KochirTab() {
       setShowModal(false);
       setForm({ from_warehouse_id: '', to_warehouse_id: '', note: '', items: [{ product_id: '', quantity: '' }] });
       load();
-    } catch (e) { setErr(e.response?.data?.detail || "Xatolik yuz berdi"); }
+    } catch (e) { setErr(e.response?.data?.detail || t('common.error')); }
     finally { setSaving(false); }
   };
 
   const confirm = async (id) => {
     try { await api.post(`/transfers/${id}/confirm`); load(); }
-    catch (e) { alert(e.response?.data?.detail || "Xatolik"); }
+    catch (e) { alert(e.response?.data?.detail || t('common.error')); }
   };
   const cancel = async (id) => {
-    if (!window.confirm("Transferni bekor qilasizmi?")) return;
+    if (!window.confirm(t('ombor.cancelTransferConfirm'))) return;
     try { await api.post(`/transfers/${id}/cancel`); load(); }
-    catch (e) { alert(e.response?.data?.detail || "Xatolik"); }
+    catch (e) { alert(e.response?.data?.detail || t('common.error')); }
   };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500">Omborlar o'rtasida tovar ko'chirish</p>
+        <p className="text-sm text-slate-500">{t('ombor.transferBetweenWarehouses')}</p>
         <button
           onClick={() => setShowModal(true)}
           className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors"
@@ -308,11 +309,11 @@ function KochirTab() {
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">№</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Kimdan</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Kimga</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('warehouse.from')}</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('warehouse.destination')}</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.status') || 'Holat'}</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.date') || 'Sana'}</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Amallar</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -364,39 +365,39 @@ function KochirTab() {
             <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1">Kimdan (ombor)</label>
+                  <label className="block text-xs font-semibold text-slate-500 mb-1">{t('ombor.fromWarehouse')}</label>
                   <select value={form.from_warehouse_id} onChange={e => setForm(f => ({...f, from_warehouse_id: e.target.value}))}
                     className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">Tanlang...</option>
+                    <option value="">{t('admin.dict.select') || 'Tanlang...'}</option>
                     {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1">Kimga (ombor)</label>
+                  <label className="block text-xs font-semibold text-slate-500 mb-1">{t('ombor.toWarehouse')}</label>
                   <select value={form.to_warehouse_id} onChange={e => setForm(f => ({...f, to_warehouse_id: e.target.value}))}
                     className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">Tanlang...</option>
+                    <option value="">{t('admin.dict.select') || 'Tanlang...'}</option>
                     {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                   </select>
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1">Izoh (ixtiyoriy)</label>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">{t('ombor.noteOptional')}</label>
                 <input value={form.note} onChange={e => setForm(f => ({...f, note: e.target.value}))}
-                  placeholder="Sabab yoki izoh..."
+                  placeholder={t('ombor.reasonOrNotePlaceholder')}
                   className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Mahsulotlar</label>
-                  <button onClick={addItem} className="text-xs text-blue-600 font-semibold hover:text-blue-800">+ Qo'shish</button>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('ombor.products')}</label>
+                  <button onClick={addItem} className="text-xs text-blue-600 font-semibold hover:text-blue-800">+ {t('common.add')}</button>
                 </div>
                 {form.items.map((it, idx) => (
                   <div key={idx} className="flex gap-2 items-center">
                     <select value={it.product_id} onChange={e => setItem(idx, 'product_id', e.target.value)}
                       className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                      <option value="">Mahsulot tanlang...</option>
+                      <option value="">{t('ombor.selectProductEllipsis')}</option>
                       {products.filter(p => p.product_type !== 'sell').map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                     <input type="number" min="1" value={it.quantity} onChange={e => setItem(idx, 'quantity', e.target.value)}
@@ -460,25 +461,25 @@ function OmborlarTab() {
   useEffect(() => { load(); }, []);
 
   const save = async () => {
-    if (!name.trim()) { setErr("Nomi bo'sh bo'lmasin"); return; }
+    if (!name.trim()) { setErr(t('ombor.nameEmptyError')); return; }
     setSaving(true); setErr('');
     try {
       const payload = { name: name.trim(), branch_id: branchId ? Number(branchId) : null };
       if (modal.mode === 'create') await api.post('/warehouses', payload);
       else await api.patch(`/warehouses/${modal.wh.id}`, payload);
       setModal(null); load();
-    } catch (e) { setErr(e.response?.data?.detail || 'Xatolik yuz berdi'); }
+    } catch (e) { setErr(e.response?.data?.detail || t('common.error')); }
     finally { setSaving(false); }
   };
   const remove = async () => {
     try { await api.delete(`/warehouses/${delConfirm.id}`); setDelConfirm(null); load(); }
-    catch (e) { alert(e.response?.data?.detail || 'Xatolik'); }
+    catch (e) { alert(e.response?.data?.detail || t('common.error')); }
   };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500">Barcha omborlar ro'yxati</p>
+        <p className="text-sm text-slate-500">{t('ombor.allWarehousesList')}</p>
         <button
           onClick={() => { setName(''); setBranchId(''); setErr(''); setModal({ mode: 'create' }); }}
           className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors"
@@ -500,9 +501,9 @@ function OmborlarTab() {
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">#</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Nomi</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Filial</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Yaratilgan</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('common.name')}</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('ombor.branch')}</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('ombor.created')}</th>
                 <th className="px-4 py-3 w-24" />
               </tr>
             </thead>
@@ -516,13 +517,13 @@ function OmborlarTab() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5">
                       <button onClick={() => { setName(wh.name); setBranchId(wh.branch_id ?? ''); setErr(''); setModal({ mode: 'edit', wh }); }}
-                        className="p-1.5 bg-blue-100 text-blue-600 hover:bg-blue-200 rounded-lg transition-colors" title="Tahrirlash">
+                        className="p-1.5 bg-blue-100 text-blue-600 hover:bg-blue-200 rounded-lg transition-colors" title={t('common.edit')}>
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 13l6.5-6.5a2 2 0 012.828 0l.172.172a2 2 0 010 2.828L12 16H9v-3z" />
                         </svg>
                       </button>
                       <button onClick={() => setDelConfirm(wh)}
-                        className="p-1.5 bg-red-100 text-red-500 hover:bg-red-200 rounded-lg transition-colors" title="O'chirish">
+                        className="p-1.5 bg-red-100 text-red-500 hover:bg-red-200 rounded-lg transition-colors" title={t('common.delete')}>
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
@@ -555,17 +556,17 @@ function OmborlarTab() {
             </div>
             <div className="px-6 py-5 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1">Nomi *</label>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">{t('common.name')} *</label>
                 <input autoFocus value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && save()}
-                  placeholder="Ombor nomi..."
+                  placeholder={t('ombor.warehouseNamePlaceholder')}
                   className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               {branches.length > 0 && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1">Filial (ixtiyoriy)</label>
+                  <label className="block text-xs font-semibold text-slate-500 mb-1">{t('ombor.branchOptional')}</label>
                   <select value={branchId} onChange={e => setBranchId(e.target.value)}
                     className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">— Filialsiz —</option>
+                    <option value="">{t('ombor.noBranch')}</option>
                     {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
                 </div>
@@ -591,9 +592,9 @@ function OmborlarTab() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
             <div className="px-6 py-5">
-              <h3 className="text-base font-bold text-slate-800 mb-2">O'chirishni tasdiqlang</h3>
+              <h3 className="text-base font-bold text-slate-800 mb-2">{t('ombor.confirmDeleteTitle')}</h3>
               <p className="text-sm text-slate-500">
-                <span className="font-semibold text-slate-700">"{delConfirm.name}"</span> omborini o'chirishni xohlaysizmi?
+                <span className="font-semibold text-slate-700">"{delConfirm.name}"</span> {t('ombor.confirmDeleteWarehouse')}
               </p>
             </div>
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100">

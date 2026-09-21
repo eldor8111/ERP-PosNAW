@@ -4,6 +4,7 @@ import {
   AlertTriangle, PackageX, Clock, CheckCircle,
   RefreshCw, ChevronRight, Box, Calendar
 } from 'lucide-react';
+import { useLang } from '../../context/LangContext';
 
 function AlertCard({ icon: Icon, color, title, count, desc }) {
   const colors = {
@@ -29,6 +30,7 @@ function AlertCard({ icon: Icon, color, title, count, desc }) {
 }
 
 export default function Alerts() {
+  const { t } = useLang();
   const [lowStock, setLowStock] = useState([]);
   const [expiring, setExpiring] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -55,20 +57,20 @@ export default function Alerts() {
   const willExpire = expiring.filter(e => !e.is_expired && e.days_left > 7);
 
   const daysBadge = (days) => {
-    if (days < 0) return <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-bold rounded-full">Muddati o'tgan</span>;
-    if (days === 0) return <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-bold rounded-full">Bugun tugaydi</span>;
-    if (days <= 3) return <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-semibold rounded-full">{days} kun qoldi</span>;
-    if (days <= 7) return <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full">{days} kun qoldi</span>;
-    return <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">{days} kun qoldi</span>;
+    if (days < 0) return <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-bold rounded-full">{t('alert.expired')}</span>;
+    if (days === 0) return <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-bold rounded-full">{t('alert.expiresToday')}</span>;
+    if (days <= 3) return <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-semibold rounded-full">{t('alert.daysLeft', { days })}</span>;
+    if (days <= 7) return <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full">{t('alert.daysLeft', { days })}</span>;
+    return <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">{t('alert.daysLeft', { days })}</span>;
   };
 
   const writeOff = async (batchId) => {
-    if (!window.confirm('Bu partiyani hisobdan chiqarishni tasdiqlaysizmi?')) return;
+    if (!window.confirm(t('alert.confirmWriteOff'))) return;
     try {
       await api.post('/inventory/write-off-expired', { batch_ids: [batchId] });
       load();
     } catch(e) {
-      alert(e?.response?.data?.detail || 'Xatolik yuz berdi');
+      alert(e?.response?.data?.detail || t('alert.genericError'));
     }
   };
 
@@ -77,8 +79,8 @@ export default function Alerts() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Ogohlantirishlar</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Zaxira holati va yaroqlilik muddatlarini kuzatish</p>
+          <h1 className="text-2xl font-bold text-slate-800">{t('alert.title')}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{t('alert.subtitle')}</p>
         </div>
         <button
           onClick={load}
@@ -86,32 +88,32 @@ export default function Alerts() {
           className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          Yangilash
+          {t('common.refresh')}
         </button>
       </div>
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <AlertCard icon={PackageX}     color="red"     title="Tugab ketgan"     count={expired.length}      desc="Muddati o'tgan partiyalar" />
-        <AlertCard icon={AlertTriangle} color="amber"  title="Tez tugaydi"      count={soonExpiring.length} desc="7 kun ichida tugaydi" />
-        <AlertCard icon={Clock}        color="blue"    title="Eslatma"          count={willExpire.length}   desc="30 kun ichida tugaydi" />
-        <AlertCard icon={Box}          color={lowStock.length > 0 ? 'amber' : 'emerald'} title="Kam zaxira" count={lowStock.length} desc="Minimum chegara ostida" />
+        <AlertCard icon={PackageX}     color="red"     title={t('alert.expiredTitle')}     count={expired.length}      desc={t('alert.expiredDesc')} />
+        <AlertCard icon={AlertTriangle} color="amber"  title={t('alert.soonExpiringTitle')}      count={soonExpiring.length} desc={t('alert.soonExpiringDesc')} />
+        <AlertCard icon={Clock}        color="blue"    title={t('alert.reminderTitle')}          count={willExpire.length}   desc={t('alert.reminderDesc')} />
+        <AlertCard icon={Box}          color={lowStock.length > 0 ? 'amber' : 'emerald'} title={t('alert.lowStockTitle')} count={lowStock.length} desc={t('alert.lowStockDesc')} />
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 p-1 bg-slate-100 rounded-xl mb-5 w-fit">
         {[
-          { id: 'expiring', label: `Yaroqlilik (${expiring.length})` },
-          { id: 'lowstock', label: `Kam zaxira (${lowStock.length})` },
-        ].map(t => (
+          { id: 'expiring', label: `${t('alert.expiryTab')} (${expiring.length})` },
+          { id: 'lowstock', label: `${t('alert.lowStockTab')} (${lowStock.length})` },
+        ].map(tb => (
           <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
+            key={tb.id}
+            onClick={() => setTab(tb.id)}
             className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
-              tab === t.id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              tab === tb.id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
             }`}
           >
-            {t.label}
+            {tb.label}
           </button>
         ))}
       </div>
@@ -124,8 +126,8 @@ export default function Alerts() {
         expiring.length === 0 ? (
           <div className="flex flex-col items-center py-16 text-slate-400">
             <CheckCircle className="w-12 h-12 mb-3 text-emerald-400" />
-            <p className="font-semibold text-slate-600">Hamma mahsulotlar yaroqli!</p>
-            <p className="text-sm mt-1">Tez orada muddati tugaydigan mahsulot yo'q</p>
+            <p className="font-semibold text-slate-600">{t('alert.allProductsValid')}</p>
+            <p className="text-sm mt-1">{t('alert.noExpiringProducts')}</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -155,7 +157,7 @@ export default function Alerts() {
                         {new Date(item.expiry_date).toLocaleDateString('uz-UZ')}
                       </span>
                       <span className="text-xs text-slate-500">
-                        Miqdor: <b>{item.quantity}</b>
+                        {t('common.quantity')}: <b>{item.quantity}</b>
                       </span>
                     </div>
                   </div>
@@ -167,7 +169,7 @@ export default function Alerts() {
                       onClick={() => writeOff(item.batch_id)}
                       className="px-3 py-1.5 text-xs font-semibold text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50"
                     >
-                      Hisobdan chiqarish
+                      {t('alert.writeOff')}
                     </button>
                   )}
                 </div>
@@ -179,8 +181,8 @@ export default function Alerts() {
         lowStock.length === 0 ? (
           <div className="flex flex-col items-center py-16 text-slate-400">
             <CheckCircle className="w-12 h-12 mb-3 text-emerald-400" />
-            <p className="font-semibold text-slate-600">Barcha mahsulotlar yetarli!</p>
-            <p className="text-sm mt-1">Kam zaxirali mahsulot topilmadi</p>
+            <p className="font-semibold text-slate-600">{t('alert.allProductsSufficient')}</p>
+            <p className="text-sm mt-1">{t('alert.noLowStockProducts')}</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -192,18 +194,18 @@ export default function Alerts() {
                   <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
                   <div>
                     <div className="font-semibold text-slate-800 text-sm">
-                      {item.product_name || `Mahsulot #${item.product_id}`}
+                      {item.product_name || `${t('alert.productHash')}${item.product_id}`}
                       {item.variant_name && <span className="text-slate-500 font-normal ml-1">({item.variant_name})</span>}
                     </div>
                     <div className="text-xs text-slate-500 mt-0.5">
-                      Ombor: <b>{item.warehouse_name || '—'}</b> &nbsp;|&nbsp;
-                      Qoldiq: <b className="text-amber-700">{item.quantity}</b>
-                      {item.min_stock_level && <> &nbsp;|&nbsp; Min: <b>{item.min_stock_level}</b></>}
+                      {t('alert.warehouse')}: <b>{item.warehouse_name || '—'}</b> &nbsp;|&nbsp;
+                      {t('alert.remaining')}: <b className="text-amber-700">{item.quantity}</b>
+                      {item.min_stock_level && <> &nbsp;|&nbsp; {t('alert.min')}: <b>{item.min_stock_level}</b></>}
                     </div>
                   </div>
                 </div>
                 <a href="/admin/ombor" className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-amber-700 bg-white border border-amber-200 rounded-lg hover:bg-amber-50">
-                  Ombor <ChevronRight className="w-3.5 h-3.5" />
+                  {t('alert.warehouse')} <ChevronRight className="w-3.5 h-3.5" />
                 </a>
               </div>
             ))}

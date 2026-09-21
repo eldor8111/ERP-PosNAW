@@ -46,7 +46,7 @@ const firstOfMonth = () => {
 };
 
 // ─── PDF chop etish (window.print orqali) ─────────────────────────────────────
-function printTable(title, headers, rows, totalsRow = null) {
+function printTable(title, headers, rows, totalsRow = null, printLabel = 'Print') {
   const headerHtml = headers.map(h => `<th style="border:1px solid #ddd;padding:8px;background:#f3f4f6;font-size:12px">${h}</th>`).join('');
   const rowsHtml = rows.map((row, i) =>
     `<tr style="background:${i % 2 ? '#f9fafb' : '#fff'}">${row.map(cell =>
@@ -70,7 +70,7 @@ function printTable(title, headers, rows, totalsRow = null) {
     <table><thead><tr>${headerHtml}</tr></thead>
     <tbody>${rowsHtml}${totalsHtml}</tbody></table>
     <div style="margin-top:16px;text-align:center">
-      <button onclick="window.print()" style="padding:8px 20px;background:#4f46e5;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px">{t('common.print')}</button>
+      <button onclick="window.print()" style="padding:8px 20px;background:#4f46e5;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px">${printLabel}</button>
     </div></body></html>`);
   win.document.close();
 }
@@ -143,7 +143,7 @@ return (
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
-          Excel
+          {t('reports.excel')}
         </button>
       )}
       {onPdf && (
@@ -152,7 +152,7 @@ return (
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
           </svg>
-          PDF
+          {t('reports.pdf')}
         </button>
       )}
       {on1c && (
@@ -161,7 +161,7 @@ return (
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          1C Eksport
+          {t('reports.export1c')}
         </button>
       )}
     </div>
@@ -211,7 +211,7 @@ export default function Reports() {
 
   // Load branches on mount
   useEffect(() => {
-    api.get('/branches').then(r => setBranches(r.data.filter(b => b.is_active))).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/branches').then(r => setBranches(r.data.filter(b => b.is_active))).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('reports.errorOccurred')) });
   }, []);
 
   const qs = () => {
@@ -319,8 +319,8 @@ export default function Reports() {
     { key: 'supplier-debts', label: t('reports.tab.supplierDebts'), icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
     { key: 'abc', label: t('reports.tab.abc'), icon: 'M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z' },
     { key: 'batches', label: t('reports.tab.batches'), icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4' },
-    { key: 'product-sales', label: 'Mahsulotlar (Sotuv)', icon: 'M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z' },
-    { key: 'movements', label: '📦 Mahsulot harakatlari', icon: 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4' },
+    { key: 'product-sales', label: t('reports.tab.productSales'), icon: 'M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z' },
+    { key: 'movements', label: `📦 ${t('reports.tab.movements')}`, icon: 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4' },
   ];
 
   return (
@@ -337,13 +337,13 @@ export default function Reports() {
           <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
           </svg>
-          <span className="text-sm font-semibold text-slate-500">Filial:</span>
+          <span className="text-sm font-semibold text-slate-500">{t('reports.branchLabel')}</span>
           <select
             value={branchId}
             onChange={e => { setBranchId(e.target.value); }}
             className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           >
-            <option value="">🏢 Barcha filiallar</option>
+            <option value="">{`🏢 ${t('common.allBranches')}`}</option>
             {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
           {branchId && (
@@ -372,23 +372,24 @@ export default function Reports() {
           return (
           <>
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
-              <span className="text-sm font-semibold text-slate-700">Sotuvlar ro'yxati</span>
+              <span className="text-sm font-semibold text-slate-700">{t('reports.salesListTitle')}</span>
               <ExportBtns
                 onExcel={async () => {
                   const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(items.map(s => ({
-                    'Raqam': s.number, 'Kassir': s.cashier_name,
-                    'Summa': s.total_amount, 'Chegirma': s.discount_amount,
-                    "To'lov": s.payment_type, 'Sana': new Date(s.created_at).toLocaleString('uz-UZ'),
+                    [t('reports.th.number')]: s.number, [t('reports.th.cashier')]: s.cashier_name,
+                    [t('reports.th.amount')]: s.total_amount, [t('reports.th.discount')]: s.discount_amount,
+                    [t('reports.th.payment')]: s.payment_type, [t('reports.th.date')]: new Date(s.created_at).toLocaleString('uz-UZ'),
                   })));
                   const wb = XLSX.utils.book_new();
-                  XLSX.utils.book_append_sheet(wb, ws, 'Sotuvlar');
+                  XLSX.utils.book_append_sheet(wb, ws, t('reports.tab.sales'));
                   saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `sotuvlar_${today()}.xlsx`);
                 }}
-                onPdf={() => printTable('Sotuvlar hisoboti',
-                  ['Raqam', 'Kassir', 'Summa', "To'lov", 'Sana'],
+                onPdf={() => printTable(t('reports.salesReportTitle'),
+                  [t('reports.th.number'), t('reports.th.cashier'), t('reports.th.amount'), t('reports.th.payment'), t('reports.th.date')],
                   items.map(s => [s.number, s.cashier_name, fmtRowDebt(s.total_amount, s.currency_code), s.payment_type, new Date(s.created_at).toLocaleDateString('uz-UZ')]),
-                  ['', 'JAMI', fmtS(totalSum), '', '']
+                  ['', t('reports.total'), fmtS(totalSum), '', ''],
+                  t('common.print')
                 )}
                 on1c={async () => {
                   const saveAs = await loadSaveAs();
@@ -405,7 +406,7 @@ export default function Reports() {
                   <table className="min-w-full">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-100">
-                        {['Raqam', 'Kassir', 'Summa', 'Chegirma', "To'lov", 'Sana'].map(h => (
+                        {[t('reports.th.number'), t('reports.th.cashier'), t('reports.th.amount'), t('reports.th.discount'), t('reports.th.payment'), t('reports.th.date')].map(h => (
                           <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
@@ -429,8 +430,8 @@ export default function Reports() {
                 </div>
                 {items.length > 0 && (
                   <div className="px-6 py-3 border-t border-slate-100 flex justify-between text-sm text-slate-500 bg-slate-50">
-                    <span>Jami <strong className="text-slate-700">{items.length}</strong> ta sotuv</span>
-                    <span>Umumiy: <strong className="text-emerald-600">{fmtS(totalSum)}</strong></span>
+                    <span>{t('reports.totalSalesCount', { count: items.length })}</span>
+                    <span>{t('reports.overallLabel')} <strong className="text-emerald-600">{fmtS(totalSum)}</strong></span>
                   </div>
                 )}
               </>
@@ -443,23 +444,24 @@ export default function Reports() {
         {tab === 'profit' && (
           <>
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
-              <span className="text-sm font-semibold text-slate-700">Mahsulot bo'yicha foyda hisoboti</span>
+              <span className="text-sm font-semibold text-slate-700">{t('reports.profitByProductTitle')}</span>
               <ExportBtns
                 onExcel={async () => {
                   const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(profitData.map(r => ({
-                    'Mahsulot': r.product_name, 'SKU': r.sku, 'Kategoriya': r.category_name,
-                    'Sotildi': r.qty_sold, 'Daromad': fmtDebt(r.revenue), 'Tannarx': fmtDebt(r.cost),
-                    'Foyda': fmtDebt(r.profit), 'Margin %': r.margin_pct,
+                    [t('reports.th.product')]: r.product_name, 'SKU': r.sku, [t('reports.th.category')]: r.category_name,
+                    [t('reports.th.sold')]: r.qty_sold, [t('reports.th.revenue')]: fmtDebt(r.revenue), [t('reports.th.cost')]: fmtDebt(r.cost),
+                    [t('reports.th.profit')]: fmtDebt(r.profit), [t('reports.th.marginPct')]: r.margin_pct,
                   })));
                   const wb = XLSX.utils.book_new();
-                  XLSX.utils.book_append_sheet(wb, ws, 'Foyda');
+                  XLSX.utils.book_append_sheet(wb, ws, t('reports.th.profit'));
                   saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `foyda_${today()}.xlsx`);
                 }}
-                onPdf={() => printTable('Mahsulot bo\'yicha foyda',
-                  ['Mahsulot', 'Kategoriya', 'Sotildi', 'Daromad', 'Tannarx', 'Foyda', 'Margin'],
+                onPdf={() => printTable(t('reports.profitByProductTitle'),
+                  [t('reports.th.product'), t('reports.th.category'), t('reports.th.sold'), t('reports.th.revenue'), t('reports.th.cost'), t('reports.th.profit'), t('reports.th.margin')],
                   profitData.map(r => [r.product_name, r.category_name, fmt(r.qty_sold), fmtDebt(r.revenue), fmtDebt(r.cost), fmtDebt(r.profit), pct(r.margin_pct)]),
-                  ['JAMI', '', '', '', '', '', '']
+                  [t('reports.total'), '', '', '', '', '', ''],
+                  t('common.print')
                 )}
               />
             </div>
@@ -469,7 +471,7 @@ export default function Reports() {
                 <table className="min-w-full">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100">
-                      {['Mahsulot', 'Kategoriya', 'Sotildi', 'Daromad', 'Tannarx', 'Foyda', 'Margin'].map(h => (
+                      {[t('reports.th.product'), t('reports.th.category'), t('reports.th.sold'), t('reports.th.revenue'), t('reports.th.cost'), t('reports.th.profit'), t('reports.th.margin')].map(h => (
                         <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                       ))}
                     </tr>
@@ -498,7 +500,7 @@ export default function Reports() {
                   {profitData.length > 0 && (
                     <tfoot>
                       <tr className="bg-blue-50 font-bold">
-                        <td className="px-5 py-3 text-sm text-slate-700">{t('admin.dict.th_total') || 'JAMI'}</td>
+                        <td className="px-5 py-3 text-sm text-slate-700">{t('reports.total')}</td>
                         <td />
                         <td className="px-5 py-3 text-sm">{fmt(profitData.reduce((a, r) => a + r.qty_sold, 0))}</td>
                         <td className="px-5 py-3 text-sm">{fmtDebt(sumDebtList(profitData, 'revenue'))}</td>
@@ -518,16 +520,16 @@ export default function Reports() {
         {tab === 'product-sales' && (
           <>
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
-              <span className="text-sm font-semibold text-slate-700">Mahsulotlar (Sotuv) hisoboti</span>
+              <span className="text-sm font-semibold text-slate-700">{t('reports.productSalesReportTitle')}</span>
               <ExportBtns
                 onExcel={async () => {
                   const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(productSalesData.map(r => ({
-                    'Mahsulot': r.product_name, 'SKU': r.sku,
-                    'Sotilgan Miqdor': r.total_qty, 'Daromad': fmtDebt(r.total_revenue), 'Foyda': fmtDebt(r.total_profit),
+                    [t('reports.th.product')]: r.product_name, 'SKU': r.sku,
+                    [t('reports.th.soldQty')]: r.total_qty, [t('reports.th.revenue')]: fmtDebt(r.total_revenue), [t('reports.th.profit')]: fmtDebt(r.total_profit),
                   })));
                   const wb = XLSX.utils.book_new();
-                  XLSX.utils.book_append_sheet(wb, ws, 'Mahsulotlar (Sotuv)');
+                  XLSX.utils.book_append_sheet(wb, ws, t('reports.tab.productSales'));
                   saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `mahsulot_sotuv_${today()}.xlsx`);
                 }}
               />
@@ -538,7 +540,7 @@ export default function Reports() {
                 <table className="min-w-full">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100">
-                      {['Mahsulot', 'SKU', 'Sotilgan Miqdor', 'Daromad', 'Foyda'].map(h => (
+                      {[t('reports.th.product'), 'SKU', t('reports.th.soldQty'), t('reports.th.revenue'), t('reports.th.profit')].map(h => (
                         <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                       ))}
                     </tr>
@@ -558,7 +560,7 @@ export default function Reports() {
                   {productSalesData.length > 0 && (
                     <tfoot>
                       <tr className="bg-blue-50 font-bold">
-                        <td className="px-5 py-3 text-sm text-slate-700">{t('admin.dict.th_total') || 'JAMI'}</td>
+                        <td className="px-5 py-3 text-sm text-slate-700">{t('reports.total')}</td>
                         <td />
                         <td className="px-5 py-3 text-sm">{fmt(productSalesData.reduce((a, r) => a + r.total_qty, 0))}</td>
                         <td className="px-5 py-3 text-sm text-emerald-600">{fmtDebt(sumDebtList(productSalesData, 'total_revenue'))}</td>
@@ -576,36 +578,36 @@ export default function Reports() {
         {tab === 'movements' && (() => {
           const OP_MAP = {
             // IN variants
-            'IN_purchase_order':        { label: 'Kirim (Xarid)',          bg: 'bg-emerald-100', text: 'text-emerald-700' },
-            'IN_manual_receive':        { label: "Qo'lda kirim",           bg: 'bg-blue-100',    text: 'text-blue-700'   },
-            'IN_return_from_customer':  { label: 'Qaytarma (Mijoz)',        bg: 'bg-blue-100',    text: 'text-blue-700'   },
-            'IN_customer_return':       { label: 'Qaytarma (Mijoz)',        bg: 'bg-blue-100',    text: 'text-blue-700'   },
-            'IN_inventory_count':       { label: 'Inventarizatsiya (+)',    bg: 'bg-blue-100',  text: 'text-blue-700' },
-            'IN_stock_transfer':        { label: "Ko'chirma (Kirim)",       bg: 'bg-blue-100',    text: 'text-blue-700'   },
-            'IN_transfer':              { label: "Ko'chirma (Kirim)",       bg: 'bg-blue-100',    text: 'text-blue-700'   },
-            'IN_':                      { label: 'Kirim',                   bg: 'bg-emerald-100', text: 'text-emerald-700' },
+            'IN_purchase_order':        { label: t('reports.op.inPurchase'),      bg: 'bg-emerald-100', text: 'text-emerald-700' },
+            'IN_manual_receive':        { label: t('reports.op.manualReceive'),   bg: 'bg-blue-100',    text: 'text-blue-700'   },
+            'IN_return_from_customer':  { label: t('reports.op.returnCustomer'),  bg: 'bg-blue-100',    text: 'text-blue-700'   },
+            'IN_customer_return':       { label: t('reports.op.returnCustomer'),  bg: 'bg-blue-100',    text: 'text-blue-700'   },
+            'IN_inventory_count':       { label: t('reports.op.inventoryPlus'),   bg: 'bg-blue-100',  text: 'text-blue-700' },
+            'IN_stock_transfer':        { label: t('reports.op.transferIn'),      bg: 'bg-blue-100',    text: 'text-blue-700'   },
+            'IN_transfer':              { label: t('reports.op.transferIn'),      bg: 'bg-blue-100',    text: 'text-blue-700'   },
+            'IN_':                      { label: t('reports.op.receive'),         bg: 'bg-emerald-100', text: 'text-emerald-700' },
             // OUT variants
-            'OUT_sale':                 { label: 'Sotuv',                   bg: 'bg-blue-100',  text: 'text-blue-700' },
-            'OUT_chiqim':               { label: 'Chiqim',                  bg: 'bg-orange-100',  text: 'text-orange-700' },
-            'OUT_return_to_supplier':   { label: "Qaytarma (Ta'm.)",        bg: 'bg-amber-100',   text: 'text-amber-700'  },
-            'OUT_inventory_count':      { label: 'Inventarizatsiya (\u2212)', bg: 'bg-blue-100', text: 'text-blue-700' },
-            'OUT_stock_transfer':       { label: "Ko'chirma (Chiqim)",      bg: 'bg-slate-100',   text: 'text-slate-600'  },
-            'OUT_transfer':             { label: "Ko'chirma (Chiqim)",      bg: 'bg-slate-100',   text: 'text-slate-600'  },
-            'OUT_':                     { label: 'Chiqim',                  bg: 'bg-orange-100',  text: 'text-orange-700' },
+            'OUT_sale':                 { label: t('reports.tab.sales'),          bg: 'bg-blue-100',  text: 'text-blue-700' },
+            'OUT_chiqim':               { label: t('reports.op.expense'),         bg: 'bg-orange-100',  text: 'text-orange-700' },
+            'OUT_return_to_supplier':   { label: t('reports.op.returnSupplier'),  bg: 'bg-amber-100',   text: 'text-amber-700'  },
+            'OUT_inventory_count':      { label: t('reports.op.inventoryMinus'),  bg: 'bg-blue-100', text: 'text-blue-700' },
+            'OUT_stock_transfer':       { label: t('reports.op.transferOut'),     bg: 'bg-slate-100',   text: 'text-slate-600'  },
+            'OUT_transfer':             { label: t('reports.op.transferOut'),     bg: 'bg-slate-100',   text: 'text-slate-600'  },
+            'OUT_':                     { label: t('reports.op.expense'),         bg: 'bg-orange-100',  text: 'text-orange-700' },
             // ADJUST
-            'ADJUST_adjustment':        { label: 'Tuzatish',               bg: 'bg-slate-100',   text: 'text-slate-700'  },
-            'ADJUST_inventory_count':   { label: 'Inventarizatsiya',        bg: 'bg-blue-100',  text: 'text-blue-700' },
-            'ADJUST_':                  { label: 'Tuzatish',               bg: 'bg-slate-100',   text: 'text-slate-700'  },
+            'ADJUST_adjustment':        { label: t('reports.op.adjustment'),      bg: 'bg-slate-100',   text: 'text-slate-700'  },
+            'ADJUST_inventory_count':   { label: t('warehouse.inventory'), bg: 'bg-blue-100',  text: 'text-blue-700' },
+            'ADJUST_':                  { label: t('reports.op.adjustment'),      bg: 'bg-slate-100',   text: 'text-slate-700'  },
             // TRANSFER
-            'TRANSFER_IN_transfer':     { label: "Ko'chirma (Kirim)",       bg: 'bg-blue-100',    text: 'text-blue-700'   },
-            'TRANSFER_IN_stock_transfer':{ label: "Ko'chirma (Kirim)",      bg: 'bg-blue-100',    text: 'text-blue-700'   },
-            'TRANSFER_IN_':             { label: "Ko'chirma (Kirim)",       bg: 'bg-blue-100',    text: 'text-blue-700'   },
-            'TRANSFER_OUT_transfer':    { label: "Ko'chirma (Chiqim)",      bg: 'bg-slate-100',   text: 'text-slate-600'  },
-            'TRANSFER_OUT_stock_transfer':{ label: "Ko'chirma (Chiqim)",    bg: 'bg-slate-100',   text: 'text-slate-600'  },
-            'TRANSFER_OUT_':            { label: "Ko'chirma (Chiqim)",      bg: 'bg-slate-100',   text: 'text-slate-600'  },
+            'TRANSFER_IN_transfer':     { label: t('reports.op.transferIn'),      bg: 'bg-blue-100',    text: 'text-blue-700'   },
+            'TRANSFER_IN_stock_transfer':{ label: t('reports.op.transferIn'),     bg: 'bg-blue-100',    text: 'text-blue-700'   },
+            'TRANSFER_IN_':             { label: t('reports.op.transferIn'),      bg: 'bg-blue-100',    text: 'text-blue-700'   },
+            'TRANSFER_OUT_transfer':    { label: t('reports.op.transferOut'),     bg: 'bg-slate-100',   text: 'text-slate-600'  },
+            'TRANSFER_OUT_stock_transfer':{ label: t('reports.op.transferOut'),   bg: 'bg-slate-100',   text: 'text-slate-600'  },
+            'TRANSFER_OUT_':            { label: t('reports.op.transferOut'),     bg: 'bg-slate-100',   text: 'text-slate-600'  },
             // RETURN
-            'RETURN_return':            { label: 'Qaytarma',                bg: 'bg-blue-100',    text: 'text-blue-700'   },
-            'RETURN_':                  { label: 'Qaytarma',                bg: 'bg-blue-100',    text: 'text-blue-700'   },
+            'RETURN_return':            { label: t('reports.op.returnGeneric'),   bg: 'bg-blue-100',    text: 'text-blue-700'   },
+            'RETURN_':                  { label: t('reports.op.returnGeneric'),   bg: 'bg-blue-100',    text: 'text-blue-700'   },
           };
           const getOp = (m) => {
             const key = `${m.type}_${m.reference_type || ''}`;
@@ -617,15 +619,15 @@ export default function Reports() {
           };
 
           const REF_TYPES = [
-            { v: '', l: 'Barcha operatsiyalar' },
-            { v: 'purchase_order', l: 'Kirim (Xarid)' },
-            { v: 'sale', l: 'Sotuv' },
-            { v: 'chiqim', l: 'Chiqim' },
-            { v: 'return_to_supplier', l: "Qaytarma (Ta'minotchi)" },
-            { v: 'return_from_customer', l: 'Qaytarma (Mijoz)' },
-            { v: 'adjustment', l: 'Tuzatish' },
-            { v: 'inventory_count', l: 'Inventarizatsiya' },
-            { v: 'transfer', l: "Ko'chirma" },
+            { v: '', l: t('reports.op.allOperations') },
+            { v: 'purchase_order', l: t('reports.op.inPurchase') },
+            { v: 'sale', l: t('reports.tab.sales') },
+            { v: 'chiqim', l: t('reports.op.expense') },
+            { v: 'return_to_supplier', l: t('reports.op.returnSupplierFull') },
+            { v: 'return_from_customer', l: t('reports.op.returnCustomer') },
+            { v: 'adjustment', l: t('reports.op.adjustment') },
+            { v: 'inventory_count', l: t('warehouse.inventory') },
+            { v: 'transfer', l: t('reports.op.transfer') },
           ];
           const inCount  = movementsData.filter(m => m.type === 'IN').length;
           const outCount = movementsData.filter(m => m.type === 'OUT').length;
@@ -633,27 +635,27 @@ export default function Reports() {
             <>
               {/* Header */}
               <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
-                <span className="text-sm font-bold text-slate-700">📦 Mahsulot harakatlari hisoboti</span>
+                <span className="text-sm font-bold text-slate-700">{`📦 ${t('reports.movementsReportTitle')}`}</span>
                 <button onClick={async () => {
                   const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(movementsData.map(m => ({
-                    'Sana': new Date(m.created_at).toLocaleString('uz-UZ'),
-                    'Operatsiya': getOp(m).label,
-                    'Mahsulot': m.product_name,
+                    [t('reports.th.date')]: new Date(m.created_at).toLocaleString('uz-UZ'),
+                    [t('reports.th.operation')]: getOp(m).label,
+                    [t('reports.th.product')]: m.product_name,
                     'SKU': m.product_sku || '',
-                    'Oldingi qoldiq': Number(m.qty_before),
-                    "O'zgarish": m.type === 'OUT' ? -Number(m.quantity) : Number(m.quantity),
-                    'Yangi qoldiq': Number(m.qty_after),
-                    'Kontragent': m.contragent_name || '',
-                    'Birlik': m.product_unit || 'dona',
-                    'Foydalanuvchi': m.user_name || '',
+                    [t('reports.th.qtyBefore')]: Number(m.qty_before),
+                    [t('reports.th.change')]: m.type === 'OUT' ? -Number(m.quantity) : Number(m.quantity),
+                    [t('reports.th.qtyAfter')]: Number(m.qty_after),
+                    [t('reports.th.contragent')]: m.contragent_name || '',
+                    [t('reports.th.unit')]: m.product_unit || t('reports.unitPiece'),
+                    [t('reports.th.user')]: m.user_name || '',
                   })));
                   const wb = XLSX.utils.book_new();
-                  XLSX.utils.book_append_sheet(wb, ws, 'Harakatlar');
+                  XLSX.utils.book_append_sheet(wb, ws, t('reports.tab.movements'));
                   saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `mahsulot_harakatlar_${today()}.xlsx`);
                 }} className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-semibold rounded-xl transition-colors">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                  Excel
+                  {t('reports.excel')}
                 </button>
               </div>
 
@@ -667,11 +669,11 @@ export default function Reports() {
                   </div>
                   <div className="flex-1">
                     <p className="font-bold text-amber-800 text-sm">
-                      «{fromSellProduct}» — tarkibiy (virtual) mahsulot
+                      {t('reports.virtualProductBanner', { name: fromSellProduct })}
                     </p>
                     <p className="text-amber-700 text-sm mt-0.5">
-                      Bu mahsulot sotilganda <strong>«{movSearch}»</strong> dan yechiladi.
-                      Quyida <strong>«{movSearch}»</strong> ning barcha harakatlari ko'rsatilgan.
+                      {t('reports.virtualProductSoldFrom')} <strong>«{movSearch}»</strong>{t('reports.virtualProductDeducted')}
+                      {t('reports.virtualProductBelow')} <strong>«{movSearch}»</strong>{t('reports.virtualProductAllMovements')}
                     </p>
                     <div className="flex items-center gap-2 mt-2">
                       <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-lg">
@@ -685,7 +687,7 @@ export default function Reports() {
                       </span>
                       {convRatio && (
                         <span className="text-xs text-amber-600 ml-1">
-                          (nisbat: {convRatio})
+                          {t('reports.ratioLabel', { ratio: convRatio })}
                         </span>
                       )}
                     </div>
@@ -704,10 +706,10 @@ export default function Reports() {
               <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 space-y-3">
                 <div className="flex flex-wrap gap-2">
                   {[
-                    { l: 'Bugun', f: today(), t: today() },
-                    { l: 'Bu hafta', f: daysAgo(6), t: today() },
-                    { l: 'Bu oy', f: firstOfMonth(), t: today() },
-                    { l: '30 kun', f: daysAgo(29), t: today() },
+                    { l: t('reports.date.today'), f: today(), t: today() },
+                    { l: t('reports.date.thisWeek'), f: daysAgo(6), t: today() },
+                    { l: t('reports.date.thisMonth'), f: firstOfMonth(), t: today() },
+                    { l: t('reports.date.last30'), f: daysAgo(29), t: today() },
                   ].map(p => (
                     <button key={p.l} onClick={() => { setMovDateFrom(p.f); setMovDateTo(p.t); }}
                       className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
@@ -718,23 +720,23 @@ export default function Reports() {
                 </div>
                 <div className="flex flex-wrap items-end gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">Sana dan</label>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">{t('reports.dateFromLabel')}</label>
                     <input type="date" value={movDateFrom} onChange={e => setMovDateFrom(e.target.value)}
                       className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">Sana ga</label>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">{t('reports.dateToLabel')}</label>
                     <input type="date" value={movDateTo} onChange={e => setMovDateTo(e.target.value)}
                       className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">Mahsulot</label>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">{t('product.title')}</label>
                     <input value={movSearch} onChange={e => setMovSearch(e.target.value)}
-                      placeholder="Nom yoki SKU..."
+                      placeholder={t('reports.namePlaceholder')}
                       className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-44" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">Operatsiya turi</label>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">{t('reports.operationTypeLabel')}</label>
                     <select value={movRefType} onChange={e => setMovRefType(e.target.value)}
                       className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                       {REF_TYPES.map(r => <option key={r.v} value={r.v}>{r.l}</option>)}
@@ -742,7 +744,7 @@ export default function Reports() {
                   </div>
                   <button onClick={load} disabled={loading}
                     className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-colors">
-                    {loading ? 'Yuklanmoqda...' : '🔍 Izlash'}
+                    {loading ? t('reports.loading') : `🔍 ${t('reports.search')}`}
                   </button>
                 </div>
               </div>
@@ -751,9 +753,9 @@ export default function Reports() {
               {movementsData.length > 0 && (
                 <div className="grid grid-cols-3 gap-4 px-6 py-4 border-b border-slate-100">
                   {[
-                    { l: 'Jami harakatlar', v: movementsData.length + ' ta', color: 'slate' },
-                    { l: 'Kirim (IN)', v: inCount + ' ta', color: 'emerald' },
-                    { l: 'Chiqim (OUT)', v: outCount + ' ta', color: 'red' },
+                    { l: t('reports.totalMovements'), v: `${movementsData.length} ${t('common.item')}`, color: 'slate' },
+                    { l: t('reports.inCount'), v: `${inCount} ${t('common.item')}`, color: 'emerald' },
+                    { l: t('reports.outCount'), v: `${outCount} ${t('common.item')}`, color: 'red' },
                   ].map(c => (
                     <div key={c.l} className="bg-white rounded-xl border border-slate-100 p-4 flex items-center gap-3 shadow-sm">
                       <div>
@@ -771,7 +773,7 @@ export default function Reports() {
                   <table className="min-w-full">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-100">
-                        {['#', 'Sana', 'Operatsiya', 'Mahsulot nomi', 'Oldingi qoldiq', "O'zgarish", 'Yangi qoldiq', 'Kontragent', 'Birlik', 'Kim'].map(h => (
+                        {['#', t('reports.th.date'), t('reports.th.operation'), t('reports.productNameLabel'), t('reports.th.qtyBefore'), t('reports.th.change'), t('reports.th.qtyAfter'), t('reports.th.contragent'), t('reports.th.unit'), t('reports.whoLabel')].map(h => (
                           <th key={h} className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
@@ -826,13 +828,13 @@ export default function Reports() {
                             <td className="px-4 py-3 text-sm text-slate-500 max-w-[140px] truncate">
                               {m.contragent_name || <span className="text-slate-300">—</span>}
                             </td>
-                            <td className="px-4 py-3 text-xs text-slate-400">{m.product_unit || 'dona'}</td>
+                            <td className="px-4 py-3 text-xs text-slate-400">{m.product_unit || t('reports.unitPiece')}</td>
                             <td className="px-4 py-3 text-xs text-slate-400">{m.user_name || '—'}</td>
                           </tr>
                         );
                       })}
                       {movementsData.length === 0 && (
-                        <tr><td colSpan={10} className="px-6 py-12 text-center text-sm text-slate-400">Ma'lumot topilmadi — filtrlash parametrlarini o'zgartiring</td></tr>
+                        <tr><td colSpan={10} className="px-6 py-12 text-center text-sm text-slate-400">{t('reports.noDataChangeFilters')}</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -846,22 +848,23 @@ export default function Reports() {
         {tab === 'pl' && (
           <>
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
-              <span className="text-sm font-semibold text-slate-700">Foyda va Zarar hisoboti (P&L)</span>
+              <span className="text-sm font-semibold text-slate-700">{t('reports.plReportTitle')}</span>
               <ExportBtns
                 onPdf={() => {
                   if (!plData) return;
-                  printTable(`Foyda va Zarar — ${plData.period?.from} / ${plData.period?.to}`,
-                    ['Ko\'rsatkich', 'Summa', 'Foiz'],
+                  printTable(t('reports.plTitleWithPeriod', { from: plData.period?.from, to: plData.period?.to }),
+                    [t('reports.th.indicator'), t('reports.th.amount'), t('reports.th.percent')],
                     [
-                      ['Yalpi daromad (sotuv)', fmtS(plData.gross_revenue), ''],
-                      ['Vazvratlar (−)', fmtS(plData.returns), ''],
-                      ['Net daromad', fmtS(plData.revenue), '100%'],
-                      ['Tannarx/COGS (FIFO)', fmtS(plData.cogs), pct(plData.revenue > 0 ? plData.cogs / plData.revenue * 100 : 0)],
-                      ['Brutto foyda', fmtS(plData.gross_profit), pct(plData.gross_margin_pct)],
-                      ['Xarajatlar (−)', fmtS(plData.expenses?.total), ''],
+                      [t('reports.pl.grossRevenue'), fmtS(plData.gross_revenue), ''],
+                      [t('reports.pl.returns'), fmtS(plData.returns), ''],
+                      [t('reports.pl.netRevenue'), fmtS(plData.revenue), '100%'],
+                      [t('reports.pl.cogsFifo'), fmtS(plData.cogs), pct(plData.revenue > 0 ? plData.cogs / plData.revenue * 100 : 0)],
+                      [t('finance.grossProfit'), fmtS(plData.gross_profit), pct(plData.gross_margin_pct)],
+                      [t('reports.pl.expensesNegative'), fmtS(plData.expenses?.total), ''],
                       ...(plData.expenses?.by_category || []).map(c => [`  • ${c.name}`, fmtS(c.total), '']),
-                      ['Net foyda', fmtS(plData.net_profit), pct(plData.net_margin_pct)],
-                    ]
+                      [t('finance.netProfit'), fmtS(plData.net_profit), pct(plData.net_margin_pct)],
+                    ],
+                    t('common.print')
                   );
                 }}
               />
@@ -869,16 +872,16 @@ export default function Reports() {
             <DateFilter dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} onSearch={load} loading={loading} />
             {loading ? <Spinner /> : plData ? (
               <div className="p-6 max-w-2xl">
-                <p className="text-sm text-slate-500 mb-5">Davr: <strong>{plData.period?.from}</strong> — <strong>{plData.period?.to}</strong></p>
+                <p className="text-sm text-slate-500 mb-5">{t('finance.period')} <strong>{plData.period?.from}</strong> — <strong>{plData.period?.to}</strong></p>
                 <div className="space-y-2">
                   {[
-                    { label: 'Yalpi daromad (sotuv)', value: plData.gross_revenue, cls: 'text-slate-800', pctV: null, bg: '' },
-                    { label: 'Vazvratlar (−)', value: -plData.returns, cls: 'text-orange-500', pctV: plData.revenue > 0 ? plData.returns / plData.gross_revenue * 100 : 0, bg: '' },
-                    { label: 'Net daromad', value: plData.revenue, cls: 'font-semibold text-slate-800', pctV: 100, bg: 'bg-slate-50' },
-                    { label: 'Tannarx/COGS (FIFO)', value: -plData.cogs, cls: 'text-red-500', pctV: plData.revenue > 0 ? plData.cogs / plData.revenue * 100 : 0, bg: '' },
-                    { label: 'Brutto foyda', value: plData.gross_profit, cls: 'font-bold text-blue-600', pctV: plData.gross_margin_pct, bg: 'bg-blue-50' },
-                    { label: 'Xarajatlar (−)', value: -plData.expenses?.total, cls: 'text-red-500', pctV: plData.revenue > 0 ? plData.expenses?.total / plData.revenue * 100 : 0, bg: '' },
-                    { label: 'Net foyda', value: plData.net_profit, cls: `font-bold ${plData.net_profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`, pctV: plData.net_margin_pct, bg: plData.net_profit >= 0 ? 'bg-emerald-50' : 'bg-red-50' },
+                    { label: t('reports.pl.grossRevenue'), value: plData.gross_revenue, cls: 'text-slate-800', pctV: null, bg: '' },
+                    { label: t('reports.pl.returns'), value: -plData.returns, cls: 'text-orange-500', pctV: plData.revenue > 0 ? plData.returns / plData.gross_revenue * 100 : 0, bg: '' },
+                    { label: t('reports.pl.netRevenue'), value: plData.revenue, cls: 'font-semibold text-slate-800', pctV: 100, bg: 'bg-slate-50' },
+                    { label: t('reports.pl.cogsFifo'), value: -plData.cogs, cls: 'text-red-500', pctV: plData.revenue > 0 ? plData.cogs / plData.revenue * 100 : 0, bg: '' },
+                    { label: t('finance.grossProfit'), value: plData.gross_profit, cls: 'font-bold text-blue-600', pctV: plData.gross_margin_pct, bg: 'bg-blue-50' },
+                    { label: t('reports.pl.expensesNegative'), value: -plData.expenses?.total, cls: 'text-red-500', pctV: plData.revenue > 0 ? plData.expenses?.total / plData.revenue * 100 : 0, bg: '' },
+                    { label: t('finance.netProfit'), value: plData.net_profit, cls: `font-bold ${plData.net_profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`, pctV: plData.net_margin_pct, bg: plData.net_profit >= 0 ? 'bg-emerald-50' : 'bg-red-50' },
                   ].map(row => (
                     <div key={row.label} className={`flex items-center justify-between p-3 rounded-xl ${row.bg || 'border border-slate-100'}`}>
                       <span className={`text-sm ${row.cls}`}>{row.label}</span>
@@ -891,7 +894,7 @@ export default function Reports() {
                 </div>
                 {plData.expenses?.by_category?.length > 0 && (
                   <div className="mt-6">
-                    <p className="text-sm font-semibold text-slate-600 mb-3">Xarajatlar kategoriya bo'yicha:</p>
+                    <p className="text-sm font-semibold text-slate-600 mb-3">{t('finance.expenseByCategory')}</p>
                     <div className="space-y-1.5">
                       {plData.expenses.by_category.map(c => (
                         <div key={c.name} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg bg-slate-50">
@@ -911,32 +914,34 @@ export default function Reports() {
         {tab === 'cashier' && (
           <>
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
-              <span className="text-sm font-semibold text-slate-700">Kassir bo'yicha hisobot</span>
+              <span className="text-sm font-semibold text-slate-700">{t('reports.cashierReportTitle')}</span>
               <ExportBtns
                 onExcel={async () => {
                   const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(cashierData.map(r => ({
-                    'Kassir': r.cashier_name, 'Sotuvlar': r.sales_count,
-                    'Jami summa': fmtDebt(r.total_amount), 'O\'rt. chek': fmtDebt(r.avg_check), 'Chegirma': fmtDebt(r.total_discount),
+                    [t('shift.cashier')]: r.cashier_name, [t('reports.tab.sales')]: r.sales_count,
+                    [t('reports.th.totalAmount')]: fmtDebt(r.total_amount), [t('reports.th.avgCheck')]: fmtDebt(r.avg_check), [t('reports.th.discount')]: fmtDebt(r.total_discount),
                   })));
                   const wb = XLSX.utils.book_new();
-                  XLSX.utils.book_append_sheet(wb, ws, 'Kassir');
+                  XLSX.utils.book_append_sheet(wb, ws, t('shift.cashier'));
                   saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `kassir_${today()}.xlsx`);
                 }}
-                onPdf={() => printTable('Kassir hisoboti',
-                  ['Kassir', 'Sotuvlar', 'Jami summa', "O'rt. chek"],
-                  cashierData.map(r => [r.cashier_name, r.sales_count, fmtDebt(r.total_amount), fmtDebt(r.avg_check)])
+                onPdf={() => printTable(t('reports.cashierReportTitle'),
+                  [t('shift.cashier'), t('reports.tab.sales'), t('reports.th.totalAmount'), t('reports.th.avgCheck')],
+                  cashierData.map(r => [r.cashier_name, r.sales_count, fmtDebt(r.total_amount), fmtDebt(r.avg_check)]),
+                  null,
+                  t('common.print')
                 )}
               />
             </div>
             {cashBalance && (
               <div className="grid grid-cols-2 gap-4 px-6 py-4 border-b border-slate-100 bg-linear-to-r from-slate-50 to-blue-50/30">
                 <div className="bg-white rounded-xl p-4 border border-emerald-100 shadow-sm">
-                  <div className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-1">Jami Kirim</div>
+                  <div className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-1">{t('reports.totalIncome')}</div>
                   <div className="text-2xl font-black text-emerald-600">{fmtDebt(cashBalance.income_by_currency || {})}</div>
                 </div>
                 <div className="bg-white rounded-xl p-4 border border-red-100 shadow-sm">
-                  <div className="text-xs font-bold text-red-500 uppercase tracking-widest mb-1">Jami Chiqim</div>
+                  <div className="text-xs font-bold text-red-500 uppercase tracking-widest mb-1">{t('reports.totalExpense')}</div>
                   <div className="text-2xl font-black text-red-500">{fmtDebt(cashBalance.expense_by_currency || {})}</div>
                 </div>
               </div>
@@ -947,7 +952,7 @@ export default function Reports() {
                 <table className="min-w-full">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100">
-                      {['#', 'Kassir', 'Sotuvlar soni', 'Jami summa', "O'rt. chek", 'Chegirma'].map(h => (
+                      {['#', t('shift.cashier'), t('reports.th.salesCount'), t('reports.th.totalAmount'), t('reports.th.avgCheck'), t('reports.th.discount')].map(h => (
                         <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                       ))}
                     </tr>
@@ -961,7 +966,7 @@ export default function Reports() {
                           }`}>{i + 1}</span>
                         </td>
                         <td className="px-5 py-3.5 text-sm font-semibold text-slate-800">{r.cashier_name}</td>
-                        <td className="px-5 py-3.5 text-sm text-slate-600">{r.sales_count} ta</td>
+                        <td className="px-5 py-3.5 text-sm text-slate-600">{r.sales_count} {t('common.item')}</td>
                         <td className="px-5 py-3.5 text-sm font-bold text-emerald-600">{fmtDebt(r.total_amount)}</td>
                         <td className="px-5 py-3.5 text-sm text-slate-500">{fmtDebt(r.avg_check)}</td>
                         <td className="px-5 py-3.5 text-sm text-slate-500">{fmtDebt(r.total_discount)}</td>
@@ -979,25 +984,26 @@ export default function Reports() {
         {tab === 'deadstock' && (
           <>
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
-              <span className="text-sm font-semibold text-slate-700">O'lik stok (6+ oy sotilmagan)</span>
+              <span className="text-sm font-semibold text-slate-700">{t('reports.deadStockTitle')}</span>
               <ExportBtns
                 onExcel={async () => {
                   if (!deadStockData) return;
                   const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(deadStockData.items.map(i => ({
-                    'Mahsulot': i.product_name, 'SKU': i.sku,
-                    'Miqdor': i.quantity, 'Tannarx': fmtRowDebt(i.cost_price, i.currency), 'Qiymat': fmtRowDebt(i.value, i.currency),
+                    [t('reports.th.product')]: i.product_name, 'SKU': i.sku,
+                    [t('reports.th.qty')]: i.quantity, [t('reports.th.cost')]: fmtRowDebt(i.cost_price, i.currency), [t('reports.th.value')]: fmtRowDebt(i.value, i.currency),
                   })));
                   const wb = XLSX.utils.book_new();
-                  XLSX.utils.book_append_sheet(wb, ws, "O'lik stok");
+                  XLSX.utils.book_append_sheet(wb, ws, t('reports.tab.deadstock'));
                   saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `olik_stok_${today()}.xlsx`);
                 }}
                 onPdf={() => {
                   if (!deadStockData) return;
-                  printTable("O'lik stok hisoboti",
-                    ['Mahsulot', 'SKU', 'Miqdor', 'Tannarx', 'Qiymat'],
+                  printTable(t('reports.deadStockReportTitle'),
+                    [t('reports.th.product'), 'SKU', t('reports.th.qty'), t('reports.th.cost'), t('reports.th.value')],
                     deadStockData.items.map(i => [i.product_name, i.sku, i.quantity, fmtRowDebt(i.cost_price, i.currency), fmtRowDebt(i.value, i.currency)]),
-                    ['JAMI', '', '', '', fmtDebt(deadStockData.total_value)]
+                    [t('reports.total'), '', '', '', fmtDebt(deadStockData.total_value)],
+                    t('common.print')
                   );
                 }}
               />
@@ -1006,23 +1012,23 @@ export default function Reports() {
               <>
                 <div className="grid grid-cols-3 gap-4 p-6 border-b border-slate-100">
                   <div className="bg-blue-50 rounded-xl p-4">
-                    <div className="text-xs font-semibold text-blue-500 mb-1">Jami mahsulot</div>
-                    <div className="text-2xl font-bold text-blue-700">{deadStockData.total_items} ta</div>
+                    <div className="text-xs font-semibold text-blue-500 mb-1">{t('product.totalProducts')}</div>
+                    <div className="text-2xl font-bold text-blue-700">{deadStockData.total_items} {t('common.item')}</div>
                   </div>
                   <div className="bg-amber-50 rounded-xl p-4">
-                    <div className="text-xs font-semibold text-amber-600 mb-1">Umumiy qiymat</div>
+                    <div className="text-xs font-semibold text-amber-600 mb-1">{t('reports.totalValue')}</div>
                     <div className="text-2xl font-bold text-amber-700">{fmtDebt(deadStockData.total_value)}</div>
                   </div>
                   <div className="bg-slate-50 rounded-xl p-4">
-                    <div className="text-xs font-semibold text-slate-500 mb-1">Muddat</div>
-                    <div className="text-2xl font-bold text-slate-700">{deadStockData.months} oy</div>
+                    <div className="text-xs font-semibold text-slate-500 mb-1">{t('reports.termLabel')}</div>
+                    <div className="text-2xl font-bold text-slate-700">{deadStockData.months} {t('reports.monthsUnit')}</div>
                   </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="min-w-full">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-100">
-                        {['Mahsulot', 'SKU', 'Miqdor', 'Tannarx', 'Qiymat'].map(h => (
+                        {[t('reports.th.product'), 'SKU', t('reports.th.qty'), t('reports.th.cost'), t('reports.th.value')].map(h => (
                           <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
@@ -1038,7 +1044,7 @@ export default function Reports() {
                         </tr>
                       ))}
                       {deadStockData.items.length === 0 && (
-                        <tr><td colSpan={5} className="px-6 py-12 text-center text-sm text-emerald-600">O'lik stok yo'q!</td></tr>
+                        <tr><td colSpan={5} className="px-6 py-12 text-center text-sm text-emerald-600">{t('reports.noDeadStock')}</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -1052,25 +1058,26 @@ export default function Reports() {
         {tab === 'expenses' && (
           <>
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
-              <span className="text-sm font-semibold text-slate-700">Xarajatlar hisoboti</span>
+              <span className="text-sm font-semibold text-slate-700">{t('reports.expensesReportTitle')}</span>
               <ExportBtns
                 onExcel={async () => {
                   if (!expenseData) return;
                   const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(expenseData.items.map(e => ({
-                    'Kategoriya': e.category, 'Summa': e.amount,
-                    'Izoh': e.description, 'Sana': new Date(e.created_at).toLocaleDateString('uz-UZ'),
+                    [t('reports.th.category')]: e.category, [t('reports.th.amount')]: e.amount,
+                    [t('reports.th.comment')]: e.description, [t('reports.th.date')]: new Date(e.created_at).toLocaleDateString('uz-UZ'),
                   })));
                   const wb = XLSX.utils.book_new();
-                  XLSX.utils.book_append_sheet(wb, ws, 'Xarajatlar');
+                  XLSX.utils.book_append_sheet(wb, ws, t('reports.tab.expenses'));
                   saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `xarajatlar_${today()}.xlsx`);
                 }}
                 onPdf={() => {
                   if (!expenseData) return;
-                  printTable('Xarajatlar hisoboti',
-                    ['Kategoriya', 'Summa', 'Izoh', 'Sana'],
+                  printTable(t('reports.expensesReportTitle'),
+                    [t('reports.th.category'), t('reports.th.amount'), t('reports.th.comment'), t('reports.th.date')],
                     expenseData.items.map(e => [e.category, fmtS(e.amount), e.description, new Date(e.created_at).toLocaleDateString('uz-UZ')]),
-                    ['JAMI', fmtS(expenseData.total), '', '']
+                    [t('reports.total'), fmtS(expenseData.total), '', ''],
+                    t('common.print')
                   );
                 }}
               />
@@ -1079,14 +1086,14 @@ export default function Reports() {
             {loading ? <Spinner /> : expenseData ? (
               <>
                 <div className="px-6 py-3 border-b border-slate-100 bg-red-50">
-                  <span className="text-sm text-slate-600">Jami xarajat: </span>
+                  <span className="text-sm text-slate-600">{t('reports.totalExpenseLabel')} </span>
                   <strong className="text-red-600">{fmtS(expenseData.total)}</strong>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="min-w-full">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-100">
-                        {['Kategoriya', 'Summa', 'Izoh', 'Sana'].map(h => (
+                        {[t('reports.th.category'), t('reports.th.amount'), t('reports.th.comment'), t('reports.th.date')].map(h => (
                           <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
@@ -1100,7 +1107,7 @@ export default function Reports() {
                           <td className="px-5 py-3.5 text-sm text-slate-400">{new Date(e.created_at).toLocaleDateString('uz-UZ')}</td>
                         </tr>
                       ))}
-                      {expenseData.items.length === 0 && <tr><td colSpan={4} className="px-6 py-12 text-center text-sm text-slate-400">Xarajat yo'q</td></tr>}
+                      {expenseData.items.length === 0 && <tr><td colSpan={4} className="px-6 py-12 text-center text-sm text-slate-400">{t('finance.noExpenses')}</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -1113,22 +1120,23 @@ export default function Reports() {
         {tab === 'purchases' && (
           <>
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
-              <span className="text-sm font-semibold text-slate-700">Supplier bo'yicha xaridlar</span>
+              <span className="text-sm font-semibold text-slate-700">{t('reports.purchasesBySupplierTitle')}</span>
               <ExportBtns
                 onExcel={async () => {
                   const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(purchasesData.map(r => ({
-                    'Supplier': r.supplier_name, 'Telefon': r.phone,
-                    'PO soni': r.po_count, 'Jami summa': r.total_amount,
+                    [t('purchase.supplier')]: r.supplier_name, [t('common.phone')]: r.phone,
+                    [t('reports.th.poCount')]: r.po_count, [t('reports.th.totalAmount')]: r.total_amount,
                   })));
                   const wb = XLSX.utils.book_new();
-                  XLSX.utils.book_append_sheet(wb, ws, 'Xaridlar');
+                  XLSX.utils.book_append_sheet(wb, ws, t('reports.tab.purchases'));
                   saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `xaridlar_${today()}.xlsx`);
                 }}
-                onPdf={() => printTable('Xaridlar hisoboti',
-                  ['Supplier', 'Telefon', 'PO soni', 'Jami summa'],
+                onPdf={() => printTable(t('reports.purchasesReportTitle'),
+                  [t('purchase.supplier'), t('common.phone'), t('reports.th.poCount'), t('reports.th.totalAmount')],
                   purchasesData.map(r => [r.supplier_name, r.phone, r.po_count, fmtS(r.total_amount)]),
-                  ['JAMI', '', purchasesData.reduce((a, r) => a + r.po_count, 0), fmtS(purchasesData.reduce((a, r) => a + r.total_amount, 0))]
+                  [t('reports.total'), '', purchasesData.reduce((a, r) => a + r.po_count, 0), fmtS(purchasesData.reduce((a, r) => a + r.total_amount, 0))],
+                  t('common.print')
                 )}
               />
             </div>
@@ -1138,7 +1146,7 @@ export default function Reports() {
                 <table className="min-w-full">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100">
-                      {['Supplier', 'Telefon', 'PO soni', 'Jami summa'].map(h => (
+                      {[t('purchase.supplier'), t('common.phone'), t('reports.th.poCount'), t('reports.th.totalAmount')].map(h => (
                         <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                       ))}
                     </tr>
@@ -1148,7 +1156,7 @@ export default function Reports() {
                       <tr key={r.supplier_id} className={i % 2 ? 'bg-slate-50/50' : 'bg-white'}>
                         <td className="px-5 py-3.5 text-sm font-medium text-slate-800">{r.supplier_name}</td>
                         <td className="px-5 py-3.5 text-sm text-slate-500">{r.phone || '—'}</td>
-                        <td className="px-5 py-3.5 text-sm text-slate-600">{r.po_count} ta</td>
+                        <td className="px-5 py-3.5 text-sm text-slate-600">{r.po_count} {t('common.item')}</td>
                         <td className="px-5 py-3.5 text-sm font-bold text-blue-600">{fmtS(r.total_amount)}</td>
                       </tr>
                     ))}
@@ -1164,24 +1172,25 @@ export default function Reports() {
         {tab === 'customer-debts' && (
           <>
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
-              <span className="text-sm font-semibold text-slate-700">Debitor qarzdorlik — mijozlar</span>
+              <span className="text-sm font-semibold text-slate-700">{t('reports.customerDebtsTitle')}</span>
               <ExportBtns
                 onExcel={async () => {
                   if (!customerDebts) return;
                   const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(customerDebts.items.map(c => ({
-                    'Mijoz': c.customer_name, 'Telefon': c.phone,
-                    'Qarz': c.debt_balance, 'Limit': c.debt_limit, 'Foydalanish %': c.usage_pct,
+                    [t('sale.customer')]: c.customer_name, [t('common.phone')]: c.phone,
+                    [t('reports.th.debt')]: c.debt_balance, [t('reports.th.limit')]: c.debt_limit, [t('reports.th.usagePct')]: c.usage_pct,
                   })));
-                  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Debitorlar');
+                  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, t('reports.tab.customerDebts'));
                   saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `debitorlar_${today()}.xlsx`);
                 }}
                 onPdf={() => {
                   if (!customerDebts) return;
-                  printTable('Debitor qarzdorlik',
-                    ['Mijoz', 'Telefon', 'Qarz', 'Limit', 'Foydalanish'],
+                  printTable(t('reports.customerDebtsTitle'),
+                    [t('sale.customer'), t('common.phone'), t('reports.th.debt'), t('reports.th.limit'), t('reports.th.usage')],
                     customerDebts.items.map(c => [c.customer_name, c.phone, fmtS(c.debt_balance), fmtS(c.debt_limit), pct(c.usage_pct)]),
-                    ['JAMI', '', fmtS(customerDebts.total_debt), '', '']
+                    [t('reports.total'), '', fmtS(customerDebts.total_debt), '', ''],
+                    t('common.print')
                   );
                 }}
               />
@@ -1189,15 +1198,15 @@ export default function Reports() {
             {loading ? <Spinner /> : customerDebts ? (
               <>
                 <div className="px-6 py-3 border-b border-slate-100 bg-amber-50">
-                  <span className="text-sm text-slate-600">Jami debitor qarz: </span>
+                  <span className="text-sm text-slate-600">{t('reports.totalDebtorDebtLabel')} </span>
                   <strong className="text-amber-700">{fmtDebt(customerDebts.total_debt)}</strong>
-                  <span className="ml-4 text-sm text-slate-500">({customerDebts.count} ta mijoz)</span>
+                  <span className="ml-4 text-sm text-slate-500">({customerDebts.count} {t('customer.customers')})</span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="min-w-full">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-100">
-                        {['Mijoz', 'Telefon', 'Qarz', 'Limit', 'Foydalanish'].map(h => (
+                        {[t('sale.customer'), t('common.phone'), t('reports.th.debt'), t('reports.th.limit'), t('reports.th.usage')].map(h => (
                           <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
@@ -1220,7 +1229,7 @@ export default function Reports() {
                           </td>
                         </tr>
                       ))}
-                      {customerDebts.items.length === 0 && <tr><td colSpan={5} className="px-6 py-12 text-center text-sm text-emerald-600">Debitor yo'q!</td></tr>}
+                      {customerDebts.items.length === 0 && <tr><td colSpan={5} className="px-6 py-12 text-center text-sm text-emerald-600">{t('reports.noDebtors')}</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -1233,24 +1242,25 @@ export default function Reports() {
         {tab === 'supplier-debts' && (
           <>
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
-              <span className="text-sm font-semibold text-slate-700">Kreditor qarzdorlik — supplierlar</span>
+              <span className="text-sm font-semibold text-slate-700">{t('reports.supplierDebtsTitle')}</span>
               <ExportBtns
                 onExcel={async () => {
                   if (!supplierDebts) return;
                   const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(supplierDebts.items.map(s => ({
-                    'Supplier': s.supplier_name, 'Telefon': s.phone,
-                    'Qarz': s.debt_balance, 'To\'lov muddati': s.payment_terms + ' kun',
+                    [t('purchase.supplier')]: s.supplier_name, [t('common.phone')]: s.phone,
+                    [t('reports.th.debt')]: s.debt_balance, [t('finance.paymentTerms')]: `${s.payment_terms} ${t('reports.daysUnit')}`,
                   })));
-                  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Kreditorlar');
+                  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, t('reports.tab.supplierDebts'));
                   saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `kreditorlar_${today()}.xlsx`);
                 }}
                 onPdf={() => {
                   if (!supplierDebts) return;
-                  printTable('Kreditor qarzdorlik',
-                    ['Supplier', 'Telefon', 'Qarz', "To'lov muddati"],
-                    supplierDebts.items.map(s => [s.supplier_name, s.phone, fmtS(s.debt_balance), s.payment_terms + ' kun']),
-                    ['JAMI', '', fmtS(supplierDebts.total_debt), '']
+                  printTable(t('reports.supplierDebtsTitle'),
+                    [t('purchase.supplier'), t('common.phone'), t('reports.th.debt'), t('finance.paymentTerms')],
+                    supplierDebts.items.map(s => [s.supplier_name, s.phone, fmtS(s.debt_balance), `${s.payment_terms} ${t('reports.daysUnit')}`]),
+                    [t('reports.total'), '', fmtS(supplierDebts.total_debt), ''],
+                    t('common.print')
                   );
                 }}
               />
@@ -1258,15 +1268,15 @@ export default function Reports() {
             {loading ? <Spinner /> : supplierDebts ? (
               <>
                 <div className="px-6 py-3 border-b border-slate-100 bg-red-50">
-                  <span className="text-sm text-slate-600">Jami kreditor qarz: </span>
+                  <span className="text-sm text-slate-600">{t('reports.totalCreditorDebtLabel')} </span>
                   <strong className="text-red-600">{fmtDebt(supplierDebts.total_debt)}</strong>
-                  <span className="ml-4 text-sm text-slate-500">({supplierDebts.count} ta supplier)</span>
+                  <span className="ml-4 text-sm text-slate-500">({supplierDebts.count} {t('purchase.supplier')})</span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="min-w-full">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-100">
-                        {['Supplier', 'Telefon', 'Qarz', "To'lov muddati"].map(h => (
+                        {[t('purchase.supplier'), t('common.phone'), t('reports.th.debt'), t('finance.paymentTerms')].map(h => (
                           <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
@@ -1277,10 +1287,10 @@ export default function Reports() {
                           <td className="px-5 py-3.5 text-sm font-semibold text-slate-800">{s.supplier_name}</td>
                           <td className="px-5 py-3.5 text-sm text-slate-500">{s.phone || '—'}</td>
                           <td className="px-5 py-3.5 text-sm font-bold text-red-600">{fmtRowDebt(s.debt_balance, s.debt_currency)}</td>
-                          <td className="px-5 py-3.5 text-sm text-slate-500">{s.payment_terms} kun</td>
+                          <td className="px-5 py-3.5 text-sm text-slate-500">{s.payment_terms} {t('reports.daysUnit')}</td>
                         </tr>
                       ))}
-                      {supplierDebts.items.length === 0 && <tr><td colSpan={4} className="px-6 py-12 text-center text-sm text-emerald-600">Kreditor yo'q!</td></tr>}
+                      {supplierDebts.items.length === 0 && <tr><td colSpan={4} className="px-6 py-12 text-center text-sm text-emerald-600">{t('reports.noCreditors')}</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -1294,24 +1304,26 @@ export default function Reports() {
           <>
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
               <div>
-                <span className="text-sm font-semibold text-slate-700">ABC/XYZ tahlil</span>
-                <p className="text-xs text-slate-400 mt-0.5">A=top 80% daromad, B=80-95%, C=qolgan • X=tez aylanuvchi, Y=o'rta, Z=sekin</p>
+                <span className="text-sm font-semibold text-slate-700">{t('reports.abcXyzTitle')}</span>
+                <p className="text-xs text-slate-400 mt-0.5">{t('reports.abcXyzLegend')}</p>
               </div>
               <ExportBtns
                 onExcel={async () => {
                   const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(abcData.map(r => ({
-                    'Mahsulot': r.product_name, 'SKU': r.sku,
-                    'Daromad': r.revenue, 'Chastota': r.frequency, 'Miqdor': r.qty,
-                    'ABC': r.abc, 'XYZ': r.xyz, 'Guruh': r.group,
+                    [t('reports.th.product')]: r.product_name, 'SKU': r.sku,
+                    [t('reports.th.revenue')]: r.revenue, [t('reports.th.frequency')]: r.frequency, [t('reports.th.qty')]: r.qty,
+                    'ABC': r.abc, 'XYZ': r.xyz, [t('reports.th.group')]: r.group,
                   })));
                   const wb = XLSX.utils.book_new();
                   XLSX.utils.book_append_sheet(wb, ws, 'ABC-XYZ');
                   saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `abc_xyz_${today()}.xlsx`);
                 }}
-                onPdf={() => printTable('ABC/XYZ Tahlil',
-                  ['Mahsulot', 'Daromad', 'Chastota', 'ABC', 'XYZ', 'Guruh'],
-                  abcData.map(r => [r.product_name, fmtS(r.revenue), r.frequency, r.abc, r.xyz, r.group])
+                onPdf={() => printTable(t('reports.abcXyzTitle'),
+                  [t('reports.th.product'), t('reports.th.revenue'), t('reports.th.frequency'), 'ABC', 'XYZ', t('reports.th.group')],
+                  abcData.map(r => [r.product_name, fmtS(r.revenue), r.frequency, r.abc, r.xyz, r.group]),
+                  null,
+                  t('common.print')
                 )}
               />
             </div>
@@ -1321,7 +1333,7 @@ export default function Reports() {
                 <table className="min-w-full">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100">
-                      {['Mahsulot', 'Daromad', 'Chastota', 'Miqdor', 'ABC', 'XYZ', 'Guruh'].map(h => (
+                      {[t('reports.th.product'), t('reports.th.revenue'), t('reports.th.frequency'), t('reports.th.qty'), 'ABC', 'XYZ', t('reports.th.group')].map(h => (
                         <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                       ))}
                     </tr>
@@ -1365,25 +1377,27 @@ export default function Reports() {
           <>
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
               <div>
-                <span className="text-sm font-semibold text-slate-700">Partiyalar (FIFO) hisoboti</span>
-                <p className="text-xs text-slate-400 mt-0.5">Har bir partiyaning kirim narxi, qoldig&apos;i va foydasi</p>
+                <span className="text-sm font-semibold text-slate-700">{t('reports.batchesReportTitle')}</span>
+                <p className="text-xs text-slate-400 mt-0.5">{t('reports.batchesDesc')}</p>
               </div>
               <ExportBtns
                 onExcel={async () => {
                   const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(batchData.map(r => ({
-                    Tovar: r.product_name, Lot: r.lot_number,
-                    KirimNarxi: r.purchase_price, Boshlangich: r.initial_quantity,
-                    Qoldiq: r.remaining_quantity, Sotildi: r.sold_qty,
-                    Daromad: r.revenue, Foyda: r.profit, MarginPct: r.margin_pct,
+                    [t('reports.th.product')]: r.product_name, Lot: r.lot_number,
+                    [t('reports.th.cost')]: r.purchase_price, [t('reports.th.initialQty')]: r.initial_quantity,
+                    [t('reports.th.remaining')]: r.remaining_quantity, [t('reports.th.sold')]: r.sold_qty,
+                    [t('reports.th.revenue')]: r.revenue, [t('reports.th.profit')]: r.profit, [t('reports.th.marginPct')]: r.margin_pct,
                   })));
                   const wb = XLSX.utils.book_new();
-                  XLSX.utils.book_append_sheet(wb, ws, 'Partiyalar');
+                  XLSX.utils.book_append_sheet(wb, ws, t('reports.tab.batches'));
                   saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `partiyalar_${today()}.xlsx`);
                 }}
-                onPdf={() => printTable('Partiyalar FIFO',
-                  ['Tovar', 'Lot', 'Kirim narxi', 'Qoldiq', 'Sotildi', 'Foyda'],
-                  batchData.map(r => [r.product_name, r.lot_number, fmtS(r.purchase_price), fmt(r.remaining_quantity), fmt(r.sold_qty), fmtS(r.profit)])
+                onPdf={() => printTable(t('reports.batchesFifoTitle'),
+                  [t('reports.th.product'), 'Lot', t('reports.th.cost'), t('reports.th.remaining'), t('reports.th.sold'), t('reports.th.profit')],
+                  batchData.map(r => [r.product_name, r.lot_number, fmtS(r.purchase_price), fmt(r.remaining_quantity), fmt(r.sold_qty), fmtS(r.profit)]),
+                  null,
+                  t('common.print')
                 )}
               />
             </div>
@@ -1391,10 +1405,10 @@ export default function Reports() {
             {!loading && batchData.length > 0 && (
               <div className="grid grid-cols-4 gap-4 px-6 py-4 border-b border-slate-100 bg-slate-50">
                 {[
-                  { label: 'Jami partiyalar', val: batchData.length + ' ta', cls: 'text-blue-600' },
-                  { label: 'Jami sotildi', val: fmt(batchData.reduce((a, r) => a + r.sold_qty, 0)) + ' dona', cls: 'text-slate-700' },
-                  { label: 'Jami daromad', val: fmtS(batchData.reduce((a, r) => a + r.revenue, 0)), cls: 'text-emerald-600' },
-                  { label: 'Jami foyda', val: fmtS(batchData.reduce((a, r) => a + r.profit, 0)), cls: 'text-emerald-700' },
+                  { label: t('reports.totalBatches'), val: `${batchData.length} ${t('common.item')}`, cls: 'text-blue-600' },
+                  { label: t('reports.totalSold'), val: `${fmt(batchData.reduce((a, r) => a + r.sold_qty, 0))} ${t('reports.unitPiece')}`, cls: 'text-slate-700' },
+                  { label: t('reports.totalRevenueLabel'), val: fmtS(batchData.reduce((a, r) => a + r.revenue, 0)), cls: 'text-emerald-600' },
+                  { label: t('reports.totalProfitLabel'), val: fmtS(batchData.reduce((a, r) => a + r.profit, 0)), cls: 'text-emerald-700' },
                 ].map(c => (
                   <div key={c.label} className="bg-white rounded-xl p-3 border border-slate-100 shadow-sm">
                     <div className="text-xs text-slate-400 mb-1">{c.label}</div>
@@ -1408,7 +1422,7 @@ export default function Reports() {
                 <table className="min-w-full">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100">
-                      {['Tovar nomi', 'Lot', 'Kirim narxi', 'Kirim miqdori', 'Qoldiq', 'Sotildi', 'Daromad', 'Foyda', 'Margin'].map(h => (
+                      {[t('reports.productNameLabel'), 'Lot', t('reports.th.cost'), t('reports.th.initialQty'), t('reports.th.remaining'), t('reports.th.sold'), t('reports.th.revenue'), t('reports.th.profit'), t('reports.th.margin')].map(h => (
                         <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                       ))}
                     </tr>
@@ -1424,7 +1438,7 @@ export default function Reports() {
                         <td className="px-5 py-3.5 text-sm text-slate-500">{fmt(r.initial_quantity)}</td>
                         <td className="px-5 py-3.5">
                           <span className={`text-sm font-bold ${r.remaining_quantity > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                            {fmt(r.remaining_quantity)}{r.remaining_quantity === 0 ? ' (tugadi)' : ''}
+                            {fmt(r.remaining_quantity)}{r.remaining_quantity === 0 ? ` (${t('reports.finished')})` : ''}
                           </span>
                         </td>
                         <td className="px-5 py-3.5 text-sm text-slate-700">{fmt(r.sold_qty)}</td>
@@ -1441,7 +1455,7 @@ export default function Reports() {
                       </tr>
                     ))}
                     {batchData.length === 0 && (
-                      <tr><td colSpan={9} className="px-6 py-12 text-center text-sm text-slate-400">Ma&apos;lumot yo&apos;q</td></tr>
+                      <tr><td colSpan={9} className="px-6 py-12 text-center text-sm text-slate-400">{t('common.noData')}</td></tr>
                     )}
                   </tbody>
                 </table>

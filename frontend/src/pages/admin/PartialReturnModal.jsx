@@ -3,6 +3,7 @@ import { X, Check } from 'lucide-react';
 import api from '../../api/axios';
 import { toast } from 'react-hot-toast';
 import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
+import { useLang } from '../../context/LangContext';
 
 function fmt(n) {
   if (!n) return '0';
@@ -10,6 +11,7 @@ function fmt(n) {
 }
 
 export default function PartialReturnModal({ sale, onClose, onSuccess }) {
+  const { t } = useLang();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [fetchingItems, setFetchingItems] = useState(false);
@@ -39,7 +41,7 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
           })));
         })
         .catch(() => {
-          toast.error('Sotuv ma\'lumotlarini yuklashda xatolik');
+          toast.error(t('partialReturn.loadError'));
         })
         .finally(() => setFetchingItems(false));
     }
@@ -70,7 +72,7 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
       }));
 
     if (returnItems.length === 0) {
-      toast.error('Qaytariladigan tovarlar tanlanmadi');
+      toast.error(t('partialReturn.noItemsSelected'));
       return;
     }
 
@@ -79,7 +81,7 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
       const payload = {
         items: returnItems,
         payment_type: paymentType,
-        note: `Qisman qaytarish (Sotuv #${sale.number})`
+        note: t('partialReturn.title', { number: sale.number })
       };
 
       await api.post(`/sales/${sale.id}/return-items`, payload);
@@ -105,8 +107,8 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
           const totalRefund = returnedItems.reduce((s, i) => s + i.subtotal, 0);
           const meta = {
             id: 'Vazvrat-' + Date.now(),
-            number: `Vazvrat (Sotuv #${sale.number})`,
-            cashier_name: 'Kassa',
+            number: t('partialReturn.receiptTitle', { number: sale.number }),
+            cashier_name: t('partialReturn.cashierLabel'),
             created_at: new Date().toISOString(),
             total_amount: totalRefund,
             paid_amount: paymentType === 'debt' ? 0 : totalRefund,
@@ -119,10 +121,10 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
         } catch { /* chek chop etilmasa ham qaytarish bekor bo'lmasin */ }
       }
 
-      toast.success('Muvaffaqiyatli qaytarildi');
+      toast.success(t('partialReturn.returnSuccess'));
       onSuccess();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Xatolik yuz berdi');
+      toast.error(error.response?.data?.detail || t('auth.errGeneral'));
     } finally {
       setLoading(false);
     }
@@ -138,7 +140,7 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
           <div>
-            <h3 className="text-xl font-bold text-slate-800">Qisman qaytarish (Sotuv #{sale?.number})</h3>
+            <h3 className="text-xl font-bold text-slate-800">{t('partialReturn.title', { number: sale?.number })}</h3>
           </div>
           <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors duration-150">
             <X size={20} />
@@ -151,11 +153,11 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
             <table className="min-w-full divide-y divide-slate-100">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Mahsulot</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Sotilgan</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Narx</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Qaytarish miqdori</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Qaytarish summasi</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.product')}</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">{t('partialReturn.soldQty')}</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">{t('common.price')}</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">{t('ops.returnQty')}</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">{t('partialReturn.returnAmount')}</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-100 text-sm">
@@ -164,14 +166,14 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
                     <td colSpan={5} className="px-4 py-10 text-center">
                       <div className="flex items-center justify-center gap-2 text-slate-400">
                         <span className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-                        <span className="text-sm">Mahsulotlar yuklanmoqda...</span>
+                        <span className="text-sm">{t('pos.productsLoading')}</span>
                       </div>
                     </td>
                   </tr>
                 ) : items.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-4 py-8 text-center text-slate-400 text-sm">
-                      Mahsulotlar topilmadi
+                      {t('product.noProducts')}
                     </td>
                   </tr>
                 ) : (
@@ -184,7 +186,7 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
                         <td className="px-4 py-3 text-right text-slate-600 font-mono">
                           {fmt(item.quantity)} {item.unit}
                           {item.returned_quantity > 0 && (
-                            <div className="text-[10px] text-red-500 font-semibold">Qaytarilgan: {fmt(item.returned_quantity)}</div>
+                            <div className="text-[10px] text-red-500 font-semibold">{t('partialReturn.returnedLabel')}: {fmt(item.returned_quantity)}</div>
                           )}
                         </td>
                         <td className="px-4 py-3 text-right text-slate-600 font-mono">{fmt(avgPrice)} {currLabel}</td>
@@ -212,14 +214,14 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
 
           <div className="flex items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-100">
             <div className="flex gap-4 items-center flex-wrap">
-              <span className="text-sm font-semibold text-slate-700">Qaytarish turi:</span>
+              <span className="text-sm font-semibold text-slate-700">{t('partialReturn.returnTypeLabel')}</span>
               <select
                 value={paymentType}
                 onChange={(e) => setPaymentType(e.target.value)}
                 className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-400 bg-white"
               >
-                <option value="cash">Naqd pul qaytarish (Kassadan)</option>
-                <option value="debt">Qarzdan chegirish (Mijoz balansi)</option>
+                <option value="cash">{t('partialReturn.cashRefundOption')}</option>
+                <option value="debt">{t('partialReturn.debtDeductOption')}</option>
               </select>
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer select-none">
                 <input
@@ -228,11 +230,11 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
                   onChange={(e) => setPrintReceipt(e.target.checked)}
                   className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-400"
                 />
-                Chek chop etish
+                {t('sale.printReceipt')}
               </label>
             </div>
             <div className="text-right">
-              <span className="text-sm text-slate-500 uppercase tracking-wider font-semibold block mb-1">Jami qaytarilmoqda</span>
+              <span className="text-sm text-slate-500 uppercase tracking-wider font-semibold block mb-1">{t('partialReturn.totalRefundLabel')}</span>
               <span className="text-2xl font-bold text-slate-900">{fmt(totalRefund)} {currLabel}</span>
             </div>
           </div>
@@ -241,7 +243,7 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
         {/* Footer */}
         <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 bg-white shrink-0">
           <button onClick={onClose} className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl transition-colors">
-            Bekor qilish
+            {t('admin.dict.cancel')}
           </button>
           <button
             onClick={submitReturn}
@@ -249,7 +251,7 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
             className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors flex items-center gap-2"
           >
             {loading ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span> : <Check size={18} />}
-            Tasdiqlash
+            {t('common.confirm')}
           </button>
         </div>
       </div>

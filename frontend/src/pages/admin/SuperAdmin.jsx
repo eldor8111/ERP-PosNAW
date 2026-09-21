@@ -92,10 +92,10 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
           {detail && (
             <div className="grid grid-cols-4 gap-2 mt-4">
               {[
-                { label: 'Filiallar', value: detail.stats?.branches ?? 0, icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16' },
-                { label: 'Xodimlar', value: detail.stats?.users ?? 0, icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0' },
-                { label: 'Omborlar', value: detail.stats?.warehouses ?? 0, icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
-                { label: 'Balans', value: `${Number(detail.balance || 0).toLocaleString('uz-UZ')} s`, icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+                { label: t('superAdmin.branches'), value: detail.stats?.branches ?? 0, icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16' },
+                { label: t('superAdmin.employees'), value: detail.stats?.users ?? 0, icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0' },
+                { label: t('superAdmin.warehouses'), value: detail.stats?.warehouses ?? 0, icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
+                { label: t('common.balance'), value: `${Number(detail.balance || 0).toLocaleString('uz-UZ')} s`, icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
               ].map(s => (
                 <div key={s.label} className="bg-white/15 rounded-xl px-3 py-2 text-center">
                   <div className="text-lg font-black">{s.value}</div>
@@ -109,9 +109,9 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
         {/* ── Tabs ── */}
         <div className="shrink-0 flex gap-1 px-5 pt-4 pb-2 border-b border-slate-100">
           {[
-            { id: 'branches', label: `Filiallar (${detail?.branches?.length || 0})`, icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16' },
-            { id: 'users', label: `Xodimlar (${totalUsers})`, icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0' },
-            { id: 'tariff', label: 'Tarif hisoboti', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
+            { id: 'branches', label: `${t('superAdmin.branches')} (${detail?.branches?.length || 0})`, icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16' },
+            { id: 'users', label: `${t('superAdmin.employees')} (${totalUsers})`, icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0' },
+            { id: 'tariff', label: t('superAdmin.tariffReport'), icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
           ].map(tb => (
             <button key={tb.id} onClick={() => setTab(tb.id)}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${tab === tb.id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}>
@@ -131,12 +131,12 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
             <div className="w-14 h-14 rounded-2xl bg-red-100 text-red-500 flex items-center justify-center">
               <Ic d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" cls="w-7 h-7" />
             </div>
-            <p className="text-sm font-semibold text-slate-600">Ma'lumotlarni yuklashda xatolik</p>
+            <p className="text-sm font-semibold text-slate-600">{t('superAdmin.dataLoadError')}</p>
             <button
               onClick={() => { setLoadError(false); setLoading(true); api.get(`/super-admin/companies/${companyId}`).then(r => setDetail(r.data)).catch(() => setLoadError(true)).finally(() => setLoading(false)); }}
               className="text-xs px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-xl font-semibold transition-all"
             >
-              Qayta urinish
+              {t('superAdmin.retry')}
             </button>
           </div>
         ) : !detail ? (
@@ -148,7 +148,7 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
             {tab === 'branches' && (
               <div className="space-y-2">
                 {detail.branches?.length === 0 && (
-                  <div className="text-center text-slate-400 py-16">Filiallar yo'q</div>
+                  <div className="text-center text-slate-400 py-16">{t('superAdmin.noBranches')}</div>
                 )}
                 {detail.branches?.map((b) => (
                   <div key={b.id} className="flex items-center gap-3 p-4 bg-slate-50 hover:bg-blue-50/50 rounded-2xl border border-slate-100 transition-colors">
@@ -159,7 +159,7 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-slate-800 text-sm">{b.name}</span>
                         <span className={`text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 ${b.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
-                          {b.is_active ? 'Faol' : 'Nofaol'}
+                          {b.is_active ? t('common.active') : t('common.inactive')}
                         </span>
                       </div>
                       {b.address && (
@@ -177,7 +177,7 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
                     </div>
                     <div className="text-right shrink-0">
                       <div className="text-sm font-bold text-blue-700">{b.users_count}</div>
-                      <div className="text-xs text-slate-400">xodim</div>
+                      <div className="text-xs text-slate-400">{t('superAdmin.employee')}</div>
                     </div>
                   </div>
                 ))}
@@ -201,6 +201,7 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
 }
 
 function DrawerBranchUsers({ branches }) {
+  const { t } = useLang();
   const [branchId, setBranchId] = useState('');
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -220,14 +221,14 @@ function DrawerBranchUsers({ branches }) {
     <div className="space-y-3">
       <select value={branchId} onChange={e => setBranchId(e.target.value)}
         className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-slate-50">
-        <option value="">— Filialni tanlang —</option>
+        <option value="">— {t('superAdmin.selectBranch')} —</option>
         {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
       </select>
 
       {!branchId && (
         <div className="flex flex-col items-center justify-center py-16 text-slate-400">
           <Ic d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0" cls="w-10 h-10 mb-2 opacity-30" />
-          <p className="text-sm">Filialni tanlang</p>
+          <p className="text-sm">{t('superAdmin.selectBranch')}</p>
         </div>
       )}
       {loading && <div className="flex justify-center py-10"><div className="w-7 h-7 border-4 border-blue-400 border-t-transparent rounded-full animate-spin" /></div>}
@@ -236,15 +237,15 @@ function DrawerBranchUsers({ branches }) {
           <div className="w-10 h-10 rounded-xl bg-red-100 text-red-500 flex items-center justify-center">
             <Ic d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" cls="w-5 h-5" />
           </div>
-          <p className="text-sm text-red-500 font-semibold">Xodimlarni yuklab bo'lmadi</p>
+          <p className="text-sm text-red-500 font-semibold">{t('superAdmin.employeesLoadError')}</p>
           <button onClick={() => { const id = branchId; setBranchId(''); setTimeout(() => setBranchId(id), 50); }}
             className="text-xs px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-semibold">
-            Qayta urinish
+            {t('superAdmin.retry')}
           </button>
         </div>
       )}
       {!loading && !fetchError && branchId && users.length === 0 && (
-        <p className="text-slate-400 text-sm text-center py-10">Bu filialda xodimlar yo'q</p>
+        <p className="text-slate-400 text-sm text-center py-10">{t('superAdmin.noEmployeesInBranch')}</p>
       )}
       {!loading && users.map(u => (
         <div key={u.id} className="flex items-center gap-3 p-4 bg-slate-50 hover:bg-blue-50/50 rounded-2xl border border-slate-100 transition-colors">
@@ -260,7 +261,7 @@ function DrawerBranchUsers({ branches }) {
               {ROLE_LABELS[u.role] || u.role}
             </span>
             <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${u.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
-              {u.status === 'active' ? 'Faol' : 'Nofaol'}
+              {u.status === 'active' ? t('common.active') : t('common.inactive')}
             </span>
           </div>
         </div>
@@ -270,6 +271,7 @@ function DrawerBranchUsers({ branches }) {
 }
 
 function DrawerTariffReport({ detail }) {
+  const { t } = useLang();
   const fmtMon = v => Number(v || 0).toLocaleString('uz-UZ');
   const fmtDt = d => d ? new Date(d).toLocaleDateString('uz-UZ', { year: 'numeric', month: 'long', day: 'numeric' }) : '—';
 
@@ -282,18 +284,18 @@ function DrawerTariffReport({ detail }) {
       {/* Tarif kartasi */}
       <div className="bg-gradient-to-br from-blue-50 to-violet-50 rounded-2xl border border-blue-100 p-5">
         <div className="flex items-center justify-between mb-3">
-          <h4 className="font-bold text-slate-700 text-sm">Joriy tarif</h4>
+          <h4 className="font-bold text-slate-700 text-sm">{t('superAdmin.currentTariff')}</h4>
           {detail.is_trial && (
-            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">Sinov muddati</span>
+            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">{t('superAdmin.trialPeriod')}</span>
           )}
         </div>
         <div className="text-2xl font-black text-blue-700 mb-1">
-          {detail.tariff_name || 'Tarif belgilanmagan'}
+          {detail.tariff_name || t('superAdmin.tariffNotSet')}
         </div>
         <div className="flex items-center gap-2 mt-3">
           <span className={`w-2 h-2 rounded-full ${subActive ? 'bg-emerald-500' : 'bg-red-400'}`} />
           <span className={`text-sm font-semibold ${subActive ? 'text-emerald-600' : 'text-red-500'}`}>
-            {subActive ? 'Obuna faol' : 'Obuna tugagan'}
+            {subActive ? t('superAdmin.subscriptionActive') : t('superAdmin.subscriptionExpired')}
           </span>
         </div>
       </div>
@@ -301,29 +303,29 @@ function DrawerTariffReport({ detail }) {
       {/* Ma'lumotlar grid */}
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4">
-          <div className="text-xs text-slate-400 mb-1">Balans</div>
-          <div className="text-xl font-black text-slate-800">{fmtMon(detail.balance)} <span className="text-sm font-semibold text-slate-400">so'm</span></div>
+          <div className="text-xs text-slate-400 mb-1">{t('common.balance')}</div>
+          <div className="text-xl font-black text-slate-800">{fmtMon(detail.balance)} <span className="text-sm font-semibold text-slate-400">{t('common.sum')}</span></div>
         </div>
         <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4">
-          <div className="text-xs text-slate-400 mb-1">Qolgan kunlar</div>
-          <div className={`text-xl font-black ${daysColor}`}>{daysLeft} <span className="text-sm font-semibold text-slate-400">kun</span></div>
+          <div className="text-xs text-slate-400 mb-1">{t('superAdmin.daysLeft')}</div>
+          <div className={`text-xl font-black ${daysColor}`}>{daysLeft} <span className="text-sm font-semibold text-slate-400">{t('superAdmin.days')}</span></div>
         </div>
         <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4 col-span-2">
-          <div className="text-xs text-slate-400 mb-1">Obuna tugash sanasi</div>
+          <div className="text-xs text-slate-400 mb-1">{t('superAdmin.subscriptionEndDate')}</div>
           <div className="text-base font-bold text-slate-700">{fmtDt(detail.subscription_ends_at)}</div>
         </div>
       </div>
 
       {/* Qo'shimcha ma'lumotlar */}
       <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4 space-y-2.5">
-        <h4 className="font-bold text-slate-600 text-xs uppercase tracking-wider mb-3">Korxona ma'lumotlari</h4>
+        <h4 className="font-bold text-slate-600 text-xs uppercase tracking-wider mb-3">{t('superAdmin.companyInfo')}</h4>
         {[
-          { label: "Ro'yxatdan o'tgan", value: fmtDt(detail.created_at) },
-          { label: 'Viloyat', value: detail.region || '—' },
-          { label: 'Tuman', value: detail.district || '—' },
-          { label: 'Manzil', value: detail.address || '—' },
-          { label: 'Telefon', value: detail.phone || '—' },
-          { label: 'Email', value: detail.email || '—' },
+          { label: t('superAdmin.registeredAt'), value: fmtDt(detail.created_at) },
+          { label: t('superAdmin.region'), value: detail.region || '—' },
+          { label: t('superAdmin.district'), value: detail.district || '—' },
+          { label: t('common.address'), value: detail.address || '—' },
+          { label: t('common.phone'), value: detail.phone || '—' },
+          { label: t('superAdmin.email'), value: detail.email || '—' },
         ].map(row => (
           <div key={row.label} className="flex items-start justify-between gap-3">
             <span className="text-xs text-slate-400 shrink-0">{row.label}</span>
@@ -357,7 +359,7 @@ function AgentsTab() {
 
   const load = () => {
     setLoading(true);
-    api.get('/agents/').then(r => setAgents(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") }).finally(() => setLoading(false));
+    api.get('/agents/').then(r => setAgents(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('superAdmin.errorOccurred')) }).finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, []);
 
@@ -365,14 +367,14 @@ function AgentsTab() {
   const closeModal = () => { setShowModal(false); setError(''); };
 
   const handleCreate = async () => {
-    if (!form.name.trim() || !form.phone.trim()) { setError("Ism va telefon raqam kiritilishi shart"); return; }
+    if (!form.name.trim() || !form.phone.trim()) { setError(t('superAdmin.nameAndPhoneRequired')); return; }
     setSaving(true); setError('');
     try {
       const payload = { name: form.name.trim(), phone: form.phone.trim() };
       if (form.code.trim()) payload.code = form.code.trim().toUpperCase();
       const res = await api.post('/agents/', payload);
       setNewAgent(res.data); setShowModal(false); load();
-    } catch (e) { setError(e?.response?.data?.detail || "Xatolik yuz berdi"); }
+    } catch (e) { setError(e?.response?.data?.detail || t('superAdmin.errorOccurred')); }
     finally { setSaving(false); }
   };
 
@@ -381,22 +383,22 @@ function AgentsTab() {
   const openEdit = (agent) => { setEditAgent(agent); setEditForm({ name: agent.name, phone: agent.phone }); setEditError(''); };
   const closeEdit = () => { setEditAgent(null); setEditError(''); };
   const handleEdit = async () => {
-    if (!editForm.name.trim() || !editForm.phone.trim()) { setEditError("Ism va telefon raqam kiritilishi shart"); return; }
+    if (!editForm.name.trim() || !editForm.phone.trim()) { setEditError(t('superAdmin.nameAndPhoneRequired')); return; }
     setEditSaving(true); setEditError('');
     try {
       await api.patch(`/agents/${editAgent.id}`, { name: editForm.name.trim(), phone: editForm.phone.trim() });
       closeEdit(); load();
-    } catch (e) { setEditError(e?.response?.data?.detail || "Xatolik yuz berdi"); }
+    } catch (e) { setEditError(e?.response?.data?.detail || t('superAdmin.errorOccurred')); }
     finally { setEditSaving(false); }
   };
 
   const openDelete = (agent) => { const pin = String(Math.floor(1000 + Math.random() * 9000)); setDeletePin(pin); setDeleteTarget(agent); setPinValue(''); setPinError(''); };
   const closeDelete = () => { setDeleteTarget(null); setPinValue(''); setPinError(''); };
   const confirmDelete = async () => {
-    if (pinValue !== deletePin) { setPinError("PIN noto'g'ri. Iltimos, qayta kiriting."); setPinValue(''); return; }
+    if (pinValue !== deletePin) { setPinError(t('superAdmin.pinIncorrect')); setPinValue(''); return; }
     setPinDeleting(true);
     try { await api.delete(`/agents/${deleteTarget.id}`); closeDelete(); load(); }
-    catch { setPinError("O'chirishda xatolik yuz berdi"); }
+    catch { setPinError(t('superAdmin.deleteError')); }
     finally { setPinDeleting(false); }
   };
 
@@ -406,12 +408,12 @@ function AgentsTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-bold text-slate-800">Agentlar ro'yxati</h3>
-          <p className="text-xs text-slate-400 mt-0.5">Har bir agent uchun unikal kod avtomatik yaratiladi</p>
+          <h3 className="font-bold text-slate-800">{t('superAdmin.agentsList')}</h3>
+          <p className="text-xs text-slate-400 mt-0.5">{t('superAdmin.agentCodeAutoHint')}</p>
         </div>
         <button onClick={openModal} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm shadow-blue-200 transition-all">
           <Ic d="M12 4v16m8-8H4" />
-          Agent qo'shish
+          {t('superAdmin.addAgent')}
         </button>
       </div>
 
@@ -421,8 +423,8 @@ function AgentsTab() {
             <Ic d="M5 13l4 4L19 7" cls="w-5 h-5" />
           </div>
           <div className="flex-1">
-            <div className="text-sm font-bold text-emerald-800">Agent muvaffaqiyatli qo'shildi!</div>
-            <div className="text-xs text-emerald-600 mt-0.5">{newAgent.name} — unikal kod:</div>
+            <div className="text-sm font-bold text-emerald-800">{t('superAdmin.agentAddedSuccess')}</div>
+            <div className="text-xs text-emerald-600 mt-0.5">{newAgent.name} — {t('superAdmin.uniqueCode')}:</div>
           </div>
           <div className="text-2xl font-black text-emerald-700 bg-white px-5 py-2 rounded-xl border border-emerald-200 tracking-widest">{newAgent.code}</div>
           <button onClick={() => setNewAgent(null)} className="text-emerald-400 hover:text-emerald-600">
@@ -440,7 +442,7 @@ function AgentsTab() {
                 <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
                   <Ic d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </div>
-                <h4 className="font-bold text-slate-800">Yangi agent qo'shish</h4>
+                <h4 className="font-bold text-slate-800">{t('superAdmin.addNewAgent')}</h4>
               </div>
               <button onClick={closeModal} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600">
                 <Ic d="M6 18L18 6M6 6l12 12" />
@@ -448,18 +450,18 @@ function AgentsTab() {
             </div>
             <div className="px-6 py-5 space-y-4">
               <div>
-                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Ismi *</label>
-                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Masalan: Alisher Rahimov" autoFocus className={modalInput} />
+                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">{t('superAdmin.nameLabel')} *</label>
+                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder={t('superAdmin.namePlaceholder')} autoFocus className={modalInput} />
               </div>
               <div>
-                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Telefon raqami *</label>
+                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">{t('superAdmin.phoneLabel')} *</label>
                 <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="+998901234567" className={modalInput} />
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-600 mb-1.5 block">
-                  Kod <span className="font-normal text-slate-400">(ixtiyoriy — bo'sh qoldirsangiz avtomatik yaratiladi)</span>
+                  {t('superAdmin.codeLabel')} <span className="font-normal text-slate-400">({t('superAdmin.codeAutoHint')})</span>
                 </label>
-                <input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} placeholder="Masalan: J4602" maxLength={10}
+                <input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} placeholder={t('superAdmin.codePlaceholder')} maxLength={10}
                   className={`${modalInput} font-mono tracking-widest uppercase`} />
               </div>
               {error && <div className="text-xs text-red-600 bg-red-50 px-4 py-2.5 rounded-xl border border-red-100">{error}</div>}
@@ -467,7 +469,7 @@ function AgentsTab() {
             <div className="px-6 py-4 border-t border-slate-100 flex gap-2 justify-end">
               <button onClick={closeModal} className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold rounded-xl transition-all">{t('common.cancel')}</button>
               <button onClick={handleCreate} disabled={saving} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm disabled:opacity-50 transition-all">
-                {saving ? 'Saqlanmoqda...' : 'Saqlash'}
+                {saving ? t('common.saving') : t('common.save')}
               </button>
             </div>
           </div>
@@ -484,8 +486,8 @@ function AgentsTab() {
                   <Ic d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-slate-800">Agentni tahrirlash</h4>
-                  <p className="text-xs text-slate-400">Kod: <span className="font-mono font-bold text-blue-600">{editAgent.code}</span></p>
+                  <h4 className="font-bold text-slate-800">{t('superAdmin.editAgent')}</h4>
+                  <p className="text-xs text-slate-400">{t('superAdmin.codeLabel')}: <span className="font-mono font-bold text-blue-600">{editAgent.code}</span></p>
                 </div>
               </div>
               <button onClick={closeEdit} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600">
@@ -494,12 +496,12 @@ function AgentsTab() {
             </div>
             <div className="px-6 py-5 space-y-4">
               <div>
-                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Ismi *</label>
+                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">{t('superAdmin.nameLabel')} *</label>
                 <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} autoFocus
                   className={modalInput.replace('blue-300', 'amber-300')} />
               </div>
               <div>
-                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Telefon raqami *</label>
+                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">{t('superAdmin.phoneLabel')} *</label>
                 <input value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
                   className={modalInput.replace('blue-300', 'amber-300')} />
               </div>
@@ -508,7 +510,7 @@ function AgentsTab() {
             <div className="px-6 py-4 border-t border-slate-100 flex gap-2 justify-end">
               <button onClick={closeEdit} className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold rounded-xl transition-all">{t('common.cancel')}</button>
               <button onClick={handleEdit} disabled={editSaving} className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl shadow-sm disabled:opacity-50 transition-all">
-                {editSaving ? 'Saqlanmoqda...' : 'Saqlash'}
+                {editSaving ? t('common.saving') : t('common.save')}
               </button>
             </div>
           </div>
@@ -523,10 +525,10 @@ function AgentsTab() {
               <div className="w-14 h-14 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
                 <Ic d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" cls="w-7 h-7" />
               </div>
-              <h4 className="font-black text-slate-800 text-lg mb-1">Agentni o'chirish</h4>
-              <p className="text-sm text-slate-500 mb-1"><span className="font-semibold text-slate-700">{deleteTarget.name}</span> o'chirilmoqda</p>
+              <h4 className="font-black text-slate-800 text-lg mb-1">{t('superAdmin.deleteAgent')}</h4>
+              <p className="text-sm text-slate-500 mb-1"><span className="font-semibold text-slate-700">{deleteTarget.name}</span> {t('superAdmin.beingDeleted')}</p>
               <p className="text-xs text-slate-400 mb-5">
-                Tasdiqlash uchun <span className="font-black text-red-500 text-base tracking-widest">{deletePin}</span> kodni kiriting
+                {t('superAdmin.enterCodeToConfirm')} <span className="font-black text-red-500 text-base tracking-widest">{deletePin}</span>
               </p>
               <input
                 value={pinValue}
@@ -542,7 +544,7 @@ function AgentsTab() {
               <button onClick={closeDelete} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold rounded-xl transition-all">{t('common.cancel')}</button>
               <button onClick={confirmDelete} disabled={pinDeleting || pinValue.length < 4}
                 className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-xl shadow-sm disabled:opacity-40 transition-all">
-                {pinDeleting ? "O'chirilmoqda..." : "O'chirish"}
+                {pinDeleting ? t('superAdmin.deleting') : t('common.delete')}
               </button>
             </div>
           </div>
@@ -553,7 +555,7 @@ function AgentsTab() {
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-700">
-            Agentlar <span className="text-blue-600 font-black">({agents.length})</span>
+            {t('superAdmin.agentsList')} <span className="text-blue-600 font-black">({agents.length})</span>
           </h3>
           <button onClick={load} className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-medium transition-all">{t('common.refresh')}</button>
         </div>
@@ -562,7 +564,7 @@ function AgentsTab() {
         ) : (
           <table className="min-w-full">
             <thead><tr className="bg-slate-50 border-b border-slate-100">
-              {['#', 'Kod', 'Ismi', 'Telefon', 'Holat', 'Korxonalar', 'Sana', 'Amallar'].map(h => (
+              {['#', t('superAdmin.codeLabel'), t('superAdmin.nameLabel'), t('common.phone'), t('common.status'), t('superAdmin.companies'), t('common.date'), t('common.actions')].map(h => (
                 <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
               ))}
             </tr></thead>
@@ -583,12 +585,12 @@ function AgentsTab() {
                   <td className="px-5 py-4">
                     <button onClick={() => toggleActive(a)}
                       className={`px-2.5 py-1 text-xs font-semibold rounded-full cursor-pointer transition-all ${a.is_active ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-red-100 text-red-600 hover:bg-red-200'}`}>
-                      {a.is_active ? 'Faol' : 'Nofaol'}
+                      {a.is_active ? t('common.active') : t('common.inactive')}
                     </button>
                   </td>
                   <td className="px-5 py-4">
                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg border border-blue-100 shadow-sm">
-                      {a.companies_count || 0} ta
+                      {a.companies_count || 0} {t('common.item')}
                     </span>
                   </td>
                   <td className="px-5 py-4 text-sm text-slate-400">{fmtDate(a.created_at)}</td>
@@ -596,10 +598,10 @@ function AgentsTab() {
                     <div className="flex items-center gap-2">
                       <button onClick={() => openEdit(a)} className="text-xs px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-lg font-medium transition-all flex items-center gap-1 border border-amber-100">
                         <Ic d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" cls="w-3 h-3" />
-                        Tahrirlash
+                        {t('common.edit')}
                       </button>
                       <button onClick={() => openDelete(a)} className="text-xs px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-500 rounded-lg font-medium transition-all border border-red-100">
-                        O'chirish
+                        {t('common.delete')}
                       </button>
                     </div>
                   </td>
@@ -610,8 +612,8 @@ function AgentsTab() {
                   <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
                     <Ic d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" cls="w-6 h-6 text-slate-400" />
                   </div>
-                  <p className="text-slate-400 text-sm">Agentlar topilmadi</p>
-                  <p className="text-slate-300 text-xs mt-1">Yuqoridagi tugma orqali qo'shing</p>
+                  <p className="text-slate-400 text-sm">{t('superAdmin.agentsNotFound')}</p>
+                  <p className="text-slate-300 text-xs mt-1">{t('superAdmin.addViaButtonAbove')}</p>
                 </td></tr>
               )}
             </tbody>
@@ -658,10 +660,10 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
       if (match) {
         setFoundCompany(match);
       } else {
-        setSearchErr(`"${topUp.org_code.toUpperCase()}" kodi bilan korxona topilmadi`);
+        setSearchErr(t('superAdmin.companyWithCodeNotFound', { code: topUp.org_code.toUpperCase() }));
       }
     } catch {
-      setSearchErr('Qidirishda xatolik yuz berdi');
+      setSearchErr(t('superAdmin.searchError'));
     } finally {
       setSearchLoading(false);
     }
@@ -677,13 +679,13 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
         org_code: foundCompany.code,
         amount: parseFloat(topUp.amount),
       });
-      setTopUpMsg({ ok: true, text: `✓ ${res.data.company_name} — yangi balans: ${res.data.new_balance.toLocaleString()} s` });
+      setTopUpMsg({ ok: true, text: `✓ ${res.data.company_name} — ${t('superAdmin.newBalance')}: ${res.data.new_balance.toLocaleString()} s` });
       setTopUp({ org_code: '', amount: '' });
       setFoundCompany(null);
       loadCompanies();
       window.dispatchEvent(new Event('balance-updated'));
     } catch (err) {
-      setTopUpMsg({ ok: false, text: err.response?.data?.detail || 'Xatolik yuz berdi' });
+      setTopUpMsg({ ok: false, text: err.response?.data?.detail || t('superAdmin.errorOccurred') });
     } finally {
       setTopUpLoading(false);
     }
@@ -691,20 +693,20 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
 
   const loadCompanies = () => {
     setLoading(true);
-    api.get('/super-admin/companies').then(r => setCompanies(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") }).finally(() => setLoading(false));
+    api.get('/super-admin/companies').then(r => setCompanies(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('superAdmin.errorOccurred')) }).finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    api.get('/super-admin/overview').then(r => setOverview(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/super-admin/overview').then(r => setOverview(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('superAdmin.errorOccurred')) });
     loadCompanies();
   }, []);
 
   const tabs = [
-    { id: 'companies', label: 'Korxonalar', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
-    { id: 'billing', label: 'Billing', icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z' },
-    { id: 'tariffs', label: 'Tariflar', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
-    { id: 'announcements', label: 'Bildirish Nomalar', icon: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9' },
-    { id: 'settings', label: 'Sozlamalar', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
+    { id: 'companies', label: t('superAdmin.companies'), icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
+    { id: 'billing', label: t('superAdmin.billing'), icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z' },
+    { id: 'tariffs', label: t('superAdmin.tariffs'), icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+    { id: 'announcements', label: t('superAdmin.announcements'), icon: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9' },
+    { id: 'settings', label: t('superAdmin.settings'), icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
   ];
 
   return (
@@ -716,28 +718,28 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
             <Ic d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" cls="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-base font-black text-slate-800">Super Admin Panel</h1>
-            <p className="text-xs text-slate-400">Tizim bo'yicha to'liq boshqaruv</p>
+            <h1 className="text-base font-black text-slate-800">{t('superAdmin.panelTitle')}</h1>
+            <p className="text-xs text-slate-400">{t('superAdmin.fullSystemManagement')}</p>
           </div>
           <span className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 text-blue-700 text-xs font-bold rounded-full">
             <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
-            Super Admin
+            {t('superAdmin.superAdmin')}
           </span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {[
-            { label: 'Korxonalar', value: overview?.companies ?? '—', color: 'text-blue-700 bg-blue-50' },
-            { label: 'Filiallar', value: overview?.branches ?? '—', color: 'text-emerald-700 bg-emerald-50' },
-            { label: 'Xodimlar', value: overview?.users ?? '—', color: 'text-blue-700 bg-blue-50' },
-            { label: 'Jami sotuv', value: overview ? `${Number(overview.total_revenue || 0).toLocaleString('uz-UZ')} s` : '—', color: 'text-blue-700 bg-blue-50' },
+            { label: t('superAdmin.companies'), value: overview?.companies ?? '—', color: 'text-blue-700 bg-blue-50' },
+            { label: t('superAdmin.branches'), value: overview?.branches ?? '—', color: 'text-emerald-700 bg-emerald-50' },
+            { label: t('superAdmin.employees'), value: overview?.users ?? '—', color: 'text-blue-700 bg-blue-50' },
+            { label: t('superAdmin.totalSales'), value: overview ? `${Number(overview.total_revenue || 0).toLocaleString('uz-UZ')} s` : '—', color: 'text-blue-700 bg-blue-50' },
             {
-              label: "Bugun tariflar",
-              value: overview ? `${overview.today_subscriptions ?? 0} ta` : '—',
+              label: t('superAdmin.todayTariffs'),
+              value: overview ? `${overview.today_subscriptions ?? 0} ${t('common.item')}` : '—',
               color: 'text-amber-700 bg-amber-50',
               sub: overview ? `${Number(overview.today_sub_revenue || 0).toLocaleString('uz-UZ')} s` : null,
             },
             {
-              label: "Bugun tushum",
+              label: t('superAdmin.todayRevenue'),
               value: overview ? `${Number(overview.today_sub_revenue || 0).toLocaleString('uz-UZ')} s` : '—',
               color: 'text-blue-700 bg-blue-50',
             },
@@ -773,18 +775,18 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
               <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center">
                 <Ic d="M12 6v6m0 0v6m0-6h6m-6 0H6" cls="w-4 h-4 text-emerald-600" />
               </div>
-              Korxona balansi to'ldirish
+              {t('superAdmin.topUpCompanyBalance')}
             </h3>
 
             {/* Step 1 — search */}
             {!foundCompany ? (
               <form onSubmit={handleSearchCompany} className="flex items-end gap-3">
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs text-slate-500 font-medium">Tashkilot kodi</label>
+                  <label className="text-xs text-slate-500 font-medium">{t('superAdmin.orgCode')}</label>
                   <input
                     value={topUp.org_code}
                     onChange={e => { setTopUp(p => ({ ...p, org_code: e.target.value.toUpperCase() })); setSearchErr(''); }}
-                    placeholder="Masalan: 12345678"
+                    placeholder={t('superAdmin.orgCodePlaceholder')}
                     className="border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono font-bold text-blue-700 w-44 focus:outline-none focus:ring-2 focus:ring-blue-300"
                     autoFocus
                   />
@@ -795,8 +797,8 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
                   className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-all disabled:opacity-60 flex items-center gap-2"
                 >
                   {searchLoading
-                    ? <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>Qidirilmoqda...</>
-                    : <><Ic d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" cls="w-4 h-4" />Qidirish</>
+                    ? <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>{t('superAdmin.searching')}</>
+                    : <><Ic d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" cls="w-4 h-4" />{t('common.search')}</>
                   }
                 </button>
               </form>
@@ -810,12 +812,12 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
                   </div>
                   <div className="flex-1">
                     <div className="font-bold text-slate-800 text-sm">{foundCompany.name}</div>
-                    <div className="text-xs text-blue-500 font-mono font-bold mt-0.5">Kod: {foundCompany.code}</div>
+                    <div className="text-xs text-blue-500 font-mono font-bold mt-0.5">{t('superAdmin.codeLabel')}: {foundCompany.code}</div>
                   </div>
                   <button
                     onClick={() => { setFoundCompany(null); setTopUp(p => ({ ...p, amount: '' })); setTopUpMsg(null); }}
                     className="text-slate-400 hover:text-red-500 transition-colors"
-                    title="Bekor qilish"
+                    title={t('common.cancel')}
                   >
                     <Ic d="M6 18L18 6M6 6l12 12" cls="w-4 h-4" />
                   </button>
@@ -824,7 +826,7 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
                 {/* Amount form */}
                 <form onSubmit={handleTopUp} className="flex items-end gap-3">
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs text-slate-500 font-medium">Miqdor (so'm)</label>
+                    <label className="text-xs text-slate-500 font-medium">{t('superAdmin.amountSum')}</label>
                     <input
                       type="number"
                       value={topUp.amount}
@@ -840,7 +842,7 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
                     disabled={topUpLoading || !topUp.amount}
                     className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl transition-all disabled:opacity-60"
                   >
-                    {topUpLoading ? 'Yuklanmoqda...' : 'Balansni to\'ldirish'}
+                    {topUpLoading ? t('common.loading') : t('superAdmin.topUpBalance')}
                   </button>
                 </form>
               </div>
@@ -860,19 +862,19 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-700">
-                Korxonalar ro'yxati <span className="text-blue-600 font-black">({companies.length})</span>
+                {t('superAdmin.companiesList')} <span className="text-blue-600 font-black">({companies.length})</span>
               </h3>
               <button onClick={loadCompanies} className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-medium transition-all">{t('common.refresh')}</button>
             </div>
             {loading ? (
               <div className="flex justify-center py-16"><div className="w-7 h-7 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
             ) : companies.length === 0 ? (
-              <div className="py-16 text-center text-slate-400 text-sm">Korxonalar topilmadi</div>
+              <div className="py-16 text-center text-slate-400 text-sm">{t('superAdmin.companiesNotFound')}</div>
             ) : (
               <table className="min-w-full">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-100">
-                    {['#', 'Korxona nomi', 'Kod', "Ro'yxatdan o'tgan sana", 'Holat', ''].map(h => (
+                    {['#', t('superAdmin.companyName'), t('superAdmin.codeLabel'), t('superAdmin.registrationDate'), t('common.status'), ''].map(h => (
                       <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
@@ -899,7 +901,7 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
                       <td className="px-5 py-3 text-sm text-slate-500">{fmtDate(c.created_at)}</td>
                       <td className="px-5 py-3">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${c.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
-                          {c.is_active ? 'Faol' : 'Nofaol'}
+                          {c.is_active ? t('common.active') : t('common.inactive')}
                         </span>
                       </td>
                       <td className="px-5 py-3 text-slate-300">
@@ -966,7 +968,7 @@ function BillingTab() {
     ]).then(([r1, r2]) => {
       setList(r1.data);
       setTariffs(r2.data);
-    }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") }).finally(() => setLoading(false));
+    }).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('superAdmin.errorOccurred')) }).finally(() => setLoading(false));
   };
 
   useEffect(() => { load(); }, []);
@@ -978,13 +980,13 @@ function BillingTab() {
       alert(r.data.message);
       load();
     } catch (e) {
-      alert(e.response?.data?.detail || 'Xatolik');
+      alert(e.response?.data?.detail || t('common.error'));
     } finally { setSaving(false); setActionModal(null); }
   };
 
   const doTopUp = async () => {
     const amount = Number(topupForm.amount);
-    if (!amount || amount <= 0) return alert('Miqdor kiriting!');
+    if (!amount || amount <= 0) return alert(t('superAdmin.enterAmount'));
     setSaving(true);
     try {
       const r = await api.post(`/billing/companies/${actionModal.company.id}/top-up`, {
@@ -995,30 +997,30 @@ function BillingTab() {
       load();
       setActionModal(null);
     } catch (e) {
-      alert(e.response?.data?.detail || 'Xatolik');
+      alert(e.response?.data?.detail || t('common.error'));
     } finally { setSaving(false); }
   };
 
   const activateSubscription = async () => {
-    if (!subForm.tariff_id) return alert('Tarif tanlang!');
+    if (!subForm.tariff_id) return alert(t('superAdmin.selectTariffAlert'));
     setSaving(true);
     try {
       const r = await api.post(`/billing/companies/${actionModal.company.id}/subscribe`, {
         tariff_id: Number(subForm.tariff_id),
         months: Number(subForm.months),
       });
-      alert(r.data.message + `\nBalansdan yechildi: ${fmtMoney(r.data.charged)} so'm`);
+      alert(r.data.message + `\n${t('superAdmin.chargedFromBalance')}: ${fmtMoney(r.data.charged)} ${t('common.sum')}`);
       load();
       setActionModal(null);
     } catch (e) {
-      alert(e.response?.data?.detail || 'Xatolik');
+      alert(e.response?.data?.detail || t('common.error'));
     } finally { setSaving(false); }
   };
 
   const statusBadge = (c) => {
-    if (!c.subscription_active) return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-600">Tugagan</span>;
-    if (c.is_trial) return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">Sinov ({c.days_left}k)</span>;
-    return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">Faol ({c.days_left}k)</span>;
+    if (!c.subscription_active) return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-600">{t('superAdmin.expired')}</span>;
+    if (c.is_trial) return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">{t('superAdmin.trial')} ({c.days_left}{t('superAdmin.dayShort')})</span>;
+    return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">{t('common.active')} ({c.days_left}{t('superAdmin.dayShort')})</span>;
   };
 
   const filtered = list.filter(c => {
@@ -1045,16 +1047,16 @@ function BillingTab() {
           <span className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center">
             <Ic d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" cls="w-4 h-4 text-blue-600" />
           </span>
-          Korxonalar Billing
+          {t('superAdmin.companiesBilling')}
           <span className="text-xs font-normal text-slate-400">({filtered.length}/{list.length})</span>
           {filtered.length > 0 && (
             <span className="text-xs font-normal text-slate-400 ml-1">
-              — {safePage}-sahifa
+              — {t('superAdmin.pageOf', { page: safePage })}
             </span>
           )}
         </h3>
         <button onClick={load} className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg font-semibold text-slate-600 transition-all">
-          Yangilash
+          {t('common.refresh')}
         </button>
       </div>
 
@@ -1062,25 +1064,25 @@ function BillingTab() {
       <div className="px-5 py-3 bg-slate-50 border-b border-slate-100 flex flex-wrap gap-2 items-center">
         <input
           type="text"
-          placeholder="Korxona nomi yoki kodi..."
+          placeholder={t('superAdmin.companyNameOrCode')}
           value={search}
           onChange={e => handleSearch(e.target.value)}
           className="flex-1 min-w-[180px] text-sm border border-slate-200 rounded-lg px-3 py-1.5 outline-none focus:ring-2 focus:ring-blue-300 bg-white"
         />
         <div className="flex items-center gap-1.5 text-xs text-slate-500">
-          <span>Dan:</span>
+          <span>{t('common.from')}:</span>
           <input type="date" value={dateFrom} onChange={e => handleDateFrom(e.target.value)}
             className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-blue-300 bg-white" />
         </div>
         <div className="flex items-center gap-1.5 text-xs text-slate-500">
-          <span>Gacha:</span>
+          <span>{t('common.to')}:</span>
           <input type="date" value={dateTo} onChange={e => handleDateTo(e.target.value)}
             className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-blue-300 bg-white" />
         </div>
         {(search || dateFrom || dateTo) && (
           <button onClick={handleClearFilters}
             className="text-xs px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg font-semibold border border-red-100 transition-all">
-            Tozalash
+            {t('superAdmin.clear')}
           </button>
         )}
       </div>
@@ -1092,14 +1094,14 @@ function BillingTab() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr>
-                {['Korxona', 'Yaratilgan', 'Balans', 'Tarif', 'Obuna holati', 'Tugash sanasi', 'Amallar'].map(h => (
+                {[t('superAdmin.companyLabel'), t('superAdmin.createdAt'), t('common.balance'), t('superAdmin.tariff'), t('superAdmin.subscriptionStatus'), t('superAdmin.endDate'), t('common.actions')].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {paginated.length === 0 && (
-                <tr><td colSpan={7} className="text-center py-10 text-slate-400 text-sm">Hech narsa topilmadi</td></tr>
+                <tr><td colSpan={7} className="text-center py-10 text-slate-400 text-sm">{t('superAdmin.nothingFound')}</td></tr>
               )}
               {paginated.map((c, idx) => (
                 <tr key={c.id} className="hover:bg-slate-50 transition-colors">
@@ -1131,19 +1133,19 @@ function BillingTab() {
                         onClick={() => { setActionModal({ company: c, type: 'trial' }); }}
                         className="text-xs px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg font-semibold border border-amber-100 transition-all"
                       >
-                        7kun sinov
+                        {t('superAdmin.trial7Days')}
                       </button>
                       <button
                         onClick={() => { setActionModal({ company: c, type: 'subscribe' }); setSubForm({ tariff_id: c.tariff_id || '', months: 1 }); }}
                         className="text-xs px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg font-semibold border border-blue-100 transition-all"
                       >
-                        Obuna
+                        {t('superAdmin.subscription')}
                       </button>
                       <button
                         onClick={() => { setActionModal({ company: c, type: 'topup' }); setTopupForm({ amount: '', note: '' }); }}
                         className="text-xs px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg font-semibold border border-emerald-100 transition-all"
                       >
-                        + Pul
+                        + {t('superAdmin.money')}
                       </button>
                     </div>
                   </td>
@@ -1158,11 +1160,11 @@ function BillingTab() {
       {!loading && filtered.length > BILLING_PAGE_SIZE && (
         <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between bg-white">
           <span className="text-sm text-slate-500">
-            {filtered.length} ta korxonadan{' '}
+            {t('superAdmin.ofCompanies', { count: filtered.length })}{' '}
             <span className="font-semibold text-slate-700">
               {(safePage - 1) * BILLING_PAGE_SIZE + 1}–{Math.min(safePage * BILLING_PAGE_SIZE, filtered.length)}
             </span>{' '}
-            ko'rsatildi
+            {t('common.shown')}
           </span>
           <div className="flex items-center gap-1.5">
             <button
@@ -1170,7 +1172,7 @@ function BillingTab() {
               disabled={safePage === 1}
               className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors font-medium"
             >
-              ‹ Oldingi
+              ‹ {t('common.prev')}
             </button>
             {Array.from({ length: totalPages }, (_, i) => i + 1)
               .slice(
@@ -1195,7 +1197,7 @@ function BillingTab() {
               disabled={safePage >= totalPages}
               className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors font-medium"
             >
-              Keyingi ›
+              {t('common.next')} ›
             </button>
           </div>
         </div>
@@ -1207,7 +1209,7 @@ function BillingTab() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-slate-800">
-                {actionModal.type === 'trial' ? '7 kunlik sinov' : actionModal.type === 'topup' ? 'Balansni to\'ldirish' : 'Obunani faollashtirish'}
+                {actionModal.type === 'trial' ? t('superAdmin.trial7DaysFull') : actionModal.type === 'topup' ? t('superAdmin.topUpBalance') : t('superAdmin.activateSubscription')}
               </h3>
               <button onClick={() => setActionModal(null)} className="text-slate-400 hover:text-slate-600">
                 <Ic d="M6 18L18 6M6 6l12 12" />
@@ -1220,29 +1222,29 @@ function BillingTab() {
               </div>
               <div>
                 <div className="font-semibold text-slate-800 text-sm">{actionModal.company.name}</div>
-                <div className="text-xs text-slate-400">Balans: <span className="font-bold text-emerald-700">{fmtMoney(actionModal.company.balance)} s</span></div>
+                <div className="text-xs text-slate-400">{t('common.balance')}: <span className="font-bold text-emerald-700">{fmtMoney(actionModal.company.balance)} s</span></div>
               </div>
             </div>
 
             {actionModal.type === 'trial' ? (
               <div className="mb-5">
-                <p className="text-sm text-slate-600">Bu korxonaga <span className="font-bold text-amber-600">7 kunlik bepul sinov muddati</span> beriladi. Hozirgi obuna muddatiga qo'shiladi.</p>
+                <p className="text-sm text-slate-600">{t('superAdmin.trialGrantPrefix')} <span className="font-bold text-amber-600">{t('superAdmin.trial7DaysFree')}</span> {t('superAdmin.trialGrantSuffix')}</p>
               </div>
             ) : actionModal.type === 'topup' ? (
               <div className="space-y-3 mb-5">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5">Miqdor (so'm)</label>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5">{t('superAdmin.amountSum')}</label>
                   <input
-                    type="number" min="1" placeholder="Masalan: 150000"
+                    type="number" min="1" placeholder={t('superAdmin.amountPlaceholderExample')}
                     value={topupForm.amount}
                     onChange={e => setTopupForm(p => ({ ...p, amount: e.target.value }))}
                     className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-emerald-300"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5">Izoh (ixtiyoriy)</label>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5">{t('superAdmin.noteOptional')}</label>
                   <input
-                    type="text" placeholder="To'lov sababi..."
+                    type="text" placeholder={t('superAdmin.paymentReasonPlaceholder')}
                     value={topupForm.note}
                     onChange={e => setTopupForm(p => ({ ...p, note: e.target.value }))}
                     className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-300"
@@ -1252,27 +1254,27 @@ function BillingTab() {
             ) : (
               <div className="space-y-3 mb-5">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5">Tarif</label>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5">{t('superAdmin.tariff')}</label>
                   <select value={subForm.tariff_id} onChange={e => setSubForm(p => ({ ...p, tariff_id: e.target.value }))}
                     className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-300 bg-white">
-                    <option value="">— Tarif tanlang —</option>
+                    <option value="">— {t('superAdmin.selectTariff')} —</option>
                     {tariffs.filter(t => t.price_per_month > 0).map(t => (
-                      <option key={t.id} value={t.id}>{t.name} — {fmtMoney(t.price_per_month)} s/oy</option>
+                      <option key={t.id} value={t.id}>{t.name} — {fmtMoney(t.price_per_month)} {t('superAdmin.sumPerMonth')}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5">Muddat (oy)</label>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5">{t('superAdmin.durationMonths')}</label>
                   <select value={subForm.months} onChange={e => setSubForm(p => ({ ...p, months: Number(e.target.value) }))}
                     className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-300 bg-white">
-                    {[1, 2, 3, 6, 12].map(m => <option key={m} value={m}>{m} oy</option>)}
+                    {[1, 2, 3, 6, 12].map(m => <option key={m} value={m}>{m} {t('superAdmin.month')}</option>)}
                   </select>
                 </div>
                 {subForm.tariff_id && (
                   <div className="bg-blue-50 rounded-xl p-3 text-sm">
-                    <span className="text-slate-500">Jami yechiladi: </span>
+                    <span className="text-slate-500">{t('superAdmin.totalCharged')}: </span>
                     <span className="font-black text-blue-700">
-                      {fmtMoney((tariffs.find(t => String(t.id) === String(subForm.tariff_id))?.price_per_month || 0) * subForm.months)} so'm
+                      {fmtMoney((tariffs.find(t => String(t.id) === String(subForm.tariff_id))?.price_per_month || 0) * subForm.months)} {t('common.sum')}
                     </span>
                   </div>
                 )}
@@ -1286,7 +1288,7 @@ function BillingTab() {
                 disabled={saving}
                 className={`flex-1 py-2.5 text-white font-bold rounded-xl text-sm transition-all disabled:opacity-50 ${actionModal.type === 'topup' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-200' : 'bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200'}`}
               >
-                {saving ? 'Saqlanmoqda...' : actionModal.type === 'trial' ? 'Sinov berish' : actionModal.type === 'topup' ? 'Balans qo\'shish' : 'Obunani yoqish'}
+                {saving ? t('common.saving') : actionModal.type === 'trial' ? t('superAdmin.giveTrial') : actionModal.type === 'topup' ? t('superAdmin.addBalance') : t('superAdmin.enableSubscription')}
               </button>
             </div>
           </div>
@@ -1300,11 +1302,11 @@ function BillingTab() {
 function SettingsTab() {
   const { t } = useLang();
   const FIELDS = [
-    { key: 'card_number', label: "To'lov karta raqami", placeholder: '8600 0000 0000 0000', icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z' },
-    { key: 'card_owner', label: 'Karta egasining ismi', placeholder: 'Abdualimov Eldorbek', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
-    { key: 'tg_username', label: 'Telegram username (@ siz)', placeholder: 'eldorservices', icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' },
-    { key: 'phone', label: "Telefon (ko'rsatish uchun)", placeholder: '+998 88 911 81 71', icon: 'M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z' },
-    { key: 'phone_raw', label: 'Telefon (tel: link uchun)', placeholder: '+998889118171', icon: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1' },
+    { key: 'card_number', label: t('superAdmin.cardNumberLabel'), placeholder: '8600 0000 0000 0000', icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z' },
+    { key: 'card_owner', label: t('superAdmin.cardOwnerLabel'), placeholder: 'Abdualimov Eldorbek', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
+    { key: 'tg_username', label: t('superAdmin.telegramUsernameLabel'), placeholder: 'eldorservices', icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' },
+    { key: 'phone', label: t('superAdmin.phoneDisplayLabel'), placeholder: '+998 88 911 81 71', icon: 'M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z' },
+    { key: 'phone_raw', label: t('superAdmin.phoneRawLabel'), placeholder: '+998889118171', icon: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1' },
   ];
 
   const [saved, setSaved] = useState({});     // DB dagi haqiqiy qiymatlar
@@ -1323,7 +1325,7 @@ function SettingsTab() {
         r.data.forEach(({ key, value }) => { map[key] = value || ''; });
         setSaved(map);
       })
-      .catch(() => setError("Sozlamalarni yuklab bo'lmadi"))
+      .catch(() => setError(t('superAdmin.settingsLoadError')))
       .finally(() => setLoading(false));
   };
   useEffect(load, []);
@@ -1339,7 +1341,7 @@ function SettingsTab() {
       setSaveOk(true);
       setTimeout(() => { setSaveOk(false); setEditOpen(false); }, 1500);
     } catch {
-      setError("Saqlashda xatolik yuz berdi");
+      setError(t('superAdmin.saveError'));
     } finally { setSaving(false); }
   };
 
@@ -1353,8 +1355,8 @@ function SettingsTab() {
               <Ic d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" cls="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="font-black text-slate-800">Platform Sozlamalari</h2>
-              <p className="text-xs text-slate-400">Karta, Telegram va telefon raqamlari</p>
+              <h2 className="font-black text-slate-800">{t('superAdmin.platformSettings')}</h2>
+              <p className="text-xs text-slate-400">{t('superAdmin.cardTelegramPhoneNumbers')}</p>
             </div>
           </div>
           <button
@@ -1363,7 +1365,7 @@ function SettingsTab() {
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-bold rounded-xl shadow-sm shadow-blue-200 transition-all"
           >
             <Ic d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" cls="w-3.5 h-3.5" />
-            Tahrirlash
+            {t('common.edit')}
           </button>
         </div>
 
@@ -1375,7 +1377,7 @@ function SettingsTab() {
           <>
             {/* Karta preview */}
             <div className="bg-slate-900 rounded-2xl p-5 mb-4">
-              <div className="text-slate-400 text-[10px] font-semibold uppercase tracking-widest mb-3">To'lov kartasi</div>
+              <div className="text-slate-400 text-[10px] font-semibold uppercase tracking-widest mb-3">{t('superAdmin.paymentCard')}</div>
               <div className="text-white font-mono text-xl font-bold tracking-[0.2em] mb-1">
                 {saved.card_number || '— — — —'}
               </div>
@@ -1388,7 +1390,7 @@ function SettingsTab() {
                 <div className="text-[#2AABEE] font-bold text-sm">@{saved.tg_username || '—'}</div>
               </div>
               <div className="bg-emerald-50 rounded-xl px-4 py-3">
-                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">{t('admin.dict.phone') || 'Telefon'}</div>
+                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">{t('admin.dict.phone') || t('common.phone')}</div>
                 <div className="text-emerald-700 font-bold text-sm">{saved.phone || '—'}</div>
               </div>
             </div>
@@ -1402,7 +1404,7 @@ function SettingsTab() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             {/* Modal header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <h3 className="font-black text-slate-800">Sozlamalarni tahrirlash</h3>
+              <h3 className="font-black text-slate-800">{t('superAdmin.editSettings')}</h3>
               <button onClick={closeEdit} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600">
                 <Ic d="M6 18L18 6M6 6l12 12" />
               </button>
@@ -1442,17 +1444,17 @@ function SettingsTab() {
                 </div>
               ))}
               {error && <div className="text-xs text-red-600 bg-red-50 px-4 py-2.5 rounded-xl border border-red-100">{error}</div>}
-              {saveOk && <div className="text-xs text-emerald-700 bg-emerald-50 px-4 py-2.5 rounded-xl border border-emerald-200 font-semibold">✓ Saqlandi!</div>}
+              {saveOk && <div className="text-xs text-emerald-700 bg-emerald-50 px-4 py-2.5 rounded-xl border border-emerald-200 font-semibold">✓ {t('superAdmin.savedExclaim')}</div>}
             </div>
 
             {/* Footer */}
             <div className="px-6 pb-5 flex gap-3">
               <button onClick={closeEdit} className="flex-1 py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold rounded-xl text-sm transition-all">
-                Bekor
+                {t('common.cancel')}
               </button>
               <button onClick={handleSave} disabled={saving}
                 className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-lg shadow-blue-200 text-sm transition-all">
-                {saving ? 'Saqlanmoqda...' : '💾 Saqlash'}
+                {saving ? t('common.saving') : `💾 ${t('common.save')}`}
               </button>
             </div>
           </div>
@@ -1473,7 +1475,7 @@ function TariffsTab() {
 
   const load = () => {
     setLoading(true);
-    api.get('/billing/tariffs?all=true').then(r => setTariffs(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") }).finally(() => setLoading(false));
+    api.get('/billing/tariffs?all=true').then(r => setTariffs(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('superAdmin.errorOccurred')) }).finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, []);
 
@@ -1490,7 +1492,7 @@ function TariffsTab() {
   };
 
   const save = async () => {
-    if (!form.name.trim()) return alert('Tarif nomini kiriting!');
+    if (!form.name.trim()) return alert(t('superAdmin.enterTariffName'));
     setSaving(true);
     try {
       if (editItem) {
@@ -1501,13 +1503,13 @@ function TariffsTab() {
       load();
       setShowForm(false);
     } catch (e) {
-      alert(e.response?.data?.detail || 'Xatolik');
+      alert(e.response?.data?.detail || t('common.error'));
     } finally { setSaving(false); }
   };
 
   const deactivate = async (id) => {
-    if (!confirm("Tarifni o'chirishni tasdiqlaysizmi?")) return;
-    await api.delete(`/billing/tariffs/${id}`).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    if (!confirm(t('superAdmin.confirmDeleteTariff'))) return;
+    await api.delete(`/billing/tariffs/${id}`).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('superAdmin.errorOccurred')) });
     load();
   };
 
@@ -1521,10 +1523,10 @@ function TariffsTab() {
             <span className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center">
               <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" cls="w-4 h-4 text-blue-600" />
             </span>
-            Tariflar
+            {t('superAdmin.tariffs')}
           </h3>
           <button onClick={openNew} className="text-xs px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all flex items-center gap-1.5">
-            <Ic d="M12 4v16m8-8H4" cls="w-3.5 h-3.5" /> Yangi tarif
+            <Ic d="M12 4v16m8-8H4" cls="w-3.5 h-3.5" /> {t('superAdmin.newTariff')}
           </button>
         </div>
         {loading ? (
@@ -1539,17 +1541,17 @@ function TariffsTab() {
                     {tariff.description && <p className="text-xs text-slate-400 mt-1">{tariff.description}</p>}
                   </div>
                   <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${tariff.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
-                    {tariff.is_active ? 'Faol' : 'Nofaol'}
+                    {tariff.is_active ? t('common.active') : t('common.inactive')}
                   </span>
                 </div>
                 <div className="text-2xl font-black text-blue-700">
-                  {tariff.price_per_month === 0 ? 'Bepul' : `${fmtMoney(tariff.price_per_month)} s`}
-                  {tariff.price_per_month > 0 && <span className="text-sm font-semibold text-slate-400">/oy</span>}
+                  {tariff.price_per_month === 0 ? t('superAdmin.free') : `${fmtMoney(tariff.price_per_month)} s`}
+                  {tariff.price_per_month > 0 && <span className="text-sm font-semibold text-slate-400">/{t('superAdmin.month')}</span>}
                 </div>
                 <div className="space-y-1 text-xs text-slate-500">
-                  <div>⏱ Muddat: <span className="font-bold text-slate-700">{tariff.duration_days} kun</span></div>
-                  <div>👤 Max xodim: <span className="font-bold text-slate-700">{tariff.max_users >= 9999 ? 'Cheksiz' : tariff.max_users}</span></div>
-                  <div>🏢 Max filial: <span className="font-bold text-slate-700">{tariff.max_branches >= 9999 ? 'Cheksiz' : tariff.max_branches}</span></div>
+                  <div>⏱ {t('superAdmin.durationLabel')}: <span className="font-bold text-slate-700">{tariff.duration_days} {t('superAdmin.days')}</span></div>
+                  <div>👤 {t('superAdmin.maxEmployees')}: <span className="font-bold text-slate-700">{tariff.max_users >= 9999 ? t('superAdmin.unlimited') : tariff.max_users}</span></div>
+                  <div>🏢 {t('superAdmin.maxBranches')}: <span className="font-bold text-slate-700">{tariff.max_branches >= 9999 ? t('superAdmin.unlimited') : tariff.max_branches}</span></div>
                   {tariff.bhm_percent != null && (
                     <div>📊 BHM: <span className="font-bold text-blue-600">{tariff.bhm_percent}% ({(tariff.bhm_percent / 100).toFixed(2)} BHM)</span></div>
                   )}
@@ -1562,7 +1564,7 @@ function TariffsTab() {
             ))}
             {tariffs.length === 0 && (
               <div className="col-span-full py-14 text-center text-slate-400 text-sm font-semibold">
-                Hali tariflar yo'q — yuqoridagi "Yangi tarif" tugmasi orqali qo'shing
+                {t('superAdmin.noTariffsYet')}
               </div>
             )}
           </div>
@@ -1574,46 +1576,46 @@ function TariffsTab() {
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-5">
-              <h3 className="font-bold text-slate-800">{editItem ? 'Tarifni tahrirlash' : 'Yangi tarif'}</h3>
+              <h3 className="font-bold text-slate-800">{editItem ? t('superAdmin.editTariff') : t('superAdmin.newTariff')}</h3>
               <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600"><Ic d="M6 18L18 6M6 6l12 12" /></button>
             </div>
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Nomi *</label>
-                <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} className={inp} placeholder="Boshlang'ich, Pro, Enterprise..." />
+                <label className="block text-xs font-bold text-slate-500 mb-1">{t('superAdmin.nameLabel')} *</label>
+                <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} className={inp} placeholder={t('superAdmin.tariffNamePlaceholder')} />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Tavsif</label>
-                <input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} className={inp} placeholder="Qisqacha tavsif..." />
+                <label className="block text-xs font-bold text-slate-500 mb-1">{t('superAdmin.descriptionLabel')}</label>
+                <input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} className={inp} placeholder={t('superAdmin.shortDescriptionPlaceholder')} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">Narx (so'm/oy)</label>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">{t('superAdmin.priceSumPerMonth')}</label>
                   <input type="number" value={form.price_per_month} onChange={e => setForm(p => ({ ...p, price_per_month: Number(e.target.value) }))} className={inp} min="0" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">Muddat (kun)</label>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">{t('superAdmin.durationDays')}</label>
                   <input type="number" value={form.duration_days} onChange={e => setForm(p => ({ ...p, duration_days: Number(e.target.value) }))} className={inp} min="1" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">Max xodim</label>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">{t('superAdmin.maxEmployees')}</label>
                   <input type="number" value={form.max_users} onChange={e => setForm(p => ({ ...p, max_users: Number(e.target.value) }))} className={inp} min="1" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">Max filial</label>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">{t('superAdmin.maxBranches')}</label>
                   <input type="number" value={form.max_branches} onChange={e => setForm(p => ({ ...p, max_branches: Number(e.target.value) }))} className={inp} min="1" />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">BHM foizi (%)</label>
-                <input type="number" value={form.bhm_percent} onChange={e => setForm(p => ({ ...p, bhm_percent: e.target.value === '' ? '' : Number(e.target.value) }))} className={inp} min="0" step="0.1" placeholder="Masalan: 45 (BHMning 45%)" />
-                <p className="text-xs text-slate-400 mt-1">Tariflar sahifasida "BHMning X% ni tashkil qiladi" deb ko'rsatiladi</p>
+                <label className="block text-xs font-bold text-slate-500 mb-1">{t('superAdmin.bhmPercentLabel')}</label>
+                <input type="number" value={form.bhm_percent} onChange={e => setForm(p => ({ ...p, bhm_percent: e.target.value === '' ? '' : Number(e.target.value) }))} className={inp} min="0" step="0.1" placeholder={t('superAdmin.bhmPercentPlaceholder')} />
+                <p className="text-xs text-slate-400 mt-1">{t('superAdmin.bhmPercentHint')}</p>
               </div>
             </div>
             <div className="flex gap-2 mt-5">
               <button onClick={() => setShowForm(false)} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-sm transition-all">{t('common.cancel')}</button>
               <button onClick={save} disabled={saving} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm shadow-lg shadow-blue-200 transition-all disabled:opacity-50">
-                {saving ? 'Saqlanmoqda...' : 'Saqlash'}
+                {saving ? t('common.saving') : t('common.save')}
               </button>
             </div>
           </div>
@@ -1625,6 +1627,7 @@ function TariffsTab() {
 
 /* ─── ANNOUNCEMENTS TAB ────────────────────────────── */
 function AnnouncementsTab({ companies }) {
+  const { t } = useLang();
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -1642,7 +1645,7 @@ function AnnouncementsTab({ companies }) {
     setLoading(true);
     api.get('/super-admin/announcements')
       .then(r => setAnnouncements(r.data))
-      .catch(err => toast.error(err.response?.data?.detail || "Bildirish nomalar yuklanmadi"))
+      .catch(err => toast.error(err.response?.data?.detail || t('superAdmin.announcementsLoadError')))
       .finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, []);
@@ -1671,7 +1674,7 @@ function AnnouncementsTab({ companies }) {
   };
 
   const save = async () => {
-    if (!form.title.trim() || !form.message.trim()) return toast.error("Sarlavha va matn kiritilishi shart");
+    if (!form.title.trim() || !form.message.trim()) return toast.error(t('superAdmin.titleAndTextRequired'));
     setSaving(true);
     try {
       const payload = {
@@ -1691,15 +1694,15 @@ function AnnouncementsTab({ companies }) {
 
       if (editId) {
         await api.patch(`/super-admin/announcements/${editId}`, payload);
-        toast.success("Tahrirlandi");
+        toast.success(t('superAdmin.edited'));
       } else {
         await api.post('/super-admin/announcements', payload);
-        toast.success("Yaratildi");
+        toast.success(t('superAdmin.created'));
       }
       closeModal();
       load();
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Xatolik yuz berdi");
+      toast.error(e.response?.data?.detail || t('superAdmin.errorOccurred'));
     } finally {
       setSaving(false);
     }
@@ -1710,18 +1713,18 @@ function AnnouncementsTab({ companies }) {
       await api.patch(`/super-admin/announcements/${ann.id}`, { is_active: !ann.is_active });
       load();
     } catch (e) {
-      toast.error("Holatni o'zgartirishda xatolik");
+      toast.error(t('superAdmin.statusChangeError'));
     }
   };
 
   const deleteAnn = async (id) => {
-    if (!window.confirm("O'chirishni xohlaysizmi?")) return;
+    if (!window.confirm(t('superAdmin.confirmDelete'))) return;
     try {
       await api.delete(`/super-admin/announcements/${id}`);
-      toast.success("O'chirildi");
+      toast.success(t('superAdmin.deleted'));
       load();
     } catch (e) {
-      toast.error("Xatolik");
+      toast.error(t('common.error'));
     }
   };
 
@@ -1733,7 +1736,7 @@ function AnnouncementsTab({ companies }) {
       const r = await api.get(`/super-admin/announcements/${id}/survey-results`);
       setResultsData(r.data);
     } catch (e) {
-      toast.error("Natijalarni yuklashda xatolik");
+      toast.error(t('superAdmin.resultsLoadError'));
       setShowResultsModal(false);
     } finally {
       setResultsLoading(false);
@@ -1746,12 +1749,12 @@ function AnnouncementsTab({ companies }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-bold text-slate-800">Bildirish nomalar</h3>
-          <p className="text-xs text-slate-400 mt-0.5">Tizim bo'ylab barchaga yoki ma'lum korxonalarga e'lonlar yuborish</p>
+          <h3 className="font-bold text-slate-800">{t('superAdmin.announcements')}</h3>
+          <p className="text-xs text-slate-400 mt-0.5">{t('superAdmin.announcementsHint')}</p>
         </div>
         <button onClick={() => openModal()} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-all flex items-center gap-2">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
-          Yangi yaratish
+          {t('superAdmin.createNew')}
         </button>
       </div>
 
@@ -1759,12 +1762,12 @@ function AnnouncementsTab({ companies }) {
         {loading ? (
           <div className="py-16 flex justify-center"><div className="w-7 h-7 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : announcements.length === 0 ? (
-          <div className="py-16 text-center text-slate-400 text-sm">Hali bildirish nomalar yo'q</div>
+          <div className="py-16 text-center text-slate-400 text-sm">{t('superAdmin.noAnnouncementsYet')}</div>
         ) : (
           <table className="min-w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
-                {['#', 'Sarlavha', 'Kimlarga', 'Holati', 'Muddati', 'Yaratilgan', 'Amallar'].map(h => (
+                {['#', t('superAdmin.titleLabel'), t('superAdmin.recipients'), t('common.status'), t('superAdmin.deadline'), t('common.created'), t('common.actions')].map(h => (
                   <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -1776,18 +1779,18 @@ function AnnouncementsTab({ companies }) {
                   <td className="px-5 py-3 font-semibold text-slate-800">{a.title}</td>
                   <td className="px-5 py-3">
                     {a.company_id ? (
-                      <span className="text-blue-700 font-semibold bg-blue-50 px-2 py-0.5 rounded text-xs">{a.company_name || 'Bitta korxona'}</span>
+                      <span className="text-blue-700 font-semibold bg-blue-50 px-2 py-0.5 rounded text-xs">{a.company_name || t('superAdmin.oneCompany')}</span>
                     ) : (
-                      <span className="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded text-xs">Barchaga</span>
+                      <span className="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded text-xs">{t('superAdmin.everyone')}</span>
                     )}
                   </td>
                   <td className="px-5 py-3">
                     <button onClick={() => toggleActive(a)} className={`px-2.5 py-1 text-xs font-bold rounded-full ${a.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
-                      {a.is_active ? 'Faol' : 'Nofaol'}
+                      {a.is_active ? t('common.active') : t('common.inactive')}
                     </button>
                   </td>
                   <td className="px-5 py-3 text-xs text-slate-500">
-                    {a.expires_at ? new Date(a.expires_at).toLocaleString('uz-UZ') : 'Muddatsiz'}
+                    {a.expires_at ? new Date(a.expires_at).toLocaleString('uz-UZ') : t('superAdmin.noDeadline')}
                   </td>
                   <td className="px-5 py-3 text-xs text-slate-400">
                     {new Date(a.created_at).toLocaleDateString('uz-UZ')}
@@ -1795,10 +1798,10 @@ function AnnouncementsTab({ companies }) {
                   <td className="px-5 py-3">
                     <div className="flex gap-2">
                       {a.has_survey && (
-                        <button onClick={() => openResults(a.id)} className="text-blue-500 hover:text-blue-600 font-medium text-xs px-2 py-1 bg-blue-50 rounded-lg">Natijalar</button>
+                        <button onClick={() => openResults(a.id)} className="text-blue-500 hover:text-blue-600 font-medium text-xs px-2 py-1 bg-blue-50 rounded-lg">{t('superAdmin.results')}</button>
                       )}
-                      <button onClick={() => openModal(a)} className="text-amber-500 hover:text-amber-600 font-medium text-xs px-2 py-1 bg-amber-50 rounded-lg">Tahrirlash</button>
-                      <button onClick={() => deleteAnn(a.id)} className="text-red-500 hover:text-red-600 font-medium text-xs px-2 py-1 bg-red-50 rounded-lg">O'chirish</button>
+                      <button onClick={() => openModal(a)} className="text-amber-500 hover:text-amber-600 font-medium text-xs px-2 py-1 bg-amber-50 rounded-lg">{t('common.edit')}</button>
+                      <button onClick={() => deleteAnn(a.id)} className="text-red-500 hover:text-red-600 font-medium text-xs px-2 py-1 bg-red-50 rounded-lg">{t('common.delete')}</button>
                     </div>
                   </td>
                 </tr>
@@ -1812,42 +1815,42 @@ function AnnouncementsTab({ companies }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-              <h3 className="font-bold text-slate-800">{editId ? 'Tahrirlash' : 'Yangi Bildirish Noma'}</h3>
+              <h3 className="font-bold text-slate-800">{editId ? t('common.edit') : t('superAdmin.newAnnouncement')}</h3>
               <button onClick={closeModal} className="text-slate-400 hover:text-slate-600"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg></button>
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1.5">Sarlavha *</label>
-                <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} className={inp} placeholder="Asosiy sarlavha" autoFocus />
+                <label className="block text-xs font-bold text-slate-500 mb-1.5">{t('superAdmin.titleLabel')} *</label>
+                <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} className={inp} placeholder={t('superAdmin.mainTitlePlaceholder')} autoFocus />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1.5">Matn *</label>
-                <textarea value={form.message} onChange={e => setForm(p => ({ ...p, message: e.target.value }))} className={`${inp} min-h-[100px] resize-y`} placeholder="Batafsil matn..." />
+                <label className="block text-xs font-bold text-slate-500 mb-1.5">{t('superAdmin.textLabel')} *</label>
+                <textarea value={form.message} onChange={e => setForm(p => ({ ...p, message: e.target.value }))} className={`${inp} min-h-[100px] resize-y`} placeholder={t('superAdmin.detailedTextPlaceholder')} />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1.5">Kimlarga jo'natiladi?</label>
+                <label className="block text-xs font-bold text-slate-500 mb-1.5">{t('superAdmin.whoReceivesLabel')}</label>
                 <select value={form.company_id} onChange={e => setForm(p => ({ ...p, company_id: e.target.value }))} className={inp}>
-                  <option value="">Barcha korxonalarga (Global)</option>
+                  <option value="">{t('superAdmin.allCompaniesGlobal')}</option>
                   {companies.map(c => (
                     <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1.5">Amal qilish muddati (ixtiyoriy)</label>
+                <label className="block text-xs font-bold text-slate-500 mb-1.5">{t('superAdmin.expiryDateOptional')}</label>
                 <input type="datetime-local" value={form.expires_at} onChange={e => setForm(p => ({ ...p, expires_at: e.target.value }))} className={inp} />
-                <p className="text-xs text-slate-400 mt-1">Belgilangan muddatdan keyin o'z-o'zidan yashirinadi.</p>
+                <p className="text-xs text-slate-400 mt-1">{t('superAdmin.autoHideHint')}</p>
               </div>
 
               {!editId && (
                 <div className="border-t border-slate-100 pt-4 mt-2">
                   <div className="flex items-center justify-between mb-3">
-                    <label className="block text-xs font-bold text-slate-500">So'rovnoma savollari (ixtiyoriy)</label>
-                    <button 
+                    <label className="block text-xs font-bold text-slate-500">{t('superAdmin.surveyQuestionsOptional')}</label>
+                    <button
                       onClick={() => setQuestions([...questions, { text: '', question_type: 'text', options: ['', ''] }])}
                       className="text-xs text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded-lg hover:bg-blue-100 transition-all"
                     >
-                      + Savol qo'shish
+                      + {t('superAdmin.addQuestion')}
                     </button>
                   </div>
                   
@@ -1864,7 +1867,7 @@ function AnnouncementsTab({ companies }) {
                           
                           <div className="mb-2 pr-8">
                             <input 
-                              placeholder="Savol matni..." 
+                              placeholder={t('superAdmin.questionTextPlaceholder')}
                               value={q.text} 
                               onChange={(e) => {
                                 const nq = [...questions];
@@ -1884,9 +1887,9 @@ function AnnouncementsTab({ companies }) {
                               }}
                               className="text-xs bg-white border border-slate-200 rounded px-2 py-1 outline-none focus:border-blue-300"
                             >
-                              <option value="text">Matnli javob</option>
-                              <option value="single_choice">Bitta variant tanlash</option>
-                              <option value="multiple_choice">Ko'p variant tanlash</option>
+                              <option value="text">{t('superAdmin.textAnswer')}</option>
+                              <option value="single_choice">{t('superAdmin.singleChoice')}</option>
+                              <option value="multiple_choice">{t('superAdmin.multipleChoice')}</option>
                             </select>
                           </div>
                           
@@ -1896,7 +1899,7 @@ function AnnouncementsTab({ companies }) {
                                 <div key={oIndex} className="flex gap-1.5 items-center">
                                   <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
                                   <input 
-                                    placeholder="Variant..." 
+                                    placeholder={t('superAdmin.optionPlaceholder')}
                                     value={opt}
                                     onChange={(e) => {
                                       const nq = [...questions];
@@ -1927,7 +1930,7 @@ function AnnouncementsTab({ companies }) {
                                 }}
                                 className="text-[10px] text-blue-500 font-bold px-2 py-1 hover:bg-blue-50 rounded mt-1 transition-colors"
                               >
-                                + Variant qo'shish
+                                + {t('superAdmin.addOption')}
                               </button>
                             </div>
                           )}
@@ -1936,16 +1939,16 @@ function AnnouncementsTab({ companies }) {
                     </div>
                   ) : (
                     <div className="text-center py-6 bg-slate-50 rounded-xl border border-slate-100 border-dashed text-slate-400 text-sm">
-                      Hozircha so'rovnoma savollari yo'q
+                      {t('superAdmin.noSurveyQuestionsYet')}
                     </div>
                   )}
                 </div>
               )}
             </div>
             <div className="px-6 py-4 border-t border-slate-100 flex gap-2 shrink-0">
-              <button onClick={closeModal} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-sm transition-all">Bekor qilish</button>
+              <button onClick={closeModal} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-sm transition-all">{t('common.cancel')}</button>
               <button onClick={save} disabled={saving} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm shadow-lg shadow-blue-200 transition-all disabled:opacity-50">
-                {saving ? 'Saqlanmoqda...' : 'Saqlash'}
+                {saving ? t('common.saving') : t('common.save')}
               </button>
             </div>
           </div>
@@ -1961,7 +1964,7 @@ function AnnouncementsTab({ companies }) {
                 <span className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                 </span>
-                So'rovnoma Natijalari
+                {t('superAdmin.surveyResults')}
               </h3>
               <button onClick={() => setShowResultsModal(false)} className="text-slate-400 hover:text-slate-600">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
@@ -1972,7 +1975,7 @@ function AnnouncementsTab({ companies }) {
               {resultsLoading ? (
                 <div className="py-16 flex justify-center"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
               ) : !resultsData ? (
-                <div className="py-16 text-center text-slate-400">Ma'lumot topilmadi</div>
+                <div className="py-16 text-center text-slate-400">{t('common.noData')}</div>
               ) : (
                 <div className="space-y-6">
                   {resultsData.results && resultsData.results.map((q) => {
@@ -2001,7 +2004,7 @@ function AnnouncementsTab({ companies }) {
                         <div className="bg-slate-50 px-4 py-3 border-b border-slate-100">
                           <h4 className="font-bold text-slate-700 text-sm">{q.text}</h4>
                           <span className="text-[10px] uppercase font-bold text-slate-400 mt-1 block">
-                            {q.type === 'text' ? 'Matnli' : q.type === 'single_choice' ? 'Bitta tanlov' : "Ko'p tanlov"} ({totalAnswers} ta javob)
+                            {q.type === 'text' ? t('superAdmin.textType') : q.type === 'single_choice' ? t('superAdmin.singleChoiceType') : t('superAdmin.multipleChoiceType')} ({t('superAdmin.answersCount', { count: totalAnswers })})
                           </span>
                         </div>
                         <div className="p-4 bg-white">
@@ -2018,7 +2021,7 @@ function AnnouncementsTab({ companies }) {
                                   </div>
                                 ))
                               ) : (
-                                <div className="text-xs text-slate-400 text-center py-2">Javoblar yo'q</div>
+                                <div className="text-xs text-slate-400 text-center py-2">{t('superAdmin.noAnswers')}</div>
                               )}
                             </div>
                           ) : (
@@ -2030,7 +2033,7 @@ function AnnouncementsTab({ companies }) {
                                   <div key={idx} className="space-y-1">
                                     <div className="flex justify-between text-xs font-semibold text-slate-600">
                                       <span>{opt}</span>
-                                      <span>{count} ta ({percent}%)</span>
+                                      <span>{count} {t('common.item')} ({percent}%)</span>
                                     </div>
                                     <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                                       <div 

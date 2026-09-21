@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
+import { useLang } from '../../context/LangContext';
 
 const Ic = ({ d, cls = 'w-5 h-5' }) => (
   <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -11,6 +12,7 @@ const Ic = ({ d, cls = 'w-5 h-5' }) => (
 const fmt = n => Number(n || 0).toLocaleString('ru-RU');
 
 function BranchModal({ branch, warehouses, onSave, onClose }) {
+  const { t } = useLang();
   const isEdit = !!branch;
   const [form, setForm] = useState({
     name: branch?.name || '',
@@ -22,19 +24,19 @@ function BranchModal({ branch, warehouses, onSave, onClose }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.name.trim()) return toast.error("Filial nomi kiritilishi shart");
+    if (!form.name.trim()) return toast.error(t('branch.nameRequired'));
     setSaving(true);
     try {
       if (isEdit) {
         await api.patch(`/branches/${branch.id}`, form);
-        toast.success("Filial yangilandi");
+        toast.success(t('branch.updated'));
       } else {
         await api.post('/branches', form);
-        toast.success("Filial qo'shildi");
+        toast.success(t('branch.added'));
       }
       onSave();
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Xatolik yuz berdi");
+      toast.error(e?.response?.data?.detail || t('branch.errorOccurred'));
     } finally {
       setSaving(false);
     }
@@ -45,7 +47,7 @@ function BranchModal({ branch, warehouses, onSave, onClose }) {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <h3 className="text-base font-bold text-slate-800">
-            {isEdit ? 'Filialni tahrirlash' : "Yangi filial qo'shish"}
+            {isEdit ? t('branch.editBranch') : t('branch.addBranch')}
           </h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
             <Ic d="M6 18L18 6M6 6l12 12" cls="w-5 h-5" />
@@ -53,19 +55,19 @@ function BranchModal({ branch, warehouses, onSave, onClose }) {
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Filial nomi *</label>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">{t('branch.branchName')} *</label>
             <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-              placeholder="Masalan: Asosiy filial, Chilonzor bo'limi..."
+              placeholder={t('branch.branchNamePlaceholder')}
               className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
           </div>
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Manzil</label>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">{t('common.address')}</label>
             <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })}
-              placeholder="Ko'cha, uy raqami..."
+              placeholder={t('branch.addressPlaceholder')}
               className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
           </div>
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Telefon</label>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">{t('common.phone')}</label>
             <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
               placeholder="+998 90 123 45 67"
               className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
@@ -76,17 +78,17 @@ function BranchModal({ branch, warehouses, onSave, onClose }) {
                 className={`relative w-11 h-6 rounded-full transition-colors ${form.is_active ? 'bg-emerald-500' : 'bg-slate-300'}`}>
                 <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${form.is_active ? 'translate-x-5' : 'translate-x-0.5'}`} />
               </button>
-              <span className="text-sm font-semibold text-slate-700">{form.is_active ? 'Faol' : 'Nofaol'}</span>
+              <span className="text-sm font-semibold text-slate-700">{form.is_active ? t('common.active') : t('common.inactive')}</span>
             </div>
           )}
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose}
               className="flex-1 py-2.5 rounded-xl border-2 border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50">
-              Bekor qilish
+              {t('common.cancel')}
             </button>
             <button type="submit" disabled={saving}
               className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm disabled:opacity-50">
-              {saving ? 'Saqlanmoqda...' : isEdit ? 'Yangilash' : "Qo'shish"}
+              {saving ? t('common.saving') : isEdit ? t('common.update') : t('common.add')}
             </button>
           </div>
         </form>
@@ -96,6 +98,7 @@ function BranchModal({ branch, warehouses, onSave, onClose }) {
 }
 
 function WarehouseModal({ branches, editWh, onSave, onClose }) {
+  const { t } = useLang();
   const isEdit = !!editWh;
   const [form, setForm] = useState({
     name: editWh?.name || '',
@@ -107,30 +110,30 @@ function WarehouseModal({ branches, editWh, onSave, onClose }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.name.trim()) return toast.error("Ombor nomi kiritilishi shart");
+    if (!form.name.trim()) return toast.error(t('branch.warehouseNameRequired'));
     const payload = { ...form, branch_id: form.branch_id ? Number(form.branch_id) : null };
     setSaving(true);
     try {
       if (isEdit) {
         await api.patch(`/warehouses/${editWh.id}`, payload);
-        toast.success("Ombor yangilandi");
+        toast.success(t('branch.warehouseUpdated'));
       } else {
         await api.post('/warehouses', payload);
-        toast.success("Ombor qo'shildi");
+        toast.success(t('branch.warehouseAdded'));
       }
       onSave();
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Xatolik yuz berdi");
+      toast.error(e?.response?.data?.detail || t('branch.errorOccurred'));
     } finally {
       setSaving(false);
     }
   };
 
   const WH_TYPES = [
-    { value: 'main', label: 'Asosiy' },
-    { value: 'shop', label: 'Do\'kon' },
-    { value: 'transit', label: 'Tranzit' },
-    { value: 'returns', label: 'Qaytarish' },
+    { value: 'main', label: t('branch.typeMain') },
+    { value: 'shop', label: t('branch.typeShop') },
+    { value: 'transit', label: t('branch.typeTransit') },
+    { value: 'returns', label: t('branch.typeReturns') },
   ];
 
   return (
@@ -138,7 +141,7 @@ function WarehouseModal({ branches, editWh, onSave, onClose }) {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <h3 className="text-base font-bold text-slate-800">
-            {isEdit ? 'Omborni tahrirlash' : "Yangi ombor qo'shish"}
+            {isEdit ? t('branch.editWarehouse') : t('branch.addWarehouse')}
           </h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
             <Ic d="M6 18L18 6M6 6l12 12" cls="w-5 h-5" />
@@ -146,26 +149,26 @@ function WarehouseModal({ branches, editWh, onSave, onClose }) {
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Ombor nomi *</label>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">{t('branch.warehouseName')} *</label>
             <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-              placeholder="Masalan: Asosiy sklad, Do'kon ombori..."
+              placeholder={t('branch.warehouseNamePlaceholder')}
               className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
           </div>
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Filial *</label>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">{t('branch.title')} *</label>
             <select value={form.branch_id} onChange={e => setForm({ ...form, branch_id: e.target.value })}
               className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white">
-              <option value="">— Filialsiz (umumiy) —</option>
+              <option value="">{t('branch.noBranchGeneral')}</option>
               {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Ombor turi</label>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">{t('branch.warehouseType')}</label>
             <div className="grid grid-cols-2 gap-2">
-              {WH_TYPES.map(t => (
-                <button key={t.value} type="button" onClick={() => setForm({ ...form, type: t.value })}
-                  className={`py-2 rounded-xl text-sm font-semibold border-2 transition-all ${form.type === t.value ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-200 text-slate-600 hover:border-blue-300'}`}>
-                  {t.label}
+              {WH_TYPES.map(wt => (
+                <button key={wt.value} type="button" onClick={() => setForm({ ...form, type: wt.value })}
+                  className={`py-2 rounded-xl text-sm font-semibold border-2 transition-all ${form.type === wt.value ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-200 text-slate-600 hover:border-blue-300'}`}>
+                  {wt.label}
                 </button>
               ))}
             </div>
@@ -176,17 +179,17 @@ function WarehouseModal({ branches, editWh, onSave, onClose }) {
                 className={`relative w-11 h-6 rounded-full transition-colors ${form.is_active ? 'bg-emerald-500' : 'bg-slate-300'}`}>
                 <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${form.is_active ? 'translate-x-5' : 'translate-x-0.5'}`} />
               </button>
-              <span className="text-sm font-semibold text-slate-700">{form.is_active ? 'Faol' : 'Nofaol'}</span>
+              <span className="text-sm font-semibold text-slate-700">{form.is_active ? t('common.active') : t('common.inactive')}</span>
             </div>
           )}
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose}
               className="flex-1 py-2.5 rounded-xl border-2 border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50">
-              Bekor qilish
+              {t('common.cancel')}
             </button>
             <button type="submit" disabled={saving}
               className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm disabled:opacity-50">
-              {saving ? 'Saqlanmoqda...' : isEdit ? 'Yangilash' : "Qo'shish"}
+              {saving ? t('common.saving') : isEdit ? t('common.update') : t('common.add')}
             </button>
           </div>
         </form>
@@ -196,6 +199,7 @@ function WarehouseModal({ branches, editWh, onSave, onClose }) {
 }
 
 export default function Filiallar() {
+  const { t } = useLang();
   const [branches, setBranches] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -222,7 +226,7 @@ export default function Filiallar() {
       }
       setStats(statsMap);
     } catch (e) {
-      toast.error("Ma'lumotlarni yuklashda xatolik");
+      toast.error(t('branch.loadError'));
     } finally {
       setLoading(false);
     }
@@ -231,19 +235,19 @@ export default function Filiallar() {
   useEffect(() => { load(); }, [load]);
 
   const handleDeactivateBranch = async (b) => {
-    if (!window.confirm(`"${b.name}" filialini nofaol qilmoqchimisiz?`)) return;
+    if (!window.confirm(t('branch.confirmDeactivate', { name: b.name }))) return;
     try {
       await api.patch(`/branches/${b.id}`, { is_active: false });
-      toast.success("Filial nofaol qilindi");
+      toast.success(t('branch.deactivated'));
       load();
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Xatolik");
+      toast.error(e?.response?.data?.detail || t('common.error'));
     }
   };
 
   const unassignedWhs = warehouses.filter(w => !w.branch_id);
 
-  const WH_TYPE_LABEL = { main: 'Asosiy', shop: "Do'kon", transit: 'Tranzit', returns: 'Qaytarish' };
+  const WH_TYPE_LABEL = { main: t('branch.typeMain'), shop: t('branch.typeShop'), transit: t('branch.typeTransit'), returns: t('branch.typeReturns') };
   const WH_TYPE_COLOR = {
     main: 'bg-blue-50 text-blue-700 border-blue-200',
     shop: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -256,19 +260,19 @@ export default function Filiallar() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-black text-slate-800">Filiallar va Omborlar</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Har bir filialdagi omborlar va ularning bog'liqligini boshqaring</p>
+          <h1 className="text-xl font-black text-slate-800">{t('branch.pageTitle')}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{t('branch.pageSubtitle')}</p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => setWhModal('create')}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-700 hover:border-blue-300 font-semibold text-sm transition-all">
             <Ic d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" cls="w-4 h-4" />
-            Ombor qo'shish
+            {t('branch.addWarehouse')}
           </button>
           <button onClick={() => setBranchModal('create')}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md shadow-blue-200 transition-all">
             <Ic d="M12 4v16m8-8H4" cls="w-4 h-4" />
-            Filial qo'shish
+            {t('branch.addBranch')}
           </button>
         </div>
       </div>
@@ -276,10 +280,10 @@ export default function Filiallar() {
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'Jami filiallar', value: branches.filter(b => b.is_active).length, icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', color: 'bg-blue-50 text-blue-700' },
-          { label: 'Jami omborlar', value: warehouses.filter(w => w.is_active).length, icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4', color: 'bg-emerald-50 text-emerald-700' },
-          { label: 'Bog\'liq omborlar', value: warehouses.filter(w => w.branch_id && w.is_active).length, icon: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1', color: 'bg-amber-50 text-amber-700' },
-          { label: "Bog'liqsiz omborlar", value: unassignedWhs.filter(w => w.is_active).length, icon: 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636', color: 'bg-blue-50 text-blue-700' },
+          { label: t('branch.totalBranches'), value: branches.filter(b => b.is_active).length, icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', color: 'bg-blue-50 text-blue-700' },
+          { label: t('branch.totalWarehouses'), value: warehouses.filter(w => w.is_active).length, icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4', color: 'bg-emerald-50 text-emerald-700' },
+          { label: t('branch.linkedWarehouses'), value: warehouses.filter(w => w.branch_id && w.is_active).length, icon: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1', color: 'bg-amber-50 text-amber-700' },
+          { label: t('branch.unlinkedWarehouses'), value: unassignedWhs.filter(w => w.is_active).length, icon: 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636', color: 'bg-blue-50 text-blue-700' },
         ].map(c => (
           <div key={c.label} className={`rounded-2xl p-4 border border-slate-100 ${c.color}`}>
             <div className="flex items-center gap-2 mb-1">
@@ -311,26 +315,26 @@ export default function Filiallar() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-bold text-slate-800">{branch.name}</span>
-                      {!branch.is_active && <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">Nofaol</span>}
+                      {!branch.is_active && <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">{t('common.inactive')}</span>}
                     </div>
                     <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500 flex-wrap">
                       {branch.address && <span>📍 {branch.address}</span>}
                       {branch.phone && <span>📞 {branch.phone}</span>}
-                      <span className="font-semibold text-blue-600">{bWhs.length} ta ombor</span>
+                      <span className="font-semibold text-blue-600">{t('branch.warehouseCount', { count: bWhs.length })}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <button onClick={e => { e.stopPropagation(); setWhModal({ branchId: branch.id }); }}
-                      className="p-2 rounded-xl text-blue-500 hover:bg-blue-50 transition-colors" title="Ombor qo'shish">
+                      className="p-2 rounded-xl text-blue-500 hover:bg-blue-50 transition-colors" title={t('branch.addWarehouse')}>
                       <Ic d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" cls="w-4 h-4" />
                     </button>
                     <button onClick={e => { e.stopPropagation(); setBranchModal(branch); }}
-                      className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 transition-colors" title="Tahrirlash">
+                      className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 transition-colors" title={t('common.edit')}>
                       <Ic d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" cls="w-4 h-4" />
                     </button>
                     {branch.is_active && (
                       <button onClick={e => { e.stopPropagation(); handleDeactivateBranch(branch); }}
-                        className="p-2 rounded-xl text-blue-400 hover:bg-blue-50 transition-colors" title="Nofaol qilish">
+                        className="p-2 rounded-xl text-blue-400 hover:bg-blue-50 transition-colors" title={t('branch.deactivate')}>
                         <Ic d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" cls="w-4 h-4" />
                       </button>
                     )}
@@ -344,10 +348,10 @@ export default function Filiallar() {
                     {bWhs.length === 0 ? (
                       <div className="flex flex-col items-center py-6 text-slate-400 gap-2">
                         <Ic d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" cls="w-8 h-8" />
-                        <p className="text-sm">Bu filialda hali ombor yo'q</p>
+                        <p className="text-sm">{t('branch.noWarehousesInBranch')}</p>
                         <button onClick={() => setWhModal({ branchId: branch.id })}
                           className="text-sm font-bold text-blue-600 hover:text-blue-700">
-                          + Ombor qo'shish
+                          + {t('branch.addWarehouse')}
                         </button>
                       </div>
                     ) : (
@@ -366,7 +370,7 @@ export default function Filiallar() {
                                   </span>
                                 )}
                               </div>
-                              {!wh.is_active && <span className="text-[10px] text-slate-400">Nofaol</span>}
+                              {!wh.is_active && <span className="text-[10px] text-slate-400">{t('common.inactive')}</span>}
                             </div>
                             <button onClick={() => setWhModal(wh)}
                               className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-200 transition-colors shrink-0">
@@ -385,11 +389,11 @@ export default function Filiallar() {
           {branches.length === 0 && (
             <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-12 text-center">
               <Ic d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" cls="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <p className="text-slate-500 font-semibold mb-1">Hali filial qo'shilmagan</p>
-              <p className="text-sm text-slate-400 mb-4">Filial yaratib, unga omborlarni bog'lang</p>
+              <p className="text-slate-500 font-semibold mb-1">{t('branch.noBranchesYet')}</p>
+              <p className="text-sm text-slate-400 mb-4">{t('branch.createBranchHint')}</p>
               <button onClick={() => setBranchModal('create')}
                 className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm">
-                + Birinchi filial qo'shish
+                + {t('branch.addFirstBranch')}
               </button>
             </div>
           )}
@@ -399,7 +403,7 @@ export default function Filiallar() {
             <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4">
               <div className="flex items-center gap-2 mb-3">
                 <Ic d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" cls="w-5 h-5 text-amber-600" />
-                <span className="font-bold text-amber-800">Filialsiz omborlar ({unassignedWhs.length} ta)</span>
+                <span className="font-bold text-amber-800">{t('branch.unassignedWarehousesTitle', { count: unassignedWhs.length })}</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {unassignedWhs.map(wh => (
@@ -408,7 +412,7 @@ export default function Filiallar() {
                     <span className="flex-1 text-sm font-semibold text-slate-700 truncate">{wh.name}</span>
                     <button onClick={() => setWhModal(wh)}
                       className="text-xs font-bold text-blue-600 hover:text-blue-700 shrink-0">
-                      Bog'lash →
+                      {t('branch.link')} →
                     </button>
                   </div>
                 ))}

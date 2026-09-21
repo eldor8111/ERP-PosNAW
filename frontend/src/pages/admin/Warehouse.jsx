@@ -8,7 +8,7 @@ const fmtDate = (s) => s ? new Date(s).toLocaleString('ru-RU', { year:'numeric',
 const today = () => (new Date(Date.now() - new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 10);
 const fmtS = (v) => Number(v || 0).toLocaleString('uz-UZ') + " so'm";
 
-function printTable(title, headers, rows, totalsRow = null) {
+function printTable(title, headers, rows, totalsRow = null, printLabel = 'Chop etish') {
   const headerHtml = headers.map(h => `<th style="border:1px solid #ddd;padding:8px;background:#f3f4f6;font-size:12px">${h}</th>`).join('');
   const rowsHtml = rows.map((row, i) =>
     `<tr style="background:${i % 2 ? '#f9fafb' : '#fff'}">${row.map(cell =>
@@ -32,7 +32,7 @@ function printTable(title, headers, rows, totalsRow = null) {
     <table><thead><tr>${headerHtml}</tr></thead>
     <tbody>${rowsHtml}${totalsHtml}</tbody></table>
     <div style="margin-top:16px;text-align:center">
-      <button onclick="window.print()" style="padding:8px 20px;background:#4f46e5;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px">Chop etish</button>
+      <button onclick="window.print()" style="padding:8px 20px;background:#4f46e5;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px">${printLabel}</button>
     </div></body></html>`);
   win.document.close();
 }
@@ -133,12 +133,12 @@ export default function Warehouse() {
       setDelConfirm(null);
       load();
     } catch (e) {
-      alert(e.response?.data?.detail || 'Xatolik yuz berdi');
+      alert(e.response?.data?.detail || t('auth.errGeneral'));
     }
   };
 
   const save = async () => {
-    if (!name.trim()) { setErr("Nomi bo'sh bo'lmasin"); return; }
+    if (!name.trim()) { setErr(t('warehouse.nameRequired')); return; }
     setSaving(true); setErr('');
     try {
       const payload = { name: name.trim(), branch_id: branchId ? Number(branchId) : null };
@@ -150,7 +150,7 @@ export default function Warehouse() {
       closeModal();
       load();
     } catch (e) {
-      setErr(e.response?.data?.detail || 'Xatolik yuz berdi');
+      setErr(e.response?.data?.detail || t('auth.errGeneral'));
     } finally {
       setSaving(false);
     }
@@ -163,23 +163,23 @@ export default function Warehouse() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
           </svg>
-          <span className="text-base font-semibold">Ombor</span>
+          <span className="text-base font-semibold">{t('warehouse.title')}</span>
         </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-3">
         <div className="flex flex-wrap gap-1">
-          <TabBtn 
-            label="Ombor qoldiqlari" 
-            icon="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" 
-            active={tab === 'inventory'} 
-            onClick={() => setTab('inventory')} 
+          <TabBtn
+            label={t('warehouse.inventoryTab')}
+            icon="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+            active={tab === 'inventory'}
+            onClick={() => setTab('inventory')}
           />
-          <TabBtn 
-            label="Omborlar ro'yxati" 
-            icon="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" 
-            active={tab === 'warehouses'} 
-            onClick={() => setTab('warehouses')} 
+          <TabBtn
+            label={t('warehouse.warehousesList')}
+            icon="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+            active={tab === 'warehouses'}
+            onClick={() => setTab('warehouses')}
           />
         </div>
       </div>
@@ -188,21 +188,23 @@ export default function Warehouse() {
         {tab === 'inventory' && (
           <>
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
-              <span className="text-sm font-semibold text-slate-700">Ombor qoldiqlari hisoboti</span>
+              <span className="text-sm font-semibold text-slate-700">{t('warehouse.inventoryReport')}</span>
               <ExportBtns
                 onExcel={async () => {
                   const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
                   const ws = XLSX.utils.json_to_sheet(inventoryData.map(i => ({
-                    'Mahsulot': i.product_name, 'SKU': i.sku, 'Qoldiq': i.quantity,
-                    'Min. qoldiq': i.min_stock, 'Qiymat': i.value, 'Holat': i.is_low ? 'Kam' : 'Yetarli',
+                    [t('warehouse.product')]: i.product_name, 'SKU': i.sku, [t('warehouse.stockLevel')]: i.quantity,
+                    [t('warehouse.minStock')]: i.min_stock, [t('warehouse.valueLabel')]: i.value, [t('warehouse.statusLabel')]: i.is_low ? t('warehouse.low') : t('warehouse.sufficient'),
                   })));
                   const wb = XLSX.utils.book_new();
                   XLSX.utils.book_append_sheet(wb, ws, 'Ombor');
                   saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `ombor_${today()}.xlsx`);
                 }}
-                onPdf={() => printTable('Ombor qoldiqlari',
-                  ['Mahsulot', 'SKU', 'Qoldiq', 'Min. qoldiq', 'Qiymat', 'Holat'],
-                  inventoryData.map(i => [i.product_name, i.sku, i.quantity, i.min_stock, fmtS(i.value), i.is_low ? '⚠ Kam' : 'Yetarli'])
+                onPdf={() => printTable(t('warehouse.inventoryReport'),
+                  [t('warehouse.product'), 'SKU', t('warehouse.stockLevel'), t('warehouse.minStock'), t('warehouse.valueLabel'), t('warehouse.statusLabel')],
+                  inventoryData.map(i => [i.product_name, i.sku, i.quantity, i.min_stock, fmtS(i.value), i.is_low ? `⚠ ${t('warehouse.low')}` : t('warehouse.sufficient')]),
+                  null,
+                  t('common.print')
                 )}
               />
             </div>
@@ -211,7 +213,7 @@ export default function Warehouse() {
                 <table className="min-w-full">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100">
-                      {['Mahsulot', 'SKU', 'Qoldiq', 'Min. qoldiq', 'Qiymat', 'Holat'].map(h => (
+                      {[t('warehouse.product'), 'SKU', t('warehouse.stockLevel'), t('warehouse.minStock'), t('warehouse.valueLabel'), t('warehouse.statusLabel')].map(h => (
                         <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                       ))}
                     </tr>
@@ -231,12 +233,12 @@ export default function Warehouse() {
                             i.is_low ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'
                           }`}>
                             <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                            {i.is_low ? 'Kam' : 'Yetarli'}
+                            {i.is_low ? t('warehouse.low') : t('warehouse.sufficient')}
                           </span>
                         </td>
                       </tr>
                     ))}
-                    {inventoryData.length === 0 && <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-400">Hech qanday ma'lumot yo'q</td></tr>}
+                    {inventoryData.length === 0 && <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-400">{t('warehouse.noData')}</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -247,7 +249,7 @@ export default function Warehouse() {
         {tab === 'warehouses' && (
           <>
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
-              <span className="text-sm font-semibold text-slate-700">Omborlar ro'yxati</span>
+              <span className="text-sm font-semibold text-slate-700">{t('warehouse.warehousesList')}</span>
               <button
                 onClick={openCreate}
                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
@@ -255,7 +257,7 @@ export default function Warehouse() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                Yangi ombor qo'shish
+                {t('warehouse.newTransfer')}
               </button>
             </div>
             {loading ? <Spinner /> : (
@@ -263,9 +265,9 @@ export default function Warehouse() {
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase w-12">#</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Nomi</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Filial</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Sana</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">{t('warehouse.nameLabel')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">{t('purchase.filterBranch')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">{t('warehouse.dateLabel')}</th>
                     <th className="px-4 py-3 w-24" />
                   </tr>
                 </thead>
@@ -283,7 +285,7 @@ export default function Warehouse() {
                           <button
                             onClick={() => openEdit(wh)}
                             className="p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
-                            title="Tahrirlash"
+                            title={t('warehouse.editLabel')}
                           >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -293,7 +295,7 @@ export default function Warehouse() {
                           <button
                             onClick={() => setDelConfirm(wh)}
                             className="p-1.5 bg-red-500 hover:bg-red-600 text-white rounded transition-colors"
-                            title="O'chirish"
+                            title={t('warehouse.deleteLabel')}
                           >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -307,7 +309,7 @@ export default function Warehouse() {
                   {warehouses.length === 0 && (
                     <tr>
                       <td colSpan={5} className="px-4 py-12 text-center text-sm text-slate-400">
-                        Ma'lumot topilmadi
+                        {t('warehouse.notFound')}
                       </td>
                     </tr>
                   )}
@@ -323,9 +325,9 @@ export default function Warehouse() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm">
             <div className="px-6 py-5">
-              <h3 className="text-base font-semibold text-slate-800 mb-2">O'chirishni tasdiqlash</h3>
+              <h3 className="text-base font-semibold text-slate-800 mb-2">{t('warehouse.confirmDelete')}</h3>
               <p className="text-sm text-slate-500">
-                <span className="font-medium text-slate-700">"{delConfirm.name}"</span> omborini o'chirishni xohlaysizmi?
+                <span className="font-medium text-slate-700">"{delConfirm.name}"</span> {t('warehouse.confirmDeleteQuestion')}
               </p>
             </div>
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200">
@@ -333,13 +335,13 @@ export default function Warehouse() {
                 onClick={() => setDelConfirm(null)}
                 className="px-4 py-2 text-sm font-medium text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
               >
-                Bekor qilish
+                {t('product.cancelAction')}
               </button>
               <button
                 onClick={remove}
                 className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
               >
-                O'chirish
+                {t('warehouse.deleteLabel')}
               </button>
             </div>
           </div>
@@ -352,7 +354,7 @@ export default function Warehouse() {
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <h3 className="text-base font-semibold text-slate-800">
-                {modal.mode === 'create' ? "Yangi ombor qo'shish" : "Tahrirlash"}
+                {modal.mode === 'create' ? t('warehouse.newTransfer') : t('warehouse.editLabel')}
               </h3>
               <button onClick={closeModal} className="text-slate-400 hover:text-slate-600 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -364,7 +366,7 @@ export default function Warehouse() {
             <div className="px-6 py-5">
               <input
                 autoFocus
-                placeholder="Nomi"
+                placeholder={t('warehouse.nameLabel')}
                 value={name}
                 onChange={e => setName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && save()}
@@ -372,13 +374,13 @@ export default function Warehouse() {
               />
               {branches.length > 0 && (
                 <div className="mt-3">
-                  <label className="block text-xs font-semibold text-slate-500 mb-1">Filial (ixtiyoriy)</label>
+                  <label className="block text-xs font-semibold text-slate-500 mb-1">{t('warehouse.branchOptional')}</label>
                   <select
                     value={branchId}
                     onChange={e => setBranchId(e.target.value)}
                     className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="">— Filialsiz —</option>
+                    <option value="">— {t('warehouse.noBranch')} —</option>
                     {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
                 </div>
@@ -391,7 +393,7 @@ export default function Warehouse() {
                 onClick={closeModal}
                 className="px-4 py-2 text-sm font-medium text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
               >
-                Bekor qilish
+                {t('product.cancelAction')}
               </button>
               <button
                 onClick={save}
@@ -401,7 +403,7 @@ export default function Warehouse() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                 </svg>
-                {saving ? "Saqlanmoqda..." : "Saqlash"}
+                {saving ? t('common.saving') : t('common.save')}
               </button>
             </div>
           </div>

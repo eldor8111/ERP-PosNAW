@@ -22,12 +22,12 @@ const STATUS_STYLES = {
   partial_refund: 'bg-amber-100 text-amber-700',
   cancelled: 'bg-slate-100 text-slate-500',
 }
-const STATUS_LABELS = {
-  completed: 'Bajarildi', refunded: 'Qaytarildi',
-  partial_refund: 'Qisman qaytarildi', cancelled: 'Bekor qilindi',
+const STATUS_LABEL_KEYS = {
+  completed: 'sale.statusCompleted', refunded: 'sale.statusRefunded',
+  partial_refund: 'sale.statusPartialRefund', cancelled: 'sale.statusCancelled',
 }
 
-const PAY_LABELS = { cash: 'Naqd', card: 'Karta', debt: 'Qarz', mixed: 'Aralash' }
+const PAY_LABEL_KEYS = { cash: 'sale.payByCash', card: 'sale.payByCard', debt: 'common.debt', mixed: 'sale.payByMixed' }
 const PAY_STYLES = {
   cash: 'bg-emerald-100 text-emerald-700',
   card: 'bg-blue-100 text-blue-700',
@@ -35,14 +35,14 @@ const PAY_STYLES = {
   mixed: 'bg-violet-100 text-violet-700',
 }
 
-const TABS = [
-  { id: 'umumiy', label: 'Umumiy' },
-  { id: 'sotuvlar', label: 'Sotuvlar' },
-  { id: 'qaytarishlar', label: 'Qaytarishlar' },
-  { id: 'buyurtmalar', label: 'Buyurtmalar' },
-  { id: 'operatsiyalar', label: 'Operatsiyalar' },
-  { id: 'akt', label: 'Akt Sverka' },
-  { id: 'kirim_tolovlar', label: "Kirim to'lovlar" },
+const TAB_DEFS = [
+  { id: 'umumiy', labelKey: 'customerDetail.tabGeneral' },
+  { id: 'sotuvlar', labelKey: 'customerDetail.tabSales' },
+  { id: 'qaytarishlar', labelKey: 'customerDetail.tabReturns' },
+  { id: 'buyurtmalar', labelKey: 'order.title' },
+  { id: 'operatsiyalar', labelKey: 'customerDetail.tabOperations' },
+  { id: 'akt', labelKey: 'customerDetail.tabAktSverka' },
+  { id: 'kirim_tolovlar', labelKey: 'customerDetail.tabIncomePayments' },
 ]
 
 function StatCard({ icon, label, value, sub, color = 'indigo' }) {
@@ -228,17 +228,17 @@ export default function CustomerDetail() {
       {/* Tabs */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="flex border-b overflow-x-auto overflow-y-hidden border-slate-100">
-          {TABS.map(t => (
+          {TAB_DEFS.map(tabDef => (
             <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
+              key={tabDef.id}
+              onClick={() => setTab(tabDef.id)}
               className={`px-2 md:px-5 py-3.5 text-[12px] sm:text-sm cursor-pointer font-semibold whitespace-nowrap transition-colors border-b-2 -mb-px
-                ${tab === t.id
+                ${tab === tabDef.id
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
             >
-              {t.label}
+              {t(tabDef.labelKey)}
             </button>
           ))}
         </div>
@@ -258,14 +258,14 @@ export default function CustomerDetail() {
 
                       <div className="relative z-10 flex justify-between items-start">
                         <div>
-                          <div className="text-blue-200 text-[9px] sm:text-[11px] uppercase tracking-widest font-semibold sm:mb-1">Mijoz Kartasi</div>
+                          <div className="text-blue-200 text-[9px] sm:text-[11px] uppercase tracking-widest font-semibold sm:mb-1">{t('customerDetail.customerCard')}</div>
                           <div className="text-lg sm:text-xl font-bold drop-shadow-sm">{stats.name}</div>
                         </div>
                         <div className="bg-white/20 backdrop-blur-md border border-white/10 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-semibold flex items-center gap-1.5 shadow-sm">
                           <svg className="w-4 h-4 text-amber-300" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                           </svg>
-                          {stats.cashback_percent > 0 ? `${stats.cashback_percent}% Keshbek` : 'Standard Card'}
+                          {stats.cashback_percent > 0 ? `${stats.cashback_percent}% ${t('customer.cashback')}` : t('customerDetail.standardCard')}
                         </div>
                       </div>
 
@@ -275,11 +275,11 @@ export default function CustomerDetail() {
                         </div>
                         <div className="flex items-center justify-between border-t border-white/10 pt-4">
                           <div>
-                            <div className="text-blue-200 text-[10px] uppercase font-bold tracking-wider mb-0.5">Bonus Balans</div>
+                            <div className="text-blue-200 text-[10px] uppercase font-bold tracking-wider mb-0.5">{t('customer.bonusBalance')}</div>
                             <div className="font-bold text-[14px] sm:text-lg text-emerald-300">{fmt(stats.bonus_balance)} <span className="text-xs font-medium opacity-80">{stats.debt_currency === 'USD' ? '$' : "so'm"}</span></div>
                           </div>
                           <div className="text-right">
-                            <div className="text-blue-200 text-[10px] uppercase font-bold tracking-wider mb-0.5">Jami Xaridlar</div>
+                            <div className="text-blue-200 text-[10px] uppercase font-bold tracking-wider mb-0.5">{t('customer.totalSpent')}</div>
                             <div className="font-bold text-[14px] sm:text-base text-white">{fmt(stats.total_spent)} <span className="text-xs font-medium opacity-80">{stats.debt_currency === 'USD' ? '$' : "so'm"}</span></div>
                           </div>
                         </div>
@@ -291,21 +291,21 @@ export default function CustomerDetail() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 flex-1 w-full gap-1 sm:gap-4">
                   <StatCard
                     color="indigo"
-                    label="Jami Sotuvlar"
-                    value={`${fmt(stats.total_sales_count)} ta`}
+                    label={t('customerDetail.totalSales')}
+                    value={`${fmt(stats.total_sales_count)} ${t('common.item')}`}
                     sub={`${fmt(stats.total_sales_amount)} ${stats.debt_currency === 'USD' ? '$' : "so'm"}`}
                     icon={<svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>}
                   />
                   <StatCard
                     color="emerald"
-                    label="To'langan"
+                    label={t('customerDetail.paidLabel')}
                     value={`${fmt(stats.total_paid_amount)} ${stats.debt_currency === 'USD' ? '$' : "so'm"}`}
-                    sub={`${fmt(stats.total_sales_count)} sotuvdan`}
+                    sub={`${fmt(stats.total_sales_count)} ${t('customerDetail.fromSalesCount')}`}
                     icon={<svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
                   />
                   <StatCard
                     color="red"
-                    label="Qarzdorlik"
+                    label={t('customer.debtBalance')}
                     value={`${fmt(dynamicBalance)} so'm`}
                     sub={
                       stats.debt_balances && Object.keys(stats.debt_balances).length > 0 ? (
@@ -317,15 +317,15 @@ export default function CustomerDetail() {
                           ))}
                         </div>
                       ) : (
-                        stats.debt_limit > 0 ? `Limit: ${fmt(stats.debt_limit)} so'm` : 'Limit belgilanmagan'
+                        stats.debt_limit > 0 ? `${t('customer.creditLimit')}: ${fmt(stats.debt_limit)} so'm` : t('customerDetail.limitNotSet')
                       )
                     }
                     icon={<svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
                   />
                   <StatCard
                     color="amber"
-                    label="Qaytarishlar"
-                    value={`${fmt(stats.total_returns_count)} ta`}
+                    label={t('customerDetail.tabReturns')}
+                    value={`${fmt(stats.total_returns_count)} ${t('common.item')}`}
                     sub={`${fmt(stats.total_returns_amount)} ${stats.debt_currency === 'USD' ? '$' : "so'm"}`}
                     icon={<svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>}
                   />
@@ -335,7 +335,7 @@ export default function CustomerDetail() {
               {/* Loyalty progress */}
               <div className="bg-slate-50 rounded-xl p-5">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-semibold text-slate-600">Loyallik Dasturi</span>
+                  <span className="text-sm font-semibold text-slate-600">{t('customerDetail.loyaltyProgram')}</span>
                   <span className={`px-3 py-1 rounded-full text-xs font-semibold ${TIER_STYLES[stats.tier]}`}>{stats.tier}</span>
                 </div>
                 <div className="flex items-center gap-3">
@@ -347,10 +347,10 @@ export default function CustomerDetail() {
                   ))}
                 </div>
                 <div className="text-xs text-slate-400 mt-2">
-                  {stats.tier === 'Standard' && `Bronze uchun ${fmt(1000 - stats.loyalty_points)} ball kerak`}
-                  {stats.tier === 'Bronze' && `Silver uchun ${fmt(5000 - stats.loyalty_points)} ball kerak`}
-                  {stats.tier === 'Silver' && `Gold uchun ${fmt(10000 - stats.loyalty_points)} ball kerak`}
-                  {stats.tier === 'Gold' && 'Maksimal daraja — Gold!'}
+                  {stats.tier === 'Standard' && t('customerDetail.pointsNeededFor', { count: fmt(1000 - stats.loyalty_points), tier: 'Bronze' })}
+                  {stats.tier === 'Bronze' && t('customerDetail.pointsNeededFor', { count: fmt(5000 - stats.loyalty_points), tier: 'Silver' })}
+                  {stats.tier === 'Silver' && t('customerDetail.pointsNeededFor', { count: fmt(10000 - stats.loyalty_points), tier: 'Gold' })}
+                  {stats.tier === 'Gold' && t('customerDetail.maxTierReached')}
                 </div>
               </div>
             </div>
@@ -372,7 +372,7 @@ export default function CustomerDetail() {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                   </svg>
-                  Yangi qaytarish
+                  {t('customerDetail.newReturn')}
                 </button>
               </div>
               <ReturnsTable rows={returns} loading={loadingTab} />
@@ -411,7 +411,7 @@ export default function CustomerDetail() {
     </div>
   )
 }
-function SalesTable({ rows, stats, salesData, loading, onRefresh, emptyText = "Sotuvlar yo'q" }) {
+function SalesTable({ rows, stats, salesData, loading, onRefresh, emptyText }) {
   const { t } = useLang();
 
   // 1. BARCHA HOOKLAR ENG TEPADA BO'LISHI SHART
@@ -444,7 +444,7 @@ function SalesTable({ rows, stats, salesData, loading, onRefresh, emptyText = "S
 
   // 2. HOOKLARDAN KEYINGI ERTA QAYTISHLAR (Early returns)
   if (loading) return <LoadingSpinner />
-  if (!rows.length) return <Empty text={emptyText} />
+  if (!rows.length) return <Empty text={emptyText || t('customerDetail.noSales')} />
 
   // 3. ASOSIY MANTIQ
   const filteredByEmployee = [];
@@ -493,14 +493,14 @@ function SalesTable({ rows, stats, salesData, loading, onRefresh, emptyText = "S
       <div className="flex justify-end mb-4 gap-1 flex-wrap xl:gap-3 sm:-mt-2">
         {/* Xodim filtrlari */}
         <div className="flex items-center border px-3 border-slate-200 rounded-md gap-2 bg-white">
-          <label htmlFor="employee" className='text-sm xl:text-md text-slate-600'>Xodim</label>
+          <label htmlFor="employee" className='text-sm xl:text-md text-slate-600'>{t('admin.dict.employee')}</label>
           <select
             id="employee"
             value={selectedEmployee}
             onChange={(e) => setSelectedEmployee(e.target.value)}
             className='cursor-pointer py-1.5 xl:py-2 border-l border-slate-200 pl-2 outline-none bg-transparent'
           >
-            <option value="all">Barchasi</option>
+            <option value="all">{t('customerDetail.all')}</option>
             {filteredByEmployee.map(employee => (
               <option key={employee} className='' value={employee}>{employee}</option>
             ))}
@@ -510,7 +510,7 @@ function SalesTable({ rows, stats, salesData, loading, onRefresh, emptyText = "S
         {/* Sana filtrlari */}
         <div className='flex gap-1 xl:gap-3 flex-wrap justify-end'>
           <div className='flex items-center border px-3 border-slate-200 rounded-md gap-2 bg-white'>
-            <label htmlFor="from" className='text-sm xl:text-md text-slate-600'>dan</label>
+            <label htmlFor="from" className='text-sm xl:text-md text-slate-600'>{t('customerDetail.fromLabel')}</label>
             <input
               type="date"
               id='from'
@@ -520,7 +520,7 @@ function SalesTable({ rows, stats, salesData, loading, onRefresh, emptyText = "S
             />
           </div>
           <div className='flex items-center border px-3 border-slate-200 rounded-md gap-2 bg-white'>
-            <label htmlFor="to" className='text-sm xl:text-md text-slate-600'>gacha</label>
+            <label htmlFor="to" className='text-sm xl:text-md text-slate-600'>{t('customerDetail.toLabel')}</label>
             <input
               type="date"
               id='to'
@@ -535,7 +535,7 @@ function SalesTable({ rows, stats, salesData, loading, onRefresh, emptyText = "S
               onClick={() => { setFromDate(''); setToDate(''); }}
               className="text-sm cursor-pointer text-red-500 hover:text-red-700 underline px-2"
             >
-              Tozalash
+              {t('admin.dict.clear')}
             </button>
           )}
         </div>
@@ -547,13 +547,13 @@ function SalesTable({ rows, stats, salesData, loading, onRefresh, emptyText = "S
           <table className="min-w-[1200px] w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.number') || 'Raqam'}</th>
-                <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{'Xodim'}</th>
-                <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">To'lov turi</th>
-                <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.total') || 'Jami'}</th>
-                <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">To'langan</th>
-                <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.debt') || 'Qarz'}</th>
-                <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.date') || 'Sana'}</th>
+                <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.number')}</th>
+                <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.employee')}</th>
+                <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('sale.paymentType')}</th>
+                <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.total')}</th>
+                <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('customerDetail.paidLabel')}</th>
+                <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.debt')}</th>
+                <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.date')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -584,7 +584,7 @@ function SalesTable({ rows, stats, salesData, loading, onRefresh, emptyText = "S
                       </td>
                       <td className="px-4 py-4">
                         <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${PAY_STYLES[s.payment_type] || ''}`}>
-                          {PAY_LABELS[s.payment_type] || s.payment_type}
+                          {PAY_LABEL_KEYS[s.payment_type] ? t(PAY_LABEL_KEYS[s.payment_type]) : s.payment_type}
                         </span>
                       </td>
                       <td className="px-4 py-4 text-left font-semibold text-slate-800">{fmt(s.total_amount)} {currSign}</td>
@@ -603,7 +603,7 @@ function SalesTable({ rows, stats, salesData, loading, onRefresh, emptyText = "S
                       <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                       </svg>
-                      <span className="text-sm">Ushbu holat bo'yicha ma'lumot topilmadi</span>
+                      <span className="text-sm">{t('customerDetail.noDataForStatus')}</span>
                     </div>
                   </td>
                 </tr>
@@ -613,7 +613,7 @@ function SalesTable({ rows, stats, salesData, loading, onRefresh, emptyText = "S
             {filteredByEmployeeSales.length > 0 && (
               <tfoot>
                 <tr className="border-t-2 border-slate-200 bg-slate-50/50">
-                  <td colSpan={3} className="px-4 py-4 text-xs font-semibold text-slate-400 uppercase">{t('admin.dict.total') || 'Jami'}</td>
+                  <td colSpan={3} className="px-4 py-4 text-xs font-semibold text-slate-400 uppercase">{t('admin.dict.total')}</td>
                   <td className="px-4 py-4 text-left font-bold text-slate-800">
                     {fmt(filteredByEmployeeSales.reduce((s, r) => s + Number(r.total_amount), 0))} {stats.debt_currency === 'USD' ? '$' : "so'm"}
                   </td>
@@ -633,7 +633,7 @@ function SalesTable({ rows, stats, salesData, loading, onRefresh, emptyText = "S
         {/* Sahifalash (Pagination) qismi */}
         {filteredByEmployeeSales.length > 0 && (
           <div className="px-6 py-3 border-t border-slate-100 flex items-center justify-between text-xs md:text-sm text-slate-500 bg-slate-50 rounded-b-2xl">
-            <span>Jami <strong className="text-slate-700">{totalRecords}</strong> ta sotuv</span>
+            <span>{t('admin.dict.total')} <strong className="text-slate-700">{totalRecords}</strong> {t('customerDetail.saleCountSuffix')}</span>
 
             <div className="flex items-center flex-nowrap gap-0 sm:gap-1">
               <button disabled={page === 1} onClick={() => setPage(1)}
@@ -699,7 +699,7 @@ function SalesTable({ rows, stats, salesData, loading, onRefresh, emptyText = "S
             {/* Header */}
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
               <div className="flex items-center gap-4">
-                <h3 className="text-xl font-bold text-slate-800">Sotuv tafsilotlari</h3>
+                <h3 className="text-xl font-bold text-slate-800">{t('customerDetail.saleDetails')}</h3>
                 {saleDetailData?.status !== 'refunded' && saleDetailData?.status !== 'cancelled' && (
                   <button
                     onClick={() => {
@@ -708,7 +708,7 @@ function SalesTable({ rows, stats, salesData, loading, onRefresh, emptyText = "S
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors border border-red-100/50"
                   >
                     <RotateCcw size={14} />
-                    Vozvrat qilish
+                    {t('customerDetail.makeReturn')}
                   </button>
                 )}
               </div>
@@ -727,7 +727,7 @@ function SalesTable({ rows, stats, salesData, loading, onRefresh, emptyText = "S
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {/* Umumiy Summa */}
                 <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-100">
-                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Umumiy summa</p>
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">{t('customerDetail.totalAmount')}</p>
                   <p className="text-lg font-bold text-slate-900 mt-1">
                     {fmt(saleDetailData?.total_amount)} <span className="text-xs text-slate-500 font-normal">{saleDetailData?.currency_code || saleDetailData?.currency}</span>
                   </p>
@@ -735,7 +735,7 @@ function SalesTable({ rows, stats, salesData, loading, onRefresh, emptyText = "S
 
                 {/* To'langan */}
                 <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100/60">
-                  <p className="text-xs font-medium text-emerald-600 uppercase tracking-wider">To'langan</p>
+                  <p className="text-xs font-medium text-emerald-600 uppercase tracking-wider">{t('customerDetail.paidLabel')}</p>
                   <p className="text-lg font-bold text-emerald-700 mt-1">
                     {fmt(saleDetailData?.paid_amount)} <span className="text-xs text-emerald-600 font-normal">{saleDetailData?.currency_code || saleDetailData?.currency}</span>
                   </p>
@@ -747,7 +747,7 @@ function SalesTable({ rows, stats, salesData, loading, onRefresh, emptyText = "S
                   return (
                     <div className={`p-4 rounded-xl border ${remainDebt > 0 ? 'bg-amber-50/50 border-amber-100/60' : 'bg-slate-50/80 border-slate-100'}`}>
                       <p className={`text-xs font-medium uppercase tracking-wider ${remainDebt > 0 ? 'text-amber-600' : 'text-slate-500'}`}>
-                        Qarzga qolgan
+                        {t('customerDetail.remainingDebt')}
                       </p>
                       <p className={`text-lg font-bold mt-1 ${remainDebt > 0 ? 'text-amber-700' : 'text-slate-700'}`}>
                         {fmt(remainDebt)} <span className="text-xs font-normal opacity-75">{saleDetailData?.currency_code || saleDetailData?.currency}</span>
@@ -759,16 +759,16 @@ function SalesTable({ rows, stats, salesData, loading, onRefresh, emptyText = "S
 
               {/* Items Table */}
               <div className="space-y-3">
-                <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Mahsulotlar</h4>
+                <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">{t('customerDetail.products')}</h4>
                 <div className="border border-slate-100 rounded-xl overflow-hidden shadow-xs">
                   <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-slate-100">
                       <thead className="bg-slate-50">
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Mahsulot</th>
-                          <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Miqdor</th>
-                          <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Narx</th>
-                          <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Jami</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('customerDetail.product')}</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('common.quantity')}</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('common.price')}</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.total')}</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-slate-100 text-sm text-slate-700">
@@ -796,7 +796,7 @@ function SalesTable({ rows, stats, salesData, loading, onRefresh, emptyText = "S
                 onClick={() => setOpenSaleDetailModal(false)}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors cursor-pointer"
               >
-                Yopish
+                {t('common.close')}
               </button>
             </div>
 
@@ -843,15 +843,16 @@ const OP_COLOR = {
   payment: 'bg-emerald-100 text-emerald-600',
   debt_edit: 'bg-amber-100 text-amber-600',
 }
-const OP_LABEL = {
-  sale: 'Sotuv',
-  payment: "Qarz to'lovi",
-  debt_edit: 'Qarz tahriri',
+const OP_LABEL_KEYS = {
+  sale: 'customerDetail.opSale',
+  payment: 'customerDetail.opDebtPayment',
+  debt_edit: 'customerDetail.opDebtEdit',
 }
 
 function OperationsTable({ rows, loading }) {
+  const { t } = useLang();
   if (loading) return <LoadingSpinner />
-  if (!rows.length) return <Empty text="Operatsiyalar yo'q" />
+  if (!rows.length) return <Empty text={t('customerDetail.noOperations')} />
 
   const getCurrencyCode = (c) => {
     if (!c) return 'UZS'
@@ -875,7 +876,7 @@ function OperationsTable({ rows, loading }) {
             {/* Matn */}
             <div className="flex-1 min-w-0">
               <div className="text-sm font-semibold text-slate-700">
-                {OP_LABEL[opType] || opType}
+                {OP_LABEL_KEYS[opType] ? t(OP_LABEL_KEYS[opType]) : opType}
                 {r.sale_number ? <span className="ml-1 text-xs text-slate-400">#{r.sale_number}</span> : null}
               </div>
               <div className="text-xs text-slate-400 mt-0.5">{fmtDate(r.date)}</div>
@@ -900,9 +901,9 @@ function OperationsTable({ rows, loading }) {
               )}
               {opType === 'sale' && (
                 <div className="flex gap-2 mt-0.5 justify-end">
-                  <span className="text-[11px] text-emerald-600">To'landi: {fmt(r.paid)} {curr}</span>
+                  <span className="text-[11px] text-emerald-600">{t('customerDetail.paidColon')} {fmt(r.paid)} {curr}</span>
                   {(r.debt > 0) && (
-                    <span className="text-[11px] text-red-500">Qarz: {fmt(r.debt)} {curr}</span>
+                    <span className="text-[11px] text-red-500">{t('common.debt')}: {fmt(r.debt)} {curr}</span>
                   )}
                 </div>
               )}
@@ -915,6 +916,7 @@ function OperationsTable({ rows, loading }) {
 }
 
 function AktSverka({ stats, sales, loading, history, onRefresh }) {
+  const { t } = useLang();
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [sortOrder, setSortOrder] = useState('asc')
@@ -951,8 +953,8 @@ function AktSverka({ stats, sales, loading, history, onRefresh }) {
     id: s.id,
     key: `sale-${s.id}`,
     date: s.created_at,
-    label: 'Sotuv',
-    sublabel: s.payment_type ? PAY_LABELS[s.payment_type] || s.payment_type : '',
+    label: t('customerDetail.opSale'),
+    sublabel: s.payment_type ? (PAY_LABEL_KEYS[s.payment_type] ? t(PAY_LABEL_KEYS[s.payment_type]) : s.payment_type) : '',
     amount: Number(s.total_amount || 0),
     paid: Number(s.paid_amount || 0),
     // Qarzga sotuv: to'lanmagan qism qarz bo'ladi
@@ -968,7 +970,7 @@ function AktSverka({ stats, sales, loading, history, onRefresh }) {
     id: h.id || null,
     key: `pay-${h.date}`,
     date: h.date,
-    label: "Qarz to'lovi",
+    label: t('customerDetail.opDebtPayment'),
     sublabel: h.payment_type || '',
     amount: Number(h.amount || 0),
     paid: Number(h.amount || 0),
@@ -985,7 +987,7 @@ function AktSverka({ stats, sales, loading, history, onRefresh }) {
     id: h.id || null,
     key: `refund-${h.id || h.date}`,
     date: h.date,
-    label: "Qaytarish",
+    label: t('customerDetail.opReturn'),
     sublabel: h.payment_type || '',
     amount: Number(h.amount || 0),
     paid: Number(h.paid || 0),
@@ -1002,7 +1004,7 @@ function AktSverka({ stats, sales, loading, history, onRefresh }) {
     id: h.id || null,
     key: `edit-${h.date}`,
     date: h.date,
-    label: 'Qarz tahriri',
+    label: t('customerDetail.opDebtEdit'),
     sublabel: '',
     amount: Number(h.amount || 0),
     paid: 0,
@@ -1096,10 +1098,10 @@ function AktSverka({ stats, sales, loading, history, onRefresh }) {
     <div className="space-y-3">
       {/* Sarlavha */}
       <div className='flex flex-wrap items-center gap-3'>
-        <h3 className="text-sm font-semibold text-slate-700">Akt Sverka — {stats.name}</h3>
+        <h3 className="text-sm font-semibold text-slate-700">{t('customerDetail.tabAktSverka')} — {stats.name}</h3>
         {mappedBalances.length > 0 && (
           <div className='text-sm border border-slate-200 px-3 py-1 rounded flex gap-3 font-medium text-slate-600'>
-            Qarzdorlik:
+            {t('customer.debtBalance')}:
             {mappedBalances.map((item) => (
               <span key={item.currency}>
                 <span className='text-red-600'>{fmt(item.amount)}</span>{' '}
@@ -1112,7 +1114,7 @@ function AktSverka({ stats, sales, loading, history, onRefresh }) {
 
       <div className="flex gap-2 border-b flex-wrap border-slate-200 pb-3">
         <div className="border border-slate-200 flex items-center gap-2 px-3 min-w-50 rounded">
-          <span className='text-slate-700'>dan:</span>
+          <span className='text-slate-700'>{t('customerDetail.fromLabel')}:</span>
           <input
             type="date"
             value={fromDate}
@@ -1122,7 +1124,7 @@ function AktSverka({ stats, sales, loading, history, onRefresh }) {
         </div>
 
         <div className="border border-slate-200 flex items-center gap-2 px-3 min-w-50 rounded">
-          <span className='text-slate-700'>gacha:</span>
+          <span className='text-slate-700'>{t('customerDetail.toLabel')}:</span>
           <input
             type="date"
             value={toDate}
@@ -1132,40 +1134,40 @@ function AktSverka({ stats, sales, loading, history, onRefresh }) {
         </div>
 
         <div className="border border-slate-200 flex items-center gap-2 px-3 min-w-55 rounded">
-          <span className='text-slate-700'>Tartib:</span>
+          <span className='text-slate-700'>{t('customerDetail.orderLabel')}:</span>
           <select
             value={sortOrder}
             onChange={(e) => setSortOrder(e.target.value)}
             className='outline-0 w-full cursor-pointer border-l border-slate-200 pl-2 py-1'
           >
-            <option value="asc">Eski birinchi</option>
-            <option value="desc">Yangi birinchi</option>
+            <option value="asc">{t('customerDetail.oldestFirst')}</option>
+            <option value="desc">{t('customerDetail.newestFirst')}</option>
           </select>
         </div>
 
         <div className="border border-slate-200 flex items-center gap-2 px-3 min-w-60 rounded">
-          <span className='text-slate-700'>Operatsiya:</span>
+          <span className='text-slate-700'>{t('customerDetail.operationLabel')}:</span>
           <select
             value={operationType}
             onChange={(e) => setOperationType(e.target.value)}
             className='outline-0 w-full cursor-pointer border-l border-slate-200 pl-2 py-1'
           >
-            <option value="all">Barchasi</option>
-            <option value="sale">Sotuv</option>
-            <option value="refund">Qaytarish</option>
-            <option value="payment">Qarz to'lovi</option>
-            <option value="debt_edit">Qarz tahriri</option>
+            <option value="all">{t('customerDetail.all')}</option>
+            <option value="sale">{t('customerDetail.opSale')}</option>
+            <option value="refund">{t('customerDetail.opReturn')}</option>
+            <option value="payment">{t('customerDetail.opDebtPayment')}</option>
+            <option value="debt_edit">{t('customerDetail.opDebtEdit')}</option>
           </select>
         </div>
 
         <div className="border border-slate-200 flex items-center gap-2 px-3 min-w-50 rounded">
-          <span className='text-slate-700'>Kassir:</span>
+          <span className='text-slate-700'>{t('admin.dict.cashier')}:</span>
           <select
             value={selectedCashier}
             onChange={(e) => setSelectedCashier(e.target.value)}
             className='outline-0 w-full cursor-pointer border-l border-slate-200 pl-2 py-1'
           >
-            <option value="all">Barchasi</option>
+            <option value="all">{t('customerDetail.all')}</option>
             {cashiers.map((cashierName) => (
               <option key={cashierName} value={cashierName}>{cashierName}</option>
             ))}
@@ -1183,19 +1185,19 @@ function AktSverka({ stats, sales, loading, history, onRefresh }) {
           className='border ml-auto border-slate-200 text-slate-700 px-3 py-1 flex gap-1.5 items-center rounded cursor-pointer'
         >
           <RotateCcw size={18} />
-          <span>Filterni tozalash</span>
+          <span>{t('customerDetail.clearFilter')}</span>
         </button>
       </div>
 
       {/* Jadval */}
       {displayRows.length === 0 ? (
-        <Empty text="Operatsiyalar yo'q" />
+        <Empty text={t('customerDetail.noOperations')} />
       ) : (
         <div className='overflow-x-auto'>
           <table className='w-full min-w-[980px] text-sm'>
             <thead>
               <tr>
-                {['#', 'Operatsiya', "To'lov turi", 'Oldingi qarz', 'Qarzning oshishi', "Qarzning kamayishi", 'Yakuniy qarz', "To'langan", 'Kassir', 'Sana'].map((h, i) => (
+                {['#', t('customerDetail.operationLabel'), t('sale.paymentType'), t('customerDetail.prevDebt'), t('customerDetail.debtIncrease'), t('customerDetail.debtDecrease'), t('customerDetail.finalDebt'), t('customerDetail.paidLabel'), t('admin.dict.cashier'), t('admin.dict.date')].map((h, i) => (
                   <th key={i} className='font-semibold uppercase text-slate-700 p-2 border border-slate-200'>{h}</th>
                 ))}
               </tr>
@@ -1260,7 +1262,7 @@ function AktSverka({ stats, sales, loading, history, onRefresh }) {
             {/* Header */}
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
               <div className="flex items-center gap-4">
-                <h3 className="text-xl font-bold text-slate-800">Sotuv tafsilotlari</h3>
+                <h3 className="text-xl font-bold text-slate-800">{t('customerDetail.saleDetails')}</h3>
                 {saleDetailData?.status !== 'refunded' && saleDetailData?.status !== 'cancelled' && (
                   <button
                     onClick={() => {
@@ -1269,7 +1271,7 @@ function AktSverka({ stats, sales, loading, history, onRefresh }) {
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors border border-red-100/50"
                   >
                     <RotateCcw size={14} />
-                    Vozvrat qilish
+                    {t('customerDetail.makeReturn')}
                   </button>
                 )}
               </div>
@@ -1288,7 +1290,7 @@ function AktSverka({ stats, sales, loading, history, onRefresh }) {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {/* Umumiy Summa */}
                 <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-100">
-                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Umumiy summa</p>
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">{t('customerDetail.totalAmount')}</p>
                   <p className="text-lg font-bold text-slate-900 mt-1">
                     {fmt(saleDetailData?.total_amount)} <span className="text-xs text-slate-500 font-normal">{saleDetailData?.currency}</span>
                   </p>
@@ -1296,7 +1298,7 @@ function AktSverka({ stats, sales, loading, history, onRefresh }) {
 
                 {/* To'langan */}
                 <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100/60">
-                  <p className="text-xs font-medium text-emerald-600 uppercase tracking-wider">To'langan</p>
+                  <p className="text-xs font-medium text-emerald-600 uppercase tracking-wider">{t('customerDetail.paidLabel')}</p>
                   <p className="text-lg font-bold text-emerald-700 mt-1">
                     {fmt(saleDetailData?.paid_amount)} <span className="text-xs text-emerald-600 font-normal">{saleDetailData?.currency}</span>
                   </p>
@@ -1308,7 +1310,7 @@ function AktSverka({ stats, sales, loading, history, onRefresh }) {
                   return (
                     <div className={`p-4 rounded-xl border ${remainDebt2 > 0 ? 'bg-amber-50/50 border-amber-100/60' : 'bg-slate-50/80 border-slate-100'}`}>
                       <p className={`text-xs font-medium uppercase tracking-wider ${remainDebt2 > 0 ? 'text-amber-600' : 'text-slate-500'}`}>
-                        Qarzga qolgan
+                        {t('customerDetail.remainingDebt')}
                       </p>
                       <p className={`text-lg font-bold mt-1 ${remainDebt2 > 0 ? 'text-amber-700' : 'text-slate-700'}`}>
                         {fmt(remainDebt2)} <span className="text-xs font-normal opacity-75">{saleDetailData?.currency}</span>
@@ -1320,16 +1322,16 @@ function AktSverka({ stats, sales, loading, history, onRefresh }) {
 
               {/* Items Table */}
               <div className="space-y-3">
-                <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Mahsulotlar</h4>
+                <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">{t('customerDetail.products')}</h4>
                 <div className="border border-slate-100 rounded-xl overflow-hidden shadow-xs">
                   <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-slate-100">
                       <thead className="bg-slate-50">
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Mahsulot</th>
-                          <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Miqdor</th>
-                          <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Narx</th>
-                          <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Jami</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('customerDetail.product')}</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('common.quantity')}</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('common.price')}</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.total')}</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-slate-100 text-sm text-slate-700">
@@ -1354,7 +1356,7 @@ function AktSverka({ stats, sales, loading, history, onRefresh }) {
                 onClick={() => setOpenSaleDetailModal(false)}
                 className="bg-slate-900 text-white hover:bg-slate-800 px-5 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 shadow-sm active:scale-98 cursor-pointer"
               >
-                Yopish
+                {t('common.close')}
               </button>
             </div>
 
@@ -1378,6 +1380,7 @@ function AktSverka({ stats, sales, loading, history, onRefresh }) {
 }
 
 function KirimTolovlar({ stats, income, loading, openEdit, handleDelete }) {
+  const { t } = useLang();
   // Pullarni chiroyli formatda chiqarish uchun yordamchi funksiya (Masalan: 1 250 000)
   const fmt = (num) => {
     return num ? Number(num).toLocaleString('uz-UZ') : '0';
@@ -1395,21 +1398,21 @@ function KirimTolovlar({ stats, income, loading, openEdit, handleDelete }) {
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">#</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">CONTRAGENT</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">TURI</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">TO'LOV</th>
-              <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500" colSpan="6">TO'LOV TURLARI</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">KIRIM MANBASI</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">KASSA</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">MA'LUMOT</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">SANA</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">AMALLAR</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">{t('customerDetail.contragent')}</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">{t('customerDetail.typeLabel')}</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">{t('customer.payment')}</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500" colSpan="6">{t('customerDetail.paymentTypes')}</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">{t('customerDetail.incomeSource')}</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">{t('customerDetail.cashbox')}</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">{t('common.note')}</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">{t('admin.dict.date')}</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">{t('common.actions')}</th>
             </tr>
             <tr className="bg-slate-50 border-b border-slate-100">
               <th colSpan="4"></th>
-              <th className="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 border-x border-slate-200">NAQD</th>
+              <th className="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 border-x border-slate-200">{t('finance.cash')}</th>
               <th className="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 border-x border-slate-200">UZCARD/HUMO</th>
-              <th className="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 border-x border-slate-200">BANK O'TKAZMASI</th>
+              <th className="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 border-x border-slate-200">{t('customerDetail.bankTransfer')}</th>
               <th className="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 border-x border-slate-200">CLICK</th>
               <th className="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 border-x border-slate-200">PAYME</th>
               <th className="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 border-x border-slate-200">UZUM</th>
@@ -1420,7 +1423,7 @@ function KirimTolovlar({ stats, income, loading, openEdit, handleDelete }) {
             {loading ? (
               <tr>
                 <td colSpan="15" className="text-center py-8 text-slate-500">
-                  Yuklanmoqda...
+                  {t('common.loading')}
                 </td>
               </tr>
             ) : correct_income.length > 0 ? (
@@ -1430,7 +1433,7 @@ function KirimTolovlar({ stats, income, loading, openEdit, handleDelete }) {
                   <td className="px-4 py-3 font-semibold text-blue-600">{i.contragent}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-1 rounded-md text-xs font-medium ${i.turi === 'Mijoz' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                      {i.turi || 'Mijoz'}
+                      {i.turi || t('admin.dict.customer')}
                     </span>
                   </td>
                   {/* Agar obyektingizda 'amount' o'rniga 'value' bo'lsa, i.value deb o'zgartiring */}
@@ -1446,7 +1449,7 @@ function KirimTolovlar({ stats, income, loading, openEdit, handleDelete }) {
 
                   <td className="px-4 py-3">
                     <span className="px-2 py-1 rounded-md text-xs bg-blue-50 text-blue-600 border border-blue-100">
-                      {i.reference_type === 'customer_payment' ? "Qarz yopish" : i.reference_type === 'sale' ? "Sotuv" : "Ta'minotchidan qaytaruv"}
+                      {i.reference_type === 'customer_payment' ? t('customerDetail.debtClosing') : i.reference_type === 'sale' ? t('customerDetail.opSale') : t('customerDetail.supplierReturn')}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-slate-600 text-xs">{i.wallet || i.name || '—'}</td>
@@ -1462,17 +1465,17 @@ function KirimTolovlar({ stats, income, loading, openEdit, handleDelete }) {
                             onClick={() => openEdit && openEdit(i)}
                             className="px-2 py-1 text-xs font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
                           >
-                            Tahrirlash
+                            {t('common.edit')}
                           </button>
                           <button
                             onClick={() => handleDelete && handleDelete(i)}
                             className="px-2 py-1 text-xs font-semibold bg-red-50 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
                           >
-                            O'chirish
+                            {t('common.delete')}
                           </button>
                         </>
                       ) : (
-                        <span className="text-xs text-slate-400 italic">Savdo bo'limidan</span>
+                        <span className="text-xs text-slate-400 italic">{t('customerDetail.fromSalesModule')}</span>
                       )}
                     </div>
                   </td>
@@ -1481,7 +1484,7 @@ function KirimTolovlar({ stats, income, loading, openEdit, handleDelete }) {
             ) : (
               <tr>
                 <td colSpan="15" className="text-center py-8 text-slate-500">
-                  Ma'lumot topilmadi
+                  {t('common.noData')}
                 </td>
               </tr>
             )}
@@ -1496,13 +1499,14 @@ function KirimTolovlar({ stats, income, loading, openEdit, handleDelete }) {
 // Qaytarishlar jadvali (CustomerDetail qaytarishlar tab)
 // ────────────────────────────────────────────────────────────
 function ReturnsTable({ rows, loading }) {
+  const { t } = useLang();
   if (loading) return <LoadingSpinner />
   if (!rows.length) return (
     <div className="flex flex-col items-center justify-center h-48 text-slate-400 gap-2">
       <svg className="w-12 h-12 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
       </svg>
-      <p className="text-sm">Bu mijozdan qaytarishlar yo'q</p>
+      <p className="text-sm">{t('customerDetail.noReturnsFromCustomer')}</p>
     </div>
   )
 
@@ -1512,12 +1516,12 @@ function ReturnsTable({ rows, loading }) {
         <table className="min-w-[700px] w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-100">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Raqam</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">To'lov turi</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Jami</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Qaytarilgan</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Sana</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Holat</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.number')}</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">{t('sale.paymentType')}</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.total')}</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">{t('customerDetail.returned')}</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.date')}</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.status')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
@@ -1526,7 +1530,7 @@ function ReturnsTable({ rows, loading }) {
                 <td className="px-4 py-3 font-mono text-xs text-slate-600">{s.number}</td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${PAY_STYLES[s.payment_type] || 'bg-slate-100 text-slate-600'}`}>
-                    {PAY_LABELS[s.payment_type] || s.payment_type}
+                    {PAY_LABEL_KEYS[s.payment_type] ? t(PAY_LABEL_KEYS[s.payment_type]) : s.payment_type}
                   </span>
                 </td>
                 <td className="px-4 py-3 font-semibold text-slate-800">{fmt(s.total_amount)} so'm</td>
@@ -1534,7 +1538,7 @@ function ReturnsTable({ rows, loading }) {
                 <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{fmtDate(s.created_at)}</td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_STYLES[s.status] || ''}`}>
-                    {STATUS_LABELS[s.status] || s.status}
+                    {STATUS_LABEL_KEYS[s.status] ? t(STATUS_LABEL_KEYS[s.status]) : s.status}
                   </span>
                 </td>
               </tr>
@@ -1550,6 +1554,7 @@ function ReturnsTable({ rows, loading }) {
 // Mijozdan qaytarish modali
 // ────────────────────────────────────────────────────────────
 function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSuccess }) {
+  const { t } = useLang();
   const [products, setProducts] = useState([])
   const [prodSearch, setProdSearch] = useState('')
   const [selProd, setSelProd] = useState(null)
@@ -1586,9 +1591,9 @@ function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSucce
   }
 
   const addItem = () => {
-    if (!selProd) { setErr('Mahsulot tanlang'); return }
-    if (!qty || Number(qty) <= 0) { setErr('Miqdorni kiriting'); return }
-    if (!price || Number(price) < 0) { setErr('Narxni kiriting'); return }
+    if (!selProd) { setErr(t('customerDetail.selectProduct')); return }
+    if (!qty || Number(qty) <= 0) { setErr(t('customerDetail.enterQuantity')); return }
+    if (!price || Number(price) < 0) { setErr(t('customerDetail.enterPrice')); return }
     setItems(prev => {
       const ex = prev.find(i => i.product_id === selProd.id && i.price === Number(price))
       if (ex) return prev.map(i => i.product_id === selProd.id && i.price === Number(price) ? { ...i, qty: i.qty + Number(qty) } : i)
@@ -1600,9 +1605,9 @@ function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSucce
   const totalAmount = items.reduce((s, i) => s + i.qty * i.price, 0)
 
   const save = async () => {
-    if (!items.length) { setErr("Mahsulot qo'shing"); return }
-    if (!warehouseId) { setErr('Omborni tanlang'); return }
-    if (paymentType !== 'debt' && !walletId) { setErr('Kassani tanlang'); return }
+    if (!items.length) { setErr(t('customerDetail.addProduct')); return }
+    if (!warehouseId) { setErr(t('customerDetail.selectWarehouse')); return }
+    if (paymentType !== 'debt' && !walletId) { setErr(t('customerDetail.selectCashbox')); return }
 
     let paidAmount = 0
     let pCash = 0
@@ -1613,7 +1618,7 @@ function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSucce
       pCash = Number(paidCash) || 0
       pCard = Number(paidCard) || 0
       paidAmount = pCash + pCard
-      if (paidAmount > totalAmount) { setErr("Qaytarilgan summa umumiy summadan ko'p"); return }
+      if (paidAmount > totalAmount) { setErr(t('customerDetail.returnedExceedsTotal')); return }
     }
 
     setSaving(true); setErr('')
@@ -1632,7 +1637,7 @@ function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSucce
       })
       onSuccess()
     } catch (e) {
-      setErr(e.response?.data?.detail || 'Xatolik yuz berdi')
+      setErr(e.response?.data?.detail || t('auth.errGeneral'))
     } finally {
       setSaving(false)
     }
@@ -1644,8 +1649,8 @@ function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSucce
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div>
-            <h2 className="text-lg font-bold text-slate-800">Mijozdan qaytarish</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Mahsulotlarni qo'shing va qaytarish turini tanlang</p>
+            <h2 className="text-lg font-bold text-slate-800">{t('customerDetail.returnFromCustomer')}</h2>
+            <p className="text-xs text-slate-400 mt-0.5">{t('customerDetail.returnModalHint')}</p>
           </div>
           <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1657,22 +1662,22 @@ function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSucce
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {/* Ombor tanlash */}
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Ombor *</label>
+            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">{t('customerDetail.warehouseRequired')}</label>
             <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)}
               className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white">
-              <option value="">Omborni tanlang...</option>
+              <option value="">{t('customerDetail.selectWarehouseEllipsis')}</option>
               {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
             </select>
           </div>
 
           {/* Mahsulot qidirish */}
           <div className="relative">
-            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Mahsulot qidirish</label>
+            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">{t('customerDetail.searchProduct')}</label>
             <input
               type="text"
               value={prodSearch}
               onChange={e => setProdSearch(e.target.value)}
-              placeholder="Nomi yoki SKU bo'yicha..."
+              placeholder={t('customerDetail.searchByNameOrSku')}
               className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
             />
             {filtered.length > 0 && (
@@ -1692,22 +1697,22 @@ function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSucce
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 flex items-end gap-3">
               <div className="flex-1">
                 <div className="text-sm font-semibold text-slate-700">{selProd.name}</div>
-                <div className="text-xs text-slate-400 mt-0.5">Joriy qoldiq: {fmt(selProd.stock_quantity || 0)} {selProd.unit || 'dona'}</div>
+                <div className="text-xs text-slate-400 mt-0.5">{t('customerDetail.currentStock')}: {fmt(selProd.stock_quantity || 0)} {selProd.unit || t('customerDetail.pieceUnit')}</div>
               </div>
               <div className="flex gap-2 items-end">
                 <div>
-                  <label className="text-xs text-slate-500 block mb-1">Miqdor</label>
+                  <label className="text-xs text-slate-500 block mb-1">{t('common.quantity')}</label>
                   <input type="number" min="0.001" step="any" value={qty} onChange={e => setQty(e.target.value)}
                     className="w-20 border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-300" />
                 </div>
                 <div>
-                  <label className="text-xs text-slate-500 block mb-1">Narx (so'm)</label>
+                  <label className="text-xs text-slate-500 block mb-1">{t('customerDetail.priceInSom')}</label>
                   <input type="number" min="0" step="any" value={price} onChange={e => setPrice(e.target.value)}
                     className="w-32 border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
                 </div>
                 <button onClick={addItem}
                   className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors">
-                  Qo'sh
+                  {t('customerDetail.addShort')}
                 </button>
               </div>
             </div>
@@ -1719,10 +1724,10 @@ function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSucce
               <table className="w-full text-sm">
                 <thead className="bg-slate-50">
                   <tr>
-                    <th className="px-3 py-2 text-left text-xs text-slate-500">Mahsulot</th>
-                    <th className="px-3 py-2 text-center text-xs text-slate-500">Soni</th>
-                    <th className="px-3 py-2 text-right text-xs text-slate-500">Narx</th>
-                    <th className="px-3 py-2 text-right text-xs text-slate-500">Jami</th>
+                    <th className="px-3 py-2 text-left text-xs text-slate-500">{t('customerDetail.product')}</th>
+                    <th className="px-3 py-2 text-center text-xs text-slate-500">{t('customerDetail.countLabel')}</th>
+                    <th className="px-3 py-2 text-right text-xs text-slate-500">{t('common.price')}</th>
+                    <th className="px-3 py-2 text-right text-xs text-slate-500">{t('admin.dict.total')}</th>
                     <th className="w-8"></th>
                   </tr>
                 </thead>
@@ -1742,7 +1747,7 @@ function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSucce
                 </tbody>
                 <tfoot className="bg-slate-50">
                   <tr>
-                    <td colSpan={3} className="px-3 py-2 text-xs text-slate-500 font-semibold">Jami qaytarilayotgan:</td>
+                    <td colSpan={3} className="px-3 py-2 text-xs text-slate-500 font-semibold">{t('customerDetail.totalReturning')}:</td>
                     <td className="px-3 py-2 text-right font-bold text-blue-700">{fmt(totalAmount)} so'm</td>
                     <td></td>
                   </tr>
@@ -1755,25 +1760,25 @@ function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSucce
           {items.length > 0 && (
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Qaytarish turi</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">{t('customerDetail.returnType')}</label>
                 <select value={paymentType} onChange={e => setPaymentType(e.target.value)}
                   className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white">
-                  <option value="debt">Qarzdan chegirish</option>
-                  <option value="cash">Naqd pul qaytarish</option>
-                  <option value="card">Plastik kartaga qaytarish</option>
-                  <option value="mixed">Aralash qaytarish</option>
+                  <option value="debt">{t('customerDetail.deductFromDebt')}</option>
+                  <option value="cash">{t('customerDetail.returnCash')}</option>
+                  <option value="card">{t('customerDetail.returnToCard')}</option>
+                  <option value="mixed">{t('customerDetail.returnMixed')}</option>
                 </select>
               </div>
 
               {paymentType === 'mixed' && (
                 <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                   <div>
-                    <label className="block text-xs text-slate-500 mb-1">Naqd</label>
+                    <label className="block text-xs text-slate-500 mb-1">{t('sale.payByCash')}</label>
                     <input type="number" min="0" value={paidCash} onChange={e => setPaidCash(e.target.value)}
                       className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="0" />
                   </div>
                   <div>
-                    <label className="block text-xs text-slate-500 mb-1">Karta</label>
+                    <label className="block text-xs text-slate-500 mb-1">{t('sale.payByCard')}</label>
                     <input type="number" min="0" value={paidCard} onChange={e => setPaidCard(e.target.value)}
                       className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="0" />
                   </div>
@@ -1782,20 +1787,20 @@ function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSucce
 
               {paymentType !== 'debt' && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Kassadan chiqim *</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">{t('customerDetail.walletOutflowRequired')}</label>
                   <select value={walletId} onChange={e => setWalletId(e.target.value)}
                     className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white">
-                    <option value="">Kassani tanlang...</option>
+                    <option value="">{t('customerDetail.selectCashboxEllipsis')}</option>
                     {wallets.map(w => <option key={w.id} value={w.id}>{w.name} ({fmt(w.balance)} so'm)</option>)}
                   </select>
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Izoh (ixtiyoriy)</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">{t('common.note')} ({t('common.optional')})</label>
                 <input type="text" value={note} onChange={e => setNote(e.target.value)}
                   className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  placeholder="Qaytarish sababi..." />
+                  placeholder={t('customerDetail.returnReasonPlaceholder')} />
               </div>
             </div>
           )}
@@ -1809,18 +1814,18 @@ function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSucce
           <div className="flex gap-3">
             <button onClick={onClose}
               className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
-              Bekor qilish
+              {t('admin.dict.cancel')}
             </button>
             <button onClick={save} disabled={saving || !items.length}
               className="px-5 py-2 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all active:scale-95 flex items-center gap-2">
               {saving ? (
-                <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" /> Saqlanmoqda...</>
+                <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" /> {t('customerDetail.saving')}</>
               ) : (
                 <>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                   </svg>
-                  Qaytarishni saqlash
+                  {t('customerDetail.saveReturn')}
                 </>
               )}
             </button>
@@ -1853,6 +1858,7 @@ function Empty({ text }) {
 }
 
 function CustomerOrders({ customerId, loading }) {
+  const { t } = useLang();
   const [orders, setOrders] = useState([])
   const [ordersLoading, setOrdersLoading] = useState(false)
 
@@ -1873,17 +1879,17 @@ function CustomerOrders({ customerId, loading }) {
   }
 
   if (ordersLoading || loading) return <LoadingSpinner />
-  if (!orders.length) return <Empty text="Buyurtmalar yo'q" />
+  if (!orders.length) return <Empty text={t('order.notFound')} />
 
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
         <thead className="bg-slate-50 border-b border-slate-200">
           <tr>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">Mahsulotlar</th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">Jami</th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">Status</th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">Vaqt</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">{t('order.table.products')}</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">{t('admin.dict.total')}</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">{t('order.table.status')}</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">{t('order.table.time')}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200">
@@ -1902,9 +1908,9 @@ function CustomerOrders({ customerId, loading }) {
                   group.status === 'delivered' ? 'bg-green-100 text-green-700' :
                   'bg-slate-100 text-slate-700'
                 }`}>
-                  {group.status === 'pending' ? '⏳ Kutilmoqda' :
-                   group.status === 'confirmed' ? '✅ Tasdiqlangan' :
-                   group.status === 'delivered' ? '🚚 Yetkazildi' :
+                  {group.status === 'pending' ? `⏳ ${t('order.status.pending')}` :
+                   group.status === 'confirmed' ? `✅ ${t('order.status.confirmed')}` :
+                   group.status === 'delivered' ? `🚚 ${t('order.status.delivered')}` :
                    group.status}
                 </span>
               </td>

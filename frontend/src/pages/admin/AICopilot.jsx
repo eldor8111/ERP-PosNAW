@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
+import { useLang } from '../../context/LangContext';
 
 // ─── Markdown-light renderer ──────────────────────────────────────────────
 function renderText(text) {
@@ -64,6 +65,7 @@ const fmtSom = (num) => {
 
 // ─── Purchase Order draft panel ───────────────────────────────────────────
 function PurchaseOrderDraftPanel({ action, msgId, onDone }) {
+  const { t } = useLang();
   const [items, setItems] = useState(() => (action.items || []).map(it => ({ ...it })));
   const [warehouseId, setWarehouseId] = useState('');
   const [warehouses, setWarehouses] = useState([]);
@@ -83,8 +85,8 @@ function PurchaseOrderDraftPanel({ action, msgId, onDone }) {
   const totalCost = items.reduce((s, it) => s + (Number(it.unit_cost) || 0) * (Number(it.suggested_qty) || 0), 0);
 
   const submit = async () => {
-    if (!warehouseId) { toast.error('Omborni tanlang'); return; }
-    if (!allHaveSupplier) { toast.error('Barcha mahsulotlarga yetkazib beruvchi tanlang'); return; }
+    if (!warehouseId) { toast.error(t('aiCopilot.selectWarehouse')); return; }
+    if (!allHaveSupplier) { toast.error(t('aiCopilot.selectSupplierForAll')); return; }
     setSubmitting(true);
     try {
       const res = await api.post('/ai/actions/purchase-order', {
@@ -97,9 +99,9 @@ function PurchaseOrderDraftPanel({ action, msgId, onDone }) {
         })),
       });
       onDone(msgId, res.data.reply);
-      toast.success('Xarid buyurtmasi yaratildi!');
+      toast.success(t('aiCopilot.poCreated'));
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Xatolik yuz berdi');
+      toast.error(e.response?.data?.detail || t('auth.errGeneral'));
     } finally {
       setSubmitting(false);
     }
@@ -107,13 +109,13 @@ function PurchaseOrderDraftPanel({ action, msgId, onDone }) {
 
   return (
     <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl px-4 py-3 w-full animate-fadeIn">
-      <div className="font-bold text-blue-700 text-xs mb-2">📋 Zayavka qoralamasi ({items.length} ta mahsulot)</div>
+      <div className="font-bold text-blue-700 text-xs mb-2">📋 {t('aiCopilot.poDraftTitle', { count: items.length })}</div>
       <div className="max-h-56 overflow-y-auto space-y-1.5 mb-3">
         {items.map((it, idx) => (
           <div key={it.product_id} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2 flex items-center gap-2">
             <div className="flex-1 min-w-0">
               <div className="text-xs font-semibold text-slate-700 truncate">{it.product_name}</div>
-              <div className="text-[10px] text-slate-400">{it.suggested_qty} dona × {fmtSom(it.unit_cost)} so'm</div>
+              <div className="text-[10px] text-slate-400">{t('aiCopilot.qtyTimesPrice', { qty: it.suggested_qty, price: fmtSom(it.unit_cost) })}</div>
             </div>
             {it.supplier_name ? (
               <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md shrink-0">{it.supplier_name}</span>
@@ -123,7 +125,7 @@ function PurchaseOrderDraftPanel({ action, msgId, onDone }) {
                 onChange={e => setItemSupplier(idx, e.target.value)}
                 className="text-[10px] border border-red-300 rounded-md px-1.5 py-1 shrink-0 max-w-28 outline-none"
               >
-                <option value="">Yetk. beruvchi...</option>
+                <option value="">{t('aiCopilot.supplierPlaceholder')}</option>
                 {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             )}
@@ -132,17 +134,17 @@ function PurchaseOrderDraftPanel({ action, msgId, onDone }) {
       </div>
       <div className="flex items-center gap-2 mb-3">
         <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)} className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 outline-none">
-          <option value="">Ombor tanlang...</option>
+          <option value="">{t('aiCopilot.warehousePlaceholder')}</option>
           {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
         </select>
-        <span className="text-xs font-bold text-slate-600 whitespace-nowrap">≈{fmtSom(totalCost)} so'm</span>
+        <span className="text-xs font-bold text-slate-600 whitespace-nowrap">{t('aiCopilot.approxTotal', { amount: fmtSom(totalCost) })}</span>
       </div>
       <button
         onClick={submit}
         disabled={submitting}
         className="w-full py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-all active:scale-95 disabled:opacity-50"
       >
-        {submitting ? 'Yaratilmoqda...' : '✅ Xarid buyurtmasini yaratish'}
+        {submitting ? t('aiCopilot.creating') : `✅ ${t('aiCopilot.createPo')}`}
       </button>
     </div>
   );
@@ -150,12 +152,13 @@ function PurchaseOrderDraftPanel({ action, msgId, onDone }) {
 
 // ─── SMS campaign draft panel ──────────────────────────────────────────────
 function SmsCampaignDraftPanel({ action, msgId, onDone }) {
+  const { t } = useLang();
   const [message, setMessage] = useState(action.message || '');
   const [submitting, setSubmitting] = useState(false);
   const recipients = action.recipients || [];
 
   const submit = async () => {
-    if (!message.trim()) { toast.error('Xabar matnini kiriting'); return; }
+    if (!message.trim()) { toast.error(t('aiCopilot.enterMessageText')); return; }
     setSubmitting(true);
     try {
       const res = await api.post('/ai/actions/sms-campaign', {
@@ -163,9 +166,9 @@ function SmsCampaignDraftPanel({ action, msgId, onDone }) {
         message: message.trim(),
       });
       onDone(msgId, res.data.reply);
-      toast.success('SMS kampaniya yuborildi!');
+      toast.success(t('aiCopilot.smsCampaignSent'));
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Xatolik yuz berdi');
+      toast.error(e.response?.data?.detail || t('auth.errGeneral'));
     } finally {
       setSubmitting(false);
     }
@@ -173,7 +176,7 @@ function SmsCampaignDraftPanel({ action, msgId, onDone }) {
 
   return (
     <div className="bg-violet-50 border-2 border-violet-200 rounded-2xl px-4 py-3 w-full animate-fadeIn">
-      <div className="font-bold text-violet-700 text-xs mb-2">📱 SMS kampaniya qoralamasi ({recipients.length} ta mijoz)</div>
+      <div className="font-bold text-violet-700 text-xs mb-2">📱 {t('aiCopilot.smsDraftTitle', { count: recipients.length })}</div>
       <textarea
         value={message}
         onChange={e => setMessage(e.target.value)}
@@ -185,7 +188,7 @@ function SmsCampaignDraftPanel({ action, msgId, onDone }) {
           <span key={r.id} className="text-[10px] font-semibold text-violet-600 bg-white border border-violet-100 px-2 py-0.5 rounded-md">{r.name}</span>
         ))}
         {recipients.length > 20 && (
-          <span className="text-[10px] text-slate-400">+{recipients.length - 20} ta yana</span>
+          <span className="text-[10px] text-slate-400">{t('aiCopilot.moreCount', { count: recipients.length - 20 })}</span>
         )}
       </div>
       <button
@@ -193,7 +196,7 @@ function SmsCampaignDraftPanel({ action, msgId, onDone }) {
         disabled={submitting}
         className="w-full py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-lg transition-all active:scale-95 disabled:opacity-50"
       >
-        {submitting ? 'Yuborilmoqda...' : `✅ ${recipients.length} ta mijozga yuborish`}
+        {submitting ? t('aiCopilot.sending') : `✅ ${t('aiCopilot.sendToClients', { count: recipients.length })}`}
       </button>
     </div>
   );
@@ -201,6 +204,7 @@ function SmsCampaignDraftPanel({ action, msgId, onDone }) {
 
 // ─── Message Bubble ───────────────────────────────────────────────────────
 function MessageBubble({ msg, onConfirm, onCancel, onDraftActionDone }) {
+  const { t } = useLang();
   const isUser = msg.role === 'user';
 
   return (
@@ -228,21 +232,21 @@ function MessageBubble({ msg, onConfirm, onCancel, onDraftActionDone }) {
               <svg className="w-4 h-4 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
-              <span className="font-bold text-amber-700 text-xs">Tasdiqlash talab qilinadi!</span>
+              <span className="font-bold text-amber-700 text-xs">{t('aiCopilot.confirmationRequired')}</span>
             </div>
-            <p className="text-xs text-amber-600 mb-3">Bu amal ma'lumotlarni o'zgartiradi. Davom etishni tasdiqlaysizmi?</p>
+            <p className="text-xs text-amber-600 mb-3">{t('aiCopilot.confirmActionWarning')}</p>
             <div className="flex gap-2">
               <button
                 onClick={() => onConfirm(msg.action.confirmation_id, msg.id)}
                 className="flex-1 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition-all active:scale-95"
               >
-                ✅ Tasdiqlash
+                ✅ {t('aiCopilot.confirmBtn')}
               </button>
               <button
                 onClick={() => onCancel(msg.id)}
                 className="flex-1 py-1.5 bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold rounded-lg border border-slate-200 transition-all active:scale-95"
               >
-                ❌ Bekor qilish
+                ❌ {t('common.cancel')}
               </button>
             </div>
           </div>
@@ -254,10 +258,10 @@ function MessageBubble({ msg, onConfirm, onCancel, onDraftActionDone }) {
           <SmsCampaignDraftPanel action={msg.action} msgId={msg.id} onDone={onDraftActionDone} />
         )}
         {msg.confirmed && (
-          <div className="text-[10px] text-emerald-600 font-bold px-1">✅ Tasdiqlandi va bajarildi</div>
+          <div className="text-[10px] text-emerald-600 font-bold px-1">✅ {t('aiCopilot.confirmedAndDone')}</div>
         )}
         {msg.cancelled && (
-          <div className="text-[10px] text-slate-400 px-1">❌ Bekor qilindi</div>
+          <div className="text-[10px] text-slate-400 px-1">❌ {t('aiCopilot.actionCancelled')}</div>
         )}
 
         <div className="text-[10px] text-slate-400 px-1">
@@ -277,16 +281,17 @@ function MessageBubble({ msg, onConfirm, onCancel, onDraftActionDone }) {
 
 // ─── Quick Prompts ────────────────────────────────────────────────────────
 const QUICK_PROMPTS = [
-  { icon: '📊', text: "Bugungi savdo xulosasi", prompt: "Bugungi savdo xulosasini ko'rsat" },
-  { icon: '💰', text: "Bugungi foyda", prompt: "Bugungi foydani hissobla" },
-  { icon: '⚠️', text: "Tugayotgan mahsulotlar", prompt: "Zaxirasi tugayotgan mahsulotlarni ko'rsat" },
-  { icon: '📋', text: "Qarzdorlar", prompt: "Eng yirik qarzdorlar ro'yxatini ko'rsat" },
-  { icon: '🏆', text: "Eng ko'p sotilgan", prompt: "Eng ko'p sotilgan 5 ta mahsulotni ko'rsat" },
-  { icon: '👥', text: "Yangi mijozlar", prompt: "Bu haftada yangi qo'shilgan mijozlar sonini ko'rsat" },
+  { icon: '📊', textKey: "aiCopilot.qpSalesSummary", promptKey: "aiCopilot.qpSalesSummaryPrompt" },
+  { icon: '💰', textKey: "aiCopilot.qpProfit", promptKey: "aiCopilot.qpProfitPrompt" },
+  { icon: '⚠️', textKey: "aiCopilot.qpLowStock", promptKey: "aiCopilot.qpLowStockPrompt" },
+  { icon: '📋', textKey: "aiCopilot.qpDebtors", promptKey: "aiCopilot.qpDebtorsPrompt" },
+  { icon: '🏆', textKey: "aiCopilot.qpTopSelling", promptKey: "aiCopilot.qpTopSellingPrompt" },
+  { icon: '👥', textKey: "aiCopilot.qpNewCustomers", promptKey: "aiCopilot.qpNewCustomersPrompt" },
 ];
 
 // ─── Main Component ───────────────────────────────────────────────────────
 export default function AICopilot() {
+  const { t } = useLang();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -355,7 +360,7 @@ export default function AICopilot() {
       const aiMsg = {
         id: Date.now() + 1,
         role: 'assistant',
-        content: data.reply || 'Javob olindi.',
+        content: data.reply || t('aiCopilot.defaultReplyReceived'),
         action: data.action || null,
         timestamp: new Date().toISOString(),
         confirmed: false,
@@ -366,11 +371,11 @@ export default function AICopilot() {
       const errMsg = {
         id: Date.now() + 1,
         role: 'assistant',
-        content: '❌ Xatolik yuz berdi. Internet aloqasini tekshiring.',
+        content: `❌ ${t('aiCopilot.errorOccurredCheckInternet')}`,
         timestamp: new Date().toISOString(),
       };
       setMessages(prev => [...prev, errMsg]);
-      toast.error("AI bilan ulanishda xatolik");
+      toast.error(t('aiCopilot.aiConnectionError'));
     } finally {
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -385,7 +390,7 @@ export default function AICopilot() {
     const resultMsg = {
       id: Date.now(),
       role: 'assistant',
-      content: replyText || 'Amal muvaffaqiyatli bajarildi.',
+      content: replyText || t('aiCopilot.actionSuccessDefault'),
       timestamp: new Date().toISOString(),
     };
     setMessages(prev => [...prev, resultMsg]);
@@ -405,13 +410,13 @@ export default function AICopilot() {
       const resultMsg = {
         id: Date.now(),
         role: 'assistant',
-        content: data.reply || 'Amal muvaffaqiyatli bajarildi.',
+        content: data.reply || t('aiCopilot.actionSuccessDefault'),
         timestamp: new Date().toISOString(),
       };
       setMessages(prev => [...prev, resultMsg]);
-      toast.success("Amal tasdiqlandi!");
+      toast.success(t('aiCopilot.actionConfirmed'));
     } catch (e) {
-      toast.error("Tasdiqlashda xatolik");
+      toast.error(t('aiCopilot.confirmError'));
     } finally {
       setLoading(false);
     }
@@ -425,7 +430,7 @@ export default function AICopilot() {
     const cancelMsg = {
       id: Date.now(),
       role: 'assistant',
-      content: 'Amal bekor qilindi.',
+      content: t('aiCopilot.actionCancelled'),
       timestamp: new Date().toISOString(),
     };
     setMessages(prev => [...prev, cancelMsg]);
@@ -464,9 +469,9 @@ export default function AICopilot() {
           }
         } catch (e) {
           if (e.response?.status === 500) {
-            toast.error("Ovozli xizmat vaqtincha o'chirilgan");
+            toast.error(t('aiCopilot.voiceServiceDisabled'));
           } else {
-            toast.error("Ovozni qayta ishlashda xatolik");
+            toast.error(t('aiCopilot.voiceProcessError'));
           }
         } finally {
           setLoading(false);
@@ -475,16 +480,16 @@ export default function AICopilot() {
 
       mediaRecorder.start();
       setIsRecording(true);
-      toast.success("Yozib olinmoqda... To'xtatish uchun qayta bosing", { duration: 2000 });
+      toast.success(t('aiCopilot.recordingStarted'), { duration: 2000 });
     } catch (e) {
-      toast.error("Mikrofonga ruxsat yo'q");
+      toast.error(t('aiCopilot.micPermissionDenied'));
     }
   };
 
   // Clear chat
   const clearChat = () => {
     setMessages([]);
-    toast.success("Suhbat tozalandi");
+    toast.success(t('aiCopilot.chatCleared'));
   };
 
   const fmt = (num) => {
@@ -512,7 +517,7 @@ export default function AICopilot() {
             <h1 className="font-bold text-slate-800 text-base">AI Copilot</h1>
             <div className="flex items-center gap-1.5">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[11px] text-emerald-600 font-semibold">Online · Gemini Flash</span>
+              <span className="text-[11px] text-emerald-600 font-semibold">{t('aiCopilot.online')}</span>
             </div>
           </div>
         </div>
@@ -524,7 +529,7 @@ export default function AICopilot() {
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
-            Tozalash
+            {t('admin.dict.clear')}
           </button>
         </div>
       </div>
@@ -535,33 +540,33 @@ export default function AICopilot() {
           <StatCard
             color="blue"
             loading={statsLoading}
-            label="Bugungi tushum"
-            value={stats ? `${fmt(stats.stats?.total_sales)} so'm` : '—'}
-            sub={stats ? `${stats.stats?.total_orders || 0} ta buyurtma` : ''}
+            label={t('aiCopilot.todayRevenue')}
+            value={stats ? `${fmt(stats.stats?.total_sales)} ${t('purchase.somUnit')}` : '—'}
+            sub={stats ? t('aiCopilot.ordersCount', { count: stats.stats?.total_orders || 0 }) : ''}
             icon={<svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
           />
           <StatCard
             color="green"
             loading={statsLoading}
-            label="Naqd / Karta"
+            label={t('aiCopilot.cashCard')}
             value={stats ? `${fmt(stats.stats?.cash)} / ${fmt(stats.stats?.card)}` : '—'}
-            sub="so'm"
+            sub={t('purchase.somUnit')}
             icon={<svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>}
           />
           <StatCard
             color="amber"
             loading={statsLoading}
-            label="Jami qarzlar"
-            value={debtStats ? `${fmt(debtStats.total_debt)} so'm` : '—'}
-            sub={debtStats ? `${debtStats.total_debtors || 0} ta qarzdor` : ''}
+            label={t('aiCopilot.totalDebts')}
+            value={debtStats ? `${fmt(debtStats.total_debt)} ${t('purchase.somUnit')}` : '—'}
+            sub={debtStats ? t('aiCopilot.debtorsCount', { count: debtStats.total_debtors || 0 }) : ''}
             icon={<svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
           />
           <StatCard
             color="violet"
             loading={statsLoading}
-            label="AI tavsiyalar"
-            value={!statsLoading ? `${recommendations.length} ta` : '—'}
-            sub="muhim xabar"
+            label={t('aiCopilot.aiRecommendations')}
+            value={!statsLoading ? t('aiCopilot.recCount', { count: recommendations.length }) : '—'}
+            sub={t('aiCopilot.importantMessage')}
             icon={<svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
           />
         </div>
@@ -582,17 +587,17 @@ export default function AICopilot() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                   </svg>
                 </div>
-                <h3 className="font-bold text-slate-700 text-lg mb-1">AI Copilot tayyor!</h3>
-                <p className="text-slate-400 text-sm text-center max-w-xs mb-6">Savdo, qarz, mahsulot haqida so'rang yoki quyidagi tezkor tugmalardan birini tanlang</p>
+                <h3 className="font-bold text-slate-700 text-lg mb-1">{t('aiCopilot.readyTitle')}</h3>
+                <p className="text-slate-400 text-sm text-center max-w-xs mb-6">{t('aiCopilot.readySubtitle')}</p>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 w-full max-w-lg">
                   {QUICK_PROMPTS.map((qp, i) => (
                     <button
                       key={i}
-                      onClick={() => sendMessage(qp.prompt)}
+                      onClick={() => sendMessage(t(qp.promptKey))}
                       className="flex items-center gap-2 bg-white border border-slate-200 hover:border-blue-300 hover:bg-blue-50 rounded-xl px-3 py-2.5 text-left transition-all group shadow-sm hover:shadow-md"
                     >
                       <span className="text-lg">{qp.icon}</span>
-                      <span className="text-xs font-semibold text-slate-600 group-hover:text-blue-700">{qp.text}</span>
+                      <span className="text-xs font-semibold text-slate-600 group-hover:text-blue-700">{t(qp.textKey)}</span>
                     </button>
                   ))}
                 </div>
@@ -621,10 +626,10 @@ export default function AICopilot() {
                 {QUICK_PROMPTS.map((qp, i) => (
                   <button
                     key={i}
-                    onClick={() => sendMessage(qp.prompt)}
+                    onClick={() => sendMessage(t(qp.promptKey))}
                     className="flex-shrink-0 text-[11px] font-semibold text-slate-500 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 rounded-lg px-2.5 py-1 transition-all whitespace-nowrap"
                   >
-                    {qp.icon} {qp.text}
+                    {qp.icon} {t(qp.textKey)}
                   </button>
                 ))}
               </div>
@@ -642,7 +647,7 @@ export default function AICopilot() {
                       sendMessage();
                     }
                   }}
-                  placeholder="Savolingizni yozing... (Enter — yuborish, Shift+Enter — yangi qator)"
+                  placeholder={t('aiCopilot.inputPlaceholder')}
                   rows={1}
                   className="w-full bg-transparent outline-none text-sm text-slate-700 placeholder:text-slate-400 resize-none max-h-32 overflow-y-auto"
                   style={{ scrollbarWidth: 'none' }}
@@ -689,7 +694,7 @@ export default function AICopilot() {
             <svg className="w-4 h-4 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <h3 className="font-bold text-slate-700 text-sm">AI Tavsiyalar</h3>
+            <h3 className="font-bold text-slate-700 text-sm">{t('aiCopilot.aiRecommendationsPanelTitle')}</h3>
           </div>
 
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
@@ -712,8 +717,8 @@ export default function AICopilot() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <p className="text-sm font-semibold text-slate-600">Hammasi yaxshi!</p>
-                <p className="text-xs text-slate-400 mt-1">Hozircha maxsus tavsiyalar yo'q</p>
+                <p className="text-sm font-semibold text-slate-600">{t('aiCopilot.allGood')}</p>
+                <p className="text-xs text-slate-400 mt-1">{t('aiCopilot.noRecommendationsYet')}</p>
               </div>
             )}
 
@@ -739,7 +744,7 @@ export default function AICopilot() {
                       onClick={() => sendMessage(rec.suggested_prompt)}
                       className="w-full text-[11px] font-bold text-blue-600 bg-white hover:bg-blue-50 border border-blue-200 rounded-lg py-1.5 transition-all active:scale-95"
                     >
-                      AI ga yuborish →
+                      {t('aiCopilot.sendToAi')}
                     </button>
                   )}
                 </div>
@@ -750,9 +755,9 @@ export default function AICopilot() {
           {/* Bottom info */}
           <div className="p-3 border-t border-slate-100">
             <div className="bg-gradient-to-br from-violet-50 to-blue-50 rounded-xl p-3 border border-violet-100">
-              <p className="text-[10px] font-bold text-violet-700 mb-1">💡 Maslahat</p>
+              <p className="text-[10px] font-bold text-violet-700 mb-1">💡 {t('aiCopilot.tipTitle')}</p>
               <p className="text-[10px] text-slate-500 leading-relaxed">
-                "Ali 500 000 so'm to'ladi" deb yozing — AI avtomatik qarzni yechib oladi.
+                {t('aiCopilot.tipBody')}
               </p>
             </div>
           </div>

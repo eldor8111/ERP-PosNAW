@@ -101,7 +101,7 @@ export default function Profile() {
 
     useEffect(() => {
         if (user?.role !== 'super_admin') {
-            api.get('/billing/my-company').then(r => setCompanyName(r.data.name)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+            api.get('/billing/my-company').then(r => setCompanyName(r.data.name)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('profile.errorOccurred')) });
             api.get('/warehouses').then(r => {
                 const list = r.data;
                 setWarehouses(list);
@@ -111,7 +111,7 @@ export default function Profile() {
                     localStorage.removeItem('dashboard_warehouse_id');
                     setWarehouseId('');
                 }
-            }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+            }).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('profile.errorOccurred')) });
             api.get('/branches').then(r => {
                 const list = r.data.filter(b => b.is_active);
                 setBranches(list);
@@ -121,7 +121,7 @@ export default function Profile() {
                     localStorage.removeItem('dashboard_branch_id');
                     setBranchId('');
                 }
-            }).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+            }).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('profile.errorOccurred')) });
         }
     }, [user]);
 
@@ -139,7 +139,7 @@ export default function Profile() {
         api.get('/reports/dashboard', { params })
             .then(res => { setData(res.data); setError(null); })
             .catch(err => {
-                const msg = err?.response?.data?.detail || err?.message || "Noma'lum xato";
+                const msg = err?.response?.data?.detail || err?.message || t('profile.unknownError');
                 setError(msg);
             })
             .finally(() => setLoading(false));
@@ -309,10 +309,10 @@ export default function Profile() {
                         <div className="space-y-2">
                             <div className="flex flex-col sm:flex-row items-center gap-3">
                                 <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
-                                    {user.name ? user.name.charAt(0).toUpperCase() + user.name.slice(1) : "Noma'lum foydalanuvchi"}
+                                    {user.name ? user.name.charAt(0).toUpperCase() + user.name.slice(1) : t('profile.unknownUser')}
                                 </h2>
                                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-blue-50 to-blue-50 text-blue-700 border border-blue-100/60 shadow-sm uppercase tracking-wider">
-                                    {user.role || "Foydalanuvchi"}
+                                    {user.role || t('profile.userFallback')}
                                 </span>
                             </div>
 
@@ -322,21 +322,21 @@ export default function Profile() {
                                     <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h18v3H3V3z" />
                                     </svg>
-                                    {companyName || "Kompaniya nomi"}
+                                    {companyName || t('profile.companyNameFallback')}
                                 </div>
 
                                 <div className="flex items-center gap-2 text-gray-700 bg-gray-50/80 px-2.5 py-1 rounded-lg border border-gray-100/50 backdrop-blur-sm">
                                     <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.387a12.035 12.035 0 01-7.108-7.108c-.155-.44.01-1.29.387-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
                                     </svg>
-                                    <span>+{user.phone || "Mavjud emas"}</span>
+                                    <span>+{user.phone || t('profile.phoneFallback')}</span>
                                 </div>
 
                                 <div className="flex items-center gap-2 bg-gray-50/80 px-2.5 py-1 text-gray-500">
                                     <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zM14.25 15h.008v.008H14.25V15zm0 2.25h.008v.008H14.25v-.008zM16.5 15h.008v.008H16.5V15zm0 2.25h.008v.008H16.5v-.008z" />
                                     </svg>
-                                    <span>{dateObj.toLocaleDateString('uz-UZ')} da tizimga qo'shilgan</span>
+                                    <span>{t('profile.joinedOn', { date: dateObj.toLocaleDateString('uz-UZ') })}</span>
                                 </div>
                             </div>
                         </div>
@@ -347,7 +347,7 @@ export default function Profile() {
                         <svg className="w-4 h-4 text-blue-100" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
                         </svg>
-                        Tahrirlash
+                        {t('common.edit')}
                     </button>
 
                 </div>

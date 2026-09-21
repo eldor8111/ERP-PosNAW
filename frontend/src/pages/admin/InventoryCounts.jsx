@@ -10,10 +10,10 @@ const fmtDt   = (d) => d ? new Date(d).toLocaleString('uz-UZ') : '—';
 const fmtQ    = (v) => (v !== null && v !== undefined) ? Number(v).toLocaleString('uz-UZ', { maximumFractionDigits: 3 }) : '—';
 
 const STATUS = {
-  draft:       { l: 'Qoralama',    c: 'bg-slate-100 text-slate-600',     dot: 'bg-slate-400' },
-  in_progress: { l: 'Jarayonda',   c: 'bg-amber-100 text-amber-700',     dot: 'bg-amber-500' },
-  completed:   { l: 'Yakunlangan', c: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
-  cancelled:   { l: 'Bekor',       c: 'bg-red-100 text-red-500',         dot: 'bg-red-400' },
+  draft:       { lKey: 'inventoryCount.statusDraft',      c: 'bg-slate-100 text-slate-600',     dot: 'bg-slate-400' },
+  in_progress: { lKey: 'inventoryCount.statusInProgress', c: 'bg-amber-100 text-amber-700',     dot: 'bg-amber-500' },
+  completed:   { lKey: 'inventoryCount.statusCompleted',  c: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
+  cancelled:   { lKey: 'inventoryCount.statusCancelled',  c: 'bg-red-100 text-red-500',         dot: 'bg-red-400' },
 };
 
 function Loader() {
@@ -27,11 +27,11 @@ return (
 
 function StatusBadge({ status }) {
   const { t } = useLang();
-const m = STATUS[status] || { l: status, c: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' };
+  const m = STATUS[status] || { lKey: null, c: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' };
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${m.c}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${m.dot}`} />
-      {m.l}
+      {m.lKey ? t(m.lKey) : status}
     </span>
   );
 }
@@ -55,13 +55,13 @@ function printCountSheet(count, t) {
       <td style="text-align:center;width:30px">${i + 1}</td>
       <td style="width:80px">${item.product_sku || ''}</td>
       <td>${item.product_name}</td>
-      <td style="width:50px;text-align:center">${item.product_unit || 'dona'}</td>
+      <td style="width:50px;text-align:center">${item.product_unit || t('inventoryCount.unitDefault')}</td>
       <td style="text-align:right;width:80px">${fmtQ(item.system_qty)}</td>
       <td style="border:1px solid #bbb;width:90px">&nbsp;</td>
       <td style="border:1px solid #bbb;min-width:120px">&nbsp;</td>
     </tr>`).join('');
 
-  doPrint(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Sanash varaqasi - ${count.number}</title>
+  doPrint(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${t('inventoryCount.countSheet')} - ${count.number}</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:Arial,sans-serif;font-size:11px;padding:15px}
@@ -74,22 +74,22 @@ function printCountSheet(count, t) {
   .sign div{flex:1;border-top:1px solid #aaa;padding-top:4px}
   @media print{@page{margin:8mm}}
 </style></head><body onload="window.print()">
-  <h2>SANASH VARAQASI</h2>
+  <h2>${t('inventoryCount.countSheetTitle')}</h2>
   <div class="meta">
-    \u2116 ${count.number} &nbsp;|&nbsp; Ombor: ${count.warehouse_name} &nbsp;|&nbsp;
-    Sana: ${fmtDate(count.created_at)}${count.note ? ` &nbsp;|&nbsp; ${count.note}` : ''}
+    \u2116 ${count.number} &nbsp;|&nbsp; ${t('warehouse.title')}: ${count.warehouse_name} &nbsp;|&nbsp;
+    ${t('inventoryCount.dateLabel')}: ${fmtDate(count.created_at)}${count.note ? ` &nbsp;|&nbsp; ${count.note}` : ''}
   </div>
   <table>
     <thead><tr>
-      <th>\u2116</th><th>SKU</th><th>Mahsulot nomi</th><th>O'lchov</th>
-      <th>Tizim qoldig'i</th><th>Faktik soni</th><th>Izoh / Sabab</th>
+      <th>\u2116</th><th>SKU</th><th>${t('inventoryCount.productName')}</th><th>${t('inventoryCount.unit')}</th>
+      <th>${t('inventoryCount.systemQty')}</th><th>${t('inventoryCount.actualQty')}</th><th>${t('inventoryCount.commentReason')}</th>
     </tr></thead>
-    <tbody>${rows || "<tr><td colspan='7' style='text-align:center;padding:12px'>Mahsulotlar yo'q</td></tr>"}</tbody>
+    <tbody>${rows || `<tr><td colspan='7' style='text-align:center;padding:12px'>${t('inventoryCount.noProducts')}</td></tr>`}</tbody>
   </table>
   <div class="sign">
-    <div>Inventarizatsiya o'tkazuvchi: ___________________</div>
-    <div>Sana: _______________________</div>
-    <div>Imzo: _______________________</div>
+    <div>${t('inventoryCount.counterSignature')}: ___________________</div>
+    <div>${t('inventoryCount.dateLabel')}: _______________________</div>
+    <div>${t('inventoryCount.signature')}: _______________________</div>
   </div>
 </body></html>`);
 }
@@ -110,7 +110,7 @@ function printVarianceReport(count, t) {
     </tr>`;
   }).join('');
 
-  doPrint(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Tafovutlar - ${count.number}</title>
+  doPrint(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${t('inventoryCount.variances')} - ${count.number}</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:Arial,sans-serif;font-size:11px;padding:15px}
@@ -123,23 +123,23 @@ function printVarianceReport(count, t) {
   th{background:#f0f0f0;font-weight:bold;text-align:center}
   @media print{@page{margin:8mm}}
 </style></head><body onload="window.print()">
-  <h2>TAFOVUTLAR RO'YXATI</h2>
+  <h2>${t('inventoryCount.varianceListTitle')}</h2>
   <div class="meta">
-    \u2116 ${count.number} &nbsp;|&nbsp; Ombor: ${count.warehouse_name} &nbsp;|&nbsp;
-    Sana: ${fmtDt(count.finished_at || count.created_at)}
+    \u2116 ${count.number} &nbsp;|&nbsp; ${t('warehouse.title')}: ${count.warehouse_name} &nbsp;|&nbsp;
+    ${t('inventoryCount.dateLabel')}: ${fmtDt(count.finished_at || count.created_at)}
   </div>
   <div class="summary">
-    <span>Jami: <b>${count.items.length}</b></span>
-    <span>Tafovutlar: <b>${variances.length}</b></span>
-    <span>Ortiqcha (+): <b>${variances.filter(i => Number(i.variance) > 0).length}</b></span>
-    <span>Kamomad (\u2212): <b>${variances.filter(i => Number(i.variance) < 0).length}</b></span>
+    <span>${t('inventoryCount.total')}: <b>${count.items.length}</b></span>
+    <span>${t('inventoryCount.variances')}: <b>${variances.length}</b></span>
+    <span>${t('inventoryCount.surplus')}: <b>${variances.filter(i => Number(i.variance) > 0).length}</b></span>
+    <span>${t('inventoryCount.shortage')}: <b>${variances.filter(i => Number(i.variance) < 0).length}</b></span>
   </div>
   <table>
     <thead><tr>
-      <th>\u2116</th><th>SKU</th><th>Mahsulot nomi</th>
-      <th>Tizim</th><th>Faktik</th><th>Tafovut</th><th>Sababi</th>
+      <th>\u2116</th><th>SKU</th><th>${t('inventoryCount.productName')}</th>
+      <th>${t('inventoryCount.systemShort')}</th><th>${t('inventoryCount.actualShort')}</th><th>${t('inventoryCount.variance')}</th><th>${t('inventoryCount.reason')}</th>
     </tr></thead>
-    <tbody>${rows || "<tr><td colspan='7' style='text-align:center;padding:12px'>Tafovutlar yo'q</td></tr>"}</tbody>
+    <tbody>${rows || `<tr><td colspan='7' style='text-align:center;padding:12px'>${t('inventoryCount.noVariances')}</td></tr>`}</tbody>
   </table>
 </body></html>`);
 }
@@ -154,15 +154,15 @@ const [warehouses, setWarehouses] = useState([]);
   const [err, setErr]     = useState('');
 
   useEffect(() => {
-    api.get('/inventory/warehouses').then(r => setWarehouses(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
-    api.get('/categories/all').then(r => setCategories(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/inventory/warehouses').then(r => setWarehouses(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
+    api.get('/categories/all').then(r => setCategories(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
   }, []);
 
   const toggleCat = (id) =>
     setForm(f => ({ ...f, catIds: f.catIds.includes(id) ? f.catIds.filter(x => x !== id) : [...f.catIds, id] }));
 
   const submit = async () => {
-    if (!form.warehouse_id) { setErr('Ombor tanlang'); return; }
+    if (!form.warehouse_id) { setErr(t('warehouse.selectWarehouse')); return; }
     setSaving(true); setErr('');
     try {
       const { data } = await api.post('/inventory-counts', {
@@ -175,7 +175,7 @@ const [warehouses, setWarehouses] = useState([]);
         localStorage.setItem(`inv_cats_${data.id}`, JSON.stringify(form.catIds));
       onCreated(data.id);
     } catch (e) {
-      setErr(e.response?.data?.detail || 'Xatolik yuz berdi');
+      setErr(e.response?.data?.detail || t('auth.errGeneral'));
     } finally { setSaving(false); }
   };
 
@@ -189,28 +189,28 @@ const [warehouses, setWarehouses] = useState([]);
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
             </span>
-            Yangi revizya yaratish
+            {t('inventoryCount.createNew')}
           </h2>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg text-xl leading-none">×</button>
         </div>
 
         <div className="p-6 space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Ombor *</label>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('warehouse.title')} *</label>
             <select
               className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               value={form.warehouse_id}
               onChange={e => setForm(f => ({ ...f, warehouse_id: e.target.value }))}
             >
-              <option value="">— Ombor tanlang —</option>
+              <option value="">— {t('warehouse.selectWarehouse')} —</option>
               {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
             </select>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Sanoq turi</label>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('inventoryCount.countType')}</label>
             <div className="grid grid-cols-2 gap-2">
-              {[['full', "To'liq sanoq", '📦'], ['partial', "Qisman (bo'lim)", '🗂']].map(([v, l, ic]) => (
+              {[['full', t('inventoryCount.fullCount'), '📦'], ['partial', t('inventoryCount.partialCount'), '🗂']].map(([v, l, ic]) => (
                 <button
                   key={v}
                   onClick={() => setForm(f => ({ ...f, countType: v, catIds: [] }))}
@@ -226,7 +226,7 @@ const [warehouses, setWarehouses] = useState([]);
 
           {form.countType === 'partial' && categories.length > 0 && (
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Bo'limlar (kategoriyalar)</label>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('inventoryCount.sections')}</label>
               <div className="max-h-32 overflow-y-auto border border-slate-200 rounded-xl p-2 flex flex-wrap gap-1.5 bg-slate-50">
                 {categories.map(cat => (
                   <button
@@ -241,16 +241,16 @@ const [warehouses, setWarehouses] = useState([]);
                 ))}
               </div>
               {form.catIds.length > 0 && (
-                <p className="text-xs text-blue-600 mt-1.5">{form.catIds.length} ta bo'lim tanlandi</p>
+                <p className="text-xs text-blue-600 mt-1.5">{t('inventoryCount.sectionsSelected', { count: form.catIds.length })}</p>
               )}
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('admin.dict.comment') || 'Izoh'}</label>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('admin.dict.comment')}</label>
             <input
               type="text"
-              placeholder="Ixtiyoriy..."
+              placeholder={t('inventoryCount.optional')}
               className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={form.note}
               onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
@@ -263,7 +263,7 @@ const [warehouses, setWarehouses] = useState([]);
         <div className="flex gap-3 px-6 pb-6">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50">{t('common.cancel')}</button>
           <button onClick={submit} disabled={saving} className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold disabled:opacity-60 shadow-sm">
-            {saving ? 'Yaratilmoqda...' : '✓ Yaratish'}
+            {saving ? t('inventoryCount.creating') : `✓ ${t('inventoryCount.create')}`}
           </button>
         </div>
       </div>
@@ -275,8 +275,9 @@ const [warehouses, setWarehouses] = useState([]);
 /* ─── Product search dropdown (copied from Purchases) ─── */
 import { searchVariants } from '../../utils/translit';
 
-function ProdSearch({ products, onSelect, inputRef, placeholder = 'Mahsulot qidiring...' }) {
+function ProdSearch({ products, onSelect, inputRef, placeholder }) {
   const { t } = useLang();
+  const effectivePlaceholder = placeholder ?? t('inventoryCount.searchProductPlaceholder');
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const [navIdx, setNavIdx] = useState(-1);
@@ -336,7 +337,7 @@ function ProdSearch({ products, onSelect, inputRef, placeholder = 'Mahsulot qidi
     <div className="relative" ref={ref}>
       <div className={`flex items-center gap-2 border border-slate-200 rounded-xl px-3.5 py-2 bg-white transition-all ${open ? 'border-blue-400 ring-2 ring-blue-50' : 'hover:border-slate-300'}`}>
         <input value={q} onChange={e => { setQ(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)} onKeyDown={handleKeyDown} ref={inputRef} placeholder={placeholder}
+          onFocus={() => setOpen(true)} onKeyDown={handleKeyDown} ref={inputRef} placeholder={effectivePlaceholder}
           className="w-full text-sm outline-none bg-transparent" />
         {loading && <div className="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin shrink-0" />}
       </div>
@@ -349,7 +350,7 @@ function ProdSearch({ products, onSelect, inputRef, placeholder = 'Mahsulot qidi
                 <div className="font-medium text-slate-800 text-sm truncate">{p.name}</div>
                 <div className="text-xs text-slate-400">{p.sku}{p.barcode ? ` · ${p.barcode}` : ''}</div>
               </div>
-              <div className="text-right shrink-0 text-xs text-slate-400">Qoldiq: {p.stock_quantity}</div>
+              <div className="text-right shrink-0 text-xs text-slate-400">{t('warehouse.stockLevel')}: {p.stock_quantity}</div>
             </button>
           ))}
         </div>
@@ -398,8 +399,8 @@ function ReviziyaCreateView({ onBack, onSaved }) {
   };
 
   const doSave = async () => {
-    if (!form.warehouse_id) { setErr("Omborni tanlang!"); return; }
-    if (!cart.length) { setErr("Kamida bitta mahsulot qo'shing!"); return; }
+    if (!form.warehouse_id) { setErr(t('inventoryCount.selectWarehouseError')); return; }
+    if (!cart.length) { setErr(t('inventoryCount.addAtLeastOneProduct')); return; }
     setSaving(true); setErr('');
     try {
       // 1. Create count
@@ -419,10 +420,10 @@ function ReviziyaCreateView({ onBack, onSaved }) {
       await api.post(`/inventory-counts/${count.id}/items`, itemsPayload);
       // 4. Finalize
       await api.post(`/inventory-counts/${count.id}/finalize`);
-      toast.success("Inventarizatsiya yakunlandi");
+      toast.success(t('inventoryCount.countFinished'));
       onSaved();
     } catch (e) {
-      setErr(e.response?.data?.detail || "Saqlashda xatolik yuz berdi");
+      setErr(e.response?.data?.detail || t('inventoryCount.saveError'));
     } finally {
       setSaving(false);
     }
@@ -434,17 +435,17 @@ function ReviziyaCreateView({ onBack, onSaved }) {
       <div className="flex items-center gap-3 px-6 py-3.5 border-b border-slate-100 bg-white shrink-0 shadow-sm">
         <button onClick={onBack} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-blue-600 px-3 py-2 rounded-xl hover:bg-blue-50 transition-all text-sm font-semibold">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
-          Orqaga
+          {t('common.back')}
         </button>
         <div className="w-px h-6 bg-slate-200 shrink-0" />
-        <h2 className="text-base font-bold text-slate-800 flex-1">Yangi revizya</h2>
+        <h2 className="text-base font-bold text-slate-800 flex-1">{t('inventoryCount.newCount')}</h2>
         <div className="flex items-center gap-3">
           <select value={form.warehouse_id} onChange={e => setForm(f=>({...f, warehouse_id: e.target.value}))}
             className="border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-w-[200px]">
-            <option value="">— Ombor tanlang —</option>
+            <option value="">— {t('warehouse.selectWarehouse')} —</option>
             {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
           </select>
-          <input placeholder="Izoh (ixtiyoriy)..." value={form.note} onChange={e => setForm(f=>({...f, note: e.target.value}))}
+          <input placeholder={t('inventoryCount.commentOptional')} value={form.note} onChange={e => setForm(f=>({...f, note: e.target.value}))}
             className="border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-w-[200px]" />
         </div>
       </div>
@@ -454,7 +455,7 @@ function ReviziyaCreateView({ onBack, onSaved }) {
         {/* Left */}
         <div className="w-[450px] border-r border-slate-100 p-6 flex flex-col gap-6 overflow-y-auto shrink-0 bg-white shadow-sm">
           <div>
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Mahsulot qidirish</label>
+            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">{t('inventoryCount.searchProduct')}</label>
             <ProdSearch products={products.filter(p => p.product_type !== 'sell')} onSelect={selectProduct} inputRef={searchRef} />
           </div>
 
@@ -464,32 +465,32 @@ function ReviziyaCreateView({ onBack, onSaved }) {
                 <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center text-sm font-bold shrink-0 shadow-sm">{sel.name.slice(0,2).toUpperCase()}</div>
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-slate-800 text-base truncate">{sel.name}</div>
-                  <div className="text-sm text-slate-600 mt-1">Tizim qoldig'i: <strong>{sel.stock_quantity}</strong> {sel.unit||'dona'}</div>
+                  <div className="text-sm text-slate-600 mt-1">{t('inventoryCount.systemStock')}: <strong>{sel.stock_quantity}</strong> {sel.unit||t('inventoryCount.unitDefault')}</div>
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Faktik qoldiq *</label>
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">{t('inventoryCount.actualStock')} *</label>
                 <div className="flex items-center gap-2">
                   <input type="number" min="0" step="any" value={countedQty} onChange={e => setCountedQty(e.target.value)}
                     ref={qtyRef} onKeyDown={e => e.key === 'Enter' && addItem()}
                     className="flex-1 border border-slate-200 rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold" />
-                  <span className="text-sm font-medium text-slate-500">{sel.unit||'dona'}</span>
+                  <span className="text-sm font-medium text-slate-500">{sel.unit||t('inventoryCount.unitDefault')}</span>
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Tafovut sababi (ixtiyoriy)</label>
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">{t('inventoryCount.varianceReasonOptional')}</label>
                 <input type="text" value={reason} onChange={e => setReason(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && addItem()}
                   className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <button onClick={addItem} disabled={countedQty===''} className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl font-bold text-sm shadow-sm transition-all active:scale-95">
-                Sanoqqa qo'shish
+                {t('inventoryCount.addToCount')}
               </button>
             </div>
           ) : (
             <div className="flex-1 flex items-center justify-center text-slate-300 flex-col gap-2">
               <svg className="w-12 h-12 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" /></svg>
-              <p className="text-sm">Mahsulot tanlang</p>
+              <p className="text-sm">{t('inventoryCount.selectProduct')}</p>
             </div>
           )}
         </div>
@@ -497,19 +498,19 @@ function ReviziyaCreateView({ onBack, onSaved }) {
         {/* Right */}
         <div className="flex-1 bg-white rounded-2xl border border-slate-100 flex flex-col overflow-hidden shadow-sm m-3">
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/50 shrink-0">
-            <span className="text-sm font-bold text-slate-700">Sanalgan mahsulotlar ({cart.length} ta)</span>
-            {cart.length > 0 && <button onClick={()=>setCart([])} className="text-xs text-red-500 font-semibold hover:bg-red-50 px-2 py-1 rounded">Tozalash</button>}
+            <span className="text-sm font-bold text-slate-700">{t('inventoryCount.countedProducts')} ({cart.length} {t('inventoryCount.pcs')})</span>
+            {cart.length > 0 && <button onClick={()=>setCart([])} className="text-xs text-red-500 font-semibold hover:bg-red-50 px-2 py-1 rounded">{t('inventoryCount.clear')}</button>}
           </div>
           <div className="flex-1 overflow-y-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
                 <tr>
                   <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 w-8">№</th>
-                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">Mahsulot</th>
-                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500">Tizim</th>
-                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500">Faktik</th>
-                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500">Tafovut</th>
-                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">Sababi</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">{t('inventoryCount.product')}</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500">{t('inventoryCount.systemShort')}</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500">{t('inventoryCount.actualShort')}</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500">{t('inventoryCount.variance')}</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">{t('inventoryCount.reason')}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -540,11 +541,11 @@ function ReviziyaCreateView({ onBack, onSaved }) {
       {/* Footer */}
       <div className="flex items-center justify-between px-6 py-4 bg-white border-t border-slate-100 shrink-0">
         <div className="flex gap-3 items-center">
-          <button onClick={onBack} className="px-5 py-2.5 text-sm font-semibold border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50">Bekor</button>
+          <button onClick={onBack} className="px-5 py-2.5 text-sm font-semibold border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50">{t('common.cancel')}</button>
           {err && <span className="text-red-500 text-sm font-medium">{err}</span>}
         </div>
         <button onClick={doSave} disabled={saving || !cart.length} className="px-8 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-sm">
-          {saving ? 'Saqlanmoqda...' : 'Saqlash va Yakunlash ✓'}
+          {saving ? t('inventoryCount.saving') : `${t('inventoryCount.saveAndFinish')} ✓`}
         </button>
       </div>
     </div>
@@ -568,37 +569,37 @@ const variances = count.items.filter(i => i.variance !== null && Number(i.varian
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
-          <h3 className="text-base font-bold text-slate-800 text-center mb-1.5">Inventarizatsiyani yakunlash</h3>
+          <h3 className="text-base font-bold text-slate-800 text-center mb-1.5">{t('inventoryCount.finalizeCount')}</h3>
           <p className="text-sm text-slate-500 text-center mb-5">
-            Tasdiqlasangiz, stok balanslari faktik sanoq natijalariga yangilanadi.
+            {t('inventoryCount.finalizeConfirmMsg')}
           </p>
           <div className="space-y-2 mb-2">
             <div className="flex justify-between items-center bg-slate-50 rounded-xl px-4 py-2.5">
-              <span className="text-sm text-slate-600">Jami mahsulot:</span>
+              <span className="text-sm text-slate-600">{t('inventoryCount.totalProducts')}:</span>
               <span className="text-sm font-bold text-slate-800">{count.items.length}</span>
             </div>
             {variances.length > 0 && (
               <div className="flex justify-between items-center bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">
-                <span className="text-sm text-red-700">Tafovutlar (balans o'zgaradi):</span>
-                <span className="text-sm font-bold text-red-700">{variances.length} ta</span>
+                <span className="text-sm text-red-700">{t('inventoryCount.variancesBalanceChanges')}:</span>
+                <span className="text-sm font-bold text-red-700">{variances.length} {t('inventoryCount.pcs')}</span>
               </div>
             )}
             {surplus > 0 && (
               <div className="flex justify-between items-center bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-2.5">
-                <span className="text-sm text-emerald-700">Ortiqcha (+):</span>
-                <span className="text-sm font-bold text-emerald-700">{surplus} ta</span>
+                <span className="text-sm text-emerald-700">{t('inventoryCount.surplus')}:</span>
+                <span className="text-sm font-bold text-emerald-700">{surplus} {t('inventoryCount.pcs')}</span>
               </div>
             )}
             {shortage > 0 && (
               <div className="flex justify-between items-center bg-orange-50 border border-orange-100 rounded-xl px-4 py-2.5">
-                <span className="text-sm text-orange-700">Kamomad (&minus;):</span>
-                <span className="text-sm font-bold text-orange-700">{shortage} ta</span>
+                <span className="text-sm text-orange-700">{t('inventoryCount.shortage')}:</span>
+                <span className="text-sm font-bold text-orange-700">{shortage} {t('inventoryCount.pcs')}</span>
               </div>
             )}
             {uncounted.length > 0 && (
               <div className="flex justify-between items-center bg-amber-50 border border-amber-100 rounded-xl px-4 py-2.5">
-                <span className="text-sm text-amber-700">Sanalмagan (o'zgarmaydi):</span>
-                <span className="text-sm font-bold text-amber-700">{uncounted.length} ta</span>
+                <span className="text-sm text-amber-700">{t('inventoryCount.uncountedNoChange')}:</span>
+                <span className="text-sm font-bold text-amber-700">{uncounted.length} {t('inventoryCount.pcs')}</span>
               </div>
             )}
           </div>
@@ -606,7 +607,7 @@ const variances = count.items.filter(i => i.variance !== null && Number(i.varian
         <div className="flex gap-3 px-6 pb-6">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50">{t('common.back')}</button>
           <button onClick={onConfirm} disabled={saving} className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold disabled:opacity-60 shadow-sm">
-            {saving ? 'Yakunlanmoqda...' : '✓ Ha, tasdiqlash'}
+            {saving ? t('inventoryCount.finalizing') : `✓ ${t('inventoryCount.yesConfirm')}`}
           </button>
         </div>
       </div>
@@ -648,7 +649,7 @@ const [count,        setCount]        = useState(null);
       setLocalReasons(reasons);
       const stored = localStorage.getItem(`inv_cats_${countId}`);
       if (stored) setCatFilter(JSON.parse(stored));
-    } catch { setErr("Ma'lumotlar yuklanmadi"); }
+    } catch { setErr(t('inventoryCount.dataLoadError')); }
     finally { setLoading(false); }
   }, [countId]);
 
@@ -657,7 +658,7 @@ const [count,        setCount]        = useState(null);
   const handleStart = async () => {
     setStarting(true); setErr('');
     try { await api.post(`/inventory-counts/${countId}/start`); await loadCount(); }
-    catch (e) { setErr(e.response?.data?.detail || 'Xatolik'); }
+    catch (e) { setErr(e.response?.data?.detail || t('common.error')); }
     finally { setStarting(false); }
   };
 
@@ -674,8 +675,8 @@ const [count,        setCount]        = useState(null);
       if (items.length === 0) { setSaving(false); return; }
       await api.post(`/inventory-counts/${countId}/items`, items);
       await loadCount();
-      if (!silent) { setSavedMsg('Saqlandi'); setTimeout(() => setSavedMsg(''), 2500); }
-    } catch (e) { setErr(e.response?.data?.detail || 'Saqlashda xatolik'); }
+      if (!silent) { setSavedMsg(t('inventoryCount.saved')); setTimeout(() => setSavedMsg(''), 2500); }
+    } catch (e) { setErr(e.response?.data?.detail || t('inventoryCount.saveErrorShort')); }
     finally { setSaving(false); }
   };
 
@@ -686,19 +687,19 @@ const [count,        setCount]        = useState(null);
       await api.post(`/inventory-counts/${countId}/finalize`);
       await loadCount();
       setShowFinalize(false);
-    } catch (e) { setErr(e.response?.data?.detail || 'Xatolik'); }
+    } catch (e) { setErr(e.response?.data?.detail || t('common.error')); }
     finally { setFinalizing(false); }
   };
 
   const [reverting, setReverting] = useState(false);
   const handleRevert = async () => {
-    if (!window.confirm("Yakunlangan reviziyani bekor qilib qoralamaga qaytarasizmi? Barcha ombor qoldiqlari orqaga qaytadi.")) return;
+    if (!window.confirm(t('inventoryCount.confirmRevert'))) return;
     setReverting(true); setErr('');
     try {
       await api.post(`/inventory-counts/${countId}/revert`);
       await loadCount();
-      toast.success("Reviziya qoralamaga qaytarildi");
-    } catch (e) { setErr(e.response?.data?.detail || 'Revert xatolik'); }
+      toast.success(t('inventoryCount.revertedToDraft'));
+    } catch (e) { setErr(e.response?.data?.detail || t('inventoryCount.revertError')); }
     finally { setReverting(false); }
   };
 
@@ -754,14 +755,14 @@ const [count,        setCount]        = useState(null);
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
           </svg>
-          Orqaga
+          {t('common.back')}
         </button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-xl font-bold text-slate-800 font-mono">{count.number}</h1>
             <StatusBadge status={count.status} />
             {catFilter?.length > 0 && (
-              <span className="text-xs text-violet-700 bg-violet-50 border border-violet-200 px-2.5 py-1 rounded-full font-medium">🗂 Qisman sanoq</span>
+              <span className="text-xs text-violet-700 bg-violet-50 border border-violet-200 px-2.5 py-1 rounded-full font-medium">🗂 {t('inventoryCount.partialCount')}</span>
             )}
           </div>
           <p className="text-sm text-slate-500 mt-0.5">
@@ -774,36 +775,36 @@ const [count,        setCount]        = useState(null);
         <div className="flex items-center gap-2 flex-wrap shrink-0">
           <button onClick={() => printCountSheet(count, t)}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold bg-white border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-700 transition-colors">
-            🖨 Sanash varaqasi
+            🖨 {t('inventoryCount.countSheet')}
           </button>
           {count.status !== 'draft' && (
             <button onClick={() => printVarianceReport(count, t)}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold bg-white border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-700 transition-colors">
-              📋 Tafovutlar
+              📋 {t('inventoryCount.variances')}
             </button>
           )}
           {count.status === 'draft' && (
             <button onClick={handleStart} disabled={starting}
               className="px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors">
-              {starting ? '...' : '▶ Boshlash'}
+              {starting ? '...' : `▶ ${t('inventoryCount.start')}`}
             </button>
           )}
           {canEdit && (
             <button onClick={() => handleSave(false)} disabled={saving}
               className={`px-4 py-2 text-sm font-semibold rounded-xl shadow-sm transition-all disabled:opacity-60 ${savedMsg ? 'bg-emerald-600 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>
-              {saving ? 'Saqlanmoqda...' : savedMsg ? '✓ Saqlandi' : 'Saqlash'}
+              {saving ? t('inventoryCount.saving') : savedMsg ? `✓ ${t('inventoryCount.saved')}` : t('common.save')}
             </button>
           )}
           {count.status === 'in_progress' && (
             <button onClick={() => setShowFinalize(true)}
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors">
-              ✓ Yakunlash
+              ✓ {t('inventoryCount.finish')}
             </button>
           )}
           {count.status === 'completed' && (
             <button onClick={handleRevert} disabled={reverting}
               className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-60 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors">
-              {reverting ? '...' : 'Tahrirlashga qaytarish'}
+              {reverting ? '...' : t('inventoryCount.revertToEdit')}
             </button>
           )}
         </div>
@@ -818,12 +819,12 @@ const [count,        setCount]        = useState(null);
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
-          { l: 'Jami',         v: stats.total,     c: 'text-slate-800' },
-          { l: 'Sanalgan',     v: stats.counted,   c: 'text-blue-600' },
-          { l: 'Sanalмagan',   v: stats.uncounted, c: 'text-amber-600' },
-          { l: 'Tafovutlar',   v: stats.variances, c: 'text-red-600' },
-          { l: 'Ortiqcha (+)', v: stats.surplus,   c: 'text-emerald-600' },
-          { l: 'Kamomad (−)',  v: stats.shortage,  c: 'text-orange-600' },
+          { l: t('inventoryCount.total'),        v: stats.total,     c: 'text-slate-800' },
+          { l: t('inventoryCount.counted'),      v: stats.counted,   c: 'text-blue-600' },
+          { l: t('inventoryCount.uncounted'),    v: stats.uncounted, c: 'text-amber-600' },
+          { l: t('inventoryCount.variances'),    v: stats.variances, c: 'text-red-600' },
+          { l: t('inventoryCount.surplus'),      v: stats.surplus,   c: 'text-emerald-600' },
+          { l: t('inventoryCount.shortage'),     v: stats.shortage,  c: 'text-orange-600' },
         ].map(s => (
           <div key={s.l} className="bg-white rounded-2xl border border-slate-100 px-4 py-3.5 shadow-sm">
             <div className={`text-2xl font-bold ${s.c}`}>{s.v}</div>
@@ -835,7 +836,7 @@ const [count,        setCount]        = useState(null);
       {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-          {[['all','Hammasi'],['variance','Tafovutlar'],['uncounted','Sanalmaganlar']].map(([v, l]) => (
+          {[['all',t('inventoryCount.all')],['variance',t('inventoryCount.variances')],['uncounted',t('inventoryCount.uncounted')]].map(([v, l]) => (
             <button key={v} onClick={() => setFilter(v)}
               className={`px-4 py-2 text-sm font-semibold transition-all ${filter === v ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
               {l}
@@ -845,13 +846,13 @@ const [count,        setCount]        = useState(null);
         <div className="flex-1 min-w-[200px]">
           <input
             type="text"
-            placeholder="Qidirish: nom yoki SKU..."
+            placeholder={t('inventoryCount.searchNameOrSku')}
             className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm"
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        <span className="text-sm text-slate-400 ml-auto">{filteredItems.length} ta</span>
+        <span className="text-sm text-slate-400 ml-auto">{filteredItems.length} {t('inventoryCount.pcs')}</span>
       </div>
 
       {/* Table */}
@@ -862,12 +863,12 @@ const [count,        setCount]        = useState(null);
               <tr className="bg-slate-50 border-b border-slate-100">
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-10">#</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">SKU</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Mahsulot nomi</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider w-20">O'lchov</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider w-28">Tizim qoldig'i</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider w-32">Faktik soni</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider w-24">Tafovut</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Sababi</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('inventoryCount.productName')}</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider w-20">{t('inventoryCount.unit')}</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider w-28">{t('inventoryCount.systemQty')}</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider w-32">{t('inventoryCount.actualQty')}</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider w-24">{t('inventoryCount.variance')}</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('inventoryCount.reason')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -897,7 +898,7 @@ const [count,        setCount]        = useState(null);
                     <td className="px-3 py-2">
                       {canEdit ? (
                         <input
-                          type="number" step="0.001" min="0" placeholder="0"
+                          type="number" step="0.001" min="0" placeholder={t('inventoryCount.zeroPlaceholder')}
                           value={dispQty}
                           onChange={e => setLocalQtys(p => ({ ...p, [item.product_id]: e.target.value }))}
                           className={`w-full px-2.5 py-1.5 border rounded-lg text-sm text-center font-mono focus:outline-none focus:ring-2 transition-colors ${
@@ -918,7 +919,7 @@ const [count,        setCount]        = useState(null);
                     <td className="px-3 py-2">
                       {canEdit && variance !== null && variance !== 0 ? (
                         <input
-                          type="text" placeholder="Sababi..."
+                          type="text" placeholder={t('inventoryCount.reasonPlaceholder')}
                           value={reason}
                           onChange={e => setLocalReasons(p => ({ ...p, [item.product_id]: e.target.value }))}
                           className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white min-w-[100px]"
@@ -937,7 +938,7 @@ const [count,        setCount]        = useState(null);
                       <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
                       </svg>
-                      <span className="text-sm text-slate-400">Mahsulotlar topilmadi</span>
+                      <span className="text-sm text-slate-400">{t('inventoryCount.productsNotFound')}</span>
                     </div>
                   </td>
                 </tr>
@@ -948,21 +949,21 @@ const [count,        setCount]        = useState(null);
 
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50">
-            <span className="text-xs text-slate-500 font-medium">Barchasi: {filteredItems.length} ta (Hozirgi sahifa: {page} / {totalPages})</span>
+            <span className="text-xs text-slate-500 font-medium">{t('inventoryCount.allCount', { count: filteredItems.length })} ({t('inventoryCount.currentPage')}: {page} / {totalPages})</span>
             <div className="flex gap-2">
-              <button 
-                disabled={page === 1} 
+              <button
+                disabled={page === 1}
                 onClick={() => setPage(page - 1)}
                 className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold bg-white text-slate-600 disabled:opacity-40 hover:border-blue-300 transition-all"
               >
-                Oldingi
+                {t('inventoryCount.previous')}
               </button>
-              <button 
-                disabled={page === totalPages} 
+              <button
+                disabled={page === totalPages}
                 onClick={() => setPage(page + 1)}
                 className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold bg-white text-slate-600 disabled:opacity-40 hover:border-blue-300 transition-all"
               >
-                Keyingi
+                {t('inventoryCount.next')}
               </button>
             </div>
           </div>
@@ -971,13 +972,13 @@ const [count,        setCount]        = useState(null);
         {canEdit && filteredItems.length > 0 && (
           <div className="flex items-center justify-between px-6 py-3 bg-slate-50 border-t border-slate-100">
             <span className="text-xs text-slate-500">
-              {Object.values(localQtys).filter(v => v !== '').length} ta to'ldirilgan
+              {t('inventoryCount.filledCount', { count: Object.values(localQtys).filter(v => v !== '').length })}
             </span>
             <button
               onClick={() => handleSave(false)} disabled={saving}
               className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors"
             >
-              {saving ? 'Saqlanmoqda...' : savedMsg ? '✓ Saqlandi' : '💾 Saqlash'}
+              {saving ? t('inventoryCount.saving') : savedMsg ? `✓ ${t('inventoryCount.saved')}` : `💾 ${t('common.save')}`}
             </button>
           </div>
         )}
@@ -1016,28 +1017,28 @@ const [counts,       setCounts]       = useState([]);
 
   const handleDelete = async (e, c) => {
     e.stopPropagation();
-    if (!window.confirm(`"${c.number}" revizyasini o'chirishni tasdiqlaysizmi?\nBu amalni qaytarib bo'lmaydi!`)) return;
+    if (!window.confirm(t('inventoryCount.confirmDelete', { number: c.number }))) return;
     setDeleting(c.id);
     try {
       await api.delete(`/inventory-counts/${c.id}`);
-      toast.success("Revizya o'chirildi");
+      toast.success(t('inventoryCount.deleted'));
       await load();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "O'chirishda xatolik");
+      toast.error(err.response?.data?.detail || t('inventoryCount.deleteError'));
     } finally { setDeleting(null); }
   };
 
   const [reverting, setReverting] = useState(null);
   const handleRevert = async (e, c) => {
     e.stopPropagation();
-    if (!window.confirm(`"${c.number}" yakunlangan revizyasini qoralamaga qaytarmoqchimisiz?\nOmbor qoldiqlari orqaga tiklanadi.`)) return;
+    if (!window.confirm(t('inventoryCount.confirmRevertNumbered', { number: c.number }))) return;
     setReverting(c.id);
     try {
       await api.post(`/inventory-counts/${c.id}/revert`);
-      toast.success('Revizya qoralamaga qaytarildi — endi tahrirlash mumkin');
+      toast.success(t('inventoryCount.revertedEditable'));
       await load();
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Revert xatolik');
+      toast.error(err.response?.data?.detail || t('inventoryCount.revertError'));
     } finally { setReverting(null); }
   };
 
@@ -1048,8 +1049,8 @@ const [counts,       setCounts]       = useState([]);
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Inventarizatsiya</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Faktik va tizim qoldiqlarini solishtirish va tuzatish</p>
+          <h1 className="text-2xl font-bold text-slate-800">{t('warehouse.inventory')}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{t('inventoryCount.pageSubtitle')}</p>
         </div>
         <button
           onClick={onCreate}
@@ -1058,13 +1059,13 @@ const [counts,       setCounts]       = useState([]);
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
           </svg>
-          Yangi revizya yaratish
+          {t('inventoryCount.createNew')}
         </button>
       </div>
 
       {/* Status filter pills */}
       <div className="flex gap-2 flex-wrap">
-        {[['','Hammasi'],['draft','Qoralama'],['in_progress','Jarayonda'],['completed','Yakunlangan']].map(([v, l]) => (
+        {[['',t('inventoryCount.all')],['draft',t('inventoryCount.statusDraft')],['in_progress',t('inventoryCount.statusInProgress')],['completed',t('inventoryCount.statusCompleted')]].map(([v, l]) => (
           <button
             key={v}
             onClick={() => setStatusFilter(v)}
@@ -1083,7 +1084,7 @@ const [counts,       setCounts]       = useState([]);
           <table className="min-w-full">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
-                {['Raqam','Ombor','Yaratilgan sana','Mahsulotlar','Holat',''].map((h, i) => (
+                {[t('inventoryCount.number'), t('warehouse.title'), t('inventoryCount.createdDate'), t('inventoryCount.products'), t('inventoryCount.status'), ''].map((h, i) => (
                   <th key={i} className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -1099,7 +1100,7 @@ const [counts,       setCounts]       = useState([]);
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
                       </svg>
-                      {c.item_count} ta
+                      {c.item_count} {t('inventoryCount.pcs')}
                     </span>
                   </td>
                   <td className="px-6 py-4"><StatusBadge status={c.status} /></td>
@@ -1108,13 +1109,13 @@ const [counts,       setCounts]       = useState([]);
                         <button
                           onClick={e => { e.stopPropagation(); onView(c.id); }}
                           className="px-3 py-1.5 text-xs font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
-                        >{c.status === 'completed' ? "Ko'rish" : "Ko'rish / Tahrirlash"}</button>
+                        >{c.status === 'completed' ? t('inventoryCount.view') : t('inventoryCount.viewEdit')}</button>
                         <button
                           onClick={e => handleDelete(e, c)}
                           disabled={deleting === c.id}
                           className="px-3 py-1.5 text-xs font-semibold bg-red-50 text-red-500 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50"
                         >
-                          {deleting === c.id ? '...' : "O'chirish"}
+                          {deleting === c.id ? '...' : t('common.delete')}
                         </button>
                       </div>
                     </td>
@@ -1130,13 +1131,13 @@ const [counts,       setCounts]       = useState([]);
                         </svg>
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-slate-500">Inventarizatsiya topilmadi</p>
-                        <p className="text-xs text-slate-400 mt-0.5">Birinchi revizya yaratingiz</p>
+                        <p className="text-sm font-semibold text-slate-500">{t('inventoryCount.notFound')}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">{t('inventoryCount.createFirstOne')}</p>
                       </div>
                       <button
                         onClick={onCreate}
                         className="mt-1 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm"
-                      >+ Yangi revizya</button>
+                      >+ {t('inventoryCount.newCount')}</button>
                     </div>
                   </td>
                 </tr>
