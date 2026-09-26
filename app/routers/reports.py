@@ -1,9 +1,11 @@
 """
-Reports API — asosiy hisobotlar: Dashboard, Sotuvlar, Ombor, Stok ogohlantirishlari, Xaridlar.
+Reports API — asosiy hisobotlar: Dashboard, Sotuvlar, Qaytarishlar, Ombor,
+Stok ogohlantirishlari, O'lik stok, Xaridlar, Mahsulotlar (Sotuv).
 Moliya hisobotlari → finance_report.py
 Sotuv tahlili → sales_report.py
+Valyuta, qaytarish hujjatlari va vaqt qoidalari → app/utils/report_utils.py
 """
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -13,20 +15,94 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.dependencies import require_roles
 from app.database import get_db
 from app.models.customer import Customer
-from app.models.inventory import StockLevel
+from app.models.inventory import StockLevel, StockMovement
 from app.models.product import Product
-from app.models.purchase_order import PurchaseOrder
-from app.models.currency import Currency
-from app.models.sale import Sale, SaleItem, SaleStatus
+from app.models.purchase_order import PurchaseOrder, POStatus
+from app.models.sale import Sale, SaleItem
 from app.models.batch import Batch
 from app.models.supplier import Supplier
 from app.models.user import User, UserRole
-from app.models.warehouse import Warehouse
-from app.utils.report_utils import _today_range, _date_range
+from app.utils.report_utils import (
+    _today_range, _date_range, local_today, local_day_start,
+    is_return_doc, sale_doc_filter, return_doc_filter, sale_or_return_filter, doc_sign,
+    sale_rate, item_revenue_uzs, item_cost_uzs,
+    branch_warehouse_ids, currency_code_map, load_debtors,
+)
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
 REPORT_ROLES = (UserRole.admin, UserRole.director, UserRole.manager, UserRole.accountant, UserRole.super_admin)
+
+
+def _code(codes: dict, currency_id) -> str:
+    return codes.get(currency_id, "UZS") if currency_id else "UZS"
+
+
+# ─── O'lik stok (Dashboard va hisobot uchun umumiy) ──────────────────────────
+
+def _dead_stock_rows(db: Session, company_id: int, months: int, wh_ids: Optional[list]):
+    """N oy davomida sotilmagan, qoldig'i bor mahsulotlar: [(Product, qty)].
+
+    "Sotilgan" — ombordan sotuv bilan chiqqan (StockMovement): tarkibiy (sell)
+    mahsulot sotilganda manba mahsulot shu yerda ko'rinadi. SaleItem ham
+    hisobga olinadi. Oynadan keyin qo'shilgan yangi mahsulotlar kirmaydi.
+    """
+    cutoff = local_day_start(local_today()) - timedelta(days=months * 30)
+    sold_by_movement = (
+        db.query(StockMovement.product_id)
+        .join(Product, Product.id == StockMovement.product_id)
+        .filter(
+            Product.company_id == company_id,
+            StockMovement.reference_type == "sale",
+            StockMovement.created_at >= cutoff,
+        )
+        .distinct()
+        .scalar_subquery()
+    )
+    sold_by_items = (
+        db.query(SaleItem.product_id)
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .filter(Sale.company_id == company_id, sale_doc_filter(), Sale.created_at >= cutoff)
+        .distinct()
+        .scalar_subquery()
+    )
+    qty_sum = func.sum(StockLevel.quantity)
+    q = (
+        db.query(Product, qty_sum.label("qty"))
+        .join(StockLevel, StockLevel.product_id == Product.id)
+        .filter(
+            Product.company_id == company_id,
+            Product.is_deleted == False,
+            StockLevel.quantity > 0,
+            (Product.created_at.is_(None)) | (Product.created_at < cutoff),
+            Product.id.notin_(sold_by_movement),
+            Product.id.notin_(sold_by_items),
+        )
+    )
+    if wh_ids is not None:
+        q = q.filter(StockLevel.warehouse_id.in_(wh_ids))
+    return q.group_by(Product.id).having(qty_sum > 0).all()
+
+
+def _batch_avg_costs(db: Session, company_id: int, product_ids: list, wh_ids: Optional[list]) -> dict:
+    """Mahsulotning qolgan partiyalari bo'yicha o'rtacha tannarxi (UZS)."""
+    if not product_ids:
+        return {}
+    q = (
+        db.query(
+            Batch.product_id,
+            func.sum(Batch.quantity * Batch.purchase_price).label("total_cost"),
+            func.sum(Batch.quantity).label("total_qty"),
+        )
+        .filter(Batch.company_id == company_id, Batch.quantity > 0, Batch.product_id.in_(product_ids))
+    )
+    if wh_ids is not None:
+        q = q.filter(Batch.warehouse_id.in_(wh_ids))
+    result = {}
+    for row in q.group_by(Batch.product_id).all():
+        if row.total_qty and float(row.total_qty) > 0:
+            result[row.product_id] = float(row.total_cost) / float(row.total_qty)
+    return result
 
 
 # ─── Dashboard ───────────────────────────────────────────────────────────────
@@ -40,218 +116,152 @@ def get_dashboard(
 ):
     """Direktor uchun asosiy ko'rsatkichlar"""
     today_start, today_end = _today_range()
+    today = local_today()
     cid = current_user.company_id
 
-    branch_wh_ids = None
-    if branch_id:
-        branch_wh_ids = db.query(Warehouse.id).filter(Warehouse.branch_id == branch_id).with_entities(Warehouse.id).all()
-        branch_wh_ids = [wh[0] for wh in branch_wh_ids]
+    wh_ids = [warehouse_id] if warehouse_id else branch_warehouse_ids(db, cid, branch_id)
+    base = [Sale.company_id == cid]
+    if wh_ids is not None:
+        base.append(Sale.warehouse_id.in_(wh_ids))
 
-    def get_warehouse_filter(w_id):
-        if w_id:
-            return [Sale.warehouse_id == w_id]
-        if branch_wh_ids:
-            return [Sale.warehouse_id.in_(branch_wh_ids)]
-        return []
+    codes = currency_code_map(db, cid)
 
-    wh_filter = get_warehouse_filter(warehouse_id)
-    # currency_code bo'yicha guruhlash
-    # NOTE: PostgreSQL outerjoin+coalesce GROUP BY xatosi sababli Sale.currency_id ishlatiladi
-    # Valyuta kodi Python da resolve qilinadi
-
-    # Barcha valyutalarni bir so'rovda yuklash
-    all_currencies = {c.id: c.code for c in db.query(Currency.id, Currency.code).filter(Currency.company_id == cid).all()}
-    def _cur_code(cid_val):
-        return all_currencies.get(cid_val, 'UZS') if cid_val else 'UZS'
-
-    today_rows = (
-        db.query(
+    def _sales_summary(start, end=None):
+        """(soni, {valyuta: sotuv valyutasidagi summa}, UZS jami) — sotuv hujjatlari."""
+        q = db.query(
             Sale.currency_id,
-            func.count(Sale.id).label("cnt"),
+            func.count(Sale.id),
+            func.coalesce(func.sum(Sale.total_amount / sale_rate()), 0),
+            func.coalesce(func.sum(Sale.total_amount), 0),
+        ).filter(*base, sale_doc_filter(), Sale.created_at >= start)
+        if end is not None:
+            q = q.filter(Sale.created_at < end)
+        count, by_currency, total_uzs = 0, {}, 0.0
+        for currency_id, cnt, amount, amount_uzs in q.group_by(Sale.currency_id).all():
+            code = _code(codes, currency_id)
+            by_currency[code] = by_currency.get(code, 0.0) + float(amount)
+            count += cnt
+            total_uzs += float(amount_uzs)
+        return count, by_currency, total_uzs
+
+    today_count, today_by_currency, today_uzs = _sales_summary(today_start, today_end)
+    _, _, yesterday_uzs = _sales_summary(today_start - timedelta(days=1), today_start)
+    today_change = round((today_uzs - yesterday_uzs) / yesterday_uzs * 100, 1) if yesterday_uzs > 0 else None
+
+    # Kunlik trend (UZS) — oxirgi 30 kun, haftalik ham shundan olinadi
+    trend_rows = (
+        db.query(
+            cast(Sale.created_at, DateType).label("day"),
             func.coalesce(func.sum(Sale.total_amount), 0).label("total"),
+            func.count(Sale.id).label("count"),
         )
-        .select_from(Sale)
-        .filter(
-            Sale.company_id == cid,
-            Sale.created_at >= today_start,
-            Sale.created_at < today_end,
-            Sale.status == SaleStatus.completed,
-            *wh_filter,
-        )
-        .group_by(Sale.currency_id)
+        .filter(*base, sale_doc_filter(), Sale.created_at >= local_day_start(today - timedelta(days=29)))
+        .group_by(cast(Sale.created_at, DateType))
         .all()
     )
-    today_count = sum(row.cnt for row in today_rows)
-    today_by_currency = {_cur_code(row.currency_id): float(row.total) for row in today_rows}
-    today_total = sum(today_by_currency.values())  # for change_pct calc only
-
-
-    yesterday_start = today_start - timedelta(days=1)
-    yesterday_total = db.query(func.coalesce(func.sum(Sale.total_amount), 0)).filter(
-        Sale.company_id == cid,
-        Sale.created_at >= yesterday_start,
-        Sale.created_at < today_start,
-        Sale.status == SaleStatus.completed,
-        *wh_filter
-    ).scalar()
-    today_f = float(today_total)
-    yesterday_total = db.query(func.coalesce(func.sum(Sale.total_amount), 0)).filter(
-        Sale.company_id == cid,
-        Sale.created_at >= yesterday_start,
-        Sale.created_at < today_start,
-        Sale.status == SaleStatus.completed,
-        *wh_filter
-    ).scalar()
-    yesterday_f = float(yesterday_total)
-    today_change = round(float((today_f - yesterday_f) / yesterday_f * 100), 1) if yesterday_f > 0 else None
-
-    week_start = datetime.combine(
-        datetime.now(timezone.utc).date() - timedelta(days=6), datetime.min.time()
-    ).replace(tzinfo=timezone.utc)
-    week_rows = db.query(
-        cast(Sale.created_at, DateType).label("day"),
-        func.coalesce(func.sum(Sale.total_amount), 0).label("total"),
-        func.count(Sale.id).label("count"),
-    ).filter(
-        Sale.company_id == cid,
-        Sale.created_at >= week_start,
-        Sale.status == SaleStatus.completed,
-        *wh_filter
-    ).group_by(cast(Sale.created_at, DateType)).all()
-    week_map = {str(r.day): (float(r.total), r.count) for r in week_rows}
+    trend_map = {str(r.day): (float(r.total), r.count) for r in trend_rows}
     weekly_data = []
     for i in range(7):
-        day = datetime.now(timezone.utc).date() - timedelta(days=6 - i)
-        total, count = week_map.get(str(day), (0.0, 0))
+        day = today - timedelta(days=6 - i)
+        total, count = trend_map.get(str(day), (0.0, 0))
         weekly_data.append({"date": day.strftime("%d.%m"), "amount": total, "count": count})
+    monthly_trend = []
+    for i in range(30):
+        day = today - timedelta(days=29 - i)
+        monthly_trend.append({"date": day.strftime("%d.%m"), "amount": trend_map.get(str(day), (0.0, 0))[0]})
 
-    _now = datetime.now(timezone.utc)
-    month_start = datetime(_now.year, _now.month, 1, 0, 0, 0, tzinfo=timezone.utc)
-    # Oylik savdolar valyuta bo'yicha
-    month_rows = db.query(
-        Sale.currency_id,
-        func.count(Sale.id),
-        func.coalesce(func.sum(Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)), 0)
-    ).filter(
-        Sale.company_id == cid,
-        Sale.created_at >= month_start,
-        Sale.status == SaleStatus.completed,
-        *wh_filter
-    ).group_by(Sale.currency_id).all()
-    month_count = sum(row[1] for row in month_rows)
-    month_by_currency = {_cur_code(row[0]): float(row[2]) for row in month_rows}
-    month_profit = db.query(func.coalesce(
-        func.sum(
-            case(
-                (Sale.status == SaleStatus.completed,
-                 (SaleItem.unit_price - SaleItem.cost_price) * SaleItem.quantity - SaleItem.discount),
-                (Sale.status == SaleStatus.refunded,
-                 -((SaleItem.unit_price - SaleItem.cost_price) * SaleItem.quantity - SaleItem.discount)),
-                else_=0,
-            )
-        ), 0
-    )).join(Sale, Sale.id == SaleItem.sale_id).filter(
-        Sale.company_id == cid,
-        Sale.created_at >= month_start,
-        Sale.status.in_([SaleStatus.completed, SaleStatus.refunded]),
-        *wh_filter
-    ).scalar()
+    month_start = local_day_start(today.replace(day=1))
+    month_count, month_by_currency, _ = _sales_summary(month_start)
+    month_profit = (
+        db.query(func.coalesce(func.sum(doc_sign() * (item_revenue_uzs() - item_cost_uzs())), 0))
+        .select_from(SaleItem)
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .filter(*base, sale_or_return_filter(), Sale.created_at >= month_start)
+        .scalar()
+    )
 
-    top_q = (
-        db.query(Product.name, func.sum(SaleItem.subtotal).label("revenue"), func.sum(SaleItem.quantity).label("qty"))
+    top_revenue = func.sum(doc_sign() * item_revenue_uzs())
+    top_rows = (
+        db.query(
+            Product.name,
+            top_revenue.label("revenue"),
+            func.sum(doc_sign() * SaleItem.quantity).label("qty"),
+        )
         .join(SaleItem, SaleItem.product_id == Product.id)
         .join(Sale, Sale.id == SaleItem.sale_id)
-        .filter(Sale.company_id == cid, Sale.created_at >= month_start, Sale.status == SaleStatus.completed, *wh_filter)
+        .filter(*base, sale_or_return_filter(), Sale.created_at >= month_start)
+        .group_by(Product.id, Product.name)
+        .order_by(top_revenue.desc())
+        .limit(10)
+        .all()
     )
-    top_rows = top_q.group_by(Product.id, Product.name).order_by(func.sum(SaleItem.subtotal).desc()).limit(10).all()
 
     low_q = (
         db.query(StockLevel, Product)
         .join(Product, Product.id == StockLevel.product_id)
-        .filter(Product.is_deleted == False, Product.min_stock > 0, StockLevel.quantity < Product.min_stock)
+        .filter(
+            Product.company_id == cid,
+            Product.is_deleted == False,
+            Product.min_stock > 0,
+            StockLevel.quantity < Product.min_stock,
+        )
     )
-    low_q = low_q.filter(Product.company_id == cid)
-    if warehouse_id:
-        low_q = low_q.filter(StockLevel.warehouse_id == warehouse_id)
+    if wh_ids is not None:
+        low_q = low_q.filter(StockLevel.warehouse_id.in_(wh_ids))
+    low_stock_count = low_q.count()
     low_stock_rows = low_q.order_by(StockLevel.quantity).limit(20).all()
 
-    six_months_ago = datetime.now(timezone.utc) - timedelta(days=180)
-    sold_ids = (
-        db.query(SaleItem.product_id)
-        .join(Sale)
-        .filter(Sale.company_id == cid, Sale.created_at >= six_months_ago, Sale.status == SaleStatus.completed)
-        .distinct()
-        .scalar_subquery()
-    )
-    dead_q = (
-        db.query(func.count(StockLevel.id))
-        .join(Product)
-        .filter(Product.is_deleted == False, StockLevel.quantity > 0, Product.id.notin_(sold_ids))
-    )
-    dead_q = dead_q.filter(Product.company_id == cid)
-    if warehouse_id:
-        dead_q = dead_q.filter(StockLevel.warehouse_id == warehouse_id)
-    dead_stock_count = dead_q.scalar()
+    dead_stock_count = len(_dead_stock_rows(db, cid, 6, wh_ids))
 
-    cashier_q = (
-        db.query(User.id.label("uid"), User.name, func.count(Sale.id).label("cnt"),
-                 Sale.currency_id,
-                 func.coalesce(func.sum(Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)), 0).label("total"))
+    cashier_rows = (
+        db.query(
+            User.id,
+            User.name,
+            Sale.currency_id,
+            func.count(Sale.id),
+            func.coalesce(func.sum(Sale.total_amount / sale_rate()), 0),
+            func.coalesce(func.sum(Sale.total_amount), 0),
+        )
         .join(Sale, Sale.cashier_id == User.id)
-        .filter(Sale.company_id == cid, Sale.created_at >= month_start, Sale.status == SaleStatus.completed, *wh_filter)
+        .filter(*base, sale_doc_filter(), Sale.created_at >= month_start)
+        .group_by(User.id, User.name, Sale.currency_id)
+        .all()
     )
-    cashier_rows = cashier_q.group_by(User.id, User.name, Sale.currency_id).order_by(func.sum(Sale.total_amount).desc()).limit(30).all()
-
-    # Merge by cashier name grouping currencies
     cashier_map = {}
-    for row in cashier_rows:
-        nm = row.name
-        if nm not in cashier_map:
-            cashier_map[nm] = {"name": nm, "count": 0, "totals": {}}
-        cashier_map[nm]["count"] += row.cnt
-        curr = _cur_code(row.currency_id)
-        cashier_map[nm]["totals"][curr] = cashier_map[nm]["totals"].get(curr, 0) + float(row.total)
-    cashier_perf = list(cashier_map.values())[:10]
+    for uid, name, currency_id, cnt, amount, amount_uzs in cashier_rows:
+        entry = cashier_map.setdefault(uid, {"name": name, "count": 0, "totals": {}, "_uzs": 0.0})
+        code = _code(codes, currency_id)
+        entry["count"] += cnt
+        entry["totals"][code] = entry["totals"].get(code, 0.0) + float(amount)
+        entry["_uzs"] += float(amount_uzs)
+    cashier_perf = sorted(cashier_map.values(), key=lambda e: e["_uzs"], reverse=True)[:10]
+    for entry in cashier_perf:
+        entry.pop("_uzs")
 
     product_count = db.query(func.count(Product.id)).filter(Product.is_deleted == False, Product.company_id == cid).scalar()
 
-    debt_q = (
-        db.query(func.count(Customer.id), func.coalesce(func.sum(Customer.debt_balance), 0))
-        .filter(Customer.debt_balance > 0, Customer.company_id == cid)
-    )
-    debtor_count, _ = debt_q.first()
-    # Mijozlar qarzlarini valyuta bo'yicha guruhlash
-    debt_by_currency_rows = (
-        db.query(Customer.debt_currency, func.coalesce(func.sum(Customer.debt_balance), 0))
-        .filter(Customer.debt_balance > 0, Customer.company_id == cid)
-        .group_by(Customer.debt_currency)
-        .all()
-    )
-    debt_by_currency = {(row[0] or 'UZS'): float(row[1]) for row in debt_by_currency_rows}
-    today_date = datetime.now(timezone.utc).date()
-    overdue_debtor_count = (
-        db.query(func.count(func.distinct(Sale.customer_id)))
-        .filter(Sale.company_id == cid, Sale.customer_id.isnot(None), Sale.paid_amount < Sale.total_amount, Sale.debt_due_date.isnot(None), Sale.debt_due_date < today_date)
-        .scalar()
-    ) or 0
-
-    month30_start = datetime.combine(
-        datetime.now(timezone.utc).date() - timedelta(days=29), datetime.min.time()
-    ).replace(tzinfo=timezone.utc)
-    month30_rows = db.query(
-        cast(Sale.created_at, DateType).label("day"),
-        func.coalesce(func.sum(Sale.total_amount), 0).label("total"),
-    ).filter(
-        Sale.company_id == cid,
-        Sale.created_at >= month30_start,
-        Sale.status == SaleStatus.completed,
-        *wh_filter
-    ).group_by(cast(Sale.created_at, DateType)).all()
-    month30_map = {str(r.day): float(r.total) for r in month30_rows}
-    monthly_trend = []
-    for i in range(30):
-        day = datetime.now(timezone.utc).date() - timedelta(days=29 - i)
-        monthly_trend.append({"date": day.strftime("%d.%m"), "amount": month30_map.get(str(day), 0.0)})
+    # Mijozlar qarzi — Mijozlar sahifasi bilan bir xil manba (debt_balances)
+    debtors = load_debtors(db, Customer, cid)
+    debt_by_currency = {}
+    for _, balances in debtors:
+        for code, amt in balances.items():
+            debt_by_currency[code] = debt_by_currency.get(code, 0.0) + amt
+    debtor_ids = [c.id for c, _ in debtors]
+    overdue_debtor_count = 0
+    if debtor_ids:
+        # paid_amount sotuv valyutasida, total_amount UZS da — solishtirishdan oldin kursga ko'paytiriladi
+        overdue_debtor_count = (
+            db.query(func.count(func.distinct(Sale.customer_id)))
+            .filter(
+                Sale.company_id == cid,
+                sale_doc_filter(),
+                Sale.customer_id.in_(debtor_ids),
+                Sale.debt_due_date.isnot(None),
+                Sale.debt_due_date < today,
+                Sale.paid_amount * sale_rate() < Sale.total_amount - 0.01,
+            )
+            .scalar()
+        ) or 0
 
     return {
         "warehouse_id": warehouse_id,
@@ -264,7 +274,7 @@ def get_dashboard(
         "monthly": {
             "sales": month_by_currency,
             "orders": month_count,
-            "profit": str(month_profit),
+            "profit": round(float(month_profit or 0), 2),
         },
         "top_products": [
             {"name": r.name, "revenue": float(r.revenue or 0), "qty": float(r.qty or 0)}
@@ -276,13 +286,13 @@ def get_dashboard(
         ],
         "inventory": {
             "product_count": product_count,
-            "low_stock_count": len(low_stock_rows),
+            "low_stock_count": low_stock_count,
             "dead_stock_count": dead_stock_count,
         },
         "cashier_performance": cashier_perf,
         "debts": {
             "total_debt": debt_by_currency,
-            "debtor_count": debtor_count or 0,
+            "debtor_count": len(debtors),
             "overdue_count": overdue_debtor_count,
         },
         "monthly_trend": monthly_trend,
@@ -296,68 +306,88 @@ def sales_report(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
     branch_id: Optional[int] = Query(None),
-    include_returns: bool = Query(True, description="Vazvratlarni ham ko'rsatish"),
+    include_returns: bool = Query(True, description="Qaytarish hujjatlarini ham ko'rsatish"),
+    limit: int = Query(1000, ge=1, le=5000),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
 ):
-    """Sotuvlar ro'yxati (vazvratlar manfiy summa sifatida qo'shiladi)"""
+    """Sotuvlar ro'yxati. Qisman/to'liq qaytarilgan sotuvlar ham kiradi (status bilan);
+    qaytarish hujjatlari manfiy summa bilan. Summalar sotuv valyutasida."""
     start, end = _date_range(date_from, date_to)
+    cid = current_user.company_id
 
-    statuses = [SaleStatus.completed]
-    if include_returns:
-        statuses.append(SaleStatus.refunded)
+    base_filters = [Sale.company_id == cid, Sale.created_at >= start, Sale.created_at < end]
+    wh_ids = branch_warehouse_ids(db, cid, branch_id)
+    if wh_ids is not None:
+        base_filters.append(Sale.warehouse_id.in_(wh_ids))
+    filters = [*base_filters, sale_or_return_filter() if include_returns else sale_doc_filter()]
 
-    q = (
+    total_count = db.query(func.count(Sale.id)).filter(*filters).scalar() or 0
+    rows = (
         db.query(Sale, User)
-        .options(joinedload(Sale.currency))
+        .options(joinedload(Sale.currency), joinedload(Sale.customer))
         .join(User, User.id == Sale.cashier_id)
-        .filter(
-            Sale.created_at >= start,
-            Sale.created_at < end,
-            Sale.status.in_(statuses),
-        )
+        .filter(*filters)
+        .order_by(Sale.created_at.desc())
+        .limit(limit)
+        .all()
     )
-    q = q.filter(Sale.company_id == current_user.company_id)
-    if branch_id:
-        branch_wh_ids = [wh.id for wh in db.query(Warehouse.id).filter(Warehouse.branch_id == branch_id).all()]
-        q = q.filter(Sale.warehouse_id.in_(branch_wh_ids))
-    rows = q.order_by(Sale.created_at.desc()).limit(1000).all()
+
+    codes = currency_code_map(db, cid)
+
+    # Xulosa ro'yxat cheklovidan va include_returns dan qat'i nazar butun davr uchun
+    def _totals(doc_filter):
+        out = {}
+        q = (
+            db.query(Sale.currency_id, func.coalesce(func.sum(Sale.total_amount / sale_rate()), 0))
+            .filter(*base_filters, doc_filter)
+            .group_by(Sale.currency_id)
+        )
+        for currency_id, amount in q.all():
+            code = _code(codes, currency_id)
+            out[code] = round(out.get(code, 0.0) + float(amount), 2)
+        return out
+
+    sales_by_currency = _totals(sale_doc_filter())
+    returns_by_currency = _totals(return_doc_filter())
+    net_by_currency = {
+        c: round(sales_by_currency.get(c, 0.0) - returns_by_currency.get(c, 0.0), 2)
+        for c in set(sales_by_currency) | set(returns_by_currency)
+    }
 
     items = []
-    total_sales = 0.0
-    total_returns = 0.0
     for s, u in rows:
-        is_return = s.status == SaleStatus.refunded
-        amt = float(s.total_amount / (s.exchange_rate or 1))
-        if is_return:
-            total_returns += amt
-        else:
-            total_sales += amt
+        is_return = (s.number or "").startswith("R")
+        rate = float(s.exchange_rate or 0) or 1.0
+        sign = -1 if is_return else 1
         items.append({
             "id": s.id,
             "number": s.number,
             "cashier_name": u.name,
-            "total_amount": amt,
-            "discount_amount": float(s.discount_amount / (s.exchange_rate or 1)),
-            "currency_code": s.currency.code if s.currency else "UZS",
-            "payment_type": s.payment_type,
-            "status": s.status,
-            "type": "return" if is_return else "sale",
             "customer_id": s.customer_id,
+            "customer_name": s.customer.name if s.customer else None,
+            "total_amount": round(sign * float(s.total_amount or 0) / rate, 2),
+            "discount_amount": round(float(s.discount_amount or 0) / rate, 2),
+            "currency_code": s.currency.code if s.currency else "UZS",
+            "payment_type": s.payment_type.value if s.payment_type else None,
+            "status": s.status.value if s.status else None,
+            "type": "return" if is_return else "sale",
             "created_at": s.created_at.isoformat(),
         })
 
     return {
         "items": items,
+        "total_count": total_count,
+        "truncated": total_count > len(items),
         "summary": {
-            "total_sales": round(total_sales, 2),
-            "total_returns": round(total_returns, 2),
-            "net_total": round(total_sales - total_returns, 2),
+            "sales_by_currency": sales_by_currency,
+            "returns_by_currency": returns_by_currency,
+            "net_by_currency": net_by_currency,
         },
     }
 
 
-# ─── Vazvratlar ro'yxati ─────────────────────────────────────────────────────
+# ─── Qaytarishlar ro'yxati ────────────────────────────────────────────────────
 
 @router.get("/returns")
 def returns_report(
@@ -367,48 +397,42 @@ def returns_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
 ):
-    """Vazvratlar (Qaytarishlar) ro'yxati va xulosa"""
+    """Qaytarish hujjatlari ro'yxati va xulosa (sotuv valyutasida)"""
     start, end = _date_range(date_from, date_to)
+    cid = current_user.company_id
 
-    from app.models.customer import Customer as Cust
     q = (
         db.query(Sale, User)
-        .options(joinedload(Sale.currency))
+        .options(joinedload(Sale.currency), joinedload(Sale.customer))
         .join(User, User.id == Sale.cashier_id)
         .filter(
+            Sale.company_id == cid,
             Sale.created_at >= start,
             Sale.created_at < end,
-            Sale.status == SaleStatus.refunded,
+            return_doc_filter(),
         )
     )
-    q = q.filter(Sale.company_id == current_user.company_id)
-    if branch_id:
-        branch_wh_ids = [wh.id for wh in db.query(Warehouse.id).filter(Warehouse.branch_id == branch_id).all()]
-        q = q.filter(Sale.warehouse_id.in_(branch_wh_ids))
+    wh_ids = branch_warehouse_ids(db, cid, branch_id)
+    if wh_ids is not None:
+        q = q.filter(Sale.warehouse_id.in_(wh_ids))
     rows = q.order_by(Sale.created_at.desc()).limit(500).all()
-
-    # Mijoz nomlarini bir so'rovda olish
-    cust_ids = list({s.customer_id for s, u in rows if s.customer_id})
-    cust_map = {}
-    if cust_ids:
-        for c in db.query(Cust.id, Cust.name).filter(Cust.id.in_(cust_ids)).all():
-            cust_map[c.id] = c.name
 
     items = []
     total_by_currency: dict = {}
     for s, u in rows:
         curr = s.currency.code if s.currency else "UZS"
-        amt = float(s.total_amount / (s.exchange_rate or 1))
-        total_by_currency[curr] = total_by_currency.get(curr, 0.0) + amt
+        rate = float(s.exchange_rate or 0) or 1.0
+        amt = float(s.total_amount or 0) / rate
+        total_by_currency[curr] = round(total_by_currency.get(curr, 0.0) + amt, 2)
         items.append({
             "id": s.id,
             "number": s.number,
             "cashier_name": u.name,
             "customer_id": s.customer_id,
-            "customer_name": cust_map.get(s.customer_id) if s.customer_id else None,
-            "total_amount": amt,
-            "paid_amount": float(s.paid_amount),
-            "payment_type": s.payment_type,
+            "customer_name": s.customer.name if s.customer else None,
+            "total_amount": round(amt, 2),
+            "paid_amount": float(s.paid_amount or 0),
+            "payment_type": s.payment_type.value if s.payment_type else None,
             "currency_code": curr,
             "note": s.note,
             "created_at": s.created_at.isoformat(),
@@ -504,48 +528,47 @@ def stock_alert(
 @router.get("/dead-stock")
 def dead_stock_report(
     months: int = Query(6, ge=1, le=24),
+    branch_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
 ):
-    """O'lik stok: N oy davomida sotilmagan mahsulotlar"""
-    cutoff = datetime.now(timezone.utc) - timedelta(days=months * 30)
-    sold_ids = (
-        db.query(SaleItem.product_id)
-        .join(Sale)
-        .filter(Sale.company_id == current_user.company_id, Sale.created_at >= cutoff, Sale.status == SaleStatus.completed)
-        .distinct()
-        .scalar_subquery()
-    )
-    rows = (
-        db.query(StockLevel, Product)
-        .join(Product, Product.id == StockLevel.product_id)
-        .filter(Product.company_id == current_user.company_id, Product.is_deleted == False, StockLevel.quantity > 0, Product.id.notin_(sold_ids))
-        .order_by((StockLevel.quantity * Product.cost_price).desc())
-        .all()
-    )
-    
-    total_value = {}
-    for s, p in rows:
-        c = p.cost_currency or 'UZS'
-        val = float(s.quantity * p.cost_price)
-        total_value[c] = total_value.get(c, 0) + val
+    """O'lik stok: N oy davomida sotilmagan mahsulotlar (qiymat UZS, partiya tannarxida)"""
+    cid = current_user.company_id
+    wh_ids = branch_warehouse_ids(db, cid, branch_id)
+    rows = _dead_stock_rows(db, cid, months, wh_ids)
+
+    product_ids = [p.id for p, _ in rows]
+    avg_costs = _batch_avg_costs(db, cid, product_ids, wh_ids)
+    last_sold = {}
+    if product_ids:
+        last_sold = dict(
+            db.query(StockMovement.product_id, func.max(StockMovement.created_at))
+            .filter(StockMovement.product_id.in_(product_ids), StockMovement.reference_type == "sale")
+            .group_by(StockMovement.product_id)
+            .all()
+        )
+
+    items = []
+    for p, qty in rows:
+        quantity = float(qty or 0)
+        unit_cost = avg_costs.get(p.id, float(p.cost_price or 0))
+        last = last_sold.get(p.id)
+        items.append({
+            "product_id": p.id,
+            "product_name": p.name,
+            "sku": p.sku,
+            "quantity": quantity,
+            "cost_price": round(unit_cost, 2),
+            "value": round(quantity * unit_cost, 2),
+            "last_sold_at": last.isoformat() if last else None,
+        })
+    items.sort(key=lambda i: i["value"], reverse=True)
 
     return {
         "months": months,
-        "total_items": len(rows),
-        "total_value": total_value,
-        "items": [
-            {
-                "product_id": p.id,
-                "product_name": p.name,
-                "sku": p.sku,
-                "quantity": float(s.quantity),
-                "cost_price": float(p.cost_price),
-                "currency": p.cost_currency or 'UZS',
-                "value": float(s.quantity * p.cost_price),
-            }
-            for s, p in rows
-        ],
+        "total_items": len(items),
+        "total_value": round(sum(i["value"] for i in items), 2),
+        "items": items,
     }
 
 
@@ -555,48 +578,50 @@ def dead_stock_report(
 def purchases_report(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
+    branch_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
 ):
-    """Xarid hisoboti — supplier bo'yicha"""
+    """Xarid hisoboti — ta'minotchi bo'yicha, UZS da (chegirma ayirilgan).
+    Qoralama va bekor qilingan buyurtmalar hisobga olinmaydi."""
     start, end = _date_range(date_from, date_to)
+    cid = current_user.company_id
+
+    # PurchaseOrder.total_amount qatorlarning UZS tannarxidan yig'iladi
+    net_amount = PurchaseOrder.total_amount - func.coalesce(PurchaseOrder.discount_amount, 0)
     q = (
         db.query(
             Supplier.id,
             Supplier.name,
             Supplier.phone,
-            func.coalesce(PurchaseOrder.currency, 'UZS').label("currency"),
             func.count(PurchaseOrder.id).label("po_count"),
-            func.coalesce(func.sum(PurchaseOrder.total_amount), 0).label("total_amount"),
+            func.coalesce(func.sum(net_amount), 0).label("total_amount"),
         )
         .join(PurchaseOrder, PurchaseOrder.supplier_id == Supplier.id)
-        .filter(PurchaseOrder.created_at >= start, PurchaseOrder.created_at < end)
+        .filter(
+            PurchaseOrder.company_id == cid,
+            PurchaseOrder.created_at >= start,
+            PurchaseOrder.created_at < end,
+            PurchaseOrder.status.notin_([POStatus.draft, POStatus.cancelled]),
+        )
     )
-    q = q.filter(PurchaseOrder.company_id == current_user.company_id)
-    rows = (
-        q.group_by(Supplier.id, Supplier.name, Supplier.phone, func.coalesce(PurchaseOrder.currency, 'UZS'))
-        .order_by(func.sum(PurchaseOrder.total_amount).desc())
-        .all()
-    )
-    
-    # Merge by supplier
-    supp_map = {}
-    for r in rows:
-        sid = r.id
-        if sid not in supp_map:
-            supp_map[sid] = {
-                "supplier_id": r.id,
-                "supplier_name": r.name,
-                "phone": r.phone,
-                "po_count": 0,
-                "total_amount": {}
-            }
-        
-        supp_map[sid]["po_count"] += r.po_count
-        curr = r.currency
-        supp_map[sid]["total_amount"][curr] = float(supp_map[sid]["total_amount"].get(curr, 0)) + float(r.total_amount)
-        
-    return list(supp_map.values())
+    wh_ids = branch_warehouse_ids(db, cid, branch_id)
+    if wh_ids is not None:
+        q = q.filter(PurchaseOrder.warehouse_id.in_(wh_ids))
+    rows = q.group_by(Supplier.id, Supplier.name, Supplier.phone).all()
+
+    result = [
+        {
+            "supplier_id": r.id,
+            "supplier_name": r.name,
+            "phone": r.phone,
+            "po_count": r.po_count,
+            "total_amount": round(float(r.total_amount or 0), 2),
+        }
+        for r in rows
+    ]
+    result.sort(key=lambda r: r["total_amount"], reverse=True)
+    return result
 
 
 # ─── Mahsulotlar (Sotuv) hisoboti ──────────────────────────────────────────────
@@ -605,55 +630,59 @@ def purchases_report(
 def product_sales_report(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
+    branch_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
 ):
-    """Barcha mahsulotlarning aniq qancha sotilganini ko'rsatadigan hisobot"""
+    """Har bir mahsulot qancha sotilgani: sotilgan, qaytarilgan va sof miqdor;
+    tushum va foyda UZS da, qaytarishlar ayirilgan ("Foyda" tabi bilan bir xil hisob)."""
     start, end = _date_range(date_from, date_to)
-    
-    er = func.coalesce(func.nullif(SaleItem.exchange_rate, 0), 1)
-    
+    cid = current_user.company_id
+
+    sold_qty = func.sum(case((is_return_doc(), 0), else_=SaleItem.quantity))
+    returned_qty = func.sum(case((is_return_doc(), SaleItem.quantity), else_=0))
+    revenue = func.sum(doc_sign() * item_revenue_uzs())
+    cost = func.sum(doc_sign() * item_cost_uzs())
+
     q = (
         db.query(
             Product.id,
             Product.name,
             Product.sku,
-            func.coalesce(func.nullif(Product.wholesale_currency, 'UZS'), func.nullif(Product.cost_currency, 'UZS'), func.nullif(Product.sale_currency, 'UZS'), 'UZS').label("currency_code"),
-            func.sum(SaleItem.quantity).label("total_qty"),
-            func.sum(SaleItem.subtotal / er).label("total_revenue"),
-            func.sum(((SaleItem.unit_price - SaleItem.cost_price) * SaleItem.quantity - SaleItem.discount) / er).label("total_profit")
+            sold_qty.label("sold_qty"),
+            returned_qty.label("returned_qty"),
+            revenue.label("revenue"),
+            cost.label("cost"),
         )
         .join(SaleItem, SaleItem.product_id == Product.id)
         .join(Sale, Sale.id == SaleItem.sale_id)
         .filter(
-            Sale.company_id == current_user.company_id,
+            Sale.company_id == cid,
             Sale.created_at >= start,
             Sale.created_at < end,
-            Sale.status == SaleStatus.completed
+            sale_or_return_filter(),
         )
-        .group_by(Product.id, Product.name, Product.sku, func.coalesce(func.nullif(Product.wholesale_currency, 'UZS'), func.nullif(Product.cost_currency, 'UZS'), func.nullif(Product.sale_currency, 'UZS'), 'UZS'))
-        .order_by(func.sum(SaleItem.quantity).desc())
     )
-    
-    rows = q.all()
-    
-    # Merge currencies by product
-    product_map = {}
+    wh_ids = branch_warehouse_ids(db, cid, branch_id)
+    if wh_ids is not None:
+        q = q.filter(Sale.warehouse_id.in_(wh_ids))
+    rows = q.group_by(Product.id, Product.name, Product.sku).all()
+
+    result = []
     for r in rows:
-        pid = r.id
-        if pid not in product_map:
-            product_map[pid] = {
-                "product_id": r.id,
-                "product_name": r.name,
-                "sku": r.sku,
-                "total_qty": 0.0,
-                "total_revenue": {},
-                "total_profit": {}
-            }
-        
-        curr = r.currency_code
-        product_map[pid]["total_qty"] += float(r.total_qty or 0)
-        product_map[pid]["total_revenue"][curr] = float(product_map[pid]["total_revenue"].get(curr, 0)) + float(r.total_revenue or 0)
-        product_map[pid]["total_profit"][curr] = float(product_map[pid]["total_profit"].get(curr, 0)) + float(r.total_profit or 0)
-        
-    return list(product_map.values())
+        sold = float(r.sold_qty or 0)
+        returned = float(r.returned_qty or 0)
+        rev = float(r.revenue or 0)
+        cst = float(r.cost or 0)
+        result.append({
+            "product_id": r.id,
+            "product_name": r.name,
+            "sku": r.sku,
+            "sold_qty": round(sold, 3),
+            "returned_qty": round(returned, 3),
+            "total_qty": round(sold - returned, 3),
+            "total_revenue": round(rev, 2),
+            "total_profit": round(rev - cst, 2),
+        })
+    result.sort(key=lambda x: x["total_qty"], reverse=True)
+    return result

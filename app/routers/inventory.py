@@ -103,6 +103,14 @@ def get_low_stock_count(
     return {"count": count}
 
 
+# Filtrdagi umumiy nomlar → bazada yoziladigan reference_type qiymatlari
+MOVEMENT_REF_ALIASES = {
+    "return_from_customer": ["return_from_customer", "customer_return", "sale_refund"],
+    "transfer": ["transfer", "stock_transfer", "transfer_in", "transfer_out"],
+    "inventory_count": ["inventory_count", "revision"],
+}
+
+
 @router.get("/movements", response_model=List[StockMovementOut])
 def get_movements(
         product_id: Optional[int] = Query(None),
@@ -114,8 +122,10 @@ def get_movements(
         skip: int = Query(0, ge=0),
         limit: int = Query(100, ge=1, le=500),
         db: Session = Depends(get_db),
-        current_user: User = Depends(require_roles(*WAREHOUSE_ROLES)),
+        current_user: User = Depends(require_roles(*WAREHOUSE_ROLES, UserRole.accountant)),
 ):
+    from app.utils.report_utils import _date_range
+
     q = (
         db.query(StockMovement)
         .join(Product, Product.id == StockMovement.product_id)
@@ -129,27 +139,30 @@ def get_movements(
     if type:
         q = q.filter(StockMovement.type == type)
     if reference_type:
-        if reference_type == "return_from_customer":
-            q = q.filter(StockMovement.reference_type.in_(["return_from_customer", "sale_refund"]))
+        if reference_type == "adjustment":
+            # Qo'lda tuzatish (adjust_stock) reference_type siz yoziladi
+            q = q.filter(
+                (StockMovement.reference_type == "adjustment")
+                | ((StockMovement.reference_type.is_(None)) & (StockMovement.type == MovementType.ADJUST))
+            )
         else:
-            q = q.filter(StockMovement.reference_type == reference_type)
+            q = q.filter(StockMovement.reference_type.in_(MOVEMENT_REF_ALIASES.get(reference_type, [reference_type])))
     if search:
         q = q.filter(
             (Product.name.ilike(f"%{search}%")) |
             (Product.sku.ilike(f"%{search}%"))
         )
-    if date_from:
+    def _parse_day(value: Optional[str]):
         try:
-            df = dt.strptime(date_from, "%Y-%m-%d")
-            q = q.filter(StockMovement.created_at >= df)
-        except Exception:
-            pass
-    if date_to:
-        try:
-            dt2 = dt.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
-            q = q.filter(StockMovement.created_at < dt2)
-        except Exception:
-            pass
+            return dt.strptime(value, "%Y-%m-%d").date() if value else None
+        except ValueError:
+            return None
+
+    df, dto = _parse_day(date_from), _parse_day(date_to)
+    if df or dto:
+        # Hisobotlar bilan bir xil kun chegarasi (Toshkent vaqti)
+        start, end = _date_range(df, dto)
+        q = q.filter(StockMovement.created_at >= start, StockMovement.created_at < end)
 
     movements = q.offset(skip).limit(limit).all()
 

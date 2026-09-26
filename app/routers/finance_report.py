@@ -1,47 +1,68 @@
 """
 Moliya hisobotlari: xarajatlar, foyda, partiyalar, qarzdorliklar, P&L.
-reports.py dan ajratilgan.
+reports.py dan ajratilgan. Umumiy qoidalar → app/utils/report_utils.py
+
+Foyda/tannarx hisobotlari asosiy valyutada (UZS): sotuv qatori tushumi
+SaleItem.subtotal * SaleItem.exchange_rate, tannarx SaleItem.cost_price (UZS).
 """
 from datetime import date, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, case
-from sqlalchemy.orm import Session
+from sqlalchemy import func, and_, or_
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.dependencies import require_roles
 from app.database import get_db
 from app.models.batch import Batch
 from app.models.category import Category
 from app.models.customer import Customer
-from app.models.moliya import Expense
+from app.models.moliya import Expense, ExpenseCategory
 from app.models.product import Product
-from app.models.currency import Currency
-from app.models.sale import Sale, SaleItem, SaleStatus, SaleItemBatch
+from app.models.sale import Sale, SaleItem, SaleItemBatch
 from app.models.supplier import Supplier
 from app.models.user import User, UserRole
-from app.utils.report_utils import _date_range
+from app.utils.report_utils import (
+    _date_range,
+    sale_doc_filter, return_doc_filter, sale_or_return_filter, doc_sign,
+    item_rate, item_revenue_uzs, item_cost_uzs,
+    branch_warehouse_ids, currency_rate_map, load_debtors,
+)
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
 REPORT_ROLES = (UserRole.admin, UserRole.director, UserRole.manager, UserRole.accountant, UserRole.super_admin)
 
 
+def _pct(part: float, whole: float) -> float:
+    return round(part / whole * 100, 2) if whole > 0 else 0.0
+
+
 @router.get("/expenses")
 def expenses_report(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
+    branch_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
 ):
-    """Xarajatlar hisoboti"""
+    """Xarajatlar hisoboti (UZS)"""
     start, end = _date_range(date_from, date_to)
-    q = db.query(Expense).filter(Expense.created_at >= start, Expense.created_at < end)
-    q = q.filter(Expense.company_id == current_user.company_id)
+    q = (
+        db.query(Expense)
+        .options(joinedload(Expense.category))
+        .filter(
+            Expense.company_id == current_user.company_id,
+            Expense.created_at >= start,
+            Expense.created_at < end,
+        )
+    )
+    if branch_id:
+        q = q.filter(Expense.branch_id == branch_id)
     items = q.order_by(Expense.created_at.desc()).all()
     total = sum(float(e.amount) for e in items)
     return {
-        "total": total,
+        "total": round(total, 2),
         "items": [
             {
                 "id": e.id,
@@ -59,44 +80,13 @@ def expenses_report(
 def profit_report(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
+    branch_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
 ):
-    """Mahsulot va kategoriya bo'yicha foyda hisoboti (FIFO, vazvratlar chegirilgan)"""
+    """Mahsulot bo'yicha foyda (UZS, FIFO tannarx, qaytarishlar ayirilgan)"""
     start, end = _date_range(date_from, date_to)
-
-    er = func.coalesce(func.nullif(SaleItem.exchange_rate, 0), 1)
-
-    qty_expr = func.sum(
-        case(
-            (Sale.status == SaleStatus.completed, SaleItem.quantity),
-            (Sale.status == SaleStatus.refunded, -SaleItem.quantity),
-            else_=0,
-        )
-    )
-    revenue_expr = func.sum(
-        case(
-            (Sale.status == SaleStatus.completed, SaleItem.subtotal / er),
-            (Sale.status == SaleStatus.refunded, -SaleItem.subtotal / er),
-            else_=0,
-        )
-    )
-    cost_expr = func.sum(
-        case(
-            (Sale.status == SaleStatus.completed, (SaleItem.cost_price * SaleItem.quantity) / er),
-            (Sale.status == SaleStatus.refunded, -(SaleItem.cost_price * SaleItem.quantity) / er),
-            else_=0,
-        )
-    )
-    profit_expr = func.sum(
-        case(
-            (Sale.status == SaleStatus.completed,
-             (SaleItem.subtotal - SaleItem.cost_price * SaleItem.quantity) / er),
-            (Sale.status == SaleStatus.refunded,
-             -(SaleItem.subtotal - SaleItem.cost_price * SaleItem.quantity) / er),
-            else_=0,
-        )
-    )
+    cid = current_user.company_id
 
     q = (
         db.query(
@@ -104,77 +94,83 @@ def profit_report(
             Product.name,
             Product.sku,
             Category.name.label("category_name"),
-            func.coalesce(func.nullif(Product.wholesale_currency, 'UZS'), func.nullif(Product.cost_currency, 'UZS'), func.nullif(Product.sale_currency, 'UZS'), 'UZS').label("currency"),
-            qty_expr.label("qty_sold"),
-            revenue_expr.label("revenue"),
-            cost_expr.label("cost"),
-            profit_expr.label("profit"),
+            func.sum(doc_sign() * SaleItem.quantity).label("qty_sold"),
+            func.sum(doc_sign() * item_revenue_uzs()).label("revenue"),
+            func.sum(doc_sign() * item_cost_uzs()).label("cost"),
         )
         .join(SaleItem, SaleItem.product_id == Product.id)
         .join(Sale, Sale.id == SaleItem.sale_id)
         .outerjoin(Category, Category.id == Product.category_id)
         .filter(
+            Sale.company_id == cid,
             Sale.created_at >= start,
             Sale.created_at < end,
-            Sale.status.in_([SaleStatus.completed, SaleStatus.refunded]),
+            sale_or_return_filter(),
         )
     )
-    q = q.filter(Sale.company_id == current_user.company_id)
-    rows = (
-        q.group_by(Product.id, Product.name, Product.sku, Category.name, func.coalesce(func.nullif(Product.wholesale_currency, 'UZS'), func.nullif(Product.cost_currency, 'UZS'), func.nullif(Product.sale_currency, 'UZS'), 'UZS'))
-        .order_by(profit_expr.desc())
-        .all()
-    )
+    wh_ids = branch_warehouse_ids(db, cid, branch_id)
+    if wh_ids is not None:
+        q = q.filter(Sale.warehouse_id.in_(wh_ids))
+    rows = q.group_by(Product.id, Product.name, Product.sku, Category.name).all()
 
-    # Merge currencies
-    prod_map = {}
+    result = []
     for r in rows:
-        pid = r.id
-        if pid not in prod_map:
-            prod_map[pid] = {
-                "product_id": r.id,
-                "product_name": r.name,
-                "sku": r.sku,
-                "category_name": r.category_name or "—",
-                "qty_sold": 0.0,
-                "revenue": {},
-                "cost": {},
-                "profit": {}
-            }
-        
-        curr = r.currency
-        prod_map[pid]["qty_sold"] += float(r.qty_sold or 0)
-        prod_map[pid]["revenue"][curr] = float(r.revenue or 0)
-        prod_map[pid]["cost"][curr] = float(r.cost or 0)
-        prod_map[pid]["profit"][curr] = float(r.profit or 0)
-        
-    for p in prod_map.values():
-        total_rev = sum(p["revenue"].values())
-        total_profit = sum(p["profit"].values())
-        p["margin_pct"] = round(total_profit / total_rev * 100, 1) if total_rev > 0 else 0
-        
-    return list(prod_map.values())
+        revenue = float(r.revenue or 0)
+        cost = float(r.cost or 0)
+        profit = revenue - cost
+        result.append({
+            "product_id": r.id,
+            "product_name": r.name,
+            "sku": r.sku,
+            "category_name": r.category_name or "—",
+            "qty_sold": round(float(r.qty_sold or 0), 3),
+            "revenue": round(revenue, 2),
+            "cost": round(cost, 2),
+            "profit": round(profit, 2),
+            "margin_pct": round(profit / revenue * 100, 1) if revenue > 0 else 0,
+        })
+    result.sort(key=lambda p: p["profit"], reverse=True)
+    return result
 
 
 @router.get("/batches")
 def batches_profit_report(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
+    branch_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
 ):
-    """Partiyalar (Batch) bo'yicha sotuv va foyda hisoboti"""
-    start, end = _date_range(date_from, date_to)
+    """Partiyalar (Batch) bo'yicha sotuv va foyda (UZS).
 
-    sold_qty_expr = func.coalesce(func.sum(
-        case((Sale.status == SaleStatus.completed, SaleItemBatch.quantity), else_=0)
-    ), 0)
-    revenue_expr = func.coalesce(func.sum(
-        case((Sale.status == SaleStatus.completed, SaleItemBatch.quantity * SaleItem.unit_price), else_=0)
-    ), 0)
-    profit_expr = func.coalesce(func.sum(
-        case((Sale.status == SaleStatus.completed, SaleItemBatch.quantity * (SaleItem.unit_price - SaleItemBatch.unit_cost)), else_=0)
-    ), 0)
+    Davr — sotuv sanasi: shu davrda sotilgan yoki shu davrda kelgan partiyalar
+    ko'rsatiladi. Qisman qaytarilgan miqdor (SaleItem.returned_quantity)
+    sotilgan miqdordan ayiriladi. Tushumda qator chegirmasi hisobga olinadi.
+    """
+    start, end = _date_range(date_from, date_to)
+    cid = current_user.company_id
+
+    net_ratio = (SaleItem.quantity - func.coalesce(SaleItem.returned_quantity, 0)) / func.nullif(SaleItem.quantity, 0)
+    sold_qty = SaleItemBatch.quantity * net_ratio
+    unit_revenue_uzs = SaleItem.subtotal / func.nullif(SaleItem.quantity, 0) * item_rate()
+    sold = (
+        db.query(
+            SaleItemBatch.batch_id.label("batch_id"),
+            func.sum(sold_qty).label("sold_qty"),
+            func.sum(sold_qty * unit_revenue_uzs).label("revenue"),
+            func.sum(sold_qty * SaleItemBatch.unit_cost).label("cost"),
+        )
+        .join(SaleItem, SaleItem.id == SaleItemBatch.sale_item_id)
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .filter(
+            Sale.company_id == cid,
+            Sale.created_at >= start,
+            Sale.created_at < end,
+            sale_doc_filter(),
+        )
+        .group_by(SaleItemBatch.batch_id)
+        .subquery()
+    )
 
     q = (
         db.query(
@@ -184,49 +180,62 @@ def batches_profit_report(
             Batch.initial_quantity,
             Batch.quantity.label("remaining_quantity"),
             Batch.purchase_price,
-            func.coalesce(SaleItem.currency_code, 'UZS').label("currency"),
-            sold_qty_expr.label("sold_qty"),
-            revenue_expr.label("revenue"),
-            profit_expr.label("profit"),
+            Batch.created_at,
+            sold.c.sold_qty,
+            sold.c.revenue,
+            sold.c.cost,
         )
         .join(Product, Product.id == Batch.product_id)
-        .outerjoin(SaleItemBatch, SaleItemBatch.batch_id == Batch.id)
-        .outerjoin(SaleItem, SaleItem.id == SaleItemBatch.sale_item_id)
-        .outerjoin(Sale, Sale.id == SaleItem.sale_id)
-        .filter(Batch.created_at >= start, Batch.created_at < end)
+        .outerjoin(sold, sold.c.batch_id == Batch.id)
+        .filter(
+            Batch.company_id == cid,
+            or_(sold.c.batch_id.isnot(None), and_(Batch.created_at >= start, Batch.created_at < end)),
+        )
     )
-    q = q.filter(Batch.company_id == current_user.company_id)
-    rows = q.group_by(Batch.id, Product.name, func.coalesce(SaleItem.currency_code, 'UZS')).order_by(Batch.created_at.desc()).all()
+    wh_ids = branch_warehouse_ids(db, cid, branch_id)
+    if wh_ids is not None:
+        q = q.filter(Batch.warehouse_id.in_(wh_ids))
+    rows = q.order_by(Batch.created_at.desc()).all()
 
-
-    # Merge currencies
-    batch_map = {}
+    result = []
     for r in rows:
-        bid = r.id
-        if bid not in batch_map:
-            batch_map[bid] = {
-                "batch_id": r.id,
-                "product_name": r.product_name,
-                "lot_number": r.lot_number or "N/A",
-                "initial_quantity": float(r.initial_quantity or 0),
-                "remaining_quantity": float(r.remaining_quantity or 0),
-                "purchase_price": float(r.purchase_price or 0),
-                "sold_qty": 0.0,
-                "revenue": {},
-                "profit": {}
-            }
-        
-        curr = r.currency
-        batch_map[bid]["sold_qty"] += float(r.sold_qty)
-        batch_map[bid]["revenue"][curr] = float(r.revenue)
-        batch_map[bid]["profit"][curr] = float(r.profit)
-        
-    for b in batch_map.values():
-        total_rev = sum(b["revenue"].values())
-        total_profit = sum(b["profit"].values())
-        b["margin_pct"] = round(total_profit / total_rev * 100, 1) if total_rev > 0 else 0
-        
-    return list(batch_map.values())
+        revenue = float(r.revenue or 0)
+        cost = float(r.cost or 0)
+        profit = revenue - cost
+        result.append({
+            "batch_id": r.id,
+            "product_name": r.product_name,
+            "lot_number": r.lot_number or "—",
+            "initial_quantity": float(r.initial_quantity or 0),
+            "remaining_quantity": float(r.remaining_quantity or 0),
+            "purchase_price": float(r.purchase_price or 0),
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "sold_qty": round(float(r.sold_qty or 0), 3),
+            "revenue": round(revenue, 2),
+            "cost": round(cost, 2),
+            "profit": round(profit, 2),
+            "margin_pct": round(profit / revenue * 100, 1) if revenue > 0 else 0,
+        })
+    return result
+
+
+def _debts_report(db: Session, model, company_id: int, build_item):
+    """Qarzdorlar ro'yxati: valyuta bo'yicha qarz (debt_balances) va UZS ekvivalenti."""
+    rates = currency_rate_map(db, company_id)
+    total: dict = {}
+    items = []
+    for obj, balances in load_debtors(db, model, company_id):
+        for code, amt in balances.items():
+            total[code] = total.get(code, 0.0) + amt
+        debt_uzs = sum(amt * rates.get(code, 1.0) for code, amt in balances.items())
+        items.append(build_item(obj, balances, round(debt_uzs, 2)))
+    items.sort(key=lambda i: i["debt_uzs"], reverse=True)
+    return {
+        "total_debt": {code: round(amt, 2) for code, amt in total.items()},
+        "total_debt_uzs": round(sum(i["debt_uzs"] for i in items), 2),
+        "count": len(items),
+        "items": items,
+    }
 
 
 @router.get("/customer-debts")
@@ -234,31 +243,19 @@ def customer_debts_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
 ):
-    """Debitor qarzdorlik — mijozlar bo'yicha"""
-    q = db.query(Customer).filter(Customer.debt_balance > 0)
-    q = q.filter(Customer.company_id == current_user.company_id)
-    rows = q.order_by(Customer.debt_balance.desc()).all()
-    # Valyuta bo'yicha guruhlash
-    debt_by_currency = {}
-    for c in rows:
-        curr = c.debt_currency or 'UZS'
-        debt_by_currency[curr] = debt_by_currency.get(curr, 0) + float(c.debt_balance)
-    return {
-        "total_debt": debt_by_currency,
-        "count": len(rows),
-        "items": [
-            {
-                "customer_id": c.id,
-                "customer_name": c.name,
-                "phone": c.phone,
-                "debt_balance": float(c.debt_balance),
-                "debt_currency": c.debt_currency or 'UZS',
-                "debt_limit": float(c.debt_limit),
-                "usage_pct": round(float(c.debt_balance) / float(c.debt_limit) * 100, 1) if c.debt_limit else 0,
-            }
-            for c in rows
-        ],
-    }
+    """Debitor qarzdorlik — mijozlar bo'yicha (Mijozlar sahifasi bilan bir xil manba)"""
+    def _item(c, balances, debt_uzs):
+        limit = float(c.debt_limit or 0)
+        return {
+            "customer_id": c.id,
+            "customer_name": c.name,
+            "phone": c.phone,
+            "debts": balances,
+            "debt_uzs": debt_uzs,
+            "debt_limit": limit,
+            "usage_pct": round(debt_uzs / limit * 100, 1) if limit > 0 else None,
+        }
+    return _debts_report(db, Customer, current_user.company_id, _item)
 
 
 @router.get("/supplier-debts")
@@ -266,131 +263,86 @@ def supplier_debts_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
 ):
-    """Kreditor qarzdorlik — supplierlar bo'yicha"""
-    q = db.query(Supplier).filter(Supplier.debt_balance > 0)
-    q = q.filter(Supplier.company_id == current_user.company_id)
-    rows = q.order_by(Supplier.debt_balance.desc()).all()
-    # Valyuta bo'yicha guruhlash
-    debt_by_currency = {}
-    for s in rows:
-        curr = getattr(s, 'debt_currency', None) or 'UZS'
-        debt_by_currency[curr] = debt_by_currency.get(curr, 0) + float(s.debt_balance)
-    return {
-        "total_debt": debt_by_currency,
-        "count": len(rows),
-        "items": [
-            {
-                "supplier_id": s.id,
-                "supplier_name": s.name,
-                "phone": s.phone,
-                "debt_balance": float(s.debt_balance),
-                "debt_currency": getattr(s, 'debt_currency', None) or 'UZS',
-                "payment_terms": s.payment_terms,
-            }
-            for s in rows
-        ],
-    }
+    """Kreditor qarzdorlik — ta'minotchilar bo'yicha (Moliya sahifasi bilan bir xil manba)"""
+    def _item(s, balances, debt_uzs):
+        return {
+            "supplier_id": s.id,
+            "supplier_name": s.name,
+            "phone": s.phone,
+            "debts": balances,
+            "debt_uzs": debt_uzs,
+            "payment_terms": s.payment_terms,
+        }
+    return _debts_report(db, Supplier, current_user.company_id, _item)
 
 
 @router.get("/profit-loss")
 def profit_loss_statement(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
+    branch_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
 ):
-    """Foyda va Zarar hisoboti"""
-    from app.models.moliya import ExpenseCategory
+    """Foyda va Zarar hisoboti (UZS).
 
+    Tushum — sotuv hujjatlari (Sale.total_amount, UZS), qaytarishlar — qaytarish
+    hujjatlari; tannarx — sotilgan qatorlarning FIFO tannarxi (qaytarilgani ayirilgan).
+    """
     start, end = _date_range(date_from, date_to)
     cid = current_user.company_id
 
-    def get_sales_by_currency(status):
-        rows = (
-            db.query(func.coalesce(Currency.code, 'UZS').label("currency"), func.coalesce(func.sum(Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)), 0).label("amount"))
-            .outerjoin(Currency, Currency.id == Sale.currency_id)
-            .filter(Sale.company_id == cid, Sale.created_at >= start, Sale.created_at < end, Sale.status == status)
-            .group_by(func.coalesce(Currency.code, 'UZS'))
-            .all()
-        )
-        return {r.currency: float(r.amount) for r in rows}
+    sale_filters = [Sale.company_id == cid, Sale.created_at >= start, Sale.created_at < end]
+    wh_ids = branch_warehouse_ids(db, cid, branch_id)
+    if wh_ids is not None:
+        sale_filters.append(Sale.warehouse_id.in_(wh_ids))
 
-    gross_revenue = get_sales_by_currency(SaleStatus.completed)
-    total_returns = get_sales_by_currency(SaleStatus.refunded)
-    
-    net_revenue = {}
-    for c, amt in gross_revenue.items():
-        net_revenue[c] = amt - total_returns.get(c, 0)
+    def _sum_total(doc_filter) -> float:
+        value = db.query(func.coalesce(func.sum(Sale.total_amount), 0)).filter(*sale_filters, doc_filter).scalar()
+        return float(value or 0)
 
-    # COGS from SaleItems
-    cogs_rows = (
-        db.query(
-            func.coalesce(SaleItem.currency_code, 'UZS').label("currency"),
-            func.coalesce(func.sum(
-                case(
-                    (Sale.status == SaleStatus.completed, SaleItem.cost_price * SaleItem.quantity),
-                    (Sale.status == SaleStatus.refunded, -SaleItem.cost_price * SaleItem.quantity),
-                    else_=0,
-                )
-            ), 0).label("cogs")
-        )
-        .join(Sale)
-        .filter(
-            Sale.company_id == cid,
-            Sale.created_at >= start, Sale.created_at < end,
-            Sale.status.in_([SaleStatus.completed, SaleStatus.refunded]),
-        )
-        .group_by(func.coalesce(SaleItem.currency_code, 'UZS'))
-        .all()
+    gross_revenue = _sum_total(sale_doc_filter())
+    returns = _sum_total(return_doc_filter())
+    revenue = gross_revenue - returns
+
+    cogs = float(
+        db.query(func.coalesce(func.sum(doc_sign() * item_cost_uzs()), 0))
+        .select_from(SaleItem)
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .filter(*sale_filters, sale_or_return_filter())
+        .scalar() or 0
     )
-    cogs = {r.currency: float(r.cogs) for r in cogs_rows}
+    gross_profit = revenue - cogs
 
-    gross_profit = {}
-    for c, rev in net_revenue.items():
-        gross_profit[c] = rev - cogs.get(c, 0)
-        
-    for c, cost in cogs.items():
-        if c not in gross_profit:
-            gross_profit[c] = -cost
-
-    # Expenses (only UZS)
-    exp_rows = (
-        db.query(
-            func.coalesce(ExpenseCategory.name, "Boshqa").label("cat"),
-            func.coalesce(func.sum(Expense.amount), 0).label("total"),
-        )
+    exp_q = (
+        db.query(ExpenseCategory.name.label("cat"), func.coalesce(func.sum(Expense.amount), 0).label("total"))
+        .select_from(Expense)
         .outerjoin(ExpenseCategory, ExpenseCategory.id == Expense.category_id)
         .filter(Expense.company_id == cid, Expense.created_at >= start, Expense.created_at < end)
-        .group_by(ExpenseCategory.name)
-        .all()
     )
-    expenses_by_cat = [{"name": r.cat, "total": {"UZS": float(r.total)}} for r in exp_rows]
-    total_expenses = {"UZS": sum(r["total"]["UZS"] for r in expenses_by_cat)}
+    if branch_id:
+        exp_q = exp_q.filter(Expense.branch_id == branch_id)
+    by_category = [
+        {"name": r.cat or "Boshqa", "total": round(float(r.total or 0), 2)}
+        for r in exp_q.group_by(ExpenseCategory.name).all()
+    ]
+    by_category.sort(key=lambda c: c["total"], reverse=True)
+    total_expenses = sum(c["total"] for c in by_category)
+    net_profit = gross_profit - total_expenses
 
-    net_profit = {}
-    for c, gp in gross_profit.items():
-        net_profit[c] = gp - total_expenses.get(c, 0)
-        
-    for c, exp in total_expenses.items():
-        if c not in net_profit:
-            net_profit[c] = gross_profit.get(c, 0) - exp
-
-    uzs_net_rev = net_revenue.get("UZS", 0)
-    uzs_gp = gross_profit.get("UZS", 0)
-    uzs_np = net_profit.get("UZS", 0)
-    
     return {
         "period": {"from": str(start.date()), "to": str((end - timedelta(days=1)).date())},
-        "revenue": net_revenue,
-        "gross_revenue": gross_revenue,
-        "returns": total_returns,
-        "cogs": cogs,
-        "gross_profit": gross_profit,
-        "gross_margin_pct": round(uzs_gp / (uzs_net_rev if uzs_net_rev else 1) * 100, 2),
+        "currency": "UZS",
+        "gross_revenue": round(gross_revenue, 2),
+        "returns": round(returns, 2),
+        "revenue": round(revenue, 2),
+        "cogs": round(cogs, 2),
+        "gross_profit": round(gross_profit, 2),
+        "gross_margin_pct": _pct(gross_profit, revenue),
         "expenses": {
-            "total": total_expenses,
-            "by_category": expenses_by_cat,
+            "total": round(total_expenses, 2),
+            "by_category": by_category,
         },
-        "net_profit": net_profit,
-        "net_margin_pct": round(uzs_np / (uzs_net_rev if uzs_net_rev else 1) * 100, 2),
+        "net_profit": round(net_profit, 2),
+        "net_margin_pct": _pct(net_profit, revenue),
     }

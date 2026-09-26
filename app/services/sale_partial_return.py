@@ -28,7 +28,12 @@ def process_partial_return(
     if original_sale.status in (SaleStatus.refunded, SaleStatus.cancelled):
         raise HTTPException(status_code=400, detail="Bekor qilingan yoki to'liq qaytarilgan sotuvdan tovar qaytarib bo'lmaydi")
 
-    total_refund_amount = Decimal("0")
+    sale_currency = original_sale.currency.code if original_sale.currency else "UZS"
+    exchange_rate = Decimal(str(original_sale.exchange_rate or "1.0")) or Decimal("1")
+
+    # Sotuv qatori summasi mahsulot valyutasida saqlanadi; hujjat jami (Sale.total_amount)
+    # esa sotuvdagi kabi UZS da yig'iladi (hisobotlar va chek shunga tayanadi).
+    total_refund_uzs = Decimal("0")
     returned_items_info = []
     new_sale_items = []
 
@@ -47,8 +52,9 @@ def process_partial_return(
             raise HTTPException(status_code=400, detail=f"Qaytarish miqdori noto'g'ri (Mavjud: {qty_available})")
 
         actual_price = sale_item.subtotal / sale_item.quantity
-        refund_value = actual_price * qty_to_return
-        total_refund_amount += refund_value
+        refund_value = actual_price * qty_to_return  # mahsulot valyutasida
+        item_rate = Decimal(str(sale_item.exchange_rate or 1)) or Decimal("1")
+        total_refund_uzs += refund_value * item_rate
 
         # Asl sale_item da faqatgina returned_quantity ni oshiramiz (double return oldini olish uchun)
         sale_item.returned_quantity = getattr(sale_item, 'returned_quantity', Decimal("0")) + qty_to_return
@@ -63,13 +69,15 @@ def process_partial_return(
             'cost_price': sale_item.cost_price,
             'discount': sale_item.discount,
             'subtotal': refund_value,
+            'currency_code': sale_item.currency_code or "UZS",
+            'exchange_rate': item_rate,
             'product': sale_item.product
         })
 
-    # 2. Yangi Return hujjatini (Sale ob'ektini) yaratamiz
-    sale_currency = original_sale.currency.code if original_sale.currency else "UZS"
-    exchange_rate = Decimal(str(original_sale.exchange_rate or "1.0"))
-    
+    # 2. Yangi Return hujjatini (Sale ob'ektini) yaratamiz.
+    # Pul va qarz mantig'i sotuv valyutasida ishlaydi.
+    total_refund_amount = total_refund_uzs / exchange_rate
+
     # debt bo'lmagan har qanday to'lov turi (cash, card, uzcard, humo, bank,
     # click, payme, visa, uzum) uchun pul kassadan/hisobdan qaytariladi.
     amount_to_return_money = total_refund_amount if data.payment_type != PaymentType.debt else Decimal("0")
@@ -110,7 +118,7 @@ def process_partial_return(
         company_id=current_user.company_id,
         warehouse_id=original_sale.warehouse_id,
         customer_id=original_sale.customer_id,
-        total_amount=total_refund_amount,
+        total_amount=total_refund_uzs,
         discount_amount=Decimal("0"),
         paid_amount=amount_to_return_money,
         paid_cash=amount_to_return_money if money_payment_type == PaymentType.cash else Decimal("0"),
@@ -135,7 +143,9 @@ def process_partial_return(
             unit_price=item_data['unit_price'],
             cost_price=item_data['cost_price'],
             discount=item_data['discount'],
-            subtotal=item_data['subtotal']
+            subtotal=item_data['subtotal'],
+            currency_code=item_data['currency_code'],
+            exchange_rate=item_data['exchange_rate'],
         ))
         
         product = item_data['product']

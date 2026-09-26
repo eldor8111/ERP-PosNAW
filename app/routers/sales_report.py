@@ -1,95 +1,93 @@
 """
 Sotuv hisobotlari: kunlik, top mahsulotlar, kassir, ABC/XYZ, 1C eksport.
-reports.py dan ajratilgan.
+reports.py dan ajratilgan. Umumiy qoidalar → app/utils/report_utils.py
 """
-from datetime import date
+import csv
+import io
+from datetime import date, timedelta
 from typing import Optional
+from xml.sax.saxutils import quoteattr
 
 from fastapi import APIRouter, Depends, Query, Response
-from sqlalchemy import func, case
-from sqlalchemy.orm import Session
+from sqlalchemy import func, case, cast, Date as DateType
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.dependencies import require_roles
 from app.database import get_db
 from app.models.product import Product
-from app.models.currency import Currency
-from app.models.sale import Sale, SaleItem, SaleStatus
+from app.models.sale import Sale, SaleItem
 from app.models.user import User, UserRole
-from app.utils.report_utils import _date_range
+from app.utils.report_utils import (
+    _date_range, local_today,
+    is_return_doc, sale_doc_filter, sale_or_return_filter, doc_sign,
+    sale_rate, item_revenue_uzs, item_cost_uzs,
+    branch_warehouse_ids, currency_code_map,
+)
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
 REPORT_ROLES = (UserRole.admin, UserRole.director, UserRole.manager, UserRole.accountant, UserRole.super_admin)
 
 
+def _sale_filters(db: Session, company_id: int, date_from, date_to, branch_id, doc_filter):
+    start, end = _date_range(date_from, date_to)
+    filters = [Sale.company_id == company_id, Sale.created_at >= start, Sale.created_at < end, doc_filter]
+    wh_ids = branch_warehouse_ids(db, company_id, branch_id)
+    if wh_ids is not None:
+        filters.append(Sale.warehouse_id.in_(wh_ids))
+    return filters
+
+
 @router.get("/daily-sales")
 def daily_sales_report(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
+    branch_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
 ):
-    """Kunlik sotuv hisoboti (agregatsiya)"""
-    start, end = _date_range(date_from, date_to)
-    q = (
-        db.query(
-            func.date(Sale.created_at).label("day"),
-            func.sum(case((Sale.status == SaleStatus.completed, 1), else_=0)).label("sales_count"),
-            func.sum(case((Sale.status == SaleStatus.refunded, 1), else_=0)).label("returns_count"),
-            func.coalesce(Currency.code, 'UZS').label("currency"),
-            func.sum(
-                case(
-                    (Sale.status == SaleStatus.completed, Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)),
-                    (Sale.status == SaleStatus.refunded, -Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)),
-                    else_=0
-                )
-            ).label("total_amount"),
-            func.sum(
-                case(
-                    (Sale.status == SaleStatus.completed, Sale.discount_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)),
-                    (Sale.status == SaleStatus.refunded, -Sale.discount_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)),
-                    else_=0
-                )
-            ).label("total_discount"),
-            func.avg(
-                case(
-                    (Sale.status == SaleStatus.completed, Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)),
-                    else_=None
-                )
-            ).label("avg_check"),
-        )
-        .select_from(Sale)
-        .outerjoin(Currency, Currency.id == Sale.currency_id)
-        .filter(Sale.created_at >= start, Sale.created_at < end, Sale.status.in_([SaleStatus.completed, SaleStatus.refunded]))
-    )
-    q = q.filter(Sale.company_id == current_user.company_id)
+    """Kunlik sotuv hisoboti (sotuv valyutasi bo'yicha, qaytarishlar ayirilgan)"""
+    cid = current_user.company_id
+    filters = _sale_filters(db, cid, date_from, date_to, branch_id, sale_or_return_filter())
+    day = cast(Sale.created_at, DateType)
     rows = (
-        q.group_by(func.date(Sale.created_at), func.coalesce(Currency.code, 'UZS'))
-        .order_by(func.date(Sale.created_at).desc())
+        db.query(
+            day.label("day"),
+            Sale.currency_id,
+            func.sum(case((is_return_doc(), 0), else_=1)).label("sales_count"),
+            func.sum(case((is_return_doc(), 1), else_=0)).label("returns_count"),
+            func.coalesce(func.sum(case((is_return_doc(), 0), else_=Sale.total_amount / sale_rate())), 0).label("sales_amount"),
+            func.coalesce(func.sum(case((is_return_doc(), Sale.total_amount / sale_rate()), else_=0)), 0).label("returns_amount"),
+            func.coalesce(func.sum(case((is_return_doc(), 0), else_=Sale.discount_amount / sale_rate())), 0).label("discount"),
+        )
+        .filter(*filters)
+        .group_by(day, Sale.currency_id)
+        .order_by(day.desc())
         .all()
     )
-    
-    # Merge currencies by date
+
+    codes = currency_code_map(db, cid)
     day_map = {}
     for r in rows:
         d = str(r.day)
-        if d not in day_map:
-            day_map[d] = {
-                "date": d,
-                "sales_count": 0,
-                "returns_count": 0,
-                "total_amount": {},
-                "total_discount": {},
-                "avg_check": {}
-            }
-        
-        curr = r.currency
-        day_map[d]["sales_count"] += (r.sales_count or 0)
-        day_map[d]["returns_count"] += (r.returns_count or 0)
-        day_map[d]["total_amount"][curr] = float(r.total_amount or 0)
-        day_map[d]["total_discount"][curr] = float(r.total_discount or 0)
-        day_map[d]["avg_check"][curr] = float(r.avg_check or 0)
-        
+        entry = day_map.setdefault(d, {
+            "date": d, "sales_count": 0, "returns_count": 0,
+            "total_amount": {}, "total_discount": {}, "avg_check": {}, "_sales": {}, "_cnt": {},
+        })
+        code = codes.get(r.currency_id, "UZS") if r.currency_id else "UZS"
+        entry["sales_count"] += int(r.sales_count or 0)
+        entry["returns_count"] += int(r.returns_count or 0)
+        net = float(r.sales_amount or 0) - float(r.returns_amount or 0)
+        entry["total_amount"][code] = round(entry["total_amount"].get(code, 0.0) + net, 2)
+        entry["total_discount"][code] = round(entry["total_discount"].get(code, 0.0) + float(r.discount or 0), 2)
+        entry["_sales"][code] = entry["_sales"].get(code, 0.0) + float(r.sales_amount or 0)
+        entry["_cnt"][code] = entry["_cnt"].get(code, 0) + int(r.sales_count or 0)
+
+    for entry in day_map.values():
+        for code, cnt in entry["_cnt"].items():
+            entry["avg_check"][code] = round(entry["_sales"][code] / cnt, 2) if cnt else 0.0
+        entry.pop("_sales")
+        entry.pop("_cnt")
     return list(day_map.values())
 
 
@@ -97,173 +95,167 @@ def daily_sales_report(
 def top_products_report(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
+    branch_id: Optional[int] = Query(None),
     limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
 ):
-    """Eng ko'p sotilgan mahsulotlar"""
-    start, end = _date_range(date_from, date_to)
-    q = (
+    """Eng ko'p sotilgan mahsulotlar (UZS, qaytarishlar ayirilgan)"""
+    cid = current_user.company_id
+    filters = _sale_filters(db, cid, date_from, date_to, branch_id, sale_or_return_filter())
+    revenue = func.sum(doc_sign() * item_revenue_uzs())
+    rows = (
         db.query(
             Product.id,
             Product.name,
             Product.sku,
-            func.sum(SaleItem.quantity).label("total_qty"),
-            func.coalesce(SaleItem.currency_code, 'UZS').label("currency"),
-            func.sum(SaleItem.subtotal).label("total_revenue"),
-            func.sum((SaleItem.unit_price - SaleItem.cost_price) * SaleItem.quantity).label("total_profit"),
+            func.sum(doc_sign() * SaleItem.quantity).label("total_qty"),
+            revenue.label("total_revenue"),
+            func.sum(doc_sign() * (item_revenue_uzs() - item_cost_uzs())).label("total_profit"),
         )
         .join(SaleItem, SaleItem.product_id == Product.id)
         .join(Sale, Sale.id == SaleItem.sale_id)
-        .filter(Sale.created_at >= start, Sale.created_at < end, Sale.status == SaleStatus.completed)
-    )
-    q = q.filter(Sale.company_id == current_user.company_id)
-    rows = (
-        q.group_by(Product.id, Product.name, Product.sku, func.coalesce(SaleItem.currency_code, 'UZS'))
-        .order_by(func.sum(SaleItem.subtotal).desc())
+        .filter(*filters)
+        .group_by(Product.id, Product.name, Product.sku)
+        .order_by(revenue.desc())
         .limit(limit)
         .all()
     )
-    
-    # Merge currencies
-    prod_map = {}
-    for r in rows:
-        pid = r.id
-        if pid not in prod_map:
-            prod_map[pid] = {
-                "product_id": r.id,
-                "product_name": r.name,
-                "sku": r.sku,
-                "total_qty": 0.0,
-                "total_revenue": {},
-                "total_profit": {}
-            }
-        
-        curr = r.currency
-        prod_map[pid]["total_qty"] += float(r.total_qty or 0)
-        prod_map[pid]["total_revenue"][curr] = float(r.total_revenue or 0)
-        prod_map[pid]["total_profit"][curr] = float(r.total_profit or 0)
-        
-    sorted_prods = sorted(prod_map.values(), key=lambda x: sum(x["total_revenue"].values()), reverse=True)[:limit]
-    for idx, p in enumerate(sorted_prods):
-        p["rank"] = idx + 1
-        
-    return sorted_prods
+    return [
+        {
+            "rank": idx + 1,
+            "product_id": r.id,
+            "product_name": r.name,
+            "sku": r.sku,
+            "total_qty": float(r.total_qty or 0),
+            "total_revenue": round(float(r.total_revenue or 0), 2),
+            "total_profit": round(float(r.total_profit or 0), 2),
+        }
+        for idx, r in enumerate(rows)
+    ]
 
 
 @router.get("/cashier-report")
 def cashier_report(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
+    branch_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
 ):
-    """Kassir bo'yicha sotuv hisoboti"""
-    start, end = _date_range(date_from, date_to)
-    q = (
+    """Kassir bo'yicha sotuv hisoboti (sotuv valyutasi bo'yicha, qaytarishlar ayirilgan)"""
+    cid = current_user.company_id
+    filters = _sale_filters(db, cid, date_from, date_to, branch_id, sale_or_return_filter())
+    rows = (
         db.query(
             User.id,
             User.name,
-            func.sum(case((Sale.status == SaleStatus.completed, 1), else_=0)).label("sales_count"),
-            func.sum(case((Sale.status == SaleStatus.refunded, 1), else_=0)).label("returns_count"),
-            func.coalesce(Currency.code, 'UZS').label("currency"),
-            func.coalesce(func.sum(
-                case(
-                    (Sale.status == SaleStatus.completed, Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)),
-                    (Sale.status == SaleStatus.refunded, -Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)),
-                    else_=0
-                )
-            ), 0).label("total_amount"),
-            func.coalesce(func.sum(
-                case(
-                    (Sale.status == SaleStatus.completed, Sale.discount_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)),
-                    (Sale.status == SaleStatus.refunded, -Sale.discount_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)),
-                    else_=0
-                )
-            ), 0).label("total_discount"),
-            func.coalesce(func.avg(
-                case(
-                    (Sale.status == SaleStatus.completed, Sale.total_amount / func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)),
-                    else_=None
-                )
-            ), 0).label("avg_check"),
+            Sale.currency_id,
+            func.sum(case((is_return_doc(), 0), else_=1)).label("sales_count"),
+            func.sum(case((is_return_doc(), 1), else_=0)).label("returns_count"),
+            func.coalesce(func.sum(case((is_return_doc(), 0), else_=Sale.total_amount / sale_rate())), 0).label("sales_amount"),
+            func.coalesce(func.sum(case((is_return_doc(), Sale.total_amount / sale_rate()), else_=0)), 0).label("returns_amount"),
+            func.coalesce(func.sum(case((is_return_doc(), 0), else_=Sale.discount_amount / sale_rate())), 0).label("discount"),
+            func.coalesce(func.sum(doc_sign() * Sale.total_amount), 0).label("net_uzs"),
         )
         .join(Sale, Sale.cashier_id == User.id)
-        .outerjoin(Currency, Currency.id == Sale.currency_id)
-        .filter(Sale.created_at >= start, Sale.created_at < end, Sale.status.in_([SaleStatus.completed, SaleStatus.refunded]))
-    )
-    q = q.filter(Sale.company_id == current_user.company_id)
-    rows = (
-        q.group_by(User.id, User.name, func.coalesce(Currency.code, 'UZS'))
-        .order_by(func.sum(Sale.total_amount).desc())
+        .filter(*filters)
+        .group_by(User.id, User.name, Sale.currency_id)
         .all()
     )
 
-    # Merge currencies
+    codes = currency_code_map(db, cid)
     cashier_map = {}
     for r in rows:
-        cid = r.id
-        if cid not in cashier_map:
-            cashier_map[cid] = {
-                "cashier_id": r.id,
-                "cashier_name": r.name,
-                "sales_count": 0,
-                "returns_count": 0,
-                "total_amount": {},
-                "total_discount": {},
-                "avg_check": {}
-            }
-        
-        curr = r.currency
-        cashier_map[cid]["sales_count"] += (r.sales_count or 0)
-        cashier_map[cid]["returns_count"] += (r.returns_count or 0)
-        cashier_map[cid]["total_amount"][curr] = float(r.total_amount or 0)
-        cashier_map[cid]["total_discount"][curr] = float(r.total_discount or 0)
-        cashier_map[cid]["avg_check"][curr] = float(r.avg_check or 0)
-        
-    return list(cashier_map.values())
+        entry = cashier_map.setdefault(r.id, {
+            "cashier_id": r.id,
+            "cashier_name": r.name,
+            "sales_count": 0,
+            "returns_count": 0,
+            "total_amount": {},
+            "returns_amount": {},
+            "total_discount": {},
+            "avg_check": {},
+            "_sales": {}, "_cnt": {}, "_net_uzs": 0.0,
+        })
+        code = codes.get(r.currency_id, "UZS") if r.currency_id else "UZS"
+        sales_amount = float(r.sales_amount or 0)
+        returns_amount = float(r.returns_amount or 0)
+        entry["sales_count"] += int(r.sales_count or 0)
+        entry["returns_count"] += int(r.returns_count or 0)
+        entry["total_amount"][code] = round(entry["total_amount"].get(code, 0.0) + sales_amount - returns_amount, 2)
+        if returns_amount:
+            entry["returns_amount"][code] = round(entry["returns_amount"].get(code, 0.0) + returns_amount, 2)
+        entry["total_discount"][code] = round(entry["total_discount"].get(code, 0.0) + float(r.discount or 0), 2)
+        entry["_sales"][code] = entry["_sales"].get(code, 0.0) + sales_amount
+        entry["_cnt"][code] = entry["_cnt"].get(code, 0) + int(r.sales_count or 0)
+        entry["_net_uzs"] += float(r.net_uzs or 0)
+
+    result = sorted(cashier_map.values(), key=lambda e: e["_net_uzs"], reverse=True)
+    for entry in result:
+        for code, cnt in entry["_cnt"].items():
+            if cnt:
+                entry["avg_check"][code] = round(entry["_sales"][code] / cnt, 2)
+        entry.pop("_sales")
+        entry.pop("_cnt")
+        entry.pop("_net_uzs")
+    return result
 
 
 @router.get("/abc-xyz")
 def abc_xyz_analysis(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
+    branch_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
 ):
-    """ABC/XYZ tahlil — mahsulotlarni qiymat va chastotaga ko'ra guruhlash"""
-    start, end = _date_range(date_from, date_to)
-    q = (
+    """ABC/XYZ tahlil — mahsulotlarni tushum (UZS, qaytarishlar ayirilgan) va
+    xarid chastotasiga (nechta chekda uchragani) ko'ra guruhlash"""
+    cid = current_user.company_id
+    filters = _sale_filters(db, cid, date_from, date_to, branch_id, sale_or_return_filter())
+    rows = (
         db.query(
             Product.id,
             Product.name,
             Product.sku,
-            func.sum(SaleItem.subtotal * func.coalesce(func.nullif(Sale.exchange_rate, 0), 1)).label("revenue"),
-            func.count(SaleItem.id).label("frequency"),
-            func.sum(SaleItem.quantity).label("qty"),
+            func.sum(doc_sign() * item_revenue_uzs()).label("revenue"),
+            func.count(func.distinct(case((is_return_doc(), None), else_=Sale.id))).label("frequency"),
+            func.sum(doc_sign() * SaleItem.quantity).label("qty"),
         )
         .join(SaleItem, SaleItem.product_id == Product.id)
         .join(Sale, Sale.id == SaleItem.sale_id)
-        .filter(Sale.created_at >= start, Sale.created_at < end, Sale.status == SaleStatus.completed)
+        .filter(*filters)
+        .group_by(Product.id, Product.name, Product.sku)
+        .all()
     )
-    q = q.filter(Sale.company_id == current_user.company_id)
-    rows = q.group_by(Product.id, Product.name, Product.sku).all()
-
     if not rows:
         return []
 
-    total_revenue = sum(float(r.revenue or 0) for r in rows)
-    sorted_rev = sorted(rows, key=lambda r: float(r.revenue or 0), reverse=True)
-    cumulative = 0.0
-    abc_map = {}
-    for r in sorted_rev:
-        cumulative += float(r.revenue or 0) / total_revenue * 100 if total_revenue else 0.0
-        abc_map[r.id] = "A" if cumulative <= 80 else ("B" if cumulative <= 95 else "C")
+    revenue = {r.id: max(float(r.revenue or 0), 0.0) for r in rows}
+    total_revenue = sum(revenue.values())
+    sorted_rows = sorted(rows, key=lambda r: revenue[r.id], reverse=True)
 
-    max_freq = max(r.frequency for r in rows) or 1
+    # Mahsulot o'zidan OLDINGI jamg'arma ulushga qarab sinflanadi — aks holda
+    # yagona yirik mahsulot (masalan 100%) "C" bo'lib qolardi.
+    abc_map = {}
+    cumulative = 0.0
+    for r in sorted_rows:
+        share_before = cumulative
+        cumulative += (revenue[r.id] / total_revenue * 100) if total_revenue else 0.0
+        if revenue[r.id] <= 0:
+            abc_map[r.id] = "C"
+        elif share_before < 80:
+            abc_map[r.id] = "A"
+        elif share_before < 95:
+            abc_map[r.id] = "B"
+        else:
+            abc_map[r.id] = "C"
+
+    max_freq = max(int(r.frequency or 0) for r in rows) or 1
     xyz_map = {}
     for r in rows:
-        ratio = r.frequency / max_freq
+        ratio = int(r.frequency or 0) / max_freq
         xyz_map[r.id] = "X" if ratio >= 0.7 else ("Y" if ratio >= 0.4 else "Z")
 
     return [
@@ -271,14 +263,14 @@ def abc_xyz_analysis(
             "product_id": r.id,
             "product_name": r.name,
             "sku": r.sku,
-            "revenue": float(r.revenue or 0),
-            "frequency": r.frequency,
+            "revenue": round(float(r.revenue or 0), 2),
+            "frequency": int(r.frequency or 0),
             "qty": float(r.qty or 0),
-            "abc": abc_map.get(r.id, "C"),
-            "xyz": xyz_map.get(r.id, "Z"),
-            "group": f"{abc_map.get(r.id, 'C')}{xyz_map.get(r.id, 'Z')}",
+            "abc": abc_map[r.id],
+            "xyz": xyz_map[r.id],
+            "group": f"{abc_map[r.id]}{xyz_map[r.id]}",
         }
-        for r in sorted_rev
+        for r in sorted_rows
     ]
 
 
@@ -286,56 +278,86 @@ def abc_xyz_analysis(
 def export_1c(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
+    branch_id: Optional[int] = Query(None),
+    include_returns: bool = Query(False, description="Qaytarish hujjatlarini ham (manfiy summa bilan) qo'shish"),
     format: str = Query("csv", enum=["csv", "xml"]),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
 ):
-    """1C Buxgalteriya uchun savdo ma'lumotlari eksporti (CSV yoki XML)"""
-    start, end = _date_range(date_from, date_to)
-    q = (
+    """1C Buxgalteriya uchun savdo ma'lumotlari eksporti (CSV yoki XML).
+    Summalar UZS da. Oldingi ustunlar tartibi saqlangan, yangilari oxirida."""
+    cid = current_user.company_id
+    doc_filter = sale_or_return_filter() if include_returns else sale_doc_filter()
+    filters = _sale_filters(db, cid, date_from, date_to, branch_id, doc_filter)
+    sales = (
         db.query(Sale, User)
+        .options(joinedload(Sale.currency))
         .join(User, User.id == Sale.cashier_id)
-        .filter(Sale.created_at >= start, Sale.created_at < end, Sale.status == SaleStatus.completed)
+        .filter(*filters)
+        .order_by(Sale.created_at)
+        .all()
     )
-    q = q.filter(Sale.company_id == current_user.company_id)
-    sales = q.order_by(Sale.created_at).all()
 
-    filename_date = date.today().isoformat()
+    def _row(s, u):
+        is_return = (s.number or "").startswith("R")
+        return {
+            "number": s.number,
+            "created_at": s.created_at,
+            "cashier": u.name or "",
+            "total": (-1 if is_return else 1) * float(s.total_amount or 0),
+            "discount": float(s.discount_amount or 0),
+            "payment": s.payment_type.value if s.payment_type else "",
+            "currency": s.currency.code if s.currency else "UZS",
+            "rate": float(s.exchange_rate or 1),
+            "type": "return" if is_return else "sale",
+        }
+
+    filename_date = local_today().isoformat()
 
     if format == "csv":
-        lines = ["Raqam,Sana,Kassir,Jami summa,Chegirma,To'lov turi"]
+        buf = io.StringIO()
+        writer = csv.writer(buf, lineterminator="\n")
+        writer.writerow(["Raqam", "Sana", "Kassir", "Jami summa", "Chegirma", "To'lov turi", "Valyuta", "Kurs", "Turi"])
         for s, u in sales:
-            lines.append(
-                f"{s.number},"
-                f"{s.created_at.strftime('%Y-%m-%d %H:%M:%S')},"
-                f"{u.name},"
-                f"{float(s.total_amount):.2f},"
-                f"{float(s.discount_amount):.2f},"
-                f"{s.payment_type.value}"
-            )
-        content = "\n".join(lines)
+            r = _row(s, u)
+            writer.writerow([
+                r["number"],
+                r["created_at"].strftime("%Y-%m-%d %H:%M:%S"),
+                r["cashier"],
+                f"{r['total']:.2f}",
+                f"{r['discount']:.2f}",
+                r["payment"],
+                r["currency"],
+                f"{r['rate']:.2f}",
+                "Qaytarish" if r["type"] == "return" else "Sotuv",
+            ])
         return Response(
-            content=content.encode("utf-8-sig"),
+            content=buf.getvalue().encode("utf-8-sig"),
             media_type="text/csv",
             headers={"Content-Disposition": f"attachment; filename=1c_export_{filename_date}.csv"},
         )
-    else:
-        lines = ['<?xml version="1.0" encoding="UTF-8"?>']
-        lines.append(f'<Sales date_from="{start.date()}" date_to="{end.date()}">')
-        for s, u in sales:
-            lines.append(
-                f'  <Sale number="{s.number}" '
-                f'date="{s.created_at.strftime("%Y-%m-%d")}" '
-                f'time="{s.created_at.strftime("%H:%M:%S")}" '
-                f'cashier="{u.name}" '
-                f'total="{float(s.total_amount):.2f}" '
-                f'discount="{float(s.discount_amount):.2f}" '
-                f'payment="{s.payment_type.value}"/>'
-            )
-        lines.append("</Sales>")
-        content = "\n".join(lines)
-        return Response(
-            content=content.encode("utf-8"),
-            media_type="application/xml",
-            headers={"Content-Disposition": f"attachment; filename=1c_export_{filename_date}.xml"},
-        )
+
+    start, end = _date_range(date_from, date_to)
+    lines = ['<?xml version="1.0" encoding="UTF-8"?>']
+    lines.append(f'<Sales date_from="{start.date()}" date_to="{(end - timedelta(days=1)).date()}">')
+    for s, u in sales:
+        r = _row(s, u)
+        attrs = {
+            "number": r["number"],
+            "date": r["created_at"].strftime("%Y-%m-%d"),
+            "time": r["created_at"].strftime("%H:%M:%S"),
+            "cashier": r["cashier"],
+            "total": f"{r['total']:.2f}",
+            "discount": f"{r['discount']:.2f}",
+            "payment": r["payment"],
+            "currency": r["currency"],
+            "rate": f"{r['rate']:.2f}",
+            "type": r["type"],
+        }
+        lines.append("  <Sale " + " ".join(f"{k}={quoteattr(str(v))}" for k, v in attrs.items()) + "/>")
+    lines.append("</Sales>")
+    return Response(
+        content="\n".join(lines).encode("utf-8"),
+        media_type="application/xml",
+        headers={"Content-Disposition": f"attachment; filename=1c_export_{filename_date}.xml"},
+    )

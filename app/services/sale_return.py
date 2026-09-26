@@ -31,6 +31,17 @@ def create_return_sale(
     if not data.warehouse_id:
         raise HTTPException(status_code=400, detail="Ombor tanlanmagan — qaytarish uchun ombor majburiy")
 
+    # Valyuta va kurs aniqlash
+    currency = None
+    exchange_rate = Decimal("1")
+    if data.currency_id:
+        currency = db.query(Currency).filter(Currency.id == data.currency_id).first()
+        if currency:
+            exchange_rate = Decimal(str(currency.rate or 1)) or Decimal("1")
+    sale_currency = currency.code if currency else "UZS"
+
+    # Jami (total_amount) sotuvdagi kabi UZS da yig'iladi: qator summasi
+    # mahsulot valyutasida, UZS = subtotal * qator kursi (sale_create.py).
     total_amount = Decimal("0")
     sale_items_data = []
 
@@ -55,8 +66,16 @@ def create_return_sale(
             else (Decimal(str(_customer_price.price)) if _customer_price else product.sale_price)
         )
         discount = Decimal(str(item_d.discount))
-        subtotal = (price - discount) * qty
-        total_amount += subtotal
+        # Chegirma — butun qator uchun (POS shunday yuboradi, sale_create.py ham shunday hisoblaydi)
+        subtotal = max(Decimal("0"), price * qty - discount)
+        # Mijoz qator valyutasini yubormagan bo'lsa — narx sotuv valyutasida deb olinadi
+        if "exchange_rate" in item_d.model_fields_set or "currency_code" in item_d.model_fields_set:
+            item_currency = (item_d.currency_code or "UZS").upper()
+            item_rate = Decimal(str(item_d.exchange_rate or 1)) or Decimal("1")
+        else:
+            item_currency = sale_currency
+            item_rate = exchange_rate
+        total_amount += subtotal * item_rate
 
         conversion = db.query(ProductConversion).filter(
             ProductConversion.sell_product_id == product.id
@@ -74,17 +93,12 @@ def create_return_sale(
             "discount": discount,
             "subtotal": subtotal,
             "cost_price": cost_price,
+            "currency_code": item_currency,
+            "exchange_rate": item_rate,
         })
 
     total_amount = max(Decimal("0"), total_amount - data.discount_amount)
-
-    # Valyuta va kurs aniqlash
-    currency = None
-    exchange_rate = Decimal("1")
-    if data.currency_id:
-        currency = db.query(Currency).filter(Currency.id == data.currency_id).first()
-        if currency:
-            exchange_rate = currency.rate
+    total_in_sale_currency = total_amount / exchange_rate
 
     # ─── Mijoz qarz mantig'i ─────────────────────────────────────────────────
     # Qaytarishda:
@@ -108,7 +122,8 @@ def create_return_sale(
             # Qarzga yopiladigan vazvrat: kassaga hech narsa berilmaydi
             _paid = Decimal("0")
 
-        debt_reduction = (total_amount - _paid) * exchange_rate
+        # total_amount — UZS, _paid — sotuv valyutasida
+        debt_reduction = total_amount - _paid * exchange_rate
 
         if debt_reduction > Decimal("0"):
             customer.debt_balance = max(Decimal("0"), customer.debt_balance - debt_reduction)
@@ -122,8 +137,7 @@ def create_return_sale(
                     curr_val = float(customer.debt_balances.get(curr_code, 0))
                     customer.debt_balances[curr_code] = max(0, curr_val - float(curr_debt))
             else:
-                actual_debt_in_currency = total_amount - _paid
-                sale_currency = currency.code if currency else "UZS"
+                actual_debt_in_currency = total_in_sale_currency - _paid
                 curr_val = float(customer.debt_balances.get(sale_currency, 0))
                 customer.debt_balances[sale_currency] = max(0, curr_val - float(actual_debt_in_currency))
 
@@ -271,6 +285,7 @@ def create_return_sale(
             sale_id=sale.id, product_id=product.id, quantity=qty_needed,
             unit_price=item_d["unit_price"], cost_price=item_d["cost_price"],
             discount=item_d["discount"], subtotal=item_d["subtotal"],
+            currency_code=item_d["currency_code"], exchange_rate=item_d["exchange_rate"],
         ))
 
     log_action(
