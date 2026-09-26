@@ -1,10 +1,26 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
-from datetime import datetime, date
+from datetime import datetime
 from typing import List, Dict, Any
 
 from app.models.customer import Customer
-from app.models.sale import Sale
+from app.models.sale import Sale, SaleStatus
+from app.utils.report_utils import sale_doc_filter, sale_rate, local_today
+
+
+def _open_debt_filter():
+    """To'lanmagan qismi qolgan sotuvlar: qaytarish hujjatlari va to'liq qaytarilganlar emas.
+    paid_amount sotuv valyutasida, total_amount UZS da."""
+    return (
+        sale_doc_filter(),
+        Sale.status != SaleStatus.refunded,
+        Sale.paid_amount * sale_rate() < Sale.total_amount - 0.01,
+    )
+
+
+def _outstanding_uzs(sale: Sale) -> float:
+    rate = safe_float(sale.exchange_rate) or 1.0
+    return safe_float(sale.total_amount) - safe_float(sale.paid_amount) * rate
 
 def safe_float(val):
     try:
@@ -29,24 +45,26 @@ def calculate_debt_score(customer_id: int, db: Session) -> Dict[str, Any]:
     # 1. Barcha qarz savdolarini olamiz
     debt_sales = db.query(Sale).filter(
         Sale.customer_id == customer_id,
-        Sale.total_amount > Sale.paid_amount
+        *_open_debt_filter(),
     ).all()
 
-    # Agar umuman qarzi bo'lmagan bo'lsa
+    # Agar umuman qarzi bo'lmagan bo'lsa (categorize_customers bu kalitlarni kutadi)
     if not debt_sales:
         return {
             "score": 100,
             "label": "Ishonchli",
             "color": "green",
             "pattern": "Hech qachon qarz olmagan / Vaqtida to'lagan",
-            "avg_delay_days": 0
+            "avg_delay_days": 0,
+            "total_debt": 0.0,
+            "overdue_count": 0,
         }
 
-    total_debt = sum(safe_float(safe_float(s.total_amount) - safe_float(s.paid_amount)) for s in debt_sales)
+    total_debt = sum(_outstanding_uzs(s) for s in debt_sales)
     overdue_count = 0
     max_delay = 0
 
-    today = date.today()
+    today = local_today()
 
     for s in debt_sales:
         if s.debt_due_date:
@@ -122,7 +140,7 @@ def categorize_customers(db: Session, company_id: int):
             # Eng eski qarzni topish
             oldest_debt = db.query(Sale).filter(
                 Sale.customer_id == c.id,
-                Sale.total_amount > Sale.paid_amount
+                *_open_debt_filter(),
             ).order_by(Sale.created_at.asc()).first()
             
             due_date = None
@@ -136,7 +154,7 @@ def categorize_customers(db: Session, company_id: int):
                     elif isinstance(due_date_obj, datetime):
                         due_date_obj = due_date_obj.date()
                     due_date = str(due_date_obj)
-                    days_remaining = (due_date_obj - date.today()).days
+                    days_remaining = (due_date_obj - local_today()).days
                 except Exception:
                     pass
             

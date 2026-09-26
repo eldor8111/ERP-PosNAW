@@ -1,10 +1,11 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
+from sqlalchemy import func, case
 from datetime import datetime, timedelta, timezone
 
 from app.models.user import User
 from app.models.customer import Customer
-from app.models.sale import Sale, SaleStatus
+from app.models.sale import Sale
+from app.utils.report_utils import sale_or_return_filter, doc_sign, is_return_doc
 from app.services.ai_tools_registry import AITool, AIToolRegistry
 
 @AIToolRegistry.register
@@ -27,18 +28,20 @@ class GetTopCustomersTool(AITool):
         
         start_date = datetime.now(timezone.utc) - timedelta(days=days)
 
+        # Xaridlar soni — sotuv hujjatlari; summa — UZS, qaytarishlar ayirilgan
+        total_spent = func.sum(doc_sign() * Sale.total_amount)
         results = db.query(
             Customer.name,
-            func.count(Sale.id).label("total_orders"),
-            func.sum(Sale.total_amount).label("total_spent")
+            func.sum(case((is_return_doc(), 0), else_=1)).label("total_orders"),
+            total_spent.label("total_spent")
         ).join(Sale, Sale.customer_id == Customer.id)\
          .filter(
             Customer.company_id == company_id,
             Sale.company_id == company_id,
-            Sale.status != SaleStatus.cancelled,
+            sale_or_return_filter(),
             Sale.created_at >= start_date
-        ).group_by(Customer.id)\
-         .order_by(desc("total_spent"))\
+        ).group_by(Customer.id, Customer.name)\
+         .order_by(total_spent.desc())\
          .limit(limit).all()
 
         if not results:

@@ -1050,30 +1050,37 @@ def get_profit_loss(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*FINANCE_ROLES)),
 ):
-    """Foyda va Zarar hisoboti"""
-    from app.models.sale import Sale, SaleItem, SaleStatus  # type: ignore
+    """Foyda va Zarar hisoboti (UZS; qaytarishlar ayirilgan — Hisobotlar bo'limi bilan bir xil qoida)"""
+    from app.models.sale import Sale, SaleItem  # type: ignore
+    from app.utils.report_utils import (
+        sale_doc_filter, return_doc_filter, sale_or_return_filter, doc_sign, item_cost_uzs,
+    )
 
     start = _parse_dt_start(date_from)
     end = _parse_dt_end(date_to)
 
-    # Daromad (sotuvlardan)
-    revenue_q = (
-        db.query(func.coalesce(func.sum(Sale.total_amount), 0))
-        .filter(Sale.created_at >= start, Sale.created_at < end, Sale.status == SaleStatus.completed)
-    )
-    if user.role.value != "super_admin":
-        revenue_q = revenue_q.filter(Sale.company_id == user.company_id)
-    revenue = float(revenue_q.scalar() or 0)
+    def _own(q):
+        return q if user.role.value == "super_admin" else q.filter(Sale.company_id == user.company_id)
 
-    # Tannarx (COGS)
+    period = [Sale.created_at >= start, Sale.created_at < end]
+
+    # Daromad: sotuv hujjatlari (qisman/to'liq qaytarilganlari ham) − qaytarish hujjatlari
+    def _sum_total(doc_filter) -> float:
+        q = db.query(func.coalesce(func.sum(Sale.total_amount), 0)).filter(*period, doc_filter)
+        return float(_own(q).scalar() or 0)
+
+    gross_revenue = _sum_total(sale_doc_filter())
+    returns = _sum_total(return_doc_filter())
+    revenue = gross_revenue - returns
+
+    # Tannarx (COGS) — qaytarilgan tovar tannarxi ayiriladi
     cogs_q = (
-        db.query(func.coalesce(func.sum(SaleItem.cost_price * SaleItem.quantity), 0))
-        .join(Sale)
-        .filter(Sale.created_at >= start, Sale.created_at < end, Sale.status == SaleStatus.completed)
+        db.query(func.coalesce(func.sum(doc_sign() * item_cost_uzs()), 0))
+        .select_from(SaleItem)
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .filter(*period, sale_or_return_filter())
     )
-    if user.role.value != "super_admin":
-        cogs_q = cogs_q.filter(Sale.company_id == user.company_id)
-    cogs = float(cogs_q.scalar() or 0)
+    cogs = float(_own(cogs_q).scalar() or 0)
 
     gross_profit = revenue - cogs
 
@@ -1089,19 +1096,22 @@ def get_profit_loss(
     net_profit = gross_profit - total_expenses
 
     # Xarajatlar kategoriya bo'yicha
-    expense_by_cat = (
+    expense_by_cat_q = (
         db.query(ExpenseCategory.name, func.coalesce(func.sum(Expense.amount), 0).label("total"))
         .join(Expense, Expense.category_id == ExpenseCategory.id)
         .filter(Expense.created_at >= start, Expense.created_at < end)
-        .group_by(ExpenseCategory.name)
-        .all()
     )
+    if user.role.value != "super_admin":
+        expense_by_cat_q = expense_by_cat_q.filter(Expense.company_id == user.company_id)
+    expense_by_cat = expense_by_cat_q.group_by(ExpenseCategory.name).all()
 
     return {
         "period": {
             "from": date_from or "boshidan",
             "to": date_to or "hozirga qadar",
         },
+        "gross_revenue": gross_revenue,
+        "returns": returns,
         "revenue": revenue,
         "cogs": cogs,
         "gross_profit": gross_profit,

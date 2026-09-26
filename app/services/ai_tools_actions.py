@@ -6,7 +6,8 @@ from app.models.user import User
 from app.models.product import Product
 from app.models.customer import Customer
 from app.models.inventory import StockLevel
-from app.models.sale import Sale, SaleItem, SaleStatus
+from app.models.sale import Sale, SaleItem
+from app.utils.report_utils import sale_or_return_filter, doc_sign
 from app.models.supplier_product import SupplierProduct
 from app.services.ai_tools_registry import AITool, AIToolRegistry
 
@@ -31,11 +32,12 @@ class DraftPurchaseOrderTool(AITool):
         history_days = 14
         start_date = datetime.now(timezone.utc) - timedelta(days=history_days)
 
+        # Sof sotilgan miqdor: qaytarishlar ayiriladi, kutilayotgan/bekor qilinganlar kirmaydi
         sales_subquery = db.query(
             SaleItem.product_id,
-            func.sum(SaleItem.quantity).label("total_sold_14d")
+            func.sum(doc_sign() * SaleItem.quantity).label("total_sold_14d")
         ).join(Sale, Sale.id == SaleItem.sale_id)\
-         .filter(Sale.company_id == company_id, Sale.status != SaleStatus.cancelled, Sale.created_at >= start_date)\
+         .filter(Sale.company_id == company_id, sale_or_return_filter(), Sale.created_at >= start_date)\
          .group_by(SaleItem.product_id).subquery()
 
         stock_subquery = db.query(

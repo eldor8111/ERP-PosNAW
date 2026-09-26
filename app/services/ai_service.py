@@ -10,11 +10,15 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 from datetime import date, timedelta, datetime
 
-from app.models.sale import Sale, SaleItem, PaymentType, SaleStatus
+from app.models.sale import Sale, SaleItem
 from app.models.product import Product
 from app.models.customer import Customer
 from app.models.inventory import StockLevel
 from app.services.debt_scoring import categorize_customers
+from app.utils.report_utils import (
+    _date_range, local_today, day_sales_summary, sales_summary,
+    sale_doc_filter, sale_or_return_filter, doc_sign, item_revenue_uzs,
+)
 
 
 # ─── Yordamchi funksiyalar ─────────────────────────────────────────────────
@@ -45,37 +49,31 @@ def _pct_word(pct: float) -> str:
 
 def build_daily_context(db: Session, company_id: int) -> str:
     """Bugungi savdo haqida qisqacha matn kontekst."""
-    today = date.today()
-    sales = db.query(Sale).filter(
-        func.date(Sale.created_at) == today,
-        Sale.company_id == company_id,
-        Sale.status == SaleStatus.completed
-    ).all()
+    today = local_today()
+    s = day_sales_summary(db, company_id, today)
+    start, end = _date_range(today, today)
 
-    total = sum(_sf(s.total_amount) for s in sales)
-    cash = sum(_sf(s.paid_cash) for s in sales)
-    card = sum(_sf(s.paid_card) for s in sales)
-    debt_sales = [s for s in sales if s.payment_type == PaymentType.debt]
-    debt_total = sum(_sf(s.total_amount) - _sf(s.paid_amount) for s in debt_sales)
-
+    net_qty = func.sum(doc_sign() * SaleItem.quantity)
     top = (
-        db.query(Product.name, func.sum(SaleItem.quantity).label("qty"))
+        db.query(Product.name, net_qty.label("qty"))
         .join(SaleItem, SaleItem.product_id == Product.id)
         .join(Sale, Sale.id == SaleItem.sale_id)
-        .filter(func.date(Sale.created_at) == today, Sale.company_id == company_id)
-        .group_by(Product.name)
-        .order_by(func.sum(SaleItem.quantity).desc())
+        .filter(Sale.created_at >= start, Sale.created_at < end, Sale.company_id == company_id, sale_or_return_filter())
+        .group_by(Product.id, Product.name)
+        .order_by(net_qty.desc())
         .first()
     )
     top_name = top[0] if top else "—"
 
     return (
         f"Sana: {today}\n"
-        f"Savdolar: {len(sales)} ta\n"
-        f"Jami tushum: {_fmt(total)}\n"
-        f"Naqd: {_fmt(cash)}\n"
-        f"Karta: {_fmt(card)}\n"
-        f"Nasiya (bugun): {_fmt(debt_total)}\n"
+        f"Savdolar: {s['count']} ta\n"
+        f"Jami tushum: {_fmt(s['gross'])}\n"
+        f"Qaytarishlar: {s['returns_count']} ta, {_fmt(s['returns'])}\n"
+        f"Sof tushum: {_fmt(s['net'])}\n"
+        f"Naqd: {_fmt(s['cash'])}\n"
+        f"Karta: {_fmt(s['card'])}\n"
+        f"Nasiya (bugun): {_fmt(s['debt'])}\n"
         f"Eng ko'p sotilgan: {top_name}"
     )
 
@@ -85,29 +83,13 @@ def build_daily_context(db: Session, company_id: int) -> str:
 def get_insights(db: Session, company_id: int) -> list:
     """Tahlil kartalarini qaytaradi — hech qanday API kerak emas."""
     try:
-        today = date.today()
-        prev_start = today - timedelta(days=14)
-        prev_end = today - timedelta(days=7)
-        curr_start = today - timedelta(days=7)
-
-        prev_sales = _sf(
-            db.query(func.coalesce(func.sum(Sale.total_amount), 0))
-            .filter(
-                func.date(Sale.created_at) >= prev_start,
-                func.date(Sale.created_at) < prev_end,
-                Sale.company_id == company_id,
-                Sale.status == SaleStatus.completed
-            ).scalar()
-        )
-        curr_sales = _sf(
-            db.query(func.coalesce(func.sum(Sale.total_amount), 0))
-            .filter(
-                func.date(Sale.created_at) >= curr_start,
-                func.date(Sale.created_at) <= today,
-                Sale.company_id == company_id,
-                Sale.status == SaleStatus.completed
-            ).scalar()
-        )
+        today = local_today()
+        # Oxirgi 7 kun (bugun ham) va undan oldingi 7 kun — sof tushum (qaytarishlar ayirilgan)
+        curr_start, _ = _date_range(today - timedelta(days=6), None)
+        prev_start, _ = _date_range(today - timedelta(days=13), None)
+        _, curr_end = _date_range(None, today)
+        prev_sales = sales_summary(db, company_id, prev_start, curr_start)["net"]
+        curr_sales = sales_summary(db, company_id, curr_start, curr_end)["net"]
 
         growth_pct = ((curr_sales - prev_sales) / prev_sales * 100) if prev_sales > 0 else 0.0
         trend_word = "o'sish" if growth_pct >= 0 else "pasayish"
@@ -174,15 +156,17 @@ def get_insights(db: Session, company_id: int) -> list:
 def _get_peak_hour(db: Session, company_id: int, today: date) -> int | None:
     """Bugungi eng gavjum soatni aniqlaydi."""
     try:
+        start, end = _date_range(today, today)
         result = (
             db.query(
                 func.extract('hour', Sale.created_at).label("hr"),
                 func.count(Sale.id).label("cnt")
             )
             .filter(
-                func.date(Sale.created_at) == today,
+                Sale.created_at >= start,
+                Sale.created_at < end,
                 Sale.company_id == company_id,
-                Sale.status == SaleStatus.completed
+                sale_doc_filter(),
             )
             .group_by(func.extract('hour', Sale.created_at))
             .order_by(desc("cnt"))
@@ -222,52 +206,40 @@ def build_daily_report(db: Session, company_id: int, company_name: str) -> str:
     Kunlik to'liq hisobot matni (Telegram xabar uchun).
     Hech qanday AI API'siz — faqat matematik tahlil.
     """
-    today = date.today()
+    today = local_today()
     yesterday = today - timedelta(days=1)
 
-    # ── Bugungi savdolar ──
-    sales = db.query(Sale).filter(
-        func.date(Sale.created_at) == today,
-        Sale.company_id == company_id,
-        Sale.status == SaleStatus.completed
-    ).all()
+    # ── Bugungi savdolar (qisman/to'liq qaytarilganlari ham; qaytarishlar alohida) ──
+    s = day_sales_summary(db, company_id, today)
+    sales_count = s["count"]
+    total = s["gross"]
+    cash = s["cash"]
+    card = s["card"]
+    discount = s["discount"]
+    debt_amount = s["debt"]
+    refunds = s["returns_count"]
+    refunds_amount = s["returns"]
 
-    total = sum(_sf(s.total_amount) for s in sales)
-    cash = sum(_sf(s.paid_cash) for s in sales)
-    card = sum(_sf(s.paid_card) for s in sales)
-    discount = sum(_sf(s.discount_amount) for s in sales)
-    debt_sales = [s for s in sales if s.payment_type == PaymentType.debt]
-    debt_amount = sum(_sf(s.total_amount) - _sf(s.paid_amount) for s in debt_sales)
-    refunds = db.query(Sale).filter(
-        func.date(Sale.created_at) == today,
-        Sale.company_id == company_id,
-        Sale.status == SaleStatus.refunded
-    ).count()
+    # ── Kechagi taqqoslash (sof tushum bo'yicha) ──
+    yest_net = day_sales_summary(db, company_id, yesterday)["net"]
+    diff_pct = ((s["net"] - yest_net) / yest_net * 100) if yest_net > 0 else 0.0
 
-    # ── Kechagi taqqoslash ──
-    yest_total = _sf(
-        db.query(func.coalesce(func.sum(Sale.total_amount), 0))
-        .filter(
-            func.date(Sale.created_at) == yesterday,
-            Sale.company_id == company_id,
-            Sale.status == SaleStatus.completed
-        ).scalar()
-    )
-    diff_pct = ((total - yest_total) / yest_total * 100) if yest_total > 0 else 0.0
-
-    # ── Top 3 mahsulot ──
+    # ── Top 3 mahsulot (UZS, qaytarishlar ayirilgan) ──
+    start, end = _date_range(today, today)
+    top_revenue = func.sum(doc_sign() * item_revenue_uzs())
     top_products = (
-        db.query(Product.name, func.sum(SaleItem.quantity).label("qty"),
-                 func.sum(SaleItem.subtotal).label("rev"))
+        db.query(Product.name, func.sum(doc_sign() * SaleItem.quantity).label("qty"),
+                 top_revenue.label("rev"))
         .join(SaleItem, SaleItem.product_id == Product.id)
         .join(Sale, Sale.id == SaleItem.sale_id)
         .filter(
-            func.date(Sale.created_at) == today,
+            Sale.created_at >= start,
+            Sale.created_at < end,
             Sale.company_id == company_id,
-            Sale.status == SaleStatus.completed
+            sale_or_return_filter(),
         )
-        .group_by(Product.name)
-        .order_by(desc("rev"))
+        .group_by(Product.id, Product.name)
+        .order_by(top_revenue.desc())
         .limit(3)
         .all()
     )
@@ -297,7 +269,7 @@ def build_daily_report(db: Session, company_id: int, company_name: str) -> str:
         "➖➖➖➖➖➖➖➖➖➖➖➖➖",
         "",
         "<b>[ SAVDO KO'RSATKICHLARI ]</b>",
-        f"▪️ Tranzaksiyalar soni: <b>{len(sales)} ta</b>",
+        f"▪️ Tranzaksiyalar soni: <b>{sales_count} ta</b>",
         f"▪️ Umumiy tushum: <b>{_fmt(total)}</b>",
         f"    ▫️ Naqd pul: {_fmt(cash)}",
         f"    ▫️ Karta orqali: {_fmt(card)}",
@@ -308,14 +280,15 @@ def build_daily_report(db: Session, company_id: int, company_name: str) -> str:
     if debt_amount > 0:
         lines.append(f"    ▫️ Nasiyaga berilgan: {_fmt(debt_amount)}")
     if refunds > 0:
-        lines.append(f"    ▫️ Qaytarilgan cheklar: {refunds} ta")
+        lines.append(f"    ▫️ Qaytarilgan cheklar: {refunds} ta ({_fmt(refunds_amount)})")
+        lines.append(f"▪️ Sof tushum: <b>{_fmt(s['net'])}</b>")
 
     # Kechagi bilan taqqoslash
     lines += [
         "",
         "<b>[ O'SISH DINAMIKASI ]</b>",
         f"▪️ Kechagiga nisbatan: <b>{_pct_word(diff_pct)}</b>",
-        f"    ▫️ Kecha: {_fmt(yest_total)}",
+        f"    ▫️ Kecha (sof): {_fmt(yest_net)}",
     ]
 
     # Top mahsulotlar

@@ -8,7 +8,7 @@ Avtomatik Scheduler — Fon vazifalar boshqaruvchisi
    • FCM Push Notification → rahbar/admin lar (mobil ilova)
 """
 import asyncio
-from datetime import datetime, date, timezone, timedelta
+from datetime import datetime, timezone, timedelta
 import httpx
 
 from app.database import SessionLocal
@@ -16,6 +16,7 @@ from app.models.sale import Sale, SaleStatus, PaymentType
 from app.models.customer import Customer
 from app.models.company import Company
 from app.models.user import User, UserRole
+from app.utils.report_utils import sale_doc_filter, sale_rate, local_today
 
 
 # ─── Telegram yuboruvchi ─────────────────────────────────────────────────
@@ -35,6 +36,22 @@ async def send_tg_msg_async(token: str, chat_id: str, text: str,
     except Exception as e:
         print(f"[TG] Xabar yuborishda xatolik: {e}")
         return False
+
+
+def _open_debt_sales_filter():
+    """Qarzi ochiq qolgan sotuvlar: qisman qaytarilganlari ham (to'liq qaytarilgan va
+    qaytarish hujjatlari emas). paid_amount sotuv valyutasida, total_amount UZS da."""
+    return (
+        sale_doc_filter(),
+        Sale.status != SaleStatus.refunded,
+        Sale.payment_type == PaymentType.debt,
+        Sale.paid_amount * sale_rate() < Sale.total_amount - 0.01,
+    )
+
+
+def _outstanding_uzs(sale: Sale) -> float:
+    rate = float(sale.exchange_rate or 0) or 1.0
+    return float(sale.total_amount or 0) - float(sale.paid_amount or 0) * rate
 
 
 # ─── FCM Push Notification yuboruvchi ────────────────────────────────────
@@ -75,17 +92,15 @@ async def process_daily_debts():
     """Muddati yaqin yoki o'tgan qarzdorlarga Telegram xabar yuboradi."""
     db = SessionLocal()
     try:
-        today = date.today()
+        today = local_today()
         unpaid_sales = db.query(Sale).filter(
-            Sale.status == SaleStatus.completed,
-            Sale.payment_type == PaymentType.debt,
-            Sale.paid_amount < Sale.total_amount,
+            *_open_debt_sales_filter(),
             Sale.debt_due_date.isnot(None)
         ).all()
 
         sent_count = 0
         for sale in unpaid_sales:
-            debt_amount = float(sale.total_amount or 0) - float(sale.paid_amount or 0)
+            debt_amount = _outstanding_uzs(sale)
             if debt_amount <= 0:
                 continue
 
@@ -166,7 +181,7 @@ async def notify_managers_overdue():
     """Muddati o'tgan qarzdorlar haqida rahbarlarga xabar yuboradi."""
     db = SessionLocal()
     try:
-        today = date.today()
+        today = local_today()
         companies = db.query(Company).filter(Company.is_active == True).all()
 
         for company in companies:
@@ -179,9 +194,7 @@ async def notify_managers_overdue():
 
             overdue_sales = db.query(Sale).filter(
                 Sale.company_id == company.id,
-                Sale.status == SaleStatus.completed,
-                Sale.payment_type == PaymentType.debt,
-                Sale.paid_amount < Sale.total_amount,
+                *_open_debt_sales_filter(),
                 Sale.debt_due_date < today,
                 Sale.debt_due_date.isnot(None)
             ).all()
@@ -200,10 +213,8 @@ async def notify_managers_overdue():
             if not overdue_sales:
                 continue
 
-            total_overdue = sum(
-                float(s.total_amount or 0) - float(s.paid_amount or 0)
-                for s in overdue_sales
-            )
+            total_overdue = sum(_outstanding_uzs(s) for s in overdue_sales)
+            debtor_count = len({s.customer_id for s in overdue_sales})
 
             managers = db.query(User).filter(
                 User.company_id == company.id,
@@ -214,7 +225,7 @@ async def notify_managers_overdue():
             msg = (
                 f"🔴 <b>Muddati o'tgan qarzlar — {today.strftime('%d.%m.%Y')}</b>\n\n"
                 f"<b>{company.name}</b> do'konida:\n"
-                f"• Qarzdorlar soni: <b>{len(overdue_sales)} ta</b>\n"
+                f"• Qarzdorlar soni: <b>{debtor_count} ta</b>\n"
                 f"• Umumiy qarz: <b>{total_overdue:,.0f} so'm</b>\n\n"
                 f"Iltimos, mijozlar bilan bog'laning!"
             )
@@ -227,7 +238,7 @@ async def notify_managers_overdue():
                 company=company,
                 db=db,
                 title=f"⚠️ {company.name}: Muddati o'tgan qarzlar",
-                body=f"{len(overdue_sales)} ta mijozda jami {total_overdue:,.0f} so'm muddati o'tgan qarz bor.",
+                body=f"{debtor_count} ta mijozda jami {total_overdue:,.0f} so'm muddati o'tgan qarz bor.",
                 data={"type": "overdue_debt", "company_id": str(company.id)},
             )
 

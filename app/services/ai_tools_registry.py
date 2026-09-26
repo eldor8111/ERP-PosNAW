@@ -127,7 +127,7 @@ class AIToolRegistry:
 
 from app.models.customer import Customer
 from sqlalchemy import or_
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 def _sf(val):
     try: return float(val or 0)
@@ -135,6 +135,21 @@ def _sf(val):
 
 def _fmt(amount: float) -> str:
     return f"{amount:,.0f}".replace(",", " ") + " so'm"
+
+PERIOD_NAMES = {"today": "Bugun", "yesterday": "Kecha", "week": "Oxirgi 7 kun", "month": "Oxirgi 30 kun"}
+
+def _period_range(period: str):
+    """AI vositalari davri → (start, end), Toshkent vaqti bo'yicha (Hisobotlar bilan bir xil)."""
+    from app.utils.report_utils import _date_range, local_today
+    today = local_today()
+    if period == "yesterday":
+        day = today - timedelta(days=1)
+        return _date_range(day, day)
+    if period == "week":
+        return _date_range(today - timedelta(days=6), today)
+    if period == "month":
+        return _date_range(today - timedelta(days=29), today)
+    return _date_range(today, today)
 
 def _transliterate_to_latin(text):
     mapping = {
@@ -367,44 +382,30 @@ class GetSalesSummaryTool(AITool):
         "required": []
     }
     def execute(self, db: Session, company_id: int, user: User, **kwargs):
-        from app.models.sale import Sale, SaleStatus
+        from app.utils.report_utils import sales_summary
         period = kwargs.get("period", "today")
-        today = date.today()
-        if period == "yesterday":
-            d = today - timedelta(days=1)
-            date_filter = sqlfunc.date(Sale.created_at) == d
-        elif period == "week":
-            d = today - timedelta(days=6)
-            date_filter = sqlfunc.date(Sale.created_at) >= d
-        elif period == "month":
-            d = today - timedelta(days=29)
-            date_filter = sqlfunc.date(Sale.created_at) >= d
-        else:
-            date_filter = sqlfunc.date(Sale.created_at) == today
+        start, end = _period_range(period)
+        s = sales_summary(db, company_id, start, end)
+        count = s["count"]
+        pname = PERIOD_NAMES.get(period, "Bugun")
 
-        sales = db.query(Sale).filter(
-            date_filter, Sale.company_id == company_id, Sale.status == SaleStatus.completed
-        ).all()
-
-        total = sum(_sf(s.total_amount) for s in sales)
-        cash = sum(_sf(s.paid_cash) for s in sales)
-        card = sum(_sf(s.paid_card) for s in sales)
-        count = len(sales)
-        period_names = {"today": "Bugun", "yesterday": "Kecha", "week": "Oxirgi 7 kun", "month": "Oxirgi 30 kun"}
-        pname = period_names.get(period, "Bugun")
-
-        if count == 0:
+        if count == 0 and s["returns_count"] == 0:
             return {"reply": f"📊 {pname} uchun hech qanday sotuv topilmadi."}
 
+        returns_lines = (
+            f"• Qaytarishlar: {s['returns_count']} ta, {_fmt(s['returns'])}\n"
+            f"• Sof tushum: {_fmt(s['net'])}\n"
+        ) if s["returns_count"] else ""
         return {
             "reply": (
                 f"📊 {pname} savdo xulosasi:\n"
-                f"• Jami tushum: {_fmt(total)}\n"
+                f"• Jami tushum: {_fmt(s['gross'])}\n"
+                f"{returns_lines}"
                 f"• Buyurtmalar: {count} ta\n"
-                f"• Naqd: {_fmt(cash)}\n"
-                f"• Karta: {_fmt(card)}"
+                f"• Naqd: {_fmt(s['cash'])}\n"
+                f"• Karta: {_fmt(s['card'])}"
             ),
-            "action": {"type": "show_data", "data": {"total": total, "count": count}}
+            "action": {"type": "show_data", "data": {"total": s["gross"], "net": s["net"], "returns": s["returns"], "count": count}}
         }
 
 @AIToolRegistry.register
@@ -421,23 +422,26 @@ class GetTopProductsTool(AITool):
         "required": []
     }
     def execute(self, db: Session, company_id: int, user: User, **kwargs):
-        from app.models.sale import SaleItem, Sale, SaleStatus
+        from app.models.sale import SaleItem, Sale
         from app.models.product import Product
+        from app.utils.report_utils import sale_or_return_filter, doc_sign, item_revenue_uzs
         limit = min(int(kwargs.get("limit", 5)), 10)
-        today = date.today()
-        start = today - timedelta(days=29)
+        start, end = _period_range("month")
 
+        # Sof miqdor va UZS tushum (qaytarishlar ayirilgan)
+        net_qty = sqlfunc.sum(doc_sign() * SaleItem.quantity)
         results = db.query(
             Product.name,
-            sqlfunc.sum(SaleItem.quantity).label("qty"),
-            sqlfunc.sum(SaleItem.subtotal).label("revenue")
+            net_qty.label("qty"),
+            sqlfunc.sum(doc_sign() * item_revenue_uzs()).label("revenue")
         ).join(SaleItem, Product.id == SaleItem.product_id)\
          .join(Sale, Sale.id == SaleItem.sale_id)\
          .filter(
             Sale.company_id == company_id,
-            Sale.status == SaleStatus.completed,
-            sqlfunc.date(Sale.created_at) >= start
-         ).group_by(Product.name).order_by(sqlfunc.sum(SaleItem.quantity).desc()).limit(limit).all()
+            sale_or_return_filter(),
+            Sale.created_at >= start,
+            Sale.created_at < end,
+         ).group_by(Product.id, Product.name).order_by(net_qty.desc()).limit(limit).all()
 
         if not results:
             return {"reply": "📦 Oxirgi 30 kunda hech qanday sotuv topilmadi."}
@@ -537,30 +541,26 @@ class GetProfitTodayTool(AITool):
         "required": []
     }
     def execute(self, db: Session, company_id: int, user: User, **kwargs):
-        from app.models.sale import Sale, SaleItem, SaleStatus
+        from app.models.sale import Sale, SaleItem
+        from app.utils.report_utils import sale_or_return_filter, doc_sign, item_revenue_uzs, item_cost_uzs
         period = kwargs.get("period", "today")
-        today = date.today()
-        if period == "yesterday":
-            d = today - timedelta(days=1)
-            date_filter = sqlfunc.date(Sale.created_at) == d
-        elif period == "week":
-            date_filter = sqlfunc.date(Sale.created_at) >= today - timedelta(days=6)
-        elif period == "month":
-            date_filter = sqlfunc.date(Sale.created_at) >= today - timedelta(days=29)
-        else:
-            date_filter = sqlfunc.date(Sale.created_at) == today
+        start, end = _period_range(period)
 
-        items = db.query(SaleItem).join(Sale, Sale.id == SaleItem.sale_id).filter(
-            date_filter, Sale.company_id == company_id, Sale.status == SaleStatus.completed
-        ).all()
+        # UZS da, qaytarishlar ayirilgan — Hisobotlar bo'limidagi "Foyda" bilan bir xil
+        revenue_sum, cost_sum = db.query(
+            sqlfunc.coalesce(sqlfunc.sum(doc_sign() * item_revenue_uzs()), 0),
+            sqlfunc.coalesce(sqlfunc.sum(doc_sign() * item_cost_uzs()), 0),
+        ).select_from(SaleItem).join(Sale, Sale.id == SaleItem.sale_id).filter(
+            Sale.company_id == company_id, sale_or_return_filter(),
+            Sale.created_at >= start, Sale.created_at < end,
+        ).one()
 
-        revenue = sum(_sf(i.subtotal) for i in items)
-        cost = sum(_sf(i.cost_price or 0) * _sf(i.quantity) for i in items)
+        revenue = _sf(revenue_sum)
+        cost = _sf(cost_sum)
         profit = revenue - cost
         margin = (profit / revenue * 100) if revenue > 0 else 0
 
-        period_names = {"today": "Bugun", "yesterday": "Kecha", "week": "Oxirgi 7 kun", "month": "Oxirgi 30 kun"}
-        pname = period_names.get(period, "Bugun")
+        pname = PERIOD_NAMES.get(period, "Bugun")
 
         return {
             "reply": (

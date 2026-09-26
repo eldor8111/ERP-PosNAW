@@ -1,6 +1,6 @@
 import asyncio
 import re
-from datetime import date, datetime, timedelta
+from datetime import date
 
 from dotenv import load_dotenv
 
@@ -20,7 +20,10 @@ from app.database import SessionLocal, engine
 from app.admin_tg_bot.models import CompanyBot
 from app.models.company import Company  # noqa: F401 — relationship uchun mapper registryga ro'yxatdan o'tkazish shart
 from app.models.user import User, UserRole
-from app.models.sale import Sale, SaleStatus
+from app.models.sale import Sale
+from app.utils.report_utils import (
+    local_today, local_day_start, sales_summary, day_sales_summary, sale_doc_filter,
+)
 from app.core.security import hash_password
 
 
@@ -155,98 +158,82 @@ def contact_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
+def _report_fields(summary: dict) -> dict:
+    """Bot xabari uchun umumiy maydonlar (UZS; qaytarishlar alohida va ayirilgan)."""
+    count = summary["count"]
+    return {
+        "sales_count": count,
+        "total_amount": round(summary["gross"], 2),
+        "returns_count": summary["returns_count"],
+        "returns_amount": round(summary["returns"], 2),
+        "net_amount": round(summary["net"], 2),
+        "total_discount": round(summary["discount"], 2),
+        "avg_check": round(summary["gross"] / count, 2) if count else 0,
+    }
+
+
 def get_daily_sales_report(company_id: int, report_date: date = None) -> dict:
-    """Kunlik sotuv hisoboti"""
+    """Kunlik sotuv hisoboti (Hisobotlar bo'limi bilan bir xil qoida)"""
     if report_date is None:
-        report_date = date.today()
+        report_date = local_today()
 
     db = SessionLocal()
     try:
-        start = datetime.combine(report_date, datetime.min.time())
-        end = datetime.combine(report_date + timedelta(days=1), datetime.min.time())
-
-        sales = db.query(Sale).filter(
-            Sale.company_id == company_id,
-            Sale.created_at >= start,
-            Sale.created_at < end,
-            Sale.status == SaleStatus.completed
-        ).all()
-
-        total_amount = sum(float(s.total_amount) for s in sales)
-        total_discount = sum(float(s.discount_amount) for s in sales)
-        sales_count = len(sales)
-        avg_check = total_amount / sales_count if sales_count > 0 else 0
-
-        return {
-            "date": report_date.strftime("%d.%m.%Y"),
-            "sales_count": sales_count,
-            "total_amount": round(total_amount, 2),
-            "total_discount": round(total_discount, 2),
-            "avg_check": round(avg_check, 2),
-        }
+        summary = day_sales_summary(db, company_id, report_date)
+        return {"date": report_date.strftime("%d.%m.%Y"), **_report_fields(summary)}
     finally:
         db.close()
 
 
 def get_monthly_sales_report(company_id: int, year: int = None, month: int = None) -> dict:
     """Oylik sotuv hisoboti"""
-    if year is None:
-        year = date.today().year
-    if month is None:
-        month = date.today().month
+    today = local_today()
+    year = year or today.year
+    month = month or today.month
 
     db = SessionLocal()
     try:
-        start = datetime(year, month, 1)
-        if month == 12:
-            end = datetime(year + 1, 1, 1)
-        else:
-            end = datetime(year, month + 1, 1)
+        first_day = date(year, month, 1)
+        next_month = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+        start, end = local_day_start(first_day), local_day_start(next_month)
+        summary = sales_summary(db, company_id, start, end)
 
-        sales = db.query(Sale).filter(
-            Sale.company_id == company_id,
-            Sale.created_at >= start,
-            Sale.created_at < end,
-            Sale.status == SaleStatus.completed
-        ).all()
-
-        total_amount = sum(float(s.total_amount) for s in sales)
-        total_discount = sum(float(s.discount_amount) for s in sales)
-        sales_count = len(sales)
-        avg_check = total_amount / sales_count if sales_count > 0 else 0
-
-        # Kunlik bo'yicha guruhlash
+        # Kunlik bo'yicha guruhlash (sotuv hujjatlari, UZS)
         from sqlalchemy import func
+        day_col = func.date(Sale.created_at)
         daily_data = db.query(
-            func.date(Sale.created_at).label("day"),
+            day_col.label("day"),
             func.count(Sale.id).label("count"),
             func.sum(Sale.total_amount).label("amount")
         ).filter(
             Sale.company_id == company_id,
             Sale.created_at >= start,
             Sale.created_at < end,
-            Sale.status == SaleStatus.completed
-        ).group_by(func.date(Sale.created_at)).all()
+            sale_doc_filter(),
+        ).group_by(day_col).order_by(day_col).all()
 
         daily_summary = [
             {
-                "date": d.day.strftime("%d.%m.%Y"),
+                "date": d.day.strftime("%d.%m.%Y") if hasattr(d.day, "strftime") else str(d.day),
                 "count": d.count,
                 "amount": float(d.amount or 0)
             }
             for d in daily_data
         ]
 
-        return {
-            "month": f"{year}-{month:02d}",
-            "sales_count": sales_count,
-            "total_amount": round(total_amount, 2),
-            "total_discount": round(total_discount, 2),
-            "avg_check": round(avg_check, 2),
-            "daily_data": daily_summary
-        }
+        return {"month": f"{year}-{month:02d}", **_report_fields(summary), "daily_data": daily_summary}
     finally:
         db.close()
+
+
+def _returns_lines(report: dict) -> str:
+    """Qaytarish bo'lsa — qaytarish va sof tushum qatorlari."""
+    if not report.get("returns_count"):
+        return ""
+    return (
+        f"↩️ Qaytarishlar: <b>{report['returns_count']} ta, {report['returns_amount']:,} UZS</b>\n"
+        f"✅ Sof tushum: <b>{report['net_amount']:,} UZS</b>\n"
+    )
 
 
 def main_menu_keyboard() -> ReplyKeyboardMarkup:
@@ -339,6 +326,7 @@ async def handle_daily_report(message: Message, company_id: int) -> None:
         f"📅 Sana: <b>{report['date']}</b>\n"
         f"🛒 Sotuvlar soni: <b>{report['sales_count']}</b>\n"
         f"💰 Jami summa: <b>{report['total_amount']:,} UZS</b>\n"
+        f"{_returns_lines(report)}"
         f"🎁 Chegirma: <b>{report['total_discount']:,} UZS</b>\n"
         f"📊 O'rtacha chek: <b>{report['avg_check']:,} UZS</b>",
         reply_markup=main_menu_keyboard(),
@@ -370,6 +358,7 @@ async def handle_monthly_report(message: Message, company_id: int) -> None:
         f"📅 Oy: <b>{report['month']}</b>\n"
         f"🛒 Sotuvlar soni: <b>{report['sales_count']}</b>\n"
         f"💰 Jami summa: <b>{report['total_amount']:,} UZS</b>\n"
+        f"{_returns_lines(report)}"
         f"🎁 Chegirma: <b>{report['total_discount']:,} UZS</b>\n"
         f"📊 O'rtacha chek: <b>{report['avg_check']:,} UZS</b>\n\n"
         f"📊 <b>Oxirgi 7 kun:</b>\n{daily_text if daily_text else ''}",

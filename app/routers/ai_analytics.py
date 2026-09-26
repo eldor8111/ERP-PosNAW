@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import date, timedelta
+from datetime import timedelta
 from pydantic import BaseModel
 
 from app.database import get_db
 from app.core.dependencies import require_roles
 from app.models.user import User, UserRole
-from app.models.sale import Sale, SaleStatus
+from app.models.sale import Sale
 from app.services.ai_service import (
     build_daily_context,
     build_daily_report,
@@ -147,23 +147,10 @@ def get_daily_summary(
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
 ):
     """Bugungi kun xulosasi va mahalliy AI tahlili."""
-    def sf(v):
-        try:
-            return float(v or 0)
-        except Exception:
-            return 0.0
+    from app.utils.report_utils import local_today, day_sales_summary
 
-    today = date.today()
-    sales = db.query(Sale).filter(
-        func.date(Sale.created_at) == today,
-        Sale.company_id == current_user.company_id,
-        Sale.status == SaleStatus.completed
-    ).all()
-
-    total_sales = sum(sf(s.total_amount) for s in sales)
-    cash = sum(sf(s.paid_cash) for s in sales)
-    card = sum(sf(s.paid_card) for s in sales)
-    debt = sum(sf(s.total_amount) - sf(s.paid_amount) for s in sales)
+    today = local_today()
+    summary = day_sales_summary(db, current_user.company_id, today)
 
     context = build_daily_context(db, current_user.company_id)
     prompt = "Bugungi savdoga qisqacha ta'rif ber."
@@ -180,11 +167,14 @@ def get_daily_summary(
     return {
         "date": str(today),
         "stats": {
-            "total_sales": total_sales,
-            "total_orders": len(sales),
-            "cash": cash,
-            "card": card,
-            "debt": debt,
+            "total_sales": summary["gross"],
+            "total_orders": summary["count"],
+            "returns": summary["returns"],
+            "returns_count": summary["returns_count"],
+            "net_sales": summary["net"],
+            "cash": summary["cash"],
+            "card": summary["card"],
+            "debt": summary["debt"],
         },
         "ai_summary": ai_summary,
     }
@@ -197,18 +187,21 @@ def get_weekly_chart(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
 ):
-    """7 kunlik savdo grafik ma'lumotlari."""
-    today = date.today()
+    """7 kunlik savdo grafik ma'lumotlari (UZS, sotuv hujjatlari)."""
+    from app.utils.report_utils import local_today, local_day_start, sale_doc_filter
+
+    today = local_today()
     start_date = today - timedelta(days=6)
 
+    day_col = func.date(Sale.created_at)
     daily_sales = db.query(
-        func.date(Sale.created_at).label("date"),
+        day_col.label("date"),
         func.sum(Sale.total_amount).label("total")
     ).filter(
-        func.date(Sale.created_at) >= start_date,
+        Sale.created_at >= local_day_start(start_date),
         Sale.company_id == current_user.company_id,
-        Sale.status == SaleStatus.completed
-    ).group_by(func.date(Sale.created_at)).all()
+        sale_doc_filter(),
+    ).group_by(day_col).all()
 
     sales_dict = {str(d): float(t or 0) for d, t in daily_sales}
     days_map = ["Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya"]

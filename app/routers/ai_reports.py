@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
-from datetime import date, timedelta
+from sqlalchemy import func
+from datetime import timedelta
 import os
 from cachetools import TTLCache
 
@@ -9,8 +9,11 @@ from app.database import get_db
 from app.core.dependencies import require_roles
 from app.models.user import User, UserRole
 from app.models.company import Company
-from app.models.sale import Sale, SaleItem, PaymentType, SaleStatus
+from app.models.sale import Sale, SaleItem
 from app.models.product import Product
+from app.utils.report_utils import (
+    _date_range, local_today, day_sales_summary, sale_or_return_filter, doc_sign,
+)
 from app.models.inventory import StockLevel
 from app.services.debt_scoring import categorize_customers
 from app.services.openrouter_insights_service import generate_daily_insight
@@ -36,7 +39,7 @@ def get_daily_insight(
     Kompaniyaning bugungi moliyaviy holatini umumiylashtirib AI orqali chiroyli matnga aylantirib beradi.
     Multi-tenant xavfsizligi ta'minlangan (Faqat tokendagi company_id bo'yicha).
     """
-    today = date.today()
+    today = local_today()
     company_id = current_user.company_id
     cache_key = f"daily_insight_{company_id}_{today}"
     
@@ -50,43 +53,33 @@ def get_daily_insight(
     # 2. XAVFSIZ AGREGATSIYA (Faqat joriy korxona bo'yicha)
     yesterday = today - timedelta(days=1)
     
-    # Bugungi sotuvlar
-    sales = db.query(Sale).filter(
-        func.date(Sale.created_at) == today,
-        Sale.company_id == company_id,
-        Sale.status == SaleStatus.completed
-    ).all()
-    
-    total_sales = sum(_sf(s.total_amount) for s in sales)
-    cash = sum(_sf(s.paid_cash) for s in sales)
-    card = sum(_sf(s.paid_card) for s in sales)
-    debt_sales = [s for s in sales if s.payment_type == PaymentType.debt]
-    debt_added = sum(_sf(s.total_amount) - _sf(s.paid_amount) for s in debt_sales)
-    sales_count = len(sales)
-    
+    # Bugungi sotuvlar — sof tushum (qaytarishlar ayirilgan), UZS
+    summary = day_sales_summary(db, company_id, today)
+    total_sales = summary["net"]
+    cash = summary["cash"]
+    card = summary["card"]
+    debt_added = summary["debt"]
+    sales_count = summary["count"]
+
     # Kechagi bilan solishtirish (growth)
-    yest_total = _sf(
-        db.query(func.coalesce(func.sum(Sale.total_amount), 0))
-        .filter(
-            func.date(Sale.created_at) == yesterday,
-            Sale.company_id == company_id,
-            Sale.status == SaleStatus.completed
-        ).scalar()
-    )
+    yest_total = day_sales_summary(db, company_id, yesterday)["net"]
     growth_pct = ((total_sales - yest_total) / yest_total * 100) if yest_total > 0 else 0.0
-    
+
     # Top 3 mahsulot (faqat nomlari, ID yo'q)
+    start, end = _date_range(today, today)
+    net_qty = func.sum(doc_sign() * SaleItem.quantity)
     top_products_db = (
         db.query(Product.name)
         .join(SaleItem, SaleItem.product_id == Product.id)
         .join(Sale, Sale.id == SaleItem.sale_id)
         .filter(
-            func.date(Sale.created_at) == today,
+            Sale.created_at >= start,
+            Sale.created_at < end,
             Sale.company_id == company_id,
-            Sale.status == SaleStatus.completed
+            sale_or_return_filter(),
         )
-        .group_by(Product.name)
-        .order_by(desc(func.sum(SaleItem.quantity)))
+        .group_by(Product.id, Product.name)
+        .order_by(net_qty.desc())
         .limit(3)
         .all()
     )

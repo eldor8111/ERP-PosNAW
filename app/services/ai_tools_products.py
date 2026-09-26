@@ -1,10 +1,11 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
+from sqlalchemy import func
 from datetime import datetime, timedelta, timezone
 
 from app.models.user import User
 from app.models.product import Product
-from app.models.sale import Sale, SaleItem, SaleStatus
+from app.models.sale import Sale, SaleItem
+from app.utils.report_utils import sale_or_return_filter, doc_sign, item_revenue_uzs, item_cost_uzs
 from app.models.inventory import StockLevel
 from app.services.ai_tools_registry import AITool, AIToolRegistry
 
@@ -33,11 +34,12 @@ class PredictStockDepletionTool(AITool):
         history_days = 14
         start_date = datetime.now(timezone.utc) - timedelta(days=history_days)
 
+        # Sof sotilgan miqdor: qaytarishlar ayiriladi, kutilayotgan/bekor qilinganlar kirmaydi
         sales_subquery = db.query(
             SaleItem.product_id,
-            func.sum(SaleItem.quantity).label("total_sold_14d")
+            func.sum(doc_sign() * SaleItem.quantity).label("total_sold_14d")
         ).join(Sale, Sale.id == SaleItem.sale_id)\
-         .filter(Sale.company_id == company_id, Sale.status != SaleStatus.cancelled, Sale.created_at >= start_date)\
+         .filter(Sale.company_id == company_id, sale_or_return_filter(), Sale.created_at >= start_date)\
          .group_by(SaleItem.product_id).subquery()
 
         stock_subquery = db.query(
@@ -105,21 +107,23 @@ class GetProductProfitTool(AITool):
         days = kwargs.get("days", 30)
         start_date = datetime.now(timezone.utc) - timedelta(days=days)
 
+        # UZS da, qaytarishlar ayirilgan; tannarx — sotuv qatoridagi FIFO tannarxi
+        # (Product da buy_price maydoni yo'q — avval bu so'rov AttributeError berardi)
+        revenue_expr = func.sum(doc_sign() * item_revenue_uzs())
         results = db.query(
             Product.name,
-            func.sum(SaleItem.quantity).label("qty"),
-            func.sum(SaleItem.subtotal).label("revenue"),
-            # Cost price * quantity = Total Cost
-            func.sum(Product.buy_price * SaleItem.quantity).label("total_cost")
+            func.sum(doc_sign() * SaleItem.quantity).label("qty"),
+            revenue_expr.label("revenue"),
+            func.sum(doc_sign() * item_cost_uzs()).label("total_cost")
         ).join(SaleItem, SaleItem.product_id == Product.id)\
          .join(Sale, Sale.id == SaleItem.sale_id)\
          .filter(
             Product.company_id == company_id,
             Sale.company_id == company_id,
-            Sale.status != SaleStatus.cancelled,
+            sale_or_return_filter(),
             Sale.created_at >= start_date
-        ).group_by(Product.id)\
-         .order_by(desc("revenue"))\
+        ).group_by(Product.id, Product.name)\
+         .order_by(revenue_expr.desc())\
          .limit(limit).all()
 
         if not results:
