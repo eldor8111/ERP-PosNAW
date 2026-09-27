@@ -3804,4 +3804,5 @@ export default {
   "supplier.totalReturns": "Qaytarilgan tovar",
   "supplier.return": "Qaytarish",
   "supplier.refund": "Pul qaytdi",
+  "ops.saleSaved": "Sotuv saqlandi",
 };

@@ -3808,4 +3808,5 @@ export default {
   "supplier.totalReturns": "Возвращено товара",
   "supplier.return": "Возврат",
   "supplier.refund": "Возврат денег",
+  "ops.saleSaved": "Продажа сохранена",
 };

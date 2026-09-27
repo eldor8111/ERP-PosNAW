@@ -3745,4 +3745,5 @@ export default {
   "supplier.totalReturns": "Returned goods",
   "supplier.return": "Return",
   "supplier.refund": "Refund received",
+  "ops.saleSaved": "Sale saved",
 };
