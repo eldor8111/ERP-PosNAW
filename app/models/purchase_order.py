@@ -28,6 +28,12 @@ class PurchaseOrder(Base):
     paid_amount = Column(Numeric(14, 2), default=0)
     discount_amount = Column(Numeric(14, 2), default=0)
     currency = Column(String(3), nullable=True, default='UZS')
+    # Xarid yaratilgandagi kurs (1 valyuta = N so'm) — qarz shu kursda hisoblanadi
+    exchange_rate = Column(Numeric(14, 4), nullable=True)
+    # Ta'minotchi balansiga shu xaridning hozirgi hissasi (supplier_debt_currency da):
+    # qabul qilingan qiymat (chegirma bilan) − to'langan. O'chirish/tahrirda aynan shu qaytariladi.
+    supplier_debt = Column(Numeric(18, 4), nullable=True)
+    supplier_debt_currency = Column(String(10), nullable=True)
     note = Column(Text, nullable=True)
     expected_date = Column(DateTime, nullable=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
@@ -54,6 +60,9 @@ class POItem(Base):
     original_unit_cost = Column(Numeric(12, 4), nullable=True)  # Original currency amount
     cost_currency = Column(String(3), nullable=True, default='UZS')  # Original currency code
     expiry_date = Column(DateTime, nullable=True)
+    # Yangi sotuv narxlari — tovar qabul qilinganda qo'llanadi (qoralamada emas)
+    new_sale_price = Column(Numeric(16, 4), nullable=True)
+    new_wholesale_price = Column(Numeric(16, 4), nullable=True)
 
     po = relationship("PurchaseOrder", back_populates="items")
     product = relationship("Product")

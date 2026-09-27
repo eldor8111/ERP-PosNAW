@@ -24,7 +24,9 @@ class StockReceiveItem(BaseModel):
     variant_id: Optional[int] = None
     quantity: Decimal
     reason: Optional[str] = None
-    purchase_price: Optional[Decimal] = None  # FIFO/FEFO uchun tannarx (ixtiyoriy)
+    purchase_price: Optional[Decimal] = None  # FIFO/FEFO uchun tannarx (UZS, ixtiyoriy)
+    cost_price: Optional[Decimal] = None      # frontend nomi — purchase_price bilan bir xil
+    lot_number: Optional[str] = None
     expiry_date: Optional[date] = None
 
     @field_validator("quantity")
@@ -34,10 +36,19 @@ class StockReceiveItem(BaseModel):
             raise ValueError("Miqdor musbat bo'lishi kerak")
         return v
 
+    @field_validator("purchase_price", "cost_price")
+    @classmethod
+    def price_not_negative(cls, v):
+        if v is not None and v < 0:
+            raise ValueError("Narx manfiy bo'lishi mumkin emas")
+        return v
+
 
 class StockReceiveRequest(BaseModel):
     items: List[StockReceiveItem]
     note: Optional[str] = None
+    warehouse_id: Optional[int] = None
+    supplier_id: Optional[int] = None
 
 
 class StockAdjustRequest(BaseModel):
@@ -162,7 +173,15 @@ class SupplierReturnRequest(BaseModel):
     items: List[SupplierReturnItem]
     received_amount: Decimal = Decimal("0")
     wallet_id: Optional[int] = None
+    payment_type: Optional[str] = "cash"
     note: Optional[str] = None
+
+    @field_validator("received_amount")
+    @classmethod
+    def received_not_negative(cls, v):
+        if v is not None and v < 0:
+            raise ValueError("Qaytgan summa manfiy bo'lishi mumkin emas")
+        return v
 
 
 # ── Mijozdan qaytarish (mustaqil operatsiya) ──────────────────────────────

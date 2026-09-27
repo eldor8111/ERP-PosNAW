@@ -45,6 +45,8 @@ export default function Finance() {
   const [payModal, setPayModal] = useState(null); // {type: 'customer'|'supplier', id, name, balance}
   const [payAmount, setPayAmount] = useState('');
   const [payCurrency, setPayCurrency] = useState('UZS');
+  const [payWallet, setPayWallet] = useState('');
+  const [payType, setPayType] = useState('cash');
   const [paying, setPaying] = useState(false);
 
   // Payme to'lov (3 bosqich)
@@ -143,10 +145,18 @@ export default function Finance() {
       const endpoint = payModal.type === 'customer'
         ? `/finance/customer-debts/${payModal.id}/pay`
         : `/finance/supplier-debts/${payModal.id}/pay`;
-      await api.post(endpoint, { amount: parseFloat(payAmount), currency: payCurrency });
+      const body = { amount: parseFloat(payAmount), currency: payCurrency };
+      if (payModal.type === 'supplier') {
+        // Ta'minotchi to'lovi kassadan chiqadi (avval kassa va kassa harakati yozilmasdi)
+        body.wallet_id = payWallet ? Number(payWallet) : null;
+        body.payment_type = payType;
+      }
+      await api.post(endpoint, body);
       setPayModal(null);
       setPayAmount('');
       setPayCurrency('UZS');
+      setPayWallet('');
+      setPayType('cash');
       loadTab();
       loadBase();
     } finally { setPaying(false); }
@@ -646,6 +656,7 @@ export default function Finance() {
                             onClick={() => {
                               setPayModal({ type: 'supplier', id: s.id, name: s.name, balance: s.debt_balance, balances: s.debt_balances });
                               setPayCurrency(s.debt_balances && Object.keys(s.debt_balances)[0] ? Object.keys(s.debt_balances)[0] : 'UZS');
+                              setPayWallet(wallets[0] ? String(wallets[0].id) : '');
                             }}
                             className="px-3 py-1.5 text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-colors">
                             {t('customer.payDebt')}
@@ -918,12 +929,35 @@ export default function Finance() {
                 ) : null}
               </div>
             </div>
+            {payModal.type === 'supplier' && (
+              <div className="mb-4 grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('finance.wallet')}</label>
+                  <select value={payWallet} onChange={e => setPayWallet(e.target.value)}
+                    className="w-full px-2 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    <option value="">—</option>
+                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('sale.paymentType')}</label>
+                  <select value={payType} onChange={e => setPayType(e.target.value)}
+                    className="w-full px-2 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    <option value="cash">{t('pay.cash')}</option>
+                    <option value="card">{t('pay.card')}</option>
+                    <option value="transfer">{t('purchase.bankTransfer')}</option>
+                    <option value="click">Click</option>
+                    <option value="payme">Payme</option>
+                  </select>
+                </div>
+              </div>
+            )}
             <div className="flex gap-2">
               <button onClick={handlePay} disabled={paying || !payAmount}
                 className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors">
                 {paying ? t('common.saving') : t('customer.payDebt')}
               </button>
-              <button onClick={() => { setPayModal(null); setPayAmount(''); setPayCurrency('UZS'); }}
+              <button onClick={() => { setPayModal(null); setPayAmount(''); setPayCurrency('UZS'); setPayWallet(''); setPayType('cash'); }}
                 className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-xl transition-colors">
                 {t('common.cancel')}
               </button>

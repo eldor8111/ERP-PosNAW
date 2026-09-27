@@ -1,46 +1,110 @@
+from collections import defaultdict
+from decimal import Decimal, InvalidOperation
 from typing import List, Optional
-from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query  # type: ignore
 from pydantic import BaseModel
-from sqlalchemy.orm import Session  # type: ignore
-from sqlalchemy.orm.attributes import flag_modified  # type: ignore
+from sqlalchemy.orm import Session, joinedload  # type: ignore
 
 from app.core.audit import log_action  # type: ignore
-from app.core.dependencies import get_current_user, require_roles  # type: ignore
+from app.core.dependencies import require_roles  # type: ignore
 from app.database import get_db  # type: ignore
 from app.models.supplier import Supplier  # type: ignore
 from app.models.user import User, UserRole  # type: ignore
-from app.schemas.supplier import SupplierCreate, SupplierOut, SupplierUpdate  # type: ignore
+from app.schemas.supplier import SupplierCreate, SupplierDebtAdjust, SupplierOut, SupplierUpdate  # type: ignore
+from app.services import supplier_ledger as ledger  # type: ignore
 from app.utils.translit import name_search_filter  # type: ignore
 
 router = APIRouter(prefix="/suppliers", tags=["Suppliers"])
 
 ALLOWED = (UserRole.admin, UserRole.director, UserRole.manager, UserRole.accountant)
+# Qarzni qo'lda tuzatish — faqat rahbariyat va buxgalter
+DEBT_ADJUST_ROLES = (UserRole.admin, UserRole.director, UserRole.accountant)
+
+ZERO = Decimal("0")
 
 
 class SupplierDebtPayment(BaseModel):
-    amount: float
+    amount: Decimal
     reason: str = "Qarz to'lovi"
     wallet_id: Optional[int] = None
     payment_type: Optional[str] = "cash"
     currency: Optional[str] = "UZS"
 
 
+def _get_supplier(db: Session, supplier_id: int, user: User, active_only: bool = False) -> Supplier:
+    q = db.query(Supplier).filter(Supplier.id == supplier_id, Supplier.company_id == user.company_id)
+    if active_only:
+        q = q.filter(Supplier.is_active == True)
+    supplier = q.first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
+    return supplier
+
+
+def _company_rates(db: Session, company_id: int) -> dict:
+    from app.models.currency import Currency as CurrencyModel
+    rows = db.query(CurrencyModel).filter(
+        CurrencyModel.company_id == company_id, CurrencyModel.is_active == True,
+    ).all()
+    rates = {c.code.upper(): float(c.rate) for c in rows if c.rate}
+    rates["UZS"] = 1.0
+    return rates
+
+
+def _float_balances(supplier: Supplier) -> dict:
+    return {k: float(round(v, 4)) for k, v in ledger.balances(supplier).items()}
+
 
 @router.get("", response_model=List[SupplierOut])
 def list_suppliers(
     search: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(1000, ge=1, le=5000),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*ALLOWED)),
 ):
-    q = db.query(Supplier).filter(Supplier.is_active == True)
-    q = q.filter(Supplier.company_id == current_user.company_id)
+    q = db.query(Supplier).filter(Supplier.is_active == True, Supplier.company_id == current_user.company_id)
     if search:
         q = q.filter(name_search_filter(Supplier.name, search))
-    return q.offset(skip).limit(limit).all()
+    return q.order_by(Supplier.name).offset(skip).limit(limit).all()
+
+
+@router.get("/summary")
+def suppliers_summary(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*ALLOWED)),
+):
+    """Barcha faol ta'minotchilar bo'yicha jami qarz va avans (ro'yxat limitidan qat'i nazar)."""
+    suppliers = db.query(Supplier).filter(
+        Supplier.is_active == True, Supplier.company_id == current_user.company_id,
+    ).all()
+    rates = _company_rates(db, current_user.company_id)
+    debts, avans = defaultdict(float), defaultdict(float)
+    debt_uzs = avans_uzs = 0.0
+    debtors = 0
+    for s in suppliers:
+        has_debt = False
+        for cur, amt in ledger.balances(s).items():
+            amt = float(amt)
+            rate = rates.get(cur, 1.0)
+            if amt > 0:
+                debts[cur] += amt
+                debt_uzs += amt * rate
+                has_debt = True
+            elif amt < 0:
+                avans[cur] += -amt
+                avans_uzs += -amt * rate
+        debtors += 1 if has_debt else 0
+    return {
+        "count": len(suppliers),
+        "debtors_count": debtors,
+        "debt_by_currency": {k: round(v, 2) for k, v in debts.items()},
+        "avans_by_currency": {k: round(v, 2) for k, v in avans.items()},
+        "debt_uzs": round(debt_uzs, 2),
+        "avans_uzs": round(avans_uzs, 2),
+        "rates": rates,
+    }
 
 
 @router.post("", response_model=SupplierOut)
@@ -49,29 +113,30 @@ def create_supplier(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*ALLOWED)),
 ):
-    try:
-        supplier_data = data.model_dump()
-        supplier_data["company_id"] = current_user.company_id
-        if supplier_data.get("debt_balances") is None:
-            supplier_data["debt_balances"] = {}
-        supplier = Supplier(**supplier_data)
-        db.add(supplier)
-        db.flush()
-        log_action(
-            db,
-            action="CREATE",
-            entity_type="supplier",
-            entity_id=supplier.id,
-            user_id=current_user.id,
-            new_values={"name": supplier.name},
-        )
-        db.commit()
-        db.refresh(supplier)
-        return supplier
-    except Exception:
-        db.rollback()
-        import traceback; traceback.print_exc()
-        raise HTTPException(status_code=500, detail="Ta'minotchi saqlashda xato")
+    payload = data.model_dump(exclude={"debt_balance", "debt_currency", "debt_balances"})
+    supplier = Supplier(**payload, company_id=current_user.company_id,
+                        debt_balance=ZERO, debt_currency="UZS", debt_balances={})
+    db.add(supplier)
+    db.flush()
+
+    # Boshlang'ich qarz (ixtiyoriy) — valyutalar bo'yicha
+    initial = defaultdict(lambda: ZERO)
+    if data.debt_balances:
+        for code, amt in data.debt_balances.items():
+            try:
+                initial[str(code).strip().upper() or "UZS"] += Decimal(str(amt or 0))
+            except InvalidOperation:
+                raise HTTPException(status_code=400, detail=f"Qarz summasi noto'g'ri: {amt}")
+    elif data.debt_balance:
+        initial[(data.debt_currency or "UZS").strip().upper() or "UZS"] += Decimal(str(data.debt_balance))
+    for code, amt in initial.items():
+        ledger.add(db, supplier, code, amt)
+
+    log_action(db, action="CREATE", entity_type="supplier", entity_id=supplier.id, user_id=current_user.id,
+               new_values={"name": supplier.name, "initial_debt": {k: str(v) for k, v in initial.items() if v}})
+    db.commit()
+    db.refresh(supplier)
+    return supplier
 
 
 @router.get("/{supplier_id}", response_model=SupplierOut)
@@ -80,12 +145,7 @@ def get_supplier(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*ALLOWED)),
 ):
-    q = db.query(Supplier).filter(Supplier.id == supplier_id)
-    q = q.filter(Supplier.company_id == current_user.company_id)
-    supplier = q.first()
-    if not supplier:
-        raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
-    return supplier
+    return _get_supplier(db, supplier_id, current_user)
 
 
 @router.patch("/{supplier_id}", response_model=SupplierOut)
@@ -95,27 +155,52 @@ def update_supplier(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*ALLOWED)),
 ):
-    q = db.query(Supplier).filter(Supplier.id == supplier_id)
-    q = q.filter(Supplier.company_id == current_user.company_id)
-    supplier = q.first()
-    if not supplier:
-        raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
-    old = {"name": supplier.name}
-    for field, value in data.model_dump(exclude_none=True).items():
-        if field == "debt_balances" and value is None:
-            value = {}
-        setattr(supplier, field, value)
-    if "debt_balances" in data.model_dump(exclude_none=True):
-        flag_modified(supplier, "debt_balances")
-    log_action(
-        db,
-        action="UPDATE",
-        entity_type="supplier",
-        entity_id=supplier.id,
-        user_id=current_user.id,
-        old_values=old,
-        new_values={"name": supplier.name},
-    )
+    """Rekvizitlarni tahrirlash. Qarz bu yerda o'zgarmaydi — /adjust-debt orqali."""
+    supplier = _get_supplier(db, supplier_id, current_user)
+    old, new = {}, {}
+    for field, value in data.model_dump(exclude_unset=True).items():
+        if field == "name" and not (value or "").strip():
+            raise HTTPException(status_code=400, detail="Ta'minotchi nomi bo'sh bo'lishi mumkin emas")
+        if field in ("name", "payment_terms", "is_active") and value is None:
+            continue
+        if field == "is_active" and value is False and any(abs(v) >= 0.01 for v in _float_balances(supplier).values()):
+            raise HTTPException(status_code=400, detail="Ta'minotchida ochiq qarz/avans bor — avval hisob-kitobni yoping")
+        before = getattr(supplier, field)
+        if before != value:
+            old[field] = str(before) if before is not None else None
+            new[field] = str(value) if value is not None else None
+            setattr(supplier, field, value)
+    if new:
+        log_action(db, action="UPDATE", entity_type="supplier", entity_id=supplier.id,
+                   user_id=current_user.id, old_values=old, new_values=new)
+    db.commit()
+    db.refresh(supplier)
+    return supplier
+
+
+@router.post("/{supplier_id}/adjust-debt", response_model=SupplierOut)
+def adjust_supplier_debt(
+    supplier_id: int,
+    data: SupplierDebtAdjust,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*DEBT_ADJUST_ROLES)),
+):
+    """Qarzni qo'lda tuzatish — faqat farq (delta) qo'shiladi, sababi bilan jurnalga yoziladi.
+    Butun balansni qayta yozmaydi, shuning uchun parallel xarid/to'lovlar yo'qolmaydi."""
+    supplier = _get_supplier(db, supplier_id, current_user)
+    reason = (data.reason or "").strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="Tuzatish sababini kiriting")
+    changes = [c for c in data.changes if c.delta]
+    if not changes:
+        raise HTTPException(status_code=400, detail="O'zgarish kiritilmagan")
+    before = _float_balances(supplier)
+    for c in changes:
+        ledger.add(db, supplier, c.currency, c.delta)
+    log_action(db, action="ADJUST_DEBT", entity_type="supplier", entity_id=supplier.id, user_id=current_user.id,
+               old_values={"debt_balances": before},
+               new_values={"debt_balances": supplier.debt_balances, "reason": reason,
+                           "changes": [{"currency": c.currency.upper(), "delta": str(c.delta)} for c in changes]})
     db.commit()
     db.refresh(supplier)
     return supplier
@@ -128,7 +213,7 @@ def bulk_import_suppliers(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*ALLOWED)),
 ):
-    """Excel fayldan ta'minotchilarni yuklash yoki yangilash."""
+    """Excel fayldan ta'minotchilarni yuklash yoki yangilash. "Qarz" — UZS dagi joriy qarz."""
     FIELD_MAP = {
         "Nomi":                 ("name",          str),
         "INN":                  ("inn",           str),
@@ -136,78 +221,70 @@ def bulk_import_suppliers(
         "Email":                ("email",         str),
         "Manzil":               ("address",       str),
         "To'lov muddati (kun)": ("payment_terms", int),
-        "Qarz":                 ("debt_balance",  Decimal),
     }
 
-    created = 0
-    updated = 0
-    errors = []
+    def _parse(row, row_num, name):
+        values, debt, bad = {}, None, []
+        for row_key, (field, cast) in FIELD_MAP.items():
+            raw = row.get(row_key)
+            if raw is None or str(raw).strip() == "":
+                continue
+            try:
+                values[field] = cast(str(raw).strip()) if cast is int else str(raw).strip()
+            except ValueError:
+                bad.append(row_key)
+        raw_debt = row.get("Qarz")
+        if raw_debt is not None and str(raw_debt).strip() != "":
+            try:
+                debt = Decimal(str(raw_debt).strip().replace(" ", "").replace(",", "."))
+            except InvalidOperation:
+                bad.append("Qarz")
+        for key in bad:
+            errors.append({"row": row_num, "name": name, "error": f"'{key}' qiymati xato: {row.get(key)}"})
+        return values, debt
 
+    created = updated = 0
+    errors = []
     dup_q_base = db.query(Supplier).filter(Supplier.company_id == current_user.company_id)
 
     for idx, row in enumerate(rows):
         row_num = row.get("__row_index", idx + 2)
         name = str(row.get("Nomi") or "").strip()
         inn = str(row.get("INN") or "").strip() or None
-
         if not name:
             errors.append({"row": row_num, "error": "Ta'minotchi nomi majburiy"})
             continue
 
-        existing = None
-        if inn:
-            existing = dup_q_base.filter(Supplier.inn == inn).first()
+        existing = dup_q_base.filter(Supplier.inn == inn).first() if inn else None
         if not existing:
             existing = dup_q_base.filter(Supplier.name == name).first()
 
-        if existing:
-            if not allow_update:
-                errors.append({
-                    "row": row_num, "name": name,
-                    "error": f"'{name}' allaqachon mavjud — o'tkazib yuborildi"
-                })
-                continue
-            
-            for row_key, (field, cast) in FIELD_MAP.items():
-                raw = row.get(row_key)
-                if raw is None or str(raw).strip() == "":
-                    continue
-                try:
-                    val = str(raw).strip()
-                    if cast == Decimal:
-                        val = Decimal(val)
-                    elif cast == int:
-                        val = int(val)
-                    setattr(existing, field, val)
-                except Exception:
-                    errors.append({"row": row_num, "name": name, "error": f"'{row_key}' qiymati xato: {raw}"})
-                    continue
+        if existing and not allow_update:
+            errors.append({"row": row_num, "name": name, "error": f"'{name}' allaqachon mavjud — o'tkazib yuborildi"})
+            continue
 
+        values, debt = _parse(row, row_num, name)
+        if existing:
+            for field, val in values.items():
+                setattr(existing, field, val)
+            if debt is not None:
+                # Faylda joriy UZS qarz — farqi qo'shiladi
+                current = ledger.balances(existing).get("UZS", ZERO)
+                ledger.add(db, existing, "UZS", debt - current)
             updated += 1
             continue
 
-        kwargs = {"company_id": current_user.company_id}
-        for row_key, (field, cast) in FIELD_MAP.items():
-            raw = row.get(row_key)
-            if raw is not None and str(raw).strip() != "":
-                try:
-                    val = str(raw).strip()
-                    if cast == Decimal:
-                        val = Decimal(val)
-                    elif cast == int:
-                        val = int(val)
-                    kwargs[field] = val
-                except:
-                    pass
-
-        if "name" not in kwargs:
-            kwargs["name"] = name
-
-        sup = Supplier(**kwargs)
+        values.setdefault("name", name)
+        sup = Supplier(**values, company_id=current_user.company_id,
+                       debt_balance=ZERO, debt_currency="UZS", debt_balances={})
         db.add(sup)
         db.flush()
+        if debt:
+            ledger.add(db, sup, "UZS", debt)
         created += 1
 
+    log_action(db, action="BULK_IMPORT", entity_type="supplier", user_id=current_user.id,
+               new_values={"created": created, "updated": updated, "errors": len(errors)})
     db.commit()
     return {"created": created, "updated": updated, "skipped": len(errors), "errors": errors}
 
@@ -218,21 +295,16 @@ def delete_supplier(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*ALLOWED)),
 ):
-    """Soft-delete: is_active = False"""
-    q = db.query(Supplier).filter(Supplier.id == supplier_id)
-    q = q.filter(Supplier.company_id == current_user.company_id)
-    supplier = q.first()
-    if not supplier:
-        raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
+    """Soft-delete: is_active = False. Qarzi yoki avansi bor ta'minotchi o'chirilmaydi
+    (aks holda kreditorlik hisobotlardan yo'qolib qolardi)."""
+    supplier = _get_supplier(db, supplier_id, current_user)
+    open_balances = {k: v for k, v in _float_balances(supplier).items() if abs(v) >= 0.01}
+    if open_balances:
+        text = ", ".join(f"{v:,.2f} {k}" for k, v in open_balances.items())
+        raise HTTPException(status_code=400, detail=f"Ta'minotchida ochiq qarz/avans bor ({text}) — avval hisob-kitobni yoping")
     supplier.is_active = False
-    log_action(
-        db,
-        action="DELETE",
-        entity_type="supplier",
-        entity_id=supplier.id,
-        user_id=current_user.id,
-        old_values={"name": supplier.name},
-    )
+    log_action(db, action="DELETE", entity_type="supplier", entity_id=supplier.id,
+               user_id=current_user.id, old_values={"name": supplier.name})
     db.commit()
 
 
@@ -243,138 +315,52 @@ def pay_supplier_debt(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*ALLOWED)),
 ):
-    """Ta'minotchi qarzini to'lash — debt_balance ni kamaytiradi"""
-    q = db.query(Supplier).filter(
-        Supplier.id == supplier_id,
-        Supplier.company_id == current_user.company_id,
-        Supplier.is_active == True,
-    )
-    supplier = q.first()
-    if not supplier:
-        raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
-    if data.amount <= 0:
-        raise HTTPException(status_code=400, detail="To'lov miqdori musbat bo'lishi kerak")
-
-    currency = data.currency or "UZS"
-
-    # ✅ KRITIK-4 TUZATILDI: Legacy migration to'g'ri ishlaydi
-    if not supplier.debt_balances:
-        if float(supplier.debt_balance or 0) > 0:
-            legacy_currency = (supplier.debt_currency or "UZS").strip().upper() or "UZS"
-            supplier.debt_balances = {legacy_currency: float(supplier.debt_balance)}
-        else:
-            supplier.debt_balances = {}
-
-    from app.models.currency import Currency as CurrencyModel
-
-    def get_rate(cur: str) -> Decimal:
-        """Valyuta kursini qaytaradi (UZS=1)"""
-        if cur == "UZS":
-            return Decimal("1")
-        obj = db.query(CurrencyModel).filter(CurrencyModel.code == cur).first()
-        return Decimal(str(obj.rate)) if obj else Decimal("1")
-
-    payment_currency = currency
-    payment_amount   = Decimal(str(data.amount))
-    payment_rate     = get_rate(payment_currency)
-    payment_in_uzs   = payment_amount * payment_rate
-
-    remaining_uzs = payment_in_uzs
-
-    # 1) Avval to'lov valyutasidagi qarzdan ayiramiz
-    if payment_currency in supplier.debt_balances and float(supplier.debt_balances[payment_currency]) > 0:
-        debt_in_pay_cur = Decimal(str(supplier.debt_balances[payment_currency]))
-        deducted = min(debt_in_pay_cur, payment_amount)
-        supplier.debt_balances[payment_currency] = float(debt_in_pay_cur - deducted)
-        remaining_uzs -= deducted * payment_rate
-
-    # 2) Qolgan summa bo'lsa, boshqa valyutalardagi qarzlardan kurs bo'yicha ayiramiz
-    if remaining_uzs > Decimal("0.001"):
-        for debt_cur, debt_val in list(supplier.debt_balances.items()):
-            if remaining_uzs <= Decimal("0.001"):
-                break
-            if debt_cur == payment_currency:
-                continue
-            debt_amount = Decimal(str(debt_val))
-            if debt_amount <= 0:
-                continue
-            debt_rate = get_rate(debt_cur)
-            debt_in_uzs = debt_amount * debt_rate
-            if debt_in_uzs <= Decimal("0.001"):
-                continue
-            uzs_to_cover = min(remaining_uzs, debt_in_uzs)
-            amount_in_debt_cur = uzs_to_cover / debt_rate
-            supplier.debt_balances[debt_cur] = float(
-                max(Decimal("0"), debt_amount - amount_in_debt_cur)
-            )
-            remaining_uzs -= uzs_to_cover
-
-    flag_modified(supplier, "debt_balances")
-
-    # Agregat UZS balansini kamaytirish
-    amount_in_uzs = payment_in_uzs
-    supplier.debt_balance = max(Decimal("0"), Decimal(str(supplier.debt_balance or 0)) - amount_in_uzs)
-
-    from app.models.moliya import Transaction, Wallet, KassaMovement
-    from app.models.branch import Branch as _Branch
-
-    # Wallet balansini yangilash
-    if data.wallet_id:
-        wallet = db.get(Wallet, data.wallet_id)
-        if wallet:
-            wallet.balance = float(wallet.balance) - float(data.amount)
-
-    # branch_id ni xavfsiz olish
-    tx_branch_id = current_user.branch_id
-    if not tx_branch_id and current_user.company_id:
-        br = db.query(_Branch).filter(_Branch.company_id == current_user.company_id).first()
-        tx_branch_id = br.id if br else None
-
-    tx_desc = data.reason or ""
-    if currency != "UZS":
-        tx_desc = tx_desc + f" ({data.amount} {currency})"
-
-    # Tranzaksiya DOIM yoziladi (wallet_id bo'lmasa ham)
-    tx = Transaction(
-        company_id=current_user.company_id,
-        branch_id=tx_branch_id or 0,
-        wallet_id=data.wallet_id,
-        type="expense",
-        amount=data.amount,
-        currency_code=currency,
-        payment_type=data.payment_type,
-        reference_type="supplier_payment",
-        reference_id=supplier_id,
-        description=tx_desc.strip(),
-        user_id=current_user.id,
-    )
-    db.add(tx)
-
-    # KassaMovement — ta'minotchi to'lovi (chiqim)
-    if data.wallet_id:
-        db.add(KassaMovement(
-            wallet_id=data.wallet_id,
-            company_id=current_user.company_id,
-            direction="out",
-            payment_type=data.payment_type or "cash",
-            amount=data.amount,
-            reference_type="supplier_payment",
-            reference_id=supplier_id,
-            description=f"Ta'minotchi to'lovi: {supplier.name} — {data.reason}",
-            created_by=current_user.id,
-        ))
-
-    log_action(
-        db,
-        action="PAY_DEBT",
-        entity_type="supplier",
-        entity_id=supplier.id,
-        user_id=current_user.id,
-        new_values={"amount": data.amount, "reason": data.reason},
+    """Ta'minotchi qarzini to'lash (Moliya sahifasidagi to'lov bilan bir xil mantiq)."""
+    supplier = _get_supplier(db, supplier_id, current_user, active_only=True)
+    ledger.pay_supplier(
+        db, supplier, user=current_user, amount=data.amount, currency=data.currency or "UZS",
+        payment_type=data.payment_type or "cash", wallet_id=data.wallet_id, reason=data.reason,
     )
     db.commit()
     db.refresh(supplier)
     return supplier
+
+
+# ─── Statistika va tarix ─────────────────────────────────────────────────────
+
+def _supplier_money(db: Session, supplier: Supplier, company_id: int):
+    """Ta'minotchiga tegishli xaridlar, to'lov/qaytim tranzaksiyalari va qaytarish hujjatlari."""
+    from app.models.moliya import Transaction
+    from app.models.purchase_order import PurchaseOrder
+    from app.services.supplier_return_service import return_logs
+
+    purchases = (
+        db.query(PurchaseOrder)
+        .options(joinedload(PurchaseOrder.items), joinedload(PurchaseOrder.creator))
+        .filter(PurchaseOrder.supplier_id == supplier.id, PurchaseOrder.company_id == company_id)
+        .order_by(PurchaseOrder.created_at.desc())
+        .all()
+    )
+    po_ids = [p.id for p in purchases]
+    po_payments = []
+    if po_ids:
+        po_payments = db.query(Transaction).filter(
+            Transaction.company_id == company_id,
+            Transaction.reference_type == "purchase_order",
+            Transaction.reference_id.in_(po_ids),
+        ).all()
+    sup_txs = db.query(Transaction).filter(
+        Transaction.company_id == company_id,
+        Transaction.reference_type.in_(["supplier_payment", "return_to_supplier"]),
+        Transaction.reference_id == supplier.id,
+    ).all()
+    return purchases, po_payments, sup_txs, return_logs(db, supplier.id)
+
+
+def _tx_uzs(db: Session, tx, company_id: int) -> Decimal:
+    if tx.meta and tx.meta.get("po_paid_uzs") is not None:
+        return Decimal(str(tx.meta["po_paid_uzs"]))
+    return Decimal(str(tx.amount or 0)) * ledger.currency_rate(db, company_id, tx.currency_code)
 
 
 @router.get("/{supplier_id}/stats")
@@ -383,34 +369,25 @@ def get_supplier_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*ALLOWED)),
 ):
-    q = db.query(Supplier).filter(Supplier.id == supplier_id)
-    q = q.filter(Supplier.company_id == current_user.company_id)
-    supplier = q.first()
-    if not supplier:
-        raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
+    from app.models.purchase_order import POStatus
 
-    from app.models.purchase_order import PurchaseOrder, POStatus
+    supplier = _get_supplier(db, supplier_id, current_user)
+    cid = current_user.company_id
+    purchases, po_payments, sup_txs, returns = _supplier_money(db, supplier, cid)
 
-    all_pos = db.query(PurchaseOrder).filter(
-        PurchaseOrder.supplier_id == supplier_id,
-        PurchaseOrder.company_id == current_user.company_id
-    ).all()
+    active = [p for p in purchases if p.status != POStatus.cancelled]
+    received_uzs = ZERO
+    for p in purchases:  # bekor qilinganning qabul qilingan qismi ham haqiqiy
+        total = Decimal(str(p.total_amount or 0))
+        ratio = Decimal(str(p.discount_amount or 0)) / total if total > 0 else ZERO
+        received = sum((Decimal(str(i.qty_received or 0)) * Decimal(str(i.unit_cost or 0)) for i in p.items), ZERO)
+        received_uzs += received * (1 - ratio)
+    ordered_uzs = sum((Decimal(str(p.total_amount or 0)) - Decimal(str(p.discount_amount or 0)) for p in active), ZERO)
 
-    active_pos = [p for p in all_pos if p.status != POStatus.cancelled]
-
-    balances = dict(supplier.debt_balances or {})
-    if not balances and float(supplier.debt_balance or 0) > 0:
-        legacy_cur = (supplier.debt_currency or "UZS").strip().upper() or "UZS"
-        balances[legacy_cur] = float(supplier.debt_balance)
-
-    # ✅ Valyuta kurslarini qo'shamiz (SupplierDetail sub qatori uchun)
-    from app.models.currency import Currency as CurrencyModel
-    currency_objs = db.query(CurrencyModel).filter(
-        CurrencyModel.company_id == current_user.company_id,
-        CurrencyModel.is_active == True,
-    ).all()
-    rates = {c.code: float(c.rate) for c in currency_objs}
-    rates["UZS"] = 1.0
+    paid_uzs = sum((_tx_uzs(db, t, cid) for t in po_payments), ZERO)
+    paid_uzs += sum((_tx_uzs(db, t, cid) for t in sup_txs if t.reference_type == "supplier_payment"), ZERO)
+    refunds_uzs = sum((_tx_uzs(db, t, cid) for t in sup_txs if t.reference_type == "return_to_supplier" and t.type == "income"), ZERO)
+    returns_uzs = sum((Decimal(str(r["value"])) for r in returns), ZERO)
 
     return {
         "id": supplier.id,
@@ -420,11 +397,14 @@ def get_supplier_stats(
         "address": supplier.address,
         "payment_terms": supplier.payment_terms,
         "debt_balance": float(supplier.debt_balance or 0),
-        "debt_balances": balances,
-        "rates": rates,
-        "total_purchases_count": len(active_pos),
-        "total_purchases_amount": sum(float(p.total_amount) for p in active_pos),
-        "total_paid_amount": sum(float(p.paid_amount) for p in active_pos),
+        "debt_balances": _float_balances(supplier),  # manfiy — avans
+        "rates": _company_rates(db, cid),
+        "total_purchases_count": len(active),
+        # Qabul qilingan tovar qiymati (chegirma bilan) — qarz shundan hisoblanadi
+        "total_purchases_amount": float(round(received_uzs, 2)),
+        "total_ordered_amount": float(round(ordered_uzs, 2)),
+        "total_paid_amount": float(round(paid_uzs - refunds_uzs, 2)),
+        "total_returns_amount": float(round(returns_uzs, 2)),
     }
 
 
@@ -434,89 +414,84 @@ def get_supplier_history(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*ALLOWED)),
 ):
-    q = db.query(Supplier).filter(Supplier.id == supplier_id)
-    q = q.filter(Supplier.company_id == current_user.company_id)
-    supplier = q.first()
-    if not supplier:
-        raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
+    from app.services.purchase_order_service import display_amounts
 
-    from app.models.purchase_order import PurchaseOrder
-    from app.models.moliya import Transaction
+    supplier = _get_supplier(db, supplier_id, current_user)
+    cid = current_user.company_id
+    purchases, po_payments, sup_txs, returns = _supplier_money(db, supplier, cid)
+    po_numbers = {p.id: p.number for p in purchases}
 
-    # 1) Barcha xaridlar
-    purchases = db.query(PurchaseOrder).filter(
-        PurchaseOrder.supplier_id == supplier_id,
-        PurchaseOrder.company_id == current_user.company_id
-    ).order_by(PurchaseOrder.created_at.desc()).all()
-
-    # 2) Barcha to'lovlar
-    payments = db.query(Transaction).filter(
-        Transaction.reference_type.in_(["supplier_payment", "purchase_order"]),
-        Transaction.reference_id == supplier_id,
-        Transaction.company_id == current_user.company_id,
-        Transaction.type == "expense"
-    ).order_by(Transaction.created_at.desc()).all()
+    user_ids = {t.user_id for t in po_payments + sup_txs if t.user_id} | {r["user_id"] for r in returns if r["user_id"]}
+    names = {}
+    if user_ids:
+        names = {u.id: u.name for u in db.query(User).filter(User.id.in_(user_ids)).all()}
 
     history = []
-
     for p in purchases:
-        total_uzs = float(p.total_amount or 0)
-        paid_uzs  = float(p.paid_amount or 0)
-        po_currency = (getattr(p, "currency", "UZS") or "UZS").strip().upper()
-
-        # ✅ O'RTA-8 TO'LIQ TUZATILDI:
-        # total_amount bazada DOIM UZS da saqlanadi.
-        # Chet el valyutasida ko'rsatish uchun joriy kursga bo'lamiz:
-        # misol: 70,992,000 UZS ÷ 12,000 (USD kursi) = 5,916 USD ✓
-        if po_currency != "UZS":
-            from app.models.currency import Currency as CurrencyModel
-            rate_obj = db.query(CurrencyModel).filter(
-                CurrencyModel.code == po_currency,
-                CurrencyModel.company_id == current_user.company_id,
-            ).first()
-            rate = float(rate_obj.rate) if rate_obj and rate_obj.rate else 1.0
-            if rate > 0:
-                display_total = round(total_uzs / rate, 2)
-                display_paid  = round(paid_uzs  / rate, 2)
-            else:
-                display_total = total_uzs
-                display_paid  = paid_uzs
-        else:
-            display_total = total_uzs
-            display_paid  = paid_uzs
-
-        debt_added = max(0.0, display_total - display_paid)
+        a = display_amounts(db, p)
+        total = Decimal(str(p.total_amount or 0))
+        ratio = Decimal(str(p.discount_amount or 0)) / total if total > 0 else ZERO
+        received_uzs = sum((Decimal(str(i.qty_received or 0)) * Decimal(str(i.unit_cost or 0)) for i in p.items), ZERO) * (1 - ratio)
+        net_uzs = total - Decimal(str(p.discount_amount or 0))
+        status = p.status.value if hasattr(p.status, "value") else str(p.status)
         history.append({
             "id": p.id,
             "op_type": "purchase",
+            "status": status,
             "date": p.created_at.isoformat() if p.created_at else "",
-            "amount": display_total,
-            "amount_uzs": total_uzs,
-            "paid": display_paid,
-            "paid_uzs": paid_uzs,
-            "debt": debt_added,
-            "currency": po_currency,
+            "amount": float(a["total_cur"]),
+            "amount_uzs": float(round(net_uzs, 2)),
+            "received": float(round(received_uzs / a["rate"], 2)),
+            "received_uzs": float(round(received_uzs, 2)),
+            "paid": float(a["paid_cur"]),
+            "paid_uzs": float(p.paid_amount or 0),
+            "debt": float(a["debt_cur"]),
+            "currency": a["currency"],
             "payment_type": "",
-            "cashier": getattr(p.creator, "name", "") if p.creator else "",
-            "sale_number": getattr(p, "number", ""),
-            "description": f"Xarid #{getattr(p, 'number', '')}",
+            "cashier": p.creator.name if p.creator else "",
+            "sale_number": p.number,
+            "description": f"Xarid #{p.number}",
             "type": "purchase",
+            "deletable": False,
         })
 
-    for pay in payments:
+    for tx in po_payments + sup_txs:
+        is_refund = tx.reference_type == "return_to_supplier"
+        cur = (tx.currency_code or "UZS").upper()
+        number = po_numbers.get(tx.reference_id, "") if tx.reference_type == "purchase_order" else ""
         history.append({
-            "id": pay.id,
-            "op_type": "payment",
-            "date": pay.created_at.isoformat() if pay.created_at else "",
-            "amount": float(pay.amount or 0),
-            "paid": float(pay.amount or 0),
+            "id": tx.id,
+            "op_type": "refund" if is_refund else "payment",
+            "date": tx.created_at.isoformat() if tx.created_at else "",
+            "amount": float(tx.amount or 0),
+            "amount_uzs": float(round(_tx_uzs(db, tx, cid), 2)) if cur != "UZS" else None,
+            "paid": float(tx.amount or 0),
             "debt": 0,
-            "currency": pay.currency_code or "UZS",
-            "payment_type": pay.payment_type or "cash",
-            "cashier": getattr(pay.user, "name", "") if pay.user else "",
+            "currency": cur,
+            "payment_type": tx.payment_type or "cash",
+            "cashier": names.get(tx.user_id, ""),
+            "sale_number": number,
+            "description": tx.description or ("Qaytim" if is_refund else "To'lov"),
+            "type": "refund" if is_refund else "payment",
+            "deletable": True,
+        })
+
+    for r in returns:
+        history.append({
+            "id": r["id"],
+            "op_type": "return",
+            "date": r["date"],
+            "amount": r["value"],
+            "amount_uzs": None,
+            "paid": 0,
+            "debt": 0,
+            "currency": "UZS",
+            "payment_type": "",
+            "cashier": names.get(r["user_id"], ""),
             "sale_number": "",
-            "description": pay.description or "To'lov",
-            "type": "payment",
+            "description": r["description"],
+            "type": "return",
+            "deletable": False,
         })
 
     return sorted(history, key=lambda x: x.get("date") or "", reverse=True)

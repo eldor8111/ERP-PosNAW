@@ -5,23 +5,28 @@ import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
 import api from '../../api/axios';
 import { matchesSearch, searchVariants } from '../../utils/translit';
 import toast from 'react-hot-toast';
-import { CircleArrowDown, Flame, PackageCheck, ShoppingCart, SquareArrowDown, Plus, Minus } from 'lucide-react';
+import { CircleArrowDown, PackageCheck, Plus, Minus } from 'lucide-react';
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const fmtDay = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
-const fmtDt = (d) => d ? new Date(d).toLocaleString('uz-UZ') : '—';
-const saleMeta = {
-  completed: { lKey: 'sale.statusCompleted', c: 'bg-emerald-100 text-emerald-700' },
-  refunded: { lKey: 'sale.statusRefunded', c: 'bg-red-100 text-red-600' },
-  partial_refund: { lKey: 'sale.statusPartialRefund', c: 'bg-amber-100 text-amber-700' },
-  cancelled: { lKey: 'sale.statusCancelled', c: 'bg-red-100 text-red-500' },
+// Server xatosi matni (axios interceptor toast ko'rsatadi, bu — formadagi yozuv uchun)
+const errText = (e, fallback) => {
+  const d = e?.response?.data?.detail;
+  if (typeof d === 'string') return d;
+  if (Array.isArray(d)) return d.map(x => x?.msg || JSON.stringify(x)).join('; ');
+  return fallback || e?.message || 'Error';
 };
-const payMeta = {
-  cash: { lKey: 'pay.cash', c: 'bg-emerald-100 text-emerald-700' },
-  card: { lKey: 'pay.card', c: 'bg-blue-100 text-blue-700' },
-  mixed: { lKey: 'pay.mixed', c: 'bg-violet-100 text-violet-700' },
-  debt: { lKey: 'pay.debt', c: 'bg-amber-100 text-amber-700' },
-};
+
+// Xarid to'lovi turlari (kassa yopilishidagi to'lov turlari bilan bir xil kalitlar)
+const PO_PAY_TYPES = [
+  { key: 'cash', lKey: 'pay.cash' },
+  { key: 'card', lKey: 'pay.card' },
+  { key: 'uzcard', label: 'Uzcard' },
+  { key: 'humo', label: 'Humo' },
+  { key: 'transfer', lKey: 'purchase.bankTransfer' },
+  { key: 'click', label: 'Click' },
+  { key: 'payme', label: 'Payme' },
+];
 
 const ic = 'border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white transition-colors hover:border-slate-300';
 
@@ -331,577 +336,6 @@ function SupSearch({ suppliers, value, onChange, placeholder }) {
   );
 }
 
-/* ─── Customer search combobox ─── */
-function CustSearch({ customers, value, onChange, placeholder }) {
-  const { t } = useLang();
-  placeholder = placeholder || t('purchase.nameOrPhonePlaceholder');
-  const [q, setQ] = useState('');
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  const selected = customers.find(c => c.id === value);
-
-  const filtered = q.trim()
-    ? customers.filter(c =>
-      matchesSearch(c.name, q) ||
-      (c.phone && c.phone.includes(q))
-    ).slice(0, 12)
-    : customers.slice(0, 12);
-
-  useEffect(() => {
-    const handler = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const select = (c) => { onChange(c ? c.id : ''); setQ(''); setOpen(false); };
-
-  return (
-    <div className="relative" ref={ref}>
-      <div className="flex items-center border border-slate-200 rounded-lg bg-white overflow-hidden focus-within:ring-2 focus-within:ring-blue-400">
-        <input
-          value={open ? q : (selected ? selected.name : '')}
-          onChange={e => { setQ(e.target.value); setOpen(true); if (!e.target.value) onChange(''); }}
-          onFocus={() => setOpen(true)}
-          placeholder={placeholder}
-          className="flex-1 px-3 py-1.5 text-sm outline-none bg-transparent min-w-0"
-        />
-        {selected && (
-          <button onClick={() => select(null)} className="px-2 text-slate-400 hover:text-red-400 text-lg leading-none">×</button>
-        )}
-      </div>
-      {open && (
-        <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 overflow-hidden max-h-64 overflow-y-auto">
-          {filtered.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-slate-400">{t('purchase.notFound')}</div>
-          ) : filtered.map(c => (
-            <button key={c.id} onMouseDown={() => select(c)}
-              className="w-full text-left px-4 py-2.5 hover:bg-blue-50 border-b border-slate-50 last:border-0 flex items-center justify-between">
-              <div>
-                <div className="text-sm font-medium text-slate-800">{c.name}</div>
-                {c.phone && <div className="text-xs text-slate-400">{c.phone}</div>}
-              </div>
-              {Number(c.debt_balance) !== 0 && (
-                <div className="flex flex-col items-end gap-1">
-                  <div className={`text-xs font-black py-0.5 px-2 rounded-md ${Number(c.debt_balance) > 0 ? 'text-red-600 bg-red-50 border border-red-100' : 'text-emerald-600 bg-emerald-50 border border-emerald-100'}`}>
-                    {t('common.debt')}: {fmt(c.debt_balance)} s
-                  </div>
-                  {c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).some(curr => curr !== 'UZS' && Number(c.debt_balances[curr]) !== 0) && (
-                    <div className="flex flex-wrap gap-1 justify-end max-w-[120px]">
-                      {Object.entries(c.debt_balances).map(([curr, amt]) => (curr !== 'UZS' && Number(amt) !== 0) && (
-                        <span key={curr} className="text-[9px] font-black text-red-500 bg-white px-1 py-0.5 rounded border border-red-100 leading-none">
-                          {fmt(amt)} {curr}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ─── Payment modal ─── */
-function PayModal({ total, onPay, onClose }) {
-  const { t } = useLang();
-  const [type, setType] = useState('cash');
-  const [paid, setPaid] = useState(String(total));
-  const change = Number(paid) - total;
-  const PAY_OPTS = [
-    { v: 'cash', l: t('pay.cash'), icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
-    { v: 'card', l: t('pay.card'), icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg> },
-    { v: 'debt', l: t('pay.debt'), icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
-    { v: 'mixed', l: t('pay.mixed'), icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg> },
-  ];
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
-        {/* Modal header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-slate-800">{t('admin.dict.payment')}</h3>
-          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-        </div>
-        <div className="p-6 space-y-4">
-          {/* Total display */}
-          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-center">
-            <div className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-1">{t('purchase.paymentAmount')}</div>
-            <div className="text-3xl font-black text-blue-700">{fmt(total)} <span className="text-lg font-normal text-blue-400">{t('purchase.somUnit')}</span></div>
-          </div>
-          {/* Payment type */}
-          <div className="grid grid-cols-2 gap-2">
-            {PAY_OPTS.map(({ v, l, icon }) => (
-              <button key={v} onClick={() => setType(v)}
-                className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold border transition-all ${type === v
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200'
-                  : 'bg-white border-slate-200 text-slate-700 hover:border-blue-300 hover:bg-blue-50'
-                  }`}>
-                {icon} {l}
-              </button>
-            ))}
-          </div>
-          {/* Amount input */}
-          {type !== 'debt' && (
-            <div>
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">{t('purchase.amountReceived')}</label>
-              <input type="number" value={paid} onChange={e => setPaid(e.target.value)} autoFocus
-                className="w-full border-2 border-slate-200 focus:border-blue-500 rounded-xl px-4 py-3 text-2xl font-bold text-center text-slate-800 focus:outline-none transition-colors" />
-              {change > 0 && Number(paid) > 0 && (
-                <div className="mt-2 flex items-center justify-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl py-2.5">
-                  <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                  <span className="text-sm text-emerald-700 font-bold">{t('purchase.summaryChange')} {fmt(change)} {t('purchase.somUnit')}</span>
-                </div>
-              )}
-            </div>
-          )}
-          {/* Action buttons */}
-          <div className="flex gap-3">
-            <Btn v="ghost" onClick={onClose}>{t('common.cancel')}</Btn>
-            <button onClick={() => onPay(type, type === 'debt' ? 0 : Number(paid))}
-              className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-blue-200 active:scale-95">
-              {t('common.confirm')}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════
-   SALE CREATE VIEW — split panel, wholesale-ready
-══════════════════════════════════════════════════════════ */
-function SaleCreateView({ products, customers, onBack, onSaved }) {
-  const { t } = useLang();
-  const [cart, setCart] = useState([]);
-  const [custId, setCust] = useState('');
-  const [wholesale, setWhole] = useState(false);
-  const [note, setNote] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState('');
-  const [showPay, setShowPay] = useState(false);
-  const [prodQ, setProdQ] = useState('');
-  // quick-add modal
-  const [qaItem, setQaItem] = useState(null); // { product, qty, price }
-
-  const getPrice = useCallback((p) =>
-    wholesale && p.wholesale_price ? Number(p.wholesale_price) : Number(p.sale_price),
-    [wholesale]);
-
-  // When wholesale toggles, update all cart prices
-  useEffect(() => {
-    setCart(prev => prev.map(c => ({
-      ...c,
-      price: wholesale && c.product.wholesale_price
-        ? Number(c.product.wholesale_price)
-        : Number(c.product.sale_price),
-    })));
-  }, [wholesale]);
-
-  const filteredProducts = products.filter(p => {
-    if (!prodQ.trim()) return true;
-    return matchesSearch(p.name, prodQ) ||
-      matchesSearch(p.sku, prodQ) ||
-      (p.barcode && p.barcode.includes(prodQ.trim()));
-  });
-
-  const addToCart = (product, qty, price, discount = 0) => {
-    setCart(prev => {
-      const ex = prev.findIndex(c => c.product.id === product.id);
-      if (ex >= 0) return prev.map((c, i) => i === ex ? { ...c, qty: c.qty + Number(qty), price: Number(price), discount: Number(discount) } : c);
-      return [...prev, { product, qty: Number(qty), price: Number(price), discount: Number(discount) }];
-    });
-    setQaItem(null);
-  };
-
-  const subtotal = cart.reduce((s, c) => s + c.qty * c.price - Number(c.discount || 0), 0);
-
-  const doSave = (payType, paidAmount) => {
-    if (!cart.length) { setErr(t('purchase.addAtLeastOneProduct')); return; }
-    if (saving) return;
-    setSaving(true); setErr('');
-    setShowPay(false);
-
-    // Darrov navigatsiya — API background da ishlaydi
-    const promise = api.post('/sales', {
-      items: cart.map(c => ({ product_id: c.product.id, quantity: c.qty, unit_price: c.price, discount: c.discount })),
-      payment_type: payType,
-      paid_amount: paidAmount,
-      discount_amount: 0,
-      note: note || null,
-      customer_id: custId ? Number(custId) : null,
-    });
-
-    onBack(); // Darrov ro'yxatga qaytish
-    promise
-      .then(() => { onSaved(); }) // Ro'yxatni yangilash
-      .catch(e => console.error('Sale error:', e.response?.data?.detail || e));
-  };
-
-  return (
-    <div className="fixed inset-0 z-40 bg-slate-50 flex flex-col">
-      {/* Header */}
-      <div className="flex items-center gap-4 px-5 py-3 bg-white border-b border-slate-100 shrink-0 shadow-sm">
-        <button onClick={onBack} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-blue-600 px-3 py-2 rounded-xl hover:bg-blue-50 transition-all text-sm font-semibold shrink-0">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
-          </svg>
-          {t('common.back')}
-        </button>
-        <div className="w-px h-6 bg-slate-200 shrink-0" />
-        <h2 className="text-base font-bold text-slate-800 shrink-0">{t('sale.newSale')}</h2>
-        <div className="flex-1 flex items-center gap-2.5">
-          {/* Customer */}
-          <div className="min-w-[240px]">
-            <CustSearch customers={customers} value={custId} onChange={setCust} placeholder={t('purchase.customerPlaceholder')} />
-          </div>
-          {/* Wholesale */}
-          <button onClick={() => setWhole(w => !w)}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold border transition-all shrink-0 ${wholesale
-              ? 'bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-200'
-              : 'bg-white text-slate-600 border-slate-200 hover:border-amber-400 hover:text-amber-600'
-              }`}>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-            </svg>
-            {t('purchase.wholesale')}
-          </button>
-          {/* Note */}
-          <input value={note} onChange={e => setNote(e.target.value)} placeholder={t('ops.noteOpt')}
-            className="flex-1 max-w-sm border border-slate-200 rounded-xl px-3.5 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-slate-400" />
-        </div>
-        <div className="text-xs text-slate-400 shrink-0 font-medium">{new Date().toLocaleString('uz-UZ')}</div>
-      </div>
-
-      {/* Body: left = products, right = cart */}
-      <div className="flex flex-1 overflow-hidden gap-3 p-3">
-
-        {/* LEFT — Product Browser */}
-        <div className="w-[400px] shrink-0 bg-white rounded-2xl border border-slate-100 flex flex-col overflow-hidden shadow-sm">
-          {/* Search */}
-          <div className="p-3 border-b border-slate-100 bg-slate-50/50">
-            <div className="relative">
-              <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
-              </svg>
-              <input value={prodQ} onChange={e => setProdQ(e.target.value)}
-                placeholder={t('purchase.productSearchFullPlaceholder')}
-                className="w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white" />
-            </div>
-            <div className="flex items-center justify-between mt-2 px-1">
-              <span className="text-xs text-slate-400 font-medium">{filteredProducts.length} {t('purchase.productCount')}</span>
-              {wholesale && (
-                <span className="inline-flex items-center gap-1 text-xs text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded-full">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
-                  {t('purchase.wholesalePrices')}
-                </span>
-              )}
-            </div>
-          </div>
-          {/* Product list */}
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
-            {filteredProducts.length === 0 ? (
-              <div className="py-16 text-center text-slate-400">
-                <svg className="w-10 h-10 mx-auto mb-2 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                </svg>
-                <p className="text-sm">{t('purchase.productNotFound')}</p>
-              </div>
-            ) : filteredProducts.slice(0, 100).map(p => {
-              const inCart = cart.find(c => c.product.id === p.id);
-              const displayPrice = getPrice(p);
-              const stockLow = Number(p.stock_quantity) < 5;
-              return (
-                <button key={p.id}
-                  onClick={() => setQaItem({ product: p, qty: 1, price: displayPrice, discount: 0 })}
-                  className={`w-full text-left px-3 py-2.5 rounded-xl border transition-all flex items-center gap-3 group ${inCart
-                    ? 'bg-blue-50 border-blue-200'
-                    : 'border-transparent hover:bg-slate-50 hover:border-slate-200'
-                    }`}>
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 ${inCart ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-600'
-                    }`}>
-                    {inCart ? inCart.qty : p.name.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-slate-800 text-sm truncate">{p.name}</div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs text-slate-400">{p.sku}</span>
-                      {stockLow && (
-                        <span className="text-xs text-red-500 font-medium">{t('purchase.lowStockAbbr')} {fmt(p.stock_quantity)}</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className="text-sm font-bold text-blue-600">{fmt(displayPrice)}</div>
-                    {wholesale && p.wholesale_price && Number(p.wholesale_price) !== Number(p.sale_price) && (
-                      <div className="text-xs text-slate-400 line-through">{fmt(p.sale_price)}</div>
-                    )}
-                    <div className="text-xs text-slate-400 mt-0.5">{fmt(p.stock_quantity)} {t('common.piece')}</div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* RIGHT — Cart */}
-        <div className="flex-1 bg-white rounded-2xl border border-slate-100 flex flex-col overflow-hidden shadow-sm">
-          {/* Cart header */}
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 shrink-0 bg-slate-50/50">
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-              <span className="text-sm font-bold text-slate-700">
-                {t('sale.cart')} {cart.length > 0 && <span className="text-blue-600 ml-1">({cart.length} {t('purchase.itemsUnit')})</span>}
-              </span>
-            </div>
-            {cart.length > 0 && (
-              <button onClick={() => setCart([])} className="inline-flex items-center gap-1 text-xs text-red-400 hover:text-red-600 hover:bg-red-50 px-2 py-1 rounded-lg transition-all">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                {t('sale.clearCart')}
-              </button>
-            )}
-          </div>
-
-          {/* Cart table */}
-          <div className="flex-1 overflow-y-auto">
-            {cart.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-slate-300">
-                <svg className="w-16 h-16 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1}
-                    d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                <p className="text-base">{t('purchase.selectProductFromLeft')}</p>
-              </div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
-                  <tr>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 w-8">№</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">{t('admin.dict.th_prod')}</th>
-                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-28">{t('admin.dict.th_qty')}</th>
-                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-32">{t('purchase.priceUpper')}</th>
-                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 w-28">{t('purchase.discountUpper')}</th>
-                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500 w-32">{t('purchase.sumUpper')}</th>
-                    <th className="w-8"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {cart.map((c, i) => (
-                    <tr key={i} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3 text-slate-400 text-xs">{i + 1}</td>
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-slate-800">{c.product.name}</div>
-                        <div className="text-xs text-slate-400">{c.product.sku} · {c.product.unit || t('common.piece')}</div>
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button onClick={() => setCart(p => p.map((x, idx) => idx === i ? { ...x, qty: Math.max(0.001, x.qty - 1) } : x))}
-                            className="w-6 h-6 rounded border border-slate-200 text-slate-500 hover:bg-slate-100 flex items-center justify-center text-sm leading-none">−</button>
-                          <input type="number" min="0.001" step="any" value={c.qty}
-                            onChange={e => setCart(p => p.map((x, idx) => idx === i ? { ...x, qty: Number(e.target.value) || 1 } : x))}
-                            className="w-14 text-center border border-slate-200 rounded px-1 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
-                          <button onClick={() => setCart(p => p.map((x, idx) => idx === i ? { ...x, qty: x.qty + 1 } : x))}
-                            className="w-6 h-6 rounded border border-slate-200 text-slate-500 hover:bg-slate-100 flex items-center justify-center text-sm leading-none">+</button>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <input type="number" min="0" value={c.price}
-                          onChange={e => setCart(p => p.map((x, idx) => idx === i ? { ...x, price: Number(e.target.value) || 0 } : x))}
-                          className="w-28 text-center border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <input type="number" min="0" value={c.discount || 0}
-                          onChange={e => setCart(p => p.map((x, idx) => idx === i ? { ...x, discount: Number(e.target.value) || 0 } : x))}
-                          className="w-24 text-center border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-red-300 text-red-600" />
-                      </td>
-                      <td className="px-4 py-3 text-right font-bold text-slate-800">{fmt(c.qty * c.price - Number(c.discount || 0))}</td>
-                      <td className="pr-3">
-                        <button onClick={() => setCart(p => p.filter((_, idx) => idx !== i))}
-                          className="w-6 h-6 text-slate-300 hover:text-red-500 rounded transition-colors flex items-center justify-center">✕</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          {/* Cart totals */}
-          {cart.length > 0 && (
-            <div className="border-t border-slate-200 px-4 py-3 bg-slate-50 flex items-center justify-between shrink-0">
-              <span className="text-sm text-slate-500">{cart.length} {t('purchase.typesUnit')}, {cart.reduce((s, c) => s + c.qty, 0)} {t('purchase.productCount')}</span>
-              <div className="text-right">
-                <span className="text-xs text-slate-400 mr-2">{t('admin.dict.total_colon')}</span>
-                <span className="text-xl font-bold text-blue-600">{fmt(subtotal)} {t('purchase.somUnit')}</span>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="flex items-center justify-between px-5 py-3.5 bg-white border-t border-slate-100 shrink-0 shadow-[0_-1px_8px_rgba(0,0,0,0.06)]">
-        <div className="flex items-center gap-3">
-          <Btn v="ghost" onClick={onBack}>{t('common.cancel')}</Btn>
-          {err && <span className="text-red-500 text-sm font-medium">{err}</span>}
-        </div>
-        <div className="flex items-center gap-3">
-          {cart.length > 0 && (
-            <div className="text-sm text-slate-500 mr-2">
-              {t('admin.dict.total_colon')} <span className="font-bold text-slate-800 text-base">{fmt(subtotal)} {t('purchase.somUnit')}</span>
-            </div>
-          )}
-          <Btn v="amber" disabled={saving || !cart.length} onClick={() => doSave('debt', 0)}>
-            <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-            {t('purchase.saveToDebt')}
-          </Btn>
-          <button disabled={saving || !cart.length} onClick={() => { setErr(''); setShowPay(true); }}
-            className="inline-flex items-center gap-2.5 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-blue-200 active:scale-95">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
-            {t('sale.checkout')}
-            {cart.length > 0 && <span className="bg-white/20 px-2 py-0.5 rounded-lg text-xs font-bold">{fmt(subtotal)}</span>}
-          </button>
-        </div>
-      </div>
-
-      {/* Quick-add modal */}
-      {qaItem && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4" onClick={() => setQaItem(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
-            <div className="flex items-start gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold shrink-0">
-                {qaItem.product.name.slice(0, 2).toUpperCase()}
-              </div>
-              <div>
-                <div className="font-bold text-slate-800">{qaItem.product.name}</div>
-                <div className="text-xs text-slate-400">{qaItem.product.sku}</div>
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">{t('admin.dict.qty')}</label>
-                <input type="number" min="0.001" step="any" value={qaItem.qty}
-                  autoFocus
-                  onChange={e => setQaItem(v => ({ ...v, qty: e.target.value }))}
-                  onKeyDown={e => e.key === 'Enter' && addToCart(qaItem.product, qaItem.qty, qaItem.price, qaItem.discount)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-center font-bold" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">{t('purchase.priceSomLabel')}</label>
-                <input type="number" min="0" value={qaItem.price}
-                  onChange={e => setQaItem(v => ({ ...v, price: e.target.value }))}
-                  onKeyDown={e => e.key === 'Enter' && addToCart(qaItem.product, qaItem.qty, qaItem.price, qaItem.discount)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-center font-bold" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">{t('purchase.discountSomLabel')}</label>
-                <input type="number" min="0" value={qaItem.discount}
-                  onChange={e => setQaItem(v => ({ ...v, discount: e.target.value }))}
-                  onKeyDown={e => e.key === 'Enter' && addToCart(qaItem.product, qaItem.qty, qaItem.price, qaItem.discount)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-center font-bold" />
-              </div>
-            </div>
-            {qaItem.product.wholesale_price && (
-              <div className="flex gap-2 mb-4">
-                <button onClick={() => setQaItem(v => ({ ...v, price: Number(v.product.sale_price) }))}
-                  className={`flex-1 py-1.5 text-xs rounded-lg border transition-all ${Number(qaItem.price) === Number(qaItem.product.sale_price) ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-600 hover:border-blue-300'}`}>
-                  {t('purchase.retailLabel')} {fmt(qaItem.product.sale_price)}
-                </button>
-                <button onClick={() => setQaItem(v => ({ ...v, price: Number(v.product.wholesale_price) }))}
-                  className={`flex-1 py-1.5 text-xs rounded-lg border transition-all ${Number(qaItem.price) === Number(qaItem.product.wholesale_price) ? 'bg-amber-500 text-white border-amber-500' : 'border-slate-200 text-slate-600 hover:border-amber-300'}`}>
-                  {t('purchase.wholesale')}: {fmt(qaItem.product.wholesale_price)}
-                </button>
-              </div>
-            )}
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs text-slate-400">{t('admin.dict.total_colon')}</span>
-              <span className="text-lg font-bold text-blue-600">{fmt(Number(qaItem.qty) * Number(qaItem.price) - Number(qaItem.discount))} {t('purchase.somUnit')}</span>
-            </div>
-            <div className="flex gap-2">
-              <Btn v="ghost" onClick={() => setQaItem(null)} sm>{t('common.cancel')}</Btn>
-              <button onClick={() => addToCart(qaItem.product, qaItem.qty, qaItem.price, qaItem.discount)}
-                className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-colors">
-                + {t('sale.addToCart')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showPay && <PayModal total={subtotal} onClose={() => setShowPay(false)} onPay={doSave} />}
-    </div>
-  );
-}
-
-/* ─── Sale detail view ─── */
-function SaleDetailView({ saleId, onBack }) {
-  const { t } = useLang();
-  const [sale, setSale] = useState(null);
-  useEffect(() => {
-    api.get(`/sales/${saleId}`).then(r => setSale(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
-  }, [saleId]);
-  if (!sale) return <div className="py-20 text-center text-slate-400">{t('common.loading')}</div>;
-  const debt = Number(sale.total_amount) - Number(sale.paid_amount);
-  return (
-    <div className="fixed inset-0 z-40 bg-white flex flex-col">
-      <CreateHeader title={`${t('sale.title')} · ${sale.number}`} onBack={onBack}
-        right={<Badge meta={saleMeta} val={sale.status} />}
-      />
-      <div className="p-6 overflow-y-auto flex-1">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-          {[[t('sale.cashier'), sale.cashier_name], [t('common.date'), fmtDt(sale.created_at)], [t('sale.paymentType'), <Badge meta={payMeta} val={sale.payment_type} />], [t('common.status'), <Badge meta={saleMeta} val={sale.status} />]].map(([k, v]) => (
-            <div key={k} className="bg-slate-50 rounded-xl p-3">
-              <div className="text-xs text-slate-500 mb-1">{k}</div>
-              <div className="font-semibold">{v}</div>
-            </div>
-          ))}
-        </div>
-        <table className="w-full text-sm border border-slate-200 rounded-xl overflow-hidden mb-6">
-          <thead className="bg-slate-50">
-            <tr>
-              <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">№</th>
-              <th className="text-left px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.product')}</th>
-              <th className="text-center px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.qty')}</th>
-              <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.price')}</th>
-              <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('common.discount')}</th>
-              <th className="text-right px-4 py-2.5 text-xs text-slate-500 font-semibold">{t('admin.dict.total')}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {sale.items?.map((item, i) => (
-              <tr key={item.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3 text-slate-400 text-xs">{i + 1}</td>
-                <td className="px-4 py-3 font-medium">{item.product_name}</td>
-                <td className="px-4 py-3 text-center">{item.quantity}</td>
-                <td className="px-4 py-3 text-right">{fmt(item.unit_price)}</td>
-                <td className="px-4 py-3 text-right text-red-500">{Number(item.discount) > 0 ? `−${fmt(item.discount)}` : '—'}</td>
-                <td className="px-4 py-3 text-right font-semibold">{fmt(item.subtotal)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div className="flex justify-end">
-          <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 min-w-64 space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-slate-500">{t('purchase.summaryTotal')}</span><span className="font-medium">{fmt(sale.total_amount)}</span></div>
-            {Number(sale.discount_amount) > 0 && <div className="flex justify-between"><span className="text-slate-500">{t('common.discount')}:</span><span className="text-red-500 font-medium">−{fmt(sale.discount_amount)}</span></div>}
-            <div className="flex justify-between"><span className="text-slate-500">{t('purchase.paidAmountLabel')}</span><span className="font-medium">{fmt(sale.paid_amount)}</span></div>
-            {debt > 0 && <div className="flex justify-between border-t pt-2"><span className="text-slate-500">{t('purchase.summaryDebt')}</span><span className="text-red-500 font-bold">{fmt(debt)}</span></div>}
-            <div className="flex justify-between border-t pt-2"><span className="font-bold text-slate-700">{t('purchase.totalWithDiscountLabel')}</span><span className="font-bold text-xl text-blue-600">{fmt(sale.total_amount)}</span></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════
-
 /* ══════════════════════════════════════════════════════════
    KIRIM CREATE VIEW — split panel
 ══════════════════════════════════════════════════════════ */
@@ -913,12 +347,14 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
   const [wallets, setWallets] = useState([]);
   const [currencies, setCurrencies] = useState([{ code: 'UZS', rate: 1 }]);
   const [currenciesLoaded, setCurrenciesLoaded] = useState(false);
+  const [productsLoaded, setProductsLoaded] = useState(false);
 
   useEffect(() => {
     api.get('/products/', { params: { limit: 1000, status: 'active' } })
-      .then(r => setProds(Array.isArray(r.data) ? r.data : (r.data.items || []))).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
+      .then(r => setProds(Array.isArray(r.data) ? r.data : (r.data.items || []))).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) })
+      .finally(() => setProductsLoaded(true));
     api.get('/inventory/warehouses').then(r => setWhs(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
-    api.get('/suppliers', { params: { limit: 100 } }).then(r => setSups(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
+    api.get('/suppliers', { params: { limit: 5000 } }).then(r => setSups(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
     api.get('/finance/wallets').then(r => { setWallets(r.data); if (r.data.length > 0) setPayForm(p => ({ ...p, wallet_id: r.data[0].id })); }).catch(console.error);
     api.get('/currencies/active').then(r => {
       const list = Array.isArray(r.data) ? r.data : [];
@@ -928,8 +364,11 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
     }).catch(() => { setCurrenciesLoaded(true); });
   }, []);
 
-  // Helper: get exchange rate for a currency code
+  // Valyuta kursi. Tahrirda xarid valyutasi uchun xarid yaratilgandagi kurs ishlatiladi —
+  // backend ham qarzni shu kurs bilan hisoblaydi.
   const getRateFor = (code) => {
+    if (!code || code === 'UZS') return 1;
+    if (editPo && code === editPo.currency && Number(editPo.exchange_rate) > 0) return Number(editPo.exchange_rate);
     const c = currencies.find(c => c.code === code);
     return c ? Number(c.rate || 1) : 1;
   };
@@ -937,30 +376,41 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
 
   // Pre-populate from editPo when data is loaded
   useEffect(() => {
-    if (!editPo || !warehouses.length || !suppliers.length) return;
+    if (!editPo || !warehouses.length || !suppliers.length || !productsLoaded) return;
     setPoForm({
       supplier_id: String(editPo.supplier_id || ''),
       warehouse_id: String(editPo.warehouse_id || ''),
       note: editPo.note || '',
-      expected_date: '',
+      expected_date: editPo.expected_date ? String(editPo.expected_date).slice(0, 10) : '',
     });
     if (editPo.items && editPo.items.length > 0) {
-      setPoItems(editPo.items.map(item => ({
-        product_id: item.product_id,
-        product_name: item.product_name,
-        unit: t('common.piece'),
-        unit_cost: Number(item.unit_cost),
-        discount_type: 'pct',
-        discount_val: 0,
-        currency: 'UZS',
-        net_cost: Number(item.unit_cost),
-        new_sale_price: null,
-        new_wholesale_price: null,
-        qty_ordered: Number(item.qty_ordered),
-      })));
+      // Bazada unit_cost — UZS (sof). Valyutali qator narxi xarid kursida valyutaga qaytariladi
+      // (avval hammasi UZS deb ochilib, qayta saqlashda xarid valyutasi yo'qolardi).
+      setPoItems(editPo.items.map(item => {
+        const cur = item.cost_currency || 'UZS';
+        const netUzs = Number(item.unit_cost);
+        const prod = products.find(pr => pr.id === item.product_id);
+        return {
+          product_id: item.product_id,
+          product_name: item.product_name,
+          unit: prod?.unit || t('common.piece'),
+          category_is_perishable: prod?.category_is_perishable || false,
+          expiry_date: item.expiry_date ? String(item.expiry_date).slice(0, 10) : '',
+          unit_cost: cur === 'UZS' ? netUzs : Math.round((netUzs / getRateFor(cur)) * 10000) / 10000,
+          discount_type: 'pct',
+          discount_val: 0,
+          currency: cur,
+          net_cost: netUzs,
+          new_sale_price: item.new_sale_price != null ? Number(item.new_sale_price) : null,
+          new_wholesale_price: item.new_wholesale_price != null ? Number(item.new_wholesale_price) : null,
+          orig_sale_price: prod ? Number(prod.sale_price || 0) : null,
+          orig_wholesale_price: prod ? Number(prod.wholesale_price || 0) : null,
+          qty_ordered: Number(item.qty_ordered),
+        };
+      }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editPo, warehouses, suppliers]);
+  }, [editPo, warehouses, suppliers, productsLoaded]);
 
   // PO form
   const [poForm, setPoForm] = useState({ supplier_id: '', warehouse_id: '', note: '', expected_date: '' });
@@ -1023,8 +473,9 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
       currency, net_cost: selNet,
       new_sale_price: newSalePrice ? Number(newSalePrice) : null,
       new_wholesale_price: newWholesalePrice ? Number(newWholesalePrice) : null,
+      orig_sale_price: Number(sel.sale_price || 0),
+      orig_wholesale_price: Number(sel.wholesale_price || 0),
     };
-    console.log('[PO addItem] base:', { currency, cost, unit_cost: base.unit_cost, net_cost: base.net_cost, qty });
 
 
     setPoItems(prev => {
@@ -1063,7 +514,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
   const hasCurrency = activeItems.some(i => i.currency && i.currency !== 'UZS');
 
   const [showPay, setShowPay] = useState(false);
-  const [payForm, setPayForm] = useState({ discType: 'amt', discVal: '', cash: '', info: '', wallet_id: '', currency: 'UZS' });
+  const [payForm, setPayForm] = useState({ discType: 'amt', discVal: '', cash: '', info: '', wallet_id: '', currency: 'UZS', payment_type: 'cash' });
 
   const handleOpenPay = () => {
     if (!poForm.supplier_id || !poForm.warehouse_id || !poItems.length) {
@@ -1129,7 +580,14 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
     setPayForm(p => ({ ...p, currency: newCur, cash: newCash }));
   };
 
-  const savePo = (status = 'draft', paymentInfo = null) => {
+  // Sotuv narxi faqat foydalanuvchi o'zgartirgan yoki "Narxlarni yangilash" yoqilgan bo'lsa yuboriladi
+  // (avval har doim yuborilib, qabulda mahsulot narxi keraksiz qayta yozilardi).
+  const priceIfChanged = (val, orig, force) => {
+    if (val == null || val === '' || !(Number(val) > 0)) return null;
+    return (force || orig == null || Number(val) !== Number(orig)) ? Number(val) : null;
+  };
+
+  const savePo = async (status = 'draft', paymentInfo = null) => {
     if (!poForm.supplier_id || !poForm.warehouse_id || !poItems.length) { setErr(t('purchase.fillRequiredFields')); return; }
     // Perishable mahsulotlarda muddatni tekshirish
     const missingExpiry = poItems.filter(i => i.category_is_perishable && !i.expiry_date);
@@ -1137,17 +595,17 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
       setErr(`"${missingExpiry.map(i => i.product_name).join(', ')}" ${t('purchase.enterExpiryFor')}`);
       return;
     }
+    if (poItems.some(i => !(Number(i.qty_ordered) > 0))) { setErr(t('purchase.qtyMustBePositive')); return; }
     if (saving) return;
     setSaving(true); setErr('');
 
-    // PO ning asosiy valyutasini aniqlash: items ichidan birinchi non-UZS valyutani olish
+    // PO ning asosiy valyutasi: qatorlardagi birinchi non-UZS valyuta
     const activeCurrency = poItems.find(i => i.currency && i.currency !== 'UZS')?.currency
       || (poItems.length > 0 ? (poItems[0].currency || 'UZS') : 'UZS');
     const payload = {
       supplier_id: Number(poForm.supplier_id), warehouse_id: Number(poForm.warehouse_id),
       ...(editPo ? {} : { status }),
       note: poForm.note || null, expected_date: poForm.expected_date || null,
-      update_retail: autoRetail, update_wholesale: autoWholesale,
       currency: activeCurrency,
       items: poItems.map(i => ({
         product_id: i.product_id,
@@ -1155,29 +613,38 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
         unit_cost: i.net_cost,
         cost_currency: i.currency || 'UZS',
         original_unit_cost: i.currency && i.currency !== 'UZS' ? (Number(i.unit_cost) || 0) : (i.net_cost || 0),
-        new_sale_price: i.new_sale_price,
-        new_wholesale_price: i.new_wholesale_price,
+        new_sale_price: priceIfChanged(i.new_sale_price, i.orig_sale_price, autoRetail),
+        new_wholesale_price: priceIfChanged(i.new_wholesale_price, i.orig_wholesale_price, autoWholesale),
         expiry_date: i.expiry_date || null
       })),
     };
-    console.log('[PO savePo] payload:', JSON.stringify(payload, null, 2));
 
     if (paymentInfo) {
-      payload.paid_amount = paymentInfo.paid;
-      payload.discount_amount = totalNet - payTotals.finalTotalUzs;
-      payload.payment_type = 'cash';
+      // paid_amount — UZS (qarz hisobi), payment_amount/payment_currency — kassadan chiqqan haqiqiy pul
+      payload.paid_amount = Math.max(0, Math.round(paymentInfo.paid * 100) / 100);
+      payload.discount_amount = Math.max(0, totalNet - payTotals.finalTotalUzs);
+      payload.payment_type = paymentInfo.payment_type || 'cash';
+      payload.payment_currency = paymentInfo.currency || 'UZS';
+      payload.payment_amount = Math.max(0, paymentInfo.amount || 0);
       if (paymentInfo.wallet_id) payload.wallet_id = Number(paymentInfo.wallet_id);
       if (paymentInfo.info) payload.note = (payload.note ? payload.note + '\n' : '') + paymentInfo.info;
     }
 
-    // Darrov navigatsiya — API background da ishlaydi
-    onBack();
-    const apiCall = editPo
-      ? api.patch(`/purchase-orders/${editPo.id}`, payload)
-      : api.post('/purchase-orders', payload);
-    apiCall
-      .then(() => { onSaved(); })
-      .catch(e => console.error('PO error:', e.response?.data?.detail || e));
+    // Javob kutiladi: xato bo'lsa forma yopilmaydi va kiritilgan ma'lumot yo'qolmaydi
+    // (avval darrov chiqib ketilar, xato faqat konsolga yozilardi).
+    try {
+      if (editPo) await api.patch(`/purchase-orders/${editPo.id}`, payload);
+      else await api.post('/purchase-orders', payload);
+      toast.success(t('purchase.poSaved'));
+      setShowPay(false);
+      onSaved();
+      onBack();
+    } catch (e) {
+      setErr(errText(e, t('common.error')));
+      setShowPay(false);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -1610,7 +1077,10 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                 <label className="text-sm font-semibold text-slate-600">{t('admin.dict.payment')}</label>
                 <div className="flex gap-2 h-11 items-center">
                   {/* Naqd label separated */}
-                  <div className="bg-slate-50 px-5 flex items-center border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 h-full shadow-sm">{t('purchase.cash')}</div>
+                  <select value={payForm.payment_type || 'cash'} onChange={e => setPayForm(p => ({ ...p, payment_type: e.target.value }))}
+                    className="bg-slate-50 px-3 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 h-full shadow-sm outline-none cursor-pointer">
+                    {PO_PAY_TYPES.map(pt => <option key={pt.key} value={pt.key}>{pt.lKey ? t(pt.lKey) : pt.label}</option>)}
+                  </select>
                   {/* Input group */}
                   <div className="flex flex-1 items-center h-full rounded-xl focus-within:ring-2 focus-within:ring-blue-500 overflow-hidden shadow-sm">
                     <input type="number" min="0" value={payForm.cash} onChange={e => setPayForm(p => ({ ...p, cash: e.target.value }))} className="flex-1 w-full h-full border border-slate-200 border-r-0 rounded-l-xl px-4 text-base font-bold text-blue-700 outline-none" placeholder="0" />
@@ -1667,11 +1137,11 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50 mt-auto rounded-b-2xl flex-wrap">
               <div className="text-sm font-semibold text-slate-500 flex-1">{t('purchase.supplierDebt')} <span className="text-slate-800 ml-1">{fmt(payTotals.debtInPayCur)} {payCur}</span></div>
               <button onClick={() => setShowPay(false)} className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-600 font-semibold bg-white hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
-              <button disabled={saving} onClick={() => savePo('received', { paid: payTotals.paidInUzs - payTotals.changeUzs, info: payForm.info, wallet_id: payForm.wallet_id })} className="px-6 py-2.5 rounded-xl bg-orange-400 hover:bg-orange-500 text-white font-bold flex items-center gap-2 transition-colors disabled:opacity-50 shadow-sm">
+              <button disabled={saving} onClick={() => savePo('received', { paid: payTotals.paidInUzs - payTotals.changeUzs, amount: Math.round((payTotals.paidInPayCur - payTotals.changeInPayCur) * 100) / 100, currency: payCur, payment_type: payForm.payment_type || 'cash', info: payForm.info, wallet_id: payForm.wallet_id })} className="px-6 py-2.5 rounded-xl bg-orange-400 hover:bg-orange-500 text-white font-bold flex items-center gap-2 transition-colors disabled:opacity-50 shadow-sm">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                 {t('purchase.saveAndPrint')}
               </button>
-              <button disabled={saving} onClick={() => savePo('received', { paid: payTotals.paidInUzs - payTotals.changeUzs, info: payForm.info, wallet_id: payForm.wallet_id })} className="px-8 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-colors shadow-sm shadow-blue-200 disabled:opacity-50 flex items-center gap-2">
+              <button disabled={saving} onClick={() => savePo('received', { paid: payTotals.paidInUzs - payTotals.changeUzs, amount: Math.round((payTotals.paidInPayCur - payTotals.changeInPayCur) * 100) / 100, currency: payCur, payment_type: payForm.payment_type || 'cash', info: payForm.info, wallet_id: payForm.wallet_id })} className="px-8 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-colors shadow-sm shadow-blue-200 disabled:opacity-50 flex items-center gap-2">
                 {saving ? '...' : (
                   <>
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
@@ -1702,8 +1172,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
 /* ══════════════════════════════════════════════════════════
    KIRIMLAR TAB
 ══════════════════════════════════════════════════════════ */
-// eslint-disable-next-line no-unused-vars
-function KirimlarTab({ products, warehouses, suppliers }) {
+function KirimlarTab() {
   const { t } = useLang();
   const [mode, setMode] = useState('list');
   const [pos, setPos] = useState([]);
@@ -1728,27 +1197,61 @@ function KirimlarTab({ products, warehouses, suppliers }) {
       const params = { skip, limit: LIMIT };
       if (stFilter) params.status = stFilter;
       if (branchFilter) params.branch_id = branchFilter;
-      const r = await api.get('/purchase-orders', { params });
+      const r = await api.get('/purchase-orders', { params, _noCache: true });
       setPos(r.data);
-    } catch { /* ignore */ } finally { setLoading(false); }
+    } catch { /* xabarni axios interceptor ko'rsatadi */ } finally { setLoading(false); }
   }, [skip, stFilter, branchFilter]);
 
   useEffect(() => { if (mode === 'list') load(); }, [load, mode]);
 
   const openDetail = async (row) => {
-    const r = await api.get(`/purchase-orders/${row.id}`);
-    setDetail(r.data);
+    try {
+      const r = await api.get(`/purchase-orders/${row.id}`, { _noCache: true });
+      setDetail(r.data);
+    } catch { /* xabarni axios interceptor ko'rsatadi */ }
   };
 
+  // Qabul: har bir qator uchun miqdor (qisman qabul), partiya raqami va yaroqlilik muddati
+  const openReceive = (po) => {
+    setRec({
+      ...po,
+      items: (po.items || []).map(i => {
+        const rem = Math.max(0, Number(i.qty_ordered) - Number(i.qty_received));
+        return { ...i, _qty: String(rem), _lot: '', _exp: i.expiry_date ? String(i.expiry_date).slice(0, 10) : '' };
+      }),
+    });
+    setDetail(null);
+  };
+  const updRec = (id, field, val) => setRec(r => ({ ...r, items: r.items.map(i => i.id === id ? { ...i, [field]: val } : i) }));
+
   const receivePo = async () => {
-    const pending = recModal.items.filter(i => Number(i.qty_ordered) > Number(i.qty_received));
+    const rows = recModal.items
+      .filter(i => Number(i.qty_ordered) > Number(i.qty_received) && Number(i._qty) > 0)
+      .map(i => ({ po_item_id: i.id, qty_received: Number(i._qty), lot_number: i._lot || null, expiry_date: i._exp || null }));
+    if (!rows.length) { toast.error(t('purchase.nothingToReceive')); return; }
     setRS(true);
     try {
-      await api.post(`/purchase-orders/${recModal.id}/receive`, {
-        items: pending.map(i => ({ po_item_id: i.id, qty_received: Number(i.qty_ordered) - Number(i.qty_received) }))
-      });
+      await api.post(`/purchase-orders/${recModal.id}/receive`, { items: rows });
+      toast.success(t('purchase.receivedOk'));
       setRec(null); setDetail(null); load();
-    } catch { /* ignore */ } finally { setRS(false); }
+    } catch { /* xabarni axios interceptor ko'rsatadi, oyna ochiq qoladi */ } finally { setRS(false); }
+  };
+
+  const cancelPo = async (po) => {
+    if (!confirm(`"${po.number}" ${t('purchase.confirmCancelPo')}`)) return;
+    try {
+      await api.post(`/purchase-orders/${po.id}/cancel`);
+      toast.success(t('purchase.poCancelled'));
+      setDetail(null); load();
+    } catch { /* xabarni axios interceptor ko'rsatadi */ }
+  };
+
+  // Qator narxi xarid valyutasida (bazada unit_cost — UZS)
+  const itemPrice = (item, po) => {
+    const cur = item.cost_currency || 'UZS';
+    if (cur === 'UZS') return { cur, unit: Number(item.unit_cost) };
+    if (cur === po.currency && Number(po.exchange_rate) > 0) return { cur, unit: Number(item.unit_cost) / Number(po.exchange_rate) };
+    return { cur, unit: Number(item.original_unit_cost ?? item.unit_cost) };
   };
 
   const handleEdit = async (row) => {
@@ -1776,15 +1279,16 @@ function KirimlarTab({ products, warehouses, suppliers }) {
     { k: 'warehouse_name', l: t('purchase.colWarehouse') },
     { k: 'status', l: t('purchase.filterStatus'), r: v => <Badge meta={poMeta} val={v} /> },
     { k: 'total_amount', l: t('purchase.colTotal'), r: (v, row) => {
+      const netUzs = Number(v) - Number(row.discount_amount || 0);  // chegirmadan keyin
       if (row.currency && row.currency !== 'UZS' && row.original_total_amount != null) {
         return (
           <div>
             <div className="font-bold text-blue-600">{fmt(Number(row.original_total_amount))} <span className="text-xs uppercase font-semibold">{row.currency}</span></div>
-            <div className="text-[10px] text-slate-400">≈ {fmt(Number(v))} {t('purchase.somUnit')}</div>
+            <div className="text-[10px] text-slate-400">≈ {fmt(netUzs)} {t('purchase.somUnit')}</div>
           </div>
         );
       }
-      return <span>{fmt(v)} <span className="text-xs text-slate-400">{t('purchase.somUnit')}</span></span>;
+      return <span>{fmt(netUzs)} <span className="text-xs text-slate-400">{t('purchase.somUnit')}</span></span>;
     } },
     { k: 'paid_amount', l: t('common.paid'), r: (v, row) => {
       // USD yoki boshqa valyutada bo'lsa, original qiymatni ko'rsatish
@@ -1803,7 +1307,14 @@ function KirimlarTab({ products, warehouses, suppliers }) {
       }
       return <span className="text-emerald-600 font-semibold">{fmt(v)} <span className="text-xs text-slate-400">{t('purchase.somUnit')}</span></span>;
     } },
-    { k: 'debt', l: t('common.debt'), r: (_, row) => { const d = Number(row.total_amount) - Number(row.paid_amount || 0) - Number(row.discount_amount || 0); return d > 0 ? <span className="text-red-500 font-semibold">{fmt(d)} <span className="text-xs">{t('purchase.somUnit')}</span></span> : '—'; } },
+    { k: 'debt', l: t('common.debt'), r: (_, row) => {
+      // Server hisobi: faqat qabul qilingan tovar qarz bo'ladi; manfiy — ortiqcha to'lov (avans)
+      const d = row.debt_amount != null ? Number(row.debt_amount) : Number(row.total_amount) - Number(row.paid_amount || 0) - Number(row.discount_amount || 0);
+      const cur = row.currency && row.currency !== 'UZS' ? row.currency : t('purchase.somUnit');
+      if (d > 0.004) return <span className="text-red-500 font-semibold">{fmt(d)} <span className="text-xs">{cur}</span></span>;
+      if (d < -0.004) return <span className="text-emerald-600 font-semibold">{t('purchase.avans')}: {fmt(-d)} <span className="text-xs">{cur}</span></span>;
+      return '—';
+    } },
     { k: 'created_at', l: t('purchase.colDate'), r: v => fmtDay(v) },
     {
       k: 'id', l: '', r: (v, row) => (
@@ -1886,18 +1397,40 @@ function KirimlarTab({ products, warehouses, suppliers }) {
                       <td className="px-4 py-3 font-medium">{item.product_name}</td>
                       <td className="px-4 py-3 text-center">{item.qty_ordered}</td>
                       <td className="px-4 py-3 text-center text-emerald-600 font-semibold">{item.qty_received}</td>
-                      <td className="px-4 py-3 text-right">{fmt(item.unit_cost)} <span className="text-xs font-semibold">{item.cost_currency || (detail.currency && detail.currency !== 'UZS' ? detail.currency : t('purchase.somUnit'))}</span></td>
-                      <td className="px-4 py-3 text-right font-semibold">{fmt(Number(item.qty_ordered) * Number(item.unit_cost))} <span className="text-xs font-semibold">{item.cost_currency || (detail.currency && detail.currency !== 'UZS' ? detail.currency : t('purchase.somUnit'))}</span></td>
+                      {(() => {
+                        // Avval UZS narx valyuta belgisi bilan chiqardi (masalan "1 270 000 USD")
+                        const { cur, unit } = itemPrice(item, detail);
+                        const label = cur === 'UZS' ? t('purchase.somUnit') : cur;
+                        return (
+                          <>
+                            <td className="px-4 py-3 text-right">
+                              <div>{fmt(Math.round(unit * 100) / 100)} <span className="text-xs font-semibold">{label}</span></div>
+                              {cur !== 'UZS' && <div className="text-[10px] text-slate-400">≈ {fmt(item.unit_cost)} {t('purchase.somUnit')}</div>}
+                            </td>
+                            <td className="px-4 py-3 text-right font-semibold">{fmt(Math.round(Number(item.qty_ordered) * unit * 100) / 100)} <span className="text-xs font-semibold">{label}</span></td>
+                          </>
+                        );
+                      })()}
                     </tr>
                   ))}
                 </tbody>
               </table>
+              <div className="flex flex-wrap justify-end gap-x-6 gap-y-1 text-sm">
+                <span className="text-slate-500">{t('purchase.colTotal')}: <b className="text-slate-800">{fmt(detail.total_amount)} {t('purchase.somUnit')}</b></span>
+                {Number(detail.discount_amount) > 0 && <span className="text-slate-500">{t('purchase.discount')}: <b className="text-amber-600">{fmt(detail.discount_amount)} {t('purchase.somUnit')}</b></span>}
+                <span className="text-slate-500">{t('common.paid')}: <b className="text-emerald-600">{fmt(detail.paid_amount)} {t('purchase.somUnit')}</b></span>
+                {detail.currency && detail.currency !== 'UZS' && Number(detail.exchange_rate) > 0 && (
+                  <span className="text-slate-400">1 {detail.currency} = {fmt(detail.exchange_rate)} {t('purchase.somUnit')}</span>
+                )}
+              </div>
             </div>
             <div className="flex justify-end gap-3 px-6 py-4 border-t">
-              <Btn v="ghost" onClick={() => setDetail(null)}>{t('admin.dict.close')}</Btn>
-              {/* ✅ O'RTA-2 TUZATILDI: 'ordered' yo'q, to'g'risi 'sent' */}
               {['draft', 'sent', 'partial'].includes(detail.status) && (
-                <Btn v="green" onClick={() => { setRec(detail); setDetail(null); }}>{t('purchase.receive')}</Btn>
+                <Btn v="red" onClick={() => cancelPo(detail)}>{t('purchase.cancelOrder')}</Btn>
+              )}
+              <Btn v="ghost" onClick={() => setDetail(null)}>{t('admin.dict.close')}</Btn>
+              {['draft', 'sent', 'partial'].includes(detail.status) && (
+                <Btn v="green" onClick={() => openReceive(detail)}>{t('purchase.receive')}</Btn>
               )}
             </div>
           </div>
@@ -1906,15 +1439,42 @@ function KirimlarTab({ products, warehouses, suppliers }) {
 
       {recModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6 max-h-[90vh] flex flex-col">
             <h3 className="text-lg font-bold mb-4">{t('purchase.receive')} · {recModal.number}</h3>
-            <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden mb-4">
-              {recModal.items?.filter(i => Number(i.qty_ordered) > Number(i.qty_received)).map(item => (
-                <div key={item.id} className="flex justify-between px-4 py-3">
-                  <span className="font-medium text-sm">{item.product_name}</span>
-                  <span className="text-blue-600 font-semibold">+{Number(item.qty_ordered) - Number(item.qty_received)}</span>
-                </div>
-              ))}
+            <div className="overflow-y-auto border border-slate-200 rounded-xl mb-4">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50"><tr>
+                  <th className="text-left px-3 py-2 text-xs text-slate-500 font-semibold">{t('admin.dict.product')}</th>
+                  <th className="text-center px-3 py-2 text-xs text-slate-500 font-semibold">{t('purchase.remaining')}</th>
+                  <th className="text-center px-3 py-2 text-xs text-slate-500 font-semibold">{t('purchase.receiveQty')}</th>
+                  <th className="text-center px-3 py-2 text-xs text-slate-500 font-semibold">{t('purchase.lotNumber')}</th>
+                  <th className="text-center px-3 py-2 text-xs text-slate-500 font-semibold">{t('purchase.expiryDateShort')}</th>
+                </tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {recModal.items?.filter(i => Number(i.qty_ordered) > Number(i.qty_received)).map(item => {
+                    const rem = Number(item.qty_ordered) - Number(item.qty_received);
+                    const bad = Number(item._qty) < 0 || Number(item._qty) > rem;
+                    return (
+                      <tr key={item.id}>
+                        <td className="px-3 py-2 font-medium">{item.product_name}</td>
+                        <td className="px-3 py-2 text-center text-slate-500">{fmt(rem)}</td>
+                        <td className="px-3 py-2 text-center">
+                          <input type="number" min="0" max={rem} step="any" value={item._qty} onChange={e => updRec(item.id, '_qty', e.target.value)}
+                            className={`w-20 text-center border rounded-lg px-1.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${bad ? 'border-red-300 bg-red-50' : 'border-slate-200'}`} />
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <input value={item._lot} onChange={e => updRec(item.id, '_lot', e.target.value)} placeholder={`PO-${recModal.number}`}
+                            className="w-28 border border-slate-200 rounded-lg px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <input type="date" value={item._exp} onChange={e => updRec(item.id, '_exp', e.target.value)}
+                            className="border border-slate-200 rounded-lg px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
             <div className="flex gap-3">
               <Btn v="ghost" onClick={() => setRec(null)} className="flex-1">{t('common.cancel')}</Btn>
@@ -1931,9 +1491,11 @@ function KirimlarTab({ products, warehouses, suppliers }) {
 
 /* ===================== TA'MINOTCHILAR TAB ===================== */
 const emptySupplier = {
-  name: '', inn: '', phone: '', email: '',
-  // Multi-currency debt entries: [{ currency: 'UZS', amount: '' }, ...]
-  debtEntries: [{ currency: 'UZS', amount: '' }]
+  name: '', inn: '', phone: '', email: '', address: '', payment_terms: '30',
+  bank_name: '', bank_account: '', bank_mfo: '', contract_number: '', contract_date: '', rating: '', notes: '',
+  // Valyuta bo'yicha qarz: [{ currency: 'UZS', amount: '' }, ...] (manfiy — avans)
+  debtEntries: [{ currency: 'UZS', amount: '' }],
+  debtReason: '',
 };
 function StarRating({ value }) {
   const { t } = useLang();
@@ -2093,7 +1655,12 @@ function SuppliersTab() {
     } finally { setImportLoading(false); }
   };
 
-  const load = (q = search) => api.get(`/suppliers${q ? '?search=' + encodeURIComponent(q) : ''}`).then(r => setList(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
+  const [summary, setSummary] = useState(null);
+  // Keshsiz: xarid/to'lov/qaytarishdan keyin qarz darhol yangilangan bo'lishi kerak
+  const load = (q = search) => {
+    api.get('/suppliers', { params: { limit: 5000, ...(q ? { search: q } : {}) }, _noCache: true }).then(r => setList(r.data)).catch(() => { });
+    api.get('/suppliers/summary', { _noCache: true }).then(r => setSummary(r.data)).catch(() => { });
+  };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     load();
@@ -2123,39 +1690,51 @@ function SuppliersTab() {
     }
     return entries;
   };
-  const openEdit = (s) => { setForm({ name: s.name, inn: s.inn || '', phone: s.phone || '', email: s.email || '', debtEntries: buildDebtEntries(s) }); setSel(s); setErr(''); setModal('form'); };
+  const openEdit = (s) => {
+    setForm({
+      ...emptySupplier,
+      name: s.name, inn: s.inn || '', phone: s.phone || '', email: s.email || '', address: s.address || '',
+      payment_terms: s.payment_terms != null ? String(s.payment_terms) : '30',
+      bank_name: s.bank_name || '', bank_account: s.bank_account || '', bank_mfo: s.bank_mfo || '',
+      contract_number: s.contract_number || '', contract_date: s.contract_date ? String(s.contract_date).slice(0, 10) : '',
+      rating: s.rating != null ? String(s.rating) : '', notes: s.notes || '',
+      debtEntries: buildDebtEntries(s), debtReason: '',
+    });
+    setSel(s); setErr(''); setModal('form');
+  };
   const handleSave = async (e) => {
     e.preventDefault(); setSaving(true); setErr('');
     try {
-      const p = { name: form.name, inn: form.inn || null, phone: form.phone || null, email: form.email || null };
-      // Build debt_balances dict from debtEntries
-      const debtBalances = {};
-      (form.debtEntries || []).forEach(entry => {
-        if (entry.currency && entry.amount !== '' && Number(entry.amount) >= 0) {
-          debtBalances[entry.currency] = Number(entry.amount);
-        }
+      const p = {
+        name: form.name.trim(), inn: form.inn || null, phone: form.phone || null, email: form.email || null,
+        address: form.address || null,
+        payment_terms: form.payment_terms !== '' ? Number(form.payment_terms) : 30,
+        bank_name: form.bank_name || null, bank_account: form.bank_account || null, bank_mfo: form.bank_mfo || null,
+        contract_number: form.contract_number || null, contract_date: form.contract_date || null,
+        rating: form.rating !== '' ? Number(form.rating) : null, notes: form.notes || null,
+      };
+      const entered = {};
+      (form.debtEntries || []).forEach(en => {
+        if (en.currency && en.amount !== '' && !Number.isNaN(Number(en.amount))) entered[en.currency] = (entered[en.currency] || 0) + Number(en.amount);
       });
-      if (Object.keys(debtBalances).length > 0) {
-        p.debt_balances = debtBalances;
-        // ✅ O'RTA-6 TUZATILDI: UZS mavjud bo'lsa uni olish, bo'lmasa birinchi entry
-        const uzsEntry = form.debtEntries.find(e => e.currency === 'UZS');
-        const firstEntry = form.debtEntries.find(e => e.currency && Number(e.amount) > 0);
-        if (uzsEntry && Number(uzsEntry.amount) >= 0) {
-          // UZS mavjud → to'g'ridan-to'g'ri
-          p.debt_balance = Number(uzsEntry.amount) || 0;
-          p.debt_currency = 'UZS';
-        } else if (firstEntry) {
-          // Chet el valyutasi → UZS ekvivalentini hisoblash
-          const rate = currencies.find(c => c.code === firstEntry.currency)?.rate || 1;
-          p.debt_balance = Math.round(Number(firstEntry.amount) * Number(rate));
-          p.debt_currency = firstEntry.currency;
-        }
+      if (sel) {
+        // Rekvizitlar alohida saqlanadi. Qarz o'zgargan bo'lsa — faqat farqi, sababi bilan
+        // (avval butun balans qayta yozilib, oraliqdagi xarid/to'lovlar yo'qolardi).
+        const current = sel.debt_balances && typeof sel.debt_balances === 'object' ? sel.debt_balances : {};
+        const changes = [];
+        new Set([...Object.keys(current), ...Object.keys(entered)]).forEach(c => {
+          const delta = Math.round(((entered[c] || 0) - Number(current[c] || 0)) * 10000) / 10000;
+          if (Math.abs(delta) >= 0.01) changes.push({ currency: c, delta });
+        });
+        if (changes.length && !form.debtReason.trim()) { setErr(t('purchase.debtAdjustReasonRequired')); return; }
+        await api.patch(`/suppliers/${sel.id}`, p);
+        if (changes.length) await api.post(`/suppliers/${sel.id}/adjust-debt`, { changes, reason: form.debtReason.trim() });
       } else {
-        p.debt_balance = 0;
-        p.debt_balances = {};
+        const debtBalances = Object.fromEntries(Object.entries(entered).filter(([, v]) => v !== 0));
+        await api.post('/suppliers', { ...p, debt_balances: debtBalances });
       }
-      if (sel) await api.patch(`/suppliers/${sel.id}`, p); else await api.post('/suppliers', p); close(); load();
-    } catch (ex) { setErr(ex.response?.data?.detail || t('common.error')); } finally { setSaving(false); };
+      close(); load();
+    } catch (ex) { setErr(errText(ex, t('common.error'))); load(); } finally { setSaving(false); }
   };
   const handlePayDebt = async (e) => {
     e.preventDefault(); setSaving(true); setErr('');
@@ -2173,9 +1752,13 @@ function SuppliersTab() {
       }
       close(); load();
     }
-    catch (ex) { setErr(ex.response?.data?.detail || t('common.error')); } finally { setSaving(false); };
+    catch (ex) { setErr(errText(ex, t('common.error'))); load(); } finally { setSaving(false); };
   };
-  const del = async (id) => { if (!confirm(t('confirm.delete'))) return; await api.delete(`/suppliers/${id}`); load(); };
+  const del = async (id) => {
+    if (!confirm(t('confirm.delete'))) return;
+    try { await api.delete(`/suppliers/${id}`); toast.success(t('purchase.supplierDeleted')); load(); }
+    catch { /* xabar (masalan, ochiq qarz) axios interceptor orqali ko'rsatiladi */ }
+  };
 
   return (
     <div className="space-y-4">
@@ -2228,28 +1811,25 @@ function SuppliersTab() {
         <span className="text-sm font-medium text-slate-500">{t('purchase.totalSupplierDebt')}</span>
         <div className="flex flex-wrap items-center gap-3">
           {(() => {
-            const totals = {};
-            list.forEach(s => {
-              const debtMap = (s.debt_balances && typeof s.debt_balances === 'object')
-                ? Object.entries(s.debt_balances)
-                : (Number(s.debt_balance) > 0 ? [[s.debt_currency || 'UZS', s.debt_balance]] : []);
-
-              debtMap.forEach(([cur, amt]) => {
-                const val = Number(amt) || 0;
-                if (val > 0) {
-                  totals[cur] = (totals[cur] || 0) + val;
-                }
-              });
-            });
-            const totalEntries = Object.entries(totals).filter(([, v]) => v > 0);
-            if (totalEntries.length === 0) {
+            const debts = Object.entries(summary?.debt_by_currency || {}).filter(([, v]) => Number(v) > 0);
+            const avans = Object.entries(summary?.avans_by_currency || {}).filter(([, v]) => Number(v) > 0);
+            if (!debts.length && !avans.length) {
               return <span className="text-lg font-bold text-emerald-500">0 UZS</span>;
             }
-            return totalEntries.map(([cur, amt]) => (
-              <span key={cur} className="text-lg font-black text-red-500">
-                {fmt(amt)} <span className="text-xs font-bold text-slate-400">{cur}</span>
-              </span>
-            ));
+            return (
+              <>
+                {debts.map(([cur, amt]) => (
+                  <span key={`d-${cur}`} className="text-lg font-black text-red-500">
+                    {fmt(amt)} <span className="text-xs font-bold text-slate-400">{cur}</span>
+                  </span>
+                ))}
+                {avans.map(([cur, amt]) => (
+                  <span key={`a-${cur}`} className="text-sm font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100">
+                    {t('purchase.avans')}: {fmt(amt)} {cur}
+                  </span>
+                ))}
+              </>
+            );
           })()}
         </div>
       </div>
@@ -2259,9 +1839,11 @@ function SuppliersTab() {
           <tbody className="divide-y divide-slate-50">
             {list.map(s => {
               // Build multi-currency debt display
-              const debtMap = (s.debt_balances && typeof s.debt_balances === 'object')
-                ? Object.entries(s.debt_balances).filter(([, v]) => Number(v) > 0)
-                : (Number(s.debt_balance) > 0 ? [[s.debt_currency || 'UZS', s.debt_balance]] : []);
+              const allBal = (s.debt_balances && typeof s.debt_balances === 'object')
+                ? Object.entries(s.debt_balances)
+                : (Number(s.debt_balance) !== 0 ? [[s.debt_currency || 'UZS', s.debt_balance]] : []);
+              const debtMap = allBal.filter(([, v]) => Number(v) > 0);
+              const avansMap = allBal.filter(([, v]) => Number(v) < 0);  // biz oldindan to'laganmiz
               const hasDebt = debtMap.length > 0;
               return (
                 <tr key={s.id} className="hover:bg-slate-50">
@@ -2270,11 +1852,16 @@ function SuppliersTab() {
                   <td className="px-5 py-4 text-sm text-slate-500">{s.phone || '\u2014'}</td>
                   <td className="px-5 py-4"><StarRating value={s.rating} /></td>
                   <td className="px-5 py-4">
-                    {hasDebt ? (
+                    {(hasDebt || avansMap.length > 0) ? (
                       <div className="flex flex-wrap gap-1.5">
                         {debtMap.map(([cur, amt]) => (
                           <span key={cur} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-red-50 text-red-600 border border-red-100">
                             {fmt(amt)} <span className="text-red-400">{cur}</span>
+                          </span>
+                        ))}
+                        {avansMap.map(([cur, amt]) => (
+                          <span key={`a-${cur}`} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
+                            {t('purchase.avans')}: {fmt(-Number(amt))} <span className="text-emerald-500">{cur}</span>
                           </span>
                         ))}
                       </div>
@@ -2326,7 +1913,21 @@ function SuppliersTab() {
                 <div className="col-span-2"><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('common.name')} *</label><input required className={inp} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={t('purchase.companyNamePlaceholder')} /></div>
                 <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">INN</label><input className={inp} value={form.inn} onChange={e => setForm({ ...form, inn: e.target.value })} /></div>
                 <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('admin.dict.phone')}</label><input className={inp} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></div>
-                <div className="col-span-2"><label className="block text-xs font-semibold text-slate-600 mb-1.5">Email</label><input type="email" className={inp} value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
+                <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">Email</label><input type="email" className={inp} value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
+                <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('purchase.importFieldPaymentTermDays')}</label><input type="number" min="0" className={inp} value={form.payment_terms} onChange={e => setForm({ ...form, payment_terms: e.target.value })} /></div>
+                <div className="col-span-2"><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('common.address')}</label><input className={inp} value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} /></div>
+                <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('purchase.bankName')}</label><input className={inp} value={form.bank_name} onChange={e => setForm({ ...form, bank_name: e.target.value })} /></div>
+                <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('purchase.bankAccount')}</label><input className={inp} value={form.bank_account} onChange={e => setForm({ ...form, bank_account: e.target.value })} /></div>
+                <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('purchase.bankMfo')}</label><input className={inp} value={form.bank_mfo} onChange={e => setForm({ ...form, bank_mfo: e.target.value })} /></div>
+                <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('purchase.colRating')}</label>
+                  <select className={inp} value={form.rating} onChange={e => setForm({ ...form, rating: e.target.value })}>
+                    <option value="">—</option>
+                    {[1, 2, 3, 4, 5].map(r => <option key={r} value={r}>{'★'.repeat(r)}</option>)}
+                  </select>
+                </div>
+                <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('purchase.contractNumber')}</label><input className={inp} value={form.contract_number} onChange={e => setForm({ ...form, contract_number: e.target.value })} /></div>
+                <div><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('purchase.contractDate')}</label><input type="date" className={inp} value={form.contract_date} onChange={e => setForm({ ...form, contract_date: e.target.value })} /></div>
+                <div className="col-span-2"><label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('common.note')}</label><textarea rows={2} className={`${inp} resize-none`} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></div>
 
                 {/* ── Multi-currency debt section ── */}
                 <div className="col-span-2">
@@ -2374,7 +1975,7 @@ function SuppliersTab() {
                           </select>
                           {/* Miqdor input */}
                           <input
-                            type="number" min="0"
+                            type="number"
                             className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
                             value={entry.amount}
                             onChange={e => setForm(f => ({
@@ -2402,6 +2003,12 @@ function SuppliersTab() {
                       ? t('purchase.debtByCurrencyHint')
                       : t('purchase.initialDebtHint')}
                   </p>
+                  {sel && (
+                    <div className="mt-3">
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('purchase.debtAdjustReason')}</label>
+                      <input className={inp} value={form.debtReason} onChange={e => setForm({ ...form, debtReason: e.target.value })} placeholder={t('purchase.debtAdjustReasonHint')} />
+                    </div>
+                  )}
                 </div>
               </div>
               {err && <div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl">{err}</div>}
@@ -2865,47 +2472,10 @@ function SuppliersTab() {
   );
 }
 
-/* ===================== BUYURTMALAR TAB ===================== */
-function PurchaseOrdersTab() {
-  const { t } = useLang();
-  const [pos, setPos] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const load = async () => {
-    setLoading(true);
-    try { const { data } = await api.get('/purchase-orders'); setPos(data); }
-    catch { /* ignore */ } finally { setLoading(false); }
-  };
-  useEffect(() => { load(); }, []);
-  return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-      {loading ? (
-        <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
-      ) : (
-        <table className="min-w-full">
-          <thead><tr className="bg-slate-50 border-b border-slate-100">{[t('purchase.colNumber'), t('purchase.supplier'), t('purchase.colWarehouse'), t('purchase.colTotal'), t('purchase.filterStatus')].map(h => <th key={h} className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
-          <tbody className="divide-y divide-slate-50">
-            {pos.map(p => (
-              <tr key={p.id} className="hover:bg-slate-50">
-                <td className="px-6 py-4 text-sm font-mono font-semibold text-blue-600">{p.number}</td>
-                <td className="px-6 py-4 text-sm text-slate-700 font-medium">{p.supplier_name}</td>
-                <td className="px-6 py-4 text-sm text-slate-500">{p.warehouse_name}</td>
-                <td className="px-6 py-4 text-sm font-semibold text-slate-800">{Number(p.total_amount).toLocaleString()} <span className="text-slate-400 font-normal">{t('purchase.somUnit')}</span></td>
-                <td className="px-6 py-4"><Badge meta={poMeta} val={p.status} /></td>
-              </tr>
-            ))}
-            {pos.length === 0 && <tr><td colSpan={5} className="px-6 py-16 text-center text-slate-400 text-sm">{t('purchase.noOrders')}</td></tr>}
-          </tbody>
-        </table>
-      )}
-    </div>
-  );
-}
-
 /* ===================== MAIN ===================== */
 const TABS_IDS = [
   { id: 'kirimlar', key: 'purchase.tabKirimlar', icon: <CircleArrowDown size={18} className='text-blue-500' /> },
   { id: 'suppliers', key: 'purchase.tabSuppliers', icon: <PackageCheck size={18} className='text-green-500' /> },
-  { id: 'orders', key: 'purchase.tabOrders', icon: <ShoppingCart size={18} className='text-yellow-500' /> },
 ];
 
 /* ═══════════════════════════════════════════ */
@@ -3029,15 +2599,6 @@ function VariantPickerModal({ parent, onClose, onSelect }) {
 export default function Purchases() {
   const { t } = useLang();
   const [tab, setTab] = useState('kirimlar');
-  const [products, setProducts] = useState([]);
-  const [warehouses, setWarehouses] = useState([]);
-  const [suppliers, setSuppliers] = useState([]);
-
-  useEffect(() => {
-    api.get('/products/', { params: { limit: 300 } }).then(r => setProducts(r.data.items || r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
-    api.get('/inventory/warehouses').then(r => setWarehouses(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
-    api.get('/suppliers', { params: { limit: 100 } }).then(r => setSuppliers(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
-  }, []);
 
   return (
     <div className="space-y-6">
@@ -3053,9 +2614,8 @@ export default function Purchases() {
           </button>
         ))}
       </div>
-      {tab === 'kirimlar' && <KirimlarTab products={products} warehouses={warehouses} suppliers={suppliers} />}
+      {tab === 'kirimlar' && <KirimlarTab />}
       {tab === 'suppliers' && <SuppliersTab />}
-      {tab === 'orders' && <PurchaseOrdersTab />}
     </div>
   );
 }

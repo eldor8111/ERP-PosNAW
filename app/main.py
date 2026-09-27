@@ -244,6 +244,13 @@ def _run_auto_migrations(engine):
         "CREATE INDEX IF NOT EXISTS ix_ai_audit_logs_user_id ON ai_audit_logs(user_id);",
         "CREATE INDEX IF NOT EXISTS ix_ai_audit_logs_tool_name ON ai_audit_logs(tool_name);",
         "CREATE INDEX IF NOT EXISTS ix_ai_audit_logs_confirmation_id ON ai_audit_logs(confirmation_id);",
+        # ── Xarid va ta'minotchi qarzi (app/services/supplier_ledger.py) ──
+        "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(14,4);",
+        "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_debt NUMERIC(18,4);",
+        "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_debt_currency VARCHAR(10);",
+        "ALTER TABLE po_items ADD COLUMN IF NOT EXISTS new_sale_price NUMERIC(16,4);",
+        "ALTER TABLE po_items ADD COLUMN IF NOT EXISTS new_wholesale_price NUMERIC(16,4);",
+        "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS meta JSON;",
     ]
     _sa_text = __import__('sqlalchemy').text
     for sql in migrations:

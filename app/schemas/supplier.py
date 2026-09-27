@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
+from typing import List, Optional
 from pydantic import BaseModel, model_validator  # type: ignore
 
 
@@ -26,6 +26,16 @@ class SupplierCreate(BaseModel):
     notes: Optional[str] = None
 
 
+class SupplierDebtChange(BaseModel):
+    currency: str = "UZS"
+    delta: Decimal  # musbat — qarz oshadi, manfiy — kamayadi
+
+
+class SupplierDebtAdjust(BaseModel):
+    changes: List[SupplierDebtChange]
+    reason: str
+
+
 class SupplierUpdate(BaseModel):
     name: Optional[str] = None
     inn: Optional[str] = None
@@ -44,10 +54,8 @@ class SupplierUpdate(BaseModel):
     # Reyting
     rating: Optional[float] = None
     notes: Optional[str] = None
-    # Qarz balans (admin tomonidan to'g'ridan-to'g'ri o'zgartirish)
-    debt_balance: Optional[Decimal] = None
-    debt_currency: Optional[str] = None
-    debt_balances: Optional[dict] = None
+    # Qarz bu yerda o'zgartirilmaydi (eski forma butun balansni qayta yozib, oraliqdagi
+    # xarid/to'lovlarni yo'qotardi) — POST /suppliers/{id}/adjust-debt orqali.
 
 
 class SupplierOut(BaseModel):
@@ -98,8 +106,8 @@ class SupplierOut(BaseModel):
         else:
             balances = dict(debt_balances)
             
-        # Agar debt_balances bo'sh bo'lib, jami debt_balance musbat bo'lsa
-        if not balances and float(debt_balance) > 0:
+        # Eski yozuv: debt_balances bo'sh, faqat debt_balance (manfiy — avans ham)
+        if not balances and float(debt_balance) != 0:
             balances[currency] = float(debt_balance)
             
         if is_dict:

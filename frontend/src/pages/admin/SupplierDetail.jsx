@@ -3,9 +3,18 @@ import { useParams, useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
 import { ChevronLeft, ListOrdered, Edit, Trash2 } from 'lucide-react'
 import { useLang } from '../../context/LangContext'
+import toast from 'react-hot-toast'
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ')
 const fmtDate = (d) => d ? new Date(d).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
+
+const PO_STATUS = {
+  draft: { key: 'purchase.statusDraft', c: 'bg-slate-100 text-slate-600' },
+  sent: { key: 'purchase.statusOrdered', c: 'bg-blue-100 text-blue-700' },
+  partial: { key: 'purchase.statusPartial', c: 'bg-amber-100 text-amber-700' },
+  received: { key: 'purchase.statusReceived', c: 'bg-emerald-100 text-emerald-700' },
+  cancelled: { key: 'purchase.statusCancelled', c: 'bg-red-100 text-red-500' },
+}
 
 const TABS = [
   { id: 'umumiy', key: 'supplier.tabGeneral' },
@@ -49,7 +58,7 @@ export default function SupplierDetail() {
   const [loadingTab, setLoadingTab] = useState(false)
 
   useEffect(() => {
-    api.get(`/suppliers/${supplierId}/stats`, { _suppressToast: true })
+    api.get(`/suppliers/${supplierId}/stats`, { _suppressToast: true, _noCache: true })
       .then(r => setStats(r.data))
       .catch(() => navigate('/admin/purchases'))
       .finally(() => setLoading(false))
@@ -58,7 +67,7 @@ export default function SupplierDetail() {
   const loadHistory = useCallback(async () => {
     setLoadingTab(true)
     try {
-      const { data } = await api.get(`/suppliers/${supplierId}/history`, { _suppressToast: true })
+      const { data } = await api.get(`/suppliers/${supplierId}/history`, { _suppressToast: true, _noCache: true })
       setHistory(data)
       setPurchases(data.filter(i => i.op_type === 'purchase'))
     } finally {
@@ -74,15 +83,13 @@ export default function SupplierDetail() {
     if (!window.confirm(t('supplier.confirmDeletePayment'))) return
     try {
       await api.delete(`/finance/transactions/${id}`)
-      // ✅ KRITIK-5 TUZATILDI: Tranzaksiya o'chirilgandan keyin stats va history qayta yuklanadi
-      loadHistory()
-      const r = await api.get(`/suppliers/${supplierId}/stats`)
-      setStats(r.data)
-    } catch (err) {
-      console.error(err)
-      // Xato bo'lsa ham ro'yxatni yangilaymiz
-      loadHistory()
+      toast.success(t('supplier.paymentDeleted'))
+    } catch {
+      // xabarni axios interceptor ko'rsatadi
     }
+    // Qarz va tarix har holda serverdan qayta o'qiladi
+    loadHistory()
+    api.get(`/suppliers/${supplierId}/stats`, { _noCache: true }).then(r => setStats(r.data)).catch(() => { })
   }
 
   if (loading) {
@@ -129,28 +136,28 @@ export default function SupplierDetail() {
         {tab === 'umumiy' && (
           <div className="space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-5">
-              {/* ✅ O'RTA-7 TUZATILDI: Valyuta bo'yicha qarzlar alohida ko'rsatiladi */}
-              {stats.debt_balances && Object.keys(stats.debt_balances).filter(k => Number(stats.debt_balances[k]) > 0).length > 0 ? (
-                Object.entries(stats.debt_balances)
-                  .filter(([, v]) => Number(v) > 0)
-                  .map(([cur, amt]) => (
+              {/* Valyuta bo'yicha balans: musbat — bizning qarzimiz, manfiy — avans (oldindan to'langan) */}
+              {(() => {
+                const entries = Object.entries(stats.debt_balances || {}).filter(([, v]) => Math.abs(Number(v)) >= 0.01)
+                const icon = <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                if (!entries.length) {
+                  return <StatCard color="emerald" icon={icon} label={t('supplier.currentDebt')} value={`0 UZS`} />
+                }
+                return entries.map(([cur, amt]) => {
+                  const v = Number(amt)
+                  const isAvans = v < 0
+                  return (
                     <StatCard
                       key={cur}
-                      color={Number(amt) > 0 ? 'red' : 'emerald'}
-                      icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-                      label={`${t('supplier.currentDebt')} (${cur})`}
-                      value={`${fmt(amt)} ${cur}`}
-                      sub={cur !== 'UZS' ? `≈ ${fmt(Math.round(Number(amt) * (stats.rates?.[cur] || 1)))} UZS` : null}
+                      color={isAvans ? 'emerald' : 'red'}
+                      icon={icon}
+                      label={`${isAvans ? t('purchase.avans') : t('supplier.currentDebt')} (${cur})`}
+                      value={`${fmt(Math.abs(v))} ${cur}`}
+                      sub={cur !== 'UZS' ? `≈ ${fmt(Math.round(Math.abs(v) * (stats.rates?.[cur] || 1)))} UZS` : null}
                     />
-                  ))
-              ) : (
-                <StatCard
-                  color={stats.debt_balance > 0 ? 'red' : 'emerald'}
-                  icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-                  label={t('supplier.currentDebt')}
-                  value={fmt(stats.debt_balance)}
-                />
-              )}
+                  )
+                })
+              })()}
               <StatCard color="indigo"
                 icon={<ListOrdered className="w-6 h-6" />}
                 label={t('supplier.totalPurchasesCount')}
@@ -166,6 +173,13 @@ export default function SupplierDetail() {
                 label={t('supplier.totalPaidAmount')}
                 value={fmt(stats.total_paid_amount)}
               />
+              {Number(stats.total_returns_amount) > 0 && (
+                <StatCard color="violet"
+                  icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>}
+                  label={t('supplier.totalReturns')}
+                  value={fmt(stats.total_returns_amount)}
+                />
+              )}
             </div>
           </div>
         )}
@@ -189,21 +203,33 @@ export default function SupplierDetail() {
                     <tr key={`${h.op_type}-${h.id || h.date}`} className="hover:bg-slate-50">
                       <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">{fmtDate(h.date)}</td>
                       <td className="px-4 py-3">
-                        {h.op_type === 'purchase' ? <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs">{t('supplier.purchase')}</span> :
+                        {h.op_type === 'purchase' ? (
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs">{t('supplier.purchase')}</span>
+                            {h.status && PO_STATUS[h.status] && <span className={`px-2 py-1 rounded text-[10px] font-semibold ${PO_STATUS[h.status].c}`}>{t(PO_STATUS[h.status].key)}</span>}
+                          </div>
+                        ) :
                          h.op_type === 'payment' ? <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs">{t('supplier.payment')}</span> :
+                         h.op_type === 'return' ? <span className="bg-violet-100 text-violet-700 px-2 py-1 rounded text-xs">{t('supplier.return')}</span> :
+                         h.op_type === 'refund' ? <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded text-xs">{t('supplier.refund')}</span> :
                          <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded text-xs">{h.op_type}</span>}
                       </td>
                       <td className="px-4 py-3 text-slate-600 text-xs">{h.description}</td>
                       <td className="px-4 py-3 text-slate-500 text-xs">{h.cashier || '—'}</td>
                       <td className="px-4 py-3 text-right font-semibold">
                         {h.op_type === 'purchase' ? (
+                          // Qarzga faqat qabul qilingan tovar qo'shiladi
+                          Number(h.received) > 0
+                            ? <span className="text-red-500">-{fmt(h.received)} {h.currency}</span>
+                            : <span className="text-slate-400">{fmt(h.amount)} {h.currency}</span>
+                        ) : h.op_type === 'refund' ? (
                           <span className="text-red-500">-{fmt(h.amount)} {h.currency}</span>
                         ) : (
                           <span className="text-emerald-500">+{fmt(h.amount)} {h.currency}</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        {h.op_type === 'payment' && (
+                        {h.deletable && (h.op_type === 'payment' || h.op_type === 'refund') && (
                           <button onClick={() => handleDeletePay(h.id)} className="text-red-400 hover:text-red-600 bg-red-50 p-1.5 rounded-lg transition-colors" title={t('common.delete')}>
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -230,11 +256,13 @@ export default function SupplierDetail() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {loadingTab ? <tr><td colSpan={3} className="text-center py-10">{t('common.loading')}</td></tr> : history.filter(i => i.op_type === (tab === 'xaridlar' ? 'purchase' : 'payment')).map(h => (
+                  {loadingTab ? <tr><td colSpan={3} className="text-center py-10">{t('common.loading')}</td></tr> : history.filter(i => tab === 'xaridlar' ? i.op_type === 'purchase' : (i.op_type === 'payment' || i.op_type === 'refund')).map(h => (
                     <tr key={`${h.op_type}-${h.id}`} className="hover:bg-slate-50">
                       <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">{fmtDate(h.date)}</td>
                       <td className="px-4 py-3 font-semibold text-slate-800">
-                        <div>{fmt(h.amount)} <span className="text-xs font-bold text-slate-500">{h.currency}</span></div>
+                        <div>{h.op_type === 'refund' ? '−' : ''}{fmt(h.amount)} <span className="text-xs font-bold text-slate-500">{h.currency}</span>
+                          {h.op_type === 'purchase' && h.status && PO_STATUS[h.status] && <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] font-semibold ${PO_STATUS[h.status].c}`}>{t(PO_STATUS[h.status].key)}</span>}
+                        </div>
                         {h.currency !== 'UZS' && h.amount_uzs && (
                           <div className="text-[11px] text-slate-400 font-normal">≈ {fmt(h.amount_uzs)} {t('common.sum')}</div>
                         )}
@@ -242,7 +270,7 @@ export default function SupplierDetail() {
                       <td className="px-4 py-3 text-slate-600 text-xs">{h.description}</td>
                     </tr>
                   ))}
-                  {!loadingTab && history.filter(i => i.op_type === (tab === 'xaridlar' ? 'purchase' : 'payment')).length === 0 && <tr><td colSpan={3} className="text-center py-10 text-slate-400">{t('common.noData')}</td></tr>}
+                  {!loadingTab && history.filter(i => tab === 'xaridlar' ? i.op_type === 'purchase' : (i.op_type === 'payment' || i.op_type === 'refund')).length === 0 && <tr><td colSpan={3} className="text-center py-10 text-slate-400">{t('common.noData')}</td></tr>}
                 </tbody>
               </table>
             </div>

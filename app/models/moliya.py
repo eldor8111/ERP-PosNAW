@@ -70,6 +70,8 @@ class Transaction(Base):
     description = Column(Text, nullable=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    # Bekor qilish uchun kerakli tafsilotlar (masalan ta'minotchi to'lovining valyutalar bo'yicha taqsimoti)
+    meta = Column(JSON, nullable=True)
 
     branch = relationship("Branch")
     wallet = relationship("Wallet")

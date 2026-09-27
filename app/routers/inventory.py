@@ -378,42 +378,18 @@ def delete_return_movement(
             db.add(revert_mov)
 
     # ── 3. TA'MINOTCHIGA QAYTARISH BEKOR ───────────────────────────────────
+    # Butun qaytarish hujjati bekor qilinadi: qoldiq to'g'ri omborga, partiyalar, ta'minotchi
+    # qarzi (aynan qaytarishdagi summa) va shu hujjatning qaytim to'lovi tiklanadi.
+    # Avval: qarzga miqdor (dona) qo'shilardi, stok NULL-omborga tushardi va ta'minotchining
+    # barcha qaytarish tranzaksiyalari o'chirilardi.
     elif rt == "return_to_supplier":
-        stock = db.query(StockLevel).filter(StockLevel.product_id == m.product_id).first()
-        qty_before = stock.quantity if stock else Decimal("0")
-        if not stock:
-            stock = StockLevel(product_id=m.product_id, warehouse_id=None, quantity=Decimal("0"))
-            db.add(stock)
-            db.flush()
-        stock.quantity += qty
-        revert_mov = StockMovement(
-            product_id=m.product_id,
-            type=MovementType.IN,
-            qty_before=qty_before,
-            qty_after=stock.quantity,
-            quantity=qty,
-            reference_type="return_revert",
-            reference_id=m.id,
-            user_id=current_user.id,
-            reason=f"Ta'minotchi qaytaruvi bekor qilindi (asl harakat ID: {m.id})",
-        )
-        db.add(revert_mov)
-        if m.reference_id:
-            supplier = db.get(Supplier, m.reference_id)
-            if supplier:
-                supplier.debt_balance = float(supplier.debt_balance or 0) + float(qty)
-        txs = db.query(Transaction).filter(
-            Transaction.reference_type == "return_to_supplier",
-            Transaction.reference_id == m.reference_id,
-        ).all()
-        for tx in txs:
-            wallet = db.get(Wallet, tx.wallet_id)
-            if wallet:
-                if tx.type == "income":
-                    wallet.balance = float(wallet.balance) - float(tx.amount)
-                else:
-                    wallet.balance = float(wallet.balance) + float(tx.amount)
-            db.delete(tx)
+        from app.services.supplier_return_service import revert_supplier_return
+        result = revert_supplier_return(db, m, current_user)
+        db.commit()
+        if result["legacy"]:
+            return {"message": "Qaytaruv bekor qilindi: qoldiq tiklandi. Bu eski qaytarish — ta'minotchi "
+                               "qarzi va kassani kerak bo'lsa qo'lda tuzating", "count": result["count"]}
+        return {"message": f"Qaytaruv bekor qilindi ({result['count']} ta pozitsiya)", "count": result["count"]}
     else:
         raise HTTPException(
             status_code=400,
@@ -455,24 +431,66 @@ def receive_goods(
         db: Session = Depends(get_db),
         current_user: User = Depends(require_roles(*WAREHOUSE_ROLES)),
 ):
+    """Qo'lda kirim (xarid buyurtmasisiz). Tovar tanlangan omborga tushadi, partiya (FIFO tannarx)
+    yaratiladi va mahsulot tannarxi yangilanadi. Ta'minotchi qarzi o'zgarmaydi — qarzli xarid
+    uchun "Xarid buyurtmasi" ishlatiladi."""
+    from app.models.batch import Batch
+    from app.models.supplier import Supplier
+    from app.services import supplier_ledger as ledger
+
+    cid = current_user.company_id
+    wh_q = db.query(Warehouse).filter(Warehouse.company_id == cid, Warehouse.is_active == True)
+    if data.warehouse_id:
+        warehouse = wh_q.filter(Warehouse.id == data.warehouse_id).first()
+        if not warehouse:
+            raise HTTPException(status_code=404, detail="Ombor topilmadi")
+    else:
+        # Avval ombor e'tiborsiz qolib, qoldiq omborsiz (NULL) yozuvga tushardi
+        warehouse = wh_q.order_by(Warehouse.id).first()
+        if not warehouse:
+            raise HTTPException(status_code=400, detail="Omborni tanlang")
+    supplier = None
+    if data.supplier_id:
+        supplier = db.query(Supplier).filter(Supplier.id == data.supplier_id, Supplier.company_id == cid).first()
+        if not supplier:
+            raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
+
     movements = []
     for item in data.items:
+        product = db.query(Product).filter(
+            Product.id == item.product_id, Product.company_id == cid, Product.is_deleted == False,
+        ).first()
+        if not product:
+            raise HTTPException(status_code=404, detail=f"Mahsulot topilmadi: {item.product_id}")
+        price = item.cost_price if item.cost_price is not None else item.purchase_price
+        reason = " | ".join(x for x in [
+            f"Ta'minotchi: {supplier.name}" if supplier else None, item.reason, data.note,
+        ] if x)
         m = receive_stock(
-            db=db,
-            product_id=item.product_id,
-            quantity=item.quantity,
-            user_id=current_user.id,
-            reason=item.reason or data.note,
-            reference_type="manual_receive",
-            purchase_price=item.purchase_price,
-            company_id=current_user.company_id if item.purchase_price is not None else None,
-            variant_id=item.variant_id,
-            expiry_date=item.expiry_date,
+            db=db, product_id=product.id, quantity=item.quantity, user_id=current_user.id,
+            reason=reason or None, reference_type="manual_receive",
+            warehouse_id=warehouse.id, variant_id=item.variant_id,
         )
-        movements.append({"product_id": item.product_id, "variant_id": item.variant_id, "qty_added": str(item.quantity), "new_qty": str(m.qty_after)})
+        cur = (product.cost_currency or "UZS").strip().upper() or "UZS"
+        rate = ledger.currency_rate(db, cid, cur)
+        if price is not None and price > 0:
+            unit_uzs = Decimal(str(price))
+            product.cost_price = unit_uzs if cur == "UZS" else round(unit_uzs / rate, 4)
+        else:
+            unit_uzs = Decimal(str(product.cost_price or 0)) * rate
+        db.add(Batch(
+            product_id=product.id, variant_id=item.variant_id, warehouse_id=warehouse.id,
+            lot_number=item.lot_number or (f"manual-{supplier.id}" if supplier else "manual"),
+            expiry_date=dt.combine(item.expiry_date, dt.min.time()) if item.expiry_date else None,
+            initial_quantity=item.quantity, quantity=item.quantity, purchase_price=unit_uzs,
+            company_id=cid,
+        ))
+        movements.append({"product_id": product.id, "variant_id": item.variant_id,
+                          "qty_added": str(item.quantity), "new_qty": str(m.qty_after)})
 
     db.commit()
-    return {"message": f"{len(movements)} ta mahsulot qabul qilindi", "details": movements}
+    return {"message": f"{len(movements)} ta mahsulot qabul qilindi", "details": movements,
+            "warehouse_id": warehouse.id}
 
 
 @router.post("/return-from-customer")
@@ -637,62 +655,16 @@ def return_to_supplier(
         db: Session = Depends(get_db),
         current_user: User = Depends(require_roles(*WAREHOUSE_ROLES)),
 ):
-    from app.models.supplier import Supplier
-    from app.services.inventory_service import deduct_stock
+    """Ta'minotchiga qaytarish: qarz (qiymat − qaytgan pul) ga kamayadi, ortig'i avans;
+    qaytgan pul kassaga kirim bo'ladi. Hujjat bekor qilinganda hammasi aynan tiklanadi."""
+    from app.services.supplier_return_service import create_supplier_return
 
-    supplier = db.get(Supplier, data.supplier_id)
-    if not supplier:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
-
-    total_return_value = Decimal("0")
-
-    for item in data.items:
-        if item.quantity <= 0:
-            continue
-
-        deduct_stock(
-            db=db,
-            product_id=item.product_id,
-            quantity=item.quantity,
-            user_id=current_user.id,
-            reason=f"Ta'minotchiga qaytarish: {supplier.name}. {data.note or ''}".strip(),
-            reference_type="return_to_supplier",
-            reference_id=supplier.id,
-            warehouse_id=data.warehouse_id,
-            variant_id=item.variant_id
-        )
-        total_return_value += (item.quantity * item.unit_cost)
-
-    # 1. Vazvrat summasi qarzdan chegiriladi (bizning qarzimiz kamayadi)
-    supplier.debt_balance = float(supplier.debt_balance or 0) - float(total_return_value)
-
-    # 2. Agar ta'minotchi pul qaytargan bo'lsa (kassaga kirim)
-    if data.received_amount > 0 and data.wallet_id:
-        from app.models.moliya import Transaction, Wallet
-        wallet = db.get(Wallet, data.wallet_id)
-        if wallet:
-            tx = Transaction(
-                branch_id=current_user.branch_id,
-                company_id=current_user.company_id,
-                type="income",
-                amount=data.received_amount,
-                wallet_id=wallet.id,
-                reference_type="return_to_supplier",
-                reference_id=supplier.id,
-                description=f"Ta'minotchidan vazvrat uchun pul qaytdi: {supplier.name}"
-            )
-            db.add(tx)
-            wallet.balance = float(wallet.balance) + float(data.received_amount)
-
-            # Agar naqd pul qaytib olingan bo'lsa, qarzimiz yana ko'payadi, chunki pulni oldik
-            # Umuman olganda, Vazvrat (-) = Qarz kamayadi. Pul olsak (+) = Qarz yana oshadi, chunki tovar o'rniga pul berdi.
-            supplier.debt_balance = float(supplier.debt_balance) + float(data.received_amount)
-
+    result = create_supplier_return(db, data, current_user)
     db.commit()
     return {
         "message": "Vazvrat muvaffaqiyatli saqlandi",
-        "total_value": str(total_return_value)
+        "total_value": str(result["value"]),
+        "received": str(result["received"]),
     }
 
 

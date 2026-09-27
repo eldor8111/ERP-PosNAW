@@ -27,6 +27,8 @@ from app.admin_tg_bot.notifications import trigger_instant_notification
 router = APIRouter(prefix="/finance", tags=["Finance"])
 
 FINANCE_ROLES = (UserRole.admin, UserRole.director, UserRole.accountant, UserRole.manager)
+# Ta'minotchi qarzi bilan bog'langan tranzaksiyalar (o'chirish/tahrirlash maxsus mantiq bilan)
+SUPPLIER_TX_TYPES = ("purchase_order", "supplier_payment", "return_to_supplier")
 
 
 # ─── Yordamchi: satrdan datetime ─────────────────────────────────────────────
@@ -81,6 +83,7 @@ class DebtPaymentIn(BaseModel):
     description: Optional[str] = None
     currency: Optional[str] = "UZS"
     wallet_id: Optional[int] = None
+    payment_type: Optional[str] = "cash"
 
 
 # ─── Wallets ──────────────────────────────────────────────────────────────────
@@ -453,7 +456,25 @@ def get_expense_payments(
         "mijozga_qaytaruv": 0.0
     }
     
-    supplier_ids = [tx.reference_id for tx in txs if tx.reference_type in ["supplier_payment", "purchase_order", "kirim"] and tx.reference_id]
+    # Xarid to'lovida reference_id — xarid (PO) ID si, ta'minotchi ID si emas
+    from app.models.purchase_order import PurchaseOrder
+    from app.services.supplier_ledger import currency_rate
+    po_ids = [tx.reference_id for tx in txs if tx.reference_type == "purchase_order" and tx.reference_id]
+    po_supplier = dict(db.query(PurchaseOrder.id, PurchaseOrder.supplier_id).filter(PurchaseOrder.id.in_(po_ids)).all()) if po_ids else {}
+
+    def _tx_supplier_id(tx):
+        return po_supplier.get(tx.reference_id) if tx.reference_type == "purchase_order" else tx.reference_id
+
+    _rates = {}
+
+    def _rate(code):
+        code = (code or "UZS").upper()
+        if code not in _rates:
+            _rates[code] = currency_rate(db, user.company_id, code)
+        return _rates[code]
+
+    supplier_ids = [_tx_supplier_id(tx) for tx in txs if tx.reference_type in ["supplier_payment", "purchase_order", "kirim"] and tx.reference_id]
+    supplier_ids = [sid for sid in supplier_ids if sid]
     customer_ids = [tx.reference_id for tx in txs if tx.reference_type == "sale_refund" and tx.reference_id]
     expense_ids = [tx.reference_id for tx in txs if tx.reference_type == "expense" and tx.reference_id]
     
@@ -465,37 +486,13 @@ def get_expense_payments(
     for tx in txs:
         contragent = "Noma'lum"
         turi = "Boshqa"
-        
-        if tx.reference_type in ["supplier_payment", "kirim", "purchase_order"]:
-            contragent = suppliers.get(tx.reference_id, "Noma'lum Ta'minotchi")
-            turi = "Ta'minotchi"
-            summary["taminotchi_qarz_yopish"] += float(tx.amount)
-        elif tx.reference_type == "sale_refund":
-            contragent = customers.get(tx.reference_id, "Noma'lum Mijoz")
-            turi = "Mijoz"
-            summary["mijozga_qaytaruv"] += float(tx.amount)
-        elif tx.reference_type == "expense":
-            contragent = expenses_db.get(tx.reference_id, "Xarajat")
-            turi = "Xarajat"
-            summary["xarajat"] += float(tx.amount)
-            
-        ptype = (tx.payment_type or "cash").lower()
-        if ptype == "cash": summary["naqd"] += float(tx.amount)
-        elif ptype == "card": summary["plastik"] += float(tx.amount)
-        elif ptype in ["bank", "bank_transfer"]: summary["bank"] += float(tx.amount)
-        elif ptype == "payme": summary["payme"] += float(tx.amount)
-        elif ptype == "click": summary["click"] += float(tx.amount)
-        elif ptype == "uzum": summary["uzum"] += float(tx.amount)
-        
-        summary["umumiy"] += float(tx.amount)
-        
-        wallet_name = tx.wallet.name if tx.wallet else "Noma'lum Kassa"
-        
-        # currency_code aniqlanishi: avvalo tranzaksiyadan, keyin ta'minotchining qarzidan
+
+        # currency_code aniqlanishi: tranzaksiyadan; faqat eski (meta siz) ta'minotchi
+        # to'lovlarida valyuta yozilmagan bo'lishi mumkin — ta'minotchi qarzi valyutasidan taxmin
         tx_currency = getattr(tx, 'currency_code', None)
-        if not tx_currency or tx_currency == 'UZS':
+        if (not tx_currency or tx_currency == 'UZS') and tx.meta is None:
             if tx.reference_type in ['supplier_payment', 'kirim', 'purchase_order'] and tx.reference_id:
-                sup = suppliers_obj.get(tx.reference_id)
+                sup = suppliers_obj.get(_tx_supplier_id(tx))
                 if sup:
                     # debt_balances da UZS dan boshqa valyuta bormi?
                     db_map = sup.debt_balances or {}
@@ -505,6 +502,33 @@ def get_expense_payments(
                     elif sup.debt_currency and sup.debt_currency != 'UZS':
                         tx_currency = sup.debt_currency
         currency_code = tx_currency or 'UZS'
+        # Jamlanma UZS da (turli valyutalar to'g'ridan-to'g'ri qo'shilmaydi)
+        amount_uzs = float(tx.amount or 0) * float(_rate(currency_code))
+
+        if tx.reference_type in ["supplier_payment", "kirim", "purchase_order"]:
+            contragent = suppliers.get(_tx_supplier_id(tx), "Noma'lum Ta'minotchi")
+            turi = "Ta'minotchi"
+            summary["taminotchi_qarz_yopish"] += amount_uzs
+        elif tx.reference_type == "sale_refund":
+            contragent = customers.get(tx.reference_id, "Noma'lum Mijoz")
+            turi = "Mijoz"
+            summary["mijozga_qaytaruv"] += amount_uzs
+        elif tx.reference_type == "expense":
+            contragent = expenses_db.get(tx.reference_id, "Xarajat")
+            turi = "Xarajat"
+            summary["xarajat"] += amount_uzs
+
+        ptype = (tx.payment_type or "cash").lower()
+        if ptype == "cash": summary["naqd"] += amount_uzs
+        elif ptype == "card": summary["plastik"] += amount_uzs
+        elif ptype in ["bank", "bank_transfer"]: summary["bank"] += amount_uzs
+        elif ptype == "payme": summary["payme"] += amount_uzs
+        elif ptype == "click": summary["click"] += amount_uzs
+        elif ptype == "uzum": summary["uzum"] += amount_uzs
+
+        summary["umumiy"] += amount_uzs
+
+        wallet_name = tx.wallet.name if tx.wallet else "Noma'lum Kassa"
 
         items.append({
             "id": tx.id,
@@ -590,6 +614,25 @@ def update_transaction(
     if not tx or (user.role.value != "super_admin" and tx.company_id != user.company_id):
         raise HTTPException(status_code=404, detail="Tranzaksiya topilmadi")
 
+    if tx.reference_type in SUPPLIER_TX_TYPES:
+        # Ta'minotchi to'lovlari qarz taqsimoti, xarid va kassa harakati bilan bog'langan —
+        # summa/kassani bu yerda o'zgartirish ularni buzardi. Faqat izoh va to'lov turi.
+        if abs(Decimal(str(data.amount)) - Decimal(str(tx.amount or 0))) >= Decimal("0.01") or data.wallet_id != tx.wallet_id:
+            raise HTTPException(status_code=400, detail="Ta'minotchi to'lovining summasi yoki kassasini o'zgartirib bo'lmaydi — o'chirib, qaytadan kiriting")
+        from app.services.supplier_ledger import find_kassa_movement
+        mv = find_kassa_movement(db, tx)
+        if data.payment_type:
+            tx.payment_type = str(data.payment_type)
+            if mv:
+                mv.payment_type = str(data.payment_type)
+        if data.description is not None:
+            tx.description = str(data.description)
+            if mv:
+                mv.description = str(data.description)
+        db.commit()
+        db.refresh(tx)
+        return tx
+
     old_amount = float(tx.amount)
     new_amount = float(data.amount)
     diff = new_amount - old_amount
@@ -619,10 +662,6 @@ def update_transaction(
             customer = db.get(Customer, tx.reference_id)
             if customer:
                 customer.debt_balance = (Decimal(str(customer.debt_balance or 0)) - Decimal(str(diff)))
-        elif tx.reference_type == "supplier_payment" and tx.reference_id:
-            supplier = db.get(Supplier, tx.reference_id)
-            if supplier:
-                supplier.debt_balance = (Decimal(str(supplier.debt_balance or 0)) - Decimal(str(diff)))
         elif tx.reference_type == "expense" and tx.reference_id:
             expense = db.get(Expense, tx.reference_id)
             if expense:
@@ -669,6 +708,32 @@ def delete_transaction(
     if not tx or (user.role.value != "super_admin" and tx.company_id != user.company_id):
         raise HTTPException(status_code=404, detail="Tranzaksiya topilmadi")
 
+    from app.services import supplier_ledger as ledger
+
+    # ── Ta'minotchi bilan bog'liq to'lovlar: qarz aynan qaytariladi, hamyon faqat UZS da ──
+    if tx.reference_type == "purchase_order":
+        from app.services.purchase_order_service import remove_po_payment
+        remove_po_payment(db, tx)
+        db.commit()
+        return
+    if tx.reference_type == "supplier_payment":
+        supplier = db.query(Supplier).filter(Supplier.id == tx.reference_id, Supplier.company_id == tx.company_id).first()
+        if supplier:
+            allocation = (tx.meta or {}).get("allocation")
+            if allocation is not None:
+                ledger.reverse_allocation(db, supplier, allocation)
+            else:  # eski yozuv — to'lov valyutasidagi qarzga qaytaramiz
+                ledger.add(db, supplier, tx.currency_code or "UZS", tx.amount)
+        ledger.reverse_cash(db, tx)
+        db.commit()
+        return
+    if tx.reference_type == "return_to_supplier" and tx.type == "income":
+        from app.services.supplier_return_service import on_refund_tx_deleted
+        on_refund_tx_deleted(db, tx)
+        ledger.reverse_cash(db, tx)
+        db.commit()
+        return
+
     if tx.wallet_id:
         wallet = db.get(Wallet, tx.wallet_id)
         if wallet:
@@ -676,28 +741,21 @@ def delete_transaction(
                 wallet.balance = (Decimal(str(wallet.balance or 0)) - Decimal(str(tx.amount)))
             elif tx.type == "expense":
                 wallet.balance = (Decimal(str(wallet.balance or 0)) + Decimal(str(tx.amount)))
-                
+
     if tx.reference_type == "customer_payment" and tx.reference_id:
         customer = db.get(Customer, tx.reference_id)
         if customer:
             customer.debt_balance = (Decimal(str(customer.debt_balance or 0)) + Decimal(str(tx.amount or 0)))
-    elif tx.reference_type == "supplier_payment" and tx.reference_id:
-        supplier = db.get(Supplier, tx.reference_id)
-        if supplier:
-            supplier.debt_balance = (Decimal(str(supplier.debt_balance or 0)) + Decimal(str(tx.amount or 0)))
     elif tx.reference_type == "expense" and tx.reference_id:
         expense = db.get(Expense, tx.reference_id)
         if expense:
             db.delete(expense)
 
-    # Delete synced KassaMovement if exists
-    if tx.reference_type and tx.reference_id:
-        mv = db.query(KassaMovement).filter(
-            KassaMovement.reference_type == tx.reference_type,
-            KassaMovement.reference_id == tx.reference_id
-        ).first()
-        if mv:
-            db.delete(mv)
+    # Shu tranzaksiyaning kassa harakati (avval havola bo'yicha birinchisi olinardi — boshqa
+    # to'lovniki bo'lishi mumkin edi; endi hamyon, summa va vaqt bo'yicha mosi)
+    mv = ledger.find_kassa_movement(db, tx)
+    if mv:
+        db.delete(mv)
 
     db.delete(tx)
     db.commit()
@@ -934,38 +992,40 @@ def get_supplier_debts(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*FINANCE_ROLES)),
 ):
-    """Qarzdor supplierlar ro'yxati"""
-    sq = db.query(Supplier).filter(Supplier.debt_balance > 0)
+    """Qarzimiz bor ta'minotchilar (biror valyutada musbat balans). Avans alohida ko'rsatiladi."""
+    from app.services import supplier_ledger as ledger
+
+    sq = db.query(Supplier).filter(Supplier.is_active == True)
     if user.role.value != "super_admin":
         sq = sq.filter(Supplier.company_id == user.company_id)
-    suppliers = sq.order_by(Supplier.debt_balance.desc()).all()
-    
-    total = sum(float(s.debt_balance) for s in suppliers)
+
+    total = Decimal("0")
     total_debts = {}
     items = []
-    
-    for s in suppliers:
-        s_balances = s.debt_balances or {}
-        if not s_balances and s.debt_balance and s.debt_balance > 0:
-            s_balances = {s.debt_currency or "UZS": float(s.debt_balance)}
-            
-        for curr, amt in s_balances.items():
-            if float(amt) > 0:
-                total_debts[curr] = total_debts.get(curr, 0.0) + float(amt)
-                
+    for s in sq.all():
+        bal = ledger.balances(s)
+        debts = {c: v for c, v in bal.items() if v > 0}
+        if not debts:
+            continue
+        debt_uzs = sum((v * ledger.currency_rate(db, s.company_id, c) for c, v in debts.items()), Decimal("0"))
+        total += debt_uzs
+        for curr, amt in debts.items():
+            total_debts[curr] = total_debts.get(curr, 0.0) + float(amt)
         items.append({
             "id": s.id,
             "name": s.name,
             "phone": s.phone,
-            "debt_balance": float(s.debt_balance),
-            "debt_balances": s_balances,
+            "debt_balance": float(round(debt_uzs, 2)),
+            "debt_balances": {c: float(v) for c, v in debts.items()},
+            "avans_balances": {c: float(-v) for c, v in bal.items() if v < 0},
             "payment_terms": s.payment_terms,
         })
+    items.sort(key=lambda x: x["debt_balance"], reverse=True)
 
     return {
-        "total_debt": total,
+        "total_debt": float(round(total, 2)),
         "total_debts": total_debts,
-        "count": len(suppliers),
+        "count": len(items),
         "items": items,
     }
 
@@ -975,69 +1035,32 @@ def record_supplier_debt_payment(
     supplier_id: int,
     data: DebtPaymentIn,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_roles(*FINANCE_ROLES)),
 ):
-    """Supplier qarzini to'lash"""
-    supplier = db.get(Supplier, supplier_id)  # SQLAlchemy 2.0 usuli
-    if not supplier or (user.role.value != "super_admin" and supplier.company_id != user.company_id):
+    """Supplier qarzini to'lash — Xaridlar sahifasidagi to'lov bilan bir xil mantiq
+    (avval har kim to'lay olardi, kassa harakati yozilmasdi, ortiqcha to'lov yo'qolardi)."""
+    from app.services import supplier_ledger as ledger
+
+    supplier = db.query(Supplier).filter(
+        Supplier.id == supplier_id, Supplier.company_id == user.company_id, Supplier.is_active == True,
+    ).first()
+    if not supplier:
         raise HTTPException(status_code=404, detail="Supplier topilmadi")
 
-    paid = float(data.amount)
-    currency = data.currency or "UZS"
-
-    # Ensure debt_balances is initialised and migrate legacy debt
-    if not supplier.debt_balances:
-        legacy_curr = (getattr(supplier, "debt_currency", "UZS") or "UZS").strip().upper()
-        if supplier.debt_balance:
-            supplier.debt_balances = {legacy_curr: float(supplier.debt_balance)}
-        else:
-            supplier.debt_balances = {}  # type: ignore[assignment]
-    
-    # Update currency-specific balance
-    from decimal import Decimal
-    from sqlalchemy.orm.attributes import flag_modified
-    curr_val = Decimal(str(supplier.debt_balances.get(currency, 0)))
-    supplier.debt_balances[currency] = float(max(Decimal("0"), curr_val - Decimal(str(paid))))
-    flag_modified(supplier, "debt_balances")
-
-    # Update aggregate debt_balance
-    from app.models.currency import Currency as CurrencyModel
-    exchange_rate = Decimal("1")
-    if currency != "UZS":
-        curr_obj = db.query(CurrencyModel).filter(CurrencyModel.code == currency).first()
-        if curr_obj:
-            exchange_rate = Decimal(str(curr_obj.rate))
-
-    amount_in_uzs = Decimal(str(paid)) * exchange_rate
-    supplier.debt_balance = max(Decimal("0"), Decimal(str(supplier.debt_balance or 0)) - amount_in_uzs)
-
-    from app.models.branch import Branch as _Branch
-    tx_branch_id = user.branch_id
-    if not tx_branch_id and supplier.company_id:
-        br = db.query(_Branch).filter(_Branch.company_id == supplier.company_id).first()
-        tx_branch_id = br.id if br else None
-
-    tx_desc = data.description or f"Supplier to'lovi: {supplier.name}"
-    if currency != "UZS":
-        tx_desc = tx_desc + f" ({paid} {currency})"
-
-    tx = Transaction(
-        branch_id=tx_branch_id or 0,
-        type="expense",
-        amount=amount_in_uzs,
-        currency_code="UZS",
-        company_id=user.company_id,
-        wallet_id=data.wallet_id,
-        reference_type="supplier_payment",
-        reference_id=supplier_id,
-        description=tx_desc.strip(),
+    currency = (data.currency or "UZS").strip().upper() or "UZS"
+    ledger.pay_supplier(
+        db, supplier, user=user, amount=data.amount, currency=currency,
+        payment_type=data.payment_type or "cash", wallet_id=data.wallet_id,
+        reason=data.description or "Supplier to'lovi",
     )
-    db.add(tx)
     db.commit()
+    db.refresh(supplier)
     return {
         "supplier_id": supplier_id,
-        "paid": paid,
-        "remaining_debt": float(supplier.debt_balance),
+        "paid": float(data.amount),
+        "currency": currency,
+        "remaining_debt": float(supplier.debt_balance or 0),
+        "debt_balances": supplier.debt_balances,
     }
 
 

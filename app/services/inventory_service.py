@@ -110,6 +110,7 @@ def receive_stock(
     movement = StockMovement(
         product_id=product_id,
         variant_id=variant_id,
+        warehouse_id=warehouse_id,
         type=MovementType.IN,
         qty_before=qty_before,
         qty_after=stock.quantity,
@@ -176,6 +177,7 @@ def deduct_stock(
         movement = StockMovement(
             product_id=product_id,
             variant_id=variant_id,
+            warehouse_id=warehouse_id,
             type=MovementType.OUT,
             qty_before=qty_before,
             qty_after=stock.quantity,
@@ -231,6 +233,7 @@ def deduct_stock(
             movement = StockMovement(
                 product_id=product_id,
                 variant_id=variant_id,
+                warehouse_id=stocks[0].warehouse_id,
                 type=MovementType.OUT,
                 qty_before=qty_before_diff,
                 qty_after=stocks[0].quantity,
@@ -258,6 +261,7 @@ def deduct_stock(
             movement = StockMovement(
                 product_id=product_id,
                 variant_id=variant_id,
+                warehouse_id=stock.warehouse_id,
                 type=MovementType.OUT,
                 qty_before=qty_before,
                 qty_after=stock.quantity,
