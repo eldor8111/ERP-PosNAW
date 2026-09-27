@@ -12,12 +12,12 @@ class LeadRequest(BaseModel):
     name: str
     phone: str
 
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN") or "8572484074:AAFMbjXaquRUz4ObVMGGI1AVK_9oO5V5MeQ"
-TELEGRAM_LEAD_CHAT_ID = os.environ.get("TELEGRAM_LEAD_CHAT_ID") or "1581105854"
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+TELEGRAM_LEAD_CHAT_ID = os.environ.get("TELEGRAM_LEAD_CHAT_ID")
 
 async def send_to_telegram(lead: LeadRequest):
-    if not TELEGRAM_LEAD_CHAT_ID:
-        logger.error("TELEGRAM_LEAD_CHAT_ID is not configured. Cannot send lead to Telegram.")
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_LEAD_CHAT_ID:
+        logger.error("TELEGRAM_BOT_TOKEN yoki TELEGRAM_LEAD_CHAT_ID sozlanmagan (.env). Lead Telegramga yuborilmadi.")
         return
 
     message = (

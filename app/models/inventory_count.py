@@ -47,3 +47,4 @@ class InventoryCountItem(Base):
 
     count = relationship("InventoryCount", back_populates="items")
     product = relationship("Product")
+    variant = relationship("ProductVariant")

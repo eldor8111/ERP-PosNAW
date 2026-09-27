@@ -16,8 +16,11 @@ def _deduct_batches_fifo(
     warehouse_id: Optional[int],
     company_id: int,
     variant_id: Optional[int] = None,
+    strict: bool = True,
 ) -> None:
-    """FEFO yoki FIFO tartibida Batch qoldiqlarini kamaytirish (chiqim/boshqa chiqim turlari uchun)."""
+    """FEFO yoki FIFO tartibida Batch qoldiqlarini kamaytirish (chiqim/boshqa chiqim turlari uchun).
+    strict=False: partiyalar yetmasa xato bermaydi, borini kamaytiradi — narxsiz kirim
+    qilingan (partiyasiz) qoldiqlar uchun."""
     from app.models.batch import Batch
     from datetime import date
     from sqlalchemy import nulls_last
@@ -49,7 +52,7 @@ def _deduct_batches_fifo(
     batches = q.with_for_update().all()
     
     total_available = sum(b.quantity for b in batches)
-    if total_available < quantity:
+    if strict and total_available < quantity:
         raise HTTPException(
             status_code=400,
             detail=f"Sotuv uchun yetarli yaroqli mahsulot (yoki yaroqlilik muddati o'tmagan qoldiq) yo'q. Hozirgi imkoniyat: {total_available}"
@@ -94,6 +97,7 @@ def receive_stock(
     company_id: Optional[int] = None,
     variant_id: Optional[int] = None,
     expiry_date: Optional[date] = None,
+    production_order_id: Optional[int] = None,
 ) -> StockMovement:
     product = db.query(Product).filter(Product.id == product_id, Product.is_deleted == False).first()
     if not product:
@@ -137,6 +141,7 @@ def receive_stock(
             purchase_price=purchase_price,
             company_id=company_id,
             expiry_date=expiry_date,
+            production_order_id=production_order_id,
         )
         db.add(batch)
 

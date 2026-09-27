@@ -33,14 +33,71 @@ from app.core.limiter import limiter  # type: ignore
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 # ─── OTP in-memory store ────────────────────────────────────────────────────
-# {phone: {"otp": "123456", "expires": datetime, "purpose": str}}
+# OTP qiymati hech qachon mijozga qaytariladigan tokenga (JWT) solinmaydi —
+# faqat shu serverdagi xotirada, tasodifiy session-id bo'yicha saqlanadi.
+# {session_id: {"phone": str, "otp": str, "purpose": str, "expires": datetime, "attempts": int}}
 _otp_store: dict = {}
-# {verified_token: {"phone": str, "expires": datetime}}
-_verified_tokens: dict = {}
+
+MAX_OTP_ATTEMPTS = 5
+OTP_SESSION_TTL_MINUTES = 5
+
 
 def _generate_otp() -> str:
     import random
     return str(random.randint(1000, 9999))
+
+
+def _cleanup_otp_store() -> None:
+    now = datetime.now(timezone.utc)
+    expired = [k for k, v in _otp_store.items() if v["expires"] < now]
+    for k in expired:
+        _otp_store.pop(k, None)
+
+
+def _create_otp_session(phone: str, otp: str, purpose: str) -> str:
+    """OTP kodini serverda saqlaydi, mijozga faqat tasodifiy (taxmin qilib bo'lmaydigan)
+    session-id qaytaradi — OTP qiymatining o'zi hech qachon mijozga yuborilmaydi."""
+    _cleanup_otp_store()
+    session_id = secrets.token_urlsafe(32)
+    _otp_store[session_id] = {
+        "phone": phone,
+        "otp": otp,
+        "purpose": purpose,
+        "expires": datetime.now(timezone.utc) + timedelta(minutes=OTP_SESSION_TTL_MINUTES),
+        "attempts": 0,
+    }
+    return session_id
+
+
+def _verify_otp_session(session_id: Optional[str], phone: str, provided_otp: str,
+                         required_purpose: Optional[str] = None) -> None:
+    """OTP sessiyasini tekshiradi. Muvaffaqiyatsiz bo'lsa HTTPException chiqaradi.
+    Muvaffaqiyatli tekshiruvdan so'ng sessiya bir martalik bo'lgani uchun o'chiriladi."""
+    if not session_id:
+        raise HTTPException(status_code=400, detail="otp_session talab qilinadi. Qaytadan yuborish tugmasini bosing.")
+
+    session = _otp_store.get(session_id)
+    if not session:
+        raise HTTPException(status_code=400,
+                             detail="OTP sessiyasi noto'g'ri yoki muddati o'tgan. Qaytadan yuborish tugmasini bosing.")
+
+    if session["expires"] < datetime.now(timezone.utc):
+        _otp_store.pop(session_id, None)
+        raise HTTPException(status_code=400, detail="OTP sessiyasi muddati o'tgan. Qaytadan yuborish tugmasini bosing.")
+
+    if session["phone"] != phone or (required_purpose and session["purpose"] != required_purpose):
+        raise HTTPException(status_code=400, detail="OTP sessiyasi bu telefon uchun emas.")
+
+    if session["attempts"] >= MAX_OTP_ATTEMPTS:
+        _otp_store.pop(session_id, None)
+        raise HTTPException(status_code=429, detail="Juda ko'p noto'g'ri urinish. Qaytadan yuborish tugmasini bosing.")
+
+    session["attempts"] += 1
+    if not secrets.compare_digest(session["otp"], provided_otp):
+        raise HTTPException(status_code=400, detail="OTP noto'g'ri. Qayta urinib ko'ring.")
+
+    # To'g'ri kiritildi — bir martalik foydalanish, sessiyani o'chiramiz
+    _otp_store.pop(session_id, None)
 
 def get_active_user_by_phone(db: Session, phone: str):
     normalized = phone.strip().replace("+", "").replace(" ", "").replace("-", "")
@@ -117,11 +174,7 @@ async def send_otp(request: Request, data: SendOtpRequest, db: Session = Depends
         if not res.get("success"):
             raise HTTPException(status_code=500, detail="SMS yuborishda xato: " + str(res.get("error")))
 
-        from app.core.security import create_access_token
-        otp_session = create_access_token(
-            {"phone": normalized, "otp": otp, "purpose": "reset", "type": "otp_session"},
-            expires_delta=timedelta(minutes=5)
-        )
+        otp_session = _create_otp_session(normalized, otp, "reset")
         return {"sent": True, "otp_session": otp_session}
 
     # ─── purpose='register' ──────────────────────────────────────
@@ -137,39 +190,21 @@ async def send_otp(request: Request, data: SendOtpRequest, db: Session = Depends
         if not res.get("success"):
             raise HTTPException(status_code=500, detail="SMS yuborishda xato: " + str(res.get("error")))
 
-        from app.core.security import create_access_token
-        otp_session = create_access_token(
-            {"phone": normalized, "otp": otp, "purpose": "register", "type": "otp_session"},
-            expires_delta=timedelta(minutes=5)
-        )
+        otp_session = _create_otp_session(normalized, otp, "register")
         return {"sent": True, "otp_session": otp_session}
     else:
         raise HTTPException(status_code=400, detail="Noto'g'ri purpose: 'register' yoki 'reset' bo'lishi kerak")
 
 
 @router.post("/verify-otp")
-def verify_otp(data: VerifyOtpRequest):
-    """OTP kodni tekshiradi va verified_token qaytaradi (JWT otp_session orqali)"""
+@limiter.limit("10/minute")
+def verify_otp(request: Request, data: VerifyOtpRequest):
+    """OTP kodni tekshiradi va verified_token qaytaradi"""
     normalized = data.phone.strip().replace("+", "").replace(" ", "").replace("-", "")
 
-    if not data.otp_session:
-        raise HTTPException(status_code=400, detail="otp_session talab qilinadi. Qaytadan yuborish tugmasini bosing.")
+    _verify_otp_session(data.otp_session, normalized, data.otp.strip())
 
-    from app.core.security import decode_token, create_access_token
-    session_data = decode_token(data.otp_session)
-
-    if not session_data or session_data.get("type") != "otp_session":
-        raise HTTPException(status_code=400,
-                            detail="OTP sessiyasi noto'g'ri yoki muddati o'tgan. Qaytadan yuborish tugmasini bosing.")
-
-    if session_data.get("phone") != normalized:
-        raise HTTPException(status_code=400, detail="OTP sessiyasi bu telefon uchun emas.")
-
-    provided_otp = data.otp.strip()
-    if session_data.get("otp") != provided_otp:
-        raise HTTPException(status_code=400, detail="OTP noto'g'ri. Qayta urinib ko'ring.")
-
-    # OTP to'g'ri — verified_token yaratish
+    # OTP to'g'ri — verified_token yaratish (bu tokenda OTP qiymati saqlanmaydi)
     verified_token = create_access_token({"phone": normalized, "type": "otp_verified"}, expires_delta=timedelta(minutes=10))
     return {"verified": True, "verified_token": verified_token}
 
@@ -360,8 +395,18 @@ class LoginOtpVerifyRequest(BaseModel):
 # Rollarni aniqlash: bu rollar login da OTP talab qiladi
 _OTP_REQUIRED_ROLES = set()  # OTP login o'chirilgan — parol bilan to'g'ridan kiradi
 
+def _reject_mobile_role(role) -> None:
+    """Kuryer/agent veb-panelga kira olmaydi — faqat mobil ilova (qurilmaga
+    bog'langan token) orqali: /api/mobile/auth/login."""
+    from app.models.user import MOBILE_ONLY_ROLES
+    role_val = role.value if hasattr(role, "value") else str(role)
+    if role_val in {r.value for r in MOBILE_ONLY_ROLES}:
+        raise HTTPException(status_code=403, detail="Kuryer va agentlar E-code Mobile ilovasi orqali kiradi")
+
+
 def _process_login_success(user: User, db: Session, request: Request, is_otp: bool = False) -> TokenResponse:
     from app.models.user_company import UserCompany
+    _reject_mobile_role(user.role)
     companies = db.query(UserCompany).filter(UserCompany.user_id == user.id, UserCompany.is_active == True).all()
 
     if len(companies) > 1:
@@ -454,11 +499,7 @@ async def login(request: Request, data: LoginRequest, db: Session = Depends(get_
         except Exception as e:
             print(f"[OTP Login] Exception: {e}")
 
-        from app.core.security import create_access_token
-        otp_session = create_access_token(
-            {"phone": normalized_phone, "otp": otp, "purpose": "login", "type": "otp_session"},
-            expires_delta=timedelta(minutes=5)
-        )
+        otp_session = _create_otp_session(normalized_phone, otp, "login")
 
         # OTP talab qilinmoqda — to'liq token BERMAYMIZ
         raise HTTPException(
@@ -483,26 +524,12 @@ async def login(request: Request, data: LoginRequest, db: Session = Depends(get_
 
 
 @router.post("/login-verify", response_model=TokenResponse)
+@limiter.limit("10/minute")
 def login_verify_otp(request: Request, data: LoginOtpVerifyRequest, db: Session = Depends(get_db)):
     """OTP ni tekshiradi va token beradi (kassir/sub-foydalanuvchilar uchun)"""
     normalized = data.phone.strip().replace("+", "").replace(" ", "").replace("-", "")
 
-    if not data.otp_session:
-        raise HTTPException(status_code=400, detail="otp_session talab qilinadi. Qaytadan urinib ko'ring.")
-
-    from app.core.security import decode_token
-    session_data = decode_token(data.otp_session)
-
-    if not session_data or session_data.get("type") != "otp_session" or session_data.get("purpose") != "login":
-        raise HTTPException(status_code=400,
-                            detail="OTP sessiyasi noto'g'ri yoki muddati o'tgan. Qaytadan urinib ko'ring.")
-
-    if session_data.get("phone") != normalized:
-        raise HTTPException(status_code=400, detail="OTP sessiyasi bu telefon uchun emas.")
-
-    provided_otp = data.otp.strip()
-    if session_data.get("otp") != provided_otp:
-        raise HTTPException(status_code=400, detail="OTP noto'g'ri")
+    _verify_otp_session(data.otp_session, normalized, data.otp.strip(), required_purpose="login")
 
     user = db.query(User).filter(User.phone == normalized, User.status == UserStatus.active).first()
     if not user:
@@ -517,6 +544,7 @@ class SelectCompanyRequest(BaseModel):
 
 
 @router.post("/select-company", response_model=TokenResponse)
+@limiter.limit("10/minute")
 def select_company(request: Request, data: SelectCompanyRequest, db: Session = Depends(get_db)):
     """Ko'p korxonali foydalanuvchi korxonani tanlaganda token berish"""
     from app.core.security import decode_token
@@ -539,6 +567,7 @@ def select_company(request: Request, data: SelectCompanyRequest, db: Session = D
     if not uc:
         raise HTTPException(status_code=403, detail="Siz bu korxonaga biriktirilmagansiz")
 
+    _reject_mobile_role(uc.role)
     role_val = uc.role.value if hasattr(uc.role, 'value') else str(uc.role)
     access_token = create_access_token({"sub": str(user.id), "role": role_val, "company_id": uc.company_id})
     refresh_token = create_refresh_token({"sub": str(user.id)})
@@ -561,9 +590,15 @@ def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
     payload = decode_token(data.refresh_token)
     if not payload or payload.get("type") != "refresh":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token yaroqsiz")
+    if payload.get("dev") is not None:
+        # Mobil (qurilmaga bog'langan) token — faqat /mobile/auth/refresh orqali
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token yaroqsiz")
     user = db.query(User).filter(User.id == int(payload["sub"]), User.status == UserStatus.active).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Foydalanuvchi topilmadi")
+    from app.models.user import MOBILE_ONLY_ROLES
+    if user.role in MOBILE_ONLY_ROLES:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token yaroqsiz")
     access_token = create_access_token({"sub": str(user.id), "role": user.role.value})
     new_refresh_token = create_refresh_token({"sub": str(user.id)})
     return TokenResponse(
@@ -610,11 +645,7 @@ async def check_phone(request: Request, data: CheckPhoneRequest, db: Session = D
     if not res.get("success"):
         raise HTTPException(status_code=500, detail="SMS yuborishda xato: " + str(res.get("error")))
 
-    from app.core.security import create_access_token
-    otp_session = create_access_token(
-        {"phone": normalized, "otp": otp, "purpose": "reset", "type": "otp_session"},
-        expires_delta=timedelta(minutes=5)
-    )
+    otp_session = _create_otp_session(normalized, otp, "reset")
     return {
         "exists": True,
         "name": user.name,
@@ -624,7 +655,8 @@ async def check_phone(request: Request, data: CheckPhoneRequest, db: Session = D
 
 
 @router.post("/reset-password")
-def reset_password(data: ResetPasswordRequest, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def reset_password(request: Request, data: ResetPasswordRequest, db: Session = Depends(get_db)):
     """OTP verified_token orqali parolni tiklash"""
     if len(data.new_password) < 6:
         raise HTTPException(status_code=400, detail="Parol kamida 6 ta belgidan iborat bo'lishi kerak")

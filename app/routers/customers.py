@@ -52,6 +52,8 @@ def parse_decimal_clean(val) -> Optional[Decimal]:
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
+CUSTOMER_TYPES = ("retail", "distributor")
+
 
 class CustomerIn(BaseModel):
     name: str
@@ -64,6 +66,104 @@ class CustomerIn(BaseModel):
     card_number: Optional[str] = None
     cashback_percent: Optional[Decimal] = Decimal("0")
     price_type: Optional[str] = "sale"  # sale, wholesale, cost
+    customer_type: Optional[str] = "retail"  # retail, distributor
+    territory: Optional[str] = None
+    discount_percent: Optional[Decimal] = None
+    # Manzil / joylashuv va profil
+    region: Optional[str] = None
+    district: Optional[str] = None
+    address: Optional[str] = None
+    lat: Optional[Decimal] = None
+    lng: Optional[Decimal] = None
+    location_source: Optional[str] = None
+    extra_phones: Optional[List[str]] = None
+    agent_id: Optional[int] = None
+    work_days: Optional[List[int]] = None
+    visit_radius_m: Optional[int] = None
+
+    @field_validator("region", "district", "address")
+    @classmethod
+    def text_clean(cls, v):
+        if v is None:
+            return None
+        v = " ".join(str(v).split())
+        return v or None
+
+    @field_validator("discount_percent")
+    @classmethod
+    def discount_valid(cls, v):
+        if v is not None and not (Decimal("0") <= v <= Decimal("100")):
+            raise ValueError("Chegirma 0-100% oralig'ida bo'lishi kerak")
+        return v
+
+    @field_validator("lat")
+    @classmethod
+    def lat_valid(cls, v):
+        if v is not None and not (-90 <= v <= 90):
+            raise ValueError("Kenglik (lat) noto'g'ri")
+        return v
+
+    @field_validator("lng")
+    @classmethod
+    def lng_valid(cls, v):
+        if v is not None and not (-180 <= v <= 180):
+            raise ValueError("Uzunlik (lng) noto'g'ri")
+        return v
+
+    @field_validator("location_source")
+    @classmethod
+    def source_valid(cls, v):
+        if v is not None and v not in ("map", "telegram", "manual"):
+            raise ValueError("Joylashuv manbasi noto'g'ri")
+        return v
+
+    @field_validator("extra_phones")
+    @classmethod
+    def phones_valid(cls, v):
+        if v is None:
+            return None
+        out = []
+        for p in v:
+            p = (p or "").strip()
+            if not p:
+                continue
+            clean = p.replace("+", "").replace(" ", "").replace("-", "")
+            if not clean.isdigit() or not (7 <= len(clean) <= 15):
+                raise ValueError(f"Qo'shimcha telefon noto'g'ri: {p}")
+            out.append(p)
+        return out[:5]
+
+    @field_validator("work_days")
+    @classmethod
+    def days_valid(cls, v):
+        if v is None:
+            return None
+        if any(d not in range(1, 8) for d in v):
+            raise ValueError("Ish kunlari 1 (Dushanba) dan 7 (Yakshanba) gacha bo'lishi kerak")
+        return sorted(set(v))
+
+    @field_validator("visit_radius_m")
+    @classmethod
+    def radius_valid(cls, v):
+        if v is not None and not (0 <= v <= 100000):
+            raise ValueError("Tashrif radiusi 0-100000 metr oralig'ida bo'lishi kerak")
+        return v
+
+    @field_validator("customer_type")
+    @classmethod
+    def type_valid(cls, v):
+        v = (v or "retail").strip().lower()
+        if v not in CUSTOMER_TYPES:
+            raise ValueError("Mijoz turi noto'g'ri (retail yoki distributor)")
+        return v
+
+    @field_validator("territory")
+    @classmethod
+    def territory_clean(cls, v):
+        if v is None:
+            return None
+        v = " ".join(str(v).split())
+        return v or None
 
     @field_validator("card_number")
     @classmethod
@@ -103,6 +203,20 @@ class CustomerOut(BaseModel):
     price_type: Optional[str] = "sale"
     discount_percent: Optional[Decimal] = Decimal("0")
     debt_edited: List[Dict[str, Any]] = []
+    customer_type: str = "retail"
+    territory: Optional[str] = None
+    region: Optional[str] = None
+    district: Optional[str] = None
+    address: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    location_source: Optional[str] = None
+    extra_phones: List[str] = []
+    agent_id: Optional[int] = None
+    work_days: List[int] = []
+    visit_radius_m: Optional[int] = None
+    photo_url: Optional[str] = None
+    tg_connected: bool = False
 
     class Config:
         from_attributes = True
@@ -155,6 +269,20 @@ class CustomerOut(BaseModel):
                 "price_type": getattr(data, "price_type", "sale"),
                 "discount_percent": getattr(data, "discount_percent", Decimal("0")),
                 "debt_edited": list(getattr(data, "debt_edited", None) or []),
+                "customer_type": getattr(data, "customer_type", None) or "retail",
+                "territory": getattr(data, "territory", None),
+                "region": getattr(data, "region", None),
+                "district": getattr(data, "district", None),
+                "address": getattr(data, "address", None),
+                "lat": float(data.lat) if getattr(data, "lat", None) is not None else None,
+                "lng": float(data.lng) if getattr(data, "lng", None) is not None else None,
+                "location_source": getattr(data, "location_source", None),
+                "extra_phones": list(getattr(data, "extra_phones", None) or []),
+                "agent_id": getattr(data, "agent_id", None),
+                "work_days": list(getattr(data, "work_days", None) or []),
+                "visit_radius_m": getattr(data, "visit_radius_m", None),
+                "photo_url": getattr(data, "photo_url", None),
+                "tg_connected": bool(getattr(data, "tg_chat_id", None)),
             }
             return data_dict
 
@@ -236,6 +364,47 @@ def _normalize_customer_balances(balances: Optional[dict], debt_balance: Decimal
     return result
 
 
+# Eski formalar (POS, import) yubormaydigan maydonlar — update'da faqat aniq
+# yuborilgani yangilanadi, aks holda mavjud qiymat o'chib ketardi
+OPTIONAL_PROFILE_FIELDS = (
+    "customer_type", "territory", "discount_percent",
+    "region", "district", "address", "lat", "lng", "location_source",
+    "extra_phones", "agent_id", "work_days", "visit_radius_m",
+)
+
+
+def _check_agent(db: Session, company_id: int, agent_id: Optional[int]) -> None:
+    if agent_id is None:
+        return
+    from sqlalchemy import or_
+    from app.models.user_company import UserCompany
+    linked = db.query(UserCompany).filter(
+        UserCompany.user_id == User.id, UserCompany.company_id == company_id, UserCompany.is_active == True,  # noqa: E712
+    ).exists()
+    if not db.query(User.id).filter(User.id == agent_id, or_(User.company_id == company_id, linked)).first():
+        raise HTTPException(status_code=404, detail="Agent (xodim) topilmadi")
+
+
+def _check_territory_free(db: Session, company_id: int, customer_type: str,
+                          territory: Optional[str], exclude_id: Optional[int] = None) -> None:
+    """Bitta hududga faqat bitta distribyutor biriktiriladi."""
+    if customer_type != "distributor" or not territory:
+        return
+    q = db.query(Customer).filter(
+        Customer.company_id == company_id,
+        Customer.customer_type == "distributor",
+        func.lower(Customer.territory) == territory.lower(),
+    )
+    if exclude_id:
+        q = q.filter(Customer.id != exclude_id)
+    busy = q.first()
+    if busy:
+        raise HTTPException(
+            status_code=409,
+            detail=f"'{territory}' hududiga allaqachon distribyutor biriktirilgan: {busy.name} (ID: {busy.id})",
+        )
+
+
 def _append_debt_edit(cust: Customer, edited_from: dict, edited_to: dict) -> None:
     """Qarz tahriri tarixiga yangi yozuv qo'shadi."""
     history = list(cust.debt_edited or [])
@@ -300,11 +469,14 @@ def list_customers(
         skip: int = Query(0, ge=0),
         page: Optional[int] = Query(None, ge=1, description="Sahifa raqami (berilsa skip = (page-1)*limit)"),
         limit: int = Query(100, ge=1, le=2000),
+        customer_type: Optional[str] = Query(None),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
 ):
     q = db.query(Customer)
     q = q.filter(Customer.company_id == current_user.company_id)
+    if customer_type:
+        q = q.filter(Customer.customer_type == customer_type)
     if search:
         q = q.filter(
             name_phone_search_filter(Customer.name, Customer.phone, search)
@@ -350,6 +522,78 @@ def get_customers_summary_stats(
     }
 
 
+@router.get("/distributors-report")
+def get_distributors_report(
+        days: int = Query(30, ge=1, le=366),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    """Distribyutorlar reytingi: davr bo'yicha xarid hajmi, qarz va kredit
+    limitidan foydalanish darajasi."""
+    from datetime import timedelta
+    from app.models.sale import Sale
+    from app.utils.report_utils import sale_doc_filter
+
+    cid = current_user.company_id
+    distributors = db.query(Customer).filter(
+        Customer.company_id == cid, Customer.customer_type == "distributor",
+    ).all()
+    if not distributors:
+        return {"days": days, "items": [], "totals": {"count": 0, "sales": 0, "debt": 0, "over_limit": 0}}
+
+    ids = [d.id for d in distributors]
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    rows = db.query(
+        Sale.customer_id,
+        func.coalesce(func.sum(Sale.total_amount), 0),
+        func.count(Sale.id),
+    ).filter(
+        Sale.company_id == cid,
+        Sale.customer_id.in_(ids),
+        Sale.created_at >= since,
+        sale_doc_filter(),
+    ).group_by(Sale.customer_id).all()
+    period = {r[0]: (float(r[1] or 0), int(r[2] or 0)) for r in rows}
+
+    last_rows = db.query(Sale.customer_id, func.max(Sale.created_at)).filter(
+        Sale.company_id == cid, Sale.customer_id.in_(ids), sale_doc_filter(),
+    ).group_by(Sale.customer_id).all()
+    last_sale = {r[0]: r[1] for r in last_rows}
+
+    items = []
+    for d in distributors:
+        sales, cnt = period.get(d.id, (0.0, 0))
+        debt = float(d.debt_balance or 0)
+        limit = float(d.debt_limit or 0)
+        usage = round(debt / limit * 100, 1) if limit > 0 else None
+        items.append({
+            "id": d.id,
+            "name": d.name,
+            "phone": d.phone,
+            "territory": d.territory,
+            "price_type": d.price_type,
+            "sales": sales,
+            "sale_count": cnt,
+            "last_sale_at": last_sale.get(d.id).isoformat() if last_sale.get(d.id) else None,
+            "debt": debt,
+            "debt_limit": limit,
+            "limit_usage": usage,
+            "over_limit": limit > 0 and debt > limit,
+        })
+    items.sort(key=lambda x: x["sales"], reverse=True)
+
+    return {
+        "days": days,
+        "items": items,
+        "totals": {
+            "count": len(items),
+            "sales": sum(i["sales"] for i in items),
+            "debt": sum(i["debt"] for i in items),
+            "over_limit": sum(1 for i in items if i["over_limit"]),
+        },
+    }
+
+
 @router.get("/paginated", response_model=PaginatedCustomersOut)
 def list_customers_paginated(
         search: Optional[str] = None,
@@ -360,11 +604,14 @@ def list_customers_paginated(
         min_debt: Optional[Decimal] = Query(None),
         max_debt: Optional[Decimal] = Query(None),
         exact_debt: Optional[Decimal] = Query(None),
+        customer_type: Optional[str] = Query(None),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
 ):
     q = db.query(Customer)
     q = q.filter(Customer.company_id == current_user.company_id)
+    if customer_type:
+        q = q.filter(Customer.customer_type == customer_type)
     if search:
         q = q.filter(
             name_phone_search_filter(Customer.name, Customer.phone, search)
@@ -427,8 +674,16 @@ def create_customer(data: CustomerIn, db: Session = Depends(get_db), current_use
                     detail=f"Bu telefon raqami allaqachon mavjud: {_dup.name} (ID: {_dup.id})",
                 )
 
+    _check_territory_free(db, current_user.company_id, data.customer_type, data.territory)
+
+    _check_agent(db, current_user.company_id, data.agent_id)
+
     customer_data = data.model_dump()
     customer_data["company_id"] = current_user.company_id
+    # Berilmagan ixtiyoriy maydonlarda model default'i ishlasin (NOT NULL JSON'lar)
+    for _f in OPTIONAL_PROFILE_FIELDS:
+        if customer_data.get(_f) is None:
+            customer_data.pop(_f, None)
 
     # debt_balances ni normalize qilish
     balances = customer_data.get("debt_balances") or {}
@@ -666,6 +921,22 @@ def update_customer(customer_id: int, data: CustomerIn, db: Session = Depends(ge
         raise HTTPException(status_code=404, detail="Customer not found")
 
     update_data = data.model_dump()
+    # Tur/hudud yubormaydigan eski formalar (POS va h.k.) distribyutorni
+    # "retail"ga qaytarib qo'ymasligi uchun faqat aniq yuborilganini olamiz
+    for _f in OPTIONAL_PROFILE_FIELDS:
+        if _f not in data.model_fields_set:
+            update_data.pop(_f, None)
+    for _f in ("extra_phones", "work_days"):
+        if _f in update_data and update_data[_f] is None:
+            update_data[_f] = []
+    if "agent_id" in update_data:
+        _check_agent(db, current_user.company_id, update_data["agent_id"])
+    _check_territory_free(
+        db, current_user.company_id,
+        update_data.get("customer_type", cust.customer_type),
+        update_data.get("territory", cust.territory),
+        exclude_id=cust.id,
+    )
 
     # debt_balances ni normalize qilish
     balances = update_data.get("debt_balances") or {}
@@ -1052,9 +1323,11 @@ def pay_debt(customer_id: int, data: DebtUpdate, db: Session = Depends(get_db),
             elif data.payments and len(data.payments) > 1:
                 tx_desc = tx_desc + f" ({p.amount} {payment_currency})"
 
+            from app.services.sale_helpers import resolve_branch_id
             tx = Transaction(
                 company_id=current_user.company_id,
-                branch_id=current_user.branch_id or 0,
+                # branch_id=0 mavjud bo'lmagan filialga ishora qilardi (FK xatosi)
+                branch_id=resolve_branch_id(db, current_user),
                 wallet_id=target_wallet_id,
                 type="income",
                 amount=p.amount,

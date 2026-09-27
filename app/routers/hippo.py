@@ -1,6 +1,8 @@
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Query
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 
+from app.core.dependencies import get_current_user, require_roles
+from app.models.user import User, UserRole
 from app.schemas.hippo import (
     RegisterReceiptRequest,
     UpdateSettingsRequestModel,
@@ -18,7 +20,12 @@ from app.utils.hippo_client import (
     HippoConnectionError,
 )
 
-router = APIRouter(prefix="/hippo", tags=["Hippo Fiskalizatsiya"])
+# Kassa (POS) fiskal amaliyotlari uchun tizimga kirgan bo'lish shart —
+# bundan oldin bu router butunlay ochiq (autentifikatsiyasiz) edi.
+router = APIRouter(prefix="/hippo", tags=["Hippo Fiskalizatsiya"], dependencies=[Depends(get_current_user)])
+
+LOGO_ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
+LOGO_MAX_SIZE = 5 * 1024 * 1024  # 5 MB
 
 
 """HippoClientError turlarini mos HTTP statusga o'giradi."""
@@ -188,7 +195,10 @@ def get_settings():
 
 
 @router.put("/settings")
-def update_settings(data: UpdateSettingsRequestModel):
+def update_settings(
+    data: UpdateSettingsRequestModel,
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director)),
+):
     try:
         return hippo_service.update_settings(data)
     except HippoClientError as exc:
@@ -196,9 +206,16 @@ def update_settings(data: UpdateSettingsRequestModel):
 
 
 @router.post("/settings/logo")
-def upload_logo(file: UploadFile = File(...)):
+def upload_logo(
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director)),
+):
+    if file.content_type not in LOGO_ALLOWED_TYPES:
+        raise HTTPException(status_code=400, detail="Faqat JPEG, PNG yoki WEBP rasm qabul qilinadi")
+    content = file.file.read()
+    if len(content) > LOGO_MAX_SIZE:
+        raise HTTPException(status_code=400, detail="Fayl hajmi 5MB dan oshmasligi kerak")
     try:
-        content = file.file.read()
         return hippo_service.upload_logo(content, file.filename, file.content_type)
     except HippoClientError as exc:
         _map_exception(exc)

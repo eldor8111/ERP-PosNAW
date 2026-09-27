@@ -50,3 +50,4 @@ class StockTransferItem(Base):
     transfer = relationship("StockTransfer", back_populates="items")
     product = relationship("Product", foreign_keys=[product_id])
     target_product = relationship("Product", foreign_keys=[target_product_id])
+    variant = relationship("ProductVariant", foreign_keys=[variant_id])

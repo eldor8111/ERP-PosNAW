@@ -7,6 +7,7 @@ from app.models.transfer import TransferStatus
 
 class TransferItemCreate(BaseModel):
     product_id: int
+    variant_id: Optional[int] = None
     quantity: Decimal
     # Ixtiyoriy: maqsad omborda boshqa mahsulotga kirim qilish
     target_product_id: Optional[int] = None
@@ -16,6 +17,8 @@ class TransferItemOut(BaseModel):
     id: int
     product_id: int
     product_name: str
+    variant_id: Optional[int] = None
+    variant_name: Optional[str] = None
     # Mapping ma'lumotlari (agar boshqa mahsulotga yo'naltirilgan bo'lsa)
     target_product_id: Optional[int] = None
     target_product_name: Optional[str] = None

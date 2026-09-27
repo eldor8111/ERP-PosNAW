@@ -38,3 +38,14 @@ from .supplier_product import SupplierProduct
 from .attribute import Attribute, AttributeValue, VariantAttributeValue
 from .ai_audit import AIAuditLog
 from .announcement import Announcement, SurveyQuestion, SurveyAnswer  # type: ignore
+from .bom import BOM, BOMItem  # type: ignore
+from .production_order import ProductionOrder, ProductionOrderStatus, ProductionOrderCost  # type: ignore
+from .vehicle import Vehicle  # type: ignore
+from .customer_document import CustomerDocument  # type: ignore
+from .sale_delivery import SaleDelivery, SaleDeliveryStatus  # type: ignore
+from .mobile_device import MobileDevice  # type: ignore
+from .field_shift import FieldShift  # type: ignore
+from .mobile_misc import MobileIdempotency, DeliveryProof  # type: ignore
+from .agent_visit import AgentVisit  # type: ignore
+from .employee_location import EmployeeLocation  # type: ignore
+from .delivery_route import DeliveryRoute, DeliveryRouteStop, DeliveryRouteStatus  # type: ignore

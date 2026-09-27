@@ -21,12 +21,14 @@ class Batch(Base):
     purchase_price = Column(Numeric(14, 2), default=0) # Exact unit cost of this batch
     
     po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=True)
+    production_order_id = Column(Integer, ForeignKey("production_orders.id"), nullable=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     product = relationship("Product", back_populates="batches")
     warehouse = relationship("Warehouse")
     purchase_order = relationship("PurchaseOrder")
+    production_order = relationship("ProductionOrder")
 
     __table_args__ = (
         # FIFO query uchun composite index: product_id + warehouse_id + quantity > 0 bo'lganlarni tez topadi

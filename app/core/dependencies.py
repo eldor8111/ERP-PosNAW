@@ -1,15 +1,33 @@
 from datetime import datetime, timezone
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.core.security import decode_token
 from app.database import get_db
 from app.models.company import Company
-from app.models.user import User, UserRole, UserStatus
+from app.models.user import MOBILE_ONLY_ROLES, User, UserRole, UserStatus
 
 bearer_scheme = HTTPBearer()
+
+# Kuryer/agent tokeni faqat shu yo'llarda ishlaydi — qolgan admin API'lar
+# (moliya, hisobotlar, to'liq mijozlar ro'yxati...) ularga yopiq.
+MOBILE_ALLOWED_PREFIXES = ("/api/mobile/",)
+
+
+def _enforce_mobile_boundary(user: User, payload: dict, request: Request, db: Session) -> None:
+    dev_id = payload.get("dev")
+    if dev_id is not None:
+        from app.models.mobile_device import MobileDevice
+        device = db.query(MobileDevice).filter(
+            MobileDevice.id == int(dev_id), MobileDevice.user_id == user.id,
+        ).first()
+        if not device or device.revoked_at is not None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Qurilma sessiyasi bekor qilingan")
+    if user.role in MOBILE_ONLY_ROLES:
+        if dev_id is None or not request.url.path.startswith(MOBILE_ALLOWED_PREFIXES):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bu bo'lim mobil xodimlar uchun yopiq")
 
 
 def _check_company_subscription(user: User, db: Session) -> None:
@@ -33,6 +51,7 @@ def _check_company_subscription(user: User, db: Session) -> None:
 
 
 def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User:
@@ -68,12 +87,14 @@ def get_current_user(
         if uc and uc.permissions:
             user.permissions = uc.permissions
 
+    _enforce_mobile_boundary(user, payload, request, db)
     _check_company_subscription(user, db)
 
     return user
 
 
 def get_current_user_allow_expired(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User:
@@ -105,7 +126,8 @@ def get_current_user_allow_expired(
         uc = db.query(UserCompany).filter(UserCompany.user_id == user.id, UserCompany.company_id == int(payload_company_id)).first()
         if uc and uc.permissions:
             user.permissions = uc.permissions
-        
+
+    _enforce_mobile_boundary(user, payload, request, db)
     return user
 
 

@@ -7,6 +7,7 @@ from app.models.inventory_count import CountStatus
 
 class CountItemUpdate(BaseModel):
     product_id: int
+    variant_id: Optional[int] = None
     counted_qty: Decimal
     variance_reason: Optional[str] = None
 
@@ -20,6 +21,8 @@ class CountCreate(BaseModel):
 class CountItemOut(BaseModel):
     id: int
     product_id: int
+    variant_id: Optional[int] = None
+    variant_name: Optional[str] = None
     product_name: str
     product_sku: str
     product_unit: str

@@ -24,6 +24,12 @@ def delete_sale(db: Session, sale_id: int, current_user: User) -> None:
     if sale.status == SaleStatus.cancelled:
         raise HTTPException(status_code=400, detail="Sotuv allaqachon bekor qilingan")
 
+    from app.services.sale_delivery_service import cancel_sale_delivery
+    cancel_sale_delivery(db, sale.id, "Sotuv bekor qilindi")
+    if getattr(sale, "agent_id", None) and sale.status == SaleStatus.pending:
+        from app.services.mobile_service import push_to_user
+        push_to_user(db, sale.agent_id, "❌ Buyurtma rad etildi", f"#{sale.number}", {"type": "order", "sale_id": sale.id})
+
     # Stock harakatlarini teskari bekor qilish
     for movement in db.query(StockMovement).filter(
         StockMovement.reference_type == "sale",

@@ -40,6 +40,22 @@ def _load_sale(db: Session, sale_id: int, user: Optional[User] = None) -> Sale:
     return q.first()
 
 
+def _delivery_dict(d) -> Optional[dict]:
+    if d is None:
+        return None
+    return {
+        "status": d.status.value,
+        "address": d.address,
+        "lat": float(d.lat) if d.lat is not None else None,
+        "lng": float(d.lng) if d.lng is not None else None,
+        "contact_phone": d.contact_phone,
+        "delivery_fee": float(d.delivery_fee or 0),
+        "planned_date": d.planned_date.isoformat() if d.planned_date else None,
+        "note": d.note,
+        "courier_name": d.courier.name if d.courier else None,
+    }
+
+
 def _build_sale_out(sale: Sale) -> SaleOut:
     items = [
         SaleItemOut(
@@ -105,6 +121,7 @@ def _build_sale_out(sale: Sale) -> SaleOut:
         fiscal_receipt_seq=getattr(sale, 'fiscal_receipt_seq', None),
         fiscal_transaction_id=getattr(sale, 'fiscal_transaction_id', None),
         fiscal_at=getattr(sale, 'fiscal_at', None),
+        delivery=_delivery_dict(getattr(sale, "delivery", None)),
     )
 
 
@@ -132,15 +149,6 @@ def _build_sale_list_out(sale: Sale) -> SaleListOut:
     )
 
 
-@router.get("/debug-log")
-def get_debug_log():
-    import os
-    if os.path.exists("pos_sale_debug.log"):
-        with open("pos_sale_debug.log", "r", encoding="utf-8") as f:
-            return {"log": f.read()}
-    return {"log": "Log fayl topilmadi yoki bo'sh"}
-
-
 @router.post("/", response_model=SaleListOut)
 def make_sale(
         data: SaleCreate,
@@ -150,10 +158,6 @@ def make_sale(
         current_user: User = Depends(require_roles(*POS_ROLES)),
 ):
     """POS — yangi sotuv amalga oshirish"""
-    with open("pos_sale_debug.log", "a", encoding="utf-8") as f:
-        f.write(f"\\n--- NEW SALE FROM POS (user {current_user.name}) ---\\n")
-        f.write(data.model_dump_json(indent=2) + "\\n")
-
     ip = request.client.host if request.client else None
 
     # Takroriy sotuvdan himoya: POS Idempotency-Key: <uuid> yuboradi
@@ -450,6 +454,13 @@ def list_sales(
     response.headers["X-Total-Count"] = str(total)
     rows = q.order_by(Sale.created_at.desc()).offset(skip).limit(limit).all()
 
+    from app.models.sale_delivery import SaleDelivery
+    _ids = [s.id for s, _ in rows]
+    delivery_status = {
+        sid: st.value if hasattr(st, "value") else st
+        for sid, st in db.query(SaleDelivery.sale_id, SaleDelivery.status).filter(SaleDelivery.sale_id.in_(_ids)).all()
+    } if _ids else {}
+
     items = [
         SaleListOut(
             id=s.id,
@@ -469,6 +480,7 @@ def list_sales(
             created_at=s.created_at,
             currency_code=s.currency.code if getattr(s, 'currency', None) else "UZS",
             debt_amounts=getattr(s, 'debt_amounts', None),
+            delivery_status=delivery_status.get(s.id),
         )
         for s, cnt in rows
     ]

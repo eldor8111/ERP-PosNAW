@@ -438,6 +438,25 @@ def transfer_out(
     db.refresh(ct)
     return {"ok": True, "transfer_id": ct.id}
 
+@router.get("/{wallet_id}/transfers/pending")
+def pending_transfers(wallet_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Shu kassaga yuborilgan, hali qabul qilinmagan o'tkazmalar (kuryer/agent topshiruvi)."""
+    rows = db.query(CashTransfer).filter(
+        CashTransfer.company_id == current_user.company_id,
+        CashTransfer.receiver_wallet_id == wallet_id,
+        CashTransfer.status == "pending",
+    ).order_by(CashTransfer.id.desc()).all()
+    return [
+        {
+            "id": ct.id, "amount": float(ct.amount), "currency": ct.currency, "payment_type": ct.payment_type,
+            "note": ct.note, "sender_wallet_id": ct.sender_wallet_id,
+            "sender_name": ct.sender_wallet.name if ct.sender_wallet else None,
+            "created_at": ct.created_at.isoformat() if getattr(ct, "created_at", None) else None,
+        }
+        for ct in rows
+    ]
+
+
 @router.post("/transfer/in")
 def transfer_in(
     data: TransferStatusIn,

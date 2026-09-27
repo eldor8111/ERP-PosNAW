@@ -247,13 +247,21 @@ def list_products(
         if branch_wh_set is not None:
             visible_stocks = [s for s in all_stocks if s.warehouse_id in branch_wh_set]  # type: ignore[operator]
 
+        # Variantli mahsulotda har bir variant alohida StockLevel qatoriga ega,
+        # shuning uchun bir xil ombor bo'yicha miqdorlarni yig'ib ko'rsatamiz
+        # (aks holda bitta ombor bir nechta variant sonicha takrorlanib ko'rinadi)
+        wh_totals: dict = defaultdict(lambda: Decimal("0"))
+        for s in visible_stocks:
+            if s.warehouse_id is not None:
+                wh_totals[s.warehouse_id] += s.quantity
+
         item.warehouse_stocks = [
             WarehouseStockOut(
-                warehouse_id=s.warehouse_id,
-                warehouse_name=warehouses.get(s.warehouse_id, f"Ombor#{s.warehouse_id}"),
-                quantity=s.quantity,
+                warehouse_id=wh_id,
+                warehouse_name=warehouses.get(wh_id, f"Ombor#{wh_id}"),
+                quantity=qty,
             )
-            for s in visible_stocks if s.warehouse_id is not None
+            for wh_id, qty in wh_totals.items()
         ]
 
         # stock_quantity: if warehouse_id filter active → show that warehouse's qty, else sum visible

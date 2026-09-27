@@ -51,6 +51,12 @@ class Company(Base):
     # (ombor kamayadi, kassa/qarz yoziladi). Standart False - qolda POS.
     orders_auto_create_sale = Column(Boolean, default=False)
 
+    # ── Ixtiyoriy modullar (oddiy do'konlarga ko'rinmasligi uchun) ──
+    # manufacturing — Ishlab chiqarish (retseptura, buyurtma, tannarx)
+    # distribution — Distribyutorlar, Logistika, sotuvdan yetkazib berish
+    manufacturing_enabled = Column(Boolean, nullable=False, default=False, server_default="false")
+    distribution_enabled = Column(Boolean, nullable=False, default=False, server_default="false")
+
     # ── POS sozlamalari ──
     # True (standart) — mavjud xatti-harakat: qoldiq yetarli bo'lmasa ham
     # sotish mumkin (qoldiq minusga tushadi). False — sotuvda minus

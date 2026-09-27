@@ -26,13 +26,23 @@ class CourierIn(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
     phone: str = Field(..., min_length=3, max_length=32)
     transport: Optional[str] = Field(None, max_length=30)
+    vehicle_id: Optional[int] = None
 
 
 class CourierUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=120)
     phone: Optional[str] = Field(None, min_length=3, max_length=32)
     transport: Optional[str] = Field(None, max_length=30)
+    vehicle_id: Optional[int] = None
     is_active: Optional[bool] = None
+
+
+def _check_vehicle(db: Session, company_id: int, vehicle_id: Optional[int]) -> None:
+    if vehicle_id is None:
+        return
+    from app.models.vehicle import Vehicle
+    if not db.query(Vehicle).filter(Vehicle.id == vehicle_id, Vehicle.company_id == company_id).first():
+        raise HTTPException(status_code=404, detail="Transport topilmadi")
 
 
 def _courier_out(c: Courier, stats: Optional[dict] = None) -> dict:
@@ -41,6 +51,7 @@ def _courier_out(c: Courier, stats: Optional[dict] = None) -> dict:
         "name": c.name,
         "phone": c.phone,
         "transport": c.transport,
+        "vehicle_id": c.vehicle_id,
         "is_active": bool(c.is_active),
         "tg_connected": bool(c.tg_chat_id),
         "created_at": c.created_at.isoformat() if c.created_at else None,
@@ -101,11 +112,13 @@ def create_courier(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*MANAGE_ROLES)),
 ):
+    _check_vehicle(db, current_user.company_id, data.vehicle_id)
     courier = Courier(
         company_id=current_user.company_id,
         name=data.name.strip(),
         phone=data.phone.strip(),
         transport=(data.transport or "").strip() or None,
+        vehicle_id=data.vehicle_id,
         is_active=True,
     )
     db.add(courier)
@@ -129,6 +142,7 @@ def update_courier(
         raise HTTPException(status_code=404, detail="Dostavchik topilmadi")
 
     update_data = data.model_dump(exclude_unset=True)
+    _check_vehicle(db, current_user.company_id, update_data.get("vehicle_id"))
     for k, v in update_data.items():
         if k in ("name", "phone", "transport") and isinstance(v, str):
             v = v.strip() or None

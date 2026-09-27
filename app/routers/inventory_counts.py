@@ -28,6 +28,7 @@ def _load_count(db: Session, count_id: int, company_id: Optional[int] = None) ->
             joinedload(InventoryCount.warehouse),
             joinedload(InventoryCount.creator),
             joinedload(InventoryCount.items).joinedload(InventoryCountItem.product),
+            joinedload(InventoryCount.items).joinedload(InventoryCountItem.variant),
         )
         .filter(InventoryCount.id == count_id)
     )
@@ -56,6 +57,8 @@ def _build_count_out(c: InventoryCount) -> InventoryCountOut:
             CountItemOut(
                 id=item.id,
                 product_id=item.product_id,
+                variant_id=item.variant_id,
+                variant_name=item.variant.name if item.variant else None,
                 product_name=item.product.name,
                 product_sku=item.product.sku,
                 product_unit=item.product.unit,
@@ -229,10 +232,13 @@ def revert_count(
         for mov in movements:
             net_change = mov.qty_after - mov.qty_before
             if net_change != 0:
-                stock = db.query(StockLevel).filter(
+                stock_q = db.query(StockLevel).filter(
                     StockLevel.product_id == mov.product_id,
                     StockLevel.warehouse_id == c.warehouse_id
-                ).first()
+                )
+                stock_q = stock_q.filter(StockLevel.variant_id == mov.variant_id) if mov.variant_id is not None \
+                    else stock_q.filter(StockLevel.variant_id.is_(None))
+                stock = stock_q.with_for_update().first()
                 if stock:
                     stock.quantity -= net_change
             db.delete(mov)
@@ -273,10 +279,13 @@ def delete_count(
         for mov in movements:
             net_change = mov.qty_after - mov.qty_before
             if net_change != 0:
-                stock = db.query(StockLevel).filter(
+                stock_q = db.query(StockLevel).filter(
                     StockLevel.product_id == mov.product_id,
                     StockLevel.warehouse_id == c.warehouse_id
-                ).first()
+                )
+                stock_q = stock_q.filter(StockLevel.variant_id == mov.variant_id) if mov.variant_id is not None \
+                    else stock_q.filter(StockLevel.variant_id.is_(None))
+                stock = stock_q.with_for_update().first()
                 if stock:
                     stock.quantity -= net_change
             db.delete(mov)

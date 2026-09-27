@@ -17,7 +17,7 @@ from app.routers import (
     reports, sales_report, finance_report, sales, users,
     suppliers, purchase_orders, transfers, inventory_counts,
     finance, customers, shifts, dashboard_mobile, currencies, api_keys,
-    warehouses, branches, super_admin, companies, dashboard, promotions, roles, orders, shop, couriers
+    warehouses, branches, super_admin, companies, dashboard, promotions, roles, orders, shop, couriers, production, logistics, customer_profile, field_staff
 )
 from app.admin_tg_bot.bot_routers import admin_router
 from app.routers import bin_locations, uploads, agents, telegram, lead, courier_bot  # type: ignore
@@ -379,6 +379,7 @@ app.include_router(transfers.router, prefix=API_PREFIX)
 app.include_router(inventory_counts.router, prefix=API_PREFIX)
 app.include_router(finance.router, prefix=API_PREFIX)
 app.include_router(customers.router, prefix=API_PREFIX)
+app.include_router(customer_profile.router, prefix=API_PREFIX)
 app.include_router(shifts.router, prefix=API_PREFIX)
 app.include_router(dashboard_mobile.router, prefix=API_PREFIX)
 app.include_router(currencies.router, prefix=API_PREFIX)
@@ -406,6 +407,12 @@ app.include_router(ai_reports.router, prefix=API_PREFIX)
 app.include_router(promotions.router, prefix=API_PREFIX)
 app.include_router(orders.router, prefix=API_PREFIX)
 app.include_router(couriers.router, prefix=API_PREFIX)
+app.include_router(production.router, prefix=API_PREFIX)
+app.include_router(logistics.router, prefix=API_PREFIX)
+app.include_router(field_staff.router, prefix=API_PREFIX)
+from app.routers.mobile import routers as _mobile_routers  # noqa: E402
+for _r in _mobile_routers:
+    app.include_router(_r, prefix=API_PREFIX)
 app.include_router(courier_bot.router, prefix=API_PREFIX)
 app.include_router(shop.router, prefix=API_PREFIX)
 

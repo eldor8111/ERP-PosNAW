@@ -37,6 +37,26 @@ class Customer(Base):
 
     debt_edited = Column(JSON, nullable=False, server_default='[]', default=list)
 
+    # Distribyutor: "retail" (oddiy mijoz) yoki "distributor". Distribyutorda
+    # debt_limit sotuvda majburiy tekshiriladi, bitta hududda bitta faol
+    # distribyutor bo'ladi.
+    customer_type = Column(String(20), nullable=False, default="retail", server_default="retail", index=True)
+    territory = Column(String(100), nullable=True)
+
+    # Manzil va joylashuv (kuryer/agent uchun). location_source: map | telegram | manual
+    region = Column(String(100), nullable=True)
+    district = Column(String(100), nullable=True)
+    address = Column(String(500), nullable=True)
+    lat = Column(Numeric(10, 7), nullable=True)
+    lng = Column(Numeric(10, 7), nullable=True)
+    location_source = Column(String(20), nullable=True)
+
+    extra_phones = Column(JSON, nullable=False, server_default='[]', default=list)
+    agent_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    work_days = Column(JSON, nullable=False, server_default='[]', default=list)  # 1=Du ... 7=Ya
+    visit_radius_m = Column(Integer, nullable=True)
+    photo_url = Column(String(300), nullable=True)
+
     branch = relationship("Branch", back_populates="customers")
     orders = relationship("Order", back_populates="customer")
 

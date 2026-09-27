@@ -20,6 +20,9 @@ class Courier(Base):
     tg_chat_id = Column(String(32), nullable=True, index=True)
     transport = Column(String(30), nullable=True)  # piyoda, velosiped, moto, avto
     is_active = Column(Boolean, default=True)
+    vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=True)  # standart mashina
+    # Mobil ilovaga kirish uchun (User.role = courier)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     company = relationship("Company")

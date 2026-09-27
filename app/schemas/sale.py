@@ -48,6 +48,19 @@ class PaymentItem(BaseModel):
         return v
 
 
+class DeliveryIn(BaseModel):
+    """Ulgurji sotuvni yetkazib berish. enabled=False — mavjud yetkazmani
+    bekor qiladi (tahrirlashda). Bo'sh manzil/koordinata mijozdan olinadi."""
+    enabled: bool = True
+    address: Optional[str] = Field(None, max_length=500)
+    lat: Optional[Decimal] = Field(None, ge=-90, le=90)
+    lng: Optional[Decimal] = Field(None, ge=-180, le=180)
+    contact_phone: Optional[str] = Field(None, max_length=32)
+    delivery_fee: Decimal = Field(Decimal("0"), ge=0)
+    planned_date: Optional[date] = None
+    note: Optional[str] = Field(None, max_length=1000)
+
+
 class SaleCreate(BaseModel):
     items: List[SaleItemCreate]
     payment_type: PaymentType
@@ -89,6 +102,8 @@ class SaleCreate(BaseModel):
     created_at: Optional[datetime] = None
     # Oflayn POS: lokal UUID (takroriy yuborishlarni oldini olish)
     local_id: Optional[str] = None
+    # Ulgurji sotuvdan yetkazib berish (ixtiyoriy)
+    delivery: Optional[DeliveryIn] = None
 
     @field_validator("items")
     @classmethod
@@ -157,6 +172,7 @@ class SaleOut(BaseModel):
     fiscal_receipt_seq: Optional[int] = None
     fiscal_transaction_id: Optional[str] = None
     fiscal_at: Optional[datetime] = None
+    delivery: Optional[dict] = None
 
     model_config = {"from_attributes": True}
 
@@ -190,6 +206,7 @@ class SaleListOut(BaseModel):
     currency_code: Optional[str] = "UZS"
     debt_amounts: Optional[dict] = None
     before_debt_balances: Optional[dict] = None
+    delivery_status: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -212,6 +229,7 @@ class SaleUpdate(BaseModel):
     currency_id: Optional[int] = None
     currency_code: Optional[str] = None
     exchange_rate: Optional[Decimal] = None
+    delivery: Optional[DeliveryIn] = None
 
 
 class PartialReturnItem(BaseModel):

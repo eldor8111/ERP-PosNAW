@@ -59,3 +59,14 @@ app.db
 scripts/
 tmp/invoices/
 node_modules/
+
+# Haqiqiy mijoz/mahsulot ma'lumotlari bo'lgan eksport fayllar tasodifan
+# repo'ga qo'shilib ketmasligi uchun (masalan shtrix-kodli tovarlar eksporti)
+*.xlsx
+*.xls
+~$*.xlsx
+check_db.py
+
+# Mijoz rasmlari va shaxsiy hujjatlar (pasport, shartnoma) — repoga tushmasin
+uploads_private/
+static/uploads/customers/

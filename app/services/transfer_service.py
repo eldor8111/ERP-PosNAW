@@ -21,7 +21,7 @@ def generate_transfer_number(db: Session) -> str:
 def revert_transfer_stock(db: Session, transfer_id: int, from_warehouse_id: int, to_warehouse_id: int):
     """Transfer harakatlarini bekor qilish va qoldiqlarni qaytarish (nisbiy hisob-kitob bilan)"""
     from app.models.inventory import StockMovement, MovementType, StockLevel
-    
+
     movements = db.query(StockMovement).filter(
         StockMovement.reference_type == "stock_transfer",
         StockMovement.reference_id == transfer_id
@@ -29,22 +29,25 @@ def revert_transfer_stock(db: Session, transfer_id: int, from_warehouse_id: int,
 
     for m in movements:
         if m.type == MovementType.TRANSFER_OUT:
-            # Chiqim bo'lgan omborga mahsulotni qaytaramiz
-            stock = db.query(StockLevel).filter(
-                StockLevel.product_id == m.product_id,
-                StockLevel.warehouse_id == from_warehouse_id
-            ).first()
-            if stock:
-                stock.quantity += m.quantity
+            wh_id, sign = from_warehouse_id, 1
         elif m.type == MovementType.TRANSFER_IN:
-            # Kirim bo'lgan omboridan mahsulotni ayiramiz
-            stock = db.query(StockLevel).filter(
-                StockLevel.product_id == m.product_id,
-                StockLevel.warehouse_id == to_warehouse_id
-            ).first()
-            if stock:
-                stock.quantity -= m.quantity
-        
+            wh_id, sign = to_warehouse_id, -1
+        else:
+            db.delete(m)
+            continue
+
+        # variant_id bo'yicha aniq qatorni topamiz (aks holda boshqa variantning
+        # qoldig'i o'zgarib qolishi mumkin) va race condition oldini olish uchun bloklaymiz
+        q = db.query(StockLevel).filter(
+            StockLevel.product_id == m.product_id,
+            StockLevel.warehouse_id == wh_id,
+        )
+        q = q.filter(StockLevel.variant_id == m.variant_id) if m.variant_id is not None \
+            else q.filter(StockLevel.variant_id.is_(None))
+        stock = q.with_for_update().first()
+        if stock:
+            stock.quantity += sign * m.quantity
+
         db.delete(m)
     db.flush()
 
@@ -87,9 +90,19 @@ def create_transfer(db: Session, data, user_id: int) -> StockTransfer:
             if not target_prod:
                 raise HTTPException(status_code=404, detail=f"Maqsad mahsulot ID={target_product_id} topilmadi")
 
+        variant_id = getattr(item_data, 'variant_id', None) or None
+        if variant_id is not None:
+            from app.models.product_variant import ProductVariant
+            variant = db.query(ProductVariant).filter(
+                ProductVariant.id == variant_id, ProductVariant.product_id == item_data.product_id
+            ).first()
+            if not variant:
+                raise HTTPException(status_code=404, detail=f"Variant ID={variant_id} topilmadi")
+
         orm_item = StockTransferItem(
             transfer_id=transfer.id,
             product_id=item_data.product_id,
+            variant_id=variant_id,
             target_product_id=target_product_id,
             quantity=item_data.quantity,
         )
@@ -97,6 +110,7 @@ def create_transfer(db: Session, data, user_id: int) -> StockTransfer:
         # target_product_id ni item_data dan olamiz - ORM cache ga ishonmaymiz
         collected_items.append({
             'product_id': item_data.product_id,
+            'variant_id': variant_id,
             'quantity': float(item_data.quantity),
             'target_product_id': target_product_id,
             'prod': prod,
@@ -109,6 +123,7 @@ def create_transfer(db: Session, data, user_id: int) -> StockTransfer:
     for ref in collected_items:
         prod = ref['prod']
         product_id = ref['product_id']
+        variant_id = ref['variant_id']
         quantity = ref['quantity']
         target_prod_id = ref['target_product_id']  # ← kalit: to'g'ri qiymat
 
@@ -118,14 +133,17 @@ def create_transfer(db: Session, data, user_id: int) -> StockTransfer:
         ).first()
 
         if conversion:
+            # Konversiyada manba mahsulot boshqa — variant tegishli emas
             src_product_id = conversion.source_product_id
+            src_variant_id = None
             src_qty = quantity * float(conversion.ratio)
         else:
             src_product_id = product_id
+            src_variant_id = variant_id
             src_qty = quantity
 
         # Manba ombordan chiqim
-        from_stock = get_or_create_stock(db, src_product_id, transfer.from_warehouse_id)
+        from_stock = get_or_create_stock(db, src_product_id, transfer.from_warehouse_id, src_variant_id)
         if float(from_stock.quantity) < src_qty:
             raise HTTPException(
                 status_code=400,
@@ -136,6 +154,7 @@ def create_transfer(db: Session, data, user_id: int) -> StockTransfer:
         from_stock.quantity = qty_before_from - src_qty
         db.add(StockMovement(
             product_id=src_product_id,
+            variant_id=src_variant_id,
             type=MovementType.TRANSFER_OUT,
             qty_before=qty_before_from,
             qty_after=from_stock.quantity,
@@ -148,11 +167,14 @@ def create_transfer(db: Session, data, user_id: int) -> StockTransfer:
 
         # Maqsad ombor: target_product_id ko'rsatilgan bo'lsa uni, aks holda source mahsulot
         dest_product_id = target_prod_id if target_prod_id else product_id
-        to_stock = get_or_create_stock(db, dest_product_id, transfer.to_warehouse_id)
+        # Boshqa mahsulotga yo'naltirilgan bo'lsa, manba variant maqsadga tegishli emas
+        dest_variant_id = None if target_prod_id else variant_id
+        to_stock = get_or_create_stock(db, dest_product_id, transfer.to_warehouse_id, dest_variant_id)
         qty_before_to = float(to_stock.quantity)
         to_stock.quantity = qty_before_to + quantity
         db.add(StockMovement(
             product_id=dest_product_id,
+            variant_id=dest_variant_id,
             type=MovementType.TRANSFER_IN,
             qty_before=qty_before_to,
             qty_after=to_stock.quantity,
@@ -179,7 +201,7 @@ def confirm_transfer(db: Session, transfer_id: int, user_id: int) -> StockTransf
 
     for item in transfer.items:
         # Deduct from source warehouse
-        from_stock = get_or_create_stock(db, item.product_id, transfer.from_warehouse_id)
+        from_stock = get_or_create_stock(db, item.product_id, transfer.from_warehouse_id, item.variant_id)
         if from_stock.quantity < item.quantity:
             raise HTTPException(
                 status_code=400,
@@ -190,6 +212,7 @@ def confirm_transfer(db: Session, transfer_id: int, user_id: int) -> StockTransf
         from_stock.quantity -= item.quantity
         db.add(StockMovement(
             product_id=item.product_id,
+            variant_id=item.variant_id,
             type=MovementType.TRANSFER_OUT,
             qty_before=qty_before_from,
             qty_after=from_stock.quantity,
@@ -202,11 +225,13 @@ def confirm_transfer(db: Session, transfer_id: int, user_id: int) -> StockTransf
 
         # Add to destination warehouse (target_product_id bo'lsa uni ishlatish)
         dest_product_id = item.target_product_id or item.product_id
-        to_stock = get_or_create_stock(db, dest_product_id, transfer.to_warehouse_id)
+        dest_variant_id = None if item.target_product_id else item.variant_id
+        to_stock = get_or_create_stock(db, dest_product_id, transfer.to_warehouse_id, dest_variant_id)
         qty_before_to = to_stock.quantity
         to_stock.quantity += item.quantity
         db.add(StockMovement(
             product_id=dest_product_id,
+            variant_id=dest_variant_id,
             type=MovementType.TRANSFER_IN,
             qty_before=qty_before_to,
             qty_after=to_stock.quantity,
@@ -263,15 +288,26 @@ def update_transfer(db: Session, transfer_id: int, data, user_id: int) -> StockT
             if not target_prod:
                 raise HTTPException(status_code=404, detail=f"Maqsad mahsulot ID={target_product_id} topilmadi")
 
+        variant_id = getattr(item_data, 'variant_id', None) or None
+        if variant_id is not None:
+            from app.models.product_variant import ProductVariant
+            variant = db.query(ProductVariant).filter(
+                ProductVariant.id == variant_id, ProductVariant.product_id == item_data.product_id
+            ).first()
+            if not variant:
+                raise HTTPException(status_code=404, detail=f"Variant ID={variant_id} topilmadi")
+
         orm_item = StockTransferItem(
             transfer_id=transfer.id,
             product_id=item_data.product_id,
+            variant_id=variant_id,
             target_product_id=target_product_id,
             quantity=item_data.quantity,
         )
         db.add(orm_item)
         collected_items.append({
             'product_id': item_data.product_id,
+            'variant_id': variant_id,
             'quantity': float(item_data.quantity),
             'target_product_id': target_product_id,
             'prod': prod,
@@ -282,6 +318,7 @@ def update_transfer(db: Session, transfer_id: int, data, user_id: int) -> StockT
     for ref in collected_items:
         prod = ref['prod']
         product_id = ref['product_id']
+        variant_id = ref['variant_id']
         quantity = ref['quantity']
         target_prod_id = ref['target_product_id']
 
@@ -291,12 +328,14 @@ def update_transfer(db: Session, transfer_id: int, data, user_id: int) -> StockT
 
         if conversion:
             src_product_id = conversion.source_product_id
+            src_variant_id = None
             src_qty = quantity * float(conversion.ratio)
         else:
             src_product_id = product_id
+            src_variant_id = variant_id
             src_qty = quantity
 
-        from_stock = get_or_create_stock(db, src_product_id, transfer.from_warehouse_id)
+        from_stock = get_or_create_stock(db, src_product_id, transfer.from_warehouse_id, src_variant_id)
         if float(from_stock.quantity) < src_qty:
             raise HTTPException(
                 status_code=400,
@@ -307,6 +346,7 @@ def update_transfer(db: Session, transfer_id: int, data, user_id: int) -> StockT
         from_stock.quantity = qty_before_from - src_qty
         db.add(StockMovement(
             product_id=src_product_id,
+            variant_id=src_variant_id,
             type=MovementType.TRANSFER_OUT,
             qty_before=qty_before_from,
             qty_after=from_stock.quantity,
@@ -318,11 +358,13 @@ def update_transfer(db: Session, transfer_id: int, data, user_id: int) -> StockT
         ))
 
         dest_product_id = target_prod_id if target_prod_id else product_id
-        to_stock = get_or_create_stock(db, dest_product_id, transfer.to_warehouse_id)
+        dest_variant_id = None if target_prod_id else variant_id
+        to_stock = get_or_create_stock(db, dest_product_id, transfer.to_warehouse_id, dest_variant_id)
         qty_before_to = float(to_stock.quantity)
         to_stock.quantity = qty_before_to + quantity
         db.add(StockMovement(
             product_id=dest_product_id,
+            variant_id=dest_variant_id,
             type=MovementType.TRANSFER_IN,
             qty_before=qty_before_to,
             qty_after=to_stock.quantity,

@@ -247,6 +247,8 @@ def process_partial_return(
     if total_qty > 0:
         if total_returned >= total_qty:
             original_sale.status = SaleStatus.refunded  # type: ignore
+            from app.services.sale_delivery_service import cancel_sale_delivery
+            cancel_sale_delivery(db, original_sale.id, "Sotuv to'liq qaytarildi")
 
             # Sotuv to'liq qaytarilganda berilgan/ishlatilgan ball va bonusni
             # ham qaytarib olamiz — aks holda mijoz tovarni qaytarib, pulini

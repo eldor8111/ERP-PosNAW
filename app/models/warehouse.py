@@ -12,6 +12,8 @@ class WarehouseType(str, enum.Enum):
     transit = "transit"
     returns = "returns"
     shop = "shop"
+    raw_material = "raw_material"  # Xom ashyo ombori (ishlab chiqarish moduli)
+    wip = "wip"  # Jarayondagi (Work-In-Progress) ombor
 
 
 class Warehouse(Base):

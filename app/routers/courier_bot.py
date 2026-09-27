@@ -242,6 +242,46 @@ def courier_my_orders(
         Order.delivered_at >= today_start,
     ).distinct().count()
 
+    # Ulgurji sotuv yetkazmalari (Logistika marshrutidan biriktirilgan)
+    from app.models.sale_delivery import SaleDelivery, SaleDeliveryStatus
+    from app.models.sale import SaleItem
+    from app.services import sale_delivery_service as sd_service
+    deliveries = db.query(SaleDelivery).filter(
+        SaleDelivery.courier_id == courier.id,
+        SaleDelivery.status.in_([SaleDeliveryStatus.assigned, SaleDeliveryStatus.on_way]),
+    ).order_by(SaleDelivery.assigned_at.desc().nullslast()).all()
+    for d in deliveries:
+        sale = d.sale
+        cust = db.query(Customer.name, Customer.phone).filter(Customer.id == sale.customer_id).first() if sale.customer_id else None
+        items = db.query(SaleItem, Product.name).join(Product, Product.id == SaleItem.product_id).filter(SaleItem.sale_id == sale.id).all()
+        groups[f"sale-{sale.id}"] = {
+            "group_id": f"sale-{sale.id}",
+            "source": "sale",
+            "sale_number": sale.number,
+            "status": d.status.value,
+            "customer_name": cust.name if cust else "—",
+            "customer_phone": d.contact_phone or (cust.phone if cust else None),
+            "delivery_address": d.address,
+            "delivery_lat": float(d.lat) if d.lat is not None else None,
+            "delivery_lng": float(d.lng) if d.lng is not None else None,
+            "payment_type": sale.payment_type.value if hasattr(sale.payment_type, "value") else str(sale.payment_type),
+            "notes": d.note,
+            "delivery_fee": float(d.delivery_fee or 0),
+            "total_amount": float(sale.total_amount or 0),
+            # Tovar puli sotuvda hisoblangan — kuryer faqat shuni yig'adi
+            "collect_amount": sd_service.collect_amount(d),
+            "assigned_at": d.assigned_at.isoformat() if d.assigned_at else None,
+            "items": [
+                {"product_name": name, "quantity": float(si.quantity), "total_amount": float(si.subtotal or 0)}
+                for si, name in items
+            ],
+        }
+    delivered_today += db.query(SaleDelivery.id).filter(
+        SaleDelivery.courier_id == courier.id,
+        SaleDelivery.status == SaleDeliveryStatus.delivered,
+        SaleDelivery.delivered_at >= today_start,
+    ).count()
+
     return {
         "courier": {"id": courier.id, "name": courier.name},
         "delivered_today": delivered_today,
@@ -268,6 +308,9 @@ def courier_update_order_status(
     if data.status not in ("on_way", "delivered"):
         raise HTTPException(status_code=400, detail="Faqat 'on_way' yoki 'delivered' mumkin")
     new_status = OrderStatus.on_way if data.status == "on_way" else OrderStatus.delivered
+
+    if group_id.startswith("sale-"):
+        return _courier_update_sale_delivery(db, company, courier, group_id, data.status)
 
     if group_id.startswith("single-"):
         orders = db.query(Order).filter(
@@ -304,3 +347,32 @@ def courier_update_order_status(
         bg.add_task(maybe_create_sale_for_delivered_group, db, orders)
 
     return {"message": "Status yangilandi", "status": data.status}
+
+
+def _courier_update_sale_delivery(db: Session, company, courier, group_id: str, status: str) -> dict:
+    """Ulgurji sotuv yetkazmasi — "yetkazildi" yangi sotuv yaratmaydi,
+    faqat yetkazish haqi moliyaga (bir marta) yoziladi."""
+    from app.models.sale_delivery import SaleDelivery, SaleDeliveryStatus
+    from app.services import sale_delivery_service as sd_service
+    try:
+        sale_id = int(group_id[len("sale-"):])
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    d = db.query(SaleDelivery).filter(
+        SaleDelivery.sale_id == sale_id,
+        SaleDelivery.company_id == company.id,
+        SaleDelivery.courier_id == courier.id,
+    ).with_for_update().first()
+    if not d:
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi yoki sizga biriktirilmagan")
+    if d.status in sd_service.FINAL:
+        raise HTTPException(status_code=400, detail="Buyurtma allaqachon yakunlangan")
+    if status == "on_way":
+        sd_service.set_status(d, SaleDeliveryStatus.on_way)
+    else:
+        sd_service.set_status(d, SaleDeliveryStatus.delivered)
+        acting = sd_service.acting_user(db, company.id)
+        if acting:
+            sd_service.record_fee_once(db, d, acting)
+    db.commit()
+    return {"message": "Status yangilandi", "status": status}

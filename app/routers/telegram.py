@@ -480,6 +480,35 @@ async def telegram_webhook(
                 )
             return {"ok": True}
 
+        # ── Joylashuv (lokatsiya) — mijoz manzilini biriktirish ──
+        if "location" in message:
+            company, customer = _find_customer_by_chat(db, token, chat_id)
+            if not company:
+                return {"ok": True}
+            if not customer:
+                background_tasks.add_task(
+                    send_telegram_message, token, chat_id,
+                    "ℹ️ Joylashuvni saqlash uchun avval ro'yxatdan o'ting: /start",
+                )
+                return {"ok": True}
+            loc = message["location"]
+            try:
+                lat, lng = float(loc["latitude"]), float(loc["longitude"])
+            except (KeyError, TypeError, ValueError):
+                return {"ok": True}
+            if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+                return {"ok": True}
+            customer.lat = round(lat, 7)
+            customer.lng = round(lng, 7)
+            customer.location_source = "telegram"
+            db.commit()
+            background_tasks.add_task(
+                send_telegram_message, token, chat_id,
+                "✅ Joylashuvingiz saqlandi. Buyurtmalaringiz shu manzilga yetkaziladi.",
+                _build_main_keyboard(company, chat_id),
+            )
+            return {"ok": True}
+
         # ── Kontakt (telefon raqam) ───────────────────────────────
         if "contact" in message:
             contact = message["contact"]

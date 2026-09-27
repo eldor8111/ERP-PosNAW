@@ -278,6 +278,21 @@ def create_sale(
         if paid_amount_uzs < total_amount:
             debt_amount_uzs = total_amount - paid_amount_uzs
             if debt_amount_uzs > Decimal("0.01"):
+                # Distribyutor kredit limiti (0 = cheklanmagan)
+                _limit = Decimal(str(customer.debt_limit or 0))
+                if getattr(customer, "customer_type", "retail") == "distributor" and _limit > 0:
+                    _new_debt = Decimal(str(customer.debt_balance or 0)) + debt_amount_uzs
+                    if _new_debt > _limit:
+                        _fmt = lambda v: f"{v:,.0f}".replace(",", " ")
+                        raise HTTPException(
+                            status_code=400,
+                            detail=(
+                                f"Distribyutor kredit limitidan oshadi: limit {_fmt(_limit)}, "
+                                f"joriy qarz {_fmt(Decimal(str(customer.debt_balance or 0)))}, "
+                                f"bu sotuvdan keyin {_fmt(_new_debt)} so'm. "
+                                f"Qarzni yoping yoki limitni oshiring."
+                            ),
+                        )
                 customer.debt_balance += debt_amount_uzs
 
                 # Sync with multi-currency debt_balances
@@ -700,6 +715,10 @@ def create_sale(
     for mov in new_movements:
         db.add(mov)
 
+    if getattr(data, "delivery", None) is not None:
+        from app.services.sale_delivery_service import upsert_sale_delivery
+        upsert_sale_delivery(db, sale, data.delivery, current_user.company_id)
+
     log_action(
         db=db, action="SALE", entity_type="sale", entity_id=sale.id,
         user_id=current_user.id,
@@ -817,6 +836,7 @@ def create_pending_sale(
     data: SaleCreate,
     current_user: User,
     ip: Optional[str] = None,
+    agent_id: Optional[int] = None,
 ) -> Sale:
     """Ulgurji sotuv — to'lovsiz (pending). Stock va tranzaksiyalarga tegmaydi."""
     if data.warehouse_id is None:
@@ -940,6 +960,8 @@ def create_pending_sale(
     ).first()
     if _open_shift:
         sale.shift_id = _open_shift.id
+    if agent_id:
+        sale.agent_id = agent_id
     db.add(sale)
     db.flush()
 
@@ -954,6 +976,10 @@ def create_pending_sale(
             subtotal=item_d["subtotal"],
             marking_codes=item_d["marking_codes"] or None,
         ))
+
+    if getattr(data, "delivery", None) is not None:
+        from app.services.sale_delivery_service import upsert_sale_delivery
+        upsert_sale_delivery(db, sale, data.delivery, current_user.company_id)
 
     log_action(
         db=db, action="SALE_PENDING", entity_type="sale", entity_id=sale.id,

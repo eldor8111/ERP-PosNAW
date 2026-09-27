@@ -141,6 +141,7 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
     sale = q.first()
     if not sale:
         raise HTTPException(status_code=404, detail="Sotuv topilmadi")
+    _old_status = sale.status
 
     # Kompaniya sozlamasi: minus qoldiqda sotish taqiqlanganmi
     from app.models.company import Company as _Company
@@ -526,6 +527,19 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 if stock:
                     stock.quantity = movement.qty_before
                 db.delete(movement)
+
+    if getattr(data, "delivery", None) is not None:
+        from app.services.sale_delivery_service import upsert_sale_delivery
+        upsert_sale_delivery(db, sale, data.delivery, sale.company_id)
+    if str(getattr(sale.status, "value", sale.status)) in ("cancelled", "refunded"):
+        from app.services.sale_delivery_service import cancel_sale_delivery
+        cancel_sale_delivery(db, sale.id, "Sotuv bekor qilindi")
+    # Agent buyurtmasi omborda tasdiqlandi/bekor qilindi — agentga push
+    if getattr(sale, "agent_id", None) and _old_status == SaleStatus.pending and sale.status != SaleStatus.pending:
+        from app.services.mobile_service import push_to_user
+        ok = sale.status == SaleStatus.completed
+        push_to_user(db, sale.agent_id, "✅ Buyurtma tasdiqlandi" if ok else "❌ Buyurtma bekor qilindi",
+                     f"#{sale.number} — {sale.customer.name if sale.customer else ''}", {"type": "order", "sale_id": sale.id})
 
     log_action(
         db=db, action="SALE_UPDATE", entity_type="sale", entity_id=sale.id,  # type: ignore

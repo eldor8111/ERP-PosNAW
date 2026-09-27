@@ -77,6 +77,8 @@ class CompanyUpdate(BaseModel):
     delivery_fee: Optional[float] = None
     courier_bot_token: Optional[str] = None
     orders_auto_create_sale: Optional[bool] = None
+    manufacturing_enabled: Optional[bool] = None
+    distribution_enabled: Optional[bool] = None
 
 
 class ReceiptTemplatesUpdate(BaseModel):
@@ -105,6 +107,8 @@ class CompanyOut(BaseModel):
     delivery_fee: float = 0
     courier_bot_username: Optional[str] = None
     orders_auto_create_sale: bool = False
+    manufacturing_enabled: bool = False
+    distribution_enabled: bool = False
 
     class Config:
         from_attributes = True
@@ -119,14 +123,18 @@ def list_companies(
         companies = db.query(Company).order_by(Company.id).all()
     else:
         companies = db.query(Company).filter(Company.id == current_user.company_id).order_by(Company.id).all()
-        
+
+    # tg_bot_token orqali kompaniyaning Telegram botini to'liq boshqarish mumkin
+    # (xabar yuborish, webhook o'zgartirish) — faqat yuqori huquqli rollarga ko'rsatamiz
+    is_privileged = current_user.role in (UserRole.admin, UserRole.director, UserRole.super_admin)
+
     result = []
     for c in companies:
         bc = db.query(func.count(Branch.id)).filter(Branch.company_id == c.id).scalar() or 0
         result.append(CompanyOut(
-            id=c.id, name=c.name, address=c.address, phone=c.phone, 
-            email=c.email, is_active=c.is_active, created_at=c.created_at, 
-            branches_count=bc, tg_bot_token=c.tg_bot_token, tg_bot_username=c.tg_bot_username, 
+            id=c.id, name=c.name, address=c.address, phone=c.phone,
+            email=c.email, is_active=c.is_active, created_at=c.created_at,
+            branches_count=bc, tg_bot_token=c.tg_bot_token if is_privileged else None, tg_bot_username=c.tg_bot_username,
             receipt_templates=c.receipt_templates, daily_report_time=c.daily_report_time or "17:30",
             low_stock_alert=c.low_stock_alert if c.low_stock_alert is not None else True,
             expiration_alert=c.expiration_alert if c.expiration_alert is not None else True,
@@ -138,8 +146,23 @@ def list_companies(
         delivery_fee=float(c.delivery_fee or 0) if hasattr(c, 'delivery_fee') else 0,
         courier_bot_username=getattr(c, 'courier_bot_username', None),
         orders_auto_create_sale=bool(getattr(c, 'orders_auto_create_sale', False) or False),
+        manufacturing_enabled=bool(getattr(c, 'manufacturing_enabled', False)),
+        distribution_enabled=bool(getattr(c, 'distribution_enabled', False)),
         ))  # type: ignore[call-arg]
     return result
+
+@router.get("/me/features")
+def get_my_company_features(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Kompaniyada yoqilgan ixtiyoriy modullar (sidebar va sahifalar uchun)."""
+    c = db.query(Company).filter(Company.id == current_user.company_id).first() if current_user.company_id else None
+    return {
+        "manufacturing": bool(c and c.manufacturing_enabled),
+        "distribution": bool(c and c.distribution_enabled),
+    }
+
 
 @router.get("/me/receipt_templates")
 def get_my_receipt_templates(
@@ -196,6 +219,8 @@ def create_company(
         delivery_fee=float(c.delivery_fee or 0) if hasattr(c, 'delivery_fee') else 0,
         courier_bot_username=getattr(c, 'courier_bot_username', None),
         orders_auto_create_sale=bool(getattr(c, 'orders_auto_create_sale', False) or False),
+        manufacturing_enabled=bool(getattr(c, 'manufacturing_enabled', False)),
+        distribution_enabled=bool(getattr(c, 'distribution_enabled', False)),
     )  # type: ignore[call-arg]
 
 
@@ -257,6 +282,8 @@ def update_company(
         delivery_fee=float(c.delivery_fee or 0) if hasattr(c, 'delivery_fee') else 0,
         courier_bot_username=getattr(c, 'courier_bot_username', None),
         orders_auto_create_sale=bool(getattr(c, 'orders_auto_create_sale', False) or False),
+        manufacturing_enabled=bool(getattr(c, 'manufacturing_enabled', False)),
+        distribution_enabled=bool(getattr(c, 'distribution_enabled', False)),
     )  # type: ignore[call-arg]
 
 

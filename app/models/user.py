@@ -15,6 +15,12 @@ class UserRole(str, enum.Enum):
     accountant = "accountant"
     warehouse = "warehouse"
     cashier = "cashier"
+    # Dala xodimlari — faqat mobil ilova orqali ishlaydi (/api/mobile/*)
+    courier = "courier"
+    agent = "agent"
+
+
+MOBILE_ONLY_ROLES = (UserRole.courier, UserRole.agent)
 
 class UserStatus(str, enum.Enum):
     active = "active"

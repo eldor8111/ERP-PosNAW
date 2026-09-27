@@ -57,6 +57,8 @@ class Sale(Base):
     # Sotuv qaysi kassir smenasida qilingani — aniq bog'lanish (vaqt-oyna
     # taxmini o'rniga). Eski sotuvlarda NULL, ular uchun vaqt-oyna zaxira.
     shift_id = Column(Integer, ForeignKey("shifts.id"), nullable=True, index=True)
+    # Savdo agenti mobil ilovadan olgan buyurtma (User.role = agent)
+    agent_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
 
     # Takroriy sotuvdan himoya: POS har sotuvni Idempotency-Key: <uuid>
     # headeri bilan yuboradi (oflayn navbatdan qayta yuborilganda ham
@@ -79,9 +81,11 @@ class Sale(Base):
     currency = relationship("Currency")
     warehouse = relationship("Warehouse")
     customer = relationship("Customer")
-    cashier = relationship("User")
+    cashier = relationship("User", foreign_keys=[cashier_id])
     items = relationship("SaleItem", back_populates="sale", cascade="all, delete-orphan")
     payments = relationship("SalePayment", back_populates="sale", cascade="all, delete-orphan")
+    # Yetkazib berish (faqat o'qish uchun — yozish sale_delivery_service orqali)
+    delivery = relationship("SaleDelivery", uselist=False, viewonly=True)
 
     __table_args__ = (
         Index('ix_sale_company_created', 'company_id', 'created_at'),

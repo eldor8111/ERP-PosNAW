@@ -470,6 +470,22 @@ async def check_and_send_reports():
 
 # ─── Vaqt tekshiruvchi yordamchi ─────────────────────────────────────────
 
+def _cleanup_old_locations(days: int = 90) -> None:
+    db = SessionLocal()
+    try:
+        from app.models.employee_location import EmployeeLocation
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        n = db.query(EmployeeLocation).filter(EmployeeLocation.recorded_at < cutoff).delete(synchronize_session=False)
+        db.commit()
+        if n:
+            print(f"[Scheduler] {n} ta eski GPS nuqta o'chirildi")
+    except Exception as e:
+        db.rollback()
+        print(f"[Scheduler] GPS tozalashda xato: {e}")
+    finally:
+        db.close()
+
+
 def _is_time(hour: int, minute: int, now: datetime) -> bool:
     """Berilgan soat:daqiqada bir marta ishga tushiradi."""
     return now.hour == hour and now.minute == minute
@@ -494,6 +510,7 @@ async def start_scheduler():
     last_overdue_date = None
     last_expired_date = None
     last_expired_notify_date = None
+    last_gps_cleanup_date = None
     # Hisobot uchun: {company_id: last_report_date}
     last_report_dates: dict = {}
 
@@ -523,6 +540,11 @@ async def start_scheduler():
                 print(f"[Scheduler] {uz_now.strftime('%H:%M')} — Muddati tugayotgan mahsulotlar tekshirilmoqda")
                 await notify_expiring_products()
                 last_expired_notify_date = today
+
+            # 03:00 — 90 kundan eski GPS nuqtalarini o'chirish (shaxsiy ma'lumot)
+            if _is_time(3, 0, uz_now) and last_gps_cleanup_date != today:
+                _cleanup_old_locations()
+                last_gps_cleanup_date = today
 
             # 00:05 — Muddati o'tgan tovarlarni avtomatik EXPIRED qilish
             if _is_time(0, 5, uz_now) and last_expired_date != today:

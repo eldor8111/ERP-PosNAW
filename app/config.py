@@ -5,8 +5,11 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 43200  # 30 kun
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 90  # 90 kun
+    # .env da qiymat berilmasa ishlatiladigan xavfsiz standart (kod darajasidagi
+    # standart uzoq bo'lsa, .env noto'liq sozlangan deploy'da seanslar oyларча
+    # amal qilib qolishi mumkin edi)
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60  # 1 soat
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # 7 kun
     ENV: str = "production"
     CORS_ORIGINS: str = ""
     # Telegram OTP bot
