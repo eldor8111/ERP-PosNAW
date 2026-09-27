@@ -275,13 +275,9 @@ def upgrade() -> None:
         )
         op.create_index(op.f('ix_sale_item_batches_id'), 'sale_item_batches', ['id'], unique=False)
 
-    # --- Drop platform_settings if exists ---
-    if _table_exists('platform_settings'):
-        if _index_exists('ix_platform_settings_id', 'platform_settings'):
-            op.execute("DROP INDEX IF EXISTS ix_platform_settings_id")
-        if _index_exists('ix_platform_settings_key', 'platform_settings'):
-            op.execute("DROP INDEX IF EXISTS ix_platform_settings_key")
-        op.execute("DROP TABLE IF EXISTS platform_settings")
+    # platform_settings bu yerda o'chirilmaydi: autogenerate model import qilinmagani uchun
+    # uni "ortiqcha" deb bilgan edi, lekin jadval Super Admin sozlamalari va to'lov sahifasida
+    # ishlatiladi (app/models/platform_settings.py).
 
     # --- balance_logs index ---
     if _table_exists('balance_logs'):

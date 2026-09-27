@@ -262,6 +262,27 @@ def _run_auto_migrations(engine):
             print(f"[AUTO-MIGRATION] skip: {e}")
 
 
+def _create_missing_tables(engine):
+    """Modelda bor, lekin bazada yo'q jadvallarni yaratadi (mavjud jadvallarga tegmaydi).
+    Masalan, platform_settings alembic df9132535f4b migratsiyasida xato bilan o'chirilgan edi —
+    Super Admin sozlamalari 500 berar, to'lov sahifasida namunaviy karta ma'lumoti chiqardi."""
+    from sqlalchemy import inspect
+    from app.database import Base
+    try:
+        existing = set(inspect(engine).get_table_names())
+    except Exception as e:
+        print(f"[AUTO-MIGRATION] jadvallar ro'yxati olinmadi: {e}")
+        return
+    for table in Base.metadata.sorted_tables:
+        if table.name in existing:
+            continue
+        try:
+            table.create(bind=engine, checkfirst=True)
+            print(f"[AUTO-MIGRATION] jadval yaratildi: {table.name}")
+        except Exception as e:  # parallel ishga tushgan worker allaqachon yaratgan bo'lishi mumkin
+            print(f"[AUTO-MIGRATION] skip {table.name}: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from app.admin_tg_bot.bot_manager import main as run_admin_bot_polling
@@ -276,6 +297,8 @@ async def lifespan(app: FastAPI):
     # _run_alembic_upgrade()
     # 2. Qo'shimcha SQL migratsiyalar (Payme va boshqalar)
     _run_auto_migrations(engine)
+    # 3. Modelda bor, bazada yo'q jadvallar
+    _create_missing_tables(engine)
     scheduler_task = asyncio.create_task(start_scheduler())
     admin_bot_task = asyncio.create_task(run_admin_bot_polling())
     yield
