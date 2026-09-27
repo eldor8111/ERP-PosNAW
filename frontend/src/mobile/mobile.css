@@ -1,0 +1,14 @@
+/* E-code Mobile — ilova butun ekranni egallaydi, sahifa o'zi scroll bo'lmaydi */
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+body {
+  background: var(--color-bg-base);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+input, textarea {
+  user-select: text;
+}

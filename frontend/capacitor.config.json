@@ -1,0 +1,11 @@
+{
+  "appId": "uz.ecode.mobile",
+  "appName": "E-code Mobile",
+  "webDir": "dist-mobile",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

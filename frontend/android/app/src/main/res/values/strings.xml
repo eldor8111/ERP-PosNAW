@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">E-code Mobile</string>
+    <string name="title_activity_main">E-code Mobile</string>
+    <string name="package_name">uz.ecode.mobile</string>
+    <string name="custom_url_scheme">uz.ecode.mobile</string>
+</resources>
