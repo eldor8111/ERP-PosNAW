@@ -2,12 +2,14 @@ import os
 import time
 
 # Set default timezone to Asia/Tashkent for the Python process
-os.environ['TZ'] = 'Asia/Tashkent'
-try:
+if hasattr(time, "tzset"):
+    os.environ['TZ'] = 'Asia/Tashkent'
     time.tzset()
-except AttributeError:
-    # time.tzset is unix-only
-    pass
+else:
+    # Windows C runtime IANA nomini ("Asia/Tashkent") tushunmaydi va uni UTC
+    # deb oladi — date.today()/datetime.now() 5 soat orqada qolardi. POSIX
+    # ko'rinishi: UTC+5, yozgi vaqt yo'q (Toshkent).
+    os.environ['TZ'] = 'UZT-5'
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import declarative_base, sessionmaker
