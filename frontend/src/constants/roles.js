@@ -6,6 +6,9 @@ export const ROLES = {
   ACCOUNTANT: 'accountant',
   WAREHOUSE: 'warehouse',
   CASHIER: 'cashier',
+  // Faqat mobil ilova (E-code Mobile) — veb-panelga kirmaydi
+  COURIER: 'courier',
+  AGENT: 'agent',
 }
 
 export const ROLE_GROUPS = {
@@ -38,6 +41,8 @@ export const ROLE_LABELS = {
   [ROLES.ACCOUNTANT]: 'Buxgalter',
   [ROLES.WAREHOUSE]: 'Omborchi',
   [ROLES.CASHIER]: 'Kassir',
+  [ROLES.COURIER]: 'Kuryer',
+  [ROLES.AGENT]: 'Savdo agenti',
 }
 
 export const ROLE_GRADIENTS = {
@@ -48,4 +53,6 @@ export const ROLE_GRADIENTS = {
   [ROLES.ACCOUNTANT]: 'from-green-500 to-green-700',
   [ROLES.WAREHOUSE]: 'from-yellow-500 to-yellow-700',
   [ROLES.CASHIER]: 'from-blue-500 to-blue-700',
+  [ROLES.COURIER]: 'from-orange-500 to-orange-700',
+  [ROLES.AGENT]: 'from-violet-500 to-violet-700',
 }

@@ -10,9 +10,13 @@ import { ChevronDown, CreditCard, Users, ListOrdered, ChevronsUpDown, CheckIcon,
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
 import Orders from './Orders';
 import Couriers from './Couriers';
+import DistributorsReport from './Distributors';
+import useCompanyFeatures from '../../hooks/useCompanyFeatures';
+import CustomerProfileSection from '../../components/customer/CustomerProfileSection';
+import { emptyProfile, profileFromCustomer, profilePayload, uploadPendingFiles } from '../../components/customer/customerProfile';
 import CustomerBarcodePrintModal from '../../components/CustomerBarcodeTemplates';
 
-const getEmptyForm = () => ({ name: '', phone: '', debt_limit: '', loyalty_points: 0, card_number: '', cashback_percent: 0, price_type: 'retail', debts: [{ amount: '', currency: 'UZS' }] });
+const getEmptyForm = () => ({ name: '', phone: '', debt_limit: '', loyalty_points: 0, card_number: '', cashback_percent: 0, price_type: 'retail', customer_type: 'retail', territory: '', debts: [{ amount: '', currency: 'UZS' }], ...emptyProfile() });
 const emptyForm = getEmptyForm();
 
 const TIERS = {
@@ -205,15 +209,17 @@ const parseExcelNumeric = (val) => {
   return s;
 };
 
-export function SotuvMijozlar({ stats, reloadStats }) {
+export function SotuvMijozlar({ stats, reloadStats, customerType }) {
   const navigate = useNavigate();
   const { t } = useLang();
+  const features = useCompanyFeatures();
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(null);
   const [selected, setSelected] = useState(null);
   const [barcodeCustomer, setBarcodeCustomer] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [pendingFiles, setPendingFiles] = useState({ photo: null, docs: [] });
   const [payWallet, setPayWallet] = useState('');
   const [payInfo, setPayInfo] = useState('');
   const [wallets, setWallets] = useState([]);
@@ -390,6 +396,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
     if (q) url += `&search=${encodeURIComponent(q)}`;
     if (sortBy) url += `&sort_by=${sortBy}`;
     if (sortOrder) url += `&sort_order=${sortOrder}`;
+    if (customerType) url += `&customer_type=${customerType}`;
 
     if (filterAmount && filterType !== 'all') {
       if (filterType === 'eq') url += `&exact_debt=${filterAmount}`;
@@ -404,7 +411,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
       })
       .catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, limit, sortBy, sortOrder, filterType, filterAmount]);
+  }, [page, limit, sortBy, sortOrder, filterType, filterAmount, customerType]);
 
   useEffect(() => {
     load();
@@ -430,7 +437,7 @@ export function SotuvMijozlar({ stats, reloadStats }) {
     return '8888 ' + Math.floor(1000 + Math.random() * 9000) + ' ' + Math.floor(1000 + Math.random() * 9000) + ' ' + Math.floor(1000 + Math.random() * 9000);
   };
 
-  const openAdd = () => { setForm({ ...getEmptyForm(), card_number: generateCard() }); setError(''); setModal('add'); };
+  const openAdd = () => { setForm({ ...getEmptyForm(), card_number: generateCard(), customer_type: customerType || 'retail' }); setPendingFiles({ photo: null, docs: [] }); setError(''); setModal('add'); };
   const openEdit = (c) => {
     let debts = [{ amount: '', currency: 'UZS' }];
     if (c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).length > 0) {
@@ -446,8 +453,12 @@ export function SotuvMijozlar({ stats, reloadStats }) {
       card_number: c.card_number || '',
       cashback_percent: c.cashback_percent || 0,
       price_type: c.price_type || 'sale',
-      debts
+      customer_type: c.customer_type || 'retail',
+      territory: c.territory || '',
+      debts,
+      ...profileFromCustomer(c),
     });
+    setPendingFiles({ photo: null, docs: [] });
     setSelected(c); setError(''); setModal('edit');
   };
   const openPay = (c) => {
@@ -501,8 +512,15 @@ export function SotuvMijozlar({ stats, reloadStats }) {
         card_number: form.card_number || null,
         cashback_percent: form.cashback_percent ? Number(form.cashback_percent) : 0,
         price_type: form.price_type || 'retail',
+        customer_type: form.customer_type || 'retail',
+        territory: form.customer_type === 'distributor' ? (form.territory || null) : null,
+        ...profilePayload(form),
       };
-      if (modal === 'add') await api.post('/customers', payload);
+      if (modal === 'add') {
+        const { data: created } = await api.post('/customers', payload);
+        const fileErrors = await uploadPendingFiles(created.id, pendingFiles);
+        if (fileErrors.length) toast.error(fileErrors.join(', '));
+      }
       else await api.put(`/customers/${selected.id}`, payload);
       closeModal(); load(); reloadStats?.();
     } catch (err) {
@@ -686,8 +704,8 @@ export function SotuvMijozlar({ stats, reloadStats }) {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid sm:grid-cols-3 gap-4">
+      {/* Stats — distribyutorlar tab'ida o'rniga DistributorsReport KPI'lari */}
+      <div className={`grid sm:grid-cols-3 gap-4 ${customerType ? 'hidden' : ''}`}>
         <div className="bg-white rounded-lg lg:rounded-2xl shadow-sm border border-slate-100 p-2.25 lg:p-3 xl:p-5 flex items-center gap-4">
           <div className="w-10 h-10 xl:w-12 xl:h-12 rounded-lg lg:rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
             <Users className="size-5 xl:size-6 text-blue-600" />
@@ -836,7 +854,19 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                         className="flex items-center gap-3 hover:opacity-75 transition-opacity text-left"
                       >
                         <Avatar name={c.name} />
-                        <span className="text-xs cursor-pointer md:text-sm font-medium text-blue-700 hover:underline">{c.name}</span>
+                        <span className="flex flex-col">
+                          <span className="text-xs cursor-pointer md:text-sm font-medium text-blue-700 hover:underline">{c.name}</span>
+                          {c.customer_type === 'distributor' && (
+                            <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-600">
+                              <Truck className="size-3" />{t('distributor.typeDistributor')}{c.territory ? ` · ${c.territory}` : ''}
+                            </span>
+                          )}
+                          {(c.district || c.address || c.lat != null) && (
+                            <span className="mt-0.5 text-[11px] text-slate-400 truncate max-w-[260px]">
+                              {c.lat != null ? '📍 ' : ''}{[c.district, c.address].filter(Boolean).join(', ') || t('customerProfile.onMap')}
+                            </span>
+                          )}
+                        </span>
                       </button>
                     </td>
                     <td className="px-6 py-4 text-xs md:text-sm text-slate-500">{c.phone || '—'}</td>
@@ -980,8 +1010,8 @@ export function SotuvMijozlar({ stats, reloadStats }) {
       {/* ── ADD / EDIT MODAL ────────────────────────────────── */}
       {(modal === 'add' || modal === 'edit') && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={closeModal}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-slate-100">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
               <h3 className="text-lg font-bold text-slate-800">
                 {modal === 'add' ? t('customer.addCustomer') : t('customer.editCustomer')}
               </h3>
@@ -991,7 +1021,9 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                 </svg>
               </button>
             </div>
-            <form onSubmit={handleSave} className="p-6 space-y-4">
+            <form onSubmit={handleSave} className="flex-1 min-h-0 flex flex-col">
+              <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-6">
+              <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('customer.fullName')} <span className="text-red-500">*</span></label>
@@ -1127,6 +1159,36 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                 </div>
               </div>
 
+              {/* Mijoz turi va hudud (Distribyutorlar moduli yoqilgan bo'lsa) */}
+              <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${features?.distribution || form.customer_type === 'distributor' ? '' : 'hidden'}`}>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('distributor.customerType')}</label>
+                  <div className="flex gap-0.5 bg-slate-100 p-0.5 rounded-xl">
+                    {[['retail', t('distributor.typeRetail')], ['distributor', t('distributor.typeDistributor')]].map(([val, label]) => (
+                      <button key={val} type="button"
+                        onClick={() => setForm(f => ({ ...f, customer_type: val }))}
+                        className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${form.customer_type === val ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {form.customer_type === 'distributor' && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('distributor.territory')}</label>
+                    <input
+                      value={form.territory}
+                      onChange={e => setForm({ ...form, territory: e.target.value })}
+                      placeholder={t('distributor.territoryPlaceholder')}
+                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                )}
+              </div>
+              {form.customer_type === 'distributor' && (
+                <p className="-mt-2 text-[11px] text-slate-400">{t('distributor.limitHint')}</p>
+              )}
+
               {/* Narx turi */}
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-2">{t('customer.priceTypeLabel')}</label>
@@ -1156,14 +1218,28 @@ export function SotuvMijozlar({ stats, reloadStats }) {
                   })}
                 </div>
               </div>
+              </div>
+              <div className="lg:border-l lg:border-slate-100 lg:pl-8">
+                <CustomerProfileSection
+                  form={form}
+                  setForm={setForm}
+                  customer={modal === 'edit' ? selected : null}
+                  pending={pendingFiles}
+                  setPending={setPendingFiles}
+                  onCustomerUpdated={() => load()}
+                />
+              </div>
+              </div>
+              <div className="shrink-0 border-t border-slate-100 px-6 py-4 space-y-3">
               {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
-              <div className="flex gap-3 pt-2">
+              <div className="flex gap-3">
                 <button type="button" onClick={closeModal} className="flex-1 cursor-pointer py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">
                   {t('common.cancel')}
                 </button>
                 <button type="submit" disabled={saving} className="flex-1 cursor-pointer py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
                   {saving ? t('common.saving') : t('common.save')}
                 </button>
+              </div>
               </div>
             </form>
           </div>
@@ -2250,11 +2326,14 @@ function TolovTab({ customers, stats, reloadStats }) {
 /* ══════════════════════════════════════════════════
    MAIN PAGE
 ══════════════════════════════════════════════════ */
-export default function Customers() {
+export default function Customers({ initialTab = 'mijozlar' }) {
   const { t } = useLang();
-  const [tab, setTab] = useState('mijozlar');
+  const [tab, setTab] = useState(initialTab);
+  const [distKey, setDistKey] = useState(0);
+  const features = useCompanyFeatures();
   const TABS = [
     { id: 'mijozlar', label: t('customer.customers'), icon: <Users className='size-4 text-blue-600' /> },
+    ...(features?.distribution ? [{ id: 'distributors', label: t('nav.distributors'), icon: <Truck className='size-4 text-indigo-600' /> }] : []),
     { id: 'tolov', label: t('customer.paymentTab'), icon: <CreditCard className='size-4 text-blue-600' /> },
     { id: 'buyurtmalar', label: t('customer.ordersTab'), icon: <Package className='size-4 text-blue-600' /> },
     { id: 'dostavchiklar', label: t('customer.couriersTab'), icon: <Truck className='size-4 text-blue-600' /> },
@@ -2308,6 +2387,13 @@ export default function Customers() {
 
       {tab === 'tolov' && <TolovTab customers={customers} totalAllDebt={totalAllDebt} stats={stats} reloadStats={loadStats} />}
       {tab === 'mijozlar' && <SotuvMijozlar stats={stats} reloadStats={loadStats} />}
+      {tab === 'distributors' && (
+        <>
+          <DistributorsReport refreshKey={distKey} />
+          <SotuvMijozlar key="dist" stats={stats} customerType="distributor"
+            reloadStats={() => { loadStats(); setDistKey(k => k + 1); }} />
+        </>
+      )}
       {tab === 'buyurtmalar' && <Orders embedded />}
       {tab === 'dostavchiklar' && <Couriers />}
     </div>

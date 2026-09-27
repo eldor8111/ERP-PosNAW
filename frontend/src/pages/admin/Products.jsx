@@ -2410,6 +2410,20 @@ export default function Products() {
                     <svg className="w-5 h-5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
                     {t('product.typeVariant')}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (form.product_type === 'raw_material') return;
+                      setForm(f => ({ ...f, product_type: 'raw_material', conversion_source_id: '', conversion_source_name: '', conversion_ratio: 1 }));
+                    }}
+                    className={`flex-1 px-4 py-2 lg:py-3 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 transition-all ${form.product_type === 'raw_material'
+                      ? 'bg-white text-amber-700 shadow-sm border border-slate-200/60 ring-1 ring-amber-500/10'
+                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700 border border-transparent'
+                      }`}
+                  >
+                    <svg className="w-5 h-5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.25 14.25v2.25a2.25 2.25 0 01-2.25 2.25h-12a2.25 2.25 0 01-2.25-2.25v-2.25M16.5 9.75l-4.5-4.5m0 0L7.5 9.75m4.5-4.5v13.5" /></svg>
+                    {t('product.typeRawMaterial')}
+                  </button>
                 </div>
 
                 {/* Tarkibiy mahsulot (Virtual) UI */}

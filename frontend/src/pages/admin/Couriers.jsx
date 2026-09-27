@@ -19,7 +19,9 @@ export default function Couriers() {
   const [loading, setLoading] = useState(true);
   const [showInactive, setShowInactive] = useState(false);
   const [modal, setModal] = useState(null); // null | {mode:'add'} | {mode:'edit', courier}
-  const [form, setForm] = useState({ name: '', phone: '', transport: '' });
+  const [form, setForm] = useState({ name: '', phone: '', transport: '', vehicle_id: '' });
+  const [vehicles, setVehicles] = useState([]);
+  const plateOf = (id) => vehicles.find(v => v.id === id)?.plate_number;
   const [saving, setSaving] = useState(false);
 
   const load = () => {
@@ -31,9 +33,10 @@ export default function Couriers() {
   };
 
   useEffect(() => { load(); }, [showInactive]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { api.get('/logistics/vehicles', { _silent: true }).then(r => setVehicles(r.data || [])).catch(() => {}); }, []);
 
-  const openAdd = () => { setForm({ name: '', phone: '', transport: '' }); setModal({ mode: 'add' }); };
-  const openEdit = (c) => { setForm({ name: c.name, phone: c.phone, transport: c.transport || '' }); setModal({ mode: 'edit', courier: c }); };
+  const openAdd = () => { setForm({ name: '', phone: '', transport: '', vehicle_id: '' }); setModal({ mode: 'add' }); };
+  const openEdit = (c) => { setForm({ name: c.name, phone: c.phone, transport: c.transport || '', vehicle_id: c.vehicle_id ? String(c.vehicle_id) : '' }); setModal({ mode: 'edit', courier: c }); };
 
   const save = async (e) => {
     e.preventDefault();
@@ -41,10 +44,10 @@ export default function Couriers() {
     setSaving(true);
     try {
       if (modal.mode === 'add') {
-        await api.post('/couriers', { name: form.name, phone: form.phone, transport: form.transport || null });
+        await api.post('/couriers', { name: form.name, phone: form.phone, transport: form.transport || null, vehicle_id: form.vehicle_id ? Number(form.vehicle_id) : null });
         toast.success(t('courier.added'));
       } else {
-        await api.put(`/couriers/${modal.courier.id}`, { name: form.name, phone: form.phone, transport: form.transport || null });
+        await api.put(`/couriers/${modal.courier.id}`, { name: form.name, phone: form.phone, transport: form.transport || null, vehicle_id: form.vehicle_id ? Number(form.vehicle_id) : null });
         toast.success(t('courier.saved'));
       }
       setModal(null);
@@ -104,6 +107,7 @@ export default function Couriers() {
                     <Phone className="w-3 h-3" /> {c.phone}
                   </a>
                   {c.transport && <p className="text-[11px] text-slate-400 mt-0.5">{transportLabel(c.transport)}</p>}
+                  {c.vehicle_id && plateOf(c.vehicle_id) && <p className="text-[11px] text-slate-500 mt-0.5 font-mono">🚚 {plateOf(c.vehicle_id)}</p>}
                 </div>
                 <div className="flex gap-1 shrink-0">
                   <button onClick={() => openEdit(c)} title={t('courier.edit')}
@@ -164,6 +168,16 @@ export default function Couriers() {
                 {TRANSPORTS.map(tr => <option key={tr.code} value={tr.code}>{tr.label}</option>)}
               </select>
             </div>
+            {vehicles.length > 0 && (
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">{t('logistics.defaultVehicle')}</label>
+                <select value={form.vehicle_id} onChange={e => setForm(f => ({ ...f, vehicle_id: e.target.value }))}
+                  className="w-full h-10 px-3 border border-slate-200 rounded-xl text-sm bg-white focus:border-blue-500 outline-none">
+                  <option value="">{t('courier.notSelected')}</option>
+                  {vehicles.map(v => <option key={v.id} value={v.id}>{v.plate_number}{v.model ? ` · ${v.model}` : ''}</option>)}
+                </select>
+              </div>
+            )}
             <button type="submit" disabled={saving}
               className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-xl font-semibold text-sm transition-colors">
               {saving ? t('courier.saving') : t('courier.save')}

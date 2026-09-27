@@ -54,7 +54,7 @@ function printCountSheet(count, t) {
     <tr>
       <td style="text-align:center;width:30px">${i + 1}</td>
       <td style="width:80px">${item.product_sku || ''}</td>
-      <td>${item.product_name}</td>
+      <td>${item.product_name}${item.variant_name ? ` (${item.variant_name})` : ''}</td>
       <td style="width:50px;text-align:center">${item.product_unit || t('inventoryCount.unitDefault')}</td>
       <td style="text-align:right;width:80px">${fmtQ(item.system_qty)}</td>
       <td style="border:1px solid #bbb;width:90px">&nbsp;</td>
@@ -102,7 +102,7 @@ function printVarianceReport(count, t) {
     return `<tr>
       <td style="text-align:center;width:30px">${i + 1}</td>
       <td style="width:80px">${item.product_sku || ''}</td>
-      <td>${item.product_name}</td>
+      <td>${item.product_name}${item.variant_name ? ` (${item.variant_name})` : ''}</td>
       <td style="text-align:right;width:80px">${fmtQ(item.system_qty)}</td>
       <td style="text-align:right;width:80px">${fmtQ(item.counted_qty)}</td>
       <td style="text-align:right;width:90px;${vStyle}">${v > 0 ? '+' : ''}${fmtQ(v)}</td>
@@ -380,21 +380,31 @@ function ReviziyaCreateView({ onBack, onSaved }) {
     api.get('/products/', { params: { limit: 1000, status: 'active' } }).then(r => setProducts(Array.isArray(r.data) ? r.data : (r.data.items||[]))).catch(console.error);
   }, []);
 
+  const [selVariantId, setSelVariantId] = useState('');
+
   const selectProduct = (p) => {
     setSel(p);
+    setSelVariantId('');
     setCountedQty('');
     setReason('');
-    setTimeout(() => { if (qtyRef.current) qtyRef.current.focus(); }, 10);
+    if (!p.variants?.length) {
+      setTimeout(() => { if (qtyRef.current) qtyRef.current.focus(); }, 10);
+    }
   };
 
+  const selVariant = sel?.variants?.find(v => String(v.id) === String(selVariantId)) || null;
+  const canAdd = sel && countedQty !== '' && (!sel.variants?.length || selVariantId);
+
   const addItem = () => {
-    if (!sel || countedQty === '') return;
+    if (!canAdd) return;
+    const variantId = selVariant ? selVariant.id : null;
     setCart(prev => {
-      const ex = prev.find(x => x.product.id === sel.id);
-      if (ex) return prev.map(x => x.product.id === sel.id ? { ...x, counted_qty: Number(countedQty), variance_reason: reason } : x);
-      return [...prev, { product: sel, counted_qty: Number(countedQty), variance_reason: reason }];
+      const ex = prev.find(x => x.product.id === sel.id && (x.variant?.id ?? null) === variantId);
+      if (ex) return prev.map(x => (x.product.id === sel.id && (x.variant?.id ?? null) === variantId)
+        ? { ...x, counted_qty: Number(countedQty), variance_reason: reason } : x);
+      return [...prev, { product: sel, variant: selVariant, counted_qty: Number(countedQty), variance_reason: reason }];
     });
-    setSel(null); setCountedQty(''); setReason('');
+    setSel(null); setSelVariantId(''); setCountedQty(''); setReason('');
     setTimeout(() => { if (searchRef.current) searchRef.current.focus(); }, 10);
   };
 
@@ -414,6 +424,7 @@ function ReviziyaCreateView({ onBack, onSaved }) {
       // 3. Update items
       const itemsPayload = cart.map(c => ({
         product_id: c.product.id,
+        variant_id: c.variant?.id || null,
         counted_qty: c.counted_qty,
         variance_reason: c.variance_reason || null
       }));
@@ -465,15 +476,31 @@ function ReviziyaCreateView({ onBack, onSaved }) {
                 <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center text-sm font-bold shrink-0 shadow-sm">{sel.name.slice(0,2).toUpperCase()}</div>
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-slate-800 text-base truncate">{sel.name}</div>
-                  <div className="text-sm text-slate-600 mt-1">{t('inventoryCount.systemStock')}: <strong>{sel.stock_quantity}</strong> {sel.unit||t('inventoryCount.unitDefault')}</div>
+                  {!sel.variants?.length && (
+                    <div className="text-sm text-slate-600 mt-1">{t('inventoryCount.systemStock')}: <strong>{sel.stock_quantity}</strong> {sel.unit||t('inventoryCount.unitDefault')}</div>
+                  )}
                 </div>
               </div>
+              {sel.variants?.length > 0 && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">{t('ombor.selectVariant') || 'Variant'} *</label>
+                  <select value={selVariantId} onChange={e => { setSelVariantId(e.target.value); setTimeout(() => { if (qtyRef.current) qtyRef.current.focus(); }, 10); }}
+                    className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    <option value="">{t('admin.dict.select') || 'Tanlang...'}</option>
+                    {sel.variants.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                  </select>
+                  {selVariant && (
+                    <div className="text-sm text-slate-600 mt-1.5">{t('inventoryCount.systemStock')}: <strong>{selVariant.stock_quantity ?? 0}</strong> {sel.unit||t('inventoryCount.unitDefault')}</div>
+                  )}
+                </div>
+              )}
               <div>
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">{t('inventoryCount.actualStock')} *</label>
                 <div className="flex items-center gap-2">
                   <input type="number" min="0" step="any" value={countedQty} onChange={e => setCountedQty(e.target.value)}
                     ref={qtyRef} onKeyDown={e => e.key === 'Enter' && addItem()}
-                    className="flex-1 border border-slate-200 rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold" />
+                    disabled={sel.variants?.length > 0 && !selVariantId}
+                    className="flex-1 border border-slate-200 rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold disabled:opacity-50" />
                   <span className="text-sm font-medium text-slate-500">{sel.unit||t('inventoryCount.unitDefault')}</span>
                 </div>
               </div>
@@ -483,7 +510,7 @@ function ReviziyaCreateView({ onBack, onSaved }) {
                   onKeyDown={e => e.key === 'Enter' && addItem()}
                   className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
-              <button onClick={addItem} disabled={countedQty===''} className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl font-bold text-sm shadow-sm transition-all active:scale-95">
+              <button onClick={addItem} disabled={!canAdd} className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl font-bold text-sm shadow-sm transition-all active:scale-95">
                 {t('inventoryCount.addToCount')}
               </button>
             </div>
@@ -516,14 +543,17 @@ function ReviziyaCreateView({ onBack, onSaved }) {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {cart.map((c, i) => {
-                  const sys = Number(c.product.stock_quantity || 0);
+                  const sys = Number(c.variant ? (c.variant.stock_quantity || 0) : (c.product.stock_quantity || 0));
                   const fact = Number(c.counted_qty);
                   const variance = fact - sys;
                   const vColor = variance > 0 ? 'text-emerald-600' : variance < 0 ? 'text-red-600' : 'text-slate-400';
                   return (
-                    <tr key={c.product.id} className="hover:bg-slate-50">
+                    <tr key={`${c.product.id}-${c.variant?.id ?? ''}`} className="hover:bg-slate-50">
                       <td className="px-4 py-3 text-slate-400">{i+1}</td>
-                      <td className="px-4 py-3 font-medium text-slate-800">{c.product.name}</td>
+                      <td className="px-4 py-3 font-medium text-slate-800">
+                        {c.product.name}
+                        {c.variant && <span className="ml-1.5 text-xs font-normal text-slate-400">({c.variant.name})</span>}
+                      </td>
                       <td className="px-4 py-3 text-right text-slate-500">{sys}</td>
                       <td className="px-4 py-3 text-right font-bold text-blue-600">{fact}</td>
                       <td className={`px-4 py-3 text-right font-bold ${vColor}`}>{variance>0?'+':''}{variance}</td>
@@ -615,6 +645,11 @@ const variances = count.items.filter(i => i.variance !== null && Number(i.varian
   );
 }
 
+// Variantli mahsulotda bir xil product_id ga ega bir nechta qator bo'lishi
+// mumkin (har bir variant uchun alohida) — shuning uchun kalitga variant_id
+// ham qo'shiladi, aks holda ularning holati aralashib ketadi
+const rowKey = (item) => `${item.product_id}:${item.variant_id ?? ''}`;
+
 /* ─────────── Detail View ─────────── */
 function DetailView({ countId, onBack }) {
   const { t } = useLang();
@@ -642,8 +677,8 @@ const [count,        setCount]        = useState(null);
       const qtys = {}, reasons = {};
       data.items.forEach(item => {
         if (item.counted_qty !== null && item.counted_qty !== undefined)
-          qtys[item.product_id] = String(item.counted_qty);
-        if (item.variance_reason) reasons[item.product_id] = item.variance_reason;
+          qtys[rowKey(item)] = String(item.counted_qty);
+        if (item.variance_reason) reasons[rowKey(item)] = item.variance_reason;
       });
       setLocalQtys(qtys);
       setLocalReasons(reasons);
@@ -667,11 +702,15 @@ const [count,        setCount]        = useState(null);
     try {
       const items = Object.entries(localQtys)
         .filter(([, v]) => v !== '')
-        .map(([pid, qty]) => ({
-          product_id: Number(pid),
-          counted_qty: Number(qty),
-          variance_reason: localReasons[pid] || null,
-        }));
+        .map(([key, qty]) => {
+          const [pid, vid] = key.split(':');
+          return {
+            product_id: Number(pid),
+            variant_id: vid ? Number(vid) : null,
+            counted_qty: Number(qty),
+            variance_reason: localReasons[key] || null,
+          };
+        });
       if (items.length === 0) { setSaving(false); return; }
       await api.post(`/inventory-counts/${countId}/items`, items);
       await loadCount();
@@ -718,12 +757,12 @@ const [count,        setCount]        = useState(null);
       items = items.filter(i => catFilter.includes(i.product_category_id));
     if (filter === 'variance') {
       items = items.filter(i => {
-        const lq = localQtys[i.product_id];
+        const lq = localQtys[rowKey(i)];
         if (lq !== undefined && lq !== '') return Number(lq) !== Number(i.system_qty);
         return i.variance !== null && Number(i.variance) !== 0;
       });
     } else if (filter === 'uncounted') {
-      items = items.filter(i => (localQtys[i.product_id] === undefined || localQtys[i.product_id] === '') && i.counted_qty === null);
+      items = items.filter(i => (localQtys[rowKey(i)] === undefined || localQtys[rowKey(i)] === '') && i.counted_qty === null);
     }
     if (search.trim()) {
       items = items.filter(i => matchesSearch(i.product_name, search) || (i.product_sku && matchesSearch(i.product_sku, search)));
@@ -738,8 +777,8 @@ const [count,        setCount]        = useState(null);
   const stats = useMemo(() => {
     if (!count) return { total: 0, counted: 0, uncounted: 0, variances: 0, surplus: 0, shortage: 0 };
     const total = count.items.length;
-    const counted = count.items.filter(i => localQtys[i.product_id] !== undefined && localQtys[i.product_id] !== '' || i.counted_qty !== null).length;
-    const getVar = (i) => { const lq = localQtys[i.product_id]; if (lq !== undefined && lq !== '') return Number(lq) - Number(i.system_qty); return i.variance !== null ? Number(i.variance) : null; };
+    const counted = count.items.filter(i => localQtys[rowKey(i)] !== undefined && localQtys[rowKey(i)] !== '' || i.counted_qty !== null).length;
+    const getVar = (i) => { const lq = localQtys[rowKey(i)]; if (lq !== undefined && lq !== '') return Number(lq) - Number(i.system_qty); return i.variance !== null ? Number(i.variance) : null; };
     const varItems = count.items.map(i => getVar(i)).filter(v => v !== null && v !== 0);
     return { total, counted, uncounted: total - counted, variances: varItems.length, surplus: varItems.filter(v => v > 0).length, shortage: varItems.filter(v => v < 0).length };
   }, [count, localQtys]);
@@ -874,7 +913,8 @@ const [count,        setCount]        = useState(null);
             <tbody className="divide-y divide-slate-50">
               {visibleItems.map((item, idx) => {
                 const absoluteIdx = (page - 1) * rowsPerPage + idx;
-                const lqRaw   = localQtys[item.product_id];
+                const key = rowKey(item);
+                const lqRaw   = localQtys[key];
                 const dispQty = lqRaw !== undefined ? lqRaw : (item.counted_qty !== null ? String(item.counted_qty) : '');
                 const sysQty  = Number(item.system_qty);
                 const factQty = dispQty !== '' ? Number(dispQty) : null;
@@ -886,13 +926,16 @@ const [count,        setCount]        = useState(null);
                              : variance < 0        ? 'text-red-600 font-bold'
                              : 'text-slate-400';
                 const rowBg = variance !== null && variance !== 0 ? 'bg-red-50/40' : '';
-                const reason = localReasons[item.product_id] || '';
+                const reason = localReasons[key] || '';
 
                 return (
                   <tr key={item.id} className={`hover:bg-slate-50/80 transition-colors ${rowBg}`}>
                     <td className="px-4 py-3 text-xs text-slate-400">{absoluteIdx + 1}</td>
                     <td className="px-4 py-3 text-xs font-mono text-slate-500">{item.product_sku || '—'}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-slate-800">{item.product_name}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-slate-800">
+                      {item.product_name}
+                      {item.variant_name && <span className="ml-1.5 text-xs font-normal text-slate-400">({item.variant_name})</span>}
+                    </td>
                     <td className="px-4 py-3 text-xs text-slate-500 text-center">{item.product_unit}</td>
                     <td className="px-4 py-3 text-sm text-slate-700 text-right font-mono">{fmtQ(item.system_qty)}</td>
                     <td className="px-3 py-2">
@@ -900,7 +943,7 @@ const [count,        setCount]        = useState(null);
                         <input
                           type="number" step="0.001" min="0" placeholder={t('inventoryCount.zeroPlaceholder')}
                           value={dispQty}
-                          onChange={e => setLocalQtys(p => ({ ...p, [item.product_id]: e.target.value }))}
+                          onChange={e => setLocalQtys(p => ({ ...p, [key]: e.target.value }))}
                           className={`w-full px-2.5 py-1.5 border rounded-lg text-sm text-center font-mono focus:outline-none focus:ring-2 transition-colors ${
                             dispQty !== '' && Number(dispQty) !== sysQty
                               ? 'border-red-300 bg-red-50 focus:ring-red-300'
@@ -921,7 +964,7 @@ const [count,        setCount]        = useState(null);
                         <input
                           type="text" placeholder={t('inventoryCount.reasonPlaceholder')}
                           value={reason}
-                          onChange={e => setLocalReasons(p => ({ ...p, [item.product_id]: e.target.value }))}
+                          onChange={e => setLocalReasons(p => ({ ...p, [key]: e.target.value }))}
                           className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white min-w-[100px]"
                         />
                       ) : (

@@ -10,6 +10,8 @@ const roles = [
   { value: 'cashier', label: 'Kassir' },
   { value: 'warehouse', label: 'Ombor xodimi' },
   { value: 'accountant', label: 'Buxgalter' },
+  { value: 'courier', label: 'Kuryer (mobil ilova)' },
+  { value: 'agent', label: 'Savdo agenti (mobil ilova)' },
 ]
 
 export default function Register() {

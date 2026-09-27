@@ -224,7 +224,7 @@ function KochirTab() {
   const [products, setProducts]         = useState([]);
   const [loading, setLoading]           = useState(true);
   const [showModal, setShowModal]       = useState(false);
-  const [form, setForm]                 = useState({ from_warehouse_id: '', to_warehouse_id: '', note: '', items: [{ product_id: '', quantity: '' }] });
+  const [form, setForm]                 = useState({ from_warehouse_id: '', to_warehouse_id: '', note: '', items: [{ product_id: '', variant_id: '', quantity: '' }] });
   const [saving, setSaving]             = useState(false);
   const [err, setErr]                   = useState('');
   /* detail state reserved for future transfer detail view */
@@ -246,11 +246,12 @@ function KochirTab() {
 
   useEffect(() => { load(); }, [load]);
 
-  const addItem = () => setForm(f => ({ ...f, items: [...f.items, { product_id: '', quantity: '' }] }));
+  const addItem = () => setForm(f => ({ ...f, items: [...f.items, { product_id: '', variant_id: '', quantity: '' }] }));
   const removeItem = (idx) => setForm(f => ({ ...f, items: f.items.filter((_, i) => i !== idx) }));
   const setItem = (idx, key, val) => setForm(f => {
     const items = [...f.items];
     items[idx] = { ...items[idx], [key]: val };
+    if (key === 'product_id') items[idx].variant_id = ''; // mahsulot almashtirilsa variant tozalanadi
     return { ...f, items };
   });
 
@@ -259,16 +260,27 @@ function KochirTab() {
     if (form.from_warehouse_id === form.to_warehouse_id) { setErr(t('ombor.sameWarehouseError')); return; }
     const validItems = form.items.filter(i => i.product_id && Number(i.quantity) > 0);
     if (!validItems.length) { setErr(t('ombor.atLeastOneProduct')); return; }
+    // Variantli mahsulotda variant tanlanishi shart (aks holda qaysi variant
+    // ko'chirilayotgani noaniq bo'lib, qoldiq noto'g'ri joyga tushib qoladi)
+    const missingVariant = validItems.find(i => {
+      const p = products.find(pp => String(pp.id) === String(i.product_id));
+      return p?.variants?.length > 0 && !i.variant_id;
+    });
+    if (missingVariant) { setErr(t('ombor.selectVariantError') || 'Variant tanlang'); return; }
     setSaving(true); setErr('');
     try {
       await api.post('/transfers', {
         from_warehouse_id: Number(form.from_warehouse_id),
         to_warehouse_id: Number(form.to_warehouse_id),
         note: form.note,
-        items: validItems.map(i => ({ product_id: Number(i.product_id), quantity: Number(i.quantity) })),
+        items: validItems.map(i => ({
+          product_id: Number(i.product_id),
+          variant_id: i.variant_id ? Number(i.variant_id) : null,
+          quantity: Number(i.quantity),
+        })),
       });
       setShowModal(false);
-      setForm({ from_warehouse_id: '', to_warehouse_id: '', note: '', items: [{ product_id: '', quantity: '' }] });
+      setForm({ from_warehouse_id: '', to_warehouse_id: '', note: '', items: [{ product_id: '', variant_id: '', quantity: '' }] });
       load();
     } catch (e) { setErr(e.response?.data?.detail || t('common.error')); }
     finally { setSaving(false); }
@@ -393,25 +405,36 @@ function KochirTab() {
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('ombor.products')}</label>
                   <button onClick={addItem} className="text-xs text-blue-600 font-semibold hover:text-blue-800">+ {t('common.add')}</button>
                 </div>
-                {form.items.map((it, idx) => (
-                  <div key={idx} className="flex gap-2 items-center">
-                    <select value={it.product_id} onChange={e => setItem(idx, 'product_id', e.target.value)}
-                      className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                      <option value="">{t('ombor.selectProductEllipsis')}</option>
-                      {products.filter(p => p.product_type !== 'sell').map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                    <input type="number" min="1" value={it.quantity} onChange={e => setItem(idx, 'quantity', e.target.value)}
-                      placeholder={t('admin.dict.qty') || 'Miqdor'}
-                      className="w-24 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    {form.items.length > 1 && (
-                      <button onClick={() => removeItem(idx)} className="text-red-400 hover:text-red-600">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                ))}
+                {form.items.map((it, idx) => {
+                  const selectedProduct = products.find(p => String(p.id) === String(it.product_id));
+                  const hasVariants = selectedProduct?.variants?.length > 0;
+                  return (
+                    <div key={idx} className="flex gap-2 items-center">
+                      <select value={it.product_id} onChange={e => setItem(idx, 'product_id', e.target.value)}
+                        className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">{t('ombor.selectProductEllipsis')}</option>
+                        {products.filter(p => p.product_type !== 'sell').map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                      {hasVariants && (
+                        <select value={it.variant_id} onChange={e => setItem(idx, 'variant_id', e.target.value)}
+                          className="w-32 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                          <option value="">{t('ombor.selectVariant') || 'Variant...'}</option>
+                          {selectedProduct.variants.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                        </select>
+                      )}
+                      <input type="number" min="1" value={it.quantity} onChange={e => setItem(idx, 'quantity', e.target.value)}
+                        placeholder={t('admin.dict.qty') || 'Miqdor'}
+                        className="w-24 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      {form.items.length > 1 && (
+                        <button onClick={() => removeItem(idx)} className="text-red-400 hover:text-red-600">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
               {err && <p className="text-sm text-red-500 font-medium">{err}</p>}
@@ -442,9 +465,19 @@ function OmborlarTab() {
   const [modal, setModal]           = useState(null);
   const [name, setName]             = useState('');
   const [branchId, setBranchId]     = useState('');
+  const [whType, setWhType]         = useState('main');
   const [saving, setSaving]         = useState(false);
   const [err, setErr]               = useState('');
   const [delConfirm, setDelConfirm] = useState(null);
+
+  const WAREHOUSE_TYPES = [
+    { value: 'main', label: t('branch.typeMain') },
+    { value: 'shop', label: t('branch.typeShop') },
+    { value: 'transit', label: t('branch.typeTransit') },
+    { value: 'returns', label: t('branch.typeReturns') },
+    { value: 'raw_material', label: t('branch.typeRawMaterial') },
+    { value: 'wip', label: t('branch.typeWip') },
+  ];
 
   const load = async () => {
     setLoading(true);
@@ -464,7 +497,7 @@ function OmborlarTab() {
     if (!name.trim()) { setErr(t('ombor.nameEmptyError')); return; }
     setSaving(true); setErr('');
     try {
-      const payload = { name: name.trim(), branch_id: branchId ? Number(branchId) : null };
+      const payload = { name: name.trim(), branch_id: branchId ? Number(branchId) : null, type: whType };
       if (modal.mode === 'create') await api.post('/warehouses', payload);
       else await api.patch(`/warehouses/${modal.wh.id}`, payload);
       setModal(null); load();
@@ -481,7 +514,7 @@ function OmborlarTab() {
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-500">{t('ombor.allWarehousesList')}</p>
         <button
-          onClick={() => { setName(''); setBranchId(''); setErr(''); setModal({ mode: 'create' }); }}
+          onClick={() => { setName(''); setBranchId(''); setWhType('main'); setErr(''); setModal({ mode: 'create' }); }}
           className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -502,6 +535,7 @@ function OmborlarTab() {
               <tr className="bg-slate-50 border-b border-slate-100">
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">#</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('common.name')}</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('branch.warehouseType')}</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('ombor.branch')}</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('ombor.created')}</th>
                 <th className="px-4 py-3 w-24" />
@@ -512,11 +546,12 @@ function OmborlarTab() {
                 <tr key={wh.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 text-sm text-slate-400">{i + 1}</td>
                   <td className="px-4 py-3 text-sm font-medium text-slate-800">{wh.name}</td>
+                  <td className="px-4 py-3 text-sm text-slate-500">{WAREHOUSE_TYPES.find(x => x.value === wh.type)?.label || wh.type}</td>
                   <td className="px-4 py-3 text-sm text-slate-500">{branches.find(b => b.id === wh.branch_id)?.name || '—'}</td>
                   <td className="px-4 py-3 text-xs text-slate-400">{fmtDate(wh.created_at)}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5">
-                      <button onClick={() => { setName(wh.name); setBranchId(wh.branch_id ?? ''); setErr(''); setModal({ mode: 'edit', wh }); }}
+                      <button onClick={() => { setName(wh.name); setBranchId(wh.branch_id ?? ''); setWhType(wh.type || 'main'); setErr(''); setModal({ mode: 'edit', wh }); }}
                         className="p-1.5 bg-blue-100 text-blue-600 hover:bg-blue-200 rounded-lg transition-colors" title={t('common.edit')}>
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 13l6.5-6.5a2 2 0 012.828 0l.172.172a2 2 0 010 2.828L12 16H9v-3z" />
@@ -533,7 +568,7 @@ function OmborlarTab() {
                 </tr>
               ))}
               {warehouses.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-12 text-center text-sm text-slate-400">{t('warehouse.noStocks')}</td></tr>
+                <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-slate-400">{t('warehouse.noStocks')}</td></tr>
               )}
             </tbody>
           </table>
@@ -560,6 +595,13 @@ function OmborlarTab() {
                 <input autoFocus value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && save()}
                   placeholder={t('ombor.warehouseNamePlaceholder')}
                   className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">{t('branch.warehouseType')}</label>
+                <select value={whType} onChange={e => setWhType(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  {WAREHOUSE_TYPES.map(x => <option key={x.value} value={x.value}>{x.label}</option>)}
+                </select>
               </div>
               {branches.length > 0 && (
                 <div>

@@ -1,4 +1,34 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
+
+/*
+ * Dizayn token'lari (0-bosqich, premium-dizayn-texnik-topshiriq.md asosida).
+ * Qiymatlar mavjud sahifalarda ishlatilayotgan blue-600/slate/emerald/amber/red
+ * palitrasiga yaqin qilib kalibrlangan — yangi va eski sahifalar ko'zga
+ * tashlanarli darajada bir-biriga zid bo'lib qolmasligi uchun.
+ * Tailwind v4 @theme har bir --color-* uchun avtomatik utility klass yaratadi
+ * (masalan --color-brand -> bg-brand, text-brand, border-brand).
+ */
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  --color-bg-base: #F6F7F9;
+  --color-surface: #FFFFFF;
+  --color-surface-sunken: #EEF0F3;
+
+  --color-ink-900: #1B1F27;
+  --color-ink-500: #5B6472;
+  --color-ink-300: #9AA3B2;
+
+  --color-line: #E2E5EA;
+
+  --color-brand: #2554C7;
+  --color-brand-deep: #173B8F;
+
+  --color-success: #1E8E5A;
+  --color-warning: #B7791F;
+  --color-danger: #C93A3A;
+}
 
 * {
   scroll-behavior: smooth;

@@ -13,6 +13,9 @@ import PartialReturnModal from './PartialReturnModal';
 import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
 import { fiscalizeAndPrint } from '../../api/hippoLocal';
 import { useLang } from '../../context/LangContext';
+import SaleDeliveryBlock from '../../components/sale/SaleDeliveryBlock';
+import useCompanyFeatures from '../../hooks/useCompanyFeatures';
+import { EMPTY_DELIVERY, deliveryFromSale, deliveryPayload } from '../../components/sale/saleDelivery';
 
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -519,6 +522,8 @@ export default function UlgurjiSotuv() {
     } catch { return []; }
   });
   const [note, setNote] = useState('');
+  const [delivery, setDelivery] = useState(EMPTY_DELIVERY);
+  const features = useCompanyFeatures();
   const [showPayment, setShowPayment] = useState(false);
   const [saving, setSaving] = useState(false);
   const { hasShift, reload: reloadShift } = useActiveShift();
@@ -726,7 +731,7 @@ export default function UlgurjiSotuv() {
         warehouse_name: it.warehouse_name || null,
       })));
       setCustId(sale.customer_id ? String(sale.customer_id) : '');
-      setNote(sale.note || ''); setDiscType('sum');
+      setNote(sale.note || ''); setDelivery(deliveryFromSale(sale.delivery)); setDiscType('sum');
       setDiscVal(sale.discount_amount > 0 ? String(sale.discount_amount) : '');
 
       // Load existing payments to prevent wipeout on save
@@ -1296,6 +1301,7 @@ export default function UlgurjiSotuv() {
         currency_totals: Object.keys(actualDebts).length > 0 ? actualDebts : undefined,
         currency_id: currencyId,
         currency_code: primaryCurrencyCode || 'UZS',
+        delivery: deliveryPayload(delivery),
       };
 
       let res;
@@ -1413,7 +1419,7 @@ export default function UlgurjiSotuv() {
       }));
       const discSnap = saleDisc;
 
-      setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDiscVal('');
+      setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDelivery(EMPTY_DELIVERY); setDiscVal('');
       setPayNote(''); setDebtDate('');
       setShowPayment(false); setShowDebtDate(false); setPayments([]);
       setFormProduct(null); setFormPrice(''); setFormQty('1'); setFormDiscVal('');
@@ -1460,7 +1466,7 @@ export default function UlgurjiSotuv() {
       const existing = JSON.parse(localStorage.getItem('ulgurji_drafts') || '[]');
       localStorage.setItem('ulgurji_drafts', JSON.stringify([{ id: Date.now(), date: new Date().toISOString(), cart, custId, note, discType, discVal, total }, ...existing]));
       toast.success(t('wholesale.saleArchived'));
-      setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDiscVal('');
+      setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDelivery(EMPTY_DELIVERY); setDiscVal('');
       sessionStorage.removeItem('ulgurji_cart');
       sessionStorage.removeItem('ulgurji_customer');
       return;
@@ -1518,6 +1524,7 @@ export default function UlgurjiSotuv() {
         note: note || undefined,
         customer_id: custId ? Number(custId) : undefined,
         warehouse_id: warehouseId ? Number(warehouseId) : undefined,
+        delivery: deliveryPayload(delivery),
       };
 
       // MUHIM: faqat aniq tahrirlayotgan savoni yangilaymiz
@@ -1536,7 +1543,7 @@ export default function UlgurjiSotuv() {
         if (!silently) toast.success(t('wholesale.saleSavedPending'));
       }
 
-      setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDiscVal('');
+      setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDelivery(EMPTY_DELIVERY); setDiscVal('');
       setFormProduct(null); setFormPrice(''); setFormQty('1'); setFormDiscVal('');
       sessionStorage.removeItem('ulgurji_cart');
       sessionStorage.removeItem('ulgurji_customer');
@@ -1588,6 +1595,7 @@ export default function UlgurjiSotuv() {
       })));
       setCustId(sale.customer_id ? String(sale.customer_id) : '');
       setNote(sale.note || '');
+      setDelivery(deliveryFromSale(sale.delivery));
       setDiscType('sum');
       setDiscVal(sale.discount_amount > 0 ? String(sale.discount_amount) : '');
       setEditingSale({ id: sale.id, number: sale.number, warehouse_id: sale.warehouse_id, status: sale.status });
@@ -1750,7 +1758,7 @@ export default function UlgurjiSotuv() {
                 <Ic d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" cls="w-4 h-4" />
                 {t('wholesale.editMode')}: <span className="font-black font-mono">{editingSale.number}</span>
               </div>
-              <button onClick={() => { setEditingSale(null); setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDiscVal(''); sessionStorage.removeItem('ulgurji_session_sale_id'); }}
+              <button onClick={() => { setEditingSale(null); setCart([]); setCustId(defaultCustomerId || ''); setNote(''); setDelivery(EMPTY_DELIVERY); setDiscVal(''); sessionStorage.removeItem('ulgurji_session_sale_id'); }}
                 className="text-amber-500 hover:text-amber-700 font-bold text-sm">{t('common.cancel')}</button>
             </div>
           )}
@@ -2024,6 +2032,11 @@ export default function UlgurjiSotuv() {
                     placeholder={t('wholesale.contractNumberNotePlaceholder')} rows={2}
                     className="w-full border-2 border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none bg-white" />
                 </div>
+
+                {/* Yetkazib berish */}
+                {(features?.distribution || delivery.existing) && (
+                  <SaleDeliveryBlock value={delivery} onChange={setDelivery} customerId={custId} />
+                )}
 
                 {/* Sotuv chegirmasi */}
                 <div>
@@ -2375,7 +2388,15 @@ export default function UlgurjiSotuv() {
                       <tr key={s.id} onClick={() => { setSelectedSale(s); setOpenMenuId(null); }}
                         className="hover:bg-blue-50/40 cursor-pointer transition-colors">
                         <td className="px-4 py-3 text-xs text-slate-400">{i + 1 + page * LIMIT}</td>
-                        <td className="px-4 py-3"><span className="font-mono font-black text-blue-700 text-xs bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">{s.number}</span></td>
+                        <td className="px-4 py-3">
+                          <span className="font-mono font-black text-blue-700 text-xs bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">{s.number}</span>
+                          {s.delivery_status && s.delivery_status !== 'cancelled' && (
+                            <span title={t(`logistics.orderStatus.${s.delivery_status}`)}
+                              className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-md ${s.delivery_status === 'delivered' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                              🚚 {t(`logistics.orderStatus.${s.delivery_status}`)}
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-3">
                           {s.customer_name
                             ? <div className="flex items-center gap-2"><div className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-xs font-bold">{s.customer_name[0]}</div><span className="font-semibold text-slate-700">{s.customer_name}</span></div>

@@ -9,6 +9,7 @@ import Login from './pages/Login'
 import PosLogin from './pages/PosLogin'
 import RegisterCompany from './pages/RegisterCompany'
 import AdminLayout from './components/AdminLayout'
+import FeatureGate from './components/FeatureGate'
 
 // Lazy-loaded pages — faqat kerak bo'lganda yuklanadi
 const Products        = lazy(() => import('./pages/admin/Products'))
@@ -37,6 +38,9 @@ const Shifts          = lazy(() => import('./pages/admin/Shifts'))
 const SuperAdmin      = lazy(() => import('./pages/admin/SuperAdmin'))
 const AgentsPage      = lazy(() => import('./pages/admin/SuperAdmin').then(m => ({ default: m.AgentsPage })))
 const Ombor           = lazy(() => import('./pages/admin/Ombor'))
+const Production      = lazy(() => import('./pages/admin/Production'))
+const Logistics       = lazy(() => import('./pages/admin/Logistics'))
+const FieldStaff      = lazy(() => import('./pages/admin/FieldStaff'))
 const Filiallar       = lazy(() => import('./pages/admin/Filiallar'))
 const Tariflar        = lazy(() => import('./pages/admin/Tariflar'))
 const AICopilot       = lazy(() => import('./pages/admin/AICopilot'))
@@ -121,6 +125,7 @@ export default function App() {
             <Route path="customers/:customerId" element={<Suspense fallback={<PageLoader />}><CustomerDetail /></Suspense>} />
             <Route path="suppliers/:supplierId" element={<Suspense fallback={<PageLoader />}><SupplierDetail /></Suspense>} />
             <Route path="customers" element={<Suspense fallback={<PageLoader />}><Customers /></Suspense>} />
+            <Route path="distributors" element={<FeatureGate feature="distribution"><Suspense fallback={<PageLoader />}><Customers key="distributors" initialTab="distributors" /></Suspense></FeatureGate>} />
             <Route path="orders" element={<Navigate to="/admin/customers" replace />} />
             <Route path="promotions" element={<Suspense fallback={<PageLoader />}><Promotions /></Suspense>} />
             <Route path="sotuv" element={<Suspense fallback={<PageLoader />}><UlgurjiSotuv /></Suspense>} />
@@ -134,6 +139,9 @@ export default function App() {
             <Route path="super-admin" element={<Suspense fallback={<PageLoader />}><SuperAdmin /></Suspense>} />
             <Route path="agents" element={<Suspense fallback={<PageLoader />}><AgentsPage /></Suspense>} />
             <Route path="ombor" element={<Suspense fallback={<PageLoader />}><Ombor /></Suspense>} />
+            <Route path="production" element={<FeatureGate feature="manufacturing"><Suspense fallback={<PageLoader />}><Production /></Suspense></FeatureGate>} />
+            <Route path="logistics" element={<FeatureGate feature="distribution"><Suspense fallback={<PageLoader />}><Logistics /></Suspense></FeatureGate>} />
+            <Route path="field-staff" element={<FeatureGate feature="distribution"><Suspense fallback={<PageLoader />}><FieldStaff /></Suspense></FeatureGate>} />
             <Route path="filiallar" element={<Suspense fallback={<PageLoader />}><Filiallar /></Suspense>} />
             <Route path="tariflar" element={<Suspense fallback={<PageLoader />}><Tariflar /></Suspense>} />
             <Route path="ai-copilot" element={<Suspense fallback={<PageLoader />}><AICopilot /></Suspense>} />

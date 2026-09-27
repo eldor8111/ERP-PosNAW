@@ -5,12 +5,14 @@ import toast from 'react-hot-toast';
 import { PERMISSIONS } from '../../constants/permissions';
 
 // super_admin ni dropdown dan yashiramiz — faqat DB orqali beriladi
-const ROLES = ['admin', 'director', 'manager', 'accountant', 'warehouse', 'cashier'];
+// courier/agent — faqat E-code Mobile ilovasi orqali ishlaydi (veb-panelga kira olmaydi)
+const ROLES = ['admin', 'director', 'manager', 'accountant', 'warehouse', 'cashier', 'courier', 'agent'];
 
 const getRoleLabels = (t) => ({
   super_admin: t('role.super_admin'),
   admin: t('role.admin'), director: t('role.director'), manager: t('role.manager'),
   accountant: t('role.accountant') || 'Buxgalter', warehouse: t('role.warehouseman'), cashier: t('role.cashier'),
+  courier: t('role.courier'), agent: t('role.agent'),
 });
 
 const ROLE_COLORS = {
@@ -21,6 +23,8 @@ const ROLE_COLORS = {
   accountant: 'bg-emerald-100 text-emerald-700',
   warehouse: 'bg-amber-100 text-amber-700',
   cashier: 'bg-blue-100 text-blue-700',
+  courier: 'bg-orange-100 text-orange-700',
+  agent: 'bg-violet-100 text-violet-700',
 };
 
 const BLANK_FORM = { name: '', phone: '', email: '', password: '', role: 'cashier', role_id: null, branch_id: '', permissions: {} };

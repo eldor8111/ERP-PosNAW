@@ -38,6 +38,7 @@ export function AuthProvider({ children }) {
     // Eski foydalanuvchi keshini tozalaymiz — boshqa korxona ma'lumotlari qolmasin
     clearPosCache()
     localStorage.setItem('access_token', data.access_token)
+    if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token)
     localStorage.setItem('user', JSON.stringify(data.user))
     setUser(data.user)
     return data.user
@@ -51,6 +52,7 @@ export function AuthProvider({ children }) {
     sessionStorage.removeItem('ulgurji_customer')
     sessionStorage.removeItem('ulgurji_session_sale_id')
     localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
     localStorage.removeItem('user')
     setUser(null)
   }, [])

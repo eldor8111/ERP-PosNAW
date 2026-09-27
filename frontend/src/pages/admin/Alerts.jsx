@@ -5,6 +5,8 @@ import {
   RefreshCw, ChevronRight, Box, Calendar
 } from 'lucide-react';
 import { useLang } from '../../context/LangContext';
+import useCompanyFeatures from '../../hooks/useCompanyFeatures';
+import { Link } from 'react-router-dom';
 
 function AlertCard({ icon: Icon, color, title, count, desc }) {
   const colors = {
@@ -35,22 +37,34 @@ export default function Alerts() {
   const [expiring, setExpiring] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('expiring');
+  const features = useCompanyFeatures();
+  const [raw, setRaw] = useState({ shortages: [], low_stock: [] });
+  const [distributors, setDistributors] = useState([]);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [ls, exp] = await Promise.all([
+      const [ls, exp, rw, dist] = await Promise.all([
         api.get('/inventory/stock?low_stock_only=true&limit=200').then(r => r.data).catch(() => []),
         api.get('/inventory/expiring-batches').then(r => r.data).catch(() => []),
+        features?.manufacturing
+          ? api.get('/production/alerts', { _silent: true }).then(r => r.data).catch(() => null) : null,
+        features?.distribution
+          ? api.get('/customers/distributors-report', { params: { days: 30 }, _silent: true }).then(r => r.data.items).catch(() => []) : [],
       ]);
       setLowStock(ls);
       setExpiring(exp);
+      setRaw(rw || { shortages: [], low_stock: [] });
+      // Limitdan oshgan yoki 90% ga yetgan distribyutorlar
+      setDistributors((dist || []).filter(d => d.over_limit || (d.limit_usage ?? 0) >= 90)
+        .sort((a, b) => (b.limit_usage ?? 0) - (a.limit_usage ?? 0)));
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { if (features !== null) load(); }, [features]); // eslint-disable-line react-hooks/exhaustive-deps
+  const rawCount = raw.shortages.length + raw.low_stock.length;
 
   const expired = expiring.filter(e => e.is_expired);
   const soonExpiring = expiring.filter(e => !e.is_expired && e.days_left <= 7);
@@ -105,6 +119,8 @@ export default function Alerts() {
         {[
           { id: 'expiring', label: `${t('alert.expiryTab')} (${expiring.length})` },
           { id: 'lowstock', label: `${t('alert.lowStockTab')} (${lowStock.length})` },
+          ...(features?.manufacturing ? [{ id: 'raw', label: `${t('alert.rawTab')} (${rawCount})` }] : []),
+          ...(features?.distribution ? [{ id: 'dist', label: `${t('alert.distTab')} (${distributors.length})` }] : []),
         ].map(tb => (
           <button
             key={tb.id}
@@ -122,6 +138,75 @@ export default function Alerts() {
         <div className="flex items-center justify-center py-20">
           <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
         </div>
+      ) : tab === 'raw' ? (
+        rawCount === 0 ? (
+          <div className="flex flex-col items-center py-16 text-slate-400">
+            <CheckCircle className="w-12 h-12 mb-3 text-emerald-400" />
+            <p className="font-semibold text-slate-600">{t('alert.rawOk')}</p>
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {raw.shortages.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">{t('alert.rawShortageTitle')}</h3>
+                {raw.shortages.map(s => (
+                  <div key={`${s.product_id}-${s.warehouse_id}`} className="flex items-center justify-between gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-slate-800 text-sm">{s.product_name}</div>
+                      <div className="text-xs text-slate-500 mt-0.5">
+                        {t('alert.warehouse')}: <b>{s.warehouse_name || '—'}</b> &nbsp;|&nbsp;
+                        {t('alert.rawNeed')}: <b>{s.required} {s.unit}</b> &nbsp;|&nbsp;
+                        {t('alert.remaining')}: <b>{s.available}</b>
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-0.5 truncate">{t('alert.rawForOrders')}: {s.orders.join(', ')}</div>
+                    </div>
+                    <span className="shrink-0 px-2.5 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full">−{s.shortage} {s.unit}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {raw.low_stock.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">{t('alert.rawLowTitle')}</h3>
+                {raw.low_stock.map(s => (
+                  <div key={s.product_id} className="flex items-center justify-between p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                    <div className="font-semibold text-slate-800 text-sm">{s.product_name}</div>
+                    <div className="text-xs text-slate-500">
+                      {t('alert.remaining')}: <b className="text-amber-700">{s.quantity} {s.unit}</b> &nbsp;|&nbsp; {t('alert.min')}: <b>{s.min_stock}</b>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Link to="/admin/purchases" className="inline-flex items-center gap-1 text-sm font-semibold text-blue-600 hover:underline">
+              {t('alert.rawOrderMore')} <ChevronRight className="w-4 h-4" />
+            </Link>
+          </div>
+        )
+      ) : tab === 'dist' ? (
+        distributors.length === 0 ? (
+          <div className="flex flex-col items-center py-16 text-slate-400">
+            <CheckCircle className="w-12 h-12 mb-3 text-emerald-400" />
+            <p className="font-semibold text-slate-600">{t('alert.distOk')}</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {distributors.map(d => (
+              <Link key={d.id} to={`/admin/customers/${d.id}`}
+                className={`flex items-center justify-between gap-3 p-4 rounded-xl border ${d.over_limit ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'}`}>
+                <div className="min-w-0">
+                  <div className="font-semibold text-slate-800 text-sm">{d.name}{d.territory ? <span className="font-normal text-slate-500"> · {d.territory}</span> : null}</div>
+                  <div className="text-xs text-slate-500 mt-0.5">
+                    {t('alert.distDebt')}: <b>{Number(d.debt).toLocaleString('uz-UZ')}</b> / {t('alert.distLimit')}: <b>{Number(d.debt_limit).toLocaleString('uz-UZ')}</b>
+                  </div>
+                </div>
+                <span className={`shrink-0 px-2.5 py-1 text-xs font-bold rounded-full ${d.over_limit ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                  {d.over_limit ? t('alert.distOver') : `${d.limit_usage}%`}
+                </span>
+              </Link>
+            ))}
+          </div>
+        )
       ) : tab === 'expiring' ? (
         expiring.length === 0 ? (
           <div className="flex flex-col items-center py-16 text-slate-400">

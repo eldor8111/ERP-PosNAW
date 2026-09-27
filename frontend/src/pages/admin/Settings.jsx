@@ -10,6 +10,7 @@ import RolesTab from './Settings/Roles';
 import UsersTab from './Settings/Users';
 import Promotions from './Promotions';
 import Warehouse from './Warehouse';
+import useCompanyFeatures, { refreshCompanyFeatures } from '../../hooks/useCompanyFeatures';
 
 // Add placeholder for missing tabs
 const PlaceholderTab = ({ name }) => {
@@ -2270,6 +2271,60 @@ function FiskalTab() {
   );
 }
 
+// ── Ixtiyoriy modullar (oddiy do'konga ko'rinmasligi uchun o'chirib qo'yiladi) ──
+function ModulesCard({ companyId }) {
+  const { t } = useLang();
+  const features = useCompanyFeatures();
+  const [saving, setSaving] = useState(null);
+
+  const toggle = async (key, column, value) => {
+    if (!companyId) return;
+    setSaving(key);
+    try {
+      await api.put(`/companies/${companyId}`, { [column]: value });
+      await refreshCompanyFeatures();
+      toast.success(t('settings.general.settingSaved'));
+    } catch (e) {
+      toast.error(e.response?.data?.detail || t('auth.errGeneral'));
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const MODULES = [
+    { key: 'manufacturing', column: 'manufacturing_enabled' },
+    { key: 'distribution', column: 'distribution_enabled' },
+  ];
+
+  return (
+    <div className="max-w-xl bg-white border border-slate-200 rounded-2xl p-5">
+      <h3 className="text-sm font-bold text-slate-800">{t('features.cardTitle')}</h3>
+      <p className="text-[11px] text-slate-400 mt-0.5 mb-4">{t('features.cardDesc')}</p>
+      <div className="space-y-4">
+        {MODULES.map(({ key, column }) => {
+          const on = !!features?.[key];
+          return (
+            <div key={key} className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-slate-700">{t(`features.${key}.title`)}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">{t(`features.${key}.desc`)}</p>
+              </div>
+              <button
+                type="button"
+                disabled={features === null || saving === key}
+                onClick={() => toggle(key, column, !on)}
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${on ? 'bg-blue-600' : 'bg-slate-200'}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${on ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Umumiy (kompaniya darajasidagi POS) sozlamalar ───────────────────────────
 function GeneralTab({ companyId }) {
   const { t } = useLang();
@@ -2335,6 +2390,7 @@ function GeneralTab({ companyId }) {
 
   return (
     <div className="p-6 space-y-4">
+      <ModulesCard companyId={companyId} />
       <div className="max-w-xl bg-white border border-slate-200 rounded-2xl p-5">
         <h3 className="text-sm font-bold text-slate-800 mb-4">{t('settings.general.posSettings')}</h3>
         <div className="flex items-start justify-between gap-3">

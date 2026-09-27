@@ -123,7 +123,8 @@ export default function CourierApp() {
         ) : orders.map(group => {
           const pay = PAY_LABELS[group.payment_type] || PAY_LABELS.cash
           const PayIcon = pay.icon
-          const total = group.total_amount + (group.delivery_fee || 0)
+          // Sotuv yetkazmasida tovar puli oldindan hisoblangan — faqat collect_amount yig'iladi
+          const total = group.collect_amount ?? (group.total_amount + (group.delivery_fee || 0))
           const busy = busyGroup === group.group_id
           return (
             <div key={group.group_id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -133,6 +134,7 @@ export default function CourierApp() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-slate-800">{group.customer_name}</p>
+                    {group.source === 'sale' && <p className="text-[11px] text-slate-400">🧾 Sotuv #{group.sale_number}{total === 0 ? " — pul olinmaydi" : ''}</p>}
                     <span className={`inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md text-[11px] font-semibold ${group.status === 'on_way' ? 'bg-orange-50 text-orange-600' : 'bg-purple-50 text-purple-600'}`}>
                       {group.status === 'on_way' ? "🚚 Yo'ldasiz" : '🛵 Sizga biriktirildi'}
                     </span>
@@ -217,8 +219,8 @@ export default function CourierApp() {
           <div className="relative w-full bg-white rounded-t-3xl p-6 space-y-4">
             <p className="text-base font-bold text-slate-800 text-center">Buyurtma yetkazildimi?</p>
             <p className="text-sm text-slate-500 text-center">
-              {confirmGroup.customer_name} — <b>{fmt(confirmGroup.total_amount + (confirmGroup.delivery_fee || 0))} so'm</b>
-              {confirmGroup.payment_type === 'cash' && <span className="block mt-1 text-orange-600 font-semibold">💵 Naqd pulni qabul qilganingizga ishonch hosil qiling!</span>}
+              {confirmGroup.customer_name} — <b>{fmt(confirmGroup.collect_amount ?? (confirmGroup.total_amount + (confirmGroup.delivery_fee || 0)))} so'm</b>
+              {confirmGroup.payment_type === 'cash' && (confirmGroup.collect_amount ?? 1) > 0 && <span className="block mt-1 text-orange-600 font-semibold">💵 Naqd pulni qabul qilganingizga ishonch hosil qiling!</span>}
             </p>
             <div className="flex gap-2">
               <button onClick={() => setConfirmGroup(null)}

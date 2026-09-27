@@ -10,14 +10,29 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "electron:dev": "concurrently -k \"cross-env VITE_ELECTRON=true vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "electron:build": "cross-env VITE_ELECTRON=true vite build && electron-builder"
+    "electron:build": "cross-env VITE_ELECTRON=true vite build && electron-builder",
+    "build:mobile": "vite build --mode mobile && cap sync android",
+    "android:apk": "npm run build:mobile && cd android && gradlew assembleDebug",
+    "android:open": "cap open android"
   },
   "dependencies": {
+    "@capacitor-community/background-geolocation": "^1.2.26",
+    "@capacitor/android": "^7.6.9",
+    "@capacitor/app": "^7.1.2",
+    "@capacitor/camera": "^7.0.5",
+    "@capacitor/core": "^7.6.9",
+    "@capacitor/device": "^7.0.5",
+    "@capacitor/geolocation": "^7.1.8",
+    "@capacitor/network": "^7.0.4",
+    "@capacitor/preferences": "^7.0.4",
+    "@capacitor/push-notifications": "^7.0.7",
     "@headlessui/react": "^2.2.10",
     "axios": "^1.13.6",
     "fast-text-encoding": "^1.0.6",
     "file-saver": "^2.0.5",
     "headlessui": "^0.0.0",
+    "idb": "^8.0.3",
+    "leaflet": "^1.9.4",
     "lucide-react": "^1.17.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
@@ -27,6 +42,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.6.9",
     "@eslint/js": "^9.39.4",
     "@tailwindcss/postcss": "^4.2.1",
     "@types/react": "^19.2.14",

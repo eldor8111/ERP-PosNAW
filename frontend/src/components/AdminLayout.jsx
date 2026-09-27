@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import useCompanyFeatures, { refreshCompanyFeatures } from '../hooks/useCompanyFeatures';
 import { useLang } from '../context/LangContext';
 import { ROLES, ROLE_GROUPS, ROLE_LABELS, ROLE_GRADIENTS } from '../constants/roles';
 import { getSettingsMenus } from '../constants/settingsMenus';
@@ -40,6 +41,13 @@ function buildNavGroups(t, expiredCount = 0) {
           icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>,
         },
         {
+          name: t('nav.distributors'),
+          path: '/admin/distributors',
+          feature: 'distribution',
+          roles: ROLE_GROUPS.SALES,
+          icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17a2 2 0 11-4 0 2 2 0 014 0zm10 0a2 2 0 11-4 0 2 2 0 014 0zM13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" /></svg>,
+        },
+        {
           name: t('nav.saleScreen'),
           path: '/admin/sotuv',
           roles: ROLE_GROUPS.SALES,
@@ -75,6 +83,27 @@ function buildNavGroups(t, expiredCount = 0) {
           roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
           icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>,
           badge: expiredCount > 0 ? `⚠ ${expiredCount}` : null,
+        },
+        {
+          name: t('nav.production') || 'Ishlab chiqarish',
+          path: '/admin/production',
+          feature: 'manufacturing',
+          roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
+          icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>,
+        },
+        {
+          name: t('nav.logistics'),
+          path: '/admin/logistics',
+          feature: 'distribution',
+          roles: [ROLES.ADMIN, ROLES.DIRECTOR, ROLES.MANAGER],
+          icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>,
+        },
+        {
+          name: t('nav.fieldStaff'),
+          path: '/admin/field-staff',
+          feature: 'distribution',
+          roles: [ROLES.ADMIN, ROLES.DIRECTOR, ROLES.MANAGER],
+          icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>,
         },
       ],
     },
@@ -205,6 +234,9 @@ function LangSwitcher({ t, lang, setLang, LANGUAGES }) {
 
 export default function AdminLayout() {
   const { user, logout } = useAuth();
+  const features = useCompanyFeatures();
+  // Boshqa kompaniya bilan qayta kirilsa modullar qayta o'qiladi
+  useEffect(() => { if (user?.company_id) refreshCompanyFeatures(); }, [user?.company_id]);
   const { t, lang, setLang, LANGUAGES } = useLang();
   const navigate = useNavigate();
   const location = useLocation();
@@ -357,6 +389,8 @@ export default function AdminLayout() {
           {navGroups.map((group) => {
             const visibleLinks = group.links.filter(link => {
               if (!user) return false;
+              // Ixtiyoriy modul (Sozlamalar → Umumiy) o'chiq bo'lsa ko'rinmaydi
+              if (link.feature && !features?.[link.feature]) return false;
               if (user.role === 'super_admin') return true;
               
               const permKey = link.path.split('/').pop();

@@ -106,6 +106,16 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
     } catch { setPendingTransfers([]); }
   }, [kassa.id]);
 
+  useEffect(() => { loadPendingTransfers(); }, [loadPendingTransfers]);
+
+  const decideTransfer = async (tr, accept) => {
+    try {
+      await api.post(accept ? '/kassa/transfer/in' : '/kassa/transfer/reject', { transfer_id: tr.id });
+      toast.success(accept ? t('kassa.transferAccepted') : t('kassa.transferRejected'));
+      loadPendingTransfers(); onRefresh?.();
+    } catch (e) { toast.error(e.response?.data?.detail || t('common.error')); }
+  };
+
   const openModal = async (type) => {
     setForm({ amount: '', payment_type: 'cash', currency: 'UZS', description: '', category_id: '', opening_balance: '', actual: {}, note: '', receiver_wallet_id: '' });
     setCloseResult(null);
@@ -258,6 +268,25 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
           </div>
         </div>
       </div>
+
+      {/* Kutilayotgan o'tkazmalar (masalan kuryer/agent topshirgan naqd pul) */}
+      {pendingTransfers.length > 0 && (
+        <div className="px-5 py-3 border-t border-amber-200 bg-amber-50 space-y-2">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">{t('kassa.pendingTransfers')}</div>
+          {pendingTransfers.map(tr => (
+            <div key={tr.id} className="flex items-center justify-between gap-3 text-sm">
+              <div className="min-w-0">
+                <span className="font-semibold text-slate-900 tabular-nums">{Number(tr.amount).toLocaleString('uz-UZ')} {tr.currency === 'UZS' ? t('common.sum') : tr.currency}</span>
+                <span className="text-slate-500"> — {tr.sender_name}{tr.note ? ` · ${tr.note}` : ''}</span>
+              </div>
+              <div className="flex gap-1.5 shrink-0">
+                <button onClick={() => decideTransfer(tr, true)} className="px-3 py-1 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">{t('kassa.accept')}</button>
+                <button onClick={() => decideTransfer(tr, false)} className="px-3 py-1 text-xs font-semibold rounded-lg border border-slate-300 text-slate-600 hover:bg-white">{t('kassa.reject')}</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Payment type balances */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-4 px-5 py-4 border-t border-green-100 bg-green-50/60">
