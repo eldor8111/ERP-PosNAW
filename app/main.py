@@ -217,6 +217,33 @@ def _run_auto_migrations(engine):
         );""",
         "CREATE INDEX IF NOT EXISTS ix_announcements_company ON announcements(company_id);",
         "CREATE INDEX IF NOT EXISTS ix_announcements_active ON announcements(is_active);",
+        # ── AI vositalari audit jurnali (app/models/ai_audit.py) ──
+        # Jadval yo'qligida har bir AI Copilot vosita chaqiruvi xato berardi.
+        """CREATE TABLE IF NOT EXISTS ai_audit_logs (
+            id                    SERIAL PRIMARY KEY,
+            request_id            VARCHAR(50),
+            conversation_id       VARCHAR(50),
+            company_id            INTEGER NOT NULL REFERENCES companies(id),
+            user_id               INTEGER NOT NULL REFERENCES users(id),
+            prompt                TEXT,
+            tool_name             VARCHAR(100),
+            tool_arguments        JSON,
+            permission            VARCHAR(100),
+            risk_level            VARCHAR(20),
+            status                VARCHAR(20) NOT NULL,
+            confirmation_required BOOLEAN DEFAULT FALSE,
+            confirmation_id       VARCHAR(50),
+            result_summary        TEXT,
+            error                 TEXT,
+            execution_time_ms     DOUBLE PRECISION,
+            created_at            TIMESTAMP DEFAULT NOW()
+        );""",
+        "CREATE INDEX IF NOT EXISTS ix_ai_audit_logs_request_id ON ai_audit_logs(request_id);",
+        "CREATE INDEX IF NOT EXISTS ix_ai_audit_logs_conversation_id ON ai_audit_logs(conversation_id);",
+        "CREATE INDEX IF NOT EXISTS ix_ai_audit_logs_company_id ON ai_audit_logs(company_id);",
+        "CREATE INDEX IF NOT EXISTS ix_ai_audit_logs_user_id ON ai_audit_logs(user_id);",
+        "CREATE INDEX IF NOT EXISTS ix_ai_audit_logs_tool_name ON ai_audit_logs(tool_name);",
+        "CREATE INDEX IF NOT EXISTS ix_ai_audit_logs_confirmation_id ON ai_audit_logs(confirmation_id);",
     ]
     _sa_text = __import__('sqlalchemy').text
     for sql in migrations:

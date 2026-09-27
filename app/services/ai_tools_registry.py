@@ -16,6 +16,16 @@ class AITool:
     def execute(self, db: Session, company_id: int, user: User, **kwargs) -> dict:
         raise NotImplementedError()
 
+def summarize_reply(result: dict) -> str:
+    """Audit jurnali uchun javob matni: ba'zi vositalar reply ni dict qaytaradi,
+    result_summary esa Text ustun — dict yozilsa commit xato beradi."""
+    reply = (result or {}).get("reply", "")
+    if isinstance(reply, str):
+        return reply
+    import json
+    return json.dumps(reply, ensure_ascii=False, default=str)
+
+
 class AIToolRegistry:
     _tools: Dict[str, Type[AITool]] = {}
 
@@ -112,8 +122,8 @@ class AIToolRegistry:
             result = tool_instance.execute(db, user.company_id, user, **kwargs)
             
             log.status = "SUCCESS"
-            log.result_summary = result.get("reply", "")
-            
+            log.result_summary = summarize_reply(result)
+
         except Exception as e:
             db.rollback()
             log.status = "ERROR"

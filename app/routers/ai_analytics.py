@@ -12,7 +12,7 @@ from app.services.ai_service import (
     build_daily_context,
     build_daily_report,
 )
-from app.services.ai_tools_registry import AIToolRegistry
+from app.services.ai_tools_registry import AIToolRegistry, summarize_reply
 from app.services.openrouter_copilot_service import call_copilot_ai
 import os
 
@@ -482,7 +482,7 @@ def confirm_ai_action(
         tool_instance = tool_class()
         result = tool_instance.execute(db, current_user.company_id, current_user, **log.tool_arguments)
         log.status = "SUCCESS"
-        log.result_summary = result.get("reply", "")
+        log.result_summary = summarize_reply(result)
     except Exception as e:
         db.rollback()
         log.status = "ERROR"
