@@ -17,9 +17,14 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column('customers', sa.Column('customer_type', sa.String(20), nullable=False, server_default='retail'))
-    op.add_column('customers', sa.Column('territory', sa.String(100), nullable=True))
-    op.create_index('ix_customers_customer_type', 'customers', ['customer_type'])
+    insp = sa.inspect(op.get_bind())
+    cols = {c['name'] for c in insp.get_columns('customers')}
+    if 'customer_type' not in cols:
+        op.add_column('customers', sa.Column('customer_type', sa.String(20), nullable=False, server_default='retail'))
+    if 'territory' not in cols:
+        op.add_column('customers', sa.Column('territory', sa.String(100), nullable=True))
+    if 'ix_customers_customer_type' not in {i['name'] for i in insp.get_indexes('customers')}:
+        op.create_index('ix_customers_customer_type', 'customers', ['customer_type'])
 
 
 def downgrade() -> None:

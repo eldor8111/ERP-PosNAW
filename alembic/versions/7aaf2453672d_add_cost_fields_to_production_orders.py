@@ -17,8 +17,11 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column('production_orders', sa.Column('unit_cost', sa.Numeric(16, 4), nullable=True))
-    op.add_column('production_orders', sa.Column('total_cost', sa.Numeric(16, 2), nullable=True))
+    cols = {c['name'] for c in sa.inspect(op.get_bind()).get_columns('production_orders')}
+    if 'unit_cost' not in cols:
+        op.add_column('production_orders', sa.Column('unit_cost', sa.Numeric(16, 4), nullable=True))
+    if 'total_cost' not in cols:
+        op.add_column('production_orders', sa.Column('total_cost', sa.Numeric(16, 2), nullable=True))
 
 
 def downgrade() -> None:
