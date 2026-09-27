@@ -7,6 +7,7 @@ import { useLang } from '../../context/LangContext';
 import { Badge } from '../../components/ui/Badge';
 import { DataTable } from '../../components/ui/DataTable';
 import MultiMap from '../../components/MultiMap';
+import AssignCustomersModal from './AssignCustomersModal';
 
 const fmt = (n) => Number(n ?? 0).toLocaleString('uz-UZ', { maximumFractionDigits: 0 });
 const hm = (iso) => iso ? new Date(iso).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' }) : '—';
@@ -200,6 +201,7 @@ function ReportTab() {
 function StaffTab() {
   const { t } = useLang();
   const [staff, setStaff] = useState(null);
+  const [assigning, setAssigning] = useState(null);
   const load = useCallback(() => api.get('/field-staff/users').then(r => setStaff(r.data)).catch(() => setStaff([])), []);
   useEffect(() => { load(); }, [load]);
 
@@ -215,6 +217,12 @@ function StaffTab() {
       <DataTable rows={staff || []} emptyText={staff ? t('fieldStaff.empty') : '…'} columns={[
         { key: 'name', label: t('common.name'), render: u => <div><div className="font-medium text-ink-900">{u.name}</div><div className="text-xs text-ink-300">{u.phone}</div></div> },
         { key: 'role', label: t('fieldStaff.role'), render: u => <Badge color={u.role === 'agent' ? 'brand' : 'warning'} dot={false}>{t(`role.${u.role}`)}</Badge> },
+        { key: 'customers', label: t('fieldStaff.customers'), render: u => u.role === 'agent' ? (
+          <button onClick={() => setAssigning(u)}
+            className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${u.customers_count ? 'bg-brand/10 text-brand' : 'bg-warning/10 text-warning'}`}>
+            {u.customers_count ? `${u.customers_count} ${t('fieldStaff.customersShort')}` : t('fieldStaff.assignCustomers')}
+          </button>
+        ) : <span className="text-ink-300">—</span> },
         { key: 'wallet', label: t('fieldStaff.cashOnHand'), align: 'right', numeric: true, render: u => u.wallet
           ? <span className={`inline-flex items-center gap-1 ${u.wallet.balance > 0 ? 'text-warning font-semibold' : ''}`}><Wallet className="size-3.5" />{fmt(u.wallet.balance)}</span>
           : <span className="text-ink-300">—</span> },
@@ -232,6 +240,7 @@ function StaffTab() {
             </div>
           ) },
       ]} />
+      {assigning && <AssignCustomersModal agent={assigning} onClose={() => setAssigning(null)} onSaved={() => { setAssigning(null); load(); }} />}
     </div>
   );
 }

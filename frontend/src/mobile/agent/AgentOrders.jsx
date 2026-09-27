@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { RefreshCw, CloudOff, ShoppingCart } from 'lucide-react';
+import { RefreshCw, CloudOff, ShoppingCart, Plus } from 'lucide-react';
 import { useLang } from '../../context/LangContext';
 import api from '../lib/api';
 import useSyncState from '../lib/useOnline';
 import { kvGet, kvSet } from '../offline/db';
 import { Card, Empty, Page } from '../ui';
 import { fmtMoney } from '../format';
+import CustomerPicker from './CustomerPicker';
+import OrderEditor from './OrderEditor';
 
 const STATUS_CLS = {
   pending: 'bg-warning/10 text-warning', completed: 'bg-success/10 text-success',
@@ -18,6 +20,8 @@ export default function AgentOrders() {
   const [orders, setOrders] = useState(null);
   const [kpi, setKpi] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [orderFor, setOrderFor] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -36,7 +40,12 @@ export default function AgentOrders() {
 
   return (
     <Page title={t('m.tabOrders')}
-      right={<button onClick={load} className="p-2 -m-2 text-brand"><RefreshCw className={`size-5 ${loading ? 'animate-spin' : ''}`} /></button>}>
+      right={<div className="flex items-center gap-3">
+        <button onClick={load} className="p-2 -m-2 text-brand"><RefreshCw className={`size-5 ${loading ? 'animate-spin' : ''}`} /></button>
+        <button onClick={() => setPicking(true)} className="flex items-center gap-1 px-3 min-h-10 rounded-xl bg-brand text-white text-sm font-semibold">
+          <Plus className="size-4" />{t('m.newOrder')}
+        </button>
+      </div>}>
       <div className="space-y-3">
         {kpi && (
           <div className="grid grid-cols-2 gap-2">
@@ -79,6 +88,8 @@ export default function AgentOrders() {
           </Card>
         ))}
       </div>
+      {picking && <CustomerPicker onClose={() => setPicking(false)} onPick={c => { setPicking(false); setOrderFor(c); }} />}
+      {orderFor && <OrderEditor customer={orderFor} onClose={() => setOrderFor(null)} onDone={() => { setOrderFor(null); setTimeout(load, 1500); }} />}
     </Page>
   );
 }

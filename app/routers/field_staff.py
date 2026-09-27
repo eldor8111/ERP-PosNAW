@@ -5,10 +5,11 @@ hisobotlar ham shu yerga qo'shiladi.
 """
 import os
 from datetime import date, datetime, timedelta, timezone
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 from sqlalchemy import String, cast, func, or_
 from sqlalchemy.orm import Session
 
@@ -53,11 +54,15 @@ def list_field_staff(db: Session = Depends(get_db), current_user: User = Depends
             UserWallet.user_id.in_(ids), UserWallet.is_default == True, Wallet.company_id == cid,  # noqa: E712
         ).all():
             wallets[uw.user_id] = {"id": w.id, "balance": float(w.balance or 0)}
+    from app.models.customer import Customer
+    counts = dict(db.query(Customer.agent_id, func.count(Customer.id)).filter(
+        Customer.company_id == cid, Customer.agent_id.in_(ids or [0])).group_by(Customer.agent_id).all())
     return [
         {
             "id": u.id, "name": u.name, "phone": u.phone, "role": u.role.value,
             "devices": devices.get(u.id, []),
             "wallet": wallets.get(u.id),
+            "customers_count": int(counts.get(u.id, 0)),
         }
         for u in users
     ]
@@ -278,3 +283,37 @@ def proof_photo(proof_id: int, db: Session = Depends(get_db), current_user: User
     if not p:
         raise HTTPException(status_code=404, detail="Isbot topilmadi")
     return _private_photo(os.path.join("uploads_private", "delivery_proofs"), p.photo_path)
+
+
+# ── Agentga mijozlarni biriktirish (ommaviy) ────────────────────────────────
+
+class AssignCustomersIn(BaseModel):
+    add: List[int] = []
+    remove: List[int] = []
+    work_days: Optional[List[int]] = None   # yangi biriktirilganlarga (bo'sh bo'lsa o'zgarmaydi)
+
+
+@router.post("/agents/{agent_id}/customers")
+def assign_customers(agent_id: int, data: AssignCustomersIn, db: Session = Depends(get_db),
+                     current_user: User = Depends(require_roles(*MANAGE))):
+    from app.models.customer import Customer
+    cid = current_user.company_id
+    agent = db.query(User).filter(User.id == agent_id, User.company_id == cid, User.role == UserRole.agent).first()
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent topilmadi")
+    days = sorted({d for d in (data.work_days or []) if 1 <= d <= 7})
+    added = 0
+    if data.add:
+        for c in db.query(Customer).filter(Customer.company_id == cid, Customer.id.in_(data.add)).all():
+            c.agent_id = agent.id
+            if days and not (c.work_days or []):
+                c.work_days = days
+            added += 1
+    removed = 0
+    if data.remove:
+        removed = db.query(Customer).filter(
+            Customer.company_id == cid, Customer.id.in_(data.remove), Customer.agent_id == agent.id,
+        ).update({"agent_id": None}, synchronize_session=False)
+    db.commit()
+    total = db.query(Customer).filter(Customer.company_id == cid, Customer.agent_id == agent.id).count()
+    return {"added": added, "removed": removed, "total": total}
