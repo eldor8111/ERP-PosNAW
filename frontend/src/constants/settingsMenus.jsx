@@ -1,10 +1,12 @@
 import React from 'react';
 import {
   Users, Shield, MapPin, CreditCard,
-  Key, Receipt, MessageSquare, Lock, Cpu, Tag, Package, Star
+  Key, Receipt, MessageSquare, Lock, Cpu, Tag, Package, Star, SlidersHorizontal
 } from 'lucide-react';
 
 export const getSettingsMenus = (_t) => [
+  // Umumiy: qo'shimcha modullar (ishlab chiqarish, distribyutor), POS va yetkazish sozlamalari
+  { id: 'general',    icon: <SlidersHorizontal className="w-[18px] h-[18px]" />, label: 'Umumiy' },
   { id: 'users',      icon: <Users         className="w-[18px] h-[18px]" />, label: 'Foydalanuvchilar' },
   { id: 'roles',      icon: <Shield        className="w-[18px] h-[18px]" />, label: 'Rollar' },
   { id: 'branches',   icon: <MapPin        className="w-[18px] h-[18px]" />, label: 'Filiallar' },
