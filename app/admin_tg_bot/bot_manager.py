@@ -548,26 +548,27 @@ async def main() -> None:
     # Jadvalni yaratish
     create_tables()
 
+    # Tokenlarni olib, sessiyani DARHOL yopamiz: gather() botlar ishlaguncha
+    # (cheksiz) kutadi — sessiya ochiq qolsa, bazada "idle in transaction"
+    # ulanish butun ish vaqti davomida band turardi
     db = SessionLocal()
     try:
-        admin_bots = db.query(CompanyBot).filter(
-            CompanyBot.bot_type == "admin",
-            CompanyBot.is_active == True
-        ).all()
-
-        if not admin_bots:
-            print("[Admin Bot] Faol admin botlar topilmadi.")
-            return
-
-        print(f"[Admin Bot] {len(admin_bots)} ta admin bot topildi. Ishga tushirilmoqda...")
-        tasks = []
-        for company_bot in admin_bots:
-            task = asyncio.create_task(start_bot(company_bot.bot_token, company_bot.company_id))
-            tasks.append(task)
-
-        await asyncio.gather(*tasks)
+        bots = [
+            (b.bot_token, b.company_id)
+            for b in db.query(CompanyBot).filter(
+                CompanyBot.bot_type == "admin",
+                CompanyBot.is_active == True
+            ).all()
+        ]
     finally:
         db.close()
+
+    if not bots:
+        print("[Admin Bot] Faol admin botlar topilmadi.")
+        return
+
+    print(f"[Admin Bot] {len(bots)} ta admin bot topildi. Ishga tushirilmoqda...")
+    await asyncio.gather(*(asyncio.create_task(start_bot(token, cid)) for token, cid in bots))
 
 
 if __name__ == "__main__":
