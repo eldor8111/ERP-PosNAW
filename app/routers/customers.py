@@ -1,13 +1,16 @@
 """
 Customers API: CRM module for managing customers, debt and loyalty.
 """
+import logging
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Response  # type: ignore
 from sqlalchemy import func  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
+from sqlalchemy.exc import SQLAlchemyError  # type: ignore
 from pydantic import BaseModel, field_validator, model_validator  # type: ignore
 from app.utils.translit import name_phone_search_filter  # type: ignore
+from app.utils.import_errors import row_db_error  # type: ignore
 from decimal import Decimal
 from sqlalchemy.orm.attributes import flag_modified  # type: ignore
 
@@ -51,6 +54,7 @@ def parse_decimal_clean(val) -> Optional[Decimal]:
         raise ValueError(f"'{val}' noto'g'ri son formati")
 
 router = APIRouter(prefix="/customers", tags=["customers"])
+logger = logging.getLogger(__name__)
 
 CUSTOMER_TYPES = ("retail", "distributor")
 
@@ -738,149 +742,156 @@ def bulk_import_customers(
 
     for idx, row in enumerate(rows):
         row_num = row.get("__row_index", idx + 2)
-        name = str(row.get("Ism") or "").strip()
-        phone = str(row.get("Telefon") or "").strip()
-        card = str(row.get("Karta raqami") or "").strip() or None
+        try:
+            with db.begin_nested():
+                name = str(row.get("Ism") or "").strip()
+                phone = str(row.get("Telefon") or "").strip()
+                card = str(row.get("Karta raqami") or "").strip() or None
 
-        if not name and not phone:
-            errors.append({"row": row_num, "error": "Mijoz ismi yoki telefoni majburiy"})
-            continue
-
-        qarz_raw = row.get("Qarz")
-        qarz_val = None
-        if qarz_raw is not None and str(qarz_raw).strip() != "":
-            try:
-                qarz_val = parse_decimal_clean(qarz_raw)
-            except Exception:
-                errors.append({"row": row_num, "name": name, "error": f"'Joriy qarz' qiymati noto'g'ri: {qarz_raw}"})
-                continue
-
-        existing = None
-        if phone:
-            existing = dup_q_base.filter(Customer.phone == phone).first()
-        if not existing and name:
-            existing = dup_q_base.filter(Customer.name == name).first()
-        if not existing and card:
-            existing = dup_q_base.filter(Customer.card_number == card).first()
-
-        if existing:
-            if not allow_update:
-                errors.append({
-                    "row": row_num, "name": name or phone,
-                    "error": f"'{name or phone}' allaqachon mavjud — o'tkazib yuborildi"
-                })
-                continue
-
-            for row_key, (field, cast) in FIELD_MAP.items():
-                if field == "debt_balance":
+                if not name and not phone:
+                    errors.append({"row": row_num, "error": "Mijoz ismi yoki telefoni majburiy"})
                     continue
-                raw = row.get(row_key)
-                if raw is None or str(raw).strip() == "":
+
+                qarz_raw = row.get("Qarz")
+                qarz_val = None
+                if qarz_raw is not None and str(qarz_raw).strip() != "":
+                    try:
+                        qarz_val = parse_decimal_clean(qarz_raw)
+                    except Exception:
+                        errors.append({"row": row_num, "name": name, "error": f"'Joriy qarz' qiymati noto'g'ri: {qarz_raw}"})
+                        continue
+
+                existing = None
+                if phone:
+                    existing = dup_q_base.filter(Customer.phone == phone).first()
+                if not existing and name:
+                    existing = dup_q_base.filter(Customer.name == name).first()
+                if not existing and card:
+                    existing = dup_q_base.filter(Customer.card_number == card).first()
+
+                if existing:
+                    if not allow_update:
+                        errors.append({
+                            "row": row_num, "name": name or phone,
+                            "error": f"'{name or phone}' allaqachon mavjud — o'tkazib yuborildi"
+                        })
+                        continue
+
+                    for row_key, (field, cast) in FIELD_MAP.items():
+                        if field == "debt_balance":
+                            continue
+                        raw = row.get(row_key)
+                        if raw is None or str(raw).strip() == "":
+                            continue
+                        try:
+                            if cast == Decimal:
+                                val = parse_decimal_clean(raw)
+                            elif cast == int:
+                                # integer fields like loyalty_points may have decimals (e.g. 100.0) from Excel
+                                val_str = str(raw).split(".")[0].strip()
+                                val = int(val_str)
+                            else:
+                                val = str(raw).strip()
+                            setattr(existing, field, val)
+                        except Exception:
+                            errors.append({"row": row_num, "name": name, "error": f"'{row_key}' qiymati xato: {raw}"})
+                            continue
+
+                    if qarz_val is not None:
+                        currency = str(row.get("__cur_Qarz") or "UZS").strip().upper()
+                        debt_balances = {currency: float(qarz_val)}
+
+                        from app.models.currency import Currency as CurrencyModel
+                        total_uzs = Decimal("0")
+                        if currency == "UZS":
+                            total_uzs = qarz_val
+                        else:
+                            curr_obj = db.query(CurrencyModel).filter(CurrencyModel.code == currency).first()
+                            rate = Decimal(str(curr_obj.rate)) if curr_obj else Decimal("1")
+                            total_uzs = qarz_val * rate
+
+                        old_balances = _normalize_customer_balances(
+                            existing.debt_balances,
+                            existing.debt_balance or Decimal("0"),
+                            existing.debt_currency or "UZS",
+                        )
+                        new_balances = _normalize_customer_balances(
+                            debt_balances,
+                            total_uzs,
+                            "UZS"
+                        )
+                        if old_balances != new_balances:
+                            _append_debt_edit(existing, old_balances, new_balances)
+
+                        existing.debt_balances = debt_balances
+                        existing.debt_balance = total_uzs
+                        existing.debt_currency = "UZS"
+                        flag_modified(existing, "debt_balances")
+
+                    db.flush()
+                    updated += 1
                     continue
-                try:
-                    if cast == Decimal:
-                        val = parse_decimal_clean(raw)
-                    elif cast == int:
-                        # integer fields like loyalty_points may have decimals (e.g. 100.0) from Excel
-                        val_str = str(raw).split(".")[0].strip()
-                        val = int(val_str)
+
+                if not name:
+                    errors.append({"row": row_num, "error": "Yangi mijoz uchun Ism majburiy"})
+                    continue
+
+                kwargs = {"name": name, "company_id": current_user.company_id}
+                for row_key, (field, cast) in FIELD_MAP.items():
+                    if field in ("name", "debt_balance"):
+                        continue
+                    raw = row.get(row_key)
+                    if raw is not None and str(raw).strip() != "":
+                        try:
+                            if cast == Decimal:
+                                val = parse_decimal_clean(raw)
+                            elif cast == int:
+                                val_str = str(raw).split(".")[0].strip()
+                                val = int(val_str)
+                            else:
+                                val = str(raw).strip()
+                            kwargs[field] = val
+                        except Exception:
+                            pass
+
+                if qarz_val is not None:
+                    currency = str(row.get("__cur_Qarz") or "UZS").strip().upper()
+                    debt_balances = {currency: float(qarz_val)}
+
+                    from app.models.currency import Currency as CurrencyModel
+                    total_uzs = Decimal("0")
+                    if currency == "UZS":
+                        total_uzs = qarz_val
                     else:
-                        val = str(raw).strip()
-                    setattr(existing, field, val)
-                except Exception:
-                    errors.append({"row": row_num, "name": name, "error": f"'{row_key}' qiymati xato: {raw}"})
-                    continue
+                        curr_obj = db.query(CurrencyModel).filter(CurrencyModel.code == currency).first()
+                        rate = Decimal(str(curr_obj.rate)) if curr_obj else Decimal("1")
+                        total_uzs = qarz_val * rate
 
-            if qarz_val is not None:
-                currency = str(row.get("__cur_Qarz") or "UZS").strip().upper()
-                debt_balances = {currency: float(qarz_val)}
-
-                from app.models.currency import Currency as CurrencyModel
-                total_uzs = Decimal("0")
-                if currency == "UZS":
-                    total_uzs = qarz_val
+                    kwargs["debt_balances"] = debt_balances
+                    kwargs["debt_balance"] = total_uzs
+                    kwargs["debt_currency"] = "UZS"
                 else:
-                    curr_obj = db.query(CurrencyModel).filter(CurrencyModel.code == currency).first()
-                    rate = Decimal(str(curr_obj.rate)) if curr_obj else Decimal("1")
-                    total_uzs = qarz_val * rate
+                    kwargs["debt_balances"] = {}
+                    kwargs["debt_balance"] = Decimal("0")
+                    kwargs["debt_currency"] = "UZS"
 
-                old_balances = _normalize_customer_balances(
-                    existing.debt_balances,
-                    existing.debt_balance or Decimal("0"),
-                    existing.debt_currency or "UZS",
-                )
-                new_balances = _normalize_customer_balances(
-                    debt_balances,
-                    total_uzs,
-                    "UZS"
-                )
-                if old_balances != new_balances:
-                    _append_debt_edit(existing, old_balances, new_balances)
+                # check card/phone to avoid integrity errors
+                check_card = kwargs.get("card_number")
+                if check_card and dup_q_base.filter(Customer.card_number == check_card).first():
+                    kwargs.pop("card_number")
 
-                existing.debt_balances = debt_balances
-                existing.debt_balance = total_uzs
-                existing.debt_currency = "UZS"
-                flag_modified(existing, "debt_balances")
+                check_phone = kwargs.get("phone")
+                if check_phone and dup_q_base.filter(Customer.phone == check_phone).first():
+                    kwargs.pop("phone")
 
-            updated += 1
-            continue
+                cust = Customer(**kwargs)
+                db.add(cust)
+                db.flush()
+                created += 1
 
-        if not name:
-            errors.append({"row": row_num, "error": "Yangi mijoz uchun Ism majburiy"})
-            continue
-
-        kwargs = {"name": name, "company_id": current_user.company_id}
-        for row_key, (field, cast) in FIELD_MAP.items():
-            if field in ("name", "debt_balance"):
-                continue
-            raw = row.get(row_key)
-            if raw is not None and str(raw).strip() != "":
-                try:
-                    if cast == Decimal:
-                        val = parse_decimal_clean(raw)
-                    elif cast == int:
-                        val_str = str(raw).split(".")[0].strip()
-                        val = int(val_str)
-                    else:
-                        val = str(raw).strip()
-                    kwargs[field] = val
-                except Exception:
-                    pass
-
-        if qarz_val is not None:
-            currency = str(row.get("__cur_Qarz") or "UZS").strip().upper()
-            debt_balances = {currency: float(qarz_val)}
-
-            from app.models.currency import Currency as CurrencyModel
-            total_uzs = Decimal("0")
-            if currency == "UZS":
-                total_uzs = qarz_val
-            else:
-                curr_obj = db.query(CurrencyModel).filter(CurrencyModel.code == currency).first()
-                rate = Decimal(str(curr_obj.rate)) if curr_obj else Decimal("1")
-                total_uzs = qarz_val * rate
-
-            kwargs["debt_balances"] = debt_balances
-            kwargs["debt_balance"] = total_uzs
-            kwargs["debt_currency"] = "UZS"
-        else:
-            kwargs["debt_balances"] = {}
-            kwargs["debt_balance"] = Decimal("0")
-            kwargs["debt_currency"] = "UZS"
-
-        # check card/phone to avoid integrity errors
-        check_card = kwargs.get("card_number")
-        if check_card and dup_q_base.filter(Customer.card_number == check_card).first():
-            kwargs.pop("card_number")
-
-        check_phone = kwargs.get("phone")
-        if check_phone and dup_q_base.filter(Customer.phone == check_phone).first():
-            kwargs.pop("phone")
-
-        cust = Customer(**kwargs)
-        db.add(cust)
-        db.flush()
-        created += 1
+        except SQLAlchemyError as exc:
+            logger.warning("Bulk import row %s failed: %s", row_num, exc)
+            errors.append({"row": row_num, "name": str(row.get("Ism") or row.get("Telefon") or ""), "error": row_db_error(exc)})
 
     db.commit()
     return {"created": created, "updated": updated, "skipped": len(errors), "errors": errors}

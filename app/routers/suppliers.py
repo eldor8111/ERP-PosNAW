@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation
 from typing import List, Optional
@@ -5,6 +6,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query  # type: ignore
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload  # type: ignore
+from sqlalchemy.exc import SQLAlchemyError  # type: ignore
 
 from app.core.audit import log_action  # type: ignore
 from app.core.dependencies import require_roles  # type: ignore
@@ -14,8 +16,10 @@ from app.models.user import User, UserRole  # type: ignore
 from app.schemas.supplier import SupplierCreate, SupplierDebtAdjust, SupplierOut, SupplierUpdate  # type: ignore
 from app.services import supplier_ledger as ledger  # type: ignore
 from app.utils.translit import name_search_filter  # type: ignore
+from app.utils.import_errors import row_db_error  # type: ignore
 
 router = APIRouter(prefix="/suppliers", tags=["Suppliers"])
+logger = logging.getLogger(__name__)
 
 ALLOWED = (UserRole.admin, UserRole.director, UserRole.manager, UserRole.accountant)
 # Qarzni qo'lda tuzatish — faqat rahbariyat va buxgalter
@@ -249,39 +253,47 @@ def bulk_import_suppliers(
 
     for idx, row in enumerate(rows):
         row_num = row.get("__row_index", idx + 2)
-        name = str(row.get("Nomi") or "").strip()
-        inn = str(row.get("INN") or "").strip() or None
-        if not name:
-            errors.append({"row": row_num, "error": "Ta'minotchi nomi majburiy"})
-            continue
+        try:
+            with db.begin_nested():
+                name = str(row.get("Nomi") or "").strip()
+                inn = str(row.get("INN") or "").strip() or None
+                if not name:
+                    errors.append({"row": row_num, "error": "Ta'minotchi nomi majburiy"})
+                    continue
 
-        existing = dup_q_base.filter(Supplier.inn == inn).first() if inn else None
-        if not existing:
-            existing = dup_q_base.filter(Supplier.name == name).first()
+                existing = dup_q_base.filter(Supplier.inn == inn).first() if inn else None
+                if not existing:
+                    existing = dup_q_base.filter(Supplier.name == name).first()
 
-        if existing and not allow_update:
-            errors.append({"row": row_num, "name": name, "error": f"'{name}' allaqachon mavjud — o'tkazib yuborildi"})
-            continue
+                if existing and not allow_update:
+                    errors.append({"row": row_num, "name": name, "error": f"'{name}' allaqachon mavjud — o'tkazib yuborildi"})
+                    continue
 
-        values, debt = _parse(row, row_num, name)
-        if existing:
-            for field, val in values.items():
-                setattr(existing, field, val)
-            if debt is not None:
-                # Faylda joriy UZS qarz — farqi qo'shiladi
-                current = ledger.balances(existing).get("UZS", ZERO)
-                ledger.add(db, existing, "UZS", debt - current)
-            updated += 1
-            continue
+                values, debt = _parse(row, row_num, name)
+                if existing:
+                    for field, val in values.items():
+                        setattr(existing, field, val)
+                    if debt is not None:
+                        # Faylda joriy UZS qarz — farqi qo'shiladi
+                        current = ledger.balances(existing).get("UZS", ZERO)
+                        ledger.add(db, existing, "UZS", debt - current)
+                    db.flush()
+                    updated += 1
+                    continue
 
-        values.setdefault("name", name)
-        sup = Supplier(**values, company_id=current_user.company_id,
-                       debt_balance=ZERO, debt_currency="UZS", debt_balances={})
-        db.add(sup)
-        db.flush()
-        if debt:
-            ledger.add(db, sup, "UZS", debt)
-        created += 1
+                values.setdefault("name", name)
+                sup = Supplier(**values, company_id=current_user.company_id,
+                               debt_balance=ZERO, debt_currency="UZS", debt_balances={})
+                db.add(sup)
+                db.flush()
+                if debt:
+                    ledger.add(db, sup, "UZS", debt)
+                db.flush()
+                created += 1
+
+        except SQLAlchemyError as exc:
+            logger.warning("Bulk import row %s failed: %s", row_num, exc)
+            errors.append({"row": row_num, "name": str(row.get("Nomi") or ""), "error": row_db_error(exc)})
 
     log_action(db, action="BULK_IMPORT", entity_type="supplier", user_id=current_user.id,
                new_values={"created": created, "updated": updated, "errors": len(errors)})
