@@ -337,6 +337,8 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
   const inputRef = useRef(null);
   const timerRef = useRef(null);
   const listRef = useRef(null);
+  // true — oxirgi tanlovdan keyingi natijalar ushlab turiladi (maydon bo'sh bo'lsa ham)
+  const keepResultsRef = useRef(false);
 
   useImperativeHandle(fwdRef, () => ({
     openForm: () => onOpenAdd?.(),
@@ -345,7 +347,7 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
 
   // q o'zgarganda qidirish
   useEffect(() => {
-    if (!q.trim()) { setResults([]); return; }
+    if (!q.trim()) { if (!keepResultsRef.current) setResults([]); return; }
     clearTimeout(timerRef.current);
     const abortCtrl = new AbortController();
     timerRef.current = setTimeout(async () => {
@@ -380,9 +382,16 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
     return () => { clearTimeout(timerRef.current); abortCtrl.abort(); };
   }, [q, warehouseId]);
 
-  // Tanlangandan keyin qidiruv matni va natijalar saqlanadi — bir xil turdagi keyingi
-  // mahsulotni (masalan, boshqa rangini) qayta yozmasdan tanlash uchun.
-  const select = useCallback((p, idx) => { onSelect(p); setActiveIdx(idx ?? 0); setOpen(false); }, [onSelect]);
+  // Tanlangandan keyin qidiruv maydoni tozalanadi, lekin natijalar ro'yxati saqlanadi — bir xil
+  // turdagi keyingi mahsulotni (masalan, boshqa rangini) qayta yozmasdan tanlash uchun.
+  const select = useCallback((p, idx) => {
+    onSelect(p);
+    keepResultsRef.current = true;
+    setQ('');
+    setActiveIdx(idx ?? 0);
+    setOpen(false);
+  }, [onSelect]);
+  const clearSearch = () => { keepResultsRef.current = false; setQ(''); setResults([]); setActiveIdx(0); };
 
   // Ro'yxat ochilganda belgilangan (oxirgi tanlangan) mahsulot ko'rinib tursin
   useEffect(() => {
@@ -395,14 +404,14 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
     if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, results.length - 1)); }
     if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, 0)); }
     if (e.key === 'Enter' && results[activeIdx]) { e.preventDefault(); select(results[activeIdx], activeIdx); }
-    if (e.key === 'Escape') { setResults([]); setQ(''); setOpen(false); }
+    if (e.key === 'Escape') { clearSearch(); setOpen(false); }
   };
 
-  const handleFocus = useCallback(async (e) => {
+  const handleFocus = useCallback(async () => {
     if (disabled) return;
     setOpen(true);
-    e?.target?.select?.();
-    if (!q.trim()) {
+    // Saqlangan natijalar bo'lsa — ularni ko'rsatamiz, standart ro'yxatni yuklamaymiz
+    if (!q.trim() && !(keepResultsRef.current && results.length)) {
       setLoading(true);
       try {
         const res = await api.get('/products', { params: { limit: 30, warehouse_id: warehouseId || undefined }, _silent: true });
@@ -411,7 +420,7 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
       } catch { /* ignore */ }
       finally { setLoading(false); }
     }
-  }, [disabled, q, warehouseId]);
+  }, [disabled, q, warehouseId, results.length]);
 
   const handleBlur = useCallback(() => {
     // kichik delay — mouseDown evenidan keyin blur ishlaydi
@@ -429,14 +438,14 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
         }
         <input ref={inputRef} value={q}
           disabled={disabled}
-          onChange={e => { setQ(e.target.value); setActiveIdx(0); }}
+          onChange={e => { keepResultsRef.current = false; setQ(e.target.value); setActiveIdx(0); }}
           onKeyDown={handleKey}
           onFocus={handleFocus}
           onBlur={handleBlur}
           placeholder={placeholder || t('wholesale.productSearchPlaceholder')}
           className="flex-1 text-sm outline-none bg-transparent placeholder:text-slate-400 disabled:cursor-not-allowed"
         />
-        {q && <button onMouseDown={(e) => { e.preventDefault(); setQ(''); setResults([]); inputRef.current?.focus(); }} className="text-slate-300 hover:text-red-400"><Ic d="M6 18L18 6M6 6l12 12" cls="w-3.5 h-3.5" /></button>}
+        {(q || (keepResultsRef.current && results.length > 0)) && <button onMouseDown={(e) => { e.preventDefault(); clearSearch(); inputRef.current?.focus(); }} className="text-slate-300 hover:text-red-400"><Ic d="M6 18L18 6M6 6l12 12" cls="w-3.5 h-3.5" /></button>}
       </div>
 
       {open && !disabled && (
@@ -488,7 +497,7 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
             </button>
           ))}
           {/* + Yangi mahsulot */}
-          <button onMouseDown={() => { setResults([]); setQ(''); setOpen(false); onOpenAdd?.(); }}
+          <button onMouseDown={() => { clearSearch(); setOpen(false); onOpenAdd?.(); }}
             className="w-full flex cursor-pointer items-center gap-2 px-4 py-3 text-emerald-600 hover:bg-emerald-50 font-bold text-sm border-t border-slate-100 transition-colors">
             <span className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-base leading-none">+</span>
             {t('wholesale.addNewProduct')}
@@ -1147,6 +1156,9 @@ export default function UlgurjiSotuv() {
   useEffect(() => {
     const handle = (e) => {
       const now = Date.now(); const gap = now - scanTimeRef.current; scanTimeRef.current = now;
+      // Raqam maydonlari (miqdor, narx, jami summa, chegirma, to'lov) — tez yozilgan raqam + Enter
+      // skaner deb ushlanib, maydon tozalanib qolmasin
+      if (e.target?.closest?.('[data-no-scan]')) { scanBufRef.current = ''; return; }
       if (e.key === 'Enter') {
         const buf = scanBufRef.current.trim(); scanBufRef.current = '';
         if (buf.length < 3) return;
@@ -1938,7 +1950,7 @@ export default function UlgurjiSotuv() {
                           <div className="flex items-center gap-1">
                             <button onClick={() => setFormQty(q => String(Math.max(0, (parseFloat(q) || 1) - 1)))}
                               className="w-10 h-10 rounded-lg bg-white flex items-center justify-center font-black text-slate-600 text-xl active:bg-slate-100 border border-slate-200">−</button>
-                            <input ref={formQtyRef} type="number" value={formQty}
+                            <input data-no-scan ref={formQtyRef} type="number" value={formQty}
                               onChange={e => setFormQty(e.target.value)}
                               onFocus={e => e.target.select()}
                               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addFormToCart(); } }}
@@ -1985,7 +1997,7 @@ export default function UlgurjiSotuv() {
                           </div>
                           <div className="flex items-center gap-1">
                             <div className="relative flex-1">
-                              <input
+                              <input data-no-scan
                                 ref={formPriceRef}
                                 type="text"
                                 value={fmtPrice(formPrice)}
@@ -2038,7 +2050,7 @@ export default function UlgurjiSotuv() {
                               {t('wholesale.totalSum')} <span className="normal-case font-medium text-slate-400">— {t('wholesale.totalSumHint', { unit: formProduct.unit })}</span>
                             </label>
                             <div className="flex items-center gap-1">
-                              <input type="text" inputMode="decimal"
+                              <input data-no-scan type="text" inputMode="decimal"
                                 value={fmtPrice(formTotalText)}
                                 onChange={e => onFormTotalChange(e.target.value)}
                                 onFocus={e => e.target.select()}
@@ -2059,7 +2071,7 @@ export default function UlgurjiSotuv() {
                                 className="w-10 h-10 shrink-0 rounded-lg bg-white border border-amber-200 text-amber-600 font-black text-xs hover:bg-amber-50 active:bg-amber-100 transition-colors">
                                 {formDiscType === 'pct' ? '%' : "S"}
                               </button>
-                              <input ref={formDiscRef} type="number" value={formDiscVal}
+                              <input data-no-scan ref={formDiscRef} type="number" value={formDiscVal}
                                 onChange={e => setFormDiscVal(e.target.value)}
                                 onFocus={e => e.target.select()}
                                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addFormToCart(); } }}
@@ -2113,7 +2125,7 @@ export default function UlgurjiSotuv() {
                         </button>
                       ))}
                     </div>
-                    <input type="number" value={discVal} onChange={e => setDiscVal(e.target.value)}
+                    <input data-no-scan type="number" value={discVal} onChange={e => setDiscVal(e.target.value)}
                       placeholder="0"
                       className="flex-1 border-2 border-slate-200 rounded-lg px-3 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white" />
                   </div>
@@ -2212,7 +2224,7 @@ export default function UlgurjiSotuv() {
                               <div className="flex items-center gap-1 justify-center">
                                 <button onClick={() => updateItem(idx, 'qty', Math.max(0, it.qty - 1))}
                                   className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center font-bold text-slate-600 text-sm">−</button>
-                                <input type="number" value={it.qty}
+                                <input data-no-scan type="number" value={it.qty}
                                   onChange={e => updateItem(idx, 'qty', Math.max(0, parseFloat(e.target.value) ?? 0))}
                                   className="w-14 text-center font-black text-slate-800 border border-slate-200 rounded-lg py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
                                 <button onClick={() => updateItem(idx, 'qty', it.qty + 1)}
@@ -2221,7 +2233,7 @@ export default function UlgurjiSotuv() {
                             </td>
                             <td className="px-2 py-2.5">
                               <div className="relative">
-                                <input type="text"
+                                <input data-no-scan type="text"
                                   value={fmtPrice(it.price)}
                                   onChange={e => {
                                     updateItem(idx, 'price', parsePrice(e.target.value));
@@ -2236,7 +2248,7 @@ export default function UlgurjiSotuv() {
                                   className="w-7 h-7 rounded bg-amber-50 text-amber-600 text-[10px] font-black border border-amber-200 shrink-0">
                                   {it.discount_type === 'pct' ? '%' : curSym}
                                 </button>
-                                <input type="number" value={it.discount_val || ''}
+                                <input data-no-scan type="number" value={it.discount_val || ''}
                                   onChange={e => updateItem(idx, 'discount_val', parseFloat(e.target.value) || 0)}
                                   placeholder="0"
                                   className="w-14 text-center text-sm border border-slate-200 rounded-lg py-1 focus:outline-none focus:ring-1 focus:ring-amber-300" />
@@ -2717,7 +2729,7 @@ export default function UlgurjiSotuv() {
                             {isDebt
                               ? <div className="flex-1 h-10 px-3 bg-amber-50 border border-amber-100 rounded-lg flex items-center"><span className="text-sm font-black text-amber-700">{t('wholesale.willBeRecordedAsDebt')}</span></div>
                               : <div className="flex-1 relative">
-                                <input type="number" value={line.amt} onChange={e => updateLine(line.id, 'amt', e.target.value)}
+                                <input data-no-scan type="number" value={line.amt} onChange={e => updateLine(line.id, 'amt', e.target.value)}
                                   placeholder="0" autoFocus={idx === payments.length - 1}
                                   className="w-full h-10 pl-3 pr-10 border border-slate-200 rounded-lg text-lg font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 min-w-0" />
                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 capitalize">{line.currency || 'UZS'}</span>
