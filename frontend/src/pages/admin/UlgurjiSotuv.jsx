@@ -49,6 +49,11 @@ const parsePrice = (v) => {
   return s;
 };
 
+// Kasrli birliklar (kg, litr, metr...) — bunday tovarni "jami summa" bo'yicha sotish mumkin
+const FRACTIONAL_UNITS = new Set(['kg', 'g', 'gr', 'gramm', 'litr', 'l', 'ml', 'metr', 'm', 'sm', 'm2', 'm3']);
+const isFractionalUnit = (unit) => FRACTIONAL_UNITS.has(String(unit || '').trim().toLowerCase());
+const round3 = (n) => Math.round(n * 1000) / 1000;
+
 const PAY_ICONS = {
   cash: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="13" rx="2" /><circle cx="12" cy="12.5" r="2.5" /><path d="M6 9.5h.01M18 9.5h.01M6 15.5h.01M18 15.5h.01" /></svg>),
   card: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /><path d="M6 15h4" /></svg>),
@@ -331,6 +336,7 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
   const [loading, setLoading] = useState(false);
   const inputRef = useRef(null);
   const timerRef = useRef(null);
+  const listRef = useRef(null);
 
   useImperativeHandle(fwdRef, () => ({
     openForm: () => onOpenAdd?.(),
@@ -374,19 +380,28 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
     return () => { clearTimeout(timerRef.current); abortCtrl.abort(); };
   }, [q, warehouseId]);
 
-  const select = useCallback((p) => { onSelect(p); setQ(''); setResults([]); setActiveIdx(0); setOpen(false); }, [onSelect]);
+  // Tanlangandan keyin qidiruv matni va natijalar saqlanadi — bir xil turdagi keyingi
+  // mahsulotni (masalan, boshqa rangini) qayta yozmasdan tanlash uchun.
+  const select = useCallback((p, idx) => { onSelect(p); setActiveIdx(idx ?? 0); setOpen(false); }, [onSelect]);
+
+  // Ro'yxat ochilganda belgilangan (oxirgi tanlangan) mahsulot ko'rinib tursin
+  useEffect(() => {
+    if (!open) return;
+    listRef.current?.querySelector(`[data-idx="${activeIdx}"]`)?.scrollIntoView({ block: 'nearest' });
+  }, [open, activeIdx, results]);
 
   const handleKey = (e) => {
     if (!results.length) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, results.length - 1)); }
     if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, 0)); }
-    if (e.key === 'Enter' && results[activeIdx]) { e.preventDefault(); select(results[activeIdx]); }
+    if (e.key === 'Enter' && results[activeIdx]) { e.preventDefault(); select(results[activeIdx], activeIdx); }
     if (e.key === 'Escape') { setResults([]); setQ(''); setOpen(false); }
   };
 
-  const handleFocus = useCallback(async () => {
+  const handleFocus = useCallback(async (e) => {
     if (disabled) return;
     setOpen(true);
+    e?.target?.select?.();
     if (!q.trim()) {
       setLoading(true);
       try {
@@ -400,7 +415,7 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
 
   const handleBlur = useCallback(() => {
     // kichik delay — mouseDown evenidan keyin blur ishlaydi
-    setTimeout(() => { setOpen(false); setResults([]); }, 150);
+    setTimeout(() => { setOpen(false); }, 150);
   }, []);
 
   return (
@@ -425,7 +440,7 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
       </div>
 
       {open && !disabled && (
-        <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-[380px] overflow-y-auto">
+        <div ref={listRef} className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-[380px] overflow-y-auto">
           {loading && results.length === 0 && (
             <div className="px-4 py-8 text-center">
               <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
@@ -436,7 +451,7 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
             <div className="px-4 py-4 text-center text-sm text-slate-400">"{q}" — {t('wholesale.notFound')}</div>
           )}
           {results.length > 0 && results.map((p, i) => (
-            <button key={p.id} onMouseDown={() => select(p)}
+            <button key={p.id} data-idx={i} onMouseDown={() => select(p, i)}
               className={`w-full cursor-pointer flex items-center gap-3 px-4 py-3 border-b border-slate-50 last:border-0 transition-colors text-left ${i === activeIdx ? 'bg-blue-50' : 'hover:bg-slate-50'}`}>
               <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
                 {p.image_url ? <img src={p.image_url} alt="" className="w-full h-full object-cover" /> : <Ic d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" cls="w-4 h-4 text-slate-400" />}
@@ -536,6 +551,8 @@ export default function UlgurjiSotuv() {
   const [formQty, setFormQty] = useState('1');
   const [formDiscType, setFormDiscType] = useState('pct');
   const [formDiscVal, setFormDiscVal] = useState('');
+  // Qo'lda kiritilgan jami summa; miqdor/narx/chegirma o'zgarsa (key mos kelmasa) hisoblangan summa ko'rsatiladi
+  const [formTotalEdit, setFormTotalEdit] = useState(null); // { key, text }
   const [currencies, setCurrencies] = useState([]);
   const formQtyRef = useRef(null);
   const custSearchRef = useRef(null);
@@ -1038,6 +1055,7 @@ export default function UlgurjiSotuv() {
     setFormPrice(String(price));
     setFormCurrency(currency);
     setFormQty('1');
+    setFormTotalEdit(null);
     setTimeout(() => {
       if (formQtyRef.current) {
         formQtyRef.current.focus();
@@ -1054,6 +1072,32 @@ export default function UlgurjiSotuv() {
       setFormPrice(String(price));
     }
   }, [custId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Savatdagi qator summasi bilan bir xil formula: narx × miqdor − chegirma
+  const formTotalKey = `${formQty}|${formPrice}|${formDiscType}|${formDiscVal}`;
+  const formComputedTotal = (() => {
+    const gross = (parseFloat(formPrice) || 0) * (parseFloat(formQty) || 0);
+    const disc = formDiscType === 'pct' ? gross * ((parseFloat(formDiscVal) || 0) / 100) : (parseFloat(formDiscVal) || 0);
+    return Math.max(0, Math.round((gross - disc) * 100) / 100);
+  })();
+  const formTotalText = formTotalEdit && formTotalEdit.key === formTotalKey ? formTotalEdit.text : String(formComputedTotal || '');
+
+  // Jami summa kiritilsa — miqdor = summa / narx (chegirma hisobga olinadi), 3 xonagacha
+  const onFormTotalChange = (raw) => {
+    const text = parsePrice(raw);
+    const total = parseFloat(text) || 0;
+    const price = parseFloat(formPrice) || 0;
+    const discVal = parseFloat(formDiscVal) || 0;
+    let qty = formQty;
+    if (price > 0 && total > 0) {
+      const q = formDiscType === 'pct'
+        ? total / (price * Math.max(0.0001, 1 - discVal / 100))
+        : (total + discVal) / price;
+      qty = String(round3(q));
+    }
+    setFormQty(qty);
+    setFormTotalEdit({ key: `${qty}|${formPrice}|${formDiscType}|${formDiscVal}`, text });
+  };
 
   const addFormToCart = () => {
     if (!custId) return toast.error(t('sale.mustSelectCustomer'));
@@ -1087,7 +1131,7 @@ export default function UlgurjiSotuv() {
         addedAt: Date.now(),
       }];
     });
-    setFormProduct(null); setFormPrice(''); setFormQty('1'); setFormDiscVal(''); setFormCurrency('UZS');
+    setFormProduct(null); setFormPrice(''); setFormQty('1'); setFormDiscVal(''); setFormCurrency('UZS'); setFormTotalEdit(null);
     prodSearchRef.current?.focus();
     // switch to cart tab on mobile to show the result
     setMobileTab('cart');
@@ -1986,6 +2030,25 @@ export default function UlgurjiSotuv() {
                             </select>
                           </div>
                         </div>
+
+                        {/* Jami summa — kg/litr/metr tovarlarda summadan miqdorni hisoblaydi */}
+                        {isFractionalUnit(formProduct.unit) && (
+                          <div className="col-span-2">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 block">
+                              {t('wholesale.totalSum')} <span className="normal-case font-medium text-slate-400">— {t('wholesale.totalSumHint', { unit: formProduct.unit })}</span>
+                            </label>
+                            <div className="flex items-center gap-1">
+                              <input type="text" inputMode="decimal"
+                                value={fmtPrice(formTotalText)}
+                                onChange={e => onFormTotalChange(e.target.value)}
+                                onFocus={e => e.target.select()}
+                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addFormToCart(); } }}
+                                placeholder="0"
+                                className="flex-1 w-full border border-emerald-200 rounded-lg px-3 py-2 text-base font-black text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
+                              <span className="px-2 text-sm font-black text-emerald-600">{formCurrency || 'UZS'}</span>
+                            </div>
+                          </div>
+                        )}
 
                         {/* Chegirma va Qo'shish */}
                         <div className="col-span-2 flex gap-3 mt-1">

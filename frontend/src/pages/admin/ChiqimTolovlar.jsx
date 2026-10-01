@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import api from '../../api/axios';
 import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
 import { useLang } from '../../context/LangContext';
+import { matchesSearch } from '../../utils/translit';
+import toast from 'react-hot-toast';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ') + " so'm";
 const fmtCurr = (v, curr) => {
@@ -10,6 +12,14 @@ const fmtCurr = (v, curr) => {
   if (curr === 'USD') return '$' + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   return n.toLocaleString('uz-UZ') + ' ' + curr;
 };
+const fmtNum = (v) => Number(v || 0).toLocaleString('uz-UZ', { maximumFractionDigits: 2 });
+const positiveDebts = (s) => {
+  if (s?.debt_balances && typeof s.debt_balances === 'object' && Object.keys(s.debt_balances).length > 0) {
+    return Object.entries(s.debt_balances).filter(([, v]) => Number(v) > 0);
+  }
+  return Number(s?.debt_balance) > 0 ? [['UZS', s.debt_balance]] : [];
+};
+const newPayRow = (currency = 'UZS', amount = '') => ({ id: Date.now() + Math.random(), payType: 'cash', payAmount: amount, currency });
 const today = () => (new Date(Date.now() - new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 10);
 
 export default function ChiqimTolovlar() {
@@ -32,6 +42,20 @@ export default function ChiqimTolovlar() {
   const [editForm, setEditForm] = useState({ amount: '', payment_type: '', description: '' });
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
+
+  // Yangi chiqim to'lov (ta'minotchi qarzini to'lash) modali
+  const [payOpen, setPayOpen] = useState(false);
+  const [suppliers, setSuppliers] = useState([]);
+  const [wallets, setWallets] = useState([]);
+  const [currencies, setCurrencies] = useState([{ code: 'UZS', rate: 1 }]);
+  const [supSearch, setSupSearch] = useState('');
+  const [onlyDebtors, setOnlyDebtors] = useState(true);
+  const [paySupplier, setPaySupplier] = useState(null);
+  const [payWallet, setPayWallet] = useState('');
+  const [payRows, setPayRows] = useState([newPayRow()]);
+  const [payNote, setPayNote] = useState('');
+  const [paySaving, setPaySaving] = useState(false);
+  const [payError, setPayError] = useState('');
 
   const loadData = async () => {
     setLoading(true);
@@ -115,6 +139,84 @@ export default function ChiqimTolovlar() {
     }
   };
 
+  const openPay = async () => {
+    setPayOpen(true);
+    setPaySupplier(null);
+    setSupSearch('');
+    setOnlyDebtors(true);
+    setPayRows([newPayRow()]);
+    setPayNote('');
+    setPayError('');
+    const [sRes, wRes, cRes] = await Promise.all([
+      api.get('/suppliers', { params: { limit: 5000 } }).catch(() => ({ data: [] })),
+      api.get('/finance/wallets').catch(() => ({ data: [] })),
+      api.get('/currencies/active').catch(() => ({ data: [] })),
+    ]);
+    setSuppliers(Array.isArray(sRes.data) ? sRes.data : []);
+    const ws = Array.isArray(wRes.data) ? wRes.data : [];
+    setWallets(ws);
+    setPayWallet(ws.length > 0 ? String(ws[0].id) : '');
+    const cs = Array.isArray(cRes.data) ? [...cRes.data] : [];
+    if (!cs.find(c => c.code === 'UZS')) cs.unshift({ code: 'UZS', rate: 1 });
+    setCurrencies(cs);
+  };
+
+  const closePay = () => { if (!paySaving) setPayOpen(false); };
+
+  const pickSupplier = (s) => {
+    setPaySupplier(s);
+    const first = positiveDebts(s)[0];
+    setPayRows([newPayRow(first?.[0] || 'UZS', first ? String(first[1]) : '')]);
+    setPayError('');
+  };
+
+  const updatePayRow = (idx, field, value) =>
+    setPayRows(prev => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
+
+  const debtFor = (cur) => Number((positiveDebts(paySupplier).find(([c]) => c === cur) || [])[1] || 0);
+
+  const handlePaySave = async () => {
+    if (!paySupplier) { setPayError(t('chiqimTolov.selectSupplierFirst')); return; }
+    const valid = payRows.filter(r => Number(r.payAmount) > 0 && r.payType);
+    if (valid.length === 0) { setPayError(t('chiqimTolov.enterAmount')); return; }
+    setPaySaving(true);
+    setPayError('');
+    let done = 0;
+    try {
+      for (const row of valid) {
+        await api.post(`/suppliers/${paySupplier.id}/pay-debt`, {
+          amount: Number(row.payAmount),
+          currency: row.currency || 'UZS',
+          payment_type: row.payType,
+          reason: payNote.trim() || t('chiqimTolov.defaultReason'),
+          wallet_id: payWallet ? Number(payWallet) : null,
+        });
+        done += 1;
+      }
+      toast.success(t('chiqimTolov.paymentSaved'));
+      setPayOpen(false);
+      loadData();
+    } catch (e) {
+      // Bir nechta qatordan bir qismi saqlangan bo'lsa — saqlanganlarini ro'yxatdan olib tashlaymiz,
+      // aks holda qayta bosilganda ular ikki marta yoziladi.
+      if (done > 0) {
+        const savedIds = new Set(valid.slice(0, done).map(r => r.id));
+        setPayRows(prev => prev.filter(r => !savedIds.has(r.id)));
+        loadData();
+      }
+      setPayError(e.response?.data?.detail || e.message || t('auth.errGeneral'));
+    } finally {
+      setPaySaving(false);
+    }
+  };
+
+  const filteredSuppliers = useMemo(() => {
+    let list = suppliers;
+    if (onlyDebtors) list = list.filter(s => positiveDebts(s).length > 0);
+    if (supSearch.trim()) list = list.filter(s => matchesSearch(`${s.name || ''} ${s.phone || ''}`, supSearch));
+    return list;
+  }, [suppliers, onlyDebtors, supSearch]);
+
   const exportExcel = async () => {
     if (!data?.items) return;
     const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
@@ -146,6 +248,10 @@ export default function ChiqimTolovlar() {
             className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           <button onClick={exportExcel} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl">
             {t('chiqimTolov.exportExcel')}
+          </button>
+          <button onClick={openPay} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl flex items-center gap-1.5">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+            {t('chiqimTolov.newPayment')}
           </button>
         </div>
       </div>
@@ -353,6 +459,173 @@ export default function ChiqimTolovlar() {
                 className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors"
               >
                 {editLoading ? t('common.saving') : t('common.save')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Yangi chiqim to'lov — ta'minotchi qarzini to'lash */}
+      {payOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-4 bg-black/40 backdrop-blur-sm" onClick={closePay}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 md:px-6 py-4 border-b border-slate-100 shrink-0">
+              <div>
+                <h2 className="text-lg font-bold text-slate-800">{t('chiqimTolov.newPaymentTitle')}</h2>
+                <p className="text-xs text-blue-500 font-medium mt-0.5">{new Date().toLocaleString('uz-UZ').replace(',', '')}</p>
+              </div>
+              <button onClick={closePay} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+            </div>
+
+            <div className="px-5 md:px-6 py-4 overflow-y-auto space-y-4">
+              {/* Ta'minotchi */}
+              {paySupplier ? (
+                <div className="flex items-start justify-between gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="min-w-0">
+                    <div className="text-xs text-slate-500 mb-0.5">{t('chiqimTolov.supplierLabel')}</div>
+                    <div className="font-bold text-slate-800 truncate">{paySupplier.name}</div>
+                    {paySupplier.phone && <div className="text-xs text-slate-500">{paySupplier.phone}</div>}
+                    <div className="text-sm font-bold mt-1">
+                      {positiveDebts(paySupplier).length > 0 ? (
+                        <span className="text-red-500">
+                          {t('chiqimTolov.currentDebt')}
+                          {positiveDebts(paySupplier).map(([cur, amt]) => <span key={cur} className="ml-2 inline-block">{fmtNum(amt)} {cur}</span>)}
+                        </span>
+                      ) : <span className="text-emerald-600">{t('chiqimTolov.noDebt')}</span>}
+                    </div>
+                  </div>
+                  <button onClick={() => setPaySupplier(null)} disabled={paySaving}
+                    className="px-2.5 py-1 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg shrink-0">
+                    {t('chiqimTolov.changeSupplier')}
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-700">{t('chiqimTolov.supplierLabel')} *</label>
+                  <input autoFocus value={supSearch} onChange={e => setSupSearch(e.target.value)}
+                    placeholder={t('chiqimTolov.searchSupplier')}
+                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <label className="flex items-center gap-2 text-xs text-slate-600 select-none cursor-pointer">
+                    <input type="checkbox" checked={onlyDebtors} onChange={e => setOnlyDebtors(e.target.checked)} />
+                    {t('chiqimTolov.onlyDebtors')}
+                  </label>
+                  <div className="max-h-64 overflow-y-auto border border-slate-100 rounded-xl divide-y divide-slate-50">
+                    {filteredSuppliers.length > 0 ? filteredSuppliers.slice(0, 200).map(s => (
+                      <button key={s.id} type="button" onClick={() => pickSupplier(s)}
+                        className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-blue-50 transition-colors">
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold text-slate-800 truncate">{s.name}</span>
+                          {s.phone && <span className="block text-xs text-slate-400">{s.phone}</span>}
+                        </span>
+                        <span className="text-xs font-bold whitespace-nowrap">
+                          {positiveDebts(s).length > 0
+                            ? positiveDebts(s).map(([cur, amt]) => <span key={cur} className="block text-red-500">{fmtNum(amt)} {cur}</span>)
+                            : <span className="text-emerald-600">{t('chiqimTolov.noDebt')}</span>}
+                        </span>
+                      </button>
+                    )) : <div className="py-6 text-center text-sm text-slate-400">{t('common.noData')}</div>}
+                  </div>
+                </div>
+              )}
+
+              {paySupplier && (
+                <>
+                  {/* Kassa */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{t('chiqimTolov.walletLabel')}</label>
+                    <select value={payWallet} onChange={e => setPayWallet(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      <option value="">{t('chiqimTolov.mainWallet')}</option>
+                      {wallets.map(w => <option key={w.id} value={w.id}>{w.name} — {fmtNum(w.balance)} {t('common.sum')}</option>)}
+                    </select>
+                  </div>
+
+                  {/* To'lov qatorlari */}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-700">{t('chiqimTolov.paymentTypeLabel')} *</label>
+                    {payRows.map((row, idx) => (
+                      <div key={row.id} className="flex gap-2">
+                        <select value={row.payType} onChange={e => updatePayRow(idx, 'payType', e.target.value)}
+                          className="w-28 sm:w-40 shrink-0 px-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                          {PAYMENT_TYPES.map(pt => <option key={pt.value} value={pt.value}>{pt.label}</option>)}
+                        </select>
+                        <div className="flex flex-1 min-w-0">
+                          <input type="number" min="0" value={row.payAmount} placeholder="0"
+                            onChange={e => updatePayRow(idx, 'payAmount', e.target.value)}
+                            className="flex-1 min-w-0 px-3 py-2.5 border border-slate-200 rounded-l-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                          <select value={row.currency} onChange={e => updatePayRow(idx, 'currency', e.target.value)}
+                            className="px-2 py-2.5 border border-l-0 border-slate-200 text-sm font-bold text-blue-600 bg-white focus:outline-none">
+                            {currencies.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
+                          </select>
+                          <button type="button" onClick={() => updatePayRow(idx, 'payAmount', String(debtFor(row.currency) || ''))}
+                            className="px-3 border border-l-0 border-slate-200 rounded-r-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold whitespace-nowrap">
+                            {t('chiqimTolov.allAmount')}
+                          </button>
+                        </div>
+                        <button type="button"
+                          onClick={() => setPayRows(prev => (prev.length > 1 ? prev.filter((_, i) => i !== idx) : [newPayRow(row.currency)]))}
+                          className="px-3 bg-red-50 hover:bg-red-100 text-red-500 rounded-xl font-bold">&minus;</button>
+                      </div>
+                    ))}
+                    {payRows.length < 4 && (
+                      <button type="button" onClick={() => setPayRows(prev => [...prev, newPayRow(prev[prev.length - 1]?.currency || 'UZS')])}
+                        className="ml-auto flex items-center gap-1 px-2 py-0.5 text-sm font-semibold text-blue-600 hover:bg-blue-50 rounded-xl">
+                        + {t('chiqimTolov.addRow')}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Izoh */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{t('chiqimTolov.infoNoteLabel')}</label>
+                    <textarea rows={2} value={payNote} onChange={e => setPayNote(e.target.value)}
+                      placeholder={t('chiqimTolov.notePlaceholder')}
+                      className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+                  </div>
+
+                  {/* Valyuta bo'yicha qoldiq */}
+                  {(() => {
+                    const paid = payRows.reduce((acc, r) => {
+                      acc[r.currency] = (acc[r.currency] || 0) + (Number(r.payAmount) || 0);
+                      return acc;
+                    }, {});
+                    const codes = [...new Set([...positiveDebts(paySupplier).map(([c]) => c), ...Object.keys(paid).filter(c => paid[c] > 0)])];
+                    if (codes.length === 0) return null;
+                    return (
+                      <div className="bg-blue-50/50 rounded-xl p-3 border border-blue-100/50 space-y-1">
+                        {codes.map(cur => {
+                          const debt = debtFor(cur);
+                          const pay = paid[cur] || 0;
+                          const left = debt - pay;
+                          return (
+                            <div key={cur} className="flex flex-wrap justify-between gap-x-4 text-xs">
+                              <span className="text-slate-500">{t('chiqimTolov.currentDebt')} <b className="text-slate-700">{fmtNum(debt)} {cur}</b></span>
+                              <span className="text-slate-500">{t('chiqimTolov.paidColon')} <b className="text-blue-600">{fmtNum(pay)} {cur}</b></span>
+                              <span className="text-slate-500">
+                                {left >= 0 ? t('chiqimTolov.remainingAfter') : t('chiqimTolov.advanceAfter')}{' '}
+                                <b className={left > 0 ? 'text-red-500' : left < 0 ? 'text-amber-600' : 'text-emerald-600'}>{fmtNum(Math.abs(left))} {cur}</b>
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
+
+              {payError && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">{payError}</div>}
+            </div>
+
+            <div className="flex gap-3 px-5 md:px-6 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl shrink-0">
+              <button onClick={closePay} disabled={paySaving}
+                className="flex-1 px-4 py-2.5 border border-slate-200 bg-white text-slate-600 text-sm font-semibold rounded-xl hover:bg-slate-50">
+                {t('admin.dict.cancel')}
+              </button>
+              <button onClick={handlePaySave}
+                disabled={paySaving || !paySupplier || !payRows.some(r => Number(r.payAmount) > 0)}
+                className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">
+                {paySaving ? t('common.saving') : t('common.save')}
               </button>
             </div>
           </div>
