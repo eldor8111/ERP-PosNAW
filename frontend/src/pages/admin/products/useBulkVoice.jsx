@@ -10,6 +10,11 @@ import {
 } from '../../../utils/voiceParse';
 
 const SR = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
+const UA = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+const IS_IOS = /iP(hone|ad|od)/.test(UA) || (typeof navigator !== 'undefined' && navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+// iPhone'da nutq tanishni Apple faqat Safari'ning o'ziga beradi: Chrome/Firefox/Telegram ichidagi
+// brauzerda SpeechRecognition bor, lekin ishga tushganda "service-not-allowed" bilan rad etiladi
+const IOS_NOT_SAFARI = IS_IOS && /CriOS|FxiOS|EdgiOS|OPiOS|OPT\/|YaBrowser|GSA\/|Instagram|FBAN|FBAV|Telegram|Line\//.test(UA);
 
 const ALL_COLS = ['name', 'sale_price', 'wholesale_price', 'cost_price', 'unit', 'category_id', 'initial_stock'];
 const REQUIRED_COLS = ['name', 'sale_price'];
@@ -306,8 +311,12 @@ export default function useBulkVoice({ enabled, rows, setRows, emptyRow, categor
     if (text) setMessage({ type: 'info', text });
   }, []);
 
-  const startRecognition = useCallback(() => {
+  // byUser: tugma bosilganda (true) yoki Chrome o'zi to'xtagach qayta yoqilganda (false)
+  const startRecognition = useCallback((byUser) => {
     const rec = new SR();
+    // Ba'zi brauzerlar (iOS Safari) avvalgi natijalarni qayta yuboradi: o'sha joydagi o'sha matn
+    // ikkinchi marta qayta ishlanmaydi (yangi matn shu joyga kelsa — ishlanadi)
+    const handled = new Map();
     rec.lang = settingsRef.current.lang;
     rec.continuous = true;
     rec.interimResults = true;
@@ -318,6 +327,8 @@ export default function useBulkVoice({ enabled, rows, setRows, emptyRow, categor
         const res = e.results[i];
         if (res.isFinal) {
           const alts = Array.from(res).map(a => a.transcript.trim()).filter(Boolean);
+          if (handled.get(i) === alts[0]) continue;
+          handled.set(i, alts[0]);
           handleRef.current(alts);
         } else {
           live += res[0].transcript;
@@ -326,9 +337,11 @@ export default function useBulkVoice({ enabled, rows, setRows, emptyRow, categor
       setInterim(live);
     };
     rec.onerror = (e) => {
+      // iOS mikrofonni tanaffusdan keyin tugmasiz qayta yoqishga ruxsat bermasligi mumkin — bu ruxsat muammosi emas
+      if (e.error === 'not-allowed' && !byUser) { stop(); setMessage({ type: 'info', text: t('voice.pausedTapMic') }); return; }
       const fatal = {
         'not-allowed': t('voice.micDenied'),
-        'service-not-allowed': t('voice.micDenied'),
+        'service-not-allowed': IS_IOS ? (IOS_NOT_SAFARI ? t('voice.iosUseSafari') : t('voice.iosDictation')) : t('voice.serviceDenied'),
         'audio-capture': t('voice.noMic'),
         'language-not-supported': t('voice.langNotSupported'),
       }[e.error];
@@ -343,7 +356,7 @@ export default function useBulkVoice({ enabled, rows, setRows, emptyRow, categor
       if (failsRef.current.length > 6) { stop(); setMessage({ type: 'err', text: t('voice.network') }); return; }
       setTimeout(() => {
         if (!activeRef.current) return;
-        try { startRecognition(); } catch { /* keyingi onend da qayta uriniladi */ }
+        try { startRecognition(false); } catch { /* keyingi onend da qayta uriniladi */ }
       }, 300);
     };
     recRef.current = rec;
@@ -352,6 +365,7 @@ export default function useBulkVoice({ enabled, rows, setRows, emptyRow, categor
 
   const start = useCallback(() => {
     if (!SR) return;
+    if (IOS_NOT_SAFARI) { setMessage({ type: 'err', text: t('voice.iosUseSafari') }); return; }
     const rs = rowsRef.current;
     let cur = cursorRef.current;
     if (!cur || !rs.some(r => r._key === cur.key)) {
@@ -369,7 +383,7 @@ export default function useBulkVoice({ enabled, rows, setRows, emptyRow, categor
     setActive(true);
     setMessage({ type: 'info', text: t('voice.commandsHint') });
     beep('ok');
-    try { startRecognition(); } catch { stop(); }
+    try { startRecognition(true); } catch { stop(); }
   }, [beep, emptyRow, setCursor, setRows, startRecognition, stop, t]);
 
   // Oyna yopilsa — mikrofon o'chadi
