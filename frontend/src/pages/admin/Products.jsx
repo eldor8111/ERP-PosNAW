@@ -23,6 +23,7 @@ import {
   CurrencyDropdown, BulkStockEditModal,
 } from './products/SharedComponents';
 import SizeMatrixModal from './products/SizeMatrixModal';
+import useBulkVoice from './products/useBulkVoice';
 
 /* MXIK sinxronizatsiya holati — rang va izoh */
 const getMxikStatusMeta = (t) => ({
@@ -789,6 +790,11 @@ export default function Products() {
   const [bulkResult, setBulkResult] = useState(null);
   const [bulkError, setBulkError] = useState('');
   const [bulkWarehouseId, setBulkWarehouseId] = useState('');
+  // Ovoz bilan kiritish: har bir katak alohida aytiladi, keyingisiga o'zi o'tadi
+  const bulkVoice = useBulkVoice({
+    enabled: bulkAddOpen, rows: bulkRows, setRows: setBulkRows,
+    emptyRow: emptyBulkRow, categories, currencies, t,
+  });
 
   const openBulkAdd = () => {
     setBulkRows([emptyBulkRow()]);
@@ -3235,6 +3241,7 @@ export default function Products() {
               </div>
             </div>
             <div className="flex items-center flex-wrap justify-end gap-y-1 gap-x-2 xl:gap-3">
+              {bulkVoice.button}
               <span className="text-[13px] xl:text-base text-slate-500 leading-none font-semibold">{bulkRows.length} {t('product.rowsCount')}</span>
               {warehouses.length > 0 && (
                 <div className="flex items-center gap-2">
@@ -3265,6 +3272,8 @@ export default function Products() {
               </button>
             </div>
           </div>
+
+          {bulkVoice.bar}
 
           {/* Error / Result */}
           {bulkError && (
@@ -3318,12 +3327,18 @@ export default function Products() {
                         <div className="flex items-center justify-start h-8 lg:h-10 xl:h-12 text-base font-bold text-slate-400">{rowIdx + 1}</div>
 
                         {/* Name */}
-                        <input
-                          className="h-8 lg:h-10 xl:h-12 px-3 border border-slate-200 rounded-lg min-w-50 text-base font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
-                          value={row.name}
-                          onChange={e => updateBulkRow(row._key, 'name', e.target.value)}
-                          placeholder={t('product.bulkNamePlaceholder')}
-                        />
+                        <div className="min-w-0">
+                          <input
+                            data-voice-cell={`${row._key}:name`}
+                            className="h-8 lg:h-10 xl:h-12 px-3 border border-slate-200 rounded-lg min-w-50 text-base font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
+                            value={row.name}
+                            onChange={e => updateBulkRow(row._key, 'name', e.target.value)}
+                            placeholder={t('product.bulkNamePlaceholder')}
+                          />
+                          {bulkVoice.nameWarning(row) && (
+                            <p className="text-[11px] text-amber-600 font-semibold mt-0.5 truncate">⚠ {bulkVoice.nameWarning(row)}</p>
+                          )}
+                        </div>
 
                         {/* Kod (multiple) */}
                         <div className="space-y-1.5">
@@ -3381,7 +3396,7 @@ export default function Products() {
 
                         {/* Sale price (Chakana) — birinchi */}
                         <div className="flex flex-col">
-                          <div className="flex rounded-lg border border-emerald-300 focus-within:ring-2 focus-within:ring-emerald-500 bg-emerald-50">
+                          <div data-voice-cell={`${row._key}:sale_price`} className="flex rounded-lg border border-emerald-300 focus-within:ring-2 focus-within:ring-emerald-500 bg-emerald-50">
                             <input
                               className="flex-1 min-w-0 h-8 lg:h-10 xl:h-12 px-2 text-base font-semibold focus:outline-none bg-transparent"
                               value={fmtPrice(row.sale_price)}
@@ -3405,7 +3420,7 @@ export default function Products() {
 
                         {/* Wholesale (Ulgurji) — ikkinchi */}
                         <div className="flex flex-col">
-                          <div className="flex rounded-lg border border-slate-200 focus-within:ring-2 focus-within:ring-emerald-500 bg-white">
+                          <div data-voice-cell={`${row._key}:wholesale_price`} className="flex rounded-lg border border-slate-200 focus-within:ring-2 focus-within:ring-emerald-500 bg-white">
                             <input
                               className="flex-1 min-w-0 h-8 lg:h-10 xl:h-12 px-2 text-base focus:outline-none bg-transparent"
                               value={fmtPrice(row.wholesale_price)}
@@ -3429,7 +3444,7 @@ export default function Products() {
 
                         {/* Cost price (Tan narxi) — uchinchi */}
                         <div className="flex flex-col">
-                          <div className="flex rounded-lg border border-slate-200 focus-within:ring-2 focus-within:ring-emerald-500 bg-white">
+                          <div data-voice-cell={`${row._key}:cost_price`} className="flex rounded-lg border border-slate-200 focus-within:ring-2 focus-within:ring-emerald-500 bg-white">
                             <input
                               className="flex-1 min-w-0 h-8 lg:h-10 xl:h-12 px-2 text-base focus:outline-none bg-transparent"
                               value={fmtPrice(row.cost_price)}
@@ -3556,6 +3571,7 @@ export default function Products() {
 
                         {/* Unit */}
                         <select
+                          data-voice-cell={`${row._key}:unit`}
                           className="h-8 lg:h-10 xl:h-12 px-2 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
                           value={row.unit}
                           onChange={e => updateBulkRow(row._key, 'unit', e.target.value)}
@@ -3567,6 +3583,7 @@ export default function Products() {
 
                         {/* Category */}
                         <select
+                          data-voice-cell={`${row._key}:category_id`}
                           className="h-8 lg:h-10 xl:h-12 px-2 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
                           value={row.category_id}
                           onChange={e => updateBulkRow(row._key, 'category_id', e.target.value)}
@@ -3578,6 +3595,7 @@ export default function Products() {
                         {/* Initial stock */}
                         <div className="space-y-1">
                           <input type="text" inputMode="decimal"
+                            data-voice-cell={`${row._key}:initial_stock`}
                             className={`h-8 lg:h-10 xl:h-12 px-3 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full ${Number(row.initial_stock) > 0 && !bulkWarehouseId
                               ? 'border-amber-400 bg-amber-50'
                               : 'border-slate-200'
