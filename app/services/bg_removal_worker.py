@@ -309,6 +309,14 @@ def main():
     from app.database import engine
 
     threading.Thread(target=_watchdog, daemon=True).start()
+    try:  # odatda API ishga tushganda yaratadi; ishchi undan oldin ishga tushsa ham kutmasin
+        from sqlalchemy import Column, Integer, Table
+        for name in ("companies", "users"):  # tashqi kalitlar uchun (modellar bu jarayonda yuklanmaydi)
+            if name not in ip.Base.metadata.tables:
+                Table(name, ip.Base.metadata, Column("id", Integer, primary_key=True))
+        ip.image_jobs.create(engine, checkfirst=True)
+    except Exception as e:  # noqa: BLE001  (API bir vaqtda yaratgan bo'lishi mumkin)
+        log(f"image_jobs jadvali yaratilmadi: {e!r}")
     recover(engine)
     log(f"ishga tushdi (pid {os.getpid()}), navbat kuzatilmoqda")
     last_served, memory_ok = {}, _memory_ok_factory()
