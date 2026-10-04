@@ -77,6 +77,11 @@ else
   systemctl restart "$SERVICE"
   echo "Servis ishlamayotgan edi — restart qilindi"
 fi
+# Rasm fonini olib tashlash ishchisi (o'rnatilgan bo'lsa): HUP unga yetmaydi — yangi kod uchun
+# qayta ishga tushiriladi. Navbat bazada, uzilgan ish o'zi qaytadi.
+if systemctl is-enabled --quiet erppos-bgworker 2>/dev/null; then
+  systemctl restart erppos-bgworker && echo "erppos-bgworker qayta ishga tushirildi"
+fi
 
 sleep 12
 if journalctl -u "$SERVICE" --since '30 sec ago' --no-pager | grep -q "Application startup complete"; then
