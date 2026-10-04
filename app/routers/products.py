@@ -14,6 +14,7 @@ from app.models.inventory import StockLevel
 from app.models.product import Product, ProductConversion, ProductStatus
 from app.models.user import User, UserRole
 from app.schemas.product import ProductCreate, ProductListOut, ProductOut, ProductStatusUpdate, ProductUpdate
+from app.utils.image_pipeline import reconcile_product
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
@@ -600,6 +601,8 @@ def create_product(
     )
     db.commit()
     db.refresh(product)
+    if reconcile_product(db.get_bind(), product):  # fon olib tashlash natijasi saqlashdan oldin tayyor bo'lgan
+        db.refresh(product)
     return _attach_stock(product, db=db)
 
 
@@ -816,6 +819,8 @@ def update_product(
     )
     db.commit()
     db.refresh(product)
+    if reconcile_product(db.get_bind(), product):
+        db.refresh(product)
     return _attach_stock(product, db=db)
 
 

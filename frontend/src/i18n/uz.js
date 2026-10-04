@@ -4229,4 +4229,12 @@ export default {
   "m.pickCustomer": "Mijozni tanlang",
   "m.noAssignedCustomers": "Sizga mijoz biriktirilmagan",
   "m.noAssignedCustomersHint": "Rahbar veb-panelda (Dala xodimlari → Xodimlar) sizga mijozlarni biriktirishi kerak, yoki \"Mijozlar\" bo'limida yangi mijoz qo'shing",
+  // Mahsulot rasmi: orqa fonni olib tashlash
+  "product.removeBg": "Orqa fonni olib tashlash",
+  "product.removeBgHint": "fon orqada oq rangga almashadi, asl rasm saqlanadi",
+  "product.removingBg": "Fon olib tashlanmoqda...",
+  "product.restoreOriginal": "Asl rasmga qaytarish",
+  "product.bgRemoveFailed": "Fon olib tashlanmadi: {reason}. Asl rasm qoldi.",
+  "product.bgCancel": "Bekor qilish",
+  "product.bgQueued": "Navbatda",
 };

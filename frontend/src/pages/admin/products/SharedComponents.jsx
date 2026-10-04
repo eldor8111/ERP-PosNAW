@@ -6,7 +6,7 @@ import api from '../../../api/axios';
 import { useLang } from '../../../context/LangContext';
 import toast from 'react-hot-toast';
 import { EllipsisVertical } from 'lucide-react';
-import { normalizeApos, fmt, inputCls } from './constants';
+import { normalizeApos, fmt, inputCls, BASE_URL } from './constants';
 
 /* ─── ProdSearch for composite products ──────────────── */
 export function ProdSearch({ value, onChange, placeholder = 'Mahsulot qidiring...', excludeId }) {
@@ -219,15 +219,150 @@ export function Field({ label, required, children, hint }) {
   );
 }
 
+/* ─── Orqa fonni olib tashlash ──────────────────────── */
+// Foni olib tashlangan rasm: <uuid>_<ext>_nobg.jpg — asli (<uuid>.<ext>) serverda saqlanadi.
+// Ish serverdagi navbatda bajariladi: yuklash kutmaydi, natija tayyor bo'lgach rasm o'zi almashadi.
+const NOBG_RE = /_(jpg|jpeg|png|webp|gif)_nobg\.jpg$/i;
+export const isNoBgImage = (url) => NOBG_RE.test(url || '');
+export const originalImageOf = (url) => (url || '').replace(NOBG_RE, '.$1');
+const isUploadedImage = (url) => (url || '').includes('/static/uploads/products/');
+const REMOVE_BG_KEY = 'product_img_remove_bg';
+const BG_ACTIVE = ['pending', 'processing'];
+const POLL_MIN = 2500;
+const POLL_MAX = 10000;
+const POLL_WINDOW = 10 * 60 * 1000; // oyna ochiq qolsa ham 10 daqiqadan keyin so'rash to'xtaydi
+
+let bgCapability = null;
+const getBgCapability = () => {
+  if (!bgCapability) {
+    bgCapability = api.get('/uploads/capabilities', { _suppressToast: true, _noCache: true })
+      .then(r => Boolean(r.data?.remove_background))
+      .catch(() => { bgCapability = null; return false; });
+  }
+  return bgCapability;
+};
+
+/** Mahsulot rasmini yuklaydi: {url, bg?: {id, status}, bg_error?} */
+export async function uploadProductImage(file, removeBg = false) {
+  const fd = new FormData();
+  fd.append('file', file);
+  const { data } = await api.post(`/uploads/product-image${removeBg ? '?remove_bg=true' : ''}`, fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+}
+
 /* ─── ImageUploadZone ──────────────────────────────── */
-export function ImageUploadZone({ images, onAdd, onRemove, uploading, BASE_URL }) {
+// onAdd(file, { removeBg }), onRemove(index), onReplace(oldUrl, newUrl)
+export function ImageUploadZone({ images, onAdd, onRemove, onReplace, uploading }) {
+  const { t } = useLang();
   const inputRef = useRef(null);
+  const [bgAvailable, setBgAvailable] = useState(false);
+  const [removeBg, setRemoveBg] = useState(() => {
+    try { return localStorage.getItem(REMOVE_BG_KEY) === '1'; } catch { return false; }
+  });
+  const [jobs, setJobs] = useState({});   // url -> 'pending' | 'processing'
+  const [busy, setBusy] = useState({});   // url -> so'rov ketmoqda
+  const [pollNonce, setPollNonce] = useState(0);
+  const onReplaceRef = useRef(onReplace);
+  onReplaceRef.current = onReplace;
+  const initialUrls = useRef(new Set(images));
+  const watched = useRef(new Set());      // shu oynada navbatda ekani ko'rilgan rasmlar
+
+  useEffect(() => {
+    let alive = true;
+    getBgCapability().then(v => { if (alive) setBgAvailable(v); });
+    return () => { alive = false; };
+  }, []);
+
+  // Asl (foni olinmagan) yuklangan rasmlar holatini kuzatish
+  const trackKey = images.filter(u => isUploadedImage(u) && !isNoBgImage(u)).join('\n');
+  useEffect(() => {
+    if (!bgAvailable || !trackKey) { setJobs({}); return undefined; }
+    const urls = trackKey.split('\n');
+    const started = Date.now();
+    let stopped = false;
+    let timer = null;
+    let delay = POLL_MIN;
+    const again = () => {
+      if (stopped || Date.now() - started > POLL_WINDOW) return;
+      timer = setTimeout(tick, delay);
+      delay = Math.min(Math.round(delay * 1.4), POLL_MAX);
+    };
+    async function tick() {
+      if (document.hidden) { again(); return; }
+      try {
+        const { data } = await api.post('/uploads/bg-jobs/status', { urls }, { _suppressToast: true });
+        if (stopped) return;
+        const active = {};
+        for (const it of data.items || []) {
+          if (BG_ACTIVE.includes(it.status)) {
+            active[it.url] = it.status;
+            watched.current.add(it.url);
+          } else if (it.status === 'done' && it.result_url && it.result_url !== it.url) {
+            watched.current.delete(it.url);
+            onReplaceRef.current?.(it.url, it.result_url);
+          } else if (it.status === 'failed' && (watched.current.has(it.url) || !initialUrls.current.has(it.url))) {
+            watched.current.delete(it.url);
+            initialUrls.current.add(it.url); // xabar bir marta
+            toast.error(t('product.bgRemoveFailed', { reason: it.error || '' }));
+          }
+        }
+        setJobs(active);
+        if (Object.keys(active).length) again();
+      } catch {
+        if (!stopped) again();
+      }
+    }
+    tick();
+    return () => { stopped = true; clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bgAvailable, trackKey, pollNonce]);
+
+  const toggleRemoveBg = (v) => {
+    setRemoveBg(v);
+    try { localStorage.setItem(REMOVE_BG_KEY, v ? '1' : '0'); } catch { /* saqlanmasa ham ishlaydi */ }
+  };
+  const useBg = bgAvailable && removeBg;
+  const add = (file) => onAdd(file, { removeBg: useBg });
 
   const handleDrop = (e) => {
     e.preventDefault();
     const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
-    files.forEach(onAdd);
+    files.forEach(add);
   };
+
+  const withBusy = async (url, fn) => {
+    setBusy(b => ({ ...b, [url]: true }));
+    try { await fn(); } catch { /* xabarni axios interceptor ko'rsatadi */ } finally {
+      setBusy(b => { const n = { ...b }; delete n[url]; return n; });
+    }
+  };
+
+  // Avval yuklangan rasmni navbatga qo'yish (avval ishlangan bo'lsa natija darhol qaytadi)
+  const removeBgOf = (url) => withBusy(url, async () => {
+    const { data } = await api.post('/uploads/remove-background', { url });
+    if (data.status === 'done' && data.result_url) {
+      onReplace?.(url, data.result_url);
+    } else {
+      watched.current.add(url);
+      setJobs(j => ({ ...j, [url]: data.status }));
+      setPollNonce(n => n + 1);
+    }
+  });
+
+  // Navbatdagini bekor qilish
+  const cancelJob = (url) => withBusy(url, async () => {
+    await api.post('/uploads/bg-jobs/cancel', { url });
+    watched.current.delete(url);
+    setJobs(j => { const n = { ...j }; delete n[url]; return n; });
+  });
+
+  // Asl rasmga qaytarish — serverda ham (aks holda saqlashda natija qaytib kelardi)
+  const restoreOriginal = (url) => withBusy(url, async () => {
+    await api.post('/uploads/bg-jobs/cancel', { url });
+    onReplace?.(url, originalImageOf(url));
+  });
 
   return (
     <div className="space-y-3">
@@ -252,28 +387,72 @@ export function ImageUploadZone({ images, onAdd, onRemove, uploading, BASE_URL }
           </div>
         )}
         <input ref={inputRef} type="file" multiple accept="image/jpeg,image/png,image/webp"
-          className="hidden" onChange={e => Array.from(e.target.files).forEach(onAdd)} />
+          className="hidden" onChange={e => { Array.from(e.target.files).forEach(add); e.target.value = ''; }} />
       </div>
+
+      {bgAvailable && (
+        <label className="flex items-start gap-2 text-xs text-slate-600 cursor-pointer select-none">
+          <input type="checkbox" checked={removeBg} onChange={e => toggleRemoveBg(e.target.checked)}
+            className="mt-0.5 w-4 h-4 accent-blue-600 shrink-0" />
+          <span><span className="font-semibold">{t('product.removeBg')}</span> <span className="text-slate-400">— {t('product.removeBgHint')}</span></span>
+        </label>
+      )}
 
       {images.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {images.map((url, i) => (
-            <div key={url + i} className="relative group w-20 h-20 rounded-xl overflow-hidden border border-slate-200 shrink-0">
-              <img
-                src={url.startsWith('/static') ? BASE_URL + url : url}
-                alt=""
-                className="w-full h-full object-cover"
-              />
-              {i === 0 && (
-                <span className="absolute bottom-0 left-0 right-0 text-center bg-blue-600/80 text-white text-[10px] py-0.5">Asosiy</span>
-              )}
-              <button
-                type="button"
-                onClick={() => onRemove(i)}
-                className="absolute top-1 right-1 w-5 h-5 bg-red-500 rounded-full text-white text-xs hidden group-hover:flex items-center justify-center"
-              >×</button>
-            </div>
-          ))}
+          {images.map((url, i) => {
+            const noBg = isNoBgImage(url);
+            const job = jobs[url];
+            const canRemoveBg = bgAvailable && !noBg && !job && isUploadedImage(url);
+            return (
+              <div key={url + i} className="relative group w-20 h-20 rounded-xl overflow-hidden border border-slate-200 shrink-0">
+                <img
+                  src={url.startsWith('/static') ? BASE_URL + url : url}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+                {(job || busy[url]) && (
+                  <div className="absolute inset-0 bg-white/75 flex flex-col items-center justify-center gap-1 px-1">
+                    <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                    {job && (
+                      <span className="text-[9px] leading-tight font-semibold text-blue-700 text-center">
+                        {job === 'processing' ? t('product.removingBg') : t('product.bgQueued')}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {i === 0 && (
+                  <span className="absolute bottom-0 left-0 right-0 text-center bg-blue-600/80 text-white text-[10px] py-0.5">Asosiy</span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onRemove(i)}
+                  className="absolute top-1 right-1 w-5 h-5 bg-red-500 rounded-full text-white text-xs hidden group-hover:flex items-center justify-center"
+                >×</button>
+                {!busy[url] && job && (
+                  <button type="button" title={t('product.bgCancel')} aria-label={t('product.bgCancel')}
+                    onClick={() => cancelJob(url)}
+                    className="absolute top-1 left-1 w-5 h-5 bg-white/95 text-slate-700 rounded-full shadow hidden group-hover:flex items-center justify-center">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 6l12 12M18 6L6 18" /></svg>
+                  </button>
+                )}
+                {!busy[url] && noBg && onReplace && (
+                  <button type="button" title={t('product.restoreOriginal')} aria-label={t('product.restoreOriginal')}
+                    onClick={() => restoreOriginal(url)}
+                    className="absolute top-1 left-1 w-5 h-5 bg-white/95 text-slate-700 rounded-full shadow hidden group-hover:flex items-center justify-center">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 10h10a6 6 0 016 6v2M3 10l5-5M3 10l5 5" /></svg>
+                  </button>
+                )}
+                {!busy[url] && canRemoveBg && onReplace && (
+                  <button type="button" title={t('product.removeBg')} aria-label={t('product.removeBg')}
+                    onClick={() => removeBgOf(url)}
+                    className="absolute top-1 left-1 w-5 h-5 bg-white/95 text-blue-600 rounded-full shadow hidden group-hover:flex items-center justify-center">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M5 19L15 9m2-6l.8 2.2L20 6l-2.2.8L17 9l-.8-2.2L14 6l2.2-.8L17 3zM7 3l.5 1.5L9 5l-1.5.5L7 7l-.5-1.5L5 5l1.5-.5L7 3z" /></svg>
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

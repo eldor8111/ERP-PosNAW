@@ -4232,4 +4232,12 @@ export default {
   "m.pickCustomer": "Выберите клиента",
   "m.noAssignedCustomers": "Вам не назначены клиенты",
   "m.noAssignedCustomersHint": "Руководитель должен назначить вам клиентов в веб-панели (Полевые сотрудники → Сотрудники), либо добавьте нового клиента в разделе «Клиенты»",
+  // Mahsulot rasmi: orqa fonni olib tashlash
+  "product.removeBg": "Удалить фон",
+  "product.removeBgHint": "фон автоматически заменится на белый, оригинал сохранится",
+  "product.removingBg": "Удаляем фон...",
+  "product.restoreOriginal": "Вернуть оригинал",
+  "product.bgRemoveFailed": "Фон не удалён: {reason}. Оставлено исходное фото.",
+  "product.bgCancel": "Отменить",
+  "product.bgQueued": "В очереди",
 };

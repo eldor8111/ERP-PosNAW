@@ -4169,4 +4169,12 @@ export default {
   "m.pickCustomer": "Choose a customer",
   "m.noAssignedCustomers": "No customers assigned to you",
   "m.noAssignedCustomersHint": "Your manager must assign customers in the web panel (Field staff → Staff), or add a new customer under Customers",
+  // Mahsulot rasmi: orqa fonni olib tashlash
+  "product.removeBg": "Remove background",
+  "product.removeBgHint": "the background is replaced with white automatically, the original is kept",
+  "product.removingBg": "Removing background...",
+  "product.restoreOriginal": "Restore original",
+  "product.bgRemoveFailed": "Background not removed: {reason}. The original image was kept.",
+  "product.bgCancel": "Cancel",
+  "product.bgQueued": "Queued",
 };

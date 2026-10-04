@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
-
-const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8010/api').replace('/api', '');
+import { ImageUploadZone, uploadProductImage } from '../pages/admin/products/SharedComponents';
 
 const genBarcode = () => Math.floor(10000000 + Math.random() * 90000000).toString();
 const BARCODE_FORMATS = [
@@ -44,49 +43,6 @@ function Field({ label, required, hint, children }) {
       </label>
       {children}
       {hint && <p className="text-xs text-slate-400 mt-1">{hint}</p>}
-    </div>
-  );
-}
-
-function ImageUploadZone({ images, onAdd, onRemove, uploading }) {
-  const inputRef = useRef(null);
-  const handleDrop = (e) => {
-    e.preventDefault();
-    Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/')).forEach(onAdd);
-  };
-  return (
-    <div className="space-y-3">
-      <div className="border-2 border-dashed border-slate-200 rounded-xl p-5 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all"
-        onClick={() => inputRef.current?.click()} onDragOver={e => e.preventDefault()} onDrop={handleDrop}>
-        {uploading ? (
-          <div className="flex flex-col items-center gap-2 text-blue-500">
-            <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            <span className="text-xs">Yuklanmoqda...</span>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-2 text-slate-400">
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <span className="text-xs font-medium">JPG, PNG rasm yuklash</span>
-            <span className="text-xs">Bosing yoki shu yerga tashlang · maks 5MB</span>
-          </div>
-        )}
-        <input ref={inputRef} type="file" multiple accept="image/jpeg,image/png,image/webp"
-          className="hidden" onChange={e => Array.from(e.target.files).forEach(onAdd)} />
-      </div>
-      {images.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {images.map((url, i) => (
-            <div key={url + i} className="relative group w-20 h-20 rounded-xl overflow-hidden border border-slate-200 shrink-0">
-              <img src={url.startsWith('/static') ? BASE_URL + url : url} alt="" className="w-full h-full object-cover" />
-              {i === 0 && <span className="absolute bottom-0 left-0 right-0 text-center bg-blue-600/80 text-white text-[10px] py-0.5">Asosiy</span>}
-              <button type="button" onClick={() => onRemove(i)}
-                className="absolute top-1 right-1 w-5 h-5 bg-red-500 rounded-full text-white text-xs hidden group-hover:flex items-center justify-center">×</button>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -192,7 +148,7 @@ export default function ProductAddModal({ onClose, onSaved }) {
   const [form, setForm] = useState({ ...emptyForm, barcode: genBarcodeByFormat('ean8') });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [imgUploading, setImgUploading] = useState(false);
+  const [imgUploading, setImgUploading] = useState(0); // bir vaqtda yuklanayotgan rasmlar soni
 
   const [categories, setCategories] = useState([]);
   const [currencies, setCurrencies] = useState([]);
@@ -208,17 +164,18 @@ export default function ProductAddModal({ onClose, onSaved }) {
     api.get('/bin-locations').then(r => setBinLocations(r.data)).catch(() => {});
   }, []);
 
-  const handleImageFile = async (file) => {
-    setImgUploading(true);
+  const handleImageFile = async (file, { removeBg = false } = {}) => {
+    setImgUploading(n => n + 1);
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const r = await api.post('/uploads/product-image', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setForm(prev => ({ ...prev, images: [...prev.images, r.data.url] }));
+      const data = await uploadProductImage(file, removeBg);
+      setForm(prev => ({ ...prev, images: [...prev.images, data.url] }));
+      if (data.bg_error) toast.error(`Fon olib tashlanmadi: ${data.bg_error}. Asl rasm qo'yildi.`);
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Rasm yuklashda xatolik');
-    } finally { setImgUploading(false); }
+    } finally { setImgUploading(n => n - 1); }
   };
+  const replaceImage = (oldUrl, newUrl) =>
+    setForm(prev => ({ ...prev, images: prev.images.map(u => (u === oldUrl ? newUrl : u)) }));
 
   const rateFor = (curId) => {
     if (!curId) return 1;
@@ -692,7 +649,7 @@ export default function ProductAddModal({ onClose, onSaved }) {
               {/* RIGHT */}
               <div className="md:col-span-1 space-y-5">
                 <Field label="Mahsulot rasmlari (JPG/PNG)">
-                  <ImageUploadZone images={form.images} onAdd={handleImageFile} onRemove={i => setForm(f=>({...f,images:f.images.filter((_,j)=>j!==i)}))} uploading={imgUploading} />
+                  <ImageUploadZone images={form.images} onAdd={handleImageFile} onRemove={i => setForm(f=>({...f,images:f.images.filter((_,j)=>j!==i)}))} onReplace={replaceImage} uploading={imgUploading > 0} />
                 </Field>
 
                 <Field label="Ombor joylashuvi" hint="Mahsulot saqlanadigan joyni tanlang">

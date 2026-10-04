@@ -19,7 +19,7 @@ import {
 } from './products/constants';
 import {
   ProdSearch, RowMenu, StatusBadge,
-  Modal, Field, ImageUploadZone,
+  Modal, Field, ImageUploadZone, uploadProductImage,
   CurrencyDropdown, BulkStockEditModal,
 } from './products/SharedComponents';
 import SizeMatrixModal from './products/SizeMatrixModal';
@@ -77,7 +77,7 @@ export default function Products() {
   const [form, setForm] = useState(emptyProduct);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [imgUploading, setImgUploading] = useState(false);
+  const [imgUploading, setImgUploading] = useState(0); // bir vaqtda yuklanayotgan rasmlar soni
 
   /* history modal */
   const [histProduct, setHistProduct] = useState(null);
@@ -286,20 +286,22 @@ export default function Products() {
   const closeModal = () => { setModal(null); setSelected(null); setError(''); };
 
   /* ── image upload ─────────────────────────────── */
-  const handleImageFile = async (file) => {
-    setImgUploading(true);
+  const handleImageFile = async (file, { removeBg = false } = {}) => {
+    setImgUploading(n => n + 1);
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const r = await api.post('/uploads/product-image', fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      setForm(prev => ({ ...prev, images: [...prev.images, r.data.url] }));
+      const data = await uploadProductImage(file, removeBg);
+      setForm(prev => ({ ...prev, images: [...prev.images, data.url] }));
+      if (data.bg_error) toast.error(t('product.bgRemoveFailed', { reason: data.bg_error }));
     } catch (e) {
       alert(e.response?.data?.detail || t('product.imageUploadError'));
     } finally {
-      setImgUploading(false);
+      setImgUploading(n => n - 1);
     }
+  };
+
+  // Fon olib tashlangan / asliga qaytarilgan rasm o'rniga qo'yiladi (tartib saqlanadi)
+  const replaceImage = (oldUrl, newUrl) => {
+    setForm(prev => ({ ...prev, images: prev.images.map(u => (u === oldUrl ? newUrl : u)) }));
   };
 
   const removeImage = (idx) => {
@@ -2934,7 +2936,8 @@ export default function Products() {
                     images={form.images}
                     onAdd={handleImageFile}
                     onRemove={removeImage}
-                    uploading={imgUploading}
+                    onReplace={replaceImage}
+                    uploading={imgUploading > 0}
                   />
                 </Field>
 

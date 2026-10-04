@@ -1,0 +1,41 @@
+[Unit]
+# Mahsulot rasmlari fonini olib tashlash ishchisi. Qo'lda tahrirlamang — deploy/install_bgworker.sh
+# @...@ joylarini asosiy xizmat (erppos) sozlamalaridan to'ldirib /etc/systemd/system ga yozadi.
+Description=E-code: mahsulot rasmlari fonini olib tashlash (fon ishchisi)
+After=network.target postgresql.service
+# systemctl restart @MAIN_UNIT@ — ishchi ham yangi kod bilan qayta ishga tushadi
+PartOf=@MAIN_UNIT@.service
+
+[Service]
+Type=simple
+User=@USER@
+WorkingDirectory=@WORKDIR@
+@ENV_FILE_LINE@
+ExecStart=@PYTHON@ @WORKDIR@/app/services/bg_removal_worker.py
+
+Environment=PYTHONUNBUFFERED=1
+Environment=REMBG_HOME=/var/lib/erppos-bg
+Environment=NUMBA_CACHE_DIR=/var/lib/erppos-bg/numba
+Environment=OMP_NUM_THREADS=1
+Environment=OPENBLAS_NUM_THREADS=1
+Environment=MALLOC_ARENA_MAX=2
+StateDirectory=erppos-bg
+
+# ERP hech qachon kutmasin: CPU faqat bo'sh paytda, disk ham eng past ustuvorlikda
+Nice=19
+CPUSchedulingPolicy=idle
+IOSchedulingClass=idle
+CPUWeight=@CPU_WEIGHT@
+CPUQuota=@CPU_QUOTA@
+
+# Xotira alohida cheklangan: oshsa faqat shu ishchi qayta ishga tushadi, ERP'ga tegilmaydi
+MemoryHigh=1G
+MemoryMax=1200M
+MemorySwapMax=0
+OOMScoreAdjust=1000
+
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target @MAIN_UNIT@.service

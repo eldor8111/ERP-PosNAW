@@ -49,3 +49,4 @@ from .mobile_misc import MobileIdempotency, DeliveryProof  # type: ignore
 from .agent_visit import AgentVisit  # type: ignore
 from .employee_location import EmployeeLocation  # type: ignore
 from .delivery_route import DeliveryRoute, DeliveryRouteStop, DeliveryRouteStatus  # type: ignore
+from app.utils.image_pipeline import image_jobs  # noqa: F401  # rasm fonini olib tashlash navbati (Core jadval)
