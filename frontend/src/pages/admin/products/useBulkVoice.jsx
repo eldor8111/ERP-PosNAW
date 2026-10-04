@@ -46,6 +46,7 @@ export default function useBulkVoice({ enabled, rows, setRows, emptyRow, categor
   const [active, setActive] = useState(false);
   const [cursor, setCursorState] = useState(null);        // { key, col }
   const [interim, setInterim] = useState('');
+  const [interimCell, setInterimCell] = useState(null);   // hozir aytilayotgan gap qaysi katakka tushadi
   const [message, setMessage] = useState(null);           // { type: ok|warn|err|info, text }
   const [settings, setSettings] = useState(loadSettings);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -214,11 +215,14 @@ export default function useBulkVoice({ enabled, rows, setRows, emptyRow, categor
   };
 
   /* ─── Bitta aytilgan gapni qayta ishlash ─── */
-  const handleUtterance = (alts) => {
+  // target — gap aytila boshlagan paytdagi katak. Chrome yakuniy matnni gapdan ~1 s keyin beradi:
+  // shu orada foydalanuvchi keyingi katakni bosib ulgursa ham qiymat to'g'ri katakka tushadi
+  const handleUtterance = (alts, target) => {
     if (!alts.length) return;
     const heard = alts[0];
-    let cur = cursorRef.current;
-    if (!cur || !rowsRef.current.some(r => r._key === cur.key)) {
+    const exists = (c) => c && rowsRef.current.some(r => r._key === c.key);
+    let cur = exists(target) ? target : cursorRef.current;
+    if (!exists(cur)) {
       const first = rowsRef.current.find(r => !r.name.trim()) || rowsRef.current[rowsRef.current.length - 1];
       cur = { key: first._key, col: 'name' };
       setCursor(cur);
@@ -250,6 +254,8 @@ export default function useBulkVoice({ enabled, rows, setRows, emptyRow, categor
     if (col === 'name') {
       const name = cleanName(heard);
       if (!name) { fail(t('voice.emptyName')); return; }
+      // Nomda birorta harf yo'q ("12 500") — bu narx/son, nom emas
+      if (!/\p{L}/u.test(name)) { fail(t('voice.nameIsNumber', { text: heard })); return; }
       updateRow(key, 'name', name);
       done(name);
       checkName(key, name);
@@ -317,24 +323,29 @@ export default function useBulkVoice({ enabled, rows, setRows, emptyRow, categor
     // Ba'zi brauzerlar (iOS Safari) avvalgi natijalarni qayta yuboradi: o'sha joydagi o'sha matn
     // ikkinchi marta qayta ishlanmaydi (yangi matn shu joyga kelsa — ishlanadi)
     const handled = new Map();
+    const targets = new Map();   // natija raqami → gap boshlangan paytdagi katak
     rec.lang = settingsRef.current.lang;
     rec.continuous = true;
     rec.interimResults = true;
     rec.maxAlternatives = 3;
     rec.onresult = (e) => {
       let live = '';
+      let liveCell = null;
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const res = e.results[i];
+        if (!targets.has(i)) targets.set(i, cursorRef.current);
         if (res.isFinal) {
           const alts = Array.from(res).map(a => a.transcript.trim()).filter(Boolean);
           if (handled.get(i) === alts[0]) continue;
           handled.set(i, alts[0]);
-          handleRef.current(alts);
+          handleRef.current(alts, targets.get(i));
         } else {
           live += res[0].transcript;
+          liveCell = liveCell || targets.get(i);
         }
       }
       setInterim(live);
+      setInterimCell(liveCell);
     };
     rec.onerror = (e) => {
       // iOS mikrofonni tanaffusdan keyin tugmasiz qayta yoqishga ruxsat bermasligi mumkin — bu ruxsat muammosi emas
@@ -516,7 +527,11 @@ export default function useBulkVoice({ enabled, rows, setRows, emptyRow, categor
           🎤 {t('voice.rowN', { n: rowNo })} → {label(cursor.col)}
         </span>
       )}
-      {active && interim && <span className="italic text-slate-500">«{interim}»</span>}
+      {active && interim && (
+        <span className="italic text-slate-500">
+          «{interim}»{interimCell && interimCell.col ? <span className="not-italic text-blue-700 font-semibold"> → {label(interimCell.col)}</span> : null}
+        </span>
+      )}
       {message && <span className={`text-sm ${msgCls}`}>{message.text}</span>}
       {!active && message && (
         <button type="button" onClick={() => setMessage(null)} className="ml-auto text-slate-400 hover:text-slate-600" aria-label="×">×</button>

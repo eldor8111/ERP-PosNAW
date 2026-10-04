@@ -4260,6 +4260,7 @@ export default {
   "voice.noMic": "Mikrofon topilmadi",
   "voice.network": "Ovoz xizmatiga ulanib bo'lmadi — internetni tekshiring",
   "voice.langNotSupported": "Bu til brauzerda qo'llab-quvvatlanmaydi",
+  "voice.nameIsNumber": "Nom o'rniga son eshitildi: «{text}» — nom katagiga mahsulot nomini ayting",
   "voice.pausedTapMic": "Mikrofon to'xtadi — davom etish uchun 🎤 ni bosing",
   "voice.serviceDenied": "Brauzer ovoz tanish xizmatiga ruxsat bermadi — Chrome yoki Edge'da oching",
   "voice.iosDictation": "iPhone'da Diktovka o'chiq: Sozlamalar → Umumiy → Klaviatura → «Diktovkani yoqish», keyin qayta urinib ko'ring",

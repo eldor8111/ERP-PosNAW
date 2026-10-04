@@ -4200,6 +4200,7 @@ export default {
   "voice.noMic": "No microphone found",
   "voice.network": "Could not reach the speech service — check the internet connection",
   "voice.langNotSupported": "This language is not supported by the browser",
+  "voice.nameIsNumber": "A number was heard instead of a name: «{text}» — say the product name",
   "voice.pausedTapMic": "The microphone stopped — tap 🎤 to continue",
   "voice.serviceDenied": "The browser blocked the speech service — open the site in Chrome or Edge",
   "voice.iosDictation": "Dictation is off on this iPhone: Settings → General → Keyboard → “Enable Dictation”, then try again",
