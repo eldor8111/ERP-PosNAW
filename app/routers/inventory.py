@@ -51,7 +51,7 @@ def get_stock_levels(
         db.query(StockLevel)
         .join(Product)
         .filter(Product.is_deleted == False)
-        .options(joinedload(StockLevel.product))
+        .options(joinedload(StockLevel.product), joinedload(StockLevel.warehouse))
     )
     q = q.filter(Product.company_id == current_user.company_id)
 
@@ -61,28 +61,28 @@ def get_stock_levels(
             | (Product.sku.ilike(f"%{search}%"))
             | (Product.barcode.ilike(f"%{search}%"))
         )
+    # Filtr bazada — aks holda limit birinchi N qatorni kesib, kam qoldiqlilar tushib qolardi
+    if low_stock_only:
+        q = q.filter(StockLevel.quantity <= Product.min_stock)
 
-    stocks = q.offset(skip).limit(limit).all()
+    stocks = q.order_by(StockLevel.id).offset(skip).limit(limit).all()
 
-    result = []
-    for s in stocks:
-        is_low = s.quantity <= s.product.min_stock
-        if low_stock_only and not is_low:
-            continue
-        result.append(
-            StockLevelOut(
-                product_id=s.product_id,
-                variant_id=s.variant_id,
-                product_name=s.product.name,
-                product_sku=s.product.sku,
-                product_barcode=s.product.barcode,
-                quantity=s.quantity,
-                min_stock=s.product.min_stock,
-                is_low_stock=is_low,
-                updated_at=s.updated_at,
-            )
+    return [
+        StockLevelOut(
+            product_id=s.product_id,
+            variant_id=s.variant_id,
+            warehouse_id=s.warehouse_id,
+            warehouse_name=s.warehouse.name if s.warehouse else None,
+            product_name=s.product.name,
+            product_sku=s.product.sku,
+            product_barcode=s.product.barcode,
+            quantity=s.quantity,
+            min_stock=s.product.min_stock,
+            is_low_stock=s.quantity <= s.product.min_stock,
+            updated_at=s.updated_at,
         )
-    return result
+        for s in stocks
+    ]
 
 
 @router.get("/low-stock-count")

@@ -134,6 +134,8 @@ export default function Alerts() {
         ))}
       </div>
 
+      {/* key={tab}: har tab o'z ro'yxatini noldan chizadi (boshqa tabning qatorlari qolib ketmaydi) */}
+      <div key={tab}>
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
@@ -168,8 +170,8 @@ export default function Alerts() {
             {raw.low_stock.length > 0 && (
               <div className="space-y-2">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">{t('alert.rawLowTitle')}</h3>
-                {raw.low_stock.map(s => (
-                  <div key={s.product_id} className="flex items-center justify-between p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                {raw.low_stock.map((s, i) => (
+                  <div key={`${s.product_id}-${i}`}className="flex items-center justify-between p-4 bg-amber-50 border border-amber-200 rounded-xl">
                     <div className="font-semibold text-slate-800 text-sm">{s.product_name}</div>
                     <div className="text-xs text-slate-500">
                       {t('alert.remaining')}: <b className="text-amber-700">{s.quantity} {s.unit}</b> &nbsp;|&nbsp; {t('alert.min')}: <b>{s.min_stock}</b>
@@ -271,8 +273,9 @@ export default function Alerts() {
           </div>
         ) : (
           <div className="space-y-2">
-            {lowStock.map(item => (
-              <div key={`${item.product_id}-${item.variant_id || 0}`}
+            {lowStock.map((item, i) => (
+              // Bir mahsulot har omborda alohida qator — kalit takrorlansa React eski qatorlarni o'chirolmay qolardi
+              <div key={`${item.product_id}-${item.variant_id || 0}-${item.warehouse_id || 0}-${i}`}
                 className="flex items-center justify-between p-4 bg-amber-50 border border-amber-200 rounded-xl"
               >
                 <div className="flex items-center gap-3">
@@ -285,7 +288,7 @@ export default function Alerts() {
                     <div className="text-xs text-slate-500 mt-0.5">
                       {t('alert.warehouse')}: <b>{item.warehouse_name || '—'}</b> &nbsp;|&nbsp;
                       {t('alert.remaining')}: <b className="text-amber-700">{item.quantity}</b>
-                      {item.min_stock_level && <> &nbsp;|&nbsp; {t('alert.min')}: <b>{item.min_stock_level}</b></>}
+                      {item.min_stock > 0 && <> &nbsp;|&nbsp; {t('alert.min')}: <b>{item.min_stock}</b></>}
                     </div>
                   </div>
                 </div>
@@ -297,6 +300,7 @@ export default function Alerts() {
           </div>
         )
       )}
+      </div>
     </div>
   );
 }

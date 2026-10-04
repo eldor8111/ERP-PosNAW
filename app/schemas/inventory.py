@@ -68,6 +68,8 @@ class StockAdjustRequest(BaseModel):
 class StockLevelOut(BaseModel):
     product_id: int
     variant_id: Optional[int] = None
+    warehouse_id: Optional[int] = None
+    warehouse_name: Optional[str] = None
     product_name: str
     product_sku: str
     product_barcode: str
