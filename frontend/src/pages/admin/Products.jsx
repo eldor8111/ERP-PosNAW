@@ -3327,7 +3327,7 @@ export default function Products() {
                         <div className="flex items-center justify-start h-8 lg:h-10 xl:h-12 text-base font-bold text-slate-400">{rowIdx + 1}</div>
 
                         {/* Name */}
-                        <div className="min-w-0">
+                        <div>
                           <input
                             data-voice-cell={`${row._key}:name`}
                             className="h-8 lg:h-10 xl:h-12 px-3 border border-slate-200 rounded-lg min-w-50 text-base font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full"
@@ -3336,7 +3336,7 @@ export default function Products() {
                             placeholder={t('product.bulkNamePlaceholder')}
                           />
                           {bulkVoice.nameWarning(row) && (
-                            <p className="text-[11px] text-amber-600 font-semibold mt-0.5 truncate">⚠ {bulkVoice.nameWarning(row)}</p>
+                            <p className="w-0 min-w-full text-[11px] text-amber-600 font-semibold mt-0.5 truncate">⚠ {bulkVoice.nameWarning(row)}</p>
                           )}
                         </div>
 
