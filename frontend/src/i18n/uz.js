@@ -4246,7 +4246,7 @@ export default {
   "voice.language": "Til",
   "voice.beep": "Ovozli signal",
   "voice.rowN": "{n}-qator",
-  "voice.commandsHint": "Qiymatni ayting. Buyruqlar: «o'tkaz», «orqaga», «xato», «yangi», «o'chir», «tamom»",
+  "voice.commandsHint": "Katakni bosing va qiymatni ayting (qayta aytsangiz almashadi). Buyruqlar: «o'tkaz», «orqaga», «xato», «yangi», «o'chir», «tamom»",
   "voice.emptyName": "Nom tushunilmadi — qayta ayting",
   "voice.notNumber": "Son tushunilmadi: «{text}» — qayta ayting yoki «o'tkaz»",
   "voice.tooBig": "Son juda katta: {value} — qayta ayting",
@@ -4260,5 +4260,7 @@ export default {
   "voice.noMic": "Mikrofon topilmadi",
   "voice.network": "Ovoz xizmatiga ulanib bo'lmadi — internetni tekshiring",
   "voice.langNotSupported": "Bu til brauzerda qo'llab-quvvatlanmaydi",
+  "voice.pickNext": "keyingi katakni bosing",
+  "voice.autoAdvance": "Avtomatik keyingi katakka o'tish",
   "voice.currencyNotFound": "{code} valyutasi tizimda yo'q — Sozlamalar → Valyutalardan qo'shing",
 };

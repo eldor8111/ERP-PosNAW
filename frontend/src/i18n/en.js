@@ -4186,7 +4186,7 @@ export default {
   "voice.language": "Language",
   "voice.beep": "Sound signal",
   "voice.rowN": "Row {n}",
-  "voice.commandsHint": "Say the value. Commands: «o'tkaz» (skip), «orqaga» (back), «xato» (undo), «yangi» (new row), «o'chir» (delete), «tamom» (stop)",
+  "voice.commandsHint": "Click a cell and say the value (saying it again replaces it). Commands: «o'tkaz» (next), «orqaga» (back), «xato» (undo), «yangi» (new row), «o'chir» (delete), «tamom» (stop)",
   "voice.emptyName": "Name not recognized — say it again",
   "voice.notNumber": "Number not recognized: «{text}» — repeat or say «o'tkaz»",
   "voice.tooBig": "Number too large: {value} — repeat",
@@ -4200,5 +4200,7 @@ export default {
   "voice.noMic": "No microphone found",
   "voice.network": "Could not reach the speech service — check the internet connection",
   "voice.langNotSupported": "This language is not supported by the browser",
+  "voice.pickNext": "click the next cell",
+  "voice.autoAdvance": "Move to the next cell automatically",
   "voice.currencyNotFound": "Currency {code} is not set up — add it in Settings → Currencies",
 };

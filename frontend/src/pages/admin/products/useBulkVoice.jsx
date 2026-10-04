@@ -18,7 +18,8 @@ const PRICE_COLS = ['sale_price', 'wholesale_price', 'cost_price'];
 const EMPTY_VALUE = { name: '', sale_price: '', wholesale_price: '', cost_price: '', unit: 'dona', category_id: '', initial_stock: '' };
 const MAX_VALUE = 10_000_000_000;
 const SETTINGS_KEY = 'bulk_voice_settings';
-const DEFAULT_SETTINGS = { cols: ALL_COLS, lang: 'uz-UZ', beep: true };
+// autoAdvance: qiymat tushgach keyingi katakka o'zi o'tsinmi (standart — yo'q: foydalanuvchi o'zi bosadi)
+const DEFAULT_SETTINGS = { cols: ALL_COLS, lang: 'uz-UZ', beep: true, autoAdvance: false };
 
 const CURSOR_STYLE = '0 0 0 3px #3b82f6';
 const FLASH = { ok: '0 0 0 3px #10b981', err: '0 0 0 3px #ef4444' };
@@ -28,7 +29,7 @@ function loadSettings() {
     const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
     if (!s) return DEFAULT_SETTINGS;
     const cols = ALL_COLS.filter(c => REQUIRED_COLS.includes(c) || (s.cols || []).includes(c));
-    return { cols, lang: s.lang === 'ru-RU' ? 'ru-RU' : 'uz-UZ', beep: s.beep !== false };
+    return { cols, lang: s.lang === 'ru-RU' ? 'ru-RU' : 'uz-UZ', beep: s.beep !== false, autoAdvance: s.autoAdvance === true };
   } catch {
     return DEFAULT_SETTINGS;
   }
@@ -232,7 +233,14 @@ export default function useBulkVoice({ enabled, rows, setRows, emptyRow, categor
     }
 
     const fail = (text) => { say('err', text); beep('err'); flash(key, col, 'err'); };
-    const done = (shown) => { say('ok', `✓ ${label(col)}: ${shown}`); beep('ok'); flash(key, col, 'ok'); advance(key, col); };
+    // Qiymat katakka tushadi; keyingi katakka faqat sozlamada yoqilgan bo'lsa o'tiladi —
+    // aks holda ramka shu yerda qoladi (qayta aytilsa almashadi), keyingisini foydalanuvchi o'zi bosadi
+    const done = (shown) => {
+      beep('ok');
+      flash(key, col, 'ok');
+      if (settingsRef.current.autoAdvance) { say('ok', `✓ ${label(col)}: ${shown}`); advance(key, col); }
+      else say('ok', `✓ ${label(col)}: ${shown} — ${t('voice.pickNext')}`);
+    };
 
     if (col === 'name') {
       const name = cleanName(heard);
@@ -368,15 +376,19 @@ export default function useBulkVoice({ enabled, rows, setRows, emptyRow, categor
   useEffect(() => { if (!enabled) { stop(); setCursor(null); setMessage(null); setNameChecks({}); } }, [enabled, stop, setCursor]);
   useEffect(() => () => stop(), [stop]);
 
-  // Katakni sichqoncha/klaviatura bilan tanlasa — ovoz o'sha katakdan davom etadi
+  // Katakni sichqoncha/klaviatura bilan tanlasa — ovoz o'sha katakdan davom etadi.
+  // Ovoz o'chiq paytda ham eslab qolinadi: 🎤 bosilganda o'sha katakdan boshlanadi.
   useEffect(() => {
     if (!enabled) return undefined;
     const onFocus = (e) => {
-      if (!activeRef.current) return;
       const cell = e.target.closest?.('[data-voice-cell]');
-      if (!cell) return;
-      const [key, col] = cell.dataset.voiceCell.split(':');
-      if (settingsRef.current.cols.includes(col)) setCursor({ key, col });
+      if (cell) {
+        const [key, col] = cell.dataset.voiceCell.split(':');
+        if (settingsRef.current.cols.includes(col)) { setCursor({ key, col }); return; }
+      }
+      // Ovoz so'ramaydigan katak (shtrix kod, Kod...) — o'sha qatorning nomidan
+      const row = e.target.closest?.('[data-voice-row]');
+      if (row) setCursor({ key: row.dataset.voiceRow, col: 'name' });
     };
     document.addEventListener('focusin', onFocus);
     return () => document.removeEventListener('focusin', onFocus);
@@ -467,6 +479,11 @@ export default function useBulkVoice({ enabled, rows, setRows, emptyRow, categor
             <input type="checkbox" className="w-4 h-4 accent-blue-600" checked={settings.beep}
               onChange={e => saveSettings({ beep: e.target.checked })} />
             <span className="text-slate-700">{t('voice.beep')}</span>
+          </label>
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input type="checkbox" className="w-4 h-4 mt-0.5 accent-blue-600" checked={settings.autoAdvance}
+              onChange={e => saveSettings({ autoAdvance: e.target.checked })} />
+            <span className="text-slate-700">{t('voice.autoAdvance')}</span>
           </label>
         </div>
       )}

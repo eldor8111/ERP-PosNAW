@@ -3320,7 +3320,7 @@ export default function Products() {
                   </div>
 
                   {bulkRows.map((row, rowIdx) => (
-                    <div key={row._key} className="px-4 py-1 pb-5">
+                    <div key={row._key} className="px-4 py-1 pb-5" data-voice-row={row._key}>
                       <div className="grid gap-2 lg:gap-3 items-start"
                         style={{ gridTemplateColumns: '34px 1fr 110px 180px 180px 180px 270px 80px 160px 105px 105px 160px 160px 160px 90px' }}>
                         {/* # */}
