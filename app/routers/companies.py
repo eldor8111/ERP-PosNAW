@@ -79,6 +79,7 @@ class CompanyUpdate(BaseModel):
     orders_auto_create_sale: Optional[bool] = None
     manufacturing_enabled: Optional[bool] = None
     distribution_enabled: Optional[bool] = None
+    marketplace_agents_enabled: Optional[bool] = None
 
 
 class ReceiptTemplatesUpdate(BaseModel):
@@ -109,6 +110,7 @@ class CompanyOut(BaseModel):
     orders_auto_create_sale: bool = False
     manufacturing_enabled: bool = False
     distribution_enabled: bool = False
+    marketplace_agents_enabled: bool = False
 
     class Config:
         from_attributes = True
@@ -148,6 +150,7 @@ def list_companies(
         orders_auto_create_sale=bool(getattr(c, 'orders_auto_create_sale', False) or False),
         manufacturing_enabled=bool(getattr(c, 'manufacturing_enabled', False)),
         distribution_enabled=bool(getattr(c, 'distribution_enabled', False)),
+        marketplace_agents_enabled=bool(getattr(c, 'marketplace_agents_enabled', False)),
         ))  # type: ignore[call-arg]
     return result
 
@@ -161,6 +164,7 @@ def get_my_company_features(
     return {
         "manufacturing": bool(c and c.manufacturing_enabled),
         "distribution": bool(c and c.distribution_enabled),
+        "marketplace_agents": bool(c and c.marketplace_agents_enabled),
     }
 
 
@@ -242,6 +246,17 @@ def update_company(
 
     update_data = data.model_dump(exclude_unset=True)
 
+    # Marketplace agentlari modulini faqat super_admin yoqib/o'chira oladi (tarix audit logga yoziladi)
+    if "marketplace_agents_enabled" in update_data:
+        if current_user.role != UserRole.super_admin:
+            raise HTTPException(status_code=403, detail="Bu modulni faqat super admin boshqaradi")
+        new_flag = bool(update_data["marketplace_agents_enabled"])
+        if new_flag != bool(c.marketplace_agents_enabled):
+            from app.core.audit import log_action
+            log_action(db=db, action="MARKETPLACE_AGENTS_TOGGLE", entity_type="company", entity_id=c.id,
+                       user_id=current_user.id, old_values={"enabled": bool(c.marketplace_agents_enabled)},
+                       new_values={"enabled": new_flag}, ip_address=request.client.host if request.client else None)
+
     if "tg_bot_token" in update_data:
         new_token = update_data["tg_bot_token"]
         if new_token:
@@ -288,6 +303,7 @@ def update_company(
         orders_auto_create_sale=bool(getattr(c, 'orders_auto_create_sale', False) or False),
         manufacturing_enabled=bool(getattr(c, 'manufacturing_enabled', False)),
         distribution_enabled=bool(getattr(c, 'distribution_enabled', False)),
+        marketplace_agents_enabled=bool(getattr(c, 'marketplace_agents_enabled', False)),
     )  # type: ignore[call-arg]
 
 

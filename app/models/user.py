@@ -18,11 +18,13 @@ class UserRole(str, enum.Enum):
     # Dala xodimlari — faqat mobil ilova orqali ishlaydi (/api/mobile/*)
     courier = "courier"
     agent = "agent"
+    marketplace_agent = "marketplace_agent"
 
 
-MOBILE_ONLY_ROLES = (UserRole.courier, UserRole.agent)
+MOBILE_ONLY_ROLES = (UserRole.courier, UserRole.agent, UserRole.marketplace_agent)
 
 class UserStatus(str, enum.Enum):
+    pending = "pending"
     active = "active"
     inactive = "inactive"
     blocked = "blocked"

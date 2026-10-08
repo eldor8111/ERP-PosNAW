@@ -413,6 +413,8 @@ app.include_router(field_staff.router, prefix=API_PREFIX)
 from app.routers.mobile import routers as _mobile_routers  # noqa: E402
 for _r in _mobile_routers:
     app.include_router(_r, prefix=API_PREFIX)
+from app.routers import marketplace_admin as _marketplace_admin  # noqa: E402
+app.include_router(_marketplace_admin.router, prefix=API_PREFIX)
 app.include_router(courier_bot.router, prefix=API_PREFIX)
 app.include_router(shop.router, prefix=API_PREFIX)
 

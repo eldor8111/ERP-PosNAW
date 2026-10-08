@@ -56,6 +56,7 @@ class Company(Base):
     # distribution — Distribyutorlar, Logistika, sotuvdan yetkazib berish
     manufacturing_enabled = Column(Boolean, nullable=False, default=False, server_default="false")
     distribution_enabled = Column(Boolean, nullable=False, default=False, server_default="false")
+    marketplace_agents_enabled = Column(Boolean, nullable=False, default=False, server_default="false")
 
     # ── POS sozlamalari ──
     # True (standart) — mavjud xatti-harakat: qoldiq yetarli bo'lmasa ham

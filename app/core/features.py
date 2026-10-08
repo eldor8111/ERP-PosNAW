@@ -14,6 +14,7 @@ from app.models.user import User
 FEATURES = {
     "manufacturing": ("manufacturing_enabled", "Ishlab chiqarish"),
     "distribution": ("distribution_enabled", "Distribyutorlar va logistika"),
+    "marketplace_agents": ("marketplace_agents_enabled", "Marketplace agentlari"),
 }
 
 

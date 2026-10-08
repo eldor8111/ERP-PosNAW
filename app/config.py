@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: str = ""
     OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
     OPENROUTER_MODEL: str = "cohere/north-mini-code:free"
+    # Marketplace (mir-maza.uz) — kategoriyalar manbai. API manzili .env da beriladi.
+    MARKETPLACE_CATEGORIES_URL: str = ""
+    MARKETPLACE_API_TOKEN: str = ""
+    MARKETPLACE_CATEGORIES_TTL: int = 3600  # sekund
 
     class Config:
         env_file = ".env"

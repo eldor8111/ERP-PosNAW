@@ -50,3 +50,6 @@ from .agent_visit import AgentVisit  # type: ignore
 from .employee_location import EmployeeLocation  # type: ignore
 from .delivery_route import DeliveryRoute, DeliveryRouteStop, DeliveryRouteStatus  # type: ignore
 from app.utils.image_pipeline import image_jobs  # noqa: F401  # rasm fonini olib tashlash navbati (Core jadval)
+from .marketplace import MarketplaceAgentCategory, MarketplaceProduct, MarketplaceAgentTransaction, MarketplaceProductStatus, MarketplaceTransactionType  # type: ignore
+from .order import Order  # type: ignore
+from .platform_settings import PlatformSettings  # type: ignore
