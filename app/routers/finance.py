@@ -936,7 +936,12 @@ def record_customer_debt_payment(
 
 
 @router.get("/fix-old-tx-currency")
-def fix_old_transactions(db: Session = Depends(get_db)):
+def fix_old_transactions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.super_admin)),
+):
+    """Bir martalik ma'lumot tuzatish skripti — barcha kompaniyalarga ta'sir qiladi,
+    shuning uchun faqat super_admin ishga tushira oladi (avval login talab qilmasdi)."""
     import re
     from decimal import Decimal
     # Fix all transactions that are UZS but have (amount CURRENCY) in description

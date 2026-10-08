@@ -177,10 +177,34 @@ def create_user(
 ):
     company_id = current_user.company_id if current_user.role != UserRole.super_admin else getattr(data, 'company_id', None)
 
+    # Faqat super_admin super_admin huquqi bera oladi — aks holda oddiy admin
+    # o'ziga yoki xodimiga platformani boshqaradigan rol berib olishi mumkin edi.
+    if data.role == UserRole.super_admin and current_user.role != UserRole.super_admin:
+        raise HTTPException(status_code=403, detail="Bu rolni faqat platforma super adminligi bera oladi")
+
     active_existing = db.query(User).filter(
         User.phone == data.phone,
         User.status == UserStatus.active
     ).first()
+
+    # Agar bu telefon raqami allaqachon boshqa (yoki shu) kompaniyada faol
+    # foydalanuvchiga tegishli bo'lsa — uni o'z kompaniyasiga ulash aslida o'sha
+    # odamning akkauntini egallab olish bilan teng. Shuning uchun telefon
+    # egasi OTP orqali tasdiqlagan bo'lishi kerak (ro'yxatdan o'tishdagi kabi).
+    if active_existing and current_user.role != UserRole.super_admin:
+        if not data.otp_verified_token:
+            raise HTTPException(
+                status_code=400,
+                detail="Bu telefon raqami allaqachon ro'yxatdan o'tgan. Qo'shish uchun telefon egasi OTP kod bilan tasdiqlashi kerak.",
+            )
+        from app.core.security import decode_token
+        session_data = None
+        try:
+            session_data = decode_token(data.otp_verified_token)
+        except Exception:
+            session_data = None
+        if not session_data or session_data.get("type") != "otp_verified" or session_data.get("phone") != data.phone:
+            raise HTTPException(status_code=400, detail="OTP tasdiqlash tokeni xato yoki muddati o'tgan")
 
     # Nofaol (o'chirilgan) foydalanuvchi topilsa — uni qayta faollashtirish
     inactive_existing = db.query(User).filter(
@@ -343,6 +367,11 @@ def update_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.super_admin)),
 ):
+    # Faqat super_admin super_admin huquqi bera oladi (o'ziga ham) — aks holda
+    # istalgan admin o'z rolini platforma boshqaruvchisiga ko'tarib olishi mumkin edi.
+    if data.role == UserRole.super_admin and current_user.role != UserRole.super_admin:
+        raise HTTPException(status_code=403, detail="Bu rolni faqat platforma super adminligi bera oladi")
+
     from app.models.user_company import UserCompany
     user = db.query(User).filter(User.id == user_id).first()
     if user and current_user.role != UserRole.super_admin:

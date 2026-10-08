@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLang } from '../context/LangContext'
 import LandingLayout from '../components/LandingLayout'
-import { ShieldCheck, Zap, Cloud, Globe, Bot, Laptop, BadgeCheck, ArrowBigDown, ChevronDown, LaptopMinimal, Warehouse, Users, BadgeDollarSign, ChartNoAxesCombined, Handshake, CheckIcon, ArrowRight, Lamp, ChevronsUpDownIcon, ListChevronsUpDownIcon, ChefHat, Monitor, Globe2, HelpCircle, ChevronsUpDown, GlobeIcon, Send, MailCheck } from 'lucide-react'
+import { ShieldCheck, Zap, Cloud, Globe, Bot, Laptop, BadgeCheck, ArrowBigDown, ChevronDown, LaptopMinimal, Warehouse, Users, BadgeDollarSign, ChartNoAxesCombined, Handshake, CheckIcon, ArrowRight, Lamp, ChevronsUpDownIcon, ListChevronsUpDownIcon, ChefHat, Monitor, Globe2, HelpCircle, ChevronsUpDown, GlobeIcon, Send, MailCheck, Factory, Truck, ShoppingBag, Sparkles } from 'lucide-react'
 import axios from 'axios'
 import { useSeo } from '../hooks/useSeo'
 import { Label, Listbox, ListboxButton, ListboxOption, ListboxOptions } from '@headlessui/react'
@@ -41,7 +41,7 @@ const ICONS = {
     </svg>
   ),
   check: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-emerald-500 drop-shadow-[0_4px_6px_rgba(16,185,129,0.2)] transition-transform duration-300 group-hover:scale-125">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-sky-500 drop-shadow-[0_4px_6px_rgba(59,130,246,0.2)] transition-transform duration-300 group-hover:scale-125">
       <polyline points="20 6 9 17 4 12" />
     </svg>
   ),
@@ -62,7 +62,7 @@ function DashboardMinimal() {
         <div className="flex gap-2">
           <span className="w-3 h-3 rounded-full bg-red-500" />
           <span className="w-3 h-3 rounded-full bg-amber-500" />
-          <span className="w-3 h-3 rounded-full bg-emerald-500" />
+          <span className="w-3 h-3 rounded-full bg-sky-500" />
         </div>
         <div className="bg-white border border-black/[0.08] rounded-lg px-4 py-1.5 text-xs text-slate-500 flex-1">🔍 Qidiruv...</div>
       </div>
@@ -94,7 +94,7 @@ function DashboardMinimal() {
             <div className="flex-1 bg-slate-200 rounded-t-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] hover:bg-blue-500 hover:scale-y-110 origin-bottom h-[55%]" />
             <div className="flex-1 bg-slate-200 rounded-t-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] hover:bg-blue-500 hover:scale-y-110 origin-bottom h-[90%]" />
             <div className="flex-1 bg-slate-200 rounded-t-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] hover:bg-blue-500 hover:scale-y-110 origin-bottom h-[65%]" />
-            <div className="flex-1 bg-gradient-to-t from-emerald-500 to-blue-400 shadow-[0_4px_15px_rgba(16,185,129,0.3)] rounded-t-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] hover:bg-blue-500 hover:scale-y-110 origin-bottom h-[100%]" />
+            <div className="flex-1 bg-gradient-to-t from-blue-600 to-sky-400 shadow-[0_4px_15px_rgba(59,130,246,0.3)] rounded-t-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] hover:bg-blue-500 hover:scale-y-110 origin-bottom h-[100%]" />
             <div className="flex-1 bg-slate-200 rounded-t-sm transition-all duration-400 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] hover:bg-blue-500 hover:scale-y-110 origin-bottom h-[80%]" />
           </div>
         </div>
@@ -134,7 +134,7 @@ function TabbedModules({ t }) {
       title: t('land.tab2.title') || "Sotuv va Tranzaksiyalar",
       desc: t('land.tab2.desc') || "B2B uchun shartnomaviy sotuv, kassa terminallari, cheklar va naqd/bank kartasi tranzaksiyalari oqimi.",
       visual: <VisualPOS />,
-      iconBg: "bg-emerald-50 text-emerald-600 border-emerald-200"
+      iconBg: "bg-sky-50 text-blue-600 border-blue-200"
     },
     {
       title: t('land.tab3.title') || "Audit va Xavfsizlik",
@@ -340,6 +340,82 @@ export default function Landing() {
       ],
       stats: [{ val: t('erp.stats.10.val') || '10+', label: t('erp.stats.rolturi.label') || 'Rol turi' }, { val: t('erp.stats.100.val') || '100%', label: t('erp.stats.auditlog.label') || 'Audit log' }, { val: t('erp.stats.otp.val') || 'OTP', label: t('erp.stats.ikkifakt.label') || 'Ikki faktorli kirish' }]
     },
+    {
+      id: 'production',
+      isNew: true,
+      icon: <Factory size={25} />,
+      colorClass: 'text-[#ea580c]',
+      bgClass: 'bg-[#ea580c]/10',
+      borderClass: 'border-[#ea580c]',
+      btnBg: 'from-[#ea580c] to-[#ea580c]/80',
+      title: t('erp.m7.t') || 'Ishlab Chiqarish & Retseptura',
+      subtitle: t('erp.m7.s') || 'BOM — Bill of Materials',
+      desc: t('erp.m7.d') || 'Xomashyodan tayyor mahsulotgacha bo\'lgan jarayonni boshqaring. Retseptura asosida xomashyo avtomatik hisobdan chiqadi, tannarx aniq hisoblanadi.',
+      features: [
+        t('erp.m7.f1') || 'Retseptura (BOM) va komponentlar',
+        t('erp.m7.f2') || 'Ishlab chiqarish buyurtmalari',
+        t('erp.m7.f3') || 'Ish haqi, energiya va boshqa xarajatlar bilan tannarx',
+        t('erp.m7.f4') || 'Xomashyo yetishmovchiligi ogohlantirishi',
+      ],
+      stats: [{ val: 'BOM', label: t('erp.m7.st1') || 'Retseptura' }, { val: t('erp.m7.st2v') || 'Avto', label: t('erp.m7.st2') || 'Xomashyo chiqimi' }, { val: '100%', label: t('erp.m7.st3') || 'Aniq tannarx' }]
+    },
+    {
+      id: 'logistics',
+      isNew: true,
+      icon: <Truck size={25} />,
+      colorClass: 'text-[#0d9488]',
+      bgClass: 'bg-[#0d9488]/10',
+      borderClass: 'border-[#0d9488]',
+      btnBg: 'from-[#0d9488] to-[#0d9488]/80',
+      title: t('erp.m8.t') || 'Logistika & Dala Agentlari',
+      subtitle: t('erp.m8.s') || 'GPS kuzatuv va marshrutlar',
+      desc: t('erp.m8.d') || 'Savdo agentlari va kuryerlarni xaritada jonli kuzating. Marshrutlarni rejalashtiring, transport va yetkazib berishni bitta joydan boshqaring.',
+      features: [
+        t('erp.m8.f1') || 'Agentlarning jonli GPS joylashuvi va kunlik treki',
+        t('erp.m8.f2') || 'Yetkazib berish marshrutlarini rejalashtirish',
+        t('erp.m8.f3') || 'Kuryer va agentlar uchun mobil ilova',
+        t('erp.m8.f4') || 'Transport va yoqilg\'i hisobi',
+      ],
+      stats: [{ val: 'GPS', label: t('erp.m8.st1') || 'Jonli kuzatuv' }, { val: t('erp.m8.st2v') || 'Mobil', label: t('erp.m8.st2') || 'Agent ilovasi' }, { val: t('erp.m8.st3v') || 'Xarita', label: t('erp.m8.st3') || 'Marshrutlar' }]
+    },
+    {
+      id: 'tgshop',
+      isNew: true,
+      icon: <ShoppingBag size={25} />,
+      colorClass: 'text-[#0ea5e9]',
+      bgClass: 'bg-[#0ea5e9]/10',
+      borderClass: 'border-[#0ea5e9]',
+      btnBg: 'from-[#0ea5e9] to-[#0ea5e9]/80',
+      title: t('erp.m9.t') || 'Telegram Internet Do\'kon',
+      subtitle: t('erp.m9.s') || 'Telegram WebApp',
+      desc: t('erp.m9.d') || 'Mijozlaringiz to\'g\'ridan-to\'g\'ri Telegram ichida katalogni ko\'rib buyurtma beradi. Buyurtma ERP ga avtomatik tushadi, qoldiq darhol yangilanadi.',
+      features: [
+        t('erp.m9.f1') || 'Telegram ichida tayyor onlayn katalog',
+        t('erp.m9.f2') || 'Buyurtmalar ERP ga avtomatik tushadi',
+        t('erp.m9.f3') || 'Ombor qoldig\'i bilan real-vaqt sinxron',
+        t('erp.m9.f4') || 'Kuryerga avtomatik biriktirish',
+      ],
+      stats: [{ val: '24/7', label: t('erp.m9.st1') || 'Onlayn savdo' }, { val: '0', label: t('erp.m9.st2') || 'Qo\'lda kiritish' }, { val: 'WebApp', label: t('erp.m9.st3') || 'Telegram ichida' }]
+    },
+    {
+      id: 'ai',
+      isNew: true,
+      icon: <Sparkles size={25} />,
+      colorClass: 'text-[#7c3aed]',
+      bgClass: 'bg-[#7c3aed]/10',
+      borderClass: 'border-[#7c3aed]',
+      btnBg: 'from-[#7c3aed] to-[#2563eb]',
+      title: t('erp.m10.t') || 'AI Copilot & Analitika',
+      subtitle: t('erp.m10.s') || 'Sun\'iy intellekt yordamchisi',
+      desc: t('erp.m10.d') || 'Biznesingiz haqida oddiy tilda savol bering — AI savdo, qoldiq va foyda bo\'yicha javob beradi hamda xarid takliflarini tayyorlab beradi.',
+      features: [
+        t('erp.m10.f1') || 'Biznes savollariga oddiy tilda javob',
+        t('erp.m10.f2') || 'Avtomatik xarid buyurtmasi loyihasi',
+        t('erp.m10.f3') || 'Sekin aylanayotgan tovarlarni aniqlash',
+        t('erp.m10.f4') || 'AI hisobotlar va tavsiyalar',
+      ],
+      stats: [{ val: 'AI', label: t('erp.m10.st1') || 'Copilot' }, { val: '24/7', label: t('erp.m10.st2') || 'Maslahatchi' }, { val: t('erp.m10.st3v') || 'Avto', label: t('erp.m10.st3') || 'Xarid takliflari' }]
+    },
   ]
 
   const leadCapture = [
@@ -364,7 +440,7 @@ export default function Landing() {
             </div>
             <h1 style={{ animationDelay: '200ms' }} className="animate-slide-up text-[clamp(32px,9vw,55px)] lg:text-[clamp(48px,6vw,68px)] font-black leading-[1.05] tracking-[-0.04em] m-0 mb-6 text-slate-900">
               {t('land.erp')} <br />
-              <span className="bg-gradient-to-r from-emerald-600 via-blue-500 to-blue-600 bg-clip-text text-transparent inline-block">
+              <span className="bg-gradient-to-r from-blue-700 via-blue-600 to-sky-400 bg-clip-text text-transparent inline-block">
                 {t('land.eco')}
               </span>
             </h1>
@@ -373,7 +449,7 @@ export default function Landing() {
             </p>
             <div style={{ animationDelay: '450ms' }} className="animate-slide-up flex flex-col lg:flex-row gap-4 mb-10 w-full lg:w-auto lg:justify-start justify-center">
               <button
-                className="inline-flex mx-auto items-center w-max justify-center gap-2 bg-gradient-to-r from-blue-600 to-emerald-600 text-white border-none font-bold px-8 py-4 text-[16px] rounded-2xl cursor-pointer transition-all duration-300 shadow-[0_10px_30px_rgba(37,99,235,0.25)] relative overflow-hidden group hover:-translate-y-[3px] hover:scale-[1.02] hover:shadow-[0_15px_30px_rgba(37,99,235,0.4)]"
+                className="inline-flex mx-auto items-center w-max justify-center gap-2 bg-gradient-to-r from-blue-600 to-sky-500 text-white border-none font-bold px-8 py-4 text-[16px] rounded-2xl cursor-pointer transition-all duration-300 shadow-[0_10px_30px_rgba(37,99,235,0.25)] relative overflow-hidden group hover:-translate-y-[3px] hover:scale-[1.02] hover:shadow-[0_15px_30px_rgba(37,99,235,0.4)]"
                 onClick={() => {
                   const leadSection = document.getElementById('lead-form');
                   if (leadSection) leadSection.scrollIntoView({ behavior: 'smooth' });
@@ -386,7 +462,7 @@ export default function Landing() {
             <div style={{ animationDelay: '550ms' }} className="animate-slide-up text-[14px] border-t border-black/8 pt-6 pb-2.5 max-w-[480px]">
               <div className="flex gap-[20px] flex-wrap font-semibold flex-col lflex-row items-center lg:items-start text-xs lg:text-sm">
                 <div className='flex items-center gap-1.5'>
-                  <span className='text-emerald-600 animate-pulse'><ShieldCheck size={18} /></span>
+                  <span className='text-blue-600 animate-pulse'><ShieldCheck size={18} /></span>
                   <span className="text-slate-700">{t('land.sec1')}</span>
                 </div>
                 <div className='flex items-center gap-1.5'>
@@ -513,11 +589,16 @@ export default function Landing() {
               {modules.map((mod) => (
                 <div
                   key={mod.id}
-                  className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-xl shadow-slate-200/30 hover:shadow-2xl hover:border-blue-400/50 transition-all duration-300 flex flex-col justify-between group"
+                  className="relative bg-white rounded-3xl p-8 border border-slate-200/80 shadow-xl shadow-slate-200/30 hover:shadow-2xl hover:-translate-y-1 hover:border-blue-400/50 transition-all duration-300 flex flex-col justify-between group"
                 >
+                  {mod.isNew && (
+                    <span className="absolute top-5 right-5 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider text-white bg-gradient-to-r from-violet-600 to-blue-600 shadow-[0_4px_12px_rgba(124,58,237,0.35)] animate-pulse">
+                      <Sparkles size={11} /> {t('erp.mod.new') || 'Yangi'}
+                    </span>
+                  )}
                   <div className="space-y-6">
                     {/* Header: Icon + Titles */}
-                    <div className="flex items-center gap-4 border-b border-slate-100 pb-5">
+                    <div className={`flex items-center gap-4 border-b border-slate-100 pb-5 ${mod.isNew ? 'pr-16' : ''}`}>
                       <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-md ${mod.colorClass} ${mod.bgClass}`}>
                         {mod.icon}
                       </div>
@@ -595,11 +676,11 @@ export default function Landing() {
 
 
       {/* ── Lead Capture / So'rov Qoldirish ── */}
-      <section id="lead-form" className="py-[140px] bg-blue-600 relative overflow-hidden">
+      <section id="lead-form" className="py-[140px] bg-gradient-to-br from-blue-900 via-blue-800 to-blue-950 relative overflow-hidden">
         <div className="absolute inset-0 bg-repeat animate-[slideUp_20s_linear_infinite] opacity-40 z-0" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' opacity='0.1'%3E%3Ccircle cx='2' cy='2' r='2' fill='%23fff'/%3E%3C/svg%3E\")" }} />
         <div className="max-w-[1400px] mx-auto relative z-10">
           <Reveal direction="zoom" delay={150}>
-            <div className="bg-white/10 text-white backdrop-blur-[20px] border border-white/20 rounded-[24px] shadow-[0_30px_60px_rgba(0,0,0,0.2)] relative z-[1] grid grid-cols-1 lg:grid-cols-2 gap-10 text-center lg:text-left p-[30px] lg:p-[60px]">
+            <div className="bg-white/5 text-white backdrop-blur-[24px] border border-white/10 rounded-[24px] shadow-[0_30px_60px_rgba(0,0,0,0.2)] relative z-[1] grid grid-cols-1 lg:grid-cols-2 gap-10 text-center lg:text-left p-[30px] lg:p-[60px]">
               <div className="flex flex-col">
                 <h2 className="text-[2rem] lg:text-[2.5rem] mb-5 text-white tracking-[-0.02em] font-black">{t('land.lead.title')}</h2>
                 <p className="text-white/80 text-[1.2rem] mb-[30px] leading-[1.6] max-w-[640px] lg:mx-0 mx-auto">{t('land.lead.sub')}</p>
@@ -628,7 +709,7 @@ export default function Landing() {
             <div className="bg-white rounded-2xl p-[30px] text-slate-900 self-center h-fit w-full">
               {leadStatus === 'success' ? (
                 <div className="text-center py-10">
-                  <div className="text-[4rem] text-emerald-500 mb-5">✓</div>
+                  <div className="text-[4rem] text-sky-500 mb-5">✓</div>
                   <h3 className="text-[1.5rem] mb-2.5 font-bold">{t('land.form.success')}</h3>
                   <p className="text-slate-600 mb-5">{t('land.form.successDesc')}</p>
                   <button className="inline-flex items-center justify-center gap-2 bg-white/80 text-slate-900 border border-black/[0.08] font-semibold px-6 py-3 rounded-xl cursor-pointer transition-all duration-300 backdrop-blur-[10px] hover:bg-white hover:border-black/15 hover:-translate-y-0.5 hover:shadow-sm" onClick={() => setLeadStatus(null)}>{t('land.form.newReq')}</button>
@@ -690,3 +771,4 @@ export default function Landing() {
     </LandingLayout>
   )
 }
+

@@ -1,0 +1,113 @@
+E-CODE ERP — KICHIK DO'KON TARIFI VA PULLIK PAKETLAR REJASI
+============================================================
+
+Maqsad: 600–700 tovarli kichik do'konlarga arzon tarif berish.
+Ishlab chiqarish, logistika va avtomatik sotuv funksiyalari esa
+alohida pullik paket sifatida sotiladi. Barcha narxlar bazaviy
+hisoblash miqdoriga (BHM) bog'lanadi: BHM o'zgarsa, bitta raqamni
+yangilash bilan hamma narxlar avtomatik qayta hisoblanadi.
+
+
+1. QARORLAR HOLATI
+------------------
+[Kelishilgan]      Yangi tarif "Kichik do'kon": BHMning 30% i,
+                   500 ta shtrix-kod, 3 ta xodim, 1 ta filial.
+[Kelishilgan]      Modulni hozir ishlatayotgan kompaniyalarga paket
+                   7 kun bepul beriladi, keyin to'lov talab qilinadi.
+[Muhokamada]       Har bir paket BHMning necha foizi bo'lishi.
+[Tasdiqlash kerak] Joriy BHM qiymati: 440 000 so'm
+                   (hozirgi tarif narxlaridan hisoblangan).
+
+
+2. TARIFLAR (BHM = 440 000 so'm)
+--------------------------------
+Tarif            BHM ulushi   Oyiga (so'm)   Xodim        Filial       Shtrix-kod
+Kichik do'kon *  30%          132 000        3            1            500
+Boshlang'ich     45%          198 000        hozirgidek   hozirgidek   cheksiz
+Pro              70%          308 000        hozirgidek   hozirgidek   cheksiz
+Enterprise       95%          418 000        hozirgidek   hozirgidek   cheksiz
+
+* yangi tarif. Mavjud uchta tarif o'zgarmaydi.
+
+Narx = BHM x foiz. Narx qo'lda yozilmaydi, har safar hisoblanadi.
+BHM o'zgarganda Super Admin faqat bitta raqamni yangilaydi.
+Allaqachon to'langan obunalar o'zgarmaydi, yangi narx keyingi
+xariddan boshlab qo'llanadi.
+
+
+3. SHTRIX-KOD LIMITI QANDAY HISOBLANADI
+---------------------------------------
+- Mahsulot soni emas, SHTRIX-KODLAR sanaladi: asosiy shtrix-kod,
+  qo'shimcha shtrix-kodlar va har bir variantning shtrix-kodi.
+- Misol: bitta mahsulotda asosiy va 2 ta qo'shimcha shtrix-kod bo'lsa,
+  u limitdan 3 ta joy oladi.
+- O'chirilgan mahsulotlar sanalmaydi. Keraksiz mahsulot o'chirilsa,
+  joy bo'shaydi. Arxivdagi (nofaol) mahsulotlar sanaladi.
+- 90% ga yetganda ogohlantirish chiqadi.
+- Limitga yetganda yangi mahsulot qo'shish to'xtaydi, lekin mavjud
+  mahsulotlar bilan sotuv ishlayveradi.
+- Excel import limitga sig'masa, oldindan rad etiladi va birorta
+  mahsulot ham yarim yo'lda yozilib qolmaydi.
+- Limit mahsulot qo'shish, tahrirlash, Excel import va AI orqali
+  qo'shishda tekshiriladi.
+- Limitga yetgan do'kon muddat o'rtasida ham yuqori tarifga o'ta oladi.
+  Qolgan kunlar puli yangi narxdan ayiriladi. Pastroq tarifga o'tish
+  faqat muddat tugagach.
+- Mahsulotlar sahifasida ko'rsatkich chiqadi: "Shtrix-kodlar: 432 / 500".
+
+
+4. PULLIK PAKETLAR
+------------------
+Paket                          Nimani ochadi                             Taklif (BHM %)   Oyiga (so'm)
+Ishlab chiqarish               Retseptura, ishlab chiqarish buyurtmalari,   25%            110 000
+                               tannarx, xom ashyo ogohlantirishlari
+Distribyutorlar va logistika   Distribyutorlar, marshrutlar, transport,     25%            110 000
+                               dala xodimlari, mobil ilova (kuryer/agent)
+Yetkazib berish avtomatikasi   Buyurtma yetkazilganda sotuv avtomatik        10%             44 000
+                               yaratiladi
+
+DIQQAT: foizlar faqat taklif, jamoa bilan kelishiladi. Muhokama uchun
+boshqa variantlar (BHM = 440 000):
+   10% =  44 000     15% =  66 000     20% =  88 000
+   25% = 110 000     30% = 132 000     35% = 154 000
+
+Yakuniy foizlar Super Admin'da kiritiladi, kod ularga bog'liq emas.
+Narx qo'yilmaguncha paketlar nofaol turadi.
+
+
+5. PAKETLAR QANDAY ISHLAYDI
+---------------------------
+- Paketni istalgan tarifga qo'shib olish mumkin. Oylar soni tanlanadi,
+  to'lov balansdan yechiladi.
+- Sozlamalar -> Umumiy bo'limida paket yo'q bo'lsa, kalit o'rnida narx
+  va "Faollashtirish" tugmasi chiqadi.
+- Muddat tugasa, bo'lim yopiladi, lekin MA'LUMOTLAR O'CHMAYDI.
+  Qayta sotib olinganda hammasi joyida bo'ladi.
+- Muddat tugashiga 3 kun qolganda panelda va Telegram botda eslatma
+  chiqadi.
+- Super Admin kompaniyaga paketni qo'lda berishi yoki uzaytirishi
+  mumkin (sinov yoki chegirma uchun).
+- Keyinchalik shu mexanizm bilan "+500 shtrix-kod" kabi qo'shimcha
+  limit paketlari ham qo'shilishi mumkin.
+
+
+6. BAJARISH TARTIBI
+-------------------
+1) Baza: BHM qiymati, tariflarga shtrix-kod limiti, paketlar katalogi
+   va kompaniya paketlari. Hozirgi foydalanuvchilarga 7 kunlik sovg'a.
+2) Limit: mahsulot qo'shish, tahrirlash, Excel import va AI orqali
+   qo'shishda shtrix-kod limiti tekshiriladi.
+3) Paketlar: sotib olish, muddat tekshiruvi, Super Admin'da boshqarish.
+4) Ekranlar: limit ko'rsatkichi, Tariflar va paketlar sahifasi,
+   Sozlamalardagi paket kartasi, uz/ru/en tarjimalari.
+5) Serverga chiqarish: to'xtovsiz deploy skripti bilan, bazaning
+   migratsiyasi backend'dan oldin.
+
+Qo'shimcha: kassada qo'shimcha shtrix-kod skanerlanganda mahsulot
+topilmaydigan xato bor. U ham shu ish bilan birga tuzatiladi.
+
+
+7. KELISHILISHI KERAK
+---------------------
+1) Har bir paketning BHM foizi.
+2) Joriy BHM qiymati 440 000 so'mmi.

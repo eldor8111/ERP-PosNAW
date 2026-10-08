@@ -130,7 +130,7 @@ export default function LandingLayout({ children }) {
   ]
 
   return (
-    <div className="min-h-screen relative bg-[#F8FAFC] font-sans text-slate-900 selection:bg-emerald-500 selection:text-white">
+    <div className="min-h-screen relative bg-[#F8FAFC] font-sans text-slate-900 selection:bg-blue-500 selection:text-white">
       {/* Initial Splash Preloader */}
       <Preloader />
 
@@ -151,11 +151,11 @@ export default function LandingLayout({ children }) {
                 <a
                   key={link.path}
                   onClick={() => navigate(link.path)}
-                  className={`cursor-pointer text-nowrap no-underline font-bold text-[15px] xl:text-[17px] transition-colors duration-200 relative py-2 group ${link.path === location.pathname ? 'text-emerald-600 font-extrabold' : 'text-slate-700 hover:text-emerald-600'
+                  className={`cursor-pointer text-nowrap no-underline font-bold text-[15px] xl:text-[17px] transition-colors duration-200 relative py-2 group ${link.path === location.pathname ? 'text-blue-600 font-extrabold' : 'text-slate-700 hover:text-blue-600'
                     }`}
                 >
                   {link.label}
-                  <span className={`absolute bottom-[-4px] left-0 h-0.5 bg-emerald-600 rounded-sm transition-all duration-300 ${link.path === location.pathname ? 'w-full' : 'w-0 group-hover:w-full'}`} />
+                  <span className={`absolute bottom-[-4px] left-0 h-0.5 bg-blue-600 rounded-sm transition-all duration-300 ${link.path === location.pathname ? 'w-full' : 'w-0 group-hover:w-full'}`} />
                 </a>
               ))}
             </div>
@@ -179,7 +179,7 @@ export default function LandingLayout({ children }) {
                         key={l.code}
                         onClick={() => { setLang(l.code); setLangOpen(false); }}
                         className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left cursor-pointer text-sm font-semibold transition-all ${
-                          lang === l.code ? 'bg-slate-100/90 text-emerald-700 font-bold' : 'text-slate-700 hover:bg-slate-50 hover:text-emerald-600'
+                          lang === l.code ? 'bg-slate-100/90 text-blue-700 font-bold' : 'text-slate-700 hover:bg-slate-50 hover:text-blue-600'
                         }`}
                       >
                         <FlagIcon code={l.code} className="w-5 h-3.5 rounded-xs shrink-0" />
@@ -191,7 +191,7 @@ export default function LandingLayout({ children }) {
               </div>
 
               <button
-                className="hidden lg:inline-flex bg-transparent text-slate-700 border-none font-bold text-[15px] xl:text-[16px] px-4 py-2.5 rounded-xl cursor-pointer transition-all duration-200 hover:text-emerald-600 hover:bg-black/5"
+                className="hidden lg:inline-flex bg-transparent text-slate-700 border-none font-bold text-[15px] xl:text-[16px] px-4 py-2.5 rounded-xl cursor-pointer transition-all duration-200 hover:text-blue-600 hover:bg-black/5"
                 onClick={() => window.location.href = loginUrl}
               >
                 {t('land.nav.login') || 'Kirish'}
@@ -257,7 +257,7 @@ export default function LandingLayout({ children }) {
             <div className="flex flex-col gap-4">
               <span className="text-slate-300 font-bold text-sm md:text-base tracking-wider uppercase">Manzil</span>
               <div className="flex items-start gap-3 text-slate-200">
-                <MapPin className="w-5 h-5 text-emerald-500 shrink-0 mt-1" />
+                <MapPin className="w-5 h-5 text-blue-500 shrink-0 mt-1" />
                 <span className="leading-relaxed text-sm md:text-base font-medium">
                   Samarqand shahar, Vokzal. <br />
                   <span className="text-slate-400 text-sm">Mo'ljal: Oltin Samarqand yonida</span>
@@ -269,12 +269,12 @@ export default function LandingLayout({ children }) {
             <div className="flex flex-col gap-4">
               <span className="text-slate-300 font-bold text-sm md:text-base tracking-wider uppercase">Aloqa va Savollar</span>
               <div className="flex items-center gap-3 text-white">
-                <Phone className="w-5 h-5 text-emerald-500 shrink-0" />
-                <a href="tel:+998889118171" className="hover:text-emerald-400 text-base md:text-lg font-bold transition-colors no-underline text-white">+998 88 911 81 71</a>
+                <Phone className="w-5 h-5 text-blue-500 shrink-0" />
+                <a href="tel:+998889118171" className="hover:text-sky-400 text-base md:text-lg font-bold transition-colors no-underline text-white">+998 88 911 81 71</a>
               </div>
               <div className="flex items-center gap-3 text-slate-200">
-                <Mail className="w-5 h-5 text-emerald-500 shrink-0" />
-                <a href="mailto:ecode.uz@gmail.com" className="hover:text-emerald-400 text-sm md:text-base font-semibold transition-colors no-underline text-slate-200">ecode.uz@gmail.com</a>
+                <Mail className="w-5 h-5 text-blue-500 shrink-0" />
+                <a href="mailto:ecode.uz@gmail.com" className="hover:text-sky-400 text-sm md:text-base font-semibold transition-colors no-underline text-slate-200">ecode.uz@gmail.com</a>
               </div>
               <span className="text-xs text-slate-400 font-medium">24/7 Texnik yordam va maslahat</span>
             </div>
@@ -283,7 +283,7 @@ export default function LandingLayout({ children }) {
             <div className="flex flex-col gap-4">
               <span className="text-slate-300 font-bold text-sm md:text-base tracking-wider uppercase">Ijtimoiy tarmoqlar</span>
               <div className="flex items-center gap-3 flex-wrap">
-                <a href="https://t.me/Ecodenews" target="_blank" rel="noreferrer" title="Telegram" className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-300 hover:bg-emerald-500 hover:text-white hover:border-emerald-500 transition-all">
+                <a href="https://t.me/Ecodenews" target="_blank" rel="noreferrer" title="Telegram" className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-300 hover:bg-blue-500 hover:text-white hover:border-blue-500 transition-all">
                   <TelegramIcon className="w-5 h-5" />
                 </a>
                 <a href="https://www.instagram.com/ecode_uz/" target="_blank" rel="noreferrer" title="Instagram" className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-300 hover:bg-pink-600 hover:text-white hover:border-pink-600 transition-all">
@@ -318,15 +318,15 @@ export default function LandingLayout({ children }) {
                   <a
                     key={link.path}
                     onClick={() => navigate(link.path)}
-                    className="cursor-pointer text-slate-300 hover:text-emerald-400 text-sm md:text-base font-medium transition-colors"
+                    className="cursor-pointer text-slate-300 hover:text-sky-400 text-sm md:text-base font-medium transition-colors"
                   >
                     {link.label}
                   </a>
                 ))}
-                <a onClick={() => window.location.href = loginUrl} className="cursor-pointer text-slate-300 hover:text-emerald-400 text-sm md:text-base font-medium transition-colors">
+                <a onClick={() => window.location.href = loginUrl} className="cursor-pointer text-slate-300 hover:text-sky-400 text-sm md:text-base font-medium transition-colors">
                   Kirish
                 </a>
-                <a onClick={() => window.location.href = registerUrl} className="cursor-pointer text-slate-300 hover:text-emerald-400 text-sm md:text-base font-medium transition-colors">
+                <a onClick={() => window.location.href = registerUrl} className="cursor-pointer text-slate-300 hover:text-sky-400 text-sm md:text-base font-medium transition-colors">
                   Boshlash
                 </a>
               </div>
@@ -340,8 +340,8 @@ export default function LandingLayout({ children }) {
               E-code © {new Date().getFullYear()}. Barcha huquqlar himoyalangan.
             </div>
             <div className="flex items-center gap-6">
-              <a href="#" className="hover:text-slate-200 transition-colors no-underline text-slate-400">Ommaviy taklif</a>
-              <a href="#" className="hover:text-slate-200 transition-colors no-underline text-slate-500">Maxfiylik siyosati</a>
+              <a href="/oferta.pdf" target="_blank" className="hover:text-slate-200 transition-colors no-underline text-slate-400">Ommaviy oferta</a>
+              <a href="/maxfiylik-siyosati" className="hover:text-slate-200 transition-colors no-underline text-slate-500">Maxfiylik siyosati</a>
             </div>
           </div>
         </div>
@@ -349,3 +349,4 @@ export default function LandingLayout({ children }) {
     </div>
   )
 }
+

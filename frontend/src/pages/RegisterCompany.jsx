@@ -150,7 +150,7 @@ export default function RegisterCompany() {
   const [form, setForm] = useState({
     company_name: '', region: '', district: '',
     name: '', phone: '', agent_code: 'A0001',
-    password: '', confirm_password: '',
+    password: '', confirm_password: '', oferta: false,
   })
   const [errors, setErrors] = useState({})
   const [showPass, setShowPass] = useState(false)
@@ -191,6 +191,7 @@ export default function RegisterCompany() {
     if (form.password.length < 6) e.password = t('auth.errPassLen') || "Kamida 6 ta belgi"
     if (form.password !== form.confirm_password) e.confirm_password = t('auth.errPassMatch') || "Parollar mos kelmadi"
     if (agentStatus === 'invalid') e.agent_code = t('auth.errAgentNotFound') || "Agent kodi topilmadi"
+    if (!form.oferta) e.oferta = t('auth.errOfertaReq') || "Ommaviy oferta shartlariga rozi bo'lishingiz shart"
     setErrors(e)
     return !Object.keys(e).length
   }
@@ -268,7 +269,7 @@ export default function RegisterCompany() {
           <div className="bg-white rounded-3xl shadow-2xl p-10 text-center">
 
             {/* Icon */}
-            <div className="w-24 h-24 mx-auto mb-6 rounded-3xl bg-linear-to-br from-emerald-400 to-blue-500 flex items-center justify-center shadow-xl shadow-emerald-200">
+            <div className="w-24 h-24 mx-auto mb-6 rounded-3xl bg-linear-to-br from-sky-400 to-blue-500 flex items-center justify-center shadow-xl shadow-blue-200">
               <Icon d="M5 13l4 4L19 7" cls="w-12 h-12 text-white" />
             </div>
 
@@ -292,13 +293,13 @@ export default function RegisterCompany() {
             </div>
 
             {/* Balance info */}
-            <div className="mb-6 bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-3 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
-                <Icon d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" cls="w-5 h-5 text-emerald-600" />
+            <div className="mb-6 bg-blue-50 border border-blue-200 rounded-2xl px-5 py-3 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+                <Icon d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" cls="w-5 h-5 text-blue-600" />
               </div>
               <div className="text-left">
-                <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide">{t('auth.balanceOpened')}</p>
-                <p className="text-sm text-emerald-600">{t('auth.fillBalance')}</p>
+                <p className="text-xs font-bold text-blue-700 uppercase tracking-wide">{t('auth.balanceOpened')}</p>
+                <p className="text-sm text-blue-600">{t('auth.fillBalance')}</p>
               </div>
             </div>
 
@@ -481,8 +482,8 @@ export default function RegisterCompany() {
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                       </svg>
                     ) : agentStatus === 'valid' ? (
-                      <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center">
-                        <Icon d="M5 13l4 4L19 7" cls="w-3 h-3 text-emerald-600" />
+                      <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center">
+                        <Icon d="M5 13l4 4L19 7" cls="w-3 h-3 text-blue-600" />
                       </div>
                     ) : agentStatus === 'invalid' ? (
                       <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center">
@@ -492,7 +493,7 @@ export default function RegisterCompany() {
                   }
                 />
                 {agentStatus === 'valid' && (
-                  <p className="text-xs text-emerald-600 mt-1 font-medium">✓ {agentName}</p>
+                  <p className="text-xs text-blue-600 mt-1 font-medium">✓ {agentName}</p>
                 )}
               </InputField>
 
@@ -528,6 +529,20 @@ export default function RegisterCompany() {
                   <span>{errors.submit}</span>
                 </div>
               )}
+
+              <div className="flex items-start gap-3 py-2">
+                <input 
+                  type="checkbox" 
+                  id="oferta" 
+                  checked={form.oferta} 
+                  onChange={e => { set('oferta', e.target.checked); clearErr('oferta') }}
+                  className="mt-0.5 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer" 
+                />
+                <label htmlFor="oferta" className="text-sm text-slate-600 leading-tight cursor-pointer">
+                  Men <a href="/oferta.pdf" target="_blank" className="text-blue-600 font-semibold hover:underline">Ommaviy oferta</a> shartlari bilan tanishdim va rozi man
+                </label>
+              </div>
+              {errors.oferta && <p className="text-xs text-red-500 mt-0 flex items-center gap-1"><span>⚠</span>{errors.oferta}</p>}
 
               <div className="flex gap-3 pt-1">
                 <button
@@ -614,3 +629,4 @@ export default function RegisterCompany() {
     </div>
   )
 }
+

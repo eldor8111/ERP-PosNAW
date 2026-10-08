@@ -235,6 +235,10 @@ def update_company(
     c = db.query(Company).filter(Company.id == company_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Korxona topilmadi")
+    # Faqat super_admin boshqa kompaniyani tahrirlay oladi — aks holda begona
+    # kompaniyaning bot tokenini o'g'irlash yoki uni o'chirib qo'yish mumkin edi.
+    if current_user.role != UserRole.super_admin and c.id != current_user.company_id:
+        raise HTTPException(status_code=404, detail="Korxona topilmadi")
 
     update_data = data.model_dump(exclude_unset=True)
 
