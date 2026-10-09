@@ -5,7 +5,7 @@ Modul o'chiq korxonalar uchun butun router yopiq (require_feature).
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -110,7 +110,7 @@ def list_products(status: Optional[str] = "review", agent_id: Optional[int] = No
 
 
 @router.post("/products/{product_id}/approve")
-def approve_product(product_id: int, db: Session = Depends(get_db), admin: User = Depends(_admin)):
+def approve_product(product_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db), admin: User = Depends(_admin)):
     p = _product_or_404(db, admin, product_id)
     agent = db.query(User).filter(User.id == p.agent_id).first()
     if not agent or agent.status != UserStatus.active:
@@ -119,7 +119,11 @@ def approve_product(product_id: int, db: Session = Depends(get_db), admin: User 
     log_action(db=db, action="MARKETPLACE_PRODUCT_APPROVE", entity_type="marketplace_product",
                entity_id=p.id, user_id=admin.id)
     db.commit()
-    return _product_out(p, mp.category_name_map())
+    
+    cat_names = mp.category_name_map()
+    background_tasks.add_task(mp.push_product_to_mirmaza, p, cat_names.get(p.category_id, ""))
+    
+    return _product_out(p, cat_names)
 
 
 @router.post("/products/{product_id}/reject")
@@ -133,7 +137,7 @@ def reject_product(product_id: int, data: RejectIn, db: Session = Depends(get_db
 
 
 @router.put("/products/{product_id}")
-def edit_product(product_id: int, data: ProductUpdateIn, db: Session = Depends(get_db),
+def edit_product(product_id: int, data: ProductUpdateIn, background_tasks: BackgroundTasks, db: Session = Depends(get_db),
                  admin: User = Depends(_admin)):
     p = _product_or_404(db, admin, product_id)
     changes = data.model_dump(exclude_unset=True, exclude={"submit"})
@@ -144,7 +148,12 @@ def edit_product(product_id: int, data: ProductUpdateIn, db: Session = Depends(g
     log_action(db=db, action="MARKETPLACE_PRODUCT_ADMIN_EDIT", entity_type="marketplace_product",
                entity_id=p.id, user_id=admin.id, new_values={k: str(v) for k, v in changes.items()})
     db.commit()
-    return _product_out(p, mp.category_name_map())
+
+    cat_names = mp.category_name_map()
+    if p.status == MarketplaceProductStatus.approved:
+        background_tasks.add_task(mp.push_product_to_mirmaza, p, cat_names.get(p.category_id, ""))
+
+    return _product_out(p, cat_names)
 
 
 @router.delete("/products/{product_id}")

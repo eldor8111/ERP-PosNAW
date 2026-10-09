@@ -89,3 +89,158 @@ def normalize_phone(phone: str) -> str:
 
 def clamp_images(images: Optional[list], limit: int = 8) -> list:
     return [str(i)[:500] for i in (images or []) if i][:limit]
+
+
+def push_product_to_mirmaza(p, category_name: str = "") -> bool:
+    """Mir-maza API (v1/integration/products) orqali mahsulotni sinxronlash."""
+    url = "https://mir-maza.uz/api/v1/integration/products"
+    headers = {
+        "Content-Type": "application/json",
+        "X-Integration-Key": "ecode_secret_key_mirmaza_2026",
+    }
+    # Agar maxsus env o'zgaruvchi berilgan bo'lsa
+    if settings.MARKETPLACE_API_TOKEN:
+        headers["X-Integration-Key"] = settings.MARKETPLACE_API_TOKEN
+
+    payload = {
+        "externalId": f"ECODE-PROD-{p.id}",
+        "barcode": p.barcode or "",
+        "name": p.name,
+        "description": p.description or "",
+        "price": float(p.price),
+        "stock": float(p.qty),
+        "categoryExternalId": str(p.category_id),
+        "categoryName": category_name,
+        "image": p.images[0] if p.images else "",
+        "isActive": p.status.value == "approved"
+    }
+
+    try:
+        resp = httpx.post(url, json=payload, headers=headers, timeout=15.0)
+        resp.raise_for_status()
+        return True
+    except Exception as e:
+        logger.error("Mir-maza ga mahsulot yuborishda xatolik: %s", e)
+        return False
+
+def pull_mirmaza_orders(db: Session, company_id: int):
+    """Mir-Maza dan yangi buyurtmalarni tortib olish va Orders jadvaliga yozish."""
+    url = "https://mir-maza.uz/api/v1/integration/orders?status=PENDING&limit=50"
+    headers = {
+        "Content-Type": "application/json",
+        "X-Integration-Key": settings.MARKETPLACE_API_TOKEN or "ecode_secret_key_mirmaza_2026",
+    }
+    
+    try:
+        resp = httpx.get(url, headers=headers, timeout=15.0)
+        if resp.status_code != 200:
+            return
+            
+        data = resp.json()
+        orders = data.get("orders", [])
+        
+        from app.models.order import Order, OrderStatus
+        from app.models.customer import Customer
+        from app.models.product import Product
+        from app.models.marketplace import MarketplaceProduct
+        
+        for mo in orders:
+            market_order_id = mo.get("marketOrderId")
+            order_group_id = f"mirmaza-{market_order_id}"
+            
+            # Check if order already exists
+            exists = db.query(Order).filter(Order.order_group_id == order_group_id).first()
+            if exists:
+                continue
+                
+            # Customer handling
+            c_data = mo.get("customer", {})
+            phone = normalize_phone(c_data.get("phone", ""))
+            if not phone:
+                continue
+            
+            customer = db.query(Customer).filter(Customer.phone == phone, Customer.company_id == company_id).first()
+            if not customer:
+                customer = Customer(
+                    company_id=company_id,
+                    name=c_data.get("name", "MirMaza Mijoz"),
+                    phone=phone,
+                    type="retail"
+                )
+                db.add(customer)
+                db.flush()
+                
+            delivery = mo.get("deliveryAddress", {})
+            address = delivery.get("address", "")
+            
+            # Branch id (first branch of company)
+            from app.models.branch import Branch
+            branch = db.query(Branch).filter(Branch.company_id == company_id).first()
+            branch_id = branch.id if branch else 1
+            
+            for item in mo.get("items", []):
+                ext_id = item.get("externalId", "")
+                prod_id = None
+                
+                if ext_id.startswith("PROD-"):
+                    try:
+                        prod_id = int(ext_id.split("-")[1])
+                    except:
+                        pass
+                elif ext_id.startswith("ECODE-PROD-"):
+                    # Agent mahsuloti
+                    try:
+                        mp_id = int(ext_id.split("-")[2])
+                        mp_item = db.query(MarketplaceProduct).filter(MarketplaceProduct.id == mp_id).first()
+                        if mp_item:
+                            # Tizimda to'liq ishlashi uchun Product jadvalidan vaqtincha ID topamiz yoki yaratamiz
+                            prod = db.query(Product).filter(Product.barcode == mp_item.barcode, Product.company_id == company_id).first()
+                            if not prod:
+                                prod = Product(
+                                    company_id=company_id,
+                                    name=mp_item.name,
+                                    sku=f"MP-{mp_id}",
+                                    barcode=mp_item.barcode or f"MP-{mp_id}",
+                                    sale_price=mp_item.price,
+                                    category_id=mp_item.category_id
+                                )
+                                db.add(prod)
+                                db.flush()
+                            prod_id = prod.id
+                    except:
+                        pass
+                
+                if not prod_id:
+                    # Noma'lum mahsulot bo'lsa o'tkazib yuboramiz
+                    continue
+                    
+                order = Order(
+                    order_group_id=order_group_id,
+                    customer_id=customer.id,
+                    branch_id=branch_id,
+                    product_id=prod_id,
+                    quantity=item.get("quantity", 1),
+                    unit_price=item.get("price", 0),
+                    total_amount=item.get("total", 0),
+                    status=OrderStatus.pending,
+                    delivery_type="delivery",
+                    delivery_address=address,
+                    notes=delivery.get("note", "")
+                )
+                db.add(order)
+                
+            db.commit()
+            
+            # Mir-maza'da statusini CONFIRMED ga o'zgartiramiz
+            try:
+                httpx.patch(
+                    f"https://mir-maza.uz/api/v1/integration/orders/{market_order_id}/status",
+                    json={"status": "CONFIRMED", "externalId": order_group_id},
+                    headers=headers,
+                    timeout=5.0
+                )
+            except Exception as e:
+                logger.warning(f"Mirmaza status update xatoligi: {e}")
+                
+    except Exception as e:
+        logger.error(f"Mirmaza orders pull xatoligi: {e}")

@@ -552,6 +552,21 @@ async def start_scheduler():
                 await auto_write_off_expired()
                 last_expired_date = today
 
+            # Har 5 daqiqada — Mir-maza marketplace buyurtmalarini tortish
+            if uz_now.minute % 5 == 0:
+                db_mp = SessionLocal()
+                try:
+                    from app.services.marketplace_service import pull_mirmaza_orders
+                    from app.core.features import get_active_features
+                    comps = db_mp.query(Company).filter(Company.is_active == True).all()
+                    for c in comps:
+                        if "marketplace_agents" in get_active_features(db_mp, c.id):
+                            pull_mirmaza_orders(db_mp, c.id)
+                except Exception as e:
+                    print(f"[Scheduler] Mir-Maza order pull xatoligi: {e}")
+                finally:
+                    db_mp.close()
+
             # Har daqiqa — Har bir do'konning o'z vaqtida kunlik hisobot
             # (Telegram + FCM Push)
             db = SessionLocal()
