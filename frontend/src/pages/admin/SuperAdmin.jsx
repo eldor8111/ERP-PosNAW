@@ -41,6 +41,21 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
       .finally(() => setLoading(false));
   }, [companyId]);
 
+  const toggleMarketplaceAgents = async () => {
+    if (!detail) return;
+    try {
+      setLoading(true);
+      await api.put(`/super-admin/companies/${companyId}`, { marketplace_agents_enabled: !detail.marketplace_agents_enabled });
+      const r = await api.get(`/super-admin/companies/${companyId}`);
+      setDetail(r.data);
+      toast.success(detail.marketplace_agents_enabled ? "Marketplace Agent o'chirildi" : "Marketplace Agent yoqildi");
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Xatolik yuz berdi");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleClose = () => {
     setVisible(false);
     setTimeout(onClose, 280);
@@ -111,7 +126,8 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
           {[
             { id: 'branches', label: `${t('superAdmin.branches')} (${detail?.branches?.length || 0})`, icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16' },
             { id: 'users', label: `${t('superAdmin.employees')} (${totalUsers})`, icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0' },
-            { id: 'tariff', label: t('superAdmin.tariffReport'), icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
+            { id: 'tariff', label: t('superAdmin.tariffReport'), icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2-2h-2a2 2 0 01-2-2z' },
+            { id: 'settings', label: t('common.settings') || 'Sozlamalar', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
           ].map(tb => (
             <button key={tb.id} onClick={() => setTab(tb.id)}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${tab === tb.id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}>
@@ -192,6 +208,24 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
             {/* ── TARIF HISOBOTI ── */}
             {tab === 'tariff' && (
               <DrawerTariffReport detail={detail} />
+            )}
+
+            {/* ── SOZLAMALAR ── */}
+            {tab === 'settings' && (
+              <div className="space-y-4">
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 flex items-center justify-between">
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-sm">Marketplace Agentlari</h4>
+                    <p className="text-xs text-slate-500 mt-1">Ushbu korxona uchun marketplace agentlari modulini yoqish</p>
+                  </div>
+                  <button
+                    onClick={toggleMarketplaceAgents}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${detail.marketplace_agents_enabled ? 'bg-blue-600' : 'bg-slate-300'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${detail.marketplace_agents_enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         )}

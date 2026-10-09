@@ -183,6 +183,7 @@ def get_company_detail(company_id: int, db: Session = Depends(get_db), _: User =
         "region": company.region,
         "district": company.district,
         "is_active": company.is_active,
+        "marketplace_agents_enabled": company.marketplace_agents_enabled,
         "created_at": str(company.created_at),
         "balance": float(company.balance or 0),
         "tariff_id": company.tariff_id,
@@ -425,6 +426,7 @@ class CompanyUpdate(BaseModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     is_active: Optional[bool] = None
+    marketplace_agents_enabled: Optional[bool] = None
 
 @router.put("/companies/{company_id}")
 def update_company_super(
@@ -447,6 +449,7 @@ def update_company_super(
         if payload.phone is not None: c.phone = str(payload.phone).strip() or None
         if payload.email is not None: c.email = str(payload.email).strip() or None
         if payload.is_active is not None: c.is_active = payload.is_active
+        if payload.marketplace_agents_enabled is not None: c.marketplace_agents_enabled = payload.marketplace_agents_enabled
         
         db.commit()
         return {"ok": True, "message": "Korxona ma'lumotlari yangilandi"}
