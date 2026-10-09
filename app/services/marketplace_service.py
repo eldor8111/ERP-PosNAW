@@ -13,7 +13,7 @@ from typing import Dict, List, Optional
 import httpx
 
 from app.config import settings
-
+from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 
 _lock = threading.Lock()
