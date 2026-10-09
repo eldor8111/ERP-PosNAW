@@ -244,3 +244,56 @@ def pull_mirmaza_orders(db: Session, company_id: int):
                 
     except Exception as e:
         logger.error(f"Mirmaza orders pull xatoligi: {e}")
+
+def push_courier_status_to_mirmaza(db: Session, order_group_id: str, courier_id: int, status: str):
+    """Kuryer holatini Mir-Maza ga yuborish."""
+    if not order_group_id or not order_group_id.startswith("mirmaza-"):
+        return
+        
+    market_order_id = order_group_id.split("-")[1]
+    url = f"https://mir-maza.uz/api/v1/integration/orders/{market_order_id}/courier"
+    headers = {
+        "Content-Type": "application/json",
+        "X-Integration-Key": settings.MARKETPLACE_API_TOKEN or "ecode_secret_key_mirmaza_2026",
+    }
+    
+    from app.models.courier import Courier
+    from app.models.vehicle import Vehicle
+    
+    courier = db.query(Courier).filter(Courier.id == courier_id).first() if courier_id else None
+    
+    c_name = courier.name if courier else "Noma'lum"
+    c_phone = courier.phone if courier else ""
+    v_type = "CAR"
+    v_num = ""
+    
+    if courier and courier.vehicle_id:
+        v = db.query(Vehicle).filter(Vehicle.id == courier.vehicle_id).first()
+        if v:
+            v_type = v.vehicle_type.upper() if v.vehicle_type else "CAR"
+            v_num = v.plate_number or ""
+            
+    # E-code statuslaridan Mir-Maza statuslariga o'girish
+    m_status = "ASSIGNED"
+    if status == "on_way":
+        m_status = "ON_THE_WAY"
+    elif status == "delivered":
+        m_status = "DELIVERED"
+    elif status == "cancelled":
+        m_status = "CANCELLED"
+    
+    payload = {
+        "courierName": c_name,
+        "courierPhone": c_phone,
+        "vehicle": v_type,
+        "vehicleNumber": v_num,
+        "deliveryStatus": m_status,
+        "externalDeliveryId": f"ECODE-DELIVERY-{courier_id or 0}",
+        "lat": 0.0,
+        "lng": 0.0
+    }
+    
+    try:
+        httpx.patch(url, json=payload, headers=headers, timeout=5.0)
+    except Exception as e:
+        logger.warning(f"Mirmaza courier sync xatoligi: {e}")

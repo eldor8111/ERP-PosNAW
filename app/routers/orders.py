@@ -214,6 +214,13 @@ def _notify_customer_status(db: Session, orders: list, new_status: "OrderStatus"
         send_tg_sync(company.tg_bot_token, customer.tg_chat_id, text)
     except Exception:
         pass  # bildirishnoma xatosi status yangilashni to'xtatmasin
+        
+    try:
+        if orders and getattr(orders[0], "order_group_id", "").startswith("mirmaza-"):
+            from app.services.marketplace_service import push_courier_status_to_mirmaza
+            push_courier_status_to_mirmaza(db, orders[0].order_group_id, getattr(orders[0], "courier_id", 0), new_status.value)
+    except Exception:
+        pass
 
 
 @router.put("/group/{group_id}/status")
@@ -350,6 +357,13 @@ def _notify_courier_assigned(db: Session, orders: list, courier_id: int) -> None
         send_tg_sync(company.courier_bot_token, courier.tg_chat_id, "\n".join(lines))
     except Exception:
         pass  # bildirishnoma xatosi biriktirish natijasiga ta'sir qilmasin
+        
+    try:
+        if orders and getattr(orders[0], "order_group_id", "").startswith("mirmaza-"):
+            from app.services.marketplace_service import push_courier_status_to_mirmaza
+            push_courier_status_to_mirmaza(db, orders[0].order_group_id, courier_id, "assigned")
+    except Exception:
+        pass
 
 
 @router.delete("/group/{group_id}")
