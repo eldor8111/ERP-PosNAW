@@ -60,3 +60,14 @@ class UserWallet(Base):
     user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
     wallet_id = Column(Integer, primary_key=True)
     is_default = Column(Boolean, default=False)
+
+class SmsVerification(Base):
+    __tablename__ = "sms_verifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    phone = Column(String(20), index=True, nullable=False)
+    code = Column(String(10), nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    is_used = Column(Boolean, default=False)
+

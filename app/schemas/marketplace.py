@@ -4,10 +4,15 @@ from typing import List, Optional
 from pydantic import BaseModel, Field, field_validator
 
 
+class AgentSendCodeIn(BaseModel):
+    org_code: str = Field(..., min_length=3, max_length=20, description="Distribyutor korxona kodi")
+    phone: str = Field(..., min_length=9, max_length=20)
+
 class AgentRegisterIn(BaseModel):
     org_code: str = Field(..., min_length=3, max_length=20, description="Distribyutor korxona kodi")
     name: str = Field(..., min_length=2, max_length=100)
     phone: str = Field(..., min_length=9, max_length=20)
+    sms_code: str = Field(..., min_length=4, max_length=10)
     password: str = Field(..., min_length=6, max_length=128)
     device_id: str = Field(..., min_length=8, max_length=100)
     platform: Optional[str] = Field(None, max_length=20)

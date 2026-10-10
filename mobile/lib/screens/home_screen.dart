@@ -6,6 +6,7 @@ import 'add_product_screen.dart';
 import 'my_products_screen.dart';
 import 'transactions_screen.dart';
 import 'package:dio/dio.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,6 +20,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _profile;
   Map<String, dynamic>? _balance;
   bool _loading = true;
+  bool _isLaunching = false;
 
   @override
   void initState() {
@@ -53,6 +55,29 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _payWithPayme() async {
+    setState(() => _isLaunching = true);
+    try {
+      final res = await apiClient.dio.get('/mobile/marketplace/auth/payme-checkout');
+      final url = Uri.parse(res.data['checkout_url']);
+      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Havolani ochib bo\'lmadi')),
+          );
+        }
+      }
+    } on DioException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Xatolik: ${e.response?.data['detail'] ?? e.message}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLaunching = false);
+    }
+  }
+
   Widget _buildDashboard() {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_profile == null) return const Center(child: Text('Ma\'lumot yuklanmadi'));
@@ -67,13 +92,29 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.access_time, size: 64, color: Colors.orange),
+              const Icon(Icons.payment, size: 64, color: Colors.blue),
               const SizedBox(height: 16),
-              const Text('Hisobingiz ko\'rib chiqilmoqda', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const Text('Hisobingiz faol emas', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              Text('Status: $status', style: const TextStyle(fontSize: 16)),
+              const Text(
+                'Tizimdan foydalanish uchun 200,000 so\'m to\'lov qilishingiz kerak.', 
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16)
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+                  onPressed: _isLaunching ? null : _payWithPayme, 
+                  child: _isLaunching 
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text('Payme orqali to\'lash', style: TextStyle(color: Colors.white, fontSize: 18)),
+                ),
+              ),
               const SizedBox(height: 16),
-              ElevatedButton(onPressed: _fetchData, child: const Text('Yangilash')),
+              TextButton(onPressed: _fetchData, child: const Text('Holatni yangilash')),
             ],
           ),
         ),

@@ -27,11 +27,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
   );
 
   Future<void> _register() async {
-    // Unmask phone number to format '998901234567'
     final unmaskedPhone = _phoneFormatter.getUnmaskedText();
     if (unmaskedPhone.length != 9) {
       setState(() {
         _error = 'Telefon raqam noto\'g\'ri formatda';
+      });
+      return;
+    }
+
+    if (_orgCodeCtrl.text.isEmpty || _nameCtrl.text.isEmpty || _passwordCtrl.text.isEmpty) {
+      setState(() {
+        _error = 'Barcha maydonlarni to\'ldiring';
       });
       return;
     }
@@ -42,28 +48,47 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      final response = await apiClient.dio.post('/mobile/marketplace/register', data: {
+      // 1. Send OTP code
+      await apiClient.dio.post('/mobile/marketplace/register/send-code', data: {
         'org_code': _orgCodeCtrl.text.trim(),
-        'name': _nameCtrl.text.trim(),
         'phone': '998$unmaskedPhone',
-        'password': _passwordCtrl.text,
-        'device_id': 'device_dummy_123',
-        'platform': Platform.operatingSystem,
-        'app_version': '1.0.0',
       });
 
-      // Automatically login on successful register
-      final token = response.data['access_token'];
-      if (token != null) {
-        await apiClient.saveToken(token);
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Ro'yxatdan muvaffaqiyatli o'tdingiz!")),
-        );
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-          (route) => false,
-        );
+      if (!mounted) return;
+      // 2. Show OTP dialog
+      final code = await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => _OtpDialog(phone: '+998 $unmaskedPhone'),
+      );
+
+      if (code != null && code.isNotEmpty) {
+        // 3. Register with OTP
+        setState(() => _loading = true);
+        final response = await apiClient.dio.post('/mobile/marketplace/register', data: {
+          'org_code': _orgCodeCtrl.text.trim(),
+          'name': _nameCtrl.text.trim(),
+          'phone': '998$unmaskedPhone',
+          'sms_code': code,
+          'password': _passwordCtrl.text,
+          'device_id': 'device_dummy_123',
+          'platform': Platform.operatingSystem,
+          'app_version': '1.0.0',
+        });
+
+        // Automatically login on successful register
+        final token = response.data['access_token'];
+        if (token != null) {
+          await apiClient.saveToken(token);
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Ro'yxatdan muvaffaqiyatli o'tdingiz!")),
+          );
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const HomeScreen()),
+            (route) => false,
+          );
+        }
       }
     } on DioException catch (e) {
       setState(() {
@@ -195,6 +220,56 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _OtpDialog extends StatefulWidget {
+  final String phone;
+  const _OtpDialog({required this.phone});
+
+  @override
+  State<_OtpDialog> createState() => _OtpDialogState();
+}
+
+class _OtpDialogState extends State<_OtpDialog> {
+  final _codeCtrl = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Kodni tasdiqlash'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('${widget.phone} raqamiga SMS kod yuborildi. Iltimos kodni kiriting:'),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _codeCtrl,
+            keyboardType: TextInputType.number,
+            maxLength: 6,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 24, letterSpacing: 8),
+            decoration: InputDecoration(
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Bekor qilish'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            if (_codeCtrl.text.trim().length >= 4) {
+              Navigator.of(context).pop(_codeCtrl.text.trim());
+            }
+          },
+          child: const Text('Tasdiqlash'),
+        ),
+      ],
     );
   }
 }

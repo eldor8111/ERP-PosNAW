@@ -240,18 +240,20 @@ async def payme_webhook(request: Request, db: Session = Depends(get_db)):
 # ─── Metod 1: CheckPerformTransaction ────────────────────────────────────────
 
 def _check_perform(req_id: Any, params: dict, db: Session) -> JSONResponse:
-    """
-    Bu tolov mumkinmi? - faqat tekshiradi, hech narsa yozmaydi.
-    MUHIM TARTIB (Payme Sandbox talabi):
-      1. avval org_code mavjudligi (DB da) - agar yoq -> -31050
-      2. keyin summa tekshiruvi                -> agar notogri -> -31001
-    Buning sababi: Sandbox Nesushestvuyushiy schyot testida
-    IKKALASINI HAM (notogri org_code + kichik summa) yuboradi
-    va -31050 kutadi. Agar avval summani tekshirsak -31001 qaytadi - XATO!
-    """
     account  = params.get("account") or {}
     org_code = _safe_str(account.get("org_code"))
+    agent_phone = _safe_str(account.get("agent_phone"))
     amount   = _to_amount_int(params.get("amount", 0))
+
+    if agent_phone:
+        user = db.query(User).filter(User.phone == agent_phone, User.role == "marketplace_agent").first()
+        if not user:
+            return _err(req_id, ERR_ORDER_NOT_FOUND, {"uz": "Agent topilmadi", "ru": "Агент не найден", "en": "Agent not found"})
+        if user.status != "pending":
+            return _err(req_id, ERR_UNABLE_TO_PERFORM, {"uz": "Agent allaqachon faol", "ru": "Агент уже активен", "en": "Agent already active"})
+        if amount != 20000000: # 200,000 UZS in tiyin
+            return _err(req_id, ERR_INVALID_AMOUNT, {"ru": "Неверная сумма", "uz": "Summa noto'g'ri (200,000 UZS bo'lishi kerak)", "en": "Invalid amount"})
+        return _ok(req_id, {"allow": True})
 
     # 1. AVVAL org_code ni tekshir (bosh bolsa)
     if not org_code:
@@ -289,21 +291,16 @@ def _check_perform(req_id: Any, params: dict, db: Session) -> JSONResponse:
 # ─── Metod 2: CreateTransaction ──────────────────────────────────────────────
 
 def _create_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
-    """
-    Tranzaksiya yaratadi (pul hali otmagan, state=1).
-    Idempotent: bir xil ID bilan qayta kelsa mavjudni qaytaradi.
-    FIX: p_time ozgaruvchi olib tashlandi (ishlatilmasdi).
-    FIX: amount float handling.
-    """
-    # FIX BUG #5: None xavfsiz str
     payme_id = _safe_str(params.get("id"))
     amount   = _to_amount_int(params.get("amount", 0))
     account  = params.get("account") or {}
     org_code = _safe_str(account.get("org_code"))
+    agent_phone = _safe_str(account.get("agent_phone"))
 
     if not payme_id:
         return _err(req_id, ERR_INVALID_PARAMS, "id majburiy")
-    if not org_code:
+        
+    if not org_code and not agent_phone:
         return _err(req_id, ERR_ORDER_NOT_FOUND, {
             "uz": "Buyurtma topilmadi",
             "ru": "Заказ не найден",
@@ -316,10 +313,8 @@ def _create_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
     ).first()
 
     if existing:
-        # FIX BUG #6: bekor qilingan -> -31008 (Payme standarti)
         if existing.state == -1:
-            return _err(req_id, ERR_UNABLE_TO_PERFORM,
-                        "Tranzaksiya allaqachon bekor qilingan")
+            return _err(req_id, ERR_UNABLE_TO_PERFORM, "Tranzaksiya allaqachon bekor qilingan")
         if existing.amount != amount:
             return _err(req_id, ERR_INVALID_AMOUNT, "Summa mos kelmaydi")
         return _ok(req_id, {
@@ -328,23 +323,35 @@ def _create_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
             "state":       existing.state,
         })
 
-    # Korxona topish
-    company = db.query(Company).filter(
-        Company.org_code == org_code,
-        Company.is_active == True,
-    ).first()
-    if not company:
-        return _err(req_id, ERR_ORDER_NOT_FOUND, {
-            "uz": "Buyurtma topilmadi",
-            "ru": "Заказ не найден",
-            "en": "Order not found"
-        })
+    company_id = 1 # Fallback, actually for agent we can just use 1 or the user's company
+    
+    if agent_phone:
+        user = db.query(User).filter(User.phone == agent_phone, User.role == "marketplace_agent").first()
+        if not user:
+            return _err(req_id, ERR_ORDER_NOT_FOUND, {"uz": "Agent topilmadi", "ru": "Агент не найден"})
+        company_id = user.company_id or 1
+        account_identifier = agent_phone
+    else:
+        # Korxona topish
+        company = db.query(Company).filter(
+            Company.org_code == org_code,
+            Company.is_active == True,
+        ).first()
+        if not company:
+            return _err(req_id, ERR_ORDER_NOT_FOUND, {
+                "uz": "Buyurtma topilmadi",
+                "ru": "Заказ не найден",
+                "en": "Order not found"
+            })
+        company_id = company.id
+        account_identifier = org_code
 
     # Payme qoidasi: 12 soatdan eski state=1 tranzaksiyalar avtomatik bekor qilinadi
     TIMEOUT_MS = 43_200_000  # 12 soat millisoniyada
     now_check = _now_ms()
     timed_out_txns = db.query(PaymeTransaction).filter(
-        PaymeTransaction.company_id == company.id,
+        PaymeTransaction.company_id == company_id,
+        PaymeTransaction.account_org_code == account_identifier,
         PaymeTransaction.state == 1,
         PaymeTransaction.create_time < (now_check - TIMEOUT_MS),
     ).all()
@@ -358,7 +365,8 @@ def _create_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
 
     # Bitta aktiv (state=1) tranzaksiya allaqachon bor -> yangi yaratib bolmaydi
     active_txn = db.query(PaymeTransaction).filter(
-        PaymeTransaction.company_id == company.id,
+        PaymeTransaction.company_id == company_id,
+        PaymeTransaction.account_org_code == account_identifier,
         PaymeTransaction.state == 1,
     ).first()
     if active_txn:
@@ -371,18 +379,18 @@ def _create_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
     now_ms = _now_ms()
     txn = PaymeTransaction(
         payme_id         = payme_id,
-        company_id       = company.id,
+        company_id       = company_id,
         amount           = amount,
         state            = 1,
         create_time      = now_ms,
-        account_org_code = org_code,
+        account_org_code = account_identifier,
     )
     db.add(txn)
     db.commit()
     db.refresh(txn)
 
-    logger.info("[Payme] CreateTransaction: id=%s org=%s amount=%s tiyin",
-                payme_id, org_code, amount)
+    logger.info("[Payme] CreateTransaction: id=%s org/agent=%s amount=%s tiyin",
+                payme_id, account_identifier, amount)
 
     return _ok(req_id, {
         "create_time": txn.create_time,
@@ -420,43 +428,57 @@ def _perform_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse
         return _err(req_id, ERR_UNABLE_TO_PERFORM,
                     f"Bajarib bolmaydi, holat: state={txn.state}")
 
-    company = db.query(Company).filter(Company.id == txn.company_id).first()
-    if not company:
-        return _err(req_id, ERR_UNABLE_TO_PERFORM, "Korxona topilmadi")
-
     amount_som = txn.amount / 100  # tiyindan somga
 
-    # FIX BUG #7: rollback bilan xavfsiz commit
     try:
-        company.balance = (float(company.balance) if company.balance else 0.0) + amount_som # type: ignore
+        is_agent_payment = False
+        user = None
+        if txn.account_org_code and txn.account_org_code.startswith("998") and len(txn.account_org_code) == 12:
+            user = db.query(User).filter(User.phone == txn.account_org_code, User.role == "marketplace_agent").first()
+            if user:
+                is_agent_payment = True
 
-        log = BalanceLog(
-            company_id = company.id,
-            amount     = amount_som,
-            log_type   = "top_up",
-            note       = (
-                f"Payme orqali toldirildi: +{amount_som:,.0f} som "
-                f"(txn: {payme_id})"
-            ),
-            created_at = datetime.now(timezone.utc),
-        )
-        db.add(log)
-        db.flush()  # log.id olish uchun
+        if is_agent_payment and user:
+            user.status = "active"
+            now_ms = _now_ms()
+            txn.state        = 2 # type: ignore
+            txn.perform_time = now_ms # type: ignore
+            db.commit()
+            logger.info("[Payme] PerformTransaction: Agent faollashtirildi id=%s phone=%s +%.0f som",
+                        payme_id, user.phone, amount_som)
+        else:
+            company = db.query(Company).filter(Company.id == txn.company_id).first()
+            if not company:
+                return _err(req_id, ERR_UNABLE_TO_PERFORM, "Korxona topilmadi")
 
-        now_ms = _now_ms()
-        txn.state        = 2 # type: ignore
-        txn.perform_time = now_ms # type: ignore
-        txn.log_id       = log.id # type: ignore
+            company.balance = (float(company.balance) if company.balance else 0.0) + amount_som # type: ignore
 
-        db.commit()
+            log = BalanceLog(
+                company_id = company.id,
+                amount     = amount_som,
+                log_type   = "top_up",
+                note       = (
+                    f"Payme orqali toldirildi: +{amount_som:,.0f} som "
+                    f"(txn: {payme_id})"
+                ),
+                created_at = datetime.now(timezone.utc),
+            )
+            db.add(log)
+            db.flush()  # log.id olish uchun
+
+            now_ms = _now_ms()
+            txn.state        = 2 # type: ignore
+            txn.perform_time = now_ms # type: ignore
+            txn.log_id       = log.id # type: ignore
+
+            db.commit()
+            logger.info("[Payme] PerformTransaction: id=%s org=%s +%.0f som",
+                        payme_id, txn.account_org_code, amount_som)
 
     except Exception as exc:
         db.rollback()
         logger.error("[Payme] PerformTransaction DB xato: %s", exc)
         return _err(req_id, -32400, "Server xatosi, qaytadan urining")
-
-    logger.info("[Payme] PerformTransaction: id=%s org=%s +%.0f som",
-                payme_id, txn.account_org_code, amount_som)
 
     return _ok(req_id, {
         "transaction":  str(txn.id),
@@ -504,23 +526,34 @@ def _cancel_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
 
         elif txn.state == 2:
             # Pul otgan - balansdan qaytaramiz
-            company = db.query(Company).filter(Company.id == txn.company_id).first()
-            if company:
-                amount_som = txn.amount / 100 # type: ignore
-                new_balance = (float(company.balance) if company.balance else 0.0) - amount_som # type: ignore
-                company.balance = new_balance  # manfiy bolishi mumkin (toliq hisob)
+            is_agent_payment = False
+            user = None
+            if txn.account_org_code and txn.account_org_code.startswith("998") and len(txn.account_org_code) == 12:
+                user = db.query(User).filter(User.phone == txn.account_org_code, User.role == "marketplace_agent").first()
+                if user:
+                    is_agent_payment = True
 
-                refund_log = BalanceLog(
-                    company_id = company.id,
-                    amount     = -amount_som,
-                    log_type   = "refund",
-                    note       = (
-                        f"Payme qaytarildi: -{amount_som:,.0f} som "
-                        f"(txn: {payme_id}, sabab: {reason})"
-                    ),
-                    created_at = datetime.now(timezone.utc),
-                )
-                db.add(refund_log)
+            if is_agent_payment and user:
+                user.status = "pending"
+                logger.info("[Payme] CancelTransaction: Agent nofaol qilindi id=%s phone=%s", payme_id, user.phone)
+            else:
+                company = db.query(Company).filter(Company.id == txn.company_id).first()
+                if company:
+                    amount_som = txn.amount / 100 # type: ignore
+                    new_balance = (float(company.balance) if company.balance else 0.0) - amount_som # type: ignore
+                    company.balance = new_balance  # manfiy bolishi mumkin (toliq hisob)
+
+                    refund_log = BalanceLog(
+                        company_id = company.id,
+                        amount     = -amount_som,
+                        log_type   = "refund",
+                        note       = (
+                            f"Payme qaytarildi: -{amount_som:,.0f} som "
+                            f"(txn: {payme_id}, sabab: {reason})"
+                        ),
+                        created_at = datetime.now(timezone.utc),
+                    )
+                    db.add(refund_log)
 
             txn.state       = -2 # type: ignore
             txn.reason      = reason # type: ignore

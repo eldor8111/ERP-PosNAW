@@ -126,18 +126,64 @@ def _check_category(db: Session, user: User, category_id: int) -> None:
 
 # ── Ro'yxatdan o'tish va kirish ────────────────────────────────────────────
 
+@router.post("/register/send-code")
+@limiter.limit("3/minute")
+async def send_register_code(request: Request, data: AgentSendCodeIn, db: Session = Depends(get_db)):
+    company = db.query(Company).filter(Company.org_code == data.org_code.strip()).first()
+    if not company or not company.is_active or not company.marketplace_agents_enabled:
+        raise HTTPException(status_code=404, detail="Korxona kodi noto'g'ri yoki marketplace yoqilmagan")
+    
+    phone = mp.normalize_phone(data.phone)
+    if db.query(User).filter(User.phone.in_([phone, f"+{phone}"])).first():
+        raise HTTPException(status_code=409, detail="Bu telefon raqami allaqachon ro'yxatdan o'tgan")
+    
+    import random
+    code = str(random.randint(10000, 99999))
+    from app.models.user import SmsVerification
+    from datetime import timedelta
+    
+    # Eskiz SMS orqali yuborish
+    from app.services.eskiz_service import eskiz_service
+    msg = f"Universal ERP tasdiqlash kodi: {code}"
+    res = await eskiz_service.send_sms(phone, msg)
+    if not res.get("success"):
+        raise HTTPException(status_code=500, detail="SMS yuborishda xatolik yuz berdi")
+        
+    sms = SmsVerification(
+        phone=phone,
+        code=code,
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=5)
+    )
+    db.add(sms)
+    db.commit()
+    return {"ok": True, "detail": "Tasdiqlash kodi yuborildi"}
+
+
 @router.post("/register", status_code=201)
 @limiter.limit("5/minute")
 def register_agent(request: Request, data: AgentRegisterIn, db: Session = Depends(get_db)):
     company = db.query(Company).filter(Company.org_code == data.org_code.strip()).first()
     if not company or not company.is_active or not company.marketplace_agents_enabled:
-        # Korxona mavjudligi/moduli haqida ortiqcha ma'lumot bermaymiz
         raise HTTPException(status_code=404, detail="Korxona kodi noto'g'ri yoki marketplace yoqilmagan")
 
     phone = mp.normalize_phone(data.phone)
     if db.query(User).filter(User.phone.in_([phone, f"+{phone}"])).first():
         raise HTTPException(status_code=409, detail="Bu telefon raqami allaqachon ro'yxatdan o'tgan")
+        
+    from app.models.user import SmsVerification
+    sms = db.query(SmsVerification).filter(
+        SmsVerification.phone == phone,
+        SmsVerification.code == data.sms_code,
+        SmsVerification.is_used == False,
+        SmsVerification.expires_at > datetime.now(timezone.utc)
+    ).order_by(SmsVerification.id.desc()).first()
+    
+    if not sms:
+        raise HTTPException(status_code=400, detail="Tasdiqlash kodi noto'g'ri yoki eskirgan")
+    
+    sms.is_used = True
 
+    # User yaratish
     user = User(
         name=data.name.strip(), phone=phone, hashed_password=hash_password(data.password),
         role=UserRole.marketplace_agent, status=UserStatus.pending, company_id=company.id,
@@ -183,6 +229,24 @@ def agent_refresh(request: Request, data: AgentRefreshIn, db: Session = Depends(
     device.last_seen_at = datetime.now(timezone.utc)
     db.commit()
     return _issue_tokens(user, device)
+
+@router.get("/auth/payme-checkout")
+def get_payme_checkout_url(request: Request, db: Session = Depends(get_db), user: User = Depends(get_agent)):
+    # get_agent allows UserStatus.pending
+    if user.status == UserStatus.active:
+        raise HTTPException(status_code=400, detail="Sizning hisobingiz allaqachon faollashtirilgan")
+        
+    from app.config import settings
+    import base64
+    if not settings.PAYME_MERCHANT_ID:
+        raise HTTPException(status_code=500, detail="Payme merchant id topilmadi")
+        
+    amount_tiyin = 200000 * 100 # 200 000 UZS
+    raw = f"m={settings.PAYME_MERCHANT_ID};ac.agent_phone={user.phone};a={amount_tiyin}"
+    encoded = base64.b64encode(raw.encode()).decode()
+    base_url = "https://checkout.test.paycom.uz" if settings.PAYME_IS_TEST else "https://checkout.paycom.uz"
+    
+    return {"checkout_url": f"{base_url}/{encoded}"}
 
 
 @router.get("/me")
