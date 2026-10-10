@@ -23,7 +23,7 @@ def list_users(
 ):
     from sqlalchemy import or_
     from app.models.user_company import UserCompany
-    q = db.query(User).filter(User.status == UserStatus.active)
+    q = db.query(User).filter(User.status.in_([UserStatus.active, UserStatus.pending]))
     
     uc_exists = db.query(UserCompany).filter(
         UserCompany.user_id == User.id,

@@ -343,8 +343,14 @@ export default function UsersTab() {
                   </span>
                 </td>
                 <td className="px-6 py-4">
-                  <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${u.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                    {u.status === 'active' ? t('common.active') : t('common.inactive')}
+                  <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
+                    u.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
+                    u.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                    'bg-slate-100 text-slate-500'
+                  }`}>
+                    {u.status === 'active' ? (t('common.active') || 'Faol') :
+                     u.status === 'pending' ? 'Kutilmoqda' :
+                     (t('common.inactive') || 'Nofaol')}
                   </span>
                 </td>
                 <td className="px-6 py-4">
