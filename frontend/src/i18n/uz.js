@@ -3781,6 +3781,7 @@ export default {
   'product.importFieldWholesalePrice': 'Ulgurji narxi',
   'product.importFromExcelTitle': 'Mahsulotlarni Exceldan yuklash',
   'product.loadDefaultCategories': 'Tayyor kategoriyalarni yuklash',
+  'product.syncMirmazaCategories': 'Mir-maza kategoriyalarini yuklash',
   'product.loadProductError': 'Mahsulot ma\'lumotlarini yuklashda xatolik',
   'product.loadProductsError': 'Mahsulotlarni yuklashda xatolik',
   'product.mainPriceTakenPlaceholder': 'Asosiy olinadi',

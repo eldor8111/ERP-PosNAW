@@ -3654,6 +3654,7 @@ export default {
   'product.importFieldWholesalePrice': 'Wholesale price',
   'product.importFromExcelTitle': 'Import products from Excel',
   'product.loadDefaultCategories': 'Load default categories',
+  'product.syncMirmazaCategories': 'Load Mir-maza categories',
   'product.loadProductError': 'Error loading product data',
   'product.loadProductsError': 'Error loading products',
   'product.mainPriceTakenPlaceholder': 'Uses main price',

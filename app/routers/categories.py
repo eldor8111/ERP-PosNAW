@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models.category import Category
 from app.models.user import User, UserRole
 from app.schemas.category import CategoryCreate, CategoryOut, CategoryUpdate
+from app.services import marketplace_service as mp
 
 router = APIRouter(prefix="/categories", tags=["Categories"])
 
@@ -149,3 +150,54 @@ def seed_clothing_categories(
         db.commit()
         return {"message": f"{count} ta kategoriya yaratildi"}
     return {"message": "Barcha kategoriyalar allaqachon mavjud"}
+
+
+@router.post("/sync-mirmaza")
+def sync_mirmaza_categories(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.super_admin, UserRole.admin, UserRole.director)),
+):
+    """Mir-maza.uz dan jonli kategoriyalarni olib keladi va korxonaga qo'shadi."""
+    cats = mp.fetch_categories(force=True)
+    if not cats:
+        raise HTTPException(
+            status_code=502,
+            detail="Mir-maza dan kategoriyalarni yuklab bo'lmadi. Manba API tekshirilmoqda.",
+        )
+
+    count_created = 0
+    count_updated = 0
+
+    for c in cats:
+        name = c["name"].strip()
+        sort_order = c.get("sort_order", 0)
+
+        existing = db.query(Category).filter(
+            Category.name == name,
+            Category.company_id == current_user.company_id,
+        ).first()
+
+        if existing:
+            if existing.is_deleted:
+                existing.is_deleted = False
+                count_created += 1
+            else:
+                count_updated += 1
+            existing.sort_order = sort_order
+        else:
+            new_cat = Category(
+                name=name,
+                sort_order=sort_order,
+                company_id=current_user.company_id,
+            )
+            db.add(new_cat)
+            count_created += 1
+
+    db.commit()
+    return {
+        "message": f"Mir-maza kategoriyalari muvaffaqiyatli yuklandi: {count_created} ta yangi qo'shildi, {count_updated} ta yangilandi.",
+        "created_count": count_created,
+        "updated_count": count_updated,
+        "total": len(cats),
+    }
+

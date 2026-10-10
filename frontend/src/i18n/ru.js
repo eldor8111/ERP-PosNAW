@@ -3717,6 +3717,7 @@ export default {
   'product.importFieldWholesalePrice': 'Оптовая цена',
   'product.importFromExcelTitle': 'Импорт товаров из Excel',
   'product.loadDefaultCategories': 'Загрузить готовые категории',
+  'product.syncMirmazaCategories': 'Загрузить категории Mir-maza',
   'product.loadProductError': 'Ошибка загрузки данных товара',
   'product.loadProductsError': 'Ошибка загрузки товаров',
   'product.mainPriceTakenPlaceholder': 'Берётся основная цена',

@@ -137,6 +137,20 @@ export default function Products() {
     }
   };
 
+  const [syncingMirmaza, setSyncingMirmaza] = useState(false);
+  const syncMirmazaCategories = async () => {
+    try {
+      setSyncingMirmaza(true);
+      const { data } = await api.post('/categories/sync-mirmaza');
+      toast.success(data.message);
+      loadCategories();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || e.message);
+    } finally {
+      setSyncingMirmaza(false);
+    }
+  };
+
   const loadBinLocations = useCallback(() => {
     api.get('/bin-locations').then(r => setBinLocations(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, []);
@@ -2193,6 +2207,15 @@ export default function Products() {
               </div>
             </div>
             <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+              <button
+                onClick={syncMirmazaCategories}
+                disabled={syncingMirmaza}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[13px] sm:text-sm font-bold rounded-xl transition-all shadow-sm active:scale-[0.98] disabled:opacity-50"
+                title="Mir-maza.uz dan joriy kategoriyalarni tartib bilan yuklash"
+              >
+                <Layers size={18} />
+                {syncingMirmaza ? t('product.syncing') : (t('product.syncMirmazaCategories') || 'Mir-maza kategoriyalarini yuklash')}
+              </button>
               <button
                 onClick={seedClothingCategories}
                 disabled={seeding}

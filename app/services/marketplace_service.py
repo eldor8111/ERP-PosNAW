@@ -36,7 +36,7 @@ def _normalize(raw) -> List[dict]:
             cid = int(c["id"])
         except (TypeError, ValueError):
             continue
-        parent = c.get("parent_id", c.get("parent"))
+        parent = c.get("parentId", c.get("parent_id", c.get("parent")))
         if isinstance(parent, dict):
             parent = parent.get("id")
         try:
@@ -44,7 +44,22 @@ def _normalize(raw) -> List[dict]:
         except (TypeError, ValueError):
             parent = None
         name = c.get("name") or c.get("title") or c.get("name_uz") or f"#{cid}"
-        out.append({"id": cid, "name": str(name)[:200], "parent_id": parent})
+        sort_order = c.get("sortOrder", c.get("sort_order", 0))
+        try:
+            sort_order = int(sort_order)
+        except (TypeError, ValueError):
+            sort_order = 0
+        icon = c.get("icon")
+        image = c.get("image")
+        out.append({
+            "id": cid,
+            "name": str(name)[:200],
+            "parent_id": parent,
+            "sort_order": sort_order,
+            "icon": icon,
+            "image": image,
+        })
+    out.sort(key=lambda x: (x.get("sort_order", 0), x.get("id", 0)))
     return out
 
 
