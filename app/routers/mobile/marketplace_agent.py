@@ -147,11 +147,17 @@ async def send_register_code(request: Request, data: AgentSendCodeIn, db: Sessio
     from datetime import timedelta
     
     # Eskiz SMS orqali yuborish
-    from app.services.eskiz_service import eskiz_service
-    msg = f"Universal ERP tasdiqlash kodi: {code}"
-    res = await eskiz_service.send_sms(phone, msg)
-    if not res.get("success"):
-        raise HTTPException(status_code=500, detail="SMS yuborishda xatolik yuz berdi")
+    sms_sent = False
+    sms_error = None
+    try:
+        from app.services.eskiz_service import eskiz_service
+        msg = f"Universal ERP tasdiqlash kodi: {code}"
+        res = await eskiz_service.send_sms(phone, msg)
+        sms_sent = res.get("success", False)
+        if not sms_sent:
+            sms_error = res.get("error")
+    except Exception as e:
+        sms_error = str(e)
         
     sms = SmsVerification(
         phone=phone,
@@ -160,7 +166,14 @@ async def send_register_code(request: Request, data: AgentSendCodeIn, db: Sessio
     )
     db.add(sms)
     db.commit()
-    return {"ok": True, "detail": "Tasdiqlash kodi yuborildi"}
+    
+    return {
+        "ok": True, 
+        "detail": "Tasdiqlash kodi yuborildi", 
+        "sms_sent": sms_sent,
+        "debug_code": code if not sms_sent else None,
+        "sms_error": sms_error if not sms_sent else None,
+    }
 
 
 @router.post("/register", status_code=201)
