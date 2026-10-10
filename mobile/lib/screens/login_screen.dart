@@ -43,7 +43,8 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } on DioException catch (e) {
       setState(() {
-        _error = e.response?.data['detail'] ?? e.message ?? 'Xatolik yuz berdi';
+        final detail = e.response?.data != null ? e.response?.data['detail'] : null;
+        _error = detail is List ? (detail.isNotEmpty ? detail.first['msg'].toString() : 'Validation xatosi') : (detail?.toString() ?? e.message ?? 'Xatolik yuz berdi');
       });
     } catch (e) {
       setState(() {

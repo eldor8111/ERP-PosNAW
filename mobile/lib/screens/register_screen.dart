@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import '../api/api_client.dart';
-import 'login_screen.dart';
+import 'home_screen.dart';
 import 'dart:io' show Platform;
 
 class RegisterScreen extends StatefulWidget {
@@ -41,16 +41,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (token != null) {
         await apiClient.saveToken(token);
         if (!mounted) return;
-        // Go back to login screen then immediately to home could work, or go straight to home.
-        // Easiest is to pop until first then replace.
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Ro'yxatdan muvaffaqiyatli o'tdingiz!")),
+        );
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
           (route) => false,
         );
       }
     } on DioException catch (e) {
       setState(() {
-        _error = e.response?.data['detail'] ?? 'Xatolik yuz berdi';
+        final detail = e.response?.data != null ? e.response?.data['detail'] : null;
+        _error = detail is List ? (detail.isNotEmpty ? detail.first['msg'].toString() : 'Validation xatosi') : (detail?.toString() ?? 'Xatolik yuz berdi (${e.message})');
       });
     } catch (e) {
       setState(() {
