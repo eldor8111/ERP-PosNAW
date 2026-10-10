@@ -6,13 +6,14 @@ import { PERMISSIONS } from '../../../constants/permissions';
 
 // super_admin ni dropdown dan yashiramiz тАФ faqat DB orqali beriladi
 // courier/agent — faqat E-code Mobile ilovasi orqali ishlaydi (veb-panelga kira olmaydi)
-const ROLES = ['admin', 'director', 'manager', 'accountant', 'warehouse', 'cashier', 'courier', 'agent'];
+const ROLES = ['admin', 'director', 'manager', 'accountant', 'warehouse', 'cashier', 'courier', 'agent', 'marketplace_agent'];
 
 const getRoleLabels = (t) => ({
   super_admin: t('role.super_admin'),
   admin: t('role.admin'), director: t('role.director'), manager: t('role.manager'),
   accountant: t('role.accountant') || 'Buxgalter', warehouse: t('role.warehouseman'), cashier: t('role.cashier'),
-  courier: t('role.courier'), agent: t('role.agent'),
+  courier: t('role.courier') || 'Kuryer', agent: t('role.agent') || 'Savdo agenti',
+  marketplace_agent: 'Marketplace savdo agenti',
 });
 
 const ROLE_COLORS = {
@@ -25,6 +26,7 @@ const ROLE_COLORS = {
   cashier: 'bg-indigo-100 text-indigo-700',
   courier: 'bg-orange-100 text-orange-700',
   agent: 'bg-violet-100 text-violet-700',
+  marketplace_agent: 'bg-teal-100 text-teal-700',
 };
 
 const BLANK_FORM = { name: '', phone: '', email: '', password: '', role: 'cashier', branch_id: '', permissions: {} };
