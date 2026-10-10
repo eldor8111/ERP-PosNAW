@@ -151,7 +151,7 @@ async def send_register_code(request: Request, data: AgentSendCodeIn, db: Sessio
     sms_error = None
     try:
         from app.services.eskiz_service import eskiz_service
-        msg = f"Universal ERP tasdiqlash kodi: {code}"
+        msg = f"E-Code.uz saytida ro'yxatdan o'tish uchun tasdiqlash kodi: {code}. Kodni hech kimga bermang."
         res = await eskiz_service.send_sms(phone, msg)
         sms_sent = res.get("success", False)
         if not sms_sent:
