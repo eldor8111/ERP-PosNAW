@@ -2,8 +2,11 @@
 
 Modul o'chiq korxonalar uchun butun router yopiq (require_feature).
 """
+import logging
 from datetime import datetime, timezone
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy import func
@@ -90,13 +93,13 @@ def set_agent_status(agent_id: int, data: AgentStatusIn, db: Session = Depends(g
 # ── Moderatsiya va mahsulotlar ─────────────────────────────────────────────
 
 @router.get("/products")
-def list_products(status: Optional[str] = "review", agent_id: Optional[int] = None,
-                  page: int = Query(1, ge=1), page_size: int = Query(30, ge=1, le=100),
+def list_products(status: Optional[str] = None, agent_id: Optional[int] = None,
+                  page: int = Query(1, ge=1), page_size: int = Query(50, ge=1, le=100),
                   db: Session = Depends(get_db), admin: User = Depends(_admin)):
     query = db.query(MarketplaceProduct).filter(MarketplaceProduct.company_id == admin.company_id)
-    if status:
+    if status and status.strip():
         try:
-            query = query.filter(MarketplaceProduct.status == MarketplaceProductStatus(status))
+            query = query.filter(MarketplaceProduct.status == MarketplaceProductStatus(status.strip()))
         except ValueError:
             raise HTTPException(status_code=400, detail="Noto'g'ri status")
     if agent_id:
@@ -118,6 +121,31 @@ def approve_product(product_id: int, background_tasks: BackgroundTasks, db: Sess
     p.status, p.reject_reason = MarketplaceProductStatus.approved, None
     log_action(db=db, action="MARKETPLACE_PRODUCT_APPROVE", entity_type="marketplace_product",
                entity_id=p.id, user_id=admin.id)
+    
+    # Asosiy mahsulotlar (Product) jadvaliga ham sinxronlash
+    try:
+        from app.models.product import Product, ProductStatus
+        chk = db.query(Product).filter(Product.company_id == admin.company_id)
+        if p.barcode:
+            chk = chk.filter(Product.barcode == p.barcode)
+        else:
+            chk = chk.filter(Product.name == p.name)
+        prod = chk.first()
+        if not prod:
+            prod = Product(
+                company_id=admin.company_id,
+                name=p.name,
+                sku=p.sku or f"MP-{p.id}",
+                barcode=p.barcode or f"MP{p.id:08d}",
+                sale_price=p.price,
+                cost_price=p.price,
+                status=ProductStatus.active,
+                image_url=(p.images[0] if p.images else None),
+            )
+            db.add(prod)
+    except Exception as ex:
+        logger.warning("Product sinxronlashda xatolik: %s", ex)
+
     db.commit()
     
     cat_names = mp.category_name_map()

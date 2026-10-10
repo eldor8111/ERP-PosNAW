@@ -151,6 +151,49 @@ export default function Products() {
     }
   };
 
+  const [marketplaceProducts, setMarketplaceProducts] = useState([]);
+  const [mpLoading, setMpLoading] = useState(false);
+  const [mpStatus, setMpStatus] = useState('');
+  const [rejectModal, setRejectModal] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+
+  const loadMarketplaceProducts = useCallback(async () => {
+    try {
+      setMpLoading(true);
+      const url = mpStatus ? `/marketplace-agents/products?status=${mpStatus}` : '/marketplace-agents/products';
+      const { data } = await api.get(url);
+      setMarketplaceProducts(data.items || []);
+    } catch {
+      setMarketplaceProducts([]);
+    } finally {
+      setMpLoading(false);
+    }
+  }, [mpStatus]);
+
+  const handleApproveMpProduct = async (id) => {
+    try {
+      await api.post(`/marketplace-agents/products/${id}/approve`);
+      toast.success("Mahsulot tasdiqlandi va Mir-maza ga yuborildi!");
+      loadMarketplaceProducts();
+      loadProducts();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Tasdiqlashda xatolik");
+    }
+  };
+
+  const handleRejectMpProduct = async () => {
+    if (!rejectModal || !rejectReason.trim()) return;
+    try {
+      await api.post(`/marketplace-agents/products/${rejectModal.id}/reject`, { reason: rejectReason.trim() });
+      toast.success("Mahsulot rad etildi");
+      setRejectModal(null);
+      setRejectReason('');
+      loadMarketplaceProducts();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Rad etishda xatolik");
+    }
+  };
+
   const loadBinLocations = useCallback(() => {
     api.get('/bin-locations').then(r => setBinLocations(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, []);
@@ -207,8 +250,9 @@ export default function Products() {
   useEffect(() => {
     if (activeTab === 'products') loadProducts();
     if (activeTab === 'categories') { loadCategories(); loadBinLocations(); }
+    if (activeTab === 'marketplace') loadMarketplaceProducts();
     // esliet-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, page, filterCat, filterStatus, filterWarehouse, filterMeasure, filterStock, sortBy, sortOrder, limit]);
+  }, [activeTab, page, filterCat, filterStatus, filterWarehouse, filterMeasure, filterStock, sortBy, sortOrder, limit, loadMarketplaceProducts]);
 
   useEffect(() => {
     if (activeTab !== 'products') return;
@@ -1468,7 +1512,7 @@ export default function Products() {
 
           <div className="flex flex-wrap items-center">
             <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
-              {[['products', t('product.title')], ['categories', t('product.categories')], ['binloc', t('product.locations')]].map(([key, label]) => (
+              {[['products', t('product.title')], ['categories', t('product.categories')], ['binloc', t('product.locations')], ['marketplace', 'Agentlar tovarlari']].map(([key, label]) => (
                 <button key={key} onClick={() => setActiveTab(key)}
                   className={`px-2 md:px-4 leadingno cursor-pointer xl:py-1.5 py-1 rounded-lg text-[13px] xl:text-[15px] font-medium transition-all ${activeTab === key ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                   {label}
@@ -2371,7 +2415,181 @@ export default function Products() {
         </div>
       )}
 
-      {/* ════ PRODUCT ADD / EDIT MODAL ════ */}
+      {/* ── MARKETPLACE AGENTS PRODUCTS TAB ───────────────── */}
+      {activeTab === 'marketplace' && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-6 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 shadow-xs border border-indigo-100">
+                <Box size={21} />
+              </div>
+              <div>
+                <h3 className="text-[15px] sm:text-base font-bold text-slate-800">Agentlar tovarlari (Moderatsiya)</h3>
+                <p className="text-[11px] sm:text-xs text-slate-400 font-medium">
+                  Mobil ilovadan agentlar yuklagan tovarlar — jami {marketplaceProducts.length} ta
+                </p>
+              </div>
+            </div>
+
+            {/* Filter pills */}
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                { key: '', label: 'Barchasi' },
+                { key: 'review', label: 'Tekshiruvda' },
+                { key: 'approved', label: 'Tasdiqlangan' },
+                { key: 'rejected', label: 'Rad etilgan' },
+              ].map(f => (
+                <button
+                  key={f.key}
+                  onClick={() => setMpStatus(f.key)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    mpStatus === f.key
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
+            {mpLoading ? (
+              <div className="p-12 text-center text-slate-400 font-medium">Yuklanmoqda...</div>
+            ) : marketplaceProducts.length === 0 ? (
+              <div className="p-16 text-center text-slate-400">
+                <Box size={44} className="mx-auto mb-3 opacity-30 text-indigo-600" />
+                <p className="text-base font-semibold text-slate-700">Hozircha agentlar tovar yuklamagan</p>
+                <p className="text-xs text-slate-400 mt-1">Mobil ilovadan agent mahsulot qo'shganda, bu yerda tekshiruv uchun chiqadi.</p>
+              </div>
+            ) : (
+              <table className="w-full min-w-[800px]">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100">
+                    {['#', 'Rasm', 'Mahsulot nomi', 'Agent', 'Kategoriya', 'Narx', 'Soni', 'Holat', 'Amallar'].map(h => (
+                      <th key={h} className="px-5 py-4 text-left text-[11px] font-bold text-slate-500 uppercase tracking-wider">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {marketplaceProducts.map(p => (
+                    <tr key={p.id} className="hover:bg-indigo-50/20 transition-colors">
+                      <td className="px-5 py-4 text-xs font-mono text-slate-400">#{p.id}</td>
+                      <td className="px-5 py-4">
+                        {p.images && p.images.length > 0 ? (
+                          <img src={p.images[0]} alt={p.name} className="w-12 h-12 object-cover rounded-lg border border-slate-200" />
+                        ) : (
+                          <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 text-xs">Rasm yo'q</div>
+                        )}
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className="font-semibold text-slate-800 text-sm block">{p.name}</span>
+                        {p.description && <span className="text-xs text-slate-400 line-clamp-1">{p.description}</span>}
+                        {p.barcode && <span className="text-[11px] font-mono text-slate-400">Barkod: {p.barcode}</span>}
+                      </td>
+                      <td className="px-5 py-4 text-sm font-medium text-slate-700">
+                        {p.agent_name || `Agent #${p.agent_id}`}
+                      </td>
+                      <td className="px-5 py-4 text-sm text-slate-600">
+                        {p.category_name || `Kategoriya #${p.category_id}`}
+                      </td>
+                      <td className="px-5 py-4 text-sm font-bold text-slate-800">
+                        {fmt(p.price)} so'm
+                      </td>
+                      <td className="px-5 py-4 text-sm font-semibold text-slate-700">
+                        {p.qty}
+                      </td>
+                      <td className="px-5 py-4">
+                        {p.status === 'review' && (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+                            Tekshiruvda
+                          </span>
+                        )}
+                        {p.status === 'approved' && (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                            Tasdiqlangan
+                          </span>
+                        )}
+                        {p.status === 'rejected' && (
+                          <div>
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800">
+                              Rad etilgan
+                            </span>
+                            {p.reject_reason && <p className="text-[11px] text-red-600 mt-1 max-w-[150px]">{p.reject_reason}</p>}
+                          </div>
+                        )}
+                        {p.status === 'draft' && (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+                            Qoralama
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-2">
+                          {p.status === 'review' && (
+                            <>
+                              <button
+                                onClick={() => handleApproveMpProduct(p.id)}
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-xs transition-all active:scale-95"
+                              >
+                                Tasdiqlash
+                              </button>
+                              <button
+                                onClick={() => { setRejectModal(p); setRejectReason(''); }}
+                                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-lg transition-all active:scale-95"
+                              >
+                                Rad etish
+                              </button>
+                            </>
+                          )}
+                          {p.status === 'approved' && (
+                            <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
+                              ✓ Mir-maza da faol
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Reject Modal */}
+      {rejectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-slate-800 mb-2">Mahsulotni rad etish</h3>
+            <p className="text-xs text-slate-500 mb-4">{rejectModal.name} mahsulotini nima sababdan rad etayotganingizni yozing (agent ilovasida ko'rinadi):</p>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Masalan: Rasm sifati past yoki narx noto'g'ri..."
+              className="w-full h-24 p-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 mb-4"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setRejectModal(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl"
+              >
+                Bekor qilish
+              </button>
+              <button
+                onClick={handleRejectMpProduct}
+                disabled={!rejectReason.trim()}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold rounded-xl disabled:opacity-50"
+              >
+                Rad etish
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {modal && (
         <Modal
           title={modal === 'add' ? t('product.addNewProduct') : t('product.editProduct')}
