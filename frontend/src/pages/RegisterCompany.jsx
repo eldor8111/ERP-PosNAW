@@ -1,91 +1,111 @@
 import { useState, useRef, useEffect } from 'react'
-import { useLang } from '../context/LangContext';
+import { useLang } from '../context/LangContext'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../api/axios'
-import { ECodeLogoPrimary } from '../components/ECodeLogo'
-import ECodeLogo from '../components/ECodeLogo'
+import ECodeLogo, { ECodeIcon } from '../components/ECodeLogo'
 import { REGIONS } from '../constants/regions'
+import { LANGUAGES } from '../i18n/index.js'
+import { 
+  Building2, 
+  MapPin, 
+  User, 
+  Phone, 
+  Lock, 
+  Eye, 
+  EyeOff, 
+  CheckCircle2, 
+  ShieldCheck, 
+  Sparkles, 
+  ArrowRight, 
+  ArrowLeft, 
+  AlertCircle,
+  Tag,
+  Check,
+  CheckCheck
+} from 'lucide-react'
 
+function RegisterLangSwitcher({ lang, setLang }) {
+  return (
+    <div className="inline-flex items-center p-1 bg-white/80 backdrop-blur-md border border-blue-100/80 rounded-2xl shadow-xs">
+      {LANGUAGES.map(l => {
+        const isActive = lang === l.code
+        return (
+          <button
+            key={l.code}
+            type="button"
+            onClick={() => {
+              setLang(l.code)
+              try { localStorage.setItem('app_language', l.code) } catch {}
+            }}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 ${
+              isActive
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 scale-[1.02]'
+                : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50/60'
+            }`}
+          >
+            {l.short}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
 
-const Icon = ({ d, cls = "w-4 h-4" }) => (
-  <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d={d} />
-  </svg>
-)
-const EyeOpen = () => <Icon d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-const EyeOff = () => <Icon d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-
-// Faqat 2 step
-function Steps({ current }) {
-  const { t } = useLang()
+function Steps({ current, t }) {
   const STEPS = [
-    { n: 1, label: t('auth.regStep1') || "Korxona ma'lumotlari" },
-    { n: 2, label: t('auth.regStep2') || "Shaxsiy ma'lumotlar" },
+    { n: 1, label: t('auth.regStep1') || "Korxona" },
+    { n: 2, label: t('auth.regStep2') || "Shaxsiy" },
     { n: 3, label: "Tasdiqlash" },
   ]
   return (
-    <div className="flex items-center mb-8">
-      {STEPS.map((s, i, arr) => (
-        <div key={s.n} className="flex items-center flex-1">
-          <div className="flex flex-col items-center">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all
-              ${current > s.n ? 'bg-blue-600 text-white' :
-                current === s.n ? 'bg-blue-600 text-white ring-4 ring-blue-100' :
-                'bg-slate-100 text-slate-400'}`}>
-              {current > s.n ? <Icon d="M5 13l4 4L19 7" cls="w-3.5 h-3.5" /> : s.n}
+    <div className="flex items-center justify-between mb-8 px-2">
+      {STEPS.map((s, i) => {
+        const isDone = current > s.n
+        const isCurrent = current === s.n
+        return (
+          <div key={s.n} className="flex items-center flex-1 last:flex-none">
+            <div className="flex items-center gap-2.5">
+              <div
+                className={`w-9 h-9 rounded-2xl flex items-center justify-center text-xs font-black transition-all duration-300 shadow-xs ${
+                  isDone
+                    ? 'bg-blue-600 text-white'
+                    : isCurrent
+                    ? 'bg-blue-600 text-white ring-4 ring-blue-100 shadow-md shadow-blue-500/25'
+                    : 'bg-slate-100 text-slate-400'
+                }`}
+              >
+                {isDone ? <Check className="w-4 h-4 stroke-[3]" /> : s.n}
+              </div>
+              <span
+                className={`text-xs font-bold whitespace-nowrap transition-colors ${
+                  isCurrent ? 'text-blue-600' : isDone ? 'text-slate-700' : 'text-slate-400'
+                }`}
+              >
+                {s.label}
+              </span>
             </div>
-            <span className={`text-xs mt-1.5 font-medium whitespace-nowrap ${current >= s.n ? 'text-blue-600' : 'text-slate-400'}`}>
-              {s.label}
-            </span>
+            {i < STEPS.length - 1 && (
+              <div
+                className={`flex-1 h-1 mx-3 rounded-full transition-all duration-300 ${
+                  current > s.n ? 'bg-blue-600' : 'bg-slate-100'
+                }`}
+              />
+            )}
           </div>
-          {i < arr.length - 1 && (
-            <div className={`flex-1 h-0.5 mx-3 mb-5 rounded ${current > s.n ? 'bg-blue-500' : 'bg-slate-200'}`} />
-          )}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function InputField({ label, icon, error, hint, children }) {
-  return (
-    <div>
-      <label className="flex text-sm font-semibold text-slate-700 mb-1.5 items-center gap-1.5">
-        {icon && <span className="text-blue-500">{icon}</span>}
-        {label}
-      </label>
-      {children}
-      {error && <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><span>⚠</span>{error}</p>}
-      {hint && !error && <p className="text-xs text-slate-400 mt-1">{hint}</p>}
-    </div>
-  )
-}
-
-const inputBase = `w-full border rounded-xl px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400
-  focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400
-  transition-all bg-white`
-
-function TInput({ icon, right, err, ...props }) {
-  return (
-    <div className="relative">
-      {icon && <div className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">{icon}</div>}
-      <input
-        {...props}
-        className={`${inputBase} ${icon ? 'pl-10' : ''} ${right ? 'pr-10' : ''} ${err ? 'border-red-300 bg-red-50/30' : 'border-slate-200'}`}
-      />
-      {right && <div className="absolute inset-y-0 right-3 flex items-center">{right}</div>}
+        )
+      })}
     </div>
   )
 }
 
 function FloatingSelect({ label, value, onChange, options, disabled, error }) {
-  const { t } = useLang();
-
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
   useEffect(() => {
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
@@ -93,56 +113,61 @@ function FloatingSelect({ label, value, onChange, options, disabled, error }) {
   const hasValue = !!value
 
   return (
-    <div>
-      <div ref={ref} className="relative">
-        <button
-          type="button"
-          onClick={() => { if (!disabled) setOpen(o => !o) }}
-          className={`w-full border rounded-xl px-4 text-left text-sm transition-all relative
-            focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400
-            ${error ? 'border-red-300 bg-red-50/30' : open ? 'border-blue-400 ring-2 ring-blue-100 bg-white' : 'border-slate-200 bg-white hover:border-slate-300'}
-            ${disabled ? 'opacity-50 cursor-not-allowed bg-slate-50' : 'cursor-pointer'}
-            ${hasValue ? 'pt-5 pb-2' : 'py-3.5'}`}
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => { if (!disabled) setOpen(o => !o) }}
+        className={`w-full border rounded-2xl px-4 text-left text-sm transition-all relative bg-white font-medium
+          focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-600 shadow-xs
+          ${error ? 'border-rose-300 bg-rose-50/20' : open ? 'border-blue-600 ring-4 ring-blue-100' : 'border-slate-200 hover:border-slate-300'}
+          ${disabled ? 'opacity-50 cursor-not-allowed bg-slate-50' : 'cursor-pointer'}
+          ${hasValue ? 'pt-5 pb-2.5' : 'py-3.5'}`}
+      >
+        <span
+          className={`absolute left-4 transition-all duration-150 pointer-events-none font-bold ${
+            hasValue
+              ? 'top-1.5 text-[10px] text-blue-600 uppercase tracking-wider'
+              : 'top-1/2 -translate-y-1/2 text-xs text-slate-400 font-semibold'
+          }`}
         >
-          <span className={`absolute left-4 transition-all duration-150 pointer-events-none font-medium
-            ${hasValue
-              ? 'top-1.5 text-[10px] text-blue-500 uppercase tracking-wide'
-              : 'top-1/2 -translate-y-1/2 text-sm text-slate-400'}`}>
-            {label}
-          </span>
-          <span className={`block truncate ${hasValue ? 'text-slate-800' : 'text-transparent select-none'}`}>
-            {value || label}
-          </span>
-        </button>
-        <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
-          <Icon d={open ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
+          {label}
+        </span>
+        <span className={`block truncate ${hasValue ? 'text-slate-900 font-semibold' : 'text-transparent select-none'}`}>
+          {value || label}
+        </span>
+        <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-slate-400">
+          <svg className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
         </div>
+      </button>
 
-        {open && (
-          <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
-            {options.map(opt => (
-              <button
-                key={opt}
-                type="button"
-                onClick={() => { onChange(opt); setOpen(false) }}
-                className={`w-full text-left px-4 py-2.5 text-sm transition-colors
-                  ${value === opt
-                    ? 'bg-blue-50 text-blue-700 font-semibold'
-                    : 'text-slate-700 hover:bg-slate-50 hover:text-blue-600'}`}
-              >
-                {opt}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-      {error && <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><span>⚠</span>{error}</p>}
+      {open && (
+        <div className="absolute z-50 w-full mt-2 bg-white border border-blue-100 rounded-2xl shadow-xl max-h-56 overflow-y-auto p-1 animate-in fade-in">
+          {options.map(opt => (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => { onChange(opt); setOpen(false) }}
+              className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-colors ${
+                value === opt
+                  ? 'bg-blue-50 text-blue-700 font-bold'
+                  : 'text-slate-700 hover:bg-slate-50 hover:text-blue-600'
+              }`}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+      {error && <p className="text-[11px] text-rose-600 font-semibold mt-1.5 flex items-center gap-1"><span>⚠</span>{error}</p>}
     </div>
   )
 }
 
 export default function RegisterCompany() {
-  const { t } = useLang();
+  const { t, lang, setLang } = useLang()
+  const navigate = useNavigate()
 
   const [step, setStep] = useState(1)
   const [otpSession, setOtpSession] = useState(null)
@@ -159,7 +184,6 @@ export default function RegisterCompany() {
   const [agentName, setAgentName] = useState('')
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(null)
-  const navigate = useNavigate()
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const clearErr = k => setErrors(e => { const n = { ...e }; delete n[k]; return n })
@@ -231,14 +255,12 @@ export default function RegisterCompany() {
     setLoading(true)
     setErrors({})
     try {
-      // 1. Verify OTP
       const { data: verifyData } = await api.post('/auth/verify-otp', {
         phone: form.phone.replace(/[^0-9]/g, ''),
         otp: otpCode,
         otp_session: otpSession
       })
 
-      // 2. Register company
       const payload = {
         company_name: form.company_name,
         name: form.name,
@@ -261,54 +283,44 @@ export default function RegisterCompany() {
     }
   }
 
-  /* ── SUCCESS ── */
+  // ── SUCCESS SCREEN ──
   if (done) {
     return (
-      <div className="min-h-screen bg-linear-to-br from-blue-600 via-blue-700 to-blue-700 flex items-center justify-center p-4">
-        <div className="w-full max-w-lg">
-          <div className="bg-white rounded-3xl shadow-2xl p-10 text-center">
-
-            {/* Icon */}
-            <div className="w-24 h-24 mx-auto mb-6 rounded-3xl bg-linear-to-br from-sky-400 to-blue-500 flex items-center justify-center shadow-xl shadow-blue-200">
-              <Icon d="M5 13l4 4L19 7" cls="w-12 h-12 text-white" />
+      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
+          <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl" />
+        </div>
+        <div className="w-full max-w-lg relative z-10">
+          <div className="bg-white/95 backdrop-blur-2xl border border-blue-100 rounded-3xl shadow-[0_25px_60px_-15px_rgba(37,99,235,0.15)] p-8 sm:p-10 text-center">
+            
+            <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-xl shadow-blue-500/25 text-white">
+              <CheckCircle2 className="w-10 h-10" />
             </div>
 
-            <h2 className="text-3xl font-black text-slate-800 mb-2">{t('common.success')}</h2>
-            <p className="text-slate-500 text-base mb-8">{t('auth.companyRegistered')}</p>
+            <h2 className="text-3xl font-black text-slate-900 mb-2">{t('common.success')}</h2>
+            <p className="text-slate-500 text-sm mb-6">{t('auth.companyRegistered')}</p>
 
-            {/* Company Name */}
-            <div className="mb-4 bg-slate-50 border-2 border-slate-200 rounded-2xl px-6 py-4">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{t('settings.companyName')}</p>
-              <div className="text-2xl font-black text-slate-800">{done.company_name}</div>
+            <div className="mb-4 bg-slate-50/80 border border-slate-200/80 rounded-2xl px-6 py-4">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{t('settings.companyName')}</p>
+              <div className="text-xl font-black text-slate-800">{done.company_name}</div>
             </div>
 
-            {/* Org Code */}
-            <div className="mb-5 bg-linear-to-br from-blue-50 to-blue-50 border-2 border-blue-200 rounded-2xl px-6 py-5">
-              <p className="text-xs font-bold text-blue-400 uppercase tracking-widest mb-3">{t('settings.orgCode')}</p>
-              <div className="text-6xl font-black text-blue-700 tracking-[0.25em] leading-none">{done.org_code}</div>
-              <div className="flex items-center justify-center gap-2 text-sm text-amber-700 bg-amber-50 rounded-xl px-4 py-2.5 mt-4 border border-amber-200 font-semibold">
-                <Icon d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" cls="w-5 h-5 shrink-0 text-amber-600" />
-                {t('auth.saveThisCode') || "Ushbu kodni albatta saqlab qo'ying!"}
-              </div>
-            </div>
-
-            {/* Balance info */}
-            <div className="mb-6 bg-blue-50 border border-blue-200 rounded-2xl px-5 py-3 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
-                <Icon d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" cls="w-5 h-5 text-blue-600" />
-              </div>
-              <div className="text-left">
-                <p className="text-xs font-bold text-blue-700 uppercase tracking-wide">{t('auth.balanceOpened')}</p>
-                <p className="text-sm text-blue-600">{t('auth.fillBalance')}</p>
+            <div className="mb-6 bg-gradient-to-br from-blue-50/90 to-indigo-50/80 border border-blue-200/80 rounded-2xl px-6 py-6 shadow-xs">
+              <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-2">{t('settings.orgCode')}</p>
+              <div className="text-5xl font-black text-blue-700 tracking-[0.2em] leading-none my-2 font-mono">{done.org_code}</div>
+              <div className="flex items-center justify-center gap-2 text-xs text-amber-700 bg-amber-50 rounded-xl px-4 py-2.5 mt-4 border border-amber-200 font-semibold">
+                <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                <span>{t('auth.saveThisCode') || "Ushbu kodni albatta saqlab qo'ying!"}</span>
               </div>
             </div>
 
             <button
               onClick={() => window.location.href = '/admin/'}
-              className="w-full py-4 rounded-2xl bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white font-bold text-base transition-all shadow-lg shadow-blue-300 flex items-center justify-center gap-2"
+              className="w-full py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-base shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all flex items-center justify-center gap-2"
             >
-              {t('login.enter') || "Tizimga kirish"}
-              <Icon d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              <span>{t('login.enter') || "Tizimga kirish"}</span>
+              <ArrowRight className="w-5 h-5" />
             </button>
           </div>
         </div>
@@ -317,316 +329,435 @@ export default function RegisterCompany() {
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-slate-50 via-white to-blue-50/40 flex">
-
-      {/* ── Left panel ── */}
-      <div className="hidden lg:flex lg:w-[260px] xl:w-[300px] bg-linear-to-br from-blue-600 via-blue-700 to-blue-700 flex-col justify-between p-10 relative overflow-hidden shrink-0">
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-white/5" />
-          <div className="absolute -bottom-20 -left-20 w-80 h-80 rounded-full bg-white/5" />
-          <div className="absolute top-1/2 right-0 w-40 h-40 rounded-full bg-blue-500/20" />
-        </div>
-
-        {/* Logo */}
-        <div onClick={() => navigate('/')} className="relative cursor-pointer w-max flex items-center gap-3">
-          <ECodeLogoPrimary size={40} />
-        </div>
-
-        {/* Center content */}
-        <div className="relative space-y-6">
-          <div>
-            <h2 className="text-2xl font-black text-white leading-tight mb-2">
-              {t('auth.manageYour') || 'Biznesingizni'}<br />
-              <span className="text-blue-200">{t('auth.manageBusiness')}</span>
-            </h2>
-            <p className="text-blue-300/80 text-xs leading-relaxed mt-3">
-              {t('auth.registerDesc')}
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            {[
-              { icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z", label: t('auth.feat1') || "Real vaqtda savdo hisoboti" },
-              { icon: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4", label: t('auth.feat2') || "Ombor va zaxira boshqaruvi" },
-              { icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z", label: t('auth.feat3') || "Moliyaviy nazorat" },
-              { icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z", label: t('auth.feat4') || "Xavfsiz va ishonchli tizim" },
-            ].map(item => (
-              <div key={item.label} className="flex items-center gap-3">
-                <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
-                  <Icon d={item.icon} cls="w-3.5 h-3.5 text-blue-200" />
-                </div>
-                <span className="text-blue-100 text-xs">{item.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <p className="relative text-blue-300/50 text-xs">{t('common.copyright')}</p>
+    <div className="min-h-screen bg-[#F8FAFC] relative overflow-hidden flex flex-col justify-between">
+      
+      {/* Background Tech Grid & Glows */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div 
+          className="absolute inset-0 opacity-[0.035]"
+          style={{
+            backgroundImage: `radial-gradient(#2563EB 1px, transparent 1px)`,
+            backgroundSize: '28px 28px'
+          }}
+        />
+        <div className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-gradient-to-br from-blue-400/15 to-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-40 -right-40 w-[700px] h-[700px] bg-gradient-to-tl from-blue-500/15 to-sky-300/10 rounded-full blur-3xl pointer-events-none" />
       </div>
 
-      {/* ── Right panel (form) ── */}
-      <div className="flex-1 flex items-center justify-center p-6 lg:p-12">
-        <div className="w-full max-w-xl">
+      {/* Top Header */}
+      <header className="relative z-10 w-full max-w-7xl mx-auto px-6 py-6 flex items-center justify-between">
+        <Link to="/landing" className="flex items-center gap-3 group">
+          <ECodeLogo size={42} showText={true} />
+        </Link>
+        <RegisterLangSwitcher lang={lang} setLang={setLang} />
+      </header>
 
-          {/* Mobile logo */}
-          <div className="lg:hidden flex items-center gap-2 mb-8">
-            <ECodeLogo size={34} showText={true} textClassName="text-lg" />
-          </div>
+      {/* Main Content */}
+      <main className="relative z-10 flex-1 flex items-center justify-center px-4 py-8 sm:px-6 lg:px-8">
+        <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+          
+          {/* Left Side: Enterprise Perks & Mockup matching */}
+          <div className="hidden lg:flex lg:col-span-5 flex-col justify-center space-y-8 pr-4">
+            
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 border border-blue-200/80 text-blue-700 text-xs font-bold w-fit shadow-xs">
+              <Sparkles className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
+              <span>14 kunlik bepul sinov davri</span>
+            </div>
 
-          <div className="mb-7">
-            <h1 className="text-2xl font-black text-slate-800">{t('land.nav.register')}</h1>
-            <p className="text-slate-500 text-sm mt-1">{t('auth.createAccount')}</p>
-          </div>
-
-          <Steps current={step} />
-
-          {/* ── STEP 1 ── */}
-          {step === 1 && (
-            <div className="space-y-5">
-              <InputField
-                label={t('auth.companyNameLabel') || "Korxona nomi"}
-                icon={<Icon d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />}
-                error={errors.company_name}
-              >
-                <TInput
-                  value={form.company_name}
-                  onChange={e => { set('company_name', e.target.value); clearErr('company_name') }}
-                  placeholder={t('auth.companyNamePl') || "Masalan: Baraka Savdo MChJ"}
-                  icon={<Icon d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />}
-                  err={errors.company_name}
-                />
-              </InputField>
-
-              <div className="grid grid-cols-2 gap-4">
-                <FloatingSelect
-                  label={t('auth.region') || "Viloyat"}
-                  value={form.region}
-                  onChange={v => { set('region', v); set('district', ''); clearErr('region') }}
-                  options={Object.keys(REGIONS)}
-                  error={errors.region}
-                />
-                <FloatingSelect
-                  label={t('auth.district') || "Tuman / Shahar"}
-                  value={form.district}
-                  onChange={v => { set('district', v); clearErr('district') }}
-                  options={districts}
-                  disabled={!form.region}
-                  error={errors.district}
-                />
-              </div>
-
-              <button
-                onClick={() => { if (validateStep1()) setStep(2) }}
-                className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm transition-all shadow-md shadow-blue-200 flex items-center justify-center gap-2 mt-2"
-              >
-                {t('common.nextStep') || "Keyingi qadam"}
-                <Icon d="M13 7l5 5m0 0l-5 5m5-5H6" />
-              </button>
-
-              <p className="text-center text-sm text-slate-500">
-                {t('auth.alreadyHaveAcc') || "Allaqachon hisobingiz bormi?"}{' '}
-                <Link to="/login" className="text-blue-600 font-semibold hover:underline">{t('land.nav.login')}</Link>
+            <div>
+              <h1 className="text-4xl xl:text-5xl font-black text-slate-900 tracking-tight leading-[1.15]">
+                {t('auth.manageYour') || 'Korxonangizni'}{' '}
+                <span className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-600 bg-clip-text text-transparent">
+                  {t('auth.manageBusiness') || "raqamlashtiring"}
+                </span>
+              </h1>
+              <p className="mt-4 text-slate-600 text-sm leading-relaxed">
+                {t('auth.registerDesc') || "Savdo, ombor, mijozlar va hisobotlarni bitta kuchli va xavfsiz ERP tizimida jamlang."}
               </p>
             </div>
-          )}
 
-          {/* ── STEP 2 ── */}
-          {step === 2 && (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <InputField label={t('auth.nameSurname') || "Ism Familya"} error={errors.name}>
-                  <TInput
-                    value={form.name}
-                    onChange={e => { set('name', e.target.value); clearErr('name') }}
-                    placeholder={t('auth.namePl') || "Alisher Rahimov"}
-                    icon={<Icon d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />}
-                    err={errors.name}
-                  />
-                </InputField>
-
-                <InputField label={t('auth.phone') || "Telefon raqami"} error={errors.phone}>
-                  <TInput
-                    value={form.phone}
-                    onChange={e => { set('phone', e.target.value); clearErr('phone') }}
-                    placeholder={t('auth.phonePl') || "+998 90 000 00 00"}
-                    icon={<Icon d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />}
-                    err={errors.phone}
-                  />
-                </InputField>
-              </div>
-
-              {/* Agent kodi */}
-              <InputField
-                label={t('auth.agentCode') || "Agent kodi"}
-                icon={<Icon d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />}
-                error={errors.agent_code}
-                hint={t('auth.agentCodeHint') || "Ixtiyoriy — agent orqali kelgan bo'lsangiz kiriting"}
-              >
-                <TInput
-                  type="password"
-                  value={form.agent_code}
-                  onChange={e => {
-                    const v = e.target.value.toUpperCase()
-                    set('agent_code', v); clearErr('agent_code')
-                    if (v.length >= 3) checkAgentCode(v)
-                    else { setAgentStatus(null); setAgentName('') }
-                  }}
-                  placeholder="••••••"
-                  className="font-mono tracking-widest"
-                  icon={<Icon d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />}
-                  err={errors.agent_code || agentStatus === 'invalid'}
-                  right={
-                    agentStatus === 'checking' ? (
-                      <svg className="animate-spin w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                      </svg>
-                    ) : agentStatus === 'valid' ? (
-                      <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center">
-                        <Icon d="M5 13l4 4L19 7" cls="w-3 h-3 text-blue-600" />
-                      </div>
-                    ) : agentStatus === 'invalid' ? (
-                      <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center">
-                        <Icon d="M6 18L18 6M6 6l12 12" cls="w-3 h-3 text-red-500" />
-                      </div>
-                    ) : null
-                  }
-                />
-                {agentStatus === 'valid' && (
-                  <p className="text-xs text-blue-600 mt-1 font-medium">✓ {agentName}</p>
-                )}
-              </InputField>
-
-              <div className="grid grid-cols-2 gap-4">
-                <InputField label={t('login.password') || "Parol"} error={errors.password}>
-                  <TInput
-                    type={showPass ? 'text' : 'password'}
-                    value={form.password}
-                    onChange={e => { set('password', e.target.value); clearErr('password') }}
-                    placeholder={t('auth.passwordPl') || "Kamida 6 belgi"}
-                    icon={<Icon d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />}
-                    right={<button type="button" onClick={() => setShowPass(!showPass)} className="text-slate-400 hover:text-slate-600">{showPass ? <EyeOff /> : <EyeOpen />}</button>}
-                    err={errors.password}
-                  />
-                </InputField>
-
-                <InputField label={t('auth.confirmPassword') || "Qayta kiriting"} error={errors.confirm_password}>
-                  <TInput
-                    type={showConfirm ? 'text' : 'password'}
-                    value={form.confirm_password}
-                    onChange={e => { set('confirm_password', e.target.value); clearErr('confirm_password') }}
-                    placeholder={t('auth.confirmPasswordPl') || "Takrorlang"}
-                    icon={<Icon d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />}
-                    right={<button type="button" onClick={() => setShowConfirm(!showConfirm)} className="text-slate-400 hover:text-slate-600">{showConfirm ? <EyeOff /> : <EyeOpen />}</button>}
-                    err={errors.confirm_password}
-                  />
-                </InputField>
-              </div>
-
-              {errors.submit && (
-                <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl px-4 py-3 flex items-start gap-2">
-                  <Icon d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" cls="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>{errors.submit}</span>
+            {/* Verified Enterprise Card (matches mockup) */}
+            <div className="p-6 rounded-3xl bg-white/90 backdrop-blur-xl border border-blue-100 shadow-[0_12px_35px_rgba(37,99,235,0.06)] space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/25">
+                  <ShieldCheck className="w-6 h-6" />
                 </div>
-              )}
-
-              <div className="flex items-start gap-3 py-2">
-                <input 
-                  type="checkbox" 
-                  id="oferta" 
-                  checked={form.oferta} 
-                  onChange={e => { set('oferta', e.target.checked); clearErr('oferta') }}
-                  className="mt-0.5 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer" 
-                />
-                <label htmlFor="oferta" className="text-sm text-slate-600 leading-tight cursor-pointer">
-                  Men <a href="/oferta.pdf" target="_blank" className="text-blue-600 font-semibold hover:underline">Ommaviy oferta</a> shartlari bilan tanishdim va rozi man
-                </label>
-              </div>
-              {errors.oferta && <p className="text-xs text-red-500 mt-0 flex items-center gap-1"><span>⚠</span>{errors.oferta}</p>}
-
-              <div className="flex gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className="px-5 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm transition-all flex items-center gap-2"
-                >
-                  <Icon d="M11 17l-5-5m0 0l5-5m-5 5h12" />
-                  {t('auth.back') || "Ortga"}
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-sm transition-all shadow-md shadow-blue-200 flex items-center justify-center gap-2"
-                >
-                  {loading ? (
-                    <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>{t('auth.loadingNext') || "Yuklanmoqda..."}</>
-                  ) : (<>{t('auth.regBtn') || "Ro'yxatdan o'tish"} <Icon d="M5 13l4 4L19 7" /></>)}
-                </button>
-              </div>
-
-              <p className="text-center text-sm text-slate-500">
-                {t('auth.alreadyHaveAcc') || "Allaqachon hisobingiz bormi?"}{' '}
-                <Link to="/login" className="text-blue-600 font-semibold hover:underline">{t('land.nav.login')}</Link>
-              </p>
-            </form>
-          )}
-
-          {/* ── STEP 3 ── */}
-          {step === 3 && (
-            <form onSubmit={handleVerifyOtp} className="space-y-4">
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center mb-4">
-                  <Icon d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" cls="w-8 h-8 text-blue-600" />
+                <div>
+                  <h4 className="text-sm font-black text-slate-900">Verified Enterprise</h4>
+                  <p className="text-xs text-slate-500">Rasmiy xavfsizlik va kafolat</p>
                 </div>
-                <h3 className="text-lg font-bold text-slate-800">SMS kodni kiriting</h3>
-                <p className="text-slate-500 text-sm mt-1">
-                  <span className="font-semibold text-slate-700">{form.phone}</span> raqamiga tasdiqlash kodi yuborildi
+              </div>
+
+              <div className="space-y-2.5 pt-2 border-t border-slate-100">
+                {[
+                  "Real vaqtda savdo hisoboti",
+                  "Avtomatlashtirilgan kassa va ombor",
+                  "Jamoaviy qulay boshqaruv",
+                  "Bank darajasidagi ma'lumotlar xavfsizligi"
+                ].map((perk, i) => (
+                  <div key={i} className="flex items-center gap-2.5 text-xs font-bold text-slate-700">
+                    <CheckCheck className="w-4 h-4 text-blue-600 shrink-0" />
+                    <span>{perk}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </div>
+
+          {/* Right Side: Registration Form Card */}
+          <div className="lg:col-span-7 flex justify-center">
+            <div className="w-full max-w-xl bg-white/95 backdrop-blur-2xl border border-blue-100/90 rounded-3xl shadow-[0_20px_60px_-15px_rgba(37,99,235,0.12)] p-8 sm:p-10 relative">
+
+              <div className="mb-6">
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                  {t('land.nav.register')}
+                </h2>
+                <p className="text-slate-500 text-xs mt-1">
+                  {t('auth.createAccount')}
                 </p>
               </div>
 
-              <InputField label="Tasdiqlash kodi (4 xonali)" error={errors.otp}>
-                <input
-                  type="text"
-                  maxLength={4}
-                  value={otpCode}
-                  onChange={e => { setOtpCode(e.target.value.replace(/\D/g, '')); clearErr('otp') }}
-                  placeholder="X X X X"
-                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-center text-2xl font-mono tracking-[0.5em] text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400 transition-all bg-white"
-                />
-              </InputField>
+              <Steps current={step} t={t} />
 
-              {errors.submit && (
-                <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl px-4 py-3 flex items-start gap-2">
-                  <Icon d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" cls="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>{errors.submit}</span>
+              {/* ── STEP 1: Korxona ── */}
+              {step === 1 && (
+                <div className="space-y-5 animate-in fade-in">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+                      {t('auth.companyNameLabel') || "Korxona nomi"}
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-slate-400">
+                        <Building2 className="w-4 h-4" />
+                      </div>
+                      <input
+                        type="text"
+                        value={form.company_name}
+                        onChange={e => { set('company_name', e.target.value); clearErr('company_name') }}
+                        placeholder={t('auth.companyNamePl') || "Masalan: Baraka Savdo MChJ"}
+                        className={`w-full pl-11 pr-4 py-3.5 border rounded-2xl bg-white text-sm font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-600 transition-all shadow-xs ${
+                          errors.company_name ? 'border-rose-300 bg-rose-50/20' : 'border-slate-200'
+                        }`}
+                      />
+                    </div>
+                    {errors.company_name && (
+                      <p className="text-[11px] text-rose-600 font-semibold mt-1.5 flex items-center gap-1">
+                        <span>⚠</span>{errors.company_name}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FloatingSelect
+                      label={t('auth.region') || "Viloyat"}
+                      value={form.region}
+                      onChange={v => { set('region', v); set('district', ''); clearErr('region') }}
+                      options={Object.keys(REGIONS)}
+                      error={errors.region}
+                    />
+                    <FloatingSelect
+                      label={t('auth.district') || "Tuman / Shahar"}
+                      value={form.district}
+                      onChange={v => { set('district', v); clearErr('district') }}
+                      options={districts}
+                      disabled={!form.region}
+                      error={errors.district}
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => { if (validateStep1()) setStep(2) }}
+                    className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all flex items-center justify-center gap-2 mt-4"
+                  >
+                    <span>{t('common.nextStep') || "Keyingi qadam"}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+
+                  <div className="pt-4 border-t border-slate-100 text-center">
+                    <p className="text-xs sm:text-sm text-slate-500 font-medium">
+                      {t('auth.alreadyHaveAcc') || "Allaqachon hisobingiz bormi?"}{' '}
+                      <Link to="/login" className="text-blue-600 font-bold hover:underline ml-1">
+                        {t('land.nav.login')}
+                      </Link>
+                    </p>
+                  </div>
                 </div>
               )}
 
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setStep(2)}
-                  className="px-5 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm transition-all flex items-center gap-2"
-                >
-                  <Icon d="M11 17l-5-5m0 0l5-5m-5 5h12" />
-                  Ortga
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading || otpCode.length !== 4}
-                  className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-sm transition-all shadow-md shadow-blue-200 flex items-center justify-center gap-2"
-                >
-                  {loading ? (
-                    <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>Tasdiqlanmoqda...</>
-                  ) : (<>Tasdiqlash va kirish <Icon d="M5 13l4 4L19 7" /></>)}
-                </button>
-              </div>
-            </form>
-          )}
+              {/* ── STEP 2: Shaxsiy ── */}
+              {step === 2 && (
+                <form onSubmit={handleSubmit} className="space-y-4 animate-in fade-in">
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                        {t('auth.nameSurname') || "Ism Familya"}
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
+                          <User className="w-4 h-4" />
+                        </div>
+                        <input
+                          type="text"
+                          value={form.name}
+                          onChange={e => { set('name', e.target.value); clearErr('name') }}
+                          placeholder={t('auth.namePl') || "Alisher Rahimov"}
+                          className={`w-full pl-10 pr-3 py-3 border rounded-2xl bg-white text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-600 transition-all shadow-xs ${
+                            errors.name ? 'border-rose-300 bg-rose-50/20' : 'border-slate-200'
+                          }`}
+                        />
+                      </div>
+                      {errors.name && <p className="text-[10px] text-rose-600 font-semibold mt-1">⚠ {errors.name}</p>}
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                        {t('auth.phone') || "Telefon raqami"}
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
+                          <Phone className="w-4 h-4" />
+                        </div>
+                        <input
+                          type="text"
+                          value={form.phone}
+                          onChange={e => { set('phone', e.target.value); clearErr('phone') }}
+                          placeholder={t('auth.phonePl') || "+998 90 000 00 00"}
+                          className={`w-full pl-10 pr-3 py-3 border rounded-2xl bg-white text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-600 transition-all shadow-xs ${
+                            errors.phone ? 'border-rose-300 bg-rose-50/20' : 'border-slate-200'
+                          }`}
+                        />
+                      </div>
+                      {errors.phone && <p className="text-[10px] text-rose-600 font-semibold mt-1">⚠ {errors.phone}</p>}
+                    </div>
+                  </div>
+
+                  {/* Agent Code */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                        {t('auth.agentCode') || "Agent kodi"}
+                      </label>
+                      <span className="text-[10px] text-slate-400 font-medium">Ixtiyoriy</span>
+                    </div>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
+                        <Tag className="w-4 h-4" />
+                      </div>
+                      <input
+                        type="password"
+                        value={form.agent_code}
+                        onChange={e => {
+                          const v = e.target.value.toUpperCase()
+                          set('agent_code', v); clearErr('agent_code')
+                          if (v.length >= 3) checkAgentCode(v)
+                          else { setAgentStatus(null); setAgentName('') }
+                        }}
+                        placeholder="••••••"
+                        className={`w-full pl-10 pr-10 py-3 border rounded-2xl bg-white text-xs font-mono tracking-widest text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-600 transition-all shadow-xs ${
+                          errors.agent_code || agentStatus === 'invalid' ? 'border-rose-300 bg-rose-50/20' : 'border-slate-200'
+                        }`}
+                      />
+                      <div className="absolute inset-y-0 right-3.5 flex items-center">
+                        {agentStatus === 'checking' && (
+                          <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                        )}
+                        {agentStatus === 'valid' && (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        )}
+                        {agentStatus === 'invalid' && (
+                          <AlertCircle className="w-4 h-4 text-rose-600" />
+                        )}
+                      </div>
+                    </div>
+                    {agentStatus === 'valid' && (
+                      <p className="text-[11px] text-emerald-600 font-bold mt-1">✓ {agentName}</p>
+                    )}
+                    {errors.agent_code && (
+                      <p className="text-[10px] text-rose-600 font-semibold mt-1">⚠ {errors.agent_code}</p>
+                    )}
+                  </div>
+
+                  {/* Password & Confirm */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                        {t('login.password') || "Parol"}
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
+                          <Lock className="w-4 h-4" />
+                        </div>
+                        <input
+                          type={showPass ? 'text' : 'password'}
+                          value={form.password}
+                          onChange={e => { set('password', e.target.value); clearErr('password') }}
+                          placeholder={t('auth.passwordPl') || "Kamida 6 belgi"}
+                          className={`w-full pl-10 pr-9 py-3 border rounded-2xl bg-white text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-600 transition-all shadow-xs ${
+                            errors.password ? 'border-rose-300 bg-rose-50/20' : 'border-slate-200'
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPass(!showPass)}
+                          className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-slate-600"
+                        >
+                          {showPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                      {errors.password && <p className="text-[10px] text-rose-600 font-semibold mt-1">⚠ {errors.password}</p>}
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                        {t('auth.confirmPassword') || "Qayta kiriting"}
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
+                          <Lock className="w-4 h-4" />
+                        </div>
+                        <input
+                          type={showConfirm ? 'text' : 'password'}
+                          value={form.confirm_password}
+                          onChange={e => { set('confirm_password', e.target.value); clearErr('confirm_password') }}
+                          placeholder={t('auth.confirmPasswordPl') || "Takrorlang"}
+                          className={`w-full pl-10 pr-9 py-3 border rounded-2xl bg-white text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-600 transition-all shadow-xs ${
+                            errors.confirm_password ? 'border-rose-300 bg-rose-50/20' : 'border-slate-200'
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirm(!showConfirm)}
+                          className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-slate-600"
+                        >
+                          {showConfirm ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                      {errors.confirm_password && <p className="text-[10px] text-rose-600 font-semibold mt-1">⚠ {errors.confirm_password}</p>}
+                    </div>
+                  </div>
+
+                  {errors.submit && (
+                    <div className="bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-2xl px-4 py-3 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{errors.submit}</span>
+                    </div>
+                  )}
+
+                  {/* Oferta */}
+                  <div className="flex items-start gap-3 py-1">
+                    <input
+                      type="checkbox"
+                      id="oferta"
+                      checked={form.oferta}
+                      onChange={e => { set('oferta', e.target.checked); clearErr('oferta') }}
+                      className="mt-0.5 w-4 h-4 text-blue-600 rounded-lg border-slate-300 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <label htmlFor="oferta" className="text-xs text-slate-600 leading-tight cursor-pointer">
+                      Men <a href="/oferta.pdf" target="_blank" className="text-blue-600 font-bold hover:underline">Ommaviy oferta</a> shartlari bilan tanishdim va rozi man
+                    </label>
+                  </div>
+                  {errors.oferta && <p className="text-[10px] text-rose-600 font-semibold">⚠ {errors.oferta}</p>}
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setStep(1)}
+                      className="px-5 py-3.5 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      <span>{t('auth.back') || "Ortga"}</span>
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white font-bold text-xs shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2"
+                    >
+                      {loading ? (
+                        <span>Yuklanmoqda...</span>
+                      ) : (
+                        <>
+                          <span>{t('auth.regBtn') || "Ro'yxatdan o'tish"}</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* ── STEP 3: SMS Kod ── */}
+              {step === 3 && (
+                <form onSubmit={handleVerifyOtp} className="space-y-5 animate-in fade-in">
+                  <div className="text-center mb-6">
+                    <div className="w-14 h-14 mx-auto bg-blue-50 border border-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mb-3">
+                      <Phone className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-lg font-black text-slate-900">SMS kodni kiriting</h3>
+                    <p className="text-slate-500 text-xs mt-1">
+                      <span className="font-bold text-slate-800">{form.phone}</span> raqamiga tasdiqlash kodi yuborildi
+                    </p>
+                  </div>
+
+                  <div>
+                    <input
+                      type="text"
+                      maxLength={4}
+                      value={otpCode}
+                      onChange={e => { setOtpCode(e.target.value.replace(/\D/g, '')); clearErr('otp') }}
+                      placeholder="• • • •"
+                      className="w-full border border-slate-200 rounded-2xl px-4 py-3.5 text-center text-3xl font-mono tracking-[0.5em] text-slate-900 placeholder-slate-300 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-600 transition-all bg-white shadow-xs"
+                    />
+                    {errors.otp && <p className="text-[11px] text-rose-600 font-semibold mt-1.5 text-center">⚠ {errors.otp}</p>}
+                  </div>
+
+                  {errors.submit && (
+                    <div className="bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-2xl px-4 py-3 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{errors.submit}</span>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setStep(2)}
+                      className="px-5 py-3.5 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      <span>Ortga</span>
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading || otpCode.length !== 4}
+                      className="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white font-bold text-xs shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2"
+                    >
+                      {loading ? (
+                        <span>Tasdiqlanmoqda...</span>
+                      ) : (
+                        <>
+                          <span>Tasdiqlash va kirish</span>
+                          <CheckCircle2 className="w-4 h-4" />
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+            </div>
+          </div>
 
         </div>
-      </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="relative z-10 w-full py-6 text-center text-xs text-slate-400">
+        <p>© {new Date().getFullYear()} E-Code Universal ERP. Barcha huquqlar himoyalangan.</p>
+      </footer>
+
     </div>
   )
 }
-
