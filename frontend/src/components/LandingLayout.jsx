@@ -337,7 +337,7 @@ export default function LandingLayout({ children }) {
           {/* Bottom Bar */}
           <div className="pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-slate-400">
             <div>
-              E-code © {new Date().getFullYear()}. Barcha huquqlar himoyalangan.
+              Universal ERP © {new Date().getFullYear()}. Barcha huquqlar himoyalangan.
             </div>
             <div className="flex items-center gap-6">
               <a href="/oferta.pdf" target="_blank" className="hover:text-slate-200 transition-colors no-underline text-slate-400">Ommaviy oferta</a>

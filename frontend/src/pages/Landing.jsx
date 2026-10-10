@@ -179,8 +179,8 @@ export default function Landing() {
   const { t } = useLang()
   const navigate = useNavigate()
   useSeo(
-    "E-Code — ERP, POS va biznesni raqamlashtirish yechimlarini yaratuvchi kompaniya.",
-    "E-Code — ERP, POS va biznesni raqamlashtirish yechimlarini yaratuvchi kompaniya."
+    "Universal ERP — Biznesni raqamlashtirish yechimlarini yaratuvchi kompaniya.",
+    "Universal ERP — Biznesni raqamlashtirish yechimlarini yaratuvchi kompaniya."
   )
 
   const [leadForm, setLeadForm] = useState({ service: '', name: '', phone: '+998' })
