@@ -130,8 +130,12 @@ def _check_category(db: Session, user: User, category_id: int) -> None:
 @limiter.limit("3/minute")
 async def send_register_code(request: Request, data: AgentSendCodeIn, db: Session = Depends(get_db)):
     company = db.query(Company).filter(Company.org_code == data.org_code.strip()).first()
-    if not company or not company.is_active or not company.marketplace_agents_enabled:
-        raise HTTPException(status_code=404, detail="Korxona kodi noto'g'ri yoki marketplace yoqilmagan")
+    if not company:
+        raise HTTPException(status_code=404, detail="Kiritilgan tashkilot kodi topilmadi")
+    if not company.is_active:
+        raise HTTPException(status_code=400, detail="Ushbu tashkilot nofaol holatda")
+    if not company.marketplace_agents_enabled:
+        raise HTTPException(status_code=400, detail="Ushbu tashkilotda savdo agentlari tizimi yoqilmagan")
     
     phone = mp.normalize_phone(data.phone)
     if db.query(User).filter(User.phone.in_([phone, f"+{phone}"])).first():
@@ -163,8 +167,12 @@ async def send_register_code(request: Request, data: AgentSendCodeIn, db: Sessio
 @limiter.limit("5/minute")
 def register_agent(request: Request, data: AgentRegisterIn, db: Session = Depends(get_db)):
     company = db.query(Company).filter(Company.org_code == data.org_code.strip()).first()
-    if not company or not company.is_active or not company.marketplace_agents_enabled:
-        raise HTTPException(status_code=404, detail="Korxona kodi noto'g'ri yoki marketplace yoqilmagan")
+    if not company:
+        raise HTTPException(status_code=404, detail="Kiritilgan tashkilot kodi topilmadi")
+    if not company.is_active:
+        raise HTTPException(status_code=400, detail="Ushbu tashkilot nofaol holatda")
+    if not company.marketplace_agents_enabled:
+        raise HTTPException(status_code=400, detail="Ushbu tashkilotda savdo agentlari tizimi yoqilmagan")
 
     phone = mp.normalize_phone(data.phone)
     if db.query(User).filter(User.phone.in_([phone, f"+{phone}"])).first():

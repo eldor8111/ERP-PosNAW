@@ -27,8 +27,8 @@ class Settings(BaseSettings):
     DEFAULT_TERMINAL_ID: str = ""
     TASNIF_BASE_URL: str = "https://tasnif.soliq.uz/api/cl-api"
     # Eskiz.uz
-    ESKIZ_EMAIL: str = ""
-    ESKIZ_PASSWORD: str = ""
+    ESKIZ_EMAIL: str = "supergeroy2580@gmail.com"
+    ESKIZ_PASSWORD: str = "ajjg1m0DagelnulNNXk635Ek4tYOYTC5xvp39eGR"
     ESKIZ_FROM: str = "4546"
     ESKIZ_BASE_URL: str = "https://notify.eskiz.uz/api"
     # --- Hippo Communicator (fiskalizatsiya) ---
