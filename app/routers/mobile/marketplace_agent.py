@@ -30,7 +30,7 @@ from app.models.mobile_device import MobileDevice
 from app.models.user import User, UserRole, UserStatus
 from app.routers.mobile.base import _issue_tokens
 from app.schemas.marketplace import (
-    AgentCategoriesIn, AgentLoginIn, AgentRefreshIn, AgentRegisterIn, ProductIn, ProductUpdateIn,
+    AgentCategoriesIn, AgentLoginIn, AgentRefreshIn, AgentRegisterIn, AgentSendCodeIn, ProductIn, ProductUpdateIn,
 )
 from app.services import marketplace_service as mp
 
