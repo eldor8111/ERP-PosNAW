@@ -31,19 +31,27 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _fetchData() async {
     try {
       final profileResp = await apiClient.dio.get('/mobile/marketplace/me');
-      final balanceResp = await apiClient.dio.get('/mobile/marketplace/balance');
+      Map<String, dynamic>? balance;
+      try {
+        final balanceResp = await apiClient.dio.get('/mobile/marketplace/balance');
+        balance = balanceResp.data;
+      } catch (_) {}
       setState(() {
         _profile = profileResp.data;
-        _balance = balanceResp.data;
+        _balance = balance;
         _loading = false;
       });
     } on DioException catch (e) {
-      if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
+      if (e.response?.statusCode == 401) {
         await apiClient.clearToken();
         if (mounted) {
           Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
         }
+      } else {
+        setState(() => _loading = false);
       }
+    } catch (_) {
+      setState(() => _loading = false);
     }
   }
 

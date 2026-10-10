@@ -429,7 +429,7 @@ def agent_balance(db: Session, agent_id: int) -> dict:
 
 
 @router.get("/balance")
-def my_balance(db: Session = Depends(get_db), user: User = Depends(get_active_agent)):
+def my_balance(db: Session = Depends(get_db), user: User = Depends(get_agent)):
     return agent_balance(db, user.id)
 
 
