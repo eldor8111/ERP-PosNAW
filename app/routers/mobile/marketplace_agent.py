@@ -223,7 +223,13 @@ def register_agent(request: Request, data: AgentRegisterIn, db: Session = Depend
 @limiter.limit("10/minute")
 def agent_login(request: Request, data: AgentLoginIn, db: Session = Depends(get_db)):
     phone = mp.normalize_phone(data.phone)
-    user = db.query(User).filter(User.phone.in_([phone, f"+{phone}"]), User.role == UserRole.marketplace_agent).first()
+    user = db.query(User).filter(
+        User.phone.in_([phone, f"+{phone}"]), 
+        User.role.in_([UserRole.marketplace_agent, UserRole.agent])
+    ).first()
+    if user and user.role == UserRole.agent:
+        user.role = UserRole.marketplace_agent
+        db.flush()
     if not user or not verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Telefon yoki parol noto'g'ri")
     if user.status in (UserStatus.blocked, UserStatus.inactive):
