@@ -17,7 +17,7 @@ try:
     for u in users:
         print(f"O'chirilmoqda: ID={u.id}, Ism={u.name}, Tel={u.phone}, Rol={u.role}, Status={u.status}")
         db.query(MarketplaceAgentCategory).filter(MarketplaceAgentCategory.user_id == u.id).delete()
-        db.query(MarketplaceAgentTransaction).filter(MarketplaceAgentTransaction.user_id == u.id).delete()
+        db.query(MarketplaceAgentTransaction).filter(MarketplaceAgentTransaction.agent_id == u.id).delete()
         db.query(MobileDevice).filter(MobileDevice.user_id == u.id).delete()
         db.delete(u)
 
