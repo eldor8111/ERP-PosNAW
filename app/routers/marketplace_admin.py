@@ -146,6 +146,19 @@ def approve_product(product_id: int, background_tasks: BackgroundTasks, db: Sess
     except Exception as ex:
         logger.warning("Product sinxronlashda xatolik: %s", ex)
 
+    try:
+        mp.notify_agent(
+            db=db,
+            agent_id=p.agent_id,
+            company_id=admin.company_id,
+            title="Mahsulotingiz tasdiqlandi! ✅",
+            body=f"'{p.name}' mahsulotingiz korxona admini tomonidan tasdiqlandi va Mir-maza ga joylashtirildi.",
+            notif_type="product_approved",
+            data={"product_id": p.id},
+        )
+    except Exception as ex:
+        logger.warning("notify_agent xatoligi: %s", ex)
+
     db.commit()
     
     cat_names = mp.category_name_map()
@@ -160,6 +173,19 @@ def reject_product(product_id: int, data: RejectIn, db: Session = Depends(get_db
     p.status, p.reject_reason = MarketplaceProductStatus.rejected, data.reason.strip()
     log_action(db=db, action="MARKETPLACE_PRODUCT_REJECT", entity_type="marketplace_product",
                entity_id=p.id, user_id=admin.id, new_values={"reason": p.reject_reason})
+    try:
+        mp.notify_agent(
+            db=db,
+            agent_id=p.agent_id,
+            company_id=admin.company_id,
+            title="Mahsulotingiz rad etildi ❌",
+            body=f"'{p.name}' mahsulotingiz rad etildi. Sabab: {data.reason.strip()}",
+            notif_type="product_rejected",
+            data={"product_id": p.id, "reason": data.reason.strip()},
+        )
+    except Exception as ex:
+        logger.warning("notify_agent xatoligi: %s", ex)
+
     db.commit()
     return _product_out(p, mp.category_name_map())
 

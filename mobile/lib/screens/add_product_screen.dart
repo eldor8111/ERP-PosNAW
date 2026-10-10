@@ -71,16 +71,19 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
     setState(() => _saving = true);
     try {
-      // 1. Upload images (In a real app, upload via a separate endpoint and get URLs back)
-      // Here we mock the URLs for demonstration since we don't have a direct file upload endpoint defined yet in backend API tz.
+      // 1. Upload images to server
       List<String> imageUrls = [];
-      // For this step, if there was an upload API:
-      // for (var img in _images) { 
-      //    FormData formData = FormData.fromMap({'file': await MultipartFile.fromFile(img.path)});
-      //    var res = await apiClient.dio.post('/mobile/marketplace/upload', data: formData);
-      //    imageUrls.add(res.data['url']);
-      // }
-      
+      for (var img in _images) {
+        final filename = img.path.split('/').last.split('\\').last;
+        final formData = FormData.fromMap({
+          'file': await MultipartFile.fromFile(img.path, filename: filename),
+        });
+        final res = await apiClient.dio.post('/mobile/marketplace/upload', data: formData);
+        if (res.data != null && res.data['url'] != null) {
+          imageUrls.add(res.data['url']);
+        }
+      }
+
       // 2. Submit product
       await apiClient.dio.post('/mobile/marketplace/products', data: {
         'name': _nameCtrl.text.trim(),
@@ -89,7 +92,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         'category_id': _selectedCategoryId,
         'description': _descCtrl.text.trim(),
         'barcode': _barcodeCtrl.text.trim(),
-        'images': imageUrls, // Emulated
+        'images': imageUrls,
         'submit': asSubmit,
       });
 

@@ -77,3 +77,23 @@ class MarketplaceAgentTransaction(Base):
 
     agent = relationship("User")
     company = relationship("Company")
+
+
+class MarketplaceAgentNotification(Base):
+    __tablename__ = "marketplace_agent_notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    agent_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    
+    title = Column(String(255), nullable=False)
+    body = Column(String(1000), nullable=False)
+    notif_type = Column(String(50), default="general") # order_sold, product_approved, product_rejected, payment_received
+    data = Column(JSON, default=dict)
+    is_read = Column(Boolean, default=False, index=True)
+
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    agent = relationship("User")
+    company = relationship("Company")
+

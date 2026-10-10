@@ -117,6 +117,12 @@ def push_product_to_mirmaza(p, category_name: str = "") -> bool:
     if settings.MARKETPLACE_API_TOKEN:
         headers["X-Integration-Key"] = settings.MARKETPLACE_API_TOKEN
 
+    base = settings.SERVER_URL.rstrip("/") if settings.SERVER_URL else "https://savdo.e-code.uz"
+    full_images = []
+    for img in (p.images or []):
+        if img:
+            full_images.append(img if str(img).startswith("http") else f"{base}{img}")
+
     payload = {
         "externalId": f"ECODE-PROD-{p.id}",
         "barcode": p.barcode or "",
@@ -124,10 +130,12 @@ def push_product_to_mirmaza(p, category_name: str = "") -> bool:
         "description": p.description or "",
         "price": float(p.price),
         "stock": float(p.qty),
-        "categoryExternalId": str(p.category_id),
+        "categoryId": int(p.category_id) if p.category_id else None,
+        "categoryExternalId": str(p.category_id) if p.category_id else "",
         "categoryName": category_name,
-        "image": p.images[0] if p.images else "",
-        "isActive": p.status.value == "approved"
+        "image": full_images[0] if full_images else "",
+        "images": full_images,
+        "isActive": p.status.value == "approved",
     }
 
     try:
@@ -137,6 +145,44 @@ def push_product_to_mirmaza(p, category_name: str = "") -> bool:
     except Exception as e:
         logger.error("Mir-maza ga mahsulot yuborishda xatolik: %s", e)
         return False
+
+def notify_agent(
+    db: Session,
+    agent_id: int,
+    company_id: int,
+    title: str,
+    body: str,
+    notif_type: str = "general",
+    data: Optional[dict] = None,
+):
+    """Agentga in-app bildirishnoma va agar FCM ulangan bo'lsa Push yuborish."""
+    try:
+        from app.models.marketplace import MarketplaceAgentNotification
+        from app.models.mobile_device import MobileDevice
+        from app.services.fcm_service import send_multicast_notification
+
+        notif = MarketplaceAgentNotification(
+            agent_id=agent_id,
+            company_id=company_id,
+            title=title,
+            body=body,
+            notif_type=notif_type,
+            data=data or {},
+        )
+        db.add(notif)
+        db.flush()
+
+        devices = db.query(MobileDevice.fcm_token).filter(
+            MobileDevice.user_id == agent_id,
+            MobileDevice.fcm_token.isnot(None),
+            MobileDevice.revoked_at.is_(None),
+        ).all()
+        tokens = [d[0] for d in devices if d[0]]
+        if tokens:
+            send_multicast_notification(tokens, title, body, {k: str(v) for k, v in (data or {}).items()})
+    except Exception as e:
+        logger.warning("notify_agent xatoligi: %s", e)
+
 
 def pull_mirmaza_orders(db: Session, company_id: int):
     """Mir-Maza dan yangi buyurtmalarni tortib olish va Orders jadvaliga yozish."""
@@ -157,7 +203,9 @@ def pull_mirmaza_orders(db: Session, company_id: int):
         from app.models.order import Order, OrderStatus
         from app.models.customer import Customer
         from app.models.product import Product
-        from app.models.marketplace import MarketplaceProduct
+        from app.models.marketplace import (
+            MarketplaceProduct, MarketplaceAgentTransaction, MarketplaceTransactionType,
+        )
         
         for mo in orders:
             market_order_id = mo.get("marketOrderId")
@@ -180,7 +228,7 @@ def pull_mirmaza_orders(db: Session, company_id: int):
                     company_id=company_id,
                     name=c_data.get("name", "MirMaza Mijoz"),
                     phone=phone,
-                    type="retail"
+                    type="retail",
                 )
                 db.add(customer)
                 db.flush()
@@ -208,6 +256,33 @@ def pull_mirmaza_orders(db: Session, company_id: int):
                         mp_id = int(ext_id.split("-")[2])
                         mp_item = db.query(MarketplaceProduct).filter(MarketplaceProduct.id == mp_id).first()
                         if mp_item:
+                            # Qoldiqni yangilash
+                            qty_ordered = float(item.get("quantity", 1))
+                            mp_item.qty = max(0.0, float(mp_item.qty or 0) - qty_ordered)
+
+                            # Tranzaksiya qo'shish (agent daromadi)
+                            item_total = float(item.get("total", 0))
+                            tx = MarketplaceAgentTransaction(
+                                agent_id=mp_item.agent_id,
+                                company_id=company_id,
+                                order_id=market_order_id,
+                                transaction_type=MarketplaceTransactionType.income,
+                                amount=item_total,
+                                note=f"Mir-maza buyurtmasi #{market_order_id} ({mp_item.name})",
+                            )
+                            db.add(tx)
+
+                            # Agentga bildirishnoma yuborish
+                            notify_agent(
+                                db=db,
+                                agent_id=mp_item.agent_id,
+                                company_id=company_id,
+                                title="Mahsulotingiz sotildi! 🎉",
+                                body=f"Mir-maza marketplace'ida '{mp_item.name}' mahsulotingizdan {qty_ordered:.0f} dona sotildi. Summa: {item_total:,.0f} so'm.",
+                                notif_type="order_sold",
+                                data={"product_id": mp_item.id, "order_id": market_order_id, "amount": item_total},
+                            )
+
                             # Tizimda to'liq ishlashi uchun Product jadvalidan vaqtincha ID topamiz yoki yaratamiz
                             prod = db.query(Product).filter(Product.barcode == mp_item.barcode, Product.company_id == company_id).first()
                             if not prod:
@@ -217,16 +292,15 @@ def pull_mirmaza_orders(db: Session, company_id: int):
                                     sku=f"MP-{mp_id}",
                                     barcode=mp_item.barcode or f"MP-{mp_id}",
                                     sale_price=mp_item.price,
-                                    category_id=mp_item.category_id
+                                    category_id=mp_item.category_id,
                                 )
                                 db.add(prod)
                                 db.flush()
                             prod_id = prod.id
-                    except:
-                        pass
+                    except Exception as e:
+                        logger.warning("Agent buyurtmasini bog'lashda xatolik: %s", e)
                 
                 if not prod_id:
-                    # Noma'lum mahsulot bo'lsa o'tkazib yuboramiz
                     continue
                     
                 order = Order(
@@ -240,7 +314,7 @@ def pull_mirmaza_orders(db: Session, company_id: int):
                     status=OrderStatus.pending,
                     delivery_type="delivery",
                     delivery_address=address,
-                    notes=delivery.get("note", "")
+                    notes=delivery.get("note", ""),
                 )
                 db.add(order)
                 

@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -281,6 +281,27 @@ def agent_me(db: Session = Depends(get_db), user: User = Depends(get_agent)):
     return _agent_out(db, user)
 
 
+@router.post("/upload")
+async def upload_marketplace_image(
+    file: UploadFile = File(...),
+    user: User = Depends(get_agent),
+):
+    if file.content_type not in ("image/jpeg", "image/png", "image/webp", "image/gif", "image/jpg"):
+        raise HTTPException(status_code=400, detail="Faqat rasm formatlari (JPG, PNG, WEBP) qabul qilinadi")
+    
+    content = await file.read(10 * 1024 * 1024)  # 10MB limit
+    import anyio
+    from app.config import settings
+    from app.routers.uploads import _store
+    from app.utils import image_pipeline as ip
+    
+    filename = await anyio.to_thread.run_sync(_store, content)
+    rel_url = ip.URL_PREFIX + filename
+    base = settings.SERVER_URL.rstrip("/") if settings.SERVER_URL else "https://savdo.e-code.uz"
+    full_url = f"{base}{rel_url}"
+    return {"url": full_url, "relative_url": rel_url}
+
+
 # ── Kategoriyalar ──────────────────────────────────────────────────────────
 
 @router.get("/categories")
@@ -442,3 +463,108 @@ def my_transactions(page: int = Query(1, ge=1), page_size: int = Query(30, ge=1,
     return {"total": total, "items": [{
         "id": t.id, "type": t.transaction_type.value, "amount": float(t.amount), "order_id": t.order_id,
         "note": t.note, "created_at": t.created_at.isoformat() if t.created_at else None} for t in rows]}
+
+
+# ── Bildirishnomalar ───────────────────────────────────────────────────────
+
+@router.get("/notifications")
+def my_notifications(
+    page: int = Query(1, ge=1), page_size: int = Query(30, ge=1, le=100),
+    db: Session = Depends(get_db), user: User = Depends(get_agent),
+):
+    from app.models.marketplace import MarketplaceAgentNotification
+    q = db.query(MarketplaceAgentNotification).filter(MarketplaceAgentNotification.agent_id == user.id)
+    unread_count = q.filter(MarketplaceAgentNotification.is_read == False).count()
+    total = q.count()
+    rows = q.order_by(MarketplaceAgentNotification.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "total": total,
+        "unread_count": unread_count,
+        "items": [{
+            "id": n.id,
+            "title": n.title,
+            "body": n.body,
+            "type": n.notif_type,
+            "data": n.data,
+            "is_read": n.is_read,
+            "created_at": n.created_at.isoformat() if n.created_at else None,
+        } for n in rows],
+    }
+
+
+@router.post("/notifications/{notif_id}/read")
+def mark_notification_read(
+    notif_id: int, db: Session = Depends(get_db), user: User = Depends(get_agent),
+):
+    from app.models.marketplace import MarketplaceAgentNotification
+    n = db.query(MarketplaceAgentNotification).filter(
+        MarketplaceAgentNotification.id == notif_id,
+        MarketplaceAgentNotification.agent_id == user.id,
+    ).first()
+    if n:
+        n.is_read = True
+        db.commit()
+    return {"ok": True}
+
+
+@router.post("/notifications/read-all")
+def mark_all_notifications_read(
+    db: Session = Depends(get_db), user: User = Depends(get_agent),
+):
+    from app.models.marketplace import MarketplaceAgentNotification
+    db.query(MarketplaceAgentNotification).filter(
+        MarketplaceAgentNotification.agent_id == user.id,
+        MarketplaceAgentNotification.is_read == False,
+    ).update({"is_read": True}, synchronize_session=False)
+    db.commit()
+    return {"ok": True}
+
+
+# ── Mir-maza Webhook: Buyurtma / Sotuv bildirishnomasi ─────────────────────
+
+@router.post("/webhook/order")
+def mirmaza_order_webhook(
+    data: dict, db: Session = Depends(get_db),
+):
+    """Mir-maza da buyurtma yaratilganda yoki sotilganda to'g'ridan-to'g'ri chaqiriladigan webhook."""
+    market_order_id = data.get("marketOrderId") or data.get("orderId")
+    items = data.get("items", [])
+    
+    from app.models.marketplace import (
+        MarketplaceProduct, MarketplaceAgentTransaction, MarketplaceTransactionType,
+    )
+    
+    for item in items:
+        ext_id = item.get("externalId", "")
+        if ext_id.startswith("ECODE-PROD-"):
+            try:
+                mp_id = int(ext_id.split("-")[2])
+                mp_item = db.query(MarketplaceProduct).filter(MarketplaceProduct.id == mp_id).first()
+                if mp_item:
+                    qty_ordered = float(item.get("quantity", 1))
+                    mp_item.qty = max(0.0, float(mp_item.qty or 0) - qty_ordered)
+                    item_total = float(item.get("total", 0))
+                    
+                    tx = MarketplaceAgentTransaction(
+                        agent_id=mp_item.agent_id,
+                        company_id=mp_item.company_id,
+                        order_id=market_order_id,
+                        transaction_type=MarketplaceTransactionType.income,
+                        amount=item_total,
+                        note=f"Mir-maza buyurtmasi #{market_order_id} ({mp_item.name})",
+                    )
+                    db.add(tx)
+                    
+                    mp.notify_agent(
+                        db=db,
+                        agent_id=mp_item.agent_id,
+                        company_id=mp_item.company_id,
+                        title="Mahsulotingiz sotildi! 🎉",
+                        body=f"Mir-maza da '{mp_item.name}' mahsulotingizdan {qty_ordered:.0f} dona sotildi. Summa: {item_total:,.0f} so'm.",
+                        notif_type="order_sold",
+                        data={"product_id": mp_item.id, "order_id": market_order_id, "amount": item_total},
+                    )
+            except Exception as e:
+                logger.warning("Webhookda xatolik: %s", e)
+    db.commit()
+    return {"status": "ok"}

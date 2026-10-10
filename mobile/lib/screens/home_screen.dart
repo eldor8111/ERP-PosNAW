@@ -5,6 +5,7 @@ import 'categories_screen.dart';
 import 'add_product_screen.dart';
 import 'my_products_screen.dart';
 import 'transactions_screen.dart';
+import 'notifications_screen.dart';
 import 'package:dio/dio.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -19,6 +20,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   Map<String, dynamic>? _profile;
   Map<String, dynamic>? _balance;
+  int _unreadCount = 0;
   bool _loading = true;
   bool _isLaunching = false;
 
@@ -36,9 +38,17 @@ class _HomeScreenState extends State<HomeScreen> {
         final balanceResp = await apiClient.dio.get('/mobile/marketplace/balance');
         balance = balanceResp.data;
       } catch (_) {}
+
+      int unread = 0;
+      try {
+        final notifResp = await apiClient.dio.get('/mobile/marketplace/notifications');
+        unread = notifResp.data['unread_count'] ?? 0;
+      } catch (_) {}
+
       setState(() {
         _profile = profileResp.data;
         _balance = balance;
+        _unreadCount = unread;
         _loading = false;
       });
     } on DioException catch (e) {
@@ -218,6 +228,19 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Agent Dashboard'),
         actions: [
+          IconButton(
+            icon: Badge(
+              isLabelVisible: _unreadCount > 0,
+              label: Text('$_unreadCount'),
+              child: const Icon(Icons.notifications_outlined),
+            ),
+            onPressed: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+              );
+              _fetchData();
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: _logout,
