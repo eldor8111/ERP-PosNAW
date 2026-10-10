@@ -5,6 +5,10 @@ from app.models.user import User, SmsVerification
 from app.models.marketplace import MarketplaceAgentCategory, MarketplaceAgentTransaction
 from app.models.mobile_device import MobileDevice
 
+from app.models.audit_log import AuditLog
+from app.models.user import UserWallet
+from app.models.user_company import UserCompany
+
 db = SessionLocal()
 try:
     users = db.query(User).filter(
@@ -16,9 +20,13 @@ try:
     
     for u in users:
         print(f"O'chirilmoqda: ID={u.id}, Ism={u.name}, Tel={u.phone}, Rol={u.role}, Status={u.status}")
+        db.query(AuditLog).filter(AuditLog.user_id == u.id).delete()
+        db.query(AuditLog).filter(AuditLog.entity_type == 'user', AuditLog.entity_id == u.id).delete()
         db.query(MarketplaceAgentCategory).filter(MarketplaceAgentCategory.user_id == u.id).delete()
         db.query(MarketplaceAgentTransaction).filter(MarketplaceAgentTransaction.agent_id == u.id).delete()
         db.query(MobileDevice).filter(MobileDevice.user_id == u.id).delete()
+        db.query(UserWallet).filter(UserWallet.user_id == u.id).delete()
+        db.query(UserCompany).filter(UserCompany.user_id == u.id).delete()
         db.delete(u)
 
     # SMS kodlarini ham tozalash
