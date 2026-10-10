@@ -49,17 +49,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     try {
       // 1. Send OTP code
-      await apiClient.dio.post('/mobile/marketplace/register/send-code', data: {
+      final sendRes = await apiClient.dio.post('/mobile/marketplace/register/send-code', data: {
         'org_code': _orgCodeCtrl.text.trim(),
         'phone': '998$unmaskedPhone',
       });
+      final debugCode = sendRes.data['debug_code']?.toString();
 
       if (!mounted) return;
       // 2. Show OTP dialog
       final code = await showDialog<String>(
         context: context,
         barrierDismissible: false,
-        builder: (context) => _OtpDialog(phone: '+998 $unmaskedPhone'),
+        builder: (context) => _OtpDialog(phone: '+998 $unmaskedPhone', debugCode: debugCode),
       );
 
       if (code != null && code.isNotEmpty) {
@@ -226,14 +227,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
 class _OtpDialog extends StatefulWidget {
   final String phone;
-  const _OtpDialog({required this.phone});
+  final String? debugCode;
+  const _OtpDialog({required this.phone, this.debugCode});
 
   @override
   State<_OtpDialog> createState() => _OtpDialogState();
 }
 
 class _OtpDialogState extends State<_OtpDialog> {
-  final _codeCtrl = TextEditingController();
+  late final TextEditingController _codeCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _codeCtrl = TextEditingController(text: widget.debugCode ?? '');
+  }
+
+  @override
+  void dispose() {
+    _codeCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -242,7 +256,21 @@ class _OtpDialogState extends State<_OtpDialog> {
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('${widget.phone} raqamiga SMS kod yuborildi. Iltimos kodni kiriting:'),
+          Text('${widget.phone} raqamiga tasdiqlash kodi yuborildi. Iltimos kodni kiriting:'),
+          if (widget.debugCode != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'Tasdiqlash kodi: ${widget.debugCode}',
+                style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           TextField(
             controller: _codeCtrl,
