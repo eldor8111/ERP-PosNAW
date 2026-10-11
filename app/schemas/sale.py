@@ -243,6 +243,10 @@ class PartialReturnItem(BaseModel):
             raise ValueError("Qaytarish miqdori musbat bo'lishi kerak")
         return v
 
+class SaleAssignCustomer(BaseModel):
+    customer_id: int
+
+
 class SaleReturnRequest(BaseModel):
     items: List[PartialReturnItem]
     payment_type: PaymentType = PaymentType.cash

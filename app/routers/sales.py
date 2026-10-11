@@ -12,8 +12,8 @@ from app.database import get_db
 from app.models.customer import Customer
 from app.models.sale import Sale, SaleItem, SaleStatus
 from app.models.user import User, UserRole
-from app.schemas.sale import SaleCreate, SaleItemOut, SaleListOut, SaleOut, SaleUpdate, SaleReturnRequest, SaleBulkCreate, SaleFiscalUpdate, SalePage
-from app.services.sale_service import create_sale, create_return_sale, delete_sale, update_sale, create_pending_sale
+from app.schemas.sale import SaleCreate, SaleItemOut, SaleListOut, SaleOut, SaleUpdate, SaleReturnRequest, SaleBulkCreate, SaleFiscalUpdate, SalePage, SaleAssignCustomer
+from app.services.sale_service import create_sale, create_return_sale, delete_sale, update_sale, create_pending_sale, reassign_sale_customer
 from app.services.sale_partial_return import process_partial_return
 from app.services.hippo_fiscalize import fiscalize_sale
 from app.admin_tg_bot.notifications import trigger_instant_notification
@@ -594,6 +594,19 @@ def edit_sale(
 ):
     """Sotuvni tahrirlash: holat, izoh, to'lov miqdori"""
     sale = update_sale(db=db, sale_id=sale_id, data=data, current_user=current_user)
+    sale = _load_sale(db, sale.id, current_user)  # type: ignore
+    return _build_sale_out(sale)
+
+
+@router.put("/{sale_id}/assign-customer", response_model=SaleOut)
+def assign_sale_customer_endpoint(
+        sale_id: int,
+        data: SaleAssignCustomer,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*POS_ROLES)),
+):
+    """Sotuvga yangi mijoz biriktirish (qarzni yangi mijozga ko'chirish va sotuv sanasini saqlab qolish)."""
+    sale = reassign_sale_customer(db=db, sale_id=sale_id, new_customer_id=data.customer_id, current_user=current_user)
     sale = _load_sale(db, sale.id, current_user)  # type: ignore
     return _build_sale_out(sale)
 

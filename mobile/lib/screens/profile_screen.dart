@@ -223,7 +223,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         queryParameters: {'months': selectedM},
                       );
                       final url = Uri.parse(res.data['checkout_url']);
-                      await launchUrl(url, mode: LaunchMode.externalApplication);
+                      bool launched = false;
+                      try {
+                        launched = await launchUrl(url, mode: LaunchMode.externalApplication);
+                      } catch (_) {}
+                      if (!launched) {
+                        try {
+                          launched = await launchUrl(url, mode: LaunchMode.inAppBrowserView);
+                        } catch (_) {}
+                      }
+                      if (!launched) {
+                        try {
+                          launched = await launchUrl(url, mode: LaunchMode.platformDefault);
+                        } catch (_) {}
+                      }
                     } catch (e) {
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(

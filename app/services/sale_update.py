@@ -528,6 +528,9 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                     stock.quantity = movement.qty_before
                 db.delete(movement)
 
+    if getattr(data, "customer_id", None) is not None and data.customer_id != sale.customer_id:
+        reassign_sale_customer(db=db, sale_id=sale.id, new_customer_id=data.customer_id, current_user=current_user, commit=False)
+
     if getattr(data, "delivery", None) is not None:
         from app.services.sale_delivery_service import upsert_sale_delivery
         upsert_sale_delivery(db, sale, data.delivery, sale.company_id)
@@ -547,4 +550,109 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
         new_values={"status": str(sale.status), "paid": str(sale.paid_amount)},
     )
     db.commit()
+    return sale
+
+
+def reassign_sale_customer(db: Session, sale_id: int, new_customer_id: int, current_user: User, commit: bool = True) -> Sale:
+    """Sotuvga boshqa mijozni biriktirish yoki o'zgartirish.
+    Sotuv sanasi, raqami va tarkibi o'zgarmaydi.
+    Qarz balansi eski mijozdan (agar bo'lsa) yangi mijozga ko'chiriladi.
+    """
+    q = db.query(Sale).filter(Sale.id == sale_id)
+    if current_user.role != UserRole.super_admin:
+        q = q.filter(Sale.company_id == current_user.company_id)
+    sale = q.first()
+    if not sale:
+        raise HTTPException(status_code=404, detail="Sotuv topilmadi")
+
+    new_customer = db.query(Customer).filter(
+        Customer.id == new_customer_id,
+        Customer.company_id == sale.company_id,
+        Customer.is_deleted == False,
+    ).first()
+    if not new_customer:
+        raise HTTPException(status_code=404, detail="Mijoz topilmadi")
+
+    if sale.customer_id == new_customer_id:
+        return sale
+
+    old_customer_id = sale.customer_id
+    old_customer = None
+    if old_customer_id:
+        old_customer = db.query(Customer).filter(
+            Customer.id == old_customer_id,
+            Customer.company_id == sale.company_id,
+        ).first()
+
+    raw_debt = max(Decimal("0"), Decimal(str(sale.total_amount or 0)) - Decimal(str(sale.paid_amount or 0)))
+    exr = Decimal(str(sale.exchange_rate or 1))
+
+    sale_currency = "UZS"
+    if sale.currency_id:
+        from app.models.currency import Currency
+        curr_obj = db.query(Currency).filter(Currency.id == sale.currency_id).first()
+        if curr_obj:
+            sale_currency = curr_obj.code
+    elif getattr(sale, "currency_code", None):
+        sale_currency = sale.currency_code
+
+    from sqlalchemy.orm.attributes import flag_modified
+
+    if sale.status != SaleStatus.pending:
+        debt_amounts = getattr(sale, 'debt_amounts', None) or {}
+        if isinstance(debt_amounts, dict) and debt_amounts:
+            for curr_code, amt in debt_amounts.items():
+                amt_d = Decimal(str(amt))
+                amt_uzs = amt_d * (Decimal("1") if curr_code == "UZS" else exr)
+                if old_customer:
+                    if not old_customer.debt_balances:
+                        old_customer.debt_balances = {}
+                    curr_val = Decimal(str(old_customer.debt_balances.get(curr_code, 0)))
+                    old_customer.debt_balances[curr_code] = float(max(Decimal("0"), curr_val - amt_d))
+                    old_customer.debt_balance = max(Decimal("0"), (old_customer.debt_balance or Decimal("0")) - amt_uzs)
+
+                if not new_customer.debt_balances:
+                    new_customer.debt_balances = {}
+                new_curr_val = Decimal(str(new_customer.debt_balances.get(curr_code, 0)))
+                new_customer.debt_balances[curr_code] = float(new_curr_val + amt_d)
+                new_customer.debt_balance = (new_customer.debt_balance or Decimal("0")) + amt_uzs
+
+            if old_customer:
+                flag_modified(old_customer, "debt_balances")
+            flag_modified(new_customer, "debt_balances")
+        else:
+            debt_uzs = raw_debt * exr
+            if raw_debt > Decimal("0"):
+                if old_customer:
+                    old_customer.debt_balance = max(Decimal("0"), (old_customer.debt_balance or Decimal("0")) - debt_uzs)
+                    if not old_customer.debt_balances:
+                        old_customer.debt_balances = {}
+                    curr_val = Decimal(str(old_customer.debt_balances.get(sale_currency, 0)))
+                    old_customer.debt_balances[sale_currency] = float(max(Decimal("0"), curr_val - raw_debt))
+                    flag_modified(old_customer, "debt_balances")
+
+                new_customer.debt_balance = (new_customer.debt_balance or Decimal("0")) + debt_uzs
+                if not new_customer.debt_balances:
+                    new_customer.debt_balances = {}
+                curr_val = Decimal(str(new_customer.debt_balances.get(sale_currency, 0)))
+                new_customer.debt_balances[sale_currency] = float(curr_val + raw_debt)
+                flag_modified(new_customer, "debt_balances")
+                sale.debt_amounts = {sale_currency: float(raw_debt)}
+
+        if sale.total_amount:
+            spent_uzs = Decimal(str(sale.total_amount)) * exr
+            if old_customer:
+                old_customer.total_spent = max(Decimal("0"), (old_customer.total_spent or Decimal("0")) - spent_uzs)
+            new_customer.total_spent = (new_customer.total_spent or Decimal("0")) + spent_uzs
+
+    sale.customer_id = new_customer.id
+
+    if commit:
+        log_action(
+            db=db, action="SALE_ASSIGN_CUSTOMER", entity_type="sale", entity_id=sale.id,  # type: ignore
+            user_id=current_user.id,  # type: ignore
+            new_values={"customer_id": new_customer.id, "customer_name": new_customer.name},
+        )
+        db.commit()
+        db.refresh(sale)
     return sale

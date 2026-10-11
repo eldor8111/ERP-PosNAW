@@ -283,7 +283,10 @@ def get_payme_checkout_url(
         amount_som = 200000   # 1 oy: 200 000 UZS
 
     amount_tiyin = int(amount_som * 100)
-    raw = f"m={settings.PAYME_MERCHANT_ID};ac.agent_phone={user.phone};a={amount_tiyin}"
+    clean_phone = (user.phone or "").replace("+", "").replace(" ", "").replace("-", "")
+    # Payme Merchant kabinetida hisob parametri 'org_code' deb sozlangan.
+    # Shuning uchun agent telefon raqami ac.org_code orqali uzatiladi.
+    raw = f"m={settings.PAYME_MERCHANT_ID};ac.org_code={clean_phone};a={amount_tiyin}"
     encoded = base64.b64encode(raw.encode()).decode()
     base_url = "https://checkout.test.paycom.uz" if settings.PAYME_IS_TEST else "https://checkout.paycom.uz"
     

@@ -657,7 +657,19 @@ export default function UlgurjiSotuv() {
   const [payNote, setPayNote] = useState('');
   const [debtDate, setDebtDate] = useState('');
   const [showDebtDate, setShowDebtDate] = useState(false);
-  const [editingSale, setEditingSale] = useState(null);
+  const [editingSale, setEditingSale] = useState(() => {
+    try {
+      const s = sessionStorage.getItem('ulgurji_editing_sale');
+      return s ? JSON.parse(s) : null;
+    } catch { return null; }
+  });
+  useEffect(() => {
+    if (editingSale) {
+      sessionStorage.setItem('ulgurji_editing_sale', JSON.stringify(editingSale));
+    } else {
+      sessionStorage.removeItem('ulgurji_editing_sale');
+    }
+  }, [editingSale]);
   const [pendingSaving, setPendingSaving] = useState(false);
 
   // Fiskal tasdiqlash modal
@@ -675,6 +687,9 @@ export default function UlgurjiSotuv() {
   const LIMIT = 25;
   const [openMenuId, setOpenMenuId] = useState(null);
   const [returnSale, setReturnSale] = useState(null);
+  const [assignModalSale, setAssignModalSale] = useState(null);
+  const [assignCustId, setAssignCustId] = useState('');
+  const [savingAssignCustomer, setSavingAssignCustomer] = useState(false);
 
   const scanBufRef = useRef('');
   const scanTimeRef = useRef(0);
@@ -788,6 +803,38 @@ export default function UlgurjiSotuv() {
     if (!window.confirm(t('wholesale.confirmDeleteSale'))) return;
     try { await api.delete(`/sales/${id}`); toast.success(t('wholesale.saleDeleted')); loadSales(); }
     catch (e) { toast.error(e.response?.data?.detail || t('wholesale.deleteError')); }
+  };
+
+  const openAssignCustomerModal = (sale) => {
+    setAssignModalSale(sale);
+    setAssignCustId(sale.customer_id ? String(sale.customer_id) : '');
+  };
+
+  const handleSaveAssignCustomer = async () => {
+    if (!assignModalSale) return;
+    if (!assignCustId) {
+      toast.error(t('wholesale.selectCustomerPrompt') || 'Iltimos, mijozni tanlang');
+      return;
+    }
+    try {
+      setSavingAssignCustomer(true);
+      const res = await api.put(`/sales/${assignModalSale.id}/assign-customer`, {
+        customer_id: Number(assignCustId)
+      });
+      toast.success(t('wholesale.assignCustomerSuccess') || 'Mijoz muvaffaqiyatli biriktirildi');
+      const updatedSale = res.data;
+      setSales(prev => prev.map(s => s.id === updatedSale.id ? { ...s, customer_id: updatedSale.customer_id, customer_name: updatedSale.customer_name } : s));
+      if (selectedSale?.id === updatedSale.id) {
+        setSelectedSale(prev => ({ ...prev, customer_id: updatedSale.customer_id, customer_name: updatedSale.customer_name }));
+      }
+      setAssignModalSale(null);
+      setAssignCustId('');
+      loadSales();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Xatolik yuz berdi');
+    } finally {
+      setSavingAssignCustomer(false);
+    }
   };
 
   const printSale = async (s, size) => {
@@ -2450,9 +2497,30 @@ export default function UlgurjiSotuv() {
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          {s.customer_name
-                            ? <div className="flex items-center gap-2"><div className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-xs font-bold">{s.customer_name[0]}</div><span className="font-semibold text-slate-700">{s.customer_name}</span></div>
-                            : <span className="text-slate-400 text-xs">—</span>}
+                          {s.customer_name ? (
+                            <div className="flex items-center justify-between gap-1.5 group/cust">
+                              <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-xs font-bold">{s.customer_name[0]}</div>
+                                <span className="font-semibold text-slate-700">{s.customer_name}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); openAssignCustomerModal(s); }}
+                                className="opacity-0 group-hover/cust:opacity-100 text-[11px] text-blue-600 hover:text-blue-800 px-1.5 py-0.5 rounded bg-blue-50 hover:bg-blue-100 transition-all font-semibold"
+                                title={t('wholesale.changeCustomer')}
+                              >
+                                ✏️
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); openAssignCustomerModal(s); }}
+                              className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-lg border border-blue-200 transition-all"
+                            >
+                              <span className="text-sm font-black">+</span> {t('wholesale.assignCustomer')}
+                            </button>
+                          )}
                         </td>
                         <td className="px-4 py-3 font-black text-slate-800 text-right whitespace-nowrap">{fmt(s.total_amount)} s</td>
                         <td className="px-4 py-3 font-bold text-emerald-700 text-right whitespace-nowrap">{fmt(s.paid_amount)} s</td>
@@ -2471,6 +2539,11 @@ export default function UlgurjiSotuv() {
                               <button onClick={() => loadEditSale(s)} className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-blue-50 flex items-center gap-2.5">
                                 <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                 {t('common.edit')}
+                              </button>
+                              <button onClick={() => { openAssignCustomerModal(s); setOpenMenuId(null); }}
+                                className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-blue-50 flex items-center gap-2.5">
+                                <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                {s.customer_name ? t('wholesale.changeCustomer') : t('wholesale.assignCustomer')}
                               </button>
                               <div className="border-t border-slate-100 my-1" />
                               <div className="px-4 py-1 text-xs font-semibold text-slate-400 uppercase tracking-wide">{t('common.print')}</div>
@@ -2908,6 +2981,11 @@ export default function UlgurjiSotuv() {
               </div>
               <div className="flex items-center gap-2">
                 <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${STATUS_META[selectedSale.status]?.c || 'bg-white/20 text-white'}`}>{STATUS_META[selectedSale.status]?.lKey ? t(STATUS_META[selectedSale.status].lKey) : ''}</span>
+                <button onClick={() => { openAssignCustomerModal(selectedSale); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                  {selectedSale.customer_name ? t('wholesale.changeCustomer') : t('wholesale.assignCustomer')}
+                </button>
                 <button onClick={() => { setReturnSale(selectedSale); setSelectedSale(null); }}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold transition-colors">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
@@ -2918,6 +2996,80 @@ export default function UlgurjiSotuv() {
             </div>
             <div className="flex-1 overflow-y-auto px-6 py-5">
               <SaleDetailContent saleId={selectedSale.id} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ MIJOZ BIRIKTIRISH MODALI ══ */}
+      {assignModalSale && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setAssignModalSale(null)}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-blue-700 to-indigo-700 px-6 py-4 text-white flex items-center justify-between shrink-0">
+              <div>
+                <h3 className="font-black text-base">
+                  {assignModalSale.customer_name ? t('wholesale.changeCustomer') : t('wholesale.assignCustomer')}
+                </h3>
+                <p className="text-xs text-white/70 font-mono mt-0.5">#{assignModalSale.number} · {assignModalSale.created_at ? new Date(assignModalSale.created_at).toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}</p>
+              </div>
+              <button onClick={() => setAssignModalSale(null)} className="w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center">
+                <Ic d="M6 18L18 6M6 6l12 12" cls="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-blue-50/60 border border-blue-100 rounded-2xl p-3 text-xs space-y-1.5 text-slate-700">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">{t('common.total')}:</span>
+                  <span className="font-bold text-slate-900">{fmt(assignModalSale.total_amount)} s</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">{t('common.paid')}:</span>
+                  <span className="font-bold text-emerald-700">{fmt(assignModalSale.paid_amount)} s</span>
+                </div>
+                {Number(assignModalSale.total_amount) - Number(assignModalSale.paid_amount) > 0 && (
+                  <div className="flex justify-between border-t border-blue-200/60 pt-1.5 font-bold">
+                    <span className="text-red-600">{t('common.debt')}:</span>
+                    <span className="text-red-600">{fmt(Number(assignModalSale.total_amount) - Number(assignModalSale.paid_amount))} s</span>
+                  </div>
+                )}
+                <p className="text-[11px] text-blue-700 pt-1 border-t border-blue-200/40">
+                  ℹ️ {t('wholesale.assignCustomerHint')}
+                </p>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">{t('sale.customer')} *</label>
+                <CustomerSearch
+                  customers={customers}
+                  value={assignCustId}
+                  onChange={setAssignCustId}
+                  onNew={c => { setCustomers(prev => [...prev, c]); setAssignCustId(String(c.id)); }}
+                  onFetch={handleNewFetchedCustomers}
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setAssignModalSale(null)}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-50 transition-colors"
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  type="button"
+                  disabled={savingAssignCustomer || !assignCustId}
+                  onClick={handleSaveAssignCustomer}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md shadow-blue-200 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                >
+                  {savingAssignCustomer ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    t('common.save')
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

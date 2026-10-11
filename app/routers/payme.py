@@ -245,11 +245,21 @@ def _check_perform(req_id: Any, params: dict, db: Session) -> JSONResponse:
     agent_phone = _safe_str(account.get("agent_phone"))
     amount   = _to_amount_int(params.get("amount", 0))
 
-    if agent_phone:
-        user = db.query(User).filter(User.phone == agent_phone, User.role.in_(["marketplace_agent", "agent"])).first()
+    # Agent tekshiruvi: agent_phone yoki org_code da kelgan telefon raqami
+    phone_candidate = agent_phone
+    if not phone_candidate and org_code:
+        agent_match = db.query(User).filter(
+            User.phone.in_([org_code, f"+{org_code}"]),
+            User.role.in_(["marketplace_agent", "agent"])
+        ).first()
+        if agent_match:
+            phone_candidate = agent_match.phone
+
+    if phone_candidate:
+        user = db.query(User).filter(User.phone == phone_candidate, User.role.in_(["marketplace_agent", "agent"])).first()
         if not user:
             return _err(req_id, ERR_ORDER_NOT_FOUND, {"uz": "Agent topilmadi", "ru": "Агент не найден", "en": "Agent not found"})
-        # 1 oy: 200 000, 3 oy: 550 000 yoki 600 000, 6 oy: 1 000 000 yoki 1 200 000 UZS (tiyinda)
+        # 1 oy: 200 000, 3 oy: 550 000, 6 oy: 1 000 000 UZS (tiyinda)
         VALID_AGENT_AMOUNTS = (20000000, 55000000, 60000000, 100000000, 120000000)
         if amount not in VALID_AGENT_AMOUNTS and amount < 20000000:
             return _err(req_id, ERR_INVALID_AMOUNT, {"ru": "Неверная сумма", "uz": "Summa noto'g'ri (1 oy: 200,000, 3 oy: 550,000, 6 oy: 1,000,000 UZS)", "en": "Invalid amount"})
@@ -325,12 +335,21 @@ def _create_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
 
     company_id = 1 # Fallback, actually for agent we can just use 1 or the user's company
     
-    if agent_phone:
-        user = db.query(User).filter(User.phone == agent_phone, User.role == "marketplace_agent").first()
+    phone_candidate = agent_phone
+    if not phone_candidate and org_code:
+        agent_match = db.query(User).filter(
+            User.phone.in_([org_code, f"+{org_code}"]),
+            User.role.in_(["marketplace_agent", "agent"])
+        ).first()
+        if agent_match:
+            phone_candidate = agent_match.phone
+
+    if phone_candidate:
+        user = db.query(User).filter(User.phone == phone_candidate, User.role.in_(["marketplace_agent", "agent"])).first()
         if not user:
             return _err(req_id, ERR_ORDER_NOT_FOUND, {"uz": "Agent topilmadi", "ru": "Агент не найден"})
         company_id = user.company_id or 1
-        account_identifier = agent_phone
+        account_identifier = phone_candidate
     else:
         # Korxona topish
         company = db.query(Company).filter(
@@ -433,8 +452,11 @@ def _perform_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse
     try:
         is_agent_payment = False
         user = None
-        if txn.account_org_code and txn.account_org_code.startswith("998") and len(txn.account_org_code) == 12:
-            user = db.query(User).filter(User.phone == txn.account_org_code, User.role.in_(["marketplace_agent", "agent"])).first()
+        if txn.account_org_code:
+            user = db.query(User).filter(
+                User.phone.in_([txn.account_org_code, f"+{txn.account_org_code}"]),
+                User.role.in_(["marketplace_agent", "agent"])
+            ).first()
             if user:
                 is_agent_payment = True
 
@@ -550,8 +572,11 @@ def _cancel_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
             # Pul otgan - balansdan qaytaramiz
             is_agent_payment = False
             user = None
-            if txn.account_org_code and txn.account_org_code.startswith("998") and len(txn.account_org_code) == 12:
-                user = db.query(User).filter(User.phone == txn.account_org_code, User.role == "marketplace_agent").first()
+            if txn.account_org_code:
+                user = db.query(User).filter(
+                    User.phone.in_([txn.account_org_code, f"+{txn.account_org_code}"]),
+                    User.role.in_(["marketplace_agent", "agent"])
+                ).first()
                 if user:
                     is_agent_payment = True
 

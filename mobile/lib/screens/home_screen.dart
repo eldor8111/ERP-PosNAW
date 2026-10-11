@@ -116,12 +116,24 @@ class _HomeScreenState extends State<HomeScreen> {
         queryParameters: {'months': m},
       );
       final url = Uri.parse(res.data['checkout_url']);
-      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Havolani ochib bo\'lmadi')),
-          );
-        }
+      bool launched = false;
+      try {
+        launched = await launchUrl(url, mode: LaunchMode.externalApplication);
+      } catch (_) {}
+      if (!launched) {
+        try {
+          launched = await launchUrl(url, mode: LaunchMode.inAppBrowserView);
+        } catch (_) {}
+      }
+      if (!launched) {
+        try {
+          launched = await launchUrl(url, mode: LaunchMode.platformDefault);
+        } catch (_) {}
+      }
+      if (!launched && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Havolani ochib bo\'lmadi')),
+        );
       }
     } on DioException catch (e) {
       if (mounted) {
