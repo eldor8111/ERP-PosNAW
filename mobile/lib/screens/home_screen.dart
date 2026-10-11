@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../api/api_client.dart';
 import 'login_screen.dart';
 import 'categories_screen.dart';
@@ -6,6 +8,7 @@ import 'add_product_screen.dart';
 import 'my_products_screen.dart';
 import 'transactions_screen.dart';
 import 'notifications_screen.dart';
+import 'profile_screen.dart';
 import 'package:dio/dio.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -23,11 +26,36 @@ class _HomeScreenState extends State<HomeScreen> {
   int _unreadCount = 0;
   bool _loading = true;
   bool _isLaunching = false;
+  Timer? _notifTimer;
 
   @override
   void initState() {
     super.initState();
     _fetchData();
+    // Har 25 soniyada yangi bildirishnomalarni tekshirib, ovoz chiqarish
+    _notifTimer = Timer.periodic(const Duration(seconds: 25), (_) {
+      _pollNotifications();
+    });
+  }
+
+  @override
+  void dispose() {
+    _notifTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _pollNotifications() async {
+    try {
+      final notifResp = await apiClient.dio.get('/mobile/marketplace/notifications');
+      final unread = notifResp.data['unread_count'] ?? 0;
+      if (unread > _unreadCount) {
+        SystemSound.play(SystemSoundType.alert);
+        HapticFeedback.heavyImpact();
+      }
+      if (mounted) {
+        setState(() => _unreadCount = unread);
+      }
+    } catch (_) {}
   }
 
   Future<void> _fetchData() async {
@@ -44,6 +72,11 @@ class _HomeScreenState extends State<HomeScreen> {
         final notifResp = await apiClient.dio.get('/mobile/marketplace/notifications');
         unread = notifResp.data['unread_count'] ?? 0;
       } catch (_) {}
+
+      if (unread > _unreadCount && !_loading) {
+        SystemSound.play(SystemSoundType.alert);
+        HapticFeedback.heavyImpact();
+      }
 
       setState(() {
         _profile = profileResp.data;
@@ -255,6 +288,13 @@ class _HomeScreenState extends State<HomeScreen> {
           if (index == 1) {
             Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const CategoriesScreen(isInitialSelection: false)),
+            ).then((_) {
+              setState(() => _currentIndex = 0);
+              _fetchData();
+            });
+          } else if (index == 2) {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ProfileScreen()),
             ).then((_) {
               setState(() => _currentIndex = 0);
               _fetchData();

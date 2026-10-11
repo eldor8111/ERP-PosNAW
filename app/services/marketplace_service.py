@@ -17,7 +17,42 @@ from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 
 _lock = threading.Lock()
-_cache: Dict[str, object] = {"items": [], "ts": 0.0}
+_cache: Dict[str, object] = {"items": [], "tree": [], "ts": 0.0}
+
+
+def _flatten_tree(nodes: list, parent_id: Optional[int] = None, parent_name: Optional[str] = None, level: int = 0) -> List[dict]:
+    flat = []
+    for n in nodes:
+        if not isinstance(n, dict) or n.get("id") is None:
+            continue
+        try:
+            cid = int(n["id"])
+        except (TypeError, ValueError):
+            continue
+        name = n.get("name") or n.get("title") or n.get("name_uz") or f"#{cid}"
+        children = n.get("children", [])
+        sort_order = n.get("sortOrder", n.get("sort_order", 0))
+        try:
+            sort_order = int(sort_order)
+        except (TypeError, ValueError):
+            sort_order = 0
+        pid = n.get("parentId")
+        effective_parent_id = int(pid) if pid not in (None, "", 0) else parent_id
+        flat.append({
+            "id": cid,
+            "name": str(name)[:200],
+            "parent_id": effective_parent_id,
+            "parent_name": parent_name,
+            "sort_order": sort_order,
+            "icon": n.get("icon"),
+            "image": n.get("image"),
+            "level": level,
+            "has_children": len(children) > 0,
+            "children_count": len(children),
+        })
+        if children and isinstance(children, list):
+            flat.extend(_flatten_tree(children, parent_id=cid, parent_name=str(name)[:200], level=level + 1))
+    return flat
 
 
 def _normalize(raw) -> List[dict]:
@@ -28,6 +63,11 @@ def _normalize(raw) -> List[dict]:
                 break
     if not isinstance(raw, list):
         return []
+    
+    # Agar tree ko'rinishida kelgan bo'lsa (elementlarda children bo'lsa)
+    if any(isinstance(c, dict) and "children" in c for c in raw):
+        return _flatten_tree(raw)
+
     out = []
     for c in raw:
         if not isinstance(c, dict) or c.get("id") is None:
@@ -55,9 +95,13 @@ def _normalize(raw) -> List[dict]:
             "id": cid,
             "name": str(name)[:200],
             "parent_id": parent,
+            "parent_name": None,
             "sort_order": sort_order,
             "icon": icon,
             "image": image,
+            "level": 0 if parent is None else 1,
+            "has_children": False,
+            "children_count": 0,
         })
     out.sort(key=lambda x: (x.get("sort_order", 0), x.get("id", 0)))
     return out
@@ -71,12 +115,29 @@ def fetch_categories(force: bool = False) -> List[dict]:
         if fresh and not force:
             return list(_cache["items"])  # type: ignore[arg-type]
 
-    url = settings.MARKETPLACE_CATEGORIES_URL
-    if not url:
-        return list(_cache["items"])  # type: ignore[arg-type]
     headers = {"Accept": "application/json"}
     if settings.MARKETPLACE_API_TOKEN:
         headers["Authorization"] = f"Bearer {settings.MARKETPLACE_API_TOKEN}"
+
+    # 1. Avval daraxt (tree) API'dan to'liq 500+ kategoriyalarni olishga harakat qilamiz
+    tree_url = "https://mir-maza.uz/api/v1/categories/tree"
+    try:
+        resp = httpx.get(tree_url, headers=headers, timeout=12.0, follow_redirects=True)
+        if resp.status_code == 200:
+            tree_raw = resp.json()
+            if isinstance(tree_raw, list) and len(tree_raw) > 0:
+                items = _flatten_tree(tree_raw)
+                if items:
+                    with _lock:
+                        _cache["items"], _cache["tree"], _cache["ts"] = items, tree_raw, now
+                    return list(items)
+    except Exception as e:
+        logger.warning("mir-maza tree kategoriyalarini olib bo'lmadi: %s, standart URL sinab ko'riladi", e)
+
+    # 2. Standart URL dan olish
+    url = settings.MARKETPLACE_CATEGORIES_URL
+    if not url:
+        return list(_cache["items"])  # type: ignore[arg-type]
     try:
         resp = httpx.get(url, headers=headers, timeout=10.0, follow_redirects=True)
         resp.raise_for_status()
@@ -85,9 +146,16 @@ def fetch_categories(force: bool = False) -> List[dict]:
             with _lock:
                 _cache["items"], _cache["ts"] = items, now
             return list(items)
-    except Exception as e:  # noqa: BLE001 — tashqi tizim xatosi agentlarni to'xtatmasin
+    except Exception as e:  # noqa: BLE001
         logger.warning("mir-maza kategoriyalarini olib bo'lmadi: %s", e)
     return list(_cache["items"])  # type: ignore[arg-type]
+
+
+def fetch_categories_tree(force: bool = False) -> List[dict]:
+    """Ierarxik daraxt ko'rinishidagi kategoriyalar."""
+    fetch_categories(force=force)
+    with _lock:
+        return list(_cache.get("tree", []))  # type: ignore[arg-type]
 
 
 def category_ids() -> set:

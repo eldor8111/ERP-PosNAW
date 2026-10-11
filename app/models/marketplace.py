@@ -45,6 +45,7 @@ class MarketplaceProduct(Base):
     
     status = Column(Enum(MarketplaceProductStatus), default=MarketplaceProductStatus.draft, index=True)
     reject_reason = Column(String, nullable=True)
+    purchase_order_id = Column(Integer, nullable=True)  # ERP dagi xarid/prixod hujjati (PurchaseOrder)
 
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

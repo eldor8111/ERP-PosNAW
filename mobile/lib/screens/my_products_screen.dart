@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import '../api/api_client.dart';
 import 'package:intl/intl.dart';
+import 'edit_product_screen.dart';
 
 class MyProductsScreen extends StatefulWidget {
   const MyProductsScreen({super.key});
@@ -121,8 +122,21 @@ class _MyProductsScreenState extends State<MyProductsScreen> {
                                 ),
                             ],
                           ),
-                          onTap: () {
-                            // Optionally open product details for editing if it's draft or rejected
+                          trailing: IconButton(
+                            icon: const Icon(Icons.edit_outlined, color: Colors.blue),
+                            tooltip: 'Tahrirlash',
+                            onPressed: () async {
+                              final res = await Navigator.of(context).push(
+                                MaterialPageRoute(builder: (_) => EditProductScreen(product: product)),
+                              );
+                              if (res == true) _fetchProducts();
+                            },
+                          ),
+                          onTap: () async {
+                            final res = await Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => EditProductScreen(product: product)),
+                            );
+                            if (res == true) _fetchProducts();
                           },
                         ),
                       );

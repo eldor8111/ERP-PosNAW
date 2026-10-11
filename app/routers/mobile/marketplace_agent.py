@@ -36,8 +36,8 @@ from app.services import marketplace_service as mp
 
 router = APIRouter(prefix="/mobile/marketplace", tags=["mobile-marketplace"])
 
-# Moderatsiyani qayta talab qiladigan maydonlar (ТЗ 7-band)
-_MODERATED_FIELDS = ("name", "price", "images", "description", "category_id")
+# Moderatsiyani qayta talab qiladigan maydonlar (narx, qoldiq, nom, rasm, kategoriya)
+_MODERATED_FIELDS = ("name", "price", "qty", "images", "description", "category_id")
 
 
 # ── Yordamchilar ───────────────────────────────────────────────────────────
@@ -94,9 +94,12 @@ def _agent_out(db: Session, user: User) -> dict:
     cats = db.query(MarketplaceAgentCategory.category_id).filter(MarketplaceAgentCategory.user_id == user.id).all()
     names = mp.category_name_map()
     ids = [c[0] for c in cats]
+    company = db.query(Company).filter(Company.id == user.company_id).first()
     return {
         "id": user.id, "name": user.name, "phone": user.phone,
         "status": user.status.value, "company_id": user.company_id,
+        "org_code": company.org_code if company else "",
+        "company_name": company.name if company else "",
         "categories": [{"id": i, "name": names.get(i)} for i in ids],
         "needs_category_selection": len(ids) == 0,
     }
@@ -284,6 +287,7 @@ def agent_me(db: Session = Depends(get_db), user: User = Depends(get_agent)):
 @router.post("/upload")
 async def upload_marketplace_image(
     file: UploadFile = File(...),
+    remove_bg: bool = Query(False),
     user: User = Depends(get_agent),
 ):
     if file.content_type not in ("image/jpeg", "image/png", "image/webp", "image/gif", "image/jpg"):
@@ -294,6 +298,21 @@ async def upload_marketplace_image(
     from app.config import settings
     from app.routers.uploads import _store
     from app.utils import image_pipeline as ip
+
+    # Agar fonni tozalash so'ralgan bo'lsa
+    if remove_bg:
+        try:
+            from app.services.bg_removal_worker import remove_background
+            content = await anyio.to_thread.run_sync(remove_background, content)
+        except Exception as e:
+            # rembg xatosi yoki o'rnatilmagan bo'lsa, xavfsiz oq fon bilan saqlash
+            try:
+                def _fallback_white(raw_bytes: bytes) -> bytes:
+                    img = ip.flatten_on_white(ip.load_image(raw_bytes))
+                    return ip.to_jpeg(img, quality=90)
+                content = await anyio.to_thread.run_sync(_fallback_white, content)
+            except Exception:
+                pass
     
     filename = await anyio.to_thread.run_sync(_store, content)
     rel_url = ip.URL_PREFIX + filename
@@ -306,7 +325,10 @@ async def upload_marketplace_image(
 
 @router.get("/categories")
 def list_categories(user: User = Depends(get_agent)):
-    return {"items": mp.fetch_categories()}
+    return {
+        "items": mp.fetch_categories(),
+        "tree": mp.fetch_categories_tree(),
+    }
 
 
 @router.put("/my-categories")
@@ -443,9 +465,24 @@ def agent_balance(db: Session, agent_id: int) -> dict:
     T = MarketplaceTransactionType
     income, commission = s.get(T.income, Decimal(0)), s.get(T.commission, Decimal(0))
     refund, payout = s.get(T.refund, Decimal(0)), s.get(T.payout, Decimal(0))
+
+    # Mir-maza skladiga topshirilgan mahsulotlar statistikasi
+    prods = db.query(MarketplaceProduct).filter(
+        MarketplaceProduct.agent_id == agent_id,
+        MarketplaceProduct.status == MarketplaceProductStatus.approved,
+    ).all()
+    goods_count = len(prods)
+    goods_qty = sum(float(p.qty or 0) for p in prods)
+    goods_total_value = sum(float(p.price or 0) * float(p.qty or 0) for p in prods)
+    warehouse_debt = max(0.0, goods_total_value - float(payout))
+
     return {
         "sales": float(income), "commission": float(commission), "refunds": float(refund),
         "paid_out": float(payout), "balance": float(income - commission - refund - payout),
+        "goods_count": goods_count,
+        "goods_qty": goods_qty,
+        "goods_total_value": goods_total_value,
+        "warehouse_debt": warehouse_debt,
     }
 
 

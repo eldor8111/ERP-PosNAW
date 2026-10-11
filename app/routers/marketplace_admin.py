@@ -143,8 +143,85 @@ def approve_product(product_id: int, background_tasks: BackgroundTasks, db: Sess
                 image_url=(p.images[0] if p.images else None),
             )
             db.add(prod)
+            db.flush()
     except Exception as ex:
         logger.warning("Product sinxronlashda xatolik: %s", ex)
+        prod = None
+
+    # ERP ga avtomatik Prixod (PurchaseOrder / Xarid) shakllantirish (/admin/purchases da ko'rinishi uchun)
+    try:
+        from app.models.supplier import Supplier
+        from app.models.purchase_order import PurchaseOrder, POItem, POStatus
+        from app.models.warehouse import Warehouse
+        from app.services.inventory_service import receive_stock
+
+        agent_user = db.query(User).filter(User.id == p.agent_id).first()
+        if agent_user and prod and float(p.qty or 0) > 0 and not getattr(p, "purchase_order_id", None):
+            supplier = db.query(Supplier).filter(
+                Supplier.company_id == admin.company_id,
+                Supplier.phone == agent_user.phone,
+            ).first()
+            if not supplier:
+                supplier = Supplier(
+                    company_id=admin.company_id,
+                    name=f"Agent: {agent_user.name}",
+                    phone=agent_user.phone,
+                    notes=f"Marketplace savdo agenti #{agent_user.id}",
+                    is_active=True,
+                )
+                db.add(supplier)
+                db.flush()
+
+            wh = db.query(Warehouse).filter(Warehouse.company_id == admin.company_id, Warehouse.is_active == True).first()
+            if wh:
+                import random
+                po_num = f"PO-AG-{p.id}-{random.randint(100, 999)}"
+                cost_dec = Decimal(str(p.price or 0))
+                qty_dec = Decimal(str(p.qty or 0))
+                total_sum = cost_dec * qty_dec
+
+                po = PurchaseOrder(
+                    company_id=admin.company_id,
+                    supplier_id=supplier.id,
+                    warehouse_id=wh.id,
+                    number=po_num,
+                    status=POStatus.received,
+                    total_amount=total_sum,
+                    paid_amount=Decimal(0),
+                    supplier_debt=total_sum,
+                    note=f"Marketplace agenti ({agent_user.name}) tovari: {p.name} (MP #{p.id})",
+                    created_by=admin.id,
+                )
+                db.add(po)
+                db.flush()
+
+                po_item = POItem(
+                    po_id=po.id,
+                    product_id=prod.id,
+                    qty_ordered=qty_dec,
+                    qty_received=qty_dec,
+                    unit_cost=cost_dec,
+                )
+                db.add(po_item)
+
+                try:
+                    receive_stock(
+                        db=db,
+                        product_id=prod.id,
+                        quantity=qty_dec,
+                        user_id=admin.id,
+                        reason=f"Agent tovari qabul qilindi (PO #{po_num})",
+                        reference_type="purchase_order",
+                        reference_id=po.id,
+                        warehouse_id=wh.id,
+                    )
+                except Exception as ex_stock:
+                    logger.warning("receive_stock xatoligi: %s", ex_stock)
+
+                supplier.debt_balance = (supplier.debt_balance or Decimal(0)) + total_sum
+                p.purchase_order_id = po.id
+    except Exception as ex_po:
+        logger.warning("Avtomatik prixod yaratishda xatolik: %s", ex_po)
 
     try:
         mp.notify_agent(

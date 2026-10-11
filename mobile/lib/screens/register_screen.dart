@@ -20,6 +20,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordCtrl = TextEditingController();
   bool _loading = false;
   bool _obscurePassword = true;
+  bool _agreeOffer = true;
   String _error = '';
 
   final _phoneFormatter = MaskTextInputFormatter(
@@ -48,7 +49,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     if (_orgCodeCtrl.text.trim().isEmpty) {
       setState(() {
-        _error = 'Tashkilot kodini kiriting';
+        _error = 'Maxsus kodni kiriting';
       });
       return;
     }
@@ -63,6 +64,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (_passwordCtrl.text.isEmpty) {
       setState(() {
         _error = 'Parolni kiriting';
+      });
+      return;
+    }
+
+    if (!_agreeOffer) {
+      setState(() {
+        _error = 'Ommaviy oferta shartlariga rozilik bildirilishi kerak';
       });
       return;
     }
@@ -136,6 +144,102 @@ class _RegisterScreenState extends State<RegisterScreen> {
         });
       }
     }
+  }
+
+  void _showOfferDialog(BuildContext context) {
+    const brandBlue = Color(0xFF2563EB);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        maxChildSize: 0.95,
+        minChildSize: 0.5,
+        expand: false,
+        builder: (_, scrollController) => Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 48,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Ommaviy Oferta',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const Divider(),
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  children: const [
+                    Text(
+                      'Savdo agentlari bilan hamkorlik qilish bo\'yicha\nOMMAVIY OFERTA SHARTNOMASI',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: 16),
+                    Text(
+                      '1. Umumiy qoidalar\n'
+                      '1.1. Mazkur hujjat E-Code ERP va Mir-Maza marketplace tizimida faoliyat yurituvchi savdo agentlari uchun rasmiy taklif (ommaviy oferta) hisoblanadi.\n'
+                      '1.2. Ilovada ro\'yxatdan o\'tish va "Roziman" tugmasini bosish orqali Agent ushbu shartnoma shartlarini to\'liq va so\'zsiz qabul qiladi (aksept).\n\n'
+                      '2. Agentning huquq va majburiyatlari\n'
+                      '2.1. Agent biriktirilgan tashkilot (distribyutor) maxsus kodi orqali tizimga kiradi va o\'z tovarlarini moderatsiyaga taqdim etadi.\n'
+                      '2.2. Mahsulotlarning sifati, tavsifi va sotuvga yaroqliligi uchun Agent javobgardir.\n'
+                      '2.3. Mir-maza skladiga topshirilgan tovarlar korxona admini tomonidan qabul qilinadi va avtomatik xarid (prixod) sifatida rasmiylashtiriladi.\n\n'
+                      '3. Moliyaviy hisob-kitoblar va to\'lovlar\n'
+                      '3.1. Sotilgan tovarlar uchun hisob-kitoblar kelishilgan komissiya va narxlar asosida amalga oshiriladi.\n'
+                      '3.2. Agent o\'zining joriy balansi, sotuvlari va konsignatsiya qoldiqlarini mobil ilova orqali real vaqt rejimida kuzatib boradi.\n'
+                      '3.3. Mablag\'lar agent hisobiga bank o\'tkazmasi yoki Payme tizimi orqali to\'lab beriladi.\n\n'
+                      '4. Konfidensiallik va xavfsizlik\n'
+                      '4.1. Tomonlar tijorat siri va shaxsiy ma\'lumotlar xavfsizligini ta\'minlash majburiyatini oladilar.\n'
+                      '4.2. Ushbu shartnoma qonunchilik talablariga muvofiq tartibga solinadi.',
+                      style: TextStyle(fontSize: 13, height: 1.6, color: Color(0xFF334155)),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: brandBlue,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  onPressed: () {
+                    setState(() => _agreeOffer = true);
+                    Navigator.pop(ctx);
+                  },
+                  child: const Text('Shartlarni qabul qilaman', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -237,9 +341,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         const SizedBox(height: 18),
                       ],
 
-                      // Org Code Field
+                      // Maxsus Kod Field
                       const Text(
-                        'KORXONA KODI (ORG CODE)',
+                        'MAXSUS KOD',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
@@ -426,7 +530,52 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 26),
+                      const SizedBox(height: 16),
+
+                      // Oferta Checkbox
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: Checkbox(
+                              value: _agreeOffer,
+                              activeColor: brandBlue,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+                              onChanged: (val) {
+                                setState(() {
+                                  _agreeOffer = val ?? false;
+                                });
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => _showOfferDialog(context),
+                              child: const Text.rich(
+                                TextSpan(
+                                  text: 'Men ',
+                                  style: TextStyle(fontSize: 12, color: Color(0xFF475569)),
+                                  children: [
+                                    TextSpan(
+                                      text: 'Ommaviy oferta shartlariga',
+                                      style: TextStyle(
+                                        color: brandBlue,
+                                        fontWeight: FontWeight.bold,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                    TextSpan(text: ' roziman'),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
 
                       // Register Button with Gradient
                       SizedBox(

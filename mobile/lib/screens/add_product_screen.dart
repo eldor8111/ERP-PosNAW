@@ -22,6 +22,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   List<dynamic> _myCategories = [];
   bool _loading = true;
   bool _saving = false;
+  bool _removeBg = true;
   
   final List<File> _images = [];
   final ImagePicker _picker = ImagePicker();
@@ -78,7 +79,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
         final formData = FormData.fromMap({
           'file': await MultipartFile.fromFile(img.path, filename: filename),
         });
-        final res = await apiClient.dio.post('/mobile/marketplace/upload', data: formData);
+        final res = await apiClient.dio.post(
+          '/mobile/marketplace/upload',
+          queryParameters: {'remove_bg': _removeBg},
+          data: formData,
+        );
         if (res.data != null && res.data['url'] != null) {
           imageUrls.add(res.data['url']);
         }
@@ -170,6 +175,37 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       ],
                     ),
                   )),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Background removal switch
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.auto_fix_high, color: Color(0xFF2563EB), size: 20),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Fonni tozalash (Oq fon)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                        Text('Marketplace uchun rasmni toza oq fonga keltiradi', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: _removeBg,
+                    activeThumbColor: const Color(0xFF2563EB),
+                    onChanged: (v) => setState(() => _removeBg = v),
+                  ),
                 ],
               ),
             ),
