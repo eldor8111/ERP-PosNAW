@@ -568,7 +568,6 @@ def reassign_sale_customer(db: Session, sale_id: int, new_customer_id: int, curr
     new_customer = db.query(Customer).filter(
         Customer.id == new_customer_id,
         Customer.company_id == sale.company_id,
-        Customer.is_deleted == False,
     ).first()
     if not new_customer:
         raise HTTPException(status_code=404, detail="Mijoz topilmadi")
@@ -596,25 +595,37 @@ def reassign_sale_customer(db: Session, sale_id: int, new_customer_id: int, curr
     elif getattr(sale, "currency_code", None):
         sale_currency = sale.currency_code
 
+    import json
+    def _parse_dict(v):
+        if isinstance(v, dict):
+            return dict(v)
+        if isinstance(v, str) and v.strip():
+            try:
+                res = json.loads(v)
+                return res if isinstance(res, dict) else {}
+            except Exception:
+                return {}
+        return {}
+
     from sqlalchemy.orm.attributes import flag_modified
 
-    if sale.status != SaleStatus.pending:
-        debt_amounts = getattr(sale, 'debt_amounts', None) or {}
-        if isinstance(debt_amounts, dict) and debt_amounts:
+    if str(getattr(sale.status, "value", sale.status)) != "pending":
+        debt_amounts = _parse_dict(getattr(sale, 'debt_amounts', None))
+        if debt_amounts:
             for curr_code, amt in debt_amounts.items():
                 amt_d = Decimal(str(amt))
                 amt_uzs = amt_d * (Decimal("1") if curr_code == "UZS" else exr)
                 if old_customer:
-                    if not old_customer.debt_balances:
-                        old_customer.debt_balances = {}
-                    curr_val = Decimal(str(old_customer.debt_balances.get(curr_code, 0)))
-                    old_customer.debt_balances[curr_code] = float(max(Decimal("0"), curr_val - amt_d))
+                    old_b = _parse_dict(old_customer.debt_balances)
+                    curr_val = Decimal(str(old_b.get(curr_code, 0)))
+                    old_b[curr_code] = float(max(Decimal("0"), curr_val - amt_d))
+                    old_customer.debt_balances = old_b
                     old_customer.debt_balance = max(Decimal("0"), (old_customer.debt_balance or Decimal("0")) - amt_uzs)
 
-                if not new_customer.debt_balances:
-                    new_customer.debt_balances = {}
-                new_curr_val = Decimal(str(new_customer.debt_balances.get(curr_code, 0)))
-                new_customer.debt_balances[curr_code] = float(new_curr_val + amt_d)
+                new_b = _parse_dict(new_customer.debt_balances)
+                new_curr_val = Decimal(str(new_b.get(curr_code, 0)))
+                new_b[curr_code] = float(new_curr_val + amt_d)
+                new_customer.debt_balances = new_b
                 new_customer.debt_balance = (new_customer.debt_balance or Decimal("0")) + amt_uzs
 
             if old_customer:
@@ -625,17 +636,17 @@ def reassign_sale_customer(db: Session, sale_id: int, new_customer_id: int, curr
             if raw_debt > Decimal("0"):
                 if old_customer:
                     old_customer.debt_balance = max(Decimal("0"), (old_customer.debt_balance or Decimal("0")) - debt_uzs)
-                    if not old_customer.debt_balances:
-                        old_customer.debt_balances = {}
-                    curr_val = Decimal(str(old_customer.debt_balances.get(sale_currency, 0)))
-                    old_customer.debt_balances[sale_currency] = float(max(Decimal("0"), curr_val - raw_debt))
+                    old_b = _parse_dict(old_customer.debt_balances)
+                    curr_val = Decimal(str(old_b.get(sale_currency, 0)))
+                    old_b[sale_currency] = float(max(Decimal("0"), curr_val - raw_debt))
+                    old_customer.debt_balances = old_b
                     flag_modified(old_customer, "debt_balances")
 
                 new_customer.debt_balance = (new_customer.debt_balance or Decimal("0")) + debt_uzs
-                if not new_customer.debt_balances:
-                    new_customer.debt_balances = {}
-                curr_val = Decimal(str(new_customer.debt_balances.get(sale_currency, 0)))
-                new_customer.debt_balances[sale_currency] = float(curr_val + raw_debt)
+                new_b = _parse_dict(new_customer.debt_balances)
+                curr_val = Decimal(str(new_b.get(sale_currency, 0)))
+                new_b[sale_currency] = float(curr_val + raw_debt)
+                new_customer.debt_balances = new_b
                 flag_modified(new_customer, "debt_balances")
                 sale.debt_amounts = {sale_currency: float(raw_debt)}
 
